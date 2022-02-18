@@ -3,7 +3,7 @@
 
 #include "openssl/rsa_key_pair.h"
 
-#include "rsa_key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
 
 namespace crypto
 {

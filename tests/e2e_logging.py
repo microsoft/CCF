@@ -171,7 +171,7 @@ def test_large_messages(network, args):
             # 1K and move up to 1M and make sure they can cope with it.
             # Starting below 16K also helps identify problems (by seeing some
             # pass but not others, and finding where does it fail).
-            log_id = 40
+            log_id = network.txs.find_max_log_id() + 1
             for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
                 long_msg = "X" * (2**p)
                 check_commit(
@@ -194,7 +194,7 @@ def test_remove(network, args):
         check = infra.checker.Checker()
 
         with primary.client("user0") as c:
-            log_id = 44
+            log_id = network.txs.find_max_log_id() + 1
             msg = "Will be deleted"
 
             for table in ["private", "public"]:
@@ -233,8 +233,9 @@ def test_clear(network, args):
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
+        start_log_id = network.txs.find_max_log_id() + 1
         with primary.client("user0") as c:
-            log_ids = list(range(40, 50))
+            log_ids = list(range(start_log_id, start_log_id + 10))
             msg = "Will be deleted"
 
             for table in ["private", "public"]:
@@ -291,8 +292,9 @@ def test_record_count(network, args):
                 count = get_count(resource)
 
                 # Add several new IDs
+                start_log_id = network.txs.find_max_log_id() + 1
                 for i in range(10):
-                    log_id = 234 + i
+                    log_id = start_log_id + i
                     check_commit(
                         c.post(resource, {"id": log_id, "msg": msg}),
                         result=True,
@@ -323,7 +325,7 @@ def test_cert_prefix(network, args):
 
     for user in network.users:
         with primary.client(user.local_id) as c:
-            log_id = 101
+            log_id = network.txs.find_max_log_id() + 1
             msg = "This message will be prefixed"
             c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
             r = c.get(f"/app/log/private?id={log_id}")
@@ -340,7 +342,7 @@ def test_anonymous_caller(network, args):
     # Create a new user but do not record its identity
     network.create_user("user5", args.participants_curve, record=False)
 
-    log_id = 101
+    log_id = network.txs.find_max_log_id() + 1
     msg = "This message is anonymous"
     with primary.client("user5") as c:
         r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
@@ -516,7 +518,7 @@ def test_custom_auth_safety(network, args):
 def test_raw_text(network, args):
     primary, _ = network.find_primary()
 
-    log_id = 101
+    log_id = network.txs.find_max_log_id() + 1
     msg = "This message is not in JSON"
     with primary.client("user0") as c:
         r = c.post(
@@ -961,7 +963,7 @@ def test_forwarding_frontends(network, args):
         check_commit = infra.checker.Checker(c)
         check = infra.checker.Checker()
         msg = "forwarded_msg"
-        log_id = 123
+        log_id = network.txs.find_max_log_id() + 1
         check_commit(
             c.post("/app/log/private", {"id": log_id, "msg": msg}),
             result=True,
@@ -996,9 +998,11 @@ def test_user_data_ACL(network, args):
         primary, user.service_id, user_data={"isAdmin": True}
     )
 
+    log_id = network.txs.find_max_log_id() + 1
+
     # Confirm that user can now use this endpoint
     with primary.client(user.local_id) as c:
-        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        r = c.post("/app/log/private/admin_only", {"id": log_id, "msg": "hello world"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
     # Remove permission
@@ -1008,7 +1012,7 @@ def test_user_data_ACL(network, args):
 
     # Confirm that user is now forbidden on this endpoint
     with primary.client(user.local_id) as c:
-        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        r = c.post("/app/log/private/admin_only", {"id": log_id, "msg": "hello world"})
         assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
 
     return network

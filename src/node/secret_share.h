@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/entropy.h"
+#include "ccf/crypto/entropy.h"
 
 #include <array>
 #define FMT_HEADER_ONLY
