@@ -96,7 +96,7 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, _ = network.find_primary()
 
         check = infra.checker.Checker()
@@ -149,7 +149,7 @@ def run_nobuiltins(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         nobuiltins.test_nobuiltins_endpoints(network, args)
 
 
