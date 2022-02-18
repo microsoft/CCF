@@ -101,7 +101,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
-                       sss.enclave ccf_endpoints.enclave
+                       sss.enclave ccf_endpoints.enclave ccf_kv.enclave
   )
 
   if(ENABLE_HTTP2)
@@ -153,6 +153,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            quickjs.host
            sss.host
            ccf_endpoints.host
+           ccf_kv.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -322,7 +323,9 @@ if(BUILD_TESTS)
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_link_libraries(history_test PRIVATE ccfcrypto.host http_parser.host)
+    target_link_libraries(
+      history_test PRIVATE ccfcrypto.host http_parser.host ccf_kv.host
+    )
 
     add_unit_test(
       secret_sharing_test
@@ -333,32 +336,34 @@ if(BUILD_TESTS)
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
-    target_link_libraries(encryptor_test PRIVATE ccfcrypto.host)
+    target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
 
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser.host sss.host
+      historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
     )
 
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
-    target_link_libraries(indexing_test PRIVATE ccf_endpoints.host sss.host)
+    target_link_libraries(
+      indexing_test PRIVATE ccf_endpoints.host sss.host ccf_kv.host
+    )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE)
+    target_link_libraries(snapshot_test PRIVATE ccf_kv.host)
 
     add_unit_test(
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE)
+    target_link_libraries(snapshotter_test PRIVATE ccf_kv.host)
 
     add_unit_test(
       node_info_json_test
@@ -395,7 +400,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-                            ccf_endpoints.host quickjs.host
+                            ccf_endpoints.host ccf_kv.host quickjs.host
     )
 
     add_unit_test(
@@ -408,8 +413,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(
-      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                               sss.host ccf_endpoints.host quickjs.host
+      proposal_id_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
+              ccf_endpoints.host quickjs.host ccf_kv.host
     )
 
     add_unit_test(
@@ -418,7 +424,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 sss.host ccf_endpoints.host
+                                 sss.host ccf_endpoints.host ccf_kv.host
     )
 
     add_unit_test(
@@ -476,7 +482,11 @@ if(BUILD_TESTS)
     SRCS src/crypto/test/bench.cpp
     LINK_LIBS
   )
-  add_picobench(history_bench SRCS src/node/test/history_bench.cpp)
+  add_picobench(
+    history_bench
+    SRCS src/node/test/history_bench.cpp
+    LINK_LIBS ccf_kv.host
+  )
 
   if(LONG_TESTS)
     add_picobench(
