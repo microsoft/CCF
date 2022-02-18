@@ -7,6 +7,20 @@
 
 namespace kv
 {
+  using Version = uint64_t;
+
+  class ConfigurableConsensus;
+
+  class ConsensusHook
+  {
+  public:
+    virtual void call(ConfigurableConsensus*) = 0;
+    virtual ~ConsensusHook(){};
+  };
+
+  using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
+  using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
+
   /// Signature for transaction commit handlers
   template <typename TWrites>
   using CommitHook = std::function<void(Version, const TWrites&)>;

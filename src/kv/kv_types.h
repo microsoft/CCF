@@ -9,6 +9,7 @@
 #include "ccf/tx_id.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
+#include "kv/hooks.h"
 #include "node/identity.h"
 #include "serialiser_declare.h"
 #include "service/tables/resharing_types.h"
@@ -244,16 +245,6 @@ namespace kv
       kv::Version version, const std::vector<uint8_t>& tree) = 0;
     virtual void update_parameters(ConsensusParameters& params) = 0;
   };
-
-  class ConsensusHook
-  {
-  public:
-    virtual void call(ConfigurableConsensus*) = 0;
-    virtual ~ConsensusHook(){};
-  };
-
-  using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
-  using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
 
   using BatchVector = std::vector<std::tuple<
     Version,
