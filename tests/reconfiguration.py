@@ -707,7 +707,9 @@ def check_2tx_ledger(ledger_paths, learner_id):
 
 
 @reqs.description("Migrate from 1tx to 2tx reconfiguration scheme")
-def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwargs):
+def test_migration_2tx_reconfiguration(
+    network, args, initial_is_1tx=True, from_snapshot=False, **kwargs
+):
     primary, _ = network.find_primary()
 
     # Check that the service config agrees that this is a 1tx network
@@ -733,7 +735,7 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
             assert len(rj["details"]["learners"]) == 0
 
     new_node = network.create_node("local://localhost", **kwargs)
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=from_snapshot)
     network.trust_node(new_node, args)
 
     # Check that the new node has the right consensus parameter
