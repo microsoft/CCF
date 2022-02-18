@@ -46,9 +46,12 @@ namespace crypto
      * @return Boolean indicating success
      */
     virtual bool verify(
-      CBuffer contents, CBuffer sig, MDType md_type = MDType::NONE) const
+      std::span<const uint8_t> contents,
+      std::span<const uint8_t> sig,
+      MDType md_type = MDType::NONE) const
     {
-      return verify(contents.p, contents.n, sig.p, sig.n, md_type);
+      return verify(
+        contents.data(), contents.size(), sig.data(), sig.size(), md_type);
     }
 
     /** Verify a signature

@@ -395,15 +395,15 @@ namespace ccf
         return false;
       }
 
-      CBuffer ks = extract_buffer(data, size);
-      if (ks.n == 0)
+      auto ks = extract_span(data, size);
+      if (ks.empty())
       {
         CHANNEL_RECV_FAIL("Empty keyshare");
         return false;
       }
 
-      CBuffer sig = extract_buffer(data, size);
-      if (sig.n == 0)
+      auto sig = extract_span(data, size);
+      if (sig.empty())
       {
         CHANNEL_RECV_FAIL("Empty signature");
         return false;
@@ -504,15 +504,15 @@ namespace ccf
         return false;
       }
 
-      CBuffer ks = extract_buffer(data, size);
-      if (ks.n == 0)
+      auto ks = extract_span(data, size);
+      if (ks.empty())
       {
         CHANNEL_RECV_FAIL("Empty keyshare");
         return false;
       }
 
-      CBuffer sig = extract_buffer(data, size);
-      if (sig.n == 0)
+      auto sig = extract_span(data, size);
+      if (sig.empty())
       {
         CHANNEL_RECV_FAIL("Empty signature");
         return false;
@@ -542,7 +542,7 @@ namespace ccf
 
       {
         // We are the initiator and expect a signature over both key shares
-        std::vector<uint8_t> signed_msg = {ks.p, ks.p + ks.n};
+        std::vector<uint8_t> signed_msg(ks.begin(), ks.end());
         const auto& oks = kex_ctx.get_own_key_share();
         signed_msg.insert(signed_msg.end(), oks.begin(), oks.end());
 
@@ -587,8 +587,8 @@ namespace ccf
       //   return false;
       // }
 
-      CBuffer sig = extract_buffer(data, size);
-      if (sig.n == 0)
+      auto sig = extract_span(data, size);
+      if (sig.empty())
       {
         CHANNEL_RECV_FAIL("Empty signature");
         return false;
@@ -748,7 +748,9 @@ namespace ccf
     }
 
     bool verify_peer_signature(
-      CBuffer msg, CBuffer sig, crypto::VerifierPtr verifier)
+      std::span<const uint8_t> msg,
+      std::span<const uint8_t> sig,
+      crypto::VerifierPtr verifier)
     {
       CHANNEL_RECV_TRACE(
         "Verifying peer signature with peer certificate serial {}",
