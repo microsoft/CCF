@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/sha256.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/indexing/lfs_interface.h"
-#include "crypto/entropy.h"
-#include "crypto/hash.h"
-#include "crypto/symmetric_key.h"
 #include "ds/hex.h"
 #include "ds/messaging.h"
 #include "indexing/lfs_ringbuffer_types.h"
@@ -240,7 +240,7 @@ namespace ccf::indexing
 #ifdef PLAINTEXT_CACHE
       return key;
 #else
-      const auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
+      const auto h = crypto::sha256((const uint8_t*)key.data(), key.size());
       return ds::to_hex(h);
 #endif
     }

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/entropy.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "crypto/hmac.h"
-#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "service/tables/secrets.h"
 #include "service/tables/shares.h"

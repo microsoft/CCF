@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "../channels.h"
 
+#include "ccf/crypto/verifier.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
-#include "crypto/verifier.h"
 #include "ds/hex.h"
 #include "ds/ring_buffer.h"
 #include "node/entities.h"

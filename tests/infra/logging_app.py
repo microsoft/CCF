@@ -70,6 +70,14 @@ class LoggingTxs:
         msgs = txs[idx]
         return (idx, msgs[-1])
 
+    def find_max_log_id(self):
+        max_id = None
+        for txs in [self.priv, self.pub]:
+            for k in txs:
+                if max_id is None or k > max_id:
+                    max_id = k
+        return 0 if max_id is None else max_id
+
     def issue(
         self,
         network,

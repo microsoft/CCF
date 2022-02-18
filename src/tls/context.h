@@ -5,14 +5,11 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/ds/logger.h"
 #include "cert.h"
-#include "crypto/entropy.h"
 #include "tls/tls.h"
 
 #include <memory>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
-
-using namespace crypto;
 
 namespace tls
 {

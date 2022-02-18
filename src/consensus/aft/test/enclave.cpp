@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "ccf/crypto/key_pair.h"
 #include "consensus/ledger_enclave.h"
-#include "crypto/key_pair.h"
 #include "ds/ring_buffer.h"
 
 #include <doctest/doctest.h>
