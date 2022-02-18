@@ -101,6 +101,9 @@ namespace kv
       }
     }
 
+    // Should this be virtual?
+    void reset();
+
   public:
     BaseTx(AbstractStore* _store);
 
@@ -109,9 +112,6 @@ namespace kv
     BaseTx(const BaseTx& that) = delete;
 
     virtual ~BaseTx();
-
-    // TODO: Should be protected here
-    void reset();
 
     std::optional<crypto::Sha256Hash> get_root_at_read_version()
     {

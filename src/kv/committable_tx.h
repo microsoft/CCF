@@ -102,6 +102,11 @@ namespace kv
   public:
     CommittableTx(AbstractStore* _store) : Tx(_store) {}
 
+    void reset()
+    {
+      Tx::reset();
+    }
+
     /** Commit this transaction to the local KV and submit it to consensus for
      * replication
      *

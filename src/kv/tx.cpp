@@ -106,17 +106,6 @@ namespace kv
       pimpl->read_txid->version));
   }
 
-  BaseTx::BaseTx(AbstractStore* store_)
-  {
-    pimpl = new PrivateImpl;
-    pimpl->store = store_;
-  }
-
-  BaseTx::~BaseTx()
-  {
-    delete pimpl;
-  }
-
   void BaseTx::reset()
   {
     auto store = pimpl->store;
@@ -127,5 +116,16 @@ namespace kv
 
     pimpl = new PrivateImpl;
     pimpl->store = store;
+  }
+
+  BaseTx::BaseTx(AbstractStore* store_)
+  {
+    pimpl = new PrivateImpl;
+    pimpl->store = store_;
+  }
+
+  BaseTx::~BaseTx()
+  {
+    delete pimpl;
   }
 }
