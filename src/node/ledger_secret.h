@@ -91,7 +91,7 @@ namespace ccf
           encrypted_ls.hdr.get_iv(),
           encrypted_ls.hdr.tag,
           encrypted_ls.cipher,
-          nullb,
+          {},
           decrypted_ls_raw.data()))
     {
       throw std::logic_error("Decryption of previous ledger secret failed");

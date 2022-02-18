@@ -63,7 +63,7 @@ namespace ccf
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
         ledger_secret->raw_key,
-        nullb,
+        {},
         encrypted_ls.cipher.data(),
         encrypted_ls.hdr.tag);
 
@@ -83,7 +83,7 @@ namespace ccf
             encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,
-            nullb,
+            {},
             decrypted_ls.data()))
       {
         throw std::logic_error("Unwrapping latest ledger secret failed");
@@ -201,7 +201,7 @@ namespace ccf
         latest_ledger_secret->key->encrypt(
           encrypted_previous_ls.hdr.get_iv(),
           previous_ledger_secret->second->raw_key,
-          nullb,
+          {},
           encrypted_previous_ls.cipher.data(),
           encrypted_previous_ls.hdr.tag);
 
@@ -232,7 +232,7 @@ namespace ccf
       current_ledger_secret->key->encrypt(
         encrypted_submitted_share.hdr.get_iv(),
         submitted_share,
-        nullb,
+        {},
         encrypted_submitted_share.cipher.data(),
         encrypted_submitted_share.hdr.tag);
 
@@ -251,7 +251,7 @@ namespace ccf
         encrypted_share.hdr.get_iv(),
         encrypted_share.hdr.tag,
         encrypted_share.cipher,
-        nullb,
+        {},
         decrypted_share.data());
 
       return decrypted_share;

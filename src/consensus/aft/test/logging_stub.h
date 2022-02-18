@@ -209,7 +209,7 @@ namespace aft
 
     bool recv_authenticated(
       const ccf::NodeId& from_node,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const uint8_t*& data,
       size_t& size) override
     {
@@ -232,7 +232,7 @@ namespace aft
     bool send_encrypted(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const std::vector<uint8_t>& data) override
     {
       return true;
@@ -240,7 +240,7 @@ namespace aft
 
     std::vector<uint8_t> recv_encrypted(
       const ccf::NodeId& fromfpf32,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const uint8_t* data,
       size_t size) override
     {

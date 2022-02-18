@@ -6,6 +6,8 @@
 #include "ds/serialized.h"
 #include "ds/thread_messaging.h"
 
+#include <span>
+
 namespace crypto
 {
   constexpr size_t GCM_SIZE_KEY = 32;
@@ -78,7 +80,7 @@ namespace crypto
       memcpy(iv, iv_, size);
     }
 
-    CBuffer get_iv() const
+    std::span<const uint8_t> get_iv() const
     {
       return {iv, SIZE_IV};
     }
@@ -155,18 +157,18 @@ namespace crypto
 
     // AES-GCM encryption
     virtual void encrypt(
-      CBuffer iv,
-      CBuffer plain,
-      CBuffer aad,
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
       uint8_t* cipher,
       uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
     // AES-GCM decryption
     virtual bool decrypt(
-      CBuffer iv,
+      std::span<const uint8_t> iv,
       const uint8_t tag[GCM_SIZE_TAG],
-      CBuffer cipher,
-      CBuffer aad,
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
       uint8_t* plain) const = 0;
 
     virtual size_t key_size() const = 0;

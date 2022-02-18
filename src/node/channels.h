@@ -139,10 +139,13 @@ namespace ccf
       std::vector<uint8_t> raw_aad; // To be integrity-protected
       std::vector<uint8_t> raw_plain; // To be encrypted
 
-      OutgoingMsg(NodeMsgType msg_type, CBuffer raw_aad_, CBuffer raw_plain_) :
+      OutgoingMsg(
+        NodeMsgType msg_type,
+        std::span<const uint8_t> raw_aad_,
+        std::span<const uint8_t> raw_plain_) :
         type(msg_type),
-        raw_aad(raw_aad_),
-        raw_plain(raw_plain_)
+        raw_aad(raw_aad_.begin(), raw_aad_.end()),
+        raw_plain(raw_plain_.begin(), raw_plain_.end())
       {}
     };
 
@@ -188,8 +191,8 @@ namespace ccf
 
     bool verify_or_decrypt(
       const GcmHdr& header,
-      CBuffer aad,
-      CBuffer cipher = nullb,
+      std::span<const uint8_t> aad,
+      std::span<const uint8_t> cipher = {},
       Buffer plain = {})
     {
       status.expect(ESTABLISHED);
@@ -215,8 +218,8 @@ namespace ccf
 
       CHANNEL_RECV_TRACE(
         "verify_or_decrypt({} bytes, {} bytes) (nonce={})",
-        aad.n,
-        cipher.n,
+        aad.size(),
+        cipher.size(),
         (size_t)recv_nonce.nonce);
 
       // Note: We must assume that some messages are dropped, i.e. we may not
@@ -850,7 +853,10 @@ namespace ccf
       send_key_exchange_init();
     }
 
-    bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
+    bool send(
+      NodeMsgType type,
+      std::span<const uint8_t> aad,
+      std::span<const uint8_t> plain = {})
     {
       if (!status.check(ESTABLISHED))
       {
@@ -873,14 +879,14 @@ namespace ccf
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
         (size_t)type,
-        aad.n,
-        plain.n,
+        aad.size(),
+        plain.size(),
         (size_t)nonce.nonce);
 
       GcmHdr gcm_hdr;
       gcm_hdr.set_iv_seq(nonce.get_val());
 
-      std::vector<uint8_t> cipher(plain.n);
+      std::vector<uint8_t> cipher(plain.size());
       assert(send_key);
       send_key->encrypt(
         gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
@@ -892,7 +898,7 @@ namespace ccf
       // 2) gcm header
       // 3) ciphertext
       const serializer::ByteRange payload[] = {
-        {aad.p, aad.n},
+        {aad.data(), aad.size()},
         {gcm_hdr_serialised.data(), gcm_hdr_serialised.size()},
         {cipher.data(), cipher.size()}};
 
@@ -902,7 +908,8 @@ namespace ccf
       return true;
     }
 
-    bool recv_authenticated(CBuffer aad, const uint8_t*& data, size_t& size)
+    bool recv_authenticated(
+      std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload
@@ -964,7 +971,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> recv_encrypted(
-      CBuffer aad, const uint8_t*& data, size_t& size)
+      std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
       // Receive encrypted message, returning the decrypted payload
       if (!status.check(ESTABLISHED))
