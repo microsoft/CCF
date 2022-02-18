@@ -413,31 +413,37 @@ TEST_CASE("sets and values")
       {
         INFO("Local hook");
 
-        auto tx = kv_store.create_tx();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-        REQUIRE(local_writes.size() == 0); // Commit without puts
+        {
+          auto tx = kv_store.create_tx();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+          REQUIRE(local_writes.size() == 0); // Commit without puts
+        }
 
-        tx = kv_store.create_tx();
-        auto h1 = tx.rw(val1);
-        h1->put(v1);
-        h1->put(v2); // Override previous value
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->put(v1);
+          h1->put(v2); // Override previous value
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(global_writes.size() == 0);
-        REQUIRE(local_writes.size() == 1);
-        auto latest_writes = local_writes.front();
-        REQUIRE(latest_writes.value() == v2);
-        local_writes.clear();
+          REQUIRE(global_writes.size() == 0);
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(latest_writes.value() == v2);
+          local_writes.clear();
+        }
 
-        tx = kv_store.create_tx();
-        h1 = tx.rw(val1);
-        h1->clear();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->clear();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(local_writes.size() == 1);
-        latest_writes = local_writes.front();
-        REQUIRE(!latest_writes.has_value());
-        local_writes.clear();
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(!latest_writes.has_value());
+          local_writes.clear();
+        }
       }
 
       {
@@ -2320,7 +2326,7 @@ TEST_CASE("Conflict resolution")
   REQUIRE(handle3->has("foo"));
 
   // First transaction is rerun on new object, producing different result
-  tx1 = kv_store.create_tx();
+  tx1.reset();
   try_write(tx1, "buzz");
 
   // Expected results are committed

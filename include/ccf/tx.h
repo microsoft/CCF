@@ -40,7 +40,7 @@ namespace kv
   {
   protected:
     struct PrivateImpl;
-    std::unique_ptr<PrivateImpl> pimpl = nullptr;
+    PrivateImpl* pimpl = nullptr;
 
     OrderedChanges all_changes;
 
@@ -108,10 +108,10 @@ namespace kv
     // non-copyable
     BaseTx(const BaseTx& that) = delete;
 
-    // To support reset/reconstruction, it is move-assignable
-    BaseTx& operator=(BaseTx&&) = default;
+    virtual ~BaseTx();
 
-    virtual ~BaseTx() = default;
+    // TODO: Should be protected here
+    void reset();
 
     std::optional<crypto::Sha256Hash> get_root_at_read_version()
     {

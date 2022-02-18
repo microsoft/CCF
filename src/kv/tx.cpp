@@ -108,7 +108,24 @@ namespace kv
 
   BaseTx::BaseTx(AbstractStore* store_)
   {
-    pimpl = std::make_unique<PrivateImpl>();
+    pimpl = new PrivateImpl;
     pimpl->store = store_;
+  }
+
+  BaseTx::~BaseTx()
+  {
+    delete pimpl;
+  }
+
+  void BaseTx::reset()
+  {
+    auto store = pimpl->store;
+
+    all_changes.clear();
+    root_at_read_version.reset();
+    delete pimpl;
+
+    pimpl = new PrivateImpl;
+    pimpl->store = store;
   }
 }
