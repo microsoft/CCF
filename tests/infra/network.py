@@ -217,7 +217,7 @@ class Network:
         ledger_dir=None,
         copy_ledger_read_only=False,
         read_only_ledger_dirs=None,
-        from_snapshot=False,
+        from_snapshot=True,
         snapshots_dir=None,
         **kwargs,
     ):
