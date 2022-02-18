@@ -438,10 +438,18 @@ TEST_CASE("ExtendedIv0")
   unsigned char rawP[100];
   memset(rawP, 'x', sizeof(rawP));
   Buffer p{rawP, sizeof(rawP)};
-  // test large IV
-  GcmHeader h(1234);
 
-  // TODO: This only tests a null IV?
+  // test large IV
+  using LargeIVGcmHeader = FixedSizeGcmHeader<1234>;
+  LargeIVGcmHeader h;
+
+  SUBCASE("Null IV") {}
+
+  SUBCASE("Random IV")
+  {
+    h.set_random_iv();
+  }
+
   k->encrypt(h.get_iv(), p, nullb, p.p, h.tag);
 
   auto k2 = crypto::make_key_aes_gcm(get_raw_key());
