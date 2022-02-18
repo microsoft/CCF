@@ -9,22 +9,21 @@
  * Generic formatter for scoped enums.
  * Newer version of fmt does not include it by default.
  */
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <typename E>
+struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
 {
-  template <typename E>
-  struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const E& value, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), "{}", static_cast<std::underlying_type_t<E>>(value));
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const E& value, FormatContext& ctx)
+  {
+    return format_to(
+      ctx.out(), "{}", static_cast<std::underlying_type_t<E>>(value));
+  }
+};
+FMT_END_NAMESPACE
