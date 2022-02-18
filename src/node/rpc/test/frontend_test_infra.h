@@ -3,11 +3,11 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 #include "ccf/app_interface.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/user_frontend.h"
-#include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
