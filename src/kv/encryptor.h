@@ -30,7 +30,10 @@ namespace kv
 
       hdr.set_iv_seq(tx_id.version);
       hdr.set_iv_term(tx_id.term);
-      hdr.set_iv_snapshot(entry_type == EntryType::Snapshot);
+      if (entry_type == EntryType::Snapshot)
+      {
+        hdr.set_iv_is_snapshot();
+      }
     }
 
   public:

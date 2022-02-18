@@ -39,12 +39,10 @@ namespace ccf
       return *reinterpret_cast<const uint32_t*>(iv + IV_DELIMITER);
     }
 
-    // TODO: This should be toggling a bit, based on is_snapshot
-    void set_iv_snapshot(bool is_snapshot)
+    void set_iv_is_snapshot()
     {
       // Set very last bit in IV
-      iv[crypto::GCM_SIZE_IV - 1] |=
-        (is_snapshot << ((sizeof(uint8_t) * 8) - 1));
+      iv[crypto::GCM_SIZE_IV - 1] |= (1 << ((sizeof(uint8_t) * 8) - 1));
     }
   };
 
