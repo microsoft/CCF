@@ -2,12 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
 #include "ccf/ds/buffer.h"
-#include "ds/serialized.h"
 
-// TODO: Move to cpp?
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 #include <vector>
 
 namespace crypto
@@ -23,74 +20,16 @@ namespace crypto
     // Size does not change after construction
     std::vector<uint8_t> iv;
 
-    GcmHeader(size_t iv_size)
-    {
-      iv.resize(iv_size);
-    }
+    GcmHeader(size_t iv_size);
 
-    // TODO: Needed? Surely this _or_ deserialize?
-    // GcmHeader(const uint8_t* data, size_t size)
-    // {
-    //   if (size != RAW_DATA_SIZE)
-    //   {
-    //     throw std::logic_error("Incompatible IV size");
-    //   }
+    void set_iv(const uint8_t* data, size_t size);
+    CBuffer get_iv() const;
 
-    //   memcpy(tag, data, sizeof(tag));
-    //   memcpy(iv, data + sizeof(tag), sizeof(iv));
-    // }
+    size_t serialised_size() const;
+    std::vector<uint8_t> serialise();
 
-    // GcmHeader(const std::vector<uint8_t>& data) :
-    //   GcmHeader(data.data(), data.size())
-    // {}
-
-    size_t serialised_size() const
-    {
-      return sizeof(tag) + iv.size();
-    }
-
-    void set_iv(const uint8_t* data, size_t size)
-    {
-      if (size != iv.size())
-      {
-        throw std::logic_error(
-          fmt::format("Specified IV is not of size {}", iv.size()));
-      }
-
-      memcpy(iv.data(), data, size);
-    }
-
-    CBuffer get_iv() const
-    {
-      return {iv.data(), iv.size()};
-    }
-
-    std::vector<uint8_t> serialise()
-    {
-      auto space = serialised_size();
-      std::vector<uint8_t> serial_hdr(space);
-
-      auto data_ = serial_hdr.data();
-      serialized::write(data_, space, tag, sizeof(tag));
-      serialized::write(data_, space, iv.data(), iv.size());
-
-      return serial_hdr;
-    }
-
-    void deserialise(const std::vector<uint8_t>& ser)
-    {
-      auto data = ser.data();
-      auto size = ser.size();
-
-      deserialise(data, size);
-    }
-
-    void deserialise(const uint8_t*& data, size_t& size)
-    {
-      memcpy(
-        tag, serialized::read(data, size, GCM_SIZE_TAG).data(), GCM_SIZE_TAG);
-      iv = serialized::read(data, size, iv.size());
-    }
+    void deserialise(const std::vector<uint8_t>& ser);
+    void deserialise(const uint8_t*& data, size_t& size);
   };
 
   template <size_t IV_BYTES>
@@ -99,6 +38,16 @@ namespace crypto
     static constexpr size_t IV_SIZE = IV_BYTES;
 
     FixedSizeGcmHeader() : GcmHeader(IV_SIZE) {}
+
+    static size_t serialised_size()
+    {
+      return GCM_SIZE_TAG + IV_SIZE;
+    }
+
+    void set_random_iv(EntropyPtr entropy = crypto::create_entropy())
+    {
+      iv = entropy->random(IV_SIZE);
+    }
   };
 
   // GcmHeader with 12-byte (96-bit) IV
@@ -151,7 +100,7 @@ namespace crypto
   inline void check_supported_aes_key_size(size_t num_bits)
   {
     if (num_bits != 128 && num_bits != 192 && num_bits != 256)
-      throw std::runtime_error("unsupported key size");
+      throw std::runtime_error("Unsupported key size");
   }
 
   /** Default initialization vector for AES-GCM (12 zeroes) */

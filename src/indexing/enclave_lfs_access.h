@@ -107,8 +107,7 @@ namespace ccf::indexing
       crypto::GcmCipher gcm(contents.size());
 
       // Use a random IV for each call
-      auto iv = entropy_src->random(crypto::GCM_SIZE_IV);
-      gcm.hdr.set_iv(iv.data(), iv.size());
+      gcm.hdr.set_random_iv();
 
       encryption_key->encrypt(
         gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
@@ -127,8 +126,8 @@ namespace ccf::indexing
     {
       // Generate a fresh random key. Only this specific instance, in this
       // enclave, can read these files!
-      encryption_key =
-        crypto::make_key_aes_gcm(entropy_src->random(crypto::GCM_DEFAULT_KEY_SIZE));
+      encryption_key = crypto::make_key_aes_gcm(
+        entropy_src->random(crypto::GCM_DEFAULT_KEY_SIZE));
     }
 
     void register_message_handlers(
