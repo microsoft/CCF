@@ -37,7 +37,7 @@
 namespace ccf
 {
   using SendNonce = uint64_t;
-  using GcmHdr = crypto::GcmHeader<sizeof(SendNonce)>;
+  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(SendNonce)>;
 
   struct RecvNonce
   {
@@ -60,7 +60,7 @@ namespace ccf
 
   static inline RecvNonce get_nonce(const GcmHdr& header)
   {
-    return *reinterpret_cast<const RecvNonce*>(header.iv);
+    return *reinterpret_cast<const RecvNonce*>(header.iv.data());
   }
 
   enum ChannelStatus
@@ -194,7 +194,7 @@ namespace ccf
     {
       status.expect(ESTABLISHED);
 
-      auto recv_nonce = *reinterpret_cast<const RecvNonce*>(header.iv);
+      auto recv_nonce = get_nonce(header);
       auto tid = recv_nonce.tid;
       assert(tid < threading::ThreadMessaging::max_num_threads);
 
@@ -920,6 +920,7 @@ namespace ccf
       const uint8_t* data_ = data;
       size_t size_ = size;
 
+      // TODO: sizeof here is wrong! Probably raw_size?
       serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
       GcmHdr hdr;
       hdr.deserialise(data_, size_);

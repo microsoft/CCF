@@ -16,12 +16,12 @@ namespace crypto
   std::vector<uint8_t> GcmCipher::serialise()
   {
     std::vector<uint8_t> serial;
-    auto space = GcmHeader<>::RAW_DATA_SIZE + cipher.size();
+    auto space = hdr.raw_size() + cipher.size();
     serial.resize(space);
 
     auto data_ = serial.data();
     serialized::write(data_, space, hdr.tag, sizeof(hdr.tag));
-    serialized::write(data_, space, hdr.iv, sizeof(hdr.iv));
+    serialized::write(data_, space, hdr.iv.data(), hdr.iv.size());
     serialized::write(data_, space, cipher.data(), cipher.size());
 
     return serial;
@@ -29,10 +29,10 @@ namespace crypto
 
   void GcmCipher::deserialise(const std::vector<uint8_t>& serial)
   {
+    auto data = serial.data();
     auto size = serial.size();
-    auto data_ = serial.data();
-    hdr = serialized::read(data_, size, GcmHeader<>::RAW_DATA_SIZE);
-    cipher = serialized::read(data_, size, size);
+    hdr.deserialise(data, size);
+    cipher = serialized::read(data, size, size);
   }
 
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey)

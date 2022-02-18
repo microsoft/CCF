@@ -15,56 +15,64 @@ namespace crypto
   constexpr size_t GCM_DEFAULT_KEY_SIZE = 32;
 
   constexpr size_t GCM_SIZE_TAG = 16;
-  constexpr size_t GCM_SIZE_IV = 12;
 
-  template <size_t SIZE_IV = GCM_SIZE_IV>
   struct GcmHeader
   {
     uint8_t tag[GCM_SIZE_TAG] = {};
-    uint8_t iv[SIZE_IV] = {};
 
-    constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
+    // Size does not change after construction
+    std::vector<uint8_t> iv;
 
-    GcmHeader() = default;
-    GcmHeader(const uint8_t* data, size_t size)
+    GcmHeader(size_t iv_size)
     {
-      if (size != RAW_DATA_SIZE)
-      {
-        throw std::logic_error("Incompatible IV size");
-      }
-
-      memcpy(tag, data, sizeof(tag));
-      memcpy(iv, data + sizeof(tag), sizeof(iv));
+      iv.resize(iv_size);
     }
 
-    GcmHeader(const std::vector<uint8_t>& data) :
-      GcmHeader(data.data(), data.size())
-    {}
+    // TODO: Needed? Surely this _or_ deserialize?
+    // GcmHeader(const uint8_t* data, size_t size)
+    // {
+    //   if (size != RAW_DATA_SIZE)
+    //   {
+    //     throw std::logic_error("Incompatible IV size");
+    //   }
 
-    void set_iv(const uint8_t* iv_, size_t size)
+    //   memcpy(tag, data, sizeof(tag));
+    //   memcpy(iv, data + sizeof(tag), sizeof(iv));
+    // }
+
+    // GcmHeader(const std::vector<uint8_t>& data) :
+    //   GcmHeader(data.data(), data.size())
+    // {}
+
+    size_t raw_size() const
     {
-      if (size != SIZE_IV)
+      return sizeof(tag) + iv.size();
+    }
+
+    void set_iv(const uint8_t* data, size_t size)
+    {
+      if (size != iv.size())
       {
         throw std::logic_error(
-          fmt::format("Specified IV is not of size {}", SIZE_IV));
+          fmt::format("Specified IV is not of size {}", iv.size()));
       }
 
-      memcpy(iv, iv_, size);
+      memcpy(iv.data(), data, size);
     }
 
     CBuffer get_iv() const
     {
-      return {iv, SIZE_IV};
+      return {iv.data(), iv.size()};
     }
 
     std::vector<uint8_t> serialise()
     {
-      auto space = RAW_DATA_SIZE;
+      auto space = raw_size();
       std::vector<uint8_t> serial_hdr(space);
 
       auto data_ = serial_hdr.data();
       serialized::write(data_, space, tag, sizeof(tag));
-      serialized::write(data_, space, iv, sizeof(iv));
+      serialized::write(data_, space, iv.data(), iv.size());
 
       return serial_hdr;
     }
@@ -81,13 +89,24 @@ namespace crypto
     {
       memcpy(
         tag, serialized::read(data, size, GCM_SIZE_TAG).data(), GCM_SIZE_TAG);
-      memcpy(iv, serialized::read(data, size, SIZE_IV).data(), SIZE_IV);
+      iv = serialized::read(data, size, iv.size());
     }
   };
 
+  template <size_t IV_BYTES>
+  struct FixedSizeGcmHeader : public GcmHeader
+  {
+    static constexpr size_t IV_SIZE = IV_BYTES;
+
+    FixedSizeGcmHeader() : GcmHeader(IV_SIZE) {}
+  };
+
+  // GcmHeader with 12-byte (96-bit) IV
+  using StandardGcmHeader = FixedSizeGcmHeader<12>;
+
   struct GcmCipher
   {
-    GcmHeader<> hdr;
+    StandardGcmHeader hdr;
     std::vector<uint8_t> cipher;
 
     GcmCipher();
