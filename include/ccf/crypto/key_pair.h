@@ -132,5 +132,5 @@ namespace crypto
    * @param pw Password
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const Pem& pkey, CBuffer pw = nullb);
+  KeyPairPtr make_key_pair(const Pem& pkey, std::span<const uint8_t> pw = {});
 }

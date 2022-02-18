@@ -29,10 +29,11 @@ namespace crypto
     RSAPublicKey_OpenSSL(std::move(k))
   {}
 
-  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem, CBuffer pw)
+  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(
+    const Pem& pem, std::span<const uint8_t> pw)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
+    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.data());
     if (!key)
     {
       throw std::runtime_error("could not parse PEM");

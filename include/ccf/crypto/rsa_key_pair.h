@@ -94,5 +94,6 @@ namespace crypto
   /**
    * Create a public / private RSA key pair from existing private key data
    */
-  RSAKeyPairPtr make_rsa_key_pair(const Pem& pem, CBuffer pw = nullb);
+  RSAKeyPairPtr make_rsa_key_pair(
+    const Pem& pem, std::span<const uint8_t> pw = {});
 }

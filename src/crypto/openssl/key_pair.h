@@ -17,7 +17,7 @@ namespace crypto
   public:
     KeyPair_OpenSSL(CurveID curve_id);
     KeyPair_OpenSSL(const KeyPair_OpenSSL&) = delete;
-    KeyPair_OpenSSL(const Pem& pem, CBuffer pw = nullb);
+    KeyPair_OpenSSL(const Pem& pem, std::span<const uint8_t> pw = {});
     virtual ~KeyPair_OpenSSL() = default;
 
     virtual Pem private_key_pem() const override;
