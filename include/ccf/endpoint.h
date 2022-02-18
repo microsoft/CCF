@@ -7,7 +7,6 @@
 #include "ccf/endpoint_context.h"
 #include "ccf/http_consts.h"
 #include "ccf/rest_verb.h"
-#include "service/map.h"
 
 #include <string>
 #include <utility>
@@ -135,8 +134,6 @@ namespace ccf::endpoints
   };
 
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
-
-  using EndpointsMap = ccf::ServiceMap<EndpointKey, EndpointProperties>;
 
   /** An Endpoint represents a user-defined resource that can be invoked by
    * authorised users via HTTP requests, over TLS. An Endpoint is accessible

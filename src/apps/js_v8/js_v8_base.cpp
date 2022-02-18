@@ -10,6 +10,7 @@
 #include "kv/untyped_map.h"
 #include "kv_module_loader.h"
 #include "named_auth_policies.h"
+#include "service/tables/endpoints.h"
 #include "tmpl/ccf_global.h"
 #include "tmpl/console_global.h"
 #include "tmpl/request.h"
@@ -329,8 +330,7 @@ namespace ccfapp
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
 
-      auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto endpoints = tx.ro<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
@@ -419,8 +419,7 @@ namespace ccfapp
       std::set<RESTVerb> verbs =
         ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
 
-      auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto endpoints = tx.ro<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
         const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
@@ -465,8 +464,7 @@ namespace ccfapp
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto endpoints = tx.ro<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();

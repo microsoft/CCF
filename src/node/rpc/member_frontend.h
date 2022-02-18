@@ -15,6 +15,7 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"
+#include "service/tables/endpoints.h"
 #include "service/tables/gov.h"
 #include "service/tables/jwt.h"
 #include "service/tables/members.h"
@@ -77,7 +78,7 @@ namespace ccf
       remove_endpoints(tx);
 
       auto endpoints =
-        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.rw<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
 
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
@@ -171,7 +172,7 @@ namespace ccf
     void remove_endpoints(kv::Tx& tx)
     {
       auto endpoints =
-        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.rw<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
       endpoints->clear();
     }
 
