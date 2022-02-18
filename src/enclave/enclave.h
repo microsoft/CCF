@@ -3,7 +3,6 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "crypto/hash.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
@@ -110,7 +109,7 @@ namespace enclave
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
-      const CurveID& curve_id) :
+      const crypto::CurveID& curve_id) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),

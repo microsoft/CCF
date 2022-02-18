@@ -11,7 +11,6 @@
 #include <openssl/x509.h>
 #include <optional>
 
-using namespace crypto;
 using namespace crypto::OpenSSL;
 
 namespace tls
@@ -29,7 +28,7 @@ namespace tls
     bool auth_required;
 
     Unique_X509 own_cert;
-    std::shared_ptr<KeyPair_OpenSSL> own_pkey;
+    std::shared_ptr<crypto::KeyPair_OpenSSL> own_pkey;
     bool has_own_cert = false;
 
   public:
@@ -47,7 +46,7 @@ namespace tls
       {
         Unique_BIO certbio(*own_cert_);
         own_cert = Unique_X509(certbio, true);
-        own_pkey = std::make_shared<KeyPair_OpenSSL>(*own_pkey_);
+        own_pkey = std::make_shared<crypto::KeyPair_OpenSSL>(*own_pkey_);
         has_own_cert = true;
       }
     }

@@ -7,12 +7,12 @@
 // CCF
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
-#include "crypto/verifier.h"
 #include "node/tx_receipt.h"
 
 #include <charconv>
@@ -444,11 +444,11 @@ namespace loggingapp
           return;
         }
 
-        std::shared_ptr<Verifier> verifier;
+        std::shared_ptr<crypto::Verifier> verifier;
         try
         {
           const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
-          verifier = make_verifier(cert_data);
+          verifier = crypto::make_verifier(cert_data);
         }
         catch (const std::exception& ex)
         {

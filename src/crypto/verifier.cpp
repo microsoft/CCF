@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "verifier.h"
+#include "ccf/crypto/verifier.h"
 
 #include "crypto/openssl/verifier.h"
 
@@ -48,10 +48,5 @@ namespace crypto
   crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der)
   {
     return make_unique_verifier(der)->public_key_pem();
-  }
-
-  void check_is_cert(const CBuffer& der)
-  {
-    make_unique_verifier((std::vector<uint8_t>)der); // throws on error
   }
 }

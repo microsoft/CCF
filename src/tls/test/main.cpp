@@ -1,20 +1,19 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "crypto/certs.h"
-#include "crypto/key_pair.h"
-#include "crypto/verifier.h"
-#include "tls/tls.h"
-
-#include <exception>
-#include <openssl/err.h>
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/buffer.h"
 #include "ccf/ds/logger.h"
-#include "ds/buffer.h"
+#include "crypto/certs.h"
 #include "tls/client.h"
 #include "tls/msg_types.h"
 #include "tls/server.h"
+#include "tls/tls.h"
 
 #include <chrono>
+#include <exception>
+#include <openssl/err.h>
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <iostream>
 #include <memory>
