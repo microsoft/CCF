@@ -3,6 +3,7 @@
 #pragma once
 
 #include "kv/hooks.h"
+#include "kv/untyped_map.h"
 #include "kv_types.h"
 #include "map_handle.h"
 #include "serialise_entry_blit.h"

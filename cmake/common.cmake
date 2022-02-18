@@ -310,6 +310,27 @@ install(
   DESTINATION lib
 )
 
+# CCF kv libs
+set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/untyped_map_handle.cpp)
+
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")
+  add_warning_checks(ccf_kv.enclave)
+  install(
+    TARGETS ccf_kv.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
+add_san(ccf_kv.host)
+add_warning_checks(ccf_kv.host)
+install(
+  TARGETS ccf_kv.host
+  EXPORT ccf
+  DESTINATION lib
+)
+
 # CCF endpoints libs
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")

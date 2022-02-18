@@ -6,6 +6,7 @@
 #include "ds/dl_list.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
+#include "kv/untyped_change_set.h"
 #include "kv/untyped_map_handle.h"
 
 #include <functional>
