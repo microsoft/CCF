@@ -305,8 +305,7 @@ TEST_CASE("Client/Server key exchange")
     initiator_signature = msgs[0].data();
 
     auto md = msgs[1].data();
-    GcmHdr hdr;
-    REQUIRE(md.size() == msg.size() + hdr.serialised_size());
+    REQUIRE(md.size() == msg.size() + GcmHdr::serialised_size());
     REQUIRE(memcmp(md.data(), msg.data(), msg.size()) == 0);
 
     queued_msg = msgs[1]; // save for later
