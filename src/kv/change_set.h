@@ -12,14 +12,12 @@
 
 // TODO: Temp
 #include "kv/untyped_change_set.h"
+#include "kv/version_v.h"
 
 #include <map>
 
 namespace kv
 {
-  template <typename V>
-  using VersionV = map::VersionV<V>;
-
   template <typename K, typename V, typename H>
 #ifndef KV_STATE_RB
   using State = champ::Map<K, VersionV<V>, H>;

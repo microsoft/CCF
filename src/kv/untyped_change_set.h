@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/byte_vector.h"
+#include "kv/version_v.h"
 
 // #include "ds/hash.h"
 // #include "kv/kv_types.h"
@@ -23,12 +24,12 @@ namespace kv::untyped
   using V = SerialisedEntry;
   using H = SerialisedKeyHasher;
 
-  using VersionV = map::VersionV<V>;
+  using VersionV = kv::VersionV<V>;
 
 #ifndef KV_STATE_RB
-  using State = champ::Map<K, VersionV<V>, H>;
+  using State = champ::Map<K, VersionV, H>;
 #else
-  using State = rb::Map<K, VersionV<V>>;
+  using State = rb::Map<K, VersionV>;
 #endif
 
   // This is a map of keys and with a tuple of the key's write version and
@@ -106,4 +107,85 @@ namespace kv::untyped
   // template <typename W>
   // using MapHook =
   //   std::function<std::unique_ptr<ConsensusHook>(Version, const W&)>;
+}
+
+namespace map
+{
+  template <>
+  inline size_t get_size<kv::untyped::VersionV>(
+    const kv::untyped::VersionV& data)
+  {
+    return sizeof(uint64_t) + sizeof(data.version) + data.value.size();
+  }
+
+  template <>
+  inline size_t serialize<kv::untyped::VersionV>(
+    const kv::untyped::VersionV& t, uint8_t*& data, size_t& size)
+  {
+    uint64_t data_size = sizeof(t.version) + t.value.size();
+    serialized::write(
+      data,
+      size,
+      reinterpret_cast<const uint8_t*>(&data_size),
+      sizeof(uint64_t));
+    serialized::write(
+      data,
+      size,
+      reinterpret_cast<const uint8_t*>(&t.version),
+      sizeof(t.version));
+    serialized::write(
+      data,
+      size,
+      reinterpret_cast<const uint8_t*>(t.value.data()),
+      t.value.size());
+    return sizeof(uint64_t) + sizeof(t.version) + t.value.size();
+  }
+
+  template <>
+  inline kv::untyped::VersionV deserialize<kv::untyped::VersionV>(
+    const uint8_t*& data, size_t& size)
+  {
+    kv::untyped::VersionV ret;
+    uint64_t data_size = serialized::read<uint64_t>(data, size);
+    // TODO: We never read or write the other version?
+    kv::Version version = serialized::read<kv::Version>(data, size);
+    ret.version = version;
+    data_size -= sizeof(kv::Version);
+    ret.value.append(data, data + data_size);
+    serialized::skip(data, size, data_size);
+    return ret;
+  }
+
+  template <>
+  inline size_t get_size<kv::untyped::SerialisedEntry>(
+    const kv::untyped::SerialisedEntry& data)
+  {
+    return sizeof(uint64_t) + data.size();
+  }
+
+  template <>
+  inline size_t serialize<kv::untyped::SerialisedEntry>(
+    const kv::untyped::SerialisedEntry& t, uint8_t*& data, size_t& size)
+  {
+    uint64_t data_size = t.size();
+    serialized::write(
+      data,
+      size,
+      reinterpret_cast<const uint8_t*>(&data_size),
+      sizeof(uint64_t));
+    serialized::write(
+      data, size, reinterpret_cast<const uint8_t*>(t.data()), data_size);
+    return sizeof(uint64_t) + data_size;
+  }
+
+  template <>
+  inline kv::untyped::SerialisedEntry deserialize<kv::untyped::SerialisedEntry>(
+    const uint8_t*& data, size_t& size)
+  {
+    uint64_t data_size = serialized::read<uint64_t>(data, size);
+    kv::untyped::SerialisedEntry ret;
+    ret.append(data, data + data_size);
+    serialized::skip(data, size, data_size);
+    return ret;
+  }
 }
