@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "consensus/aft/raft_types.h"
-#include "crypto/pem.h"
 #include "enclave/rpc_sessions.h"
 
 namespace ccf

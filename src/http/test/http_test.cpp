@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/key_pair.h"
 #include "ccf/http_query.h"
-#include "crypto/key_pair.h"
 #include "http/http_accept.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"

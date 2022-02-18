@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/pem.h"
+#include "ccf/crypto/pem.h"
 #include "service/map.h"
 
 #include <nlohmann/json.hpp>

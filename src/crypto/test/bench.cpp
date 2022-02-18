@@ -1,16 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #include "ccf/crypto/base64.h"
-#include "crypto/entropy.h"
-#include "crypto/hash.h"
-#include "crypto/hash_provider.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/hash_provider.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/sha256.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "crypto/hmac.h"
-#include "crypto/key_pair.h"
 #include "crypto/openssl/base64.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
-#include "crypto/symmetric_key.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>

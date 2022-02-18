@@ -3,11 +3,13 @@
 #include "ccf_global.h"
 
 #include "apps/js_v8/tmpl/crypto.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/sha256.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "consensus.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
 #include "historical.h"
 #include "historical_state.h"
 #include "kv_store.h"
@@ -221,7 +223,7 @@ namespace ccf::v8_tmpl
     }
 
     auto data = v8_util::get_array_buffer_data(buffer);
-    auto h = crypto::SHA256(data.p, data.n);
+    auto h = crypto::sha256(data.p, data.n);
     v8::Local<v8::Value> value =
       v8_util::to_v8_array_buffer_copy(isolate, h.data(), h.size());
 
