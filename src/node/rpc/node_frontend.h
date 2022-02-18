@@ -368,9 +368,8 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSnapshotIsOld,
             fmt::format(
-              "Node requested to join from snapshot at seqno {} which is "
-              "older "
-              "than this node startup seqno {}",
+              "Node requested to join from seqno {} which is "
+              "older than this node startup seqno {}",
               in.startup_seqno.value(),
               this_startup_seqno));
         }

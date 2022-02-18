@@ -100,7 +100,7 @@ def test_new_service(
             library_dir=library_dir,
             version=version,
         )
-        network.join_node(new_node, args.package, args)
+        network.join_node(new_node, args.package, args, from_snapshot=True)
         network.trust_node(new_node, args)
         new_node.verify_certificate_validity_period(
             expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
