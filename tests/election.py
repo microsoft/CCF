@@ -49,7 +49,7 @@ def run(args):
     ) as network:
         check = infra.checker.Checker()
 
-        network.start_and_join(args)
+        network.start_and_open(args)
         current_view = None
         primary, current_view = network.find_primary()
 

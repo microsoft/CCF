@@ -12,7 +12,7 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         # Replace primary repeatedly and check the network still operates
         LOG.info(f"Retiring primary {args.rotation_retirements} times")

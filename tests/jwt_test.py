@@ -501,7 +501,7 @@ def run_auto(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         test_jwt_endpoint(network, args)
         test_jwt_without_key_policy(network, args)
         if args.enclave_type != "virtual":
@@ -520,7 +520,7 @@ def run_manual(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         test_jwt_key_initial_refresh(network, args)
 
         # Check that initial refresh also works on backups
@@ -534,7 +534,7 @@ def run_ca_cert(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         ca_certs.test_cert_store(network, args)
 
 

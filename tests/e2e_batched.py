@@ -62,7 +62,7 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         network = test(network, args, batch_size=1)
         network = test(network, args, batch_size=10)
@@ -94,7 +94,7 @@ def run_to_destruction(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         LOG.warning("About to issue transactions until destruction")
         try:

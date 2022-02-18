@@ -11,7 +11,7 @@ def run(args):
     ) as network:
         for node in network.nodes:
             node.curl = True
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, _ = network.find_primary()
 
     uncommitted_ledger_dir, committed_ledger_dirs = list(primary.get_ledger())

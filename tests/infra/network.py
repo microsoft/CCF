@@ -380,7 +380,7 @@ class Network:
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
 
-    def start_and_join(self, args, **kwargs):
+    def start(self, args, **kwargs):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
@@ -416,15 +416,12 @@ class Network:
             authenticate_session=not args.disable_member_session_auth,
             reconfiguration_type=args.reconfiguration_type,
         )
-        initial_users = [
-            f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
-        ]
-        self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args, **kwargs)
         self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined network")
 
+    def open(self, args):
         self.consortium.activate(self.find_random_node())
 
         if args.js_app_bundle:
@@ -440,6 +437,11 @@ class Network:
         if self.jwt_issuer:
             self.jwt_issuer.register(self)
 
+        initial_users = [
+            f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
+        ]
+        self.create_users(initial_users, args.participants_curve)
+
         self.consortium.add_users_and_transition_service_to_open(
             self.find_random_node(), initial_users
         )
@@ -449,6 +451,10 @@ class Network:
             args.initial_service_cert_validity_days
         )
         LOG.success("***** Network is now open *****")
+
+    def start_and_open(self, args, **kwargs):
+        self.start(args, **kwargs)
+        self.open(args)
 
     def start_in_recovery(
         self,
@@ -507,6 +513,7 @@ class Network:
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         """
+        self.consortium.activate(self.find_random_node())
         self.consortium.check_for_service(
             self.find_random_node(), status=ServiceStatus.OPENING
         )
