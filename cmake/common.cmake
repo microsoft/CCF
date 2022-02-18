@@ -311,7 +311,7 @@ install(
 )
 
 # CCF kv libs
-set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/untyped_map_handle.cpp)
+set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")

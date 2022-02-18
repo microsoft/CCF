@@ -16,19 +16,10 @@
 
 namespace kv
 {
-  class CompactedVersionConflict
+  namespace untyped
   {
-  private:
-    std::string msg;
-
-  public:
-    CompactedVersionConflict(const std::string& s) : msg(s) {}
-
-    char const* what() const
-    {
-      return msg.c_str();
-    }
-  };
+    struct ChangeSet;
+  }
 
   struct MapChanges
   {
@@ -48,112 +39,26 @@ namespace kv
   class BaseTx
   {
   protected:
-    AbstractStore* store;
+    struct PrivateImpl;
+    std::unique_ptr<PrivateImpl> pimpl = nullptr;
 
     OrderedChanges all_changes;
 
-    // NB: This exists only to maintain the old API, where this Tx stores
-    // MapHandles and returns raw pointers to them. It could be removed entirely
-    // with a near-identical API if we return `shared_ptr`s, and assuming that
-    // we don't actually care about returning exactly the same Handle instance
-    // if `rw` is called multiple times
-    using PossibleHandles = std::list<std::unique_ptr<AbstractHandle>>;
-    std::map<std::string, PossibleHandles> all_handles;
-
-    // Note: read_txid version is set to NoVersion for the first transaction in
-    // the service, before anything has been applied to the KV.
-    std::optional<TxID> read_txid = std::nullopt;
-    ccf::View commit_view = ccf::VIEW_UNKNOWN;
-
-    std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
-
     std::optional<crypto::Sha256Hash> root_at_read_version = std::nullopt;
 
-    void store_change_set(
+    void retain_change_set(
       const std::string& map_name,
       std::unique_ptr<untyped::ChangeSet>&& change_set,
-      const std::shared_ptr<AbstractMap>& abstract_map)
-    {
-      const auto it = all_changes.find(map_name);
-      if (it != all_changes.end())
-      {
-        throw std::logic_error(
-          fmt::format("Re-creating change set for map {}", map_name));
-      }
-      all_changes.emplace_hint(
-        it, map_name, MapChanges{abstract_map, std::move(change_set)});
-    }
+      const std::shared_ptr<AbstractMap>& abstract_map);
+    void retain_handle(
+      const std::string& map_name, std::unique_ptr<AbstractHandle>&& handle);
 
-    void store_handle(
-      const std::string& map_name, std::unique_ptr<AbstractHandle>&& handle)
-    {
-      all_handles[map_name].emplace_back(std::move(handle));
-    }
+    MapChanges get_map_and_change_set_by_name(const std::string& map_name);
 
-    auto get_map_and_change_set_by_name(const std::string& map_name)
-    {
-      if (!read_txid.has_value())
-      {
-        // Grab opacity version that all Maps should be queried at.
-        // Note: It is by design that we delay acquiring a read version to now
-        // rather than earlier, at Tx construction. This is to minimise the
-        // window during which concurrent transactions can write to the same map
-        // and cause this transaction to conflict on commit.
-        std::tie(read_txid, commit_view) =
-          store->current_txid_and_commit_term();
-      }
+    std::list<AbstractHandle*> get_possible_handles(
+      const std::string& map_name);
 
-      auto abstract_map = store->get_map(read_txid->version, map_name);
-      if (abstract_map == nullptr)
-      {
-        // Store doesn't know this map yet - create it dynamically
-        {
-          const auto map_it = created_maps.find(map_name);
-          if (map_it != created_maps.end())
-          {
-            throw std::logic_error(
-              "Created map without creating handle over it");
-          }
-        }
-
-        // NB: The created maps are always untyped. Only the handles over them
-        // are typed
-        auto new_map = std::make_shared<kv::untyped::Map>(
-          store,
-          map_name,
-          kv::get_security_domain(map_name),
-          store->is_map_replicated(map_name),
-          store->should_track_dependencies(map_name));
-        created_maps[map_name] = new_map;
-
-        abstract_map = new_map;
-      }
-
-      auto untyped_map =
-        std::dynamic_pointer_cast<kv::untyped::Map>(abstract_map);
-      if (untyped_map == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("Map {} has unexpected type", map_name));
-      }
-
-      return std::make_pair(
-        abstract_map, untyped_map->create_change_set(read_txid->version));
-    }
-
-    std::list<AbstractHandle*> get_possible_handles(const std::string& map_name)
-    {
-      std::list<AbstractHandle*> handles;
-      auto it = all_handles.find(map_name);
-      if (it != all_handles.end())
-      {
-        for (auto& handle : it->second)
-        {
-          handles.push_back(handle.get());
-        }
-      }
-      return handles;
-    }
+    void compacted_version_conflict(const std::string& map_name);
 
     template <class THandle>
     THandle* get_handle_by_name(const std::string& map_name)
@@ -175,7 +80,7 @@ namespace kv
 
         auto typed_handle = new THandle(*change_set, map_name);
         std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
-        store_handle(map_name, std::move(abstract_handle));
+        retain_handle(map_name, std::move(abstract_handle));
         return typed_handle;
       }
       else
@@ -185,24 +90,19 @@ namespace kv
 
         if (change_set == nullptr)
         {
-          CCF_ASSERT_FMT(
-            read_txid.has_value(), "read_txid should have already been set");
-          throw CompactedVersionConflict(fmt::format(
-            "Unable to retrieve state over map {} at {}",
-            map_name,
-            read_txid->version));
+          compacted_version_conflict(map_name);
         }
 
         auto typed_handle = new THandle(*change_set, map_name);
         std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
-        store_handle(map_name, std::move(abstract_handle));
-        store_change_set(map_name, std::move(change_set), abstract_map);
+        retain_handle(map_name, std::move(abstract_handle));
+        retain_change_set(map_name, std::move(change_set), abstract_map);
         return typed_handle;
       }
     }
 
   public:
-    BaseTx(AbstractStore* _store) : store(_store) {}
+    BaseTx(AbstractStore* _store);
 
     // To avoid accidental copies and promote use of pass-by-reference, this is
     // non-copyable
@@ -210,6 +110,8 @@ namespace kv
 
     // To support reset/reconstruction, it is move-assignable
     BaseTx& operator=(BaseTx&&) = default;
+
+    virtual ~BaseTx() = default;
 
     std::optional<crypto::Sha256Hash> get_root_at_read_version()
     {

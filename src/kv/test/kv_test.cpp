@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/map.h"
 #include "kv/set.h"

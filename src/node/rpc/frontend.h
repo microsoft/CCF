@@ -9,6 +9,7 @@
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
+#include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "rpc_exception.h"
 #include "service/tables/jwt.h"
