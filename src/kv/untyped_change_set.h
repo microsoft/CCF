@@ -4,6 +4,7 @@
 
 #include "ccf/byte_vector.h"
 #include "kv/hooks.h"
+#include "kv/kv_types.h"
 #include "kv/version_v.h"
 
 // #include "ds/hash.h"

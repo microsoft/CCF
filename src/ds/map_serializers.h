@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ccf_assert.h"
+#include "ccf/ds/buffer.h"
 #include "ds/serialized.h"
 
 // TODO: This shouldn't be done like this

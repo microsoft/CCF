@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv/untyped_map.h"
 #include "kv_types.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"

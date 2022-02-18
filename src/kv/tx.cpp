@@ -5,7 +5,9 @@
 
 #include "ccf/ccf_assert.h"
 #include "kv/compacted_version_conflict.h"
+#include "kv/kv_types.h"
 #include "kv/tx_pimpl.h"
+#include "kv/untyped_map.h"
 
 namespace kv
 {

@@ -5,8 +5,6 @@
 #include "ccf/ccf_assert.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/tx_id.h"
-#include "kv/kv_types.h"
-#include "kv/untyped_map.h"
 
 #include <list>
 #include <map>
@@ -16,6 +14,10 @@
 
 namespace kv
 {
+  class AbstractHandle;
+  class AbstractMap;
+  class AbstractStore;
+
   namespace untyped
   {
     struct ChangeSet;
@@ -101,7 +103,7 @@ namespace kv
       }
     }
 
-    // Should this be virtual?
+    // TODO: Should this be pure virtual?
     void reset();
 
   public:
