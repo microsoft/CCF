@@ -920,11 +920,10 @@ namespace ccf
       const uint8_t* data_ = data;
       size_t size_ = size;
 
-      // TODO: sizeof here is wrong! Probably raw_size?
-      serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
       GcmHdr hdr;
+      serialized::skip(data_, size_, (size_ - hdr.serialised_size()));
       hdr.deserialise(data_, size_);
-      size -= sizeof(GcmHdr);
+      size -= hdr.serialised_size();
 
       if (!verify_or_decrypt(hdr, {data, size}))
       {

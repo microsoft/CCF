@@ -16,7 +16,7 @@ namespace crypto
   std::vector<uint8_t> GcmCipher::serialise()
   {
     std::vector<uint8_t> serial;
-    auto space = hdr.raw_size() + cipher.size();
+    auto space = hdr.serialised_size() + cipher.size();
     serial.resize(space);
 
     auto data_ = serial.data();

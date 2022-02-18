@@ -44,7 +44,7 @@ namespace crypto
     //   GcmHeader(data.data(), data.size())
     // {}
 
-    size_t raw_size() const
+    size_t serialised_size() const
     {
       return sizeof(tag) + iv.size();
     }
@@ -67,7 +67,7 @@ namespace crypto
 
     std::vector<uint8_t> serialise()
     {
-      auto space = raw_size();
+      auto space = serialised_size();
       std::vector<uint8_t> serial_hdr(space);
 
       auto data_ = serial_hdr.data();
