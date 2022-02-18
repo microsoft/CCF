@@ -71,49 +71,48 @@ namespace ccf
   };
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ChannelStatus>
 {
-  template <>
-  struct formatter<ccf::ChannelStatus>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+  template <typename FormatContext>
+  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+  {
+    char const* s = "Unknown";
+    switch (cs)
     {
-      char const* s = "Unknown";
-      switch (cs)
+      case (ccf::INACTIVE):
       {
-        case (ccf::INACTIVE):
-        {
-          s = "INACTIVE";
-          break;
-        }
-        case (ccf::INITIATED):
-        {
-          s = "INITIATED";
-          break;
-        }
-        case (ccf::WAITING_FOR_FINAL):
-        {
-          s = "WAITING_FOR_FINAL";
-          break;
-        }
-        case (ccf::ESTABLISHED):
-        {
-          s = "ESTABLISHED";
-          break;
-        }
+        s = "INACTIVE";
+        break;
       }
-
-      return format_to(ctx.out(), "{}", s);
+      case (ccf::INITIATED):
+      {
+        s = "INITIATED";
+        break;
+      }
+      case (ccf::WAITING_FOR_FINAL):
+      {
+        s = "WAITING_FOR_FINAL";
+        break;
+      }
+      case (ccf::ESTABLISHED):
+      {
+        s = "ESTABLISHED";
+        break;
+      }
     }
-  };
-}
+
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE
 
 namespace ccf
 {
