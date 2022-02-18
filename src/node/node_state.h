@@ -728,21 +728,31 @@ namespace ccf
       }
 
       LOG_INFO_FMT(
-        "Deserialising public ledger entry ({})", ledger_entry.size());
+        "Deserialising public ledger entry [{}]", ledger_entry.size());
 
-      auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
-      auto result = r->apply();
-      if (result == kv::ApplyResult::FAIL)
+      kv::ApplyResult result = kv::ApplyResult::FAIL;
+      try
       {
-        LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
+        auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+        result = r->apply();
+        if (result == kv::ApplyResult::FAIL)
+        {
+          LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", result);
+          recover_public_ledger_end_unsafe();
+          return;
+        }
+
+        // Not synchronised because consensus isn't effectively running then
+        for (auto& hook : r->get_hooks())
+        {
+          hook->call(consensus.get());
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", e.what());
         recover_public_ledger_end_unsafe();
         return;
-      }
-
-      // Not synchronised because consensus isn't effectively running then
-      for (auto& hook : r->get_hooks())
-      {
-        hook->call(consensus.get());
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
@@ -977,17 +987,29 @@ namespace ccf
       }
 
       LOG_INFO_FMT(
-        "Deserialising private ledger entry ({})", ledger_entry.size());
+        "Deserialising private ledger entry [{}]", ledger_entry.size());
 
       // When reading the private ledger, deserialise in the recovery store
-      auto result =
-        recovery_store->deserialize(ledger_entry, ConsensusType::CFT)->apply();
-      if (result == kv::ApplyResult::FAIL)
+      kv::ApplyResult result = kv::ApplyResult::FAIL;
+      try
       {
-        LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        // Note: rollback terms do not matter here as recovery store is about to
-        // be discarded
-        recovery_store->rollback({0, ledger_idx - 1}, 0);
+        result = recovery_store->deserialize(ledger_entry, ConsensusType::CFT)
+                   ->apply();
+        if (result == kv::ApplyResult::FAIL)
+        {
+          LOG_FAIL_FMT(
+            "Failed to deserialise private ledger entry: {}", result);
+          // Note: rollback terms do not matter here as recovery store is about
+          // to be discarded
+          recovery_store->rollback({0, ledger_idx - 1}, 0);
+          recover_private_ledger_end_unsafe();
+          return;
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to deserialise private ledger entry: {}", e.what());
         recover_private_ledger_end_unsafe();
         return;
       }

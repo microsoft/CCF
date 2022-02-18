@@ -157,6 +157,7 @@ class Member:
     def withdraw(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as c:
             r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
+            c.wait_for_commit(r)
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.WITHDRAWN
             return r

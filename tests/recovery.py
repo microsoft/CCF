@@ -46,7 +46,7 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         os.remove(ledger_file_path)
 
 
-@reqs.description("Recovering a network")
+@reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
 def test(network, args, from_snapshot=False, split_ledger=False):
     old_primary, _ = network.find_primary()
@@ -84,7 +84,7 @@ def test(network, args, from_snapshot=False, split_ledger=False):
     return recovered_network
 
 
-@reqs.description("Recovering a network, kill one node while submitting shares")
+@reqs.description("Recover a service, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
 def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
@@ -147,6 +147,50 @@ def test_share_resilience(network, args, from_snapshot=False):
     return recovered_network
 
 
+@reqs.description("Recover a service from malformed ledger")
+def test_recover_service_truncated_ledger(network, args):
+    old_primary, _ = network.find_primary()
+
+    LOG.info(
+        "Fill ledger with dummy entries until at least one ledger chunk is not committed"
+    )
+    current_ledger_path = old_primary.remote.ledger_paths()[0]
+    while True:
+        network.consortium.create_and_withdraw_large_proposal(old_primary)
+        if not all(
+            f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+            for f in os.listdir(current_ledger_path)
+        ):
+            break
+
+    network.stop_all_nodes()
+
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    # TODO: Test multiple types of truncation
+    # 1. Mid-entry
+    # 2. Positions table missing
+    # 3. Private entry corrupted
+    truncated_ledger_file = os.listdir(current_ledger_dir)[0]
+    truncated_ledger_file_path = os.path.join(current_ledger_dir, truncated_ledger_file)
+    truncated_ledger_file_size = os.path.getsize(truncated_ledger_file_path)
+    with open(truncated_ledger_file_path, "w", encoding="utf-8") as f:
+        f.truncate(truncated_ledger_file_size // 2)
+    LOG.info(f"Truncated ledger file {truncated_ledger_file}")
+
+    recovered_network = infra.network.Network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    recovered_network.recover(args)
+
+    return recovered_network
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -159,29 +203,31 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        for i in range(args.recovery):
+        for i in range(1):  # range(args.recovery):
             # Issue transactions which will required historical ledger queries recovery
             # when the network is shutdown
             network.txs.issue(network, number_txs=1)
             network.txs.issue(network, number_txs=1, repeat=True)
 
-            # Alternate between recovery with primary change and stable primary-ship,
-            # with and without snapshots
-            if i % 2 == 0:
-                if args.consensus != "BFT":
-                    recovered_network = test_share_resilience(
-                        network, args, from_snapshot=True
-                    )
-                else:
-                    recovered_network = network
-            else:
-                recovered_network = test(
-                    network, args, from_snapshot=False, split_ledger=True
-                )
-            network = recovered_network
+            network = test_recover_service_truncated_ledger(network, args)
 
-            for node in network.get_joined_nodes():
-                node.verify_certificate_validity_period()
+            # # Alternate between recovery with primary change and stable primary-ship,
+            # # with and without snapshots
+            # if i % 2 == 0:
+            #     if args.consensus != "BFT":
+            #         recovered_network = test_share_resilience(
+            #             network, args, from_snapshot=True
+            #         )
+            #     else:
+            #         recovered_network = network
+            # else:
+            #     recovered_network = test(
+            #         network, args, from_snapshot=False, split_ledger=True
+            #     )
+            # network = recovered_network
+
+            # for node in network.get_joined_nodes():
+            #     node.verify_certificate_validity_period()
 
             primary, _ = network.find_primary()
 
