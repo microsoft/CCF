@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "hash.h"
 
-#include "openssl/hash.h"
+#include "crypto/openssl/hash.h"
+
+#include "ccf/crypto/hkdf.h"
+#include "ccf/crypto/sha256.h"
 
 #include <openssl/sha.h>
 
@@ -13,7 +15,7 @@ namespace crypto
     return openssl_sha256(data, h);
   }
 
-  std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data)
+  std::vector<uint8_t> sha256(const std::vector<uint8_t>& data)
   {
     size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
     std::vector<uint8_t> r(hash_size);
@@ -21,7 +23,7 @@ namespace crypto
     return r;
   }
 
-  std::vector<uint8_t> SHA256(const uint8_t* data, size_t len)
+  std::vector<uint8_t> sha256(const uint8_t* data, size_t len)
   {
     CBuffer buf(data, len);
     size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));

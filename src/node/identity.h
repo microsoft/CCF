@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/curve.h"
 #include "crypto/certs.h"
-#include "crypto/curve.h"
 #include "crypto/openssl/key_pair.h"
-#include "crypto/verifier.h"
 
 #include <openssl/crypto.h>
 #include <string>

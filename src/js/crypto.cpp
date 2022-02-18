@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/sha256.h"
 #include "crypto/ecdsa.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
 #include "js/wrap.h"
 #include "tls/ca.h"
 
@@ -112,7 +114,7 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    auto h = crypto::SHA256(data, data_size);
+    auto h = crypto::sha256(data, data_size);
     return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
   }
 
