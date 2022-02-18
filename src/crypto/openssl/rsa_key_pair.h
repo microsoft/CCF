@@ -34,7 +34,7 @@ namespace crypto
     virtual std::vector<uint8_t> public_key_der() const override;
 
     virtual std::vector<uint8_t> sign(
-      CBuffer d, MDType md_type = MDType::NONE) const override;
+      std::span<const uint8_t> d, MDType md_type = MDType::NONE) const override;
 
     virtual bool verify(
       const uint8_t* contents,

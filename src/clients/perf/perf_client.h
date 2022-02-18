@@ -333,7 +333,7 @@ namespace client
 
     void add_prepared_tx(
       const std::string& method,
-      const CBuffer params,
+      const std::span<uint8_t> params,
       bool expects_commit,
       const std::optional<size_t>& index)
     {

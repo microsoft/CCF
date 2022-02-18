@@ -38,10 +38,13 @@ namespace crypto
       size_t signature_size) override;
 
     virtual std::vector<uint8_t> sign(
-      CBuffer d, MDType md_type = {}) const override;
+      std::span<const uint8_t> d, MDType md_type = {}) const override;
 
     int sign(
-      CBuffer d, size_t* sig_size, uint8_t* sig, MDType md_type = {}) const;
+      std::span<const uint8_t> d,
+      size_t* sig_size,
+      uint8_t* sig,
+      MDType md_type = {}) const;
 
     std::vector<uint8_t> sign_hash(
       const uint8_t* hash, size_t hash_size) const override;

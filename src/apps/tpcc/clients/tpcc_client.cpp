@@ -100,7 +100,7 @@ private:
       }
       add_prepared_tx(
         OPERATION_C_STR[operation],
-        CBuffer{serialized_body.data(), serialized_body.size()},
+        serialized_body,
         true, // expect commit
         i);
     }

@@ -46,7 +46,7 @@ namespace client
 
     std::vector<uint8_t> gen_http_request_internal(
       const std::string& method,
-      const CBuffer params,
+      const std::span<const uint8_t> params,
       const std::string& content_type,
       llhttp_method verb,
       const char* auth_token = nullptr)
@@ -58,7 +58,7 @@ namespace client
       }
 
       auto r = http::Request(path, verb);
-      r.set_body(params.p, params.n);
+      r.set_body(params.data(), params.size());
       r.set_header(http::headers::CONTENT_TYPE, content_type);
       if (auth_token != nullptr)
       {
@@ -76,7 +76,7 @@ namespace client
 
     std::vector<uint8_t> gen_request_internal(
       const std::string& method,
-      const CBuffer params,
+      const std::span<const uint8_t> params,
       const std::string& content_type,
       llhttp_method verb,
       const char* auth_token = nullptr)
@@ -126,7 +126,7 @@ namespace client
 
     PreparedRpc gen_request(
       const std::string& method,
-      const CBuffer params,
+      const std::span<const uint8_t> params,
       const std::string& content_type,
       llhttp_method verb = HTTP_POST,
       const char* auth_token = nullptr)
@@ -165,7 +165,7 @@ namespace client
 
     Response call(
       const std::string& method,
-      const CBuffer& params,
+      const std::span<const uint8_t> params,
       llhttp_method verb = HTTP_POST)
     {
       return call_raw(gen_request(

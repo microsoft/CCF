@@ -44,7 +44,8 @@ namespace crypto
       size_t* sig_size,
       uint8_t* sig) const = 0;
 
-    virtual std::vector<uint8_t> sign(CBuffer d, MDType md_type = {}) const = 0;
+    virtual std::vector<uint8_t> sign(
+      std::span<const uint8_t> d, MDType md_type = {}) const = 0;
 
     virtual Pem create_csr(
       const std::string& subject_name,
