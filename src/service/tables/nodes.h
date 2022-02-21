@@ -8,9 +8,9 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/map.h"
+#include "ccf/service/map.h"
 #include "node_info_network.h"
 #include "quote_info.h"
-#include "service/map.h"
 
 #include <string>
 #include <vector>

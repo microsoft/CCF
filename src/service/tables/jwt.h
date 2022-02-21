@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "ccf/service/map.h"
 #include "proposals.h"
-#include "service/map.h"
 
 #include <openenclave/attestation/verifier.h>
 #include <optional>

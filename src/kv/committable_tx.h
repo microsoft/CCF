@@ -204,7 +204,8 @@ namespace kv
 
         if (flag_enabled(Flag::SNAPSHOT_AT_NEXT_SIGNATURE))
         {
-          store->set_flag(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          pimpl->store->set_flag(
+            AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
           unset_flag(CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         }
 

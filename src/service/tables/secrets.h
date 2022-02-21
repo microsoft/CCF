@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/map.h"
 #include "kv/kv_types.h"
-#include "service/map.h"
 
 #include <vector>
 

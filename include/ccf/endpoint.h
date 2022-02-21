@@ -7,6 +7,7 @@
 #include "ccf/endpoint_context.h"
 #include "ccf/http_consts.h"
 #include "ccf/rest_verb.h"
+#include "ccf/service/map.h"
 
 #include <string>
 #include <utility>

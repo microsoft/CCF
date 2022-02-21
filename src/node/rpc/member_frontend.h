@@ -171,6 +171,7 @@ namespace ccf
 
     void remove_endpoints(kv::Tx& tx) {}
 
+#pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
     void remove_all_other_non_open_proposals(

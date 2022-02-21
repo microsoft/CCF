@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/endpoint.h"
-#include "service/map.h"
+#include "ccf/service/map.h"
 
 namespace ccf
 {
