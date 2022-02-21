@@ -376,6 +376,9 @@ namespace ccf
 
         if (due && !next.forced)
         {
+          // last_snapshot_idx records the last normally scheduled, i.e.
+          // unforced, snapshot index, so that backups (which don't know forced
+          // indices) continue the snapshot interval normally.
           last_snapshot_idx = next.idx;
           LOG_TRACE_FMT(
             "Recorded {} as last snapshot index", last_snapshot_idx);
