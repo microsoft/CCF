@@ -30,4 +30,9 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures);
 
   using BackupSignaturesMap = ServiceValue<BackupSignatures>;
+  namespace Tables
+  {
+    static constexpr auto BACKUP_SIGNATURES =
+      "public:ccf.internal.consensus.backup_signatures";
+  }
 }

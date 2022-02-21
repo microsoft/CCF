@@ -81,6 +81,12 @@ namespace ccf
       kv::RawCopySerialisedMap<ProposalId, std::vector<uint8_t>>;
     using ProposalInfoMap = ServiceMap<ProposalId, ProposalInfo>;
 
+    namespace Tables
+    {
+      static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
+      static constexpr auto PROPOSALS_INFO = "public:ccf.gov.proposals_info";
+    }
+
     struct Action
     {
       std::string name;

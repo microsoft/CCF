@@ -78,6 +78,15 @@ class LoggingTxs:
                     max_id = k
         return 0 if max_id is None else max_id
 
+    def get_log_id(self, txid):
+        for p in [True, False]:
+            txs = self.priv if p else self.pub
+            for k, v in txs.items():
+                for e in v:
+                    if e["seqno"] == txid.seqno:
+                        return (p, k)
+        raise ValueError("tx not found")
+
     def issue(
         self,
         network,
@@ -325,4 +334,27 @@ class LoggingTxs:
         if not found:
             raise LoggingTxsVerifyException(
                 f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
+            )
+
+    def delete(self, log_id, priv=False, log_capture=None):
+        primary, _ = self.network.find_primary(log_capture=log_capture)
+        check = infra.checker.Checker()
+        with primary.client(self.user) as c:
+            table = "private" if priv else "public"
+            check(
+                c.delete(
+                    f"/app/log/{table}?id={log_id}", headers=self._get_headers_base()
+                )
+            )
+            if priv:
+                self.priv.pop(log_id)
+            else:
+                self.pub.pop(log_id)
+
+    def request(self, log_id, priv=False, log_capture=None):
+        primary, _ = self.network.find_primary(log_capture=log_capture)
+        with primary.client(self.user) as c:
+            table = "private" if priv else "public"
+            return c.get(
+                f"/app/log/{table}?id={log_id}", headers=self._get_headers_base()
             )

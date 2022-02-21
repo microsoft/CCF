@@ -114,4 +114,11 @@ namespace ccf
   // This table is updated every time the ledger secret is updated, e.g. at
   // startup or on ledger rekey. It is not updated on a pure re-share.
   using EncryptedLedgerSecretsInfo = ServiceValue<EncryptedLedgerSecretInfo>;
+
+  namespace Tables
+  {
+    static constexpr auto SHARES = "public:ccf.internal.recovery_shares";
+    static constexpr auto ENCRYPTED_PAST_LEDGER_SECRET =
+      "public:ccf.internal.historical_encrypted_ledger_secret";
+  }
 }

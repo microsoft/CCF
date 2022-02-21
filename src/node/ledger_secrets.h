@@ -6,7 +6,6 @@
 #include "ccf/tx.h"
 #include "kv/kv_types.h"
 #include "ledger_secret.h"
-#include "service/table_names.h"
 #include "service/tables/secrets.h"
 #include "service/tables/shares.h"
 
