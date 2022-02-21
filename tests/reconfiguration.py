@@ -707,9 +707,7 @@ def check_2tx_ledger(ledger_paths, learner_id):
 
 
 @reqs.description("Migrate from 1tx to 2tx reconfiguration scheme")
-def test_migration_2tx_reconfiguration(
-    network, args, initial_is_1tx=True, **kwargs
-):
+def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwargs):
     primary, _ = network.find_primary()
 
     # Check that the service config agrees that this is a 1tx network
