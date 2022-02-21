@@ -168,13 +168,25 @@ def test_recover_service_truncated_ledger(network, args):
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    # Corrupt ledger before starting new service
-    truncated_ledger_file = os.listdir(current_ledger_dir)[0]
-    truncated_ledger_file_path = os.path.join(current_ledger_dir, truncated_ledger_file)
-    truncated_ledger_file_size = os.path.getsize(truncated_ledger_file_path)
+    # Corrupt _uncommitted_ ledger before starting new service
+    ledger = ccf.ledger.Ledger(
+        [current_ledger_dir], committed_only=False, insecure_skip_verification=True
+    )
+    for chunk in ledger:
+        LOG.success(f"chunk: {chunk.filename()}")
+        chunk_filename = chunk.filename()
+        for tx in chunk:
+            tx_offset = tx._tx_offset
+            next_tx_offset = tx._next_offset
+            LOG.success(f"Tx offset {tx_offset}, next {next_tx_offset}")
+            break
+
+    truncated_ledger_file_path = os.path.join(current_ledger_dir, chunk_filename)
+    truncate_offset = tx_offset + (next_tx_offset - tx_offset) // 2
     with open(truncated_ledger_file_path, "r+", encoding="utf-8") as f:
-        f.truncate(truncated_ledger_file_size // 2)
-    LOG.info(f"Truncated ledger file {truncated_ledger_file_path}")
+        f.truncate(truncate_offset)
+    LOG.info(f"Truncated ledger file {truncated_ledger_file_path} at {truncate_offset}")
+    # input("")
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -185,6 +197,8 @@ def test_recover_service_truncated_ledger(network, args):
         committed_ledger_dirs=committed_ledger_dirs,
     )
     recovered_network.recover(args)
+
+    primary, _ = recovered_network.find_primary()
 
     return recovered_network
 
@@ -204,7 +218,9 @@ def run_corrupted_ledger(args):
     ) as network:
         network.start_and_open(args)
         # TODO: Test multiple types of truncation
+        # 0. First transaction
         # 1. Mid-entry
+        # 1'. Last transaction
         # 2. Positions table missing
         # 3. Private entry corrupted
         # 4. File empty
@@ -311,5 +327,5 @@ checked. Note that the key for each logging message is unique (per table).
     args.ledger_chunk_bytes = "50KB"
     args.snapshot_tx_interval = 30
 
-    # run(args)
+    # run(args) # TODO: Re-enable
     run_corrupted_ledger(args)

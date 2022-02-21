@@ -27,7 +27,7 @@ option(VERBOSE_LOGGING "Enable verbose logging" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
   add_compile_definitions(VERBOSE_LOGGING)
-  set(TEST_HOST_LOGGING_LEVEL "debug")
+  set(TEST_HOST_LOGGING_LEVEL "trace")
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"

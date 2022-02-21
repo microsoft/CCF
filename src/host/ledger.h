@@ -350,12 +350,12 @@ namespace asynchost
       return framed_entries;
     }
 
-    bool truncate(size_t idx)
+    bool truncate(size_t idx, bool force = false)
     {
-      if (committed || (idx < start_idx - 1) || (idx >= get_last_idx()))
-      {
-        return false;
-      }
+      // if (committed || (idx < start_idx - 1) || (idx >= get_last_idx()))
+      // {
+      //   return false;
+      // }
 
       if (idx == start_idx - 1)
       {
@@ -391,6 +391,8 @@ namespace asynchost
         throw std::logic_error(
           fmt::format("Failed to truncate ledger: {}", strerror(errno)));
       }
+
+      LOG_TRACE_FMT("Truncate ledger file {} at idx {}", file_name, idx);
 
       fseeko(file, total_len, SEEK_SET);
       return false;
@@ -432,6 +434,8 @@ namespace asynchost
         throw std::logic_error(
           fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
+
+      LOG_TRACE_FMT("Complete ledger file {}", file_name);
 
       completed = true;
     }
@@ -747,13 +751,24 @@ namespace asynchost
           try
           {
             ledger_file = std::make_shared<LedgerFile>(ledger_dir, file_name);
+            LOG_FAIL_FMT(
+              "Truncating {} to {}", file_name, ledger_file->get_last_idx());
+            auto ret = ledger_file->truncate(ledger_file->get_last_idx());
+            if (ret)
+            {
+              LOG_FAIL_FMT("Removed file: {}", ret);
+              require_new_file = true;
+              continue;
+            }
           }
           catch (const std::exception& e)
           {
+            LOG_FAIL_FMT(
+              "Error reading ledger file {}: {}", file_name, e.what());
+
             // corrupt_files.emplace_back(f.path());
             // LOG_TRACE_FMT(
             //   "Ignoring invalid ledger file {}: {}", file_name, e.what());
-            LOG_FAIL_FMT("Error reading ledger file: {}", file_name);
             continue;
           }
 
@@ -1005,9 +1020,7 @@ namespace asynchost
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
         if ((*it)->truncate(truncate_idx))
         {
-          auto it_ = it;
-          it++;
-          files.erase(it_);
+          it = files.erase(it);
         }
         else
         {
