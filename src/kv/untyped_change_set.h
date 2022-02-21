@@ -144,7 +144,6 @@ namespace map
   {
     kv::untyped::VersionV ret;
     uint64_t data_size = serialized::read<uint64_t>(data, size);
-    // TODO: We never read or write the other version?
     kv::Version version = serialized::read<kv::Version>(data, size);
     ret.version = version;
     data_size -= sizeof(kv::Version);

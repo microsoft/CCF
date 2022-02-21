@@ -103,7 +103,6 @@ namespace kv
       }
     }
 
-    // TODO: Should this be pure virtual?
     void reset();
 
   public:

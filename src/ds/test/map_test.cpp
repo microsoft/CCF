@@ -21,7 +21,6 @@ struct CollisionHash
 using K = uint64_t;
 using V = uint64_t;
 
-// TODO: These should live in serialized.h!
 namespace map
 {
   inline size_t get_size(uint64_t n)

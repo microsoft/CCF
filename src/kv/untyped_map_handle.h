@@ -61,7 +61,6 @@ namespace kv::untyped
     size_t size();
 
     // Sub-range variant of foreach. Visits the range of keys in [from, to).
-    // TODO: Why does this not have early-out?
     void range(
       const ElementVisitor& fn, const KeyType& from, const KeyType& to);
   };

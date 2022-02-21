@@ -6,7 +6,6 @@
 #include "ccf/ds/buffer.h"
 #include "ds/serialized.h"
 
-// TODO: This shouldn't be done like this
 namespace map
 {
   template <class T>
