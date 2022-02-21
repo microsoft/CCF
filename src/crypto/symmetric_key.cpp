@@ -94,7 +94,7 @@ namespace crypto
   }
 
   /// Free function implementation
-  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey)
+  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(std::span<const uint8_t> rawKey)
   {
     return std::make_unique<KeyAesGcm_OpenSSL>(rawKey);
   }

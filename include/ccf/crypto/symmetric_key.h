@@ -93,7 +93,7 @@ namespace crypto
     virtual size_t key_size() const = 0;
   };
 
-  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey);
+  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(std::span<const uint8_t> rawKey);
 
   /** Check for unsupported AES key sizes
    * @p num_bits Key size in bits

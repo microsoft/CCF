@@ -15,11 +15,11 @@ namespace crypto
 {
   using namespace OpenSSL;
 
-  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(CBuffer rawKey) :
-    key(std::vector<uint8_t>(rawKey.p, rawKey.p + rawKey.n)),
+  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
+    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
     evp_cipher(nullptr)
   {
-    const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);
+    const auto n = static_cast<unsigned int>(rawKey.size() * 8);
     if (n >= 256)
     {
       evp_cipher = EVP_aes_256_gcm();
