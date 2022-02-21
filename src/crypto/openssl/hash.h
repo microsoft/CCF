@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash_provider.h"
+#include "ccf/crypto/hash_provider.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/evp.h>

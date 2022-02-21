@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
-#include "crypto/verifier.h"
 #include "proposals.h"
 #include "service/map.h"
 #include "service/table_names.h"
@@ -243,7 +243,8 @@ namespace ccf
       {
         try
         {
-          crypto::check_is_cert(der);
+          crypto::make_unique_verifier(
+            (std::vector<uint8_t>)der); // throws on error
         }
         catch (std::invalid_argument& exc)
         {

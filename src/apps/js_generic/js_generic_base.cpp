@@ -2,12 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
@@ -34,7 +32,6 @@ namespace ccfapp
     struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
-    NetworkTables& network;
     ccfapp::AbstractNodeContext& context;
     metrics::Tracker metrics_tracker;
 
@@ -473,9 +470,8 @@ namespace ccfapp
     }
 
   public:
-    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+    JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       context(context)
     {
       metrics_tracker.install_endpoint(*this);
@@ -683,21 +679,10 @@ namespace ccfapp
 
 #pragma clang diagnostic pop
 
-  class JS : public ccf::RpcFrontend
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
-  private:
-    JSHandlers js_handlers;
-
-  public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, context)
-    {}
-  };
-
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
-  {
-    return make_shared<JS>(network, context);
+    return std::make_unique<JSHandlers>(context);
   }
+
 } // namespace ccfapp

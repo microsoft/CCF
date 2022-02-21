@@ -5,7 +5,6 @@
 #include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
 #include "consensus/ledger_enclave_types.h"
-#include "crypto/hash.h"
 #include "ds/thread_messaging.h"
 #include "entities.h"
 #include "kv/kv_types.h"

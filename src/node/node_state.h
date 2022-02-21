@@ -2,15 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
-#include "crypto/entropy.h"
-#include "crypto/pem.h"
-#include "crypto/symmetric_key.h"
-#include "crypto/verifier.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
@@ -72,7 +71,7 @@ namespace ccf
     ds::StateMachine<NodeStartupState> sm;
     std::mutex lock;
 
-    CurveID curve_id;
+    crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
 
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
@@ -119,7 +118,7 @@ namespace ccf
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    consensus::Index last_recovered_signed_idx = 1;
+    consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
 
@@ -190,7 +189,7 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
-      CurveID curve_id_) :
+      crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
@@ -1173,8 +1172,12 @@ namespace ccf
 
     void request_ledger_chunk(kv::Tx& tx) override
     {
-      auto tx2 = static_cast<kv::CommittableTx*>(&tx);
-      tx2->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      auto tx_ = static_cast<kv::CommittableTx*>(&tx);
+      if (tx_ == nullptr)
+      {
+        throw std::logic_error("Could not cast tx to CommittableTx");
+      }
+      tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
     void trigger_host_process_launch(

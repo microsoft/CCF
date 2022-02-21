@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/rsa_key_pair.h"
-#include "rsa_public_key.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/rsa_public_key.h"
+#include "crypto/openssl/rsa_public_key.h"
 
 #include <optional>
 #include <vector>

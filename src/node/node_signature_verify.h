@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/verifier.h"
 #include "ccf/tx.h"
-#include "crypto/verifier.h"
 #include "service/blit.h"
 #include "service/tables/nodes.h"
 

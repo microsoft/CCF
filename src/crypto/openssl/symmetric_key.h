@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmetric_key.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/crypto.h>

@@ -2,15 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
 #include "kv/untyped_map.h"
 #include "kv_module_loader.h"
 #include "named_auth_policies.h"
+#include "service/table_names.h"
 #include "tmpl/ccf_global.h"
 #include "tmpl/console_global.h"
 #include "tmpl/request.h"
@@ -36,7 +35,6 @@ namespace ccfapp
     struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
-    NetworkTables& network;
     ccfapp::AbstractNodeContext& node_context;
     ::metrics::Tracker metrics_tracker;
 
@@ -302,9 +300,8 @@ namespace ccfapp
     }
 
   public:
-    V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
+    V8Handlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       node_context(context)
     {
       metrics_tracker.install_endpoint(*this);
@@ -510,30 +507,14 @@ namespace ccfapp
     }
   };
 
-  /**
-   * V8 Frontend for RPC calls
-   */
-  class V8Frontend : public ccf::RpcFrontend
-  {
-  private:
-    V8Handlers handlers;
-
-  public:
-    V8Frontend(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, handlers),
-      handlers(network, context)
-    {}
-  };
-
-  /// Returns a new V8 Rpc Frontend
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+  /// Returns new V8 Endpoints
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
     // V8 initialization needs to move to a more central place
     // once/if V8 is integrated into core CCF.
     v8_initialize();
 
-    return make_shared<V8Frontend>(network, context);
+    return std::make_unique<V8Handlers>(context);
   }
-
 } // namespace ccfapp

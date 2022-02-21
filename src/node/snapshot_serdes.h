@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "crypto/hash.h"
 #include "ds/serialized.h"
 #include "entities.h"
 #include "kv/kv_types.h"

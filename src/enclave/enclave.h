@@ -3,7 +3,6 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "crypto/hash.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
@@ -21,6 +20,7 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
+#include "node/rpc/user_frontend.h"
 #include "oe_init.h"
 #include "ringbuffer_logger.h"
 #include "rpc_map.h"
@@ -78,7 +78,7 @@ namespace enclave
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
-      const CurveID& curve_id) :
+      const crypto::CurveID& curve_id) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
@@ -143,7 +143,8 @@ namespace enclave
           network, *context, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
-        ccfapp::get_rpc_handler(network, *context));
+        std::make_unique<ccf::UserRpcFrontend>(
+          network, ccfapp::make_user_endpoints(*context)));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));

@@ -8,7 +8,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
 #include "ccf/serdes.h"
-#include "ccf/user_frontend.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "frontend_test_infra.h"
@@ -33,6 +32,19 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 using namespace ccf;
 using namespace std;
+
+class SimpleUserRpcFrontend : public RpcFrontend
+{
+protected:
+  UserEndpointRegistry common_handlers;
+
+public:
+  SimpleUserRpcFrontend(
+    kv::Store& tables, ccfapp::AbstractNodeContext& context) :
+    RpcFrontend(tables, common_handlers),
+    common_handlers(context)
+  {}
+};
 
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {

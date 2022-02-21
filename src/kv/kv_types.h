@@ -3,11 +3,10 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/tx_id.h"
-#include "crypto/hash.h"
-#include "crypto/pem.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
@@ -770,7 +769,8 @@ namespace kv
 
     enum class Flag : uint8_t
     {
-      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
+      LEDGER_CHUNK_BEFORE_THIS_TX = 0x02,
     };
 
     virtual void set_flag(Flag f) = 0;

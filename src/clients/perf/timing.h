@@ -26,29 +26,28 @@ namespace timing
   };
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<timing::Measure>
 {
-  template <>
-  struct formatter<timing::Measure>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const timing::Measure& e, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(),
-        "sample_count: {}, average: {}, variance: {}",
-        e.sample_count,
-        e.average,
-        e.variance);
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const timing::Measure& e, FormatContext& ctx)
+  {
+    return format_to(
+      ctx.out(),
+      "sample_count: {}, average: {}, variance: {}",
+      e.sample_count,
+      e.average,
+      e.variance);
+  }
+};
+FMT_END_NAMESPACE
 
 namespace timing
 {

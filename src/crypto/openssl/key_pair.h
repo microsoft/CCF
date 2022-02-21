@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../key_pair.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/public_key.h"
+#include "crypto/openssl/public_key.h"
 #include "openssl_wrappers.h"
-#include "public_key.h"
 
 #include <stdexcept>
 #include <string>

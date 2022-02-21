@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "../channels.h"
 
+#include "ccf/crypto/verifier.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
-#include "crypto/verifier.h"
 #include "ds/hex.h"
 #include "ds/ring_buffer.h"
 #include "node/entities.h"
@@ -305,7 +305,7 @@ TEST_CASE("Client/Server key exchange")
     initiator_signature = msgs[0].data();
 
     auto md = msgs[1].data();
-    REQUIRE(md.size() == msg.size() + sizeof(GcmHdr));
+    REQUIRE(md.size() == msg.size() + GcmHdr::serialised_size());
     REQUIRE(memcmp(md.data(), msg.data(), msg.size()) == 0);
 
     queued_msg = msgs[1]; // save for later

@@ -153,7 +153,7 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, _ = network.find_primary()
 
         ledger_directories = primary.remote.ledger_paths()
