@@ -3,6 +3,7 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
@@ -317,7 +318,7 @@ namespace kv
 
     bool should_track_dependencies(const std::string& name) override
     {
-      return name.compare(ccf::Tables::AFT_REQUESTS) != 0;
+      return name.compare(aft::Tables::AFT_REQUESTS) != 0;
     }
 
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override

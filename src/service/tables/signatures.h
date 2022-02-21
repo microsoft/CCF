@@ -65,4 +65,10 @@ namespace ccf
 
   // Serialised Merkle tree at most recent signature is a single Value in the KV
   using SerialisedMerkleTree = kv::RawCopySerialisedValue<std::vector<uint8_t>>;
+
+  namespace Tables
+  {
+    static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
+    static constexpr auto SERIALISED_MERKLE_TREE = "public:ccf.internal.tree";
+  }
 }
