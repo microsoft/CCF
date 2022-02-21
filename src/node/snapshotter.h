@@ -263,19 +263,17 @@ namespace ccf
         idx,
         next_snapshot_indices.back().idx);
 
-      bool force = store->flag_enabled(
+      bool forced = store->flag_enabled(
         kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-      if (force)
+      auto due =
+        (idx - next_snapshot_indices.back().idx) >= snapshot_tx_interval;
+      if (due || forced)
       {
+        next_snapshot_indices.push_back({idx, !due});
+        LOG_TRACE_FMT(
+          "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
         store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        schedule_snapshot(idx);
-      }
-
-      if ((idx - next_snapshot_indices.back().idx) >= snapshot_tx_interval)
-      {
-        next_snapshot_indices.push_back({idx, false});
-        LOG_TRACE_FMT("Recorded {} as snapshot index", idx);
         return true;
       }
 
@@ -357,15 +355,20 @@ namespace ccf
         next_snapshot_indices.front().idx);
 
       auto next = next_snapshot_indices.front();
-      if (next.idx - last_snapshot_idx >= snapshot_tx_interval)
+      auto due = next.idx - last_snapshot_idx >= snapshot_tx_interval;
+      if (due || next.forced)
       {
         if (snapshot_generation_enabled && generate_snapshot && next.idx)
         {
           schedule_snapshot(next.idx);
         }
 
-        last_snapshot_idx = next.idx;
-        LOG_TRACE_FMT("Recorded {} as last snapshot index", last_snapshot_idx);
+        if (due && !next.forced)
+        {
+          last_snapshot_idx = next.idx;
+          LOG_TRACE_FMT(
+            "Recorded {} as last snapshot index", last_snapshot_idx);
+        }
       }
     }
 

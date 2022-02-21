@@ -278,7 +278,7 @@ TEST_CASE("Rollback before snapshot is committed")
     network.tables->set_flag(
       kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-    REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
     threading::ThreadMessaging::thread_messaging.run_one();
@@ -297,5 +297,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(
       read_ringbuffer_out(eio) ==
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
+
+    threading::ThreadMessaging::thread_messaging.run_one();
   }
 }
