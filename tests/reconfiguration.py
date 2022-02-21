@@ -69,7 +69,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
 
 
 @reqs.description("Adding a valid node without snapshot")
-def test_add_node(network, args):
+def test_add_node(network, args, from_snapshot=True):
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
@@ -88,7 +88,7 @@ def test_add_node(network, args):
             }
         )
     )
-    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.join_node(new_node, args.package, args, from_snapshot=from_snapshot)
 
     # Verify self-signed node certificate validity period
     new_node.verify_certificate_validity_period(interface_name=operator_rpc_interface)
@@ -563,11 +563,11 @@ def run(args):
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
-            test_add_node(network, args)
+            test_add_node(network, args, from_snapshot=False)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             test_add_as_many_pending_nodes(network, args)
-            test_add_node(network, args)
+            test_add_node(network, args, from_snapshot=False)
             test_retire_primary(network, args)
             test_add_node_with_read_only_ledger(network, args)
 
@@ -708,7 +708,7 @@ def check_2tx_ledger(ledger_paths, learner_id):
 
 @reqs.description("Migrate from 1tx to 2tx reconfiguration scheme")
 def test_migration_2tx_reconfiguration(
-    network, args, initial_is_1tx=True, from_snapshot=False, **kwargs
+    network, args, initial_is_1tx=True, **kwargs
 ):
     primary, _ = network.find_primary()
 
@@ -735,7 +735,7 @@ def test_migration_2tx_reconfiguration(
             assert len(rj["details"]["learners"]) == 0
 
     new_node = network.create_node("local://localhost", **kwargs)
-    network.join_node(new_node, args.package, args, from_snapshot=from_snapshot)
+    network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
 
     # Check that the new node has the right consensus parameter
@@ -770,7 +770,7 @@ def run_migration_tests(args):
 
 
 def run_all(args):
-    # run(args)
+    run(args)
     if cr.args.consensus != "BFT":
         run_join_old_snapshot(args)
 
