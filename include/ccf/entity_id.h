@@ -173,23 +173,22 @@ namespace std
   };
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <typename FmtExtender>
+struct formatter<ccf::EntityId<FmtExtender>>
 {
-  template <typename FmtExtender>
-  struct formatter<ccf::EntityId<FmtExtender>>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
-    {
-      std::stringstream ss;
-      ss << v;
-      return format_to(ctx.out(), "{}", ss.str());
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
+  {
+    std::stringstream ss;
+    ss << v;
+    return format_to(ctx.out(), "{}", ss.str());
+  }
+};
+FMT_END_NAMESPACE

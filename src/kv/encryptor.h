@@ -30,7 +30,10 @@ namespace kv
 
       hdr.set_iv_seq(tx_id.version);
       hdr.set_iv_term(tx_id.term);
-      hdr.set_iv_snapshot(entry_type == EntryType::Snapshot);
+      if (entry_type == EntryType::Snapshot)
+      {
+        hdr.set_iv_is_snapshot();
+      }
     }
 
   public:
@@ -38,12 +41,14 @@ namespace kv
 
     size_t get_header_length() override
     {
-      return S::RAW_DATA_SIZE;
+      return S::serialised_size();
     }
 
     uint64_t get_term(const uint8_t* data, size_t size) override
     {
-      return S(data, size).get_term();
+      S s;
+      s.deserialise(data, size);
+      return s.get_term();
     }
 
     /**

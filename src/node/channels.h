@@ -13,6 +13,7 @@
 #include "ds/hex.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
+#include "ds/thread_messaging.h"
 #include "enclave/enclave_time.h"
 #include "entities.h"
 #include "node_types.h"
@@ -36,7 +37,7 @@
 namespace ccf
 {
   using SendNonce = uint64_t;
-  using GcmHdr = crypto::GcmHeader<sizeof(SendNonce)>;
+  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(SendNonce)>;
 
   struct RecvNonce
   {
@@ -59,7 +60,7 @@ namespace ccf
 
   static inline RecvNonce get_nonce(const GcmHdr& header)
   {
-    return RecvNonce(header.get_iv_int());
+    return *reinterpret_cast<const RecvNonce*>(header.iv.data());
   }
 
   enum ChannelStatus
@@ -71,49 +72,48 @@ namespace ccf
   };
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ChannelStatus>
 {
-  template <>
-  struct formatter<ccf::ChannelStatus>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+  template <typename FormatContext>
+  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+  {
+    char const* s = "Unknown";
+    switch (cs)
     {
-      char const* s = "Unknown";
-      switch (cs)
+      case (ccf::INACTIVE):
       {
-        case (ccf::INACTIVE):
-        {
-          s = "INACTIVE";
-          break;
-        }
-        case (ccf::INITIATED):
-        {
-          s = "INITIATED";
-          break;
-        }
-        case (ccf::WAITING_FOR_FINAL):
-        {
-          s = "WAITING_FOR_FINAL";
-          break;
-        }
-        case (ccf::ESTABLISHED):
-        {
-          s = "ESTABLISHED";
-          break;
-        }
+        s = "INACTIVE";
+        break;
       }
-
-      return format_to(ctx.out(), "{}", s);
+      case (ccf::INITIATED):
+      {
+        s = "INITIATED";
+        break;
+      }
+      case (ccf::WAITING_FOR_FINAL):
+      {
+        s = "WAITING_FOR_FINAL";
+        break;
+      }
+      case (ccf::ESTABLISHED):
+      {
+        s = "ESTABLISHED";
+        break;
+      }
     }
-  };
-}
+
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE
 
 namespace ccf
 {
@@ -197,7 +197,7 @@ namespace ccf
     {
       status.expect(ESTABLISHED);
 
-      RecvNonce recv_nonce(header.get_iv_int());
+      auto recv_nonce = get_nonce(header);
       auto tid = recv_nonce.tid;
       assert(tid < threading::ThreadMessaging::max_num_threads);
 
@@ -884,7 +884,8 @@ namespace ccf
         (size_t)nonce.nonce);
 
       GcmHdr gcm_hdr;
-      gcm_hdr.set_iv_seq(nonce.get_val());
+      const auto nonce_n = nonce.get_val();
+      gcm_hdr.set_iv((const uint8_t*)&nonce_n, sizeof(nonce_n));
 
       std::vector<uint8_t> cipher(plain.size());
       assert(send_key);
@@ -956,10 +957,10 @@ namespace ccf
       const uint8_t* data_ = data;
       size_t size_ = size;
 
-      serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
       GcmHdr hdr;
+      serialized::skip(data_, size_, (size_ - hdr.serialised_size()));
       hdr.deserialise(data_, size_);
-      size -= sizeof(GcmHdr);
+      size -= hdr.serialised_size();
 
       if (!verify_or_decrypt(hdr, {data, size}))
       {

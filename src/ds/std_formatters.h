@@ -11,38 +11,37 @@
 /// Defines fmt::formatter instantiations for commonly used std:: container
 /// types
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<std::vector<uint8_t>>
 {
-  template <>
-  struct formatter<std::vector<uint8_t>>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const std::vector<uint8_t>& v, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), "<vec[{}]: {:02x}>", v.size(), fmt::join(v, " "));
-    }
-  };
-
-  template <size_t N>
-  struct formatter<std::array<uint8_t, N>>
+  template <typename FormatContext>
+  auto format(const std::vector<uint8_t>& v, FormatContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return format_to(
+      ctx.out(), "<vec[{}]: {:02x}>", v.size(), fmt::join(v, " "));
+  }
+};
 
-    template <typename FormatContext>
-    auto format(const std::array<uint8_t, N>& a, FormatContext& ctx)
-    {
-      return format_to(ctx.out(), "<arr[{}]: {:02x}>", N, fmt::join(a, " "));
-    }
-  };
-}
+template <size_t N>
+struct formatter<std::array<uint8_t, N>>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const std::array<uint8_t, N>& a, FormatContext& ctx)
+  {
+    return format_to(ctx.out(), "<arr[{}]: {:02x}>", N, fmt::join(a, " "));
+  }
+};
+FMT_END_NAMESPACE
