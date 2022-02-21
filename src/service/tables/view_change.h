@@ -93,4 +93,8 @@ namespace ccf
     ViewChangeConfirmation, view, primary_id, signature, view_change_messages);
 
   using NewViewsMap = ServiceValue<ViewChangeConfirmation>;
+  namespace Tables
+  {
+    static constexpr auto NEW_VIEWS = "public:ccf.internal.consensus.new_views";
+  }
 }

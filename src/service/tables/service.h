@@ -35,4 +35,8 @@ namespace ccf
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV
   using Service = ServiceValue<ServiceInfo>;
+  namespace Tables
+  {
+    static constexpr auto SERVICE = "public:ccf.gov.service.info";
+  }
 }

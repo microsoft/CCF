@@ -78,6 +78,14 @@ namespace ccf
   using MemberPublicEncryptionKeys =
     kv::RawCopySerialisedMap<MemberId, crypto::Pem>;
 
+  namespace Tables
+  {
+    static constexpr auto MEMBER_INFO = "public:ccf.gov.members.info";
+    static constexpr auto MEMBER_CERTS = "public:ccf.gov.members.certs";
+    static constexpr auto MEMBER_ENCRYPTION_PUBLIC_KEYS =
+      "public:ccf.gov.members.encryption_public_keys";
+  }
+
   /** Records a signed signature containing the last state digest and the
    * next state digest to sign
    */
@@ -116,4 +124,8 @@ namespace ccf
 #pragma clang diagnostic pop
   DECLARE_JSON_OPTIONAL_FIELDS(MemberAck, signed_req)
   using MemberAcks = ServiceMap<MemberId, MemberAck>;
+  namespace Tables
+  {
+    static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
+  }
 }

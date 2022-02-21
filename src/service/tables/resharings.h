@@ -9,4 +9,8 @@
 namespace ccf
 {
   using Resharings = ServiceMap<kv::ReconfigurationId, ResharingResult>;
+  namespace Tables
+  {
+    static constexpr auto RESHARINGS = "public:ccf.internal.resharings";
+  }
 }
