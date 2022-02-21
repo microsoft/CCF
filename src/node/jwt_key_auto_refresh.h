@@ -310,7 +310,9 @@ namespace ccf
           !metadata_url.port.empty() ? metadata_url.port : "443";
 
         auto ca_cert_bundle_pem_str = ca_cert_bundle_pem.value();
-        auto ca = std::make_shared<tls::CA>(std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(ca_cert_bundle_pem_str.data()), ca_cert_bundle_pem_str.size()});
+        auto ca = std::make_shared<tls::CA>(std::span<const uint8_t>{
+          reinterpret_cast<const uint8_t*>(ca_cert_bundle_pem_str.data()),
+          ca_cert_bundle_pem_str.size()});
         auto ca_cert = std::make_shared<tls::Cert>(
           ca, std::nullopt, std::nullopt, metadata_url.host);
 

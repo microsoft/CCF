@@ -5,7 +5,6 @@
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/md_type.h"
 #include "ccf/crypto/sha256_hash.h"
-#include "ccf/ds/buffer.h"
 
 #include <array>
 #include <cstdint>

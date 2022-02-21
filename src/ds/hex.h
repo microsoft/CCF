@@ -2,14 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/buffer.h"
-
 #define FMT_HEADER_ONLY
 
 #include <fmt/format.h>
+#include <span>
 #include <string>
 #include <vector>
-#include <span>
 
 namespace ds
 {

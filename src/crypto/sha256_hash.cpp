@@ -3,7 +3,6 @@
 
 #include "ccf/crypto/sha256_hash.h"
 
-#include "ccf/ds/buffer.h"
 #include "ds/hex.h"
 
 namespace crypto
@@ -22,7 +21,8 @@ namespace crypto
 
   Sha256Hash::Sha256Hash(const std::string& str)
   {
-    std::span<const uint8_t> cb(reinterpret_cast<const uint8_t*>(str.data()), str.size());
+    std::span<const uint8_t> cb(
+      reinterpret_cast<const uint8_t*>(str.data()), str.size());
     default_sha256(cb, h.data());
   }
 

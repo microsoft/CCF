@@ -6,7 +6,6 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
 #include "ccf/crypto/san.h"
-#include "ccf/ds/buffer.h"
 
 #include <cstdint>
 #include <optional>

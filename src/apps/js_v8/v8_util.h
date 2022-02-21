@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/buffer.h"
 #include "nlohmann/json.hpp"
 #include "v8.h"
 

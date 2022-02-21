@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/crypto/entropy.h"
-#include "ccf/ds/buffer.h"
 
 #include <span>
 #include <vector>

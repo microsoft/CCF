@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ccf_assert.h"
-#include "ccf/ds/buffer.h"
 #include "ds/hash.h"
 #include "ds/map_serializers.h"
 

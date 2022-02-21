@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
-#include "ccf/ds/buffer.h"
 #include "crypto/openssl/openssl_wrappers.h"
 
 #include <exception>

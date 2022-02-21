@@ -193,7 +193,7 @@ namespace ccf
       const GcmHdr& header,
       std::span<const uint8_t> aad,
       std::span<const uint8_t> cipher = {},
-      Buffer plain = {})
+      std::span<uint8_t> plain = {})
     {
       status.expect(ESTABLISHED);
 
@@ -239,8 +239,8 @@ namespace ccf
         return false;
       }
 
-      auto ret =
-        recv_key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
+      auto ret = recv_key->decrypt(
+        header.get_iv(), header.tag, cipher, aad, plain.data());
       if (ret)
       {
         // Set local recv nonce to received nonce only if verification is
@@ -626,7 +626,8 @@ namespace ccf
       serialized::write(data, size, msg_type);
     }
 
-    void append_buffer(std::vector<uint8_t>& target, std::span<const uint8_t> src)
+    void append_buffer(
+      std::vector<uint8_t>& target, std::span<const uint8_t> src)
     {
       const auto size_before = target.size();
       auto size = src.size() + sizeof(src.size());
