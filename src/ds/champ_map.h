@@ -529,7 +529,7 @@ namespace champ
         map.size(),
         ordered_state.size());
 
-      serialized_buffer = {data, map.get_serialized_size()};
+      serialized_buffer = std::span<const uint8_t>(data, map.get_serialized_size());
 
       for (const auto& p : ordered_state)
       {

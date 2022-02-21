@@ -11,7 +11,7 @@ namespace crypto
 
   Sha256Hash::Sha256Hash(const uint8_t* data, size_t size)
   {
-    default_sha256({data, size}, h.data());
+    default_sha256(std::span<const uint8_t>(data, size), h.data());
   }
 
   Sha256Hash::Sha256Hash(const std::vector<uint8_t>& vec)

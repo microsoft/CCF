@@ -49,7 +49,7 @@ namespace crypto
     template <>
     void update<std::vector<uint8_t>>(const std::vector<uint8_t>& d)
     {
-      update_hash({d.data(), d.size()});
+      update_hash(d);
     }
   };
 

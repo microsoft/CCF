@@ -44,8 +44,8 @@ namespace ds
   inline static std::string to_hex(std::span<const uint8_t> buf)
   {
     std::string r;
-    for (size_t i = 0; i < buf.size(); i++)
-      r += fmt::format("{:02x}", buf[i]);
+    for (auto c: buf)
+      r += fmt::format("{:02x}", c);
     return r;
   }
 
