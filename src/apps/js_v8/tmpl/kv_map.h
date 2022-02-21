@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/tx.h"
+#include "kv/untyped_map.h"
 #include "v8.h"
 
 #include <map>
