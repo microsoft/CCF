@@ -6,7 +6,7 @@
 #include "ccf/ds/buffer.h"
 #include "kv_types.h"
 #include "node/rpc/claims.h"
-#include "serialised_entry.h"
+#include "ccf/kv/serialised_entry.h"
 #include "serialised_entry_format.h"
 
 #include <optional>

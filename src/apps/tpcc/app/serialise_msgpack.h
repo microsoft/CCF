@@ -3,7 +3,7 @@
 #pragma once
 
 #include "kv/map.h"
-#include "kv/serialised_entry.h"
+#include "ccf/kv/serialised_entry.h"
 
 #include <msgpack/msgpack.hpp>
 

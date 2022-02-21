@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/kv/set_handle.h"
 #include "kv_types.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
-#include "set_handle.h"
 
 namespace kv
 {

@@ -2,8 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/byte_vector.h"
-#include "kv/kv_types.h"
+#include "ccf/kv/abstract_handle.h"
+#include "ccf/kv/serialised_entry.h"
+#include "ccf/kv/version.h"
+
+#include <functional>
+#include <optional>
+#include <string>
 
 namespace kv::untyped
 {
@@ -14,8 +19,8 @@ namespace kv::untyped
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
     // MyMap::MapHandle::KeyType, templated on the MapHandle or Map type
-    using KeyType = ccf::ByteVector;
-    using ValueType = ccf::ByteVector;
+    using KeyType = kv::serialisers::SerialisedEntry;
+    using ValueType = kv::serialisers::SerialisedEntry;
 
     using ElementVisitor =
       std::function<void(const KeyType& k, const ValueType& V)>;

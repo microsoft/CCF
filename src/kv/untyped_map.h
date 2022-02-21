@@ -7,7 +7,7 @@
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_change_set.h"
-#include "kv/untyped_map_handle.h"
+#include "ccf/kv/untyped_map_handle.h"
 
 #include <functional>
 #include <list>

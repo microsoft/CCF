@@ -6,6 +6,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
+#include "ccf/kv/version.h"
 #include "ccf/tx_id.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
@@ -37,10 +38,6 @@ namespace aft
 
 namespace kv
 {
-  // Version indexes modifications to the local kv store.
-  using Version = uint64_t;
-  static constexpr Version NoVersion = 0u;
-
   // DeletableVersion describes the version of an individual key within each
   // table, which may be negative to indicate a deletion
   using DeletableVersion = int64_t;
@@ -601,12 +598,6 @@ namespace kv
     virtual bool prepare(bool track_commits) = 0;
     virtual void commit(Version v, bool track_read_versions) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
-  };
-
-  class AbstractHandle
-  {
-  public:
-    virtual ~AbstractHandle() = default;
   };
 
   struct NamedHandleMixin
