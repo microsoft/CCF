@@ -612,6 +612,7 @@ namespace kv
         last_replicated = tx_id.version;
         last_committable = tx_id.version;
         unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();

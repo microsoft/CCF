@@ -97,6 +97,13 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
                     << std::endl;
     aft::LoggingStubStoreSig::initialise_term(t);
   }
+
+  bool flag_enabled(kv::AbstractStore::Flag)
+  {
+    return false;
+  }
+
+  void unset_flag(kv::AbstractStore::Flag) {}
 };
 
 using ms = std::chrono::milliseconds;

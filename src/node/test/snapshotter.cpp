@@ -270,4 +270,34 @@ TEST_CASE("Rollback before snapshot is committed")
       read_ringbuffer_out(eio) ==
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
   }
+
+  INFO("Force a snapshot");
+  {
+    size_t snapshot_idx = network.tables->current_version();
+
+    network.tables->set_flag(
+      kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+    REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
+
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    REQUIRE(
+      read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
+
+    REQUIRE(!network.tables->flag_enabled(
+      kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
+    // Commit evidence
+    issue_transactions(network, 1);
+    commit_idx = snapshot_idx + 2;
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
+    snapshotter->commit(commit_idx, true);
+    REQUIRE(
+      read_ringbuffer_out(eio) ==
+      rb_msg({consensus::snapshot_commit, snapshot_idx}));
+
+    threading::ThreadMessaging::thread_messaging.run_one();
+  }
 }
