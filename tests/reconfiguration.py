@@ -98,12 +98,14 @@ def test_add_node(network, args, from_snapshot=True):
         args,
         validity_period_days=args.maximum_node_certificate_validity_days // 2,
     )
-    with new_node.client() as c:
-        s = c.get("/node/state")
-        assert s.body.json()["node_id"] == new_node.node_id
-        assert (
-            s.body.json()["startup_seqno"] == 0
-        ), "Node started without snapshot but reports startup seqno != 0"
+
+    if not from_snapshot:
+        with new_node.client() as c:
+            s = c.get("/node/state")
+            assert s.body.json()["node_id"] == new_node.node_id
+            assert (
+                s.body.json()["startup_seqno"] == 0
+            ), "Node started without snapshot but reports startup seqno != 0"
 
     # Now that the node is trusted, verify endorsed certificate validity period
     new_node.verify_certificate_validity_period()
