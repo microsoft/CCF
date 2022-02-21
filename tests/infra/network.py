@@ -144,7 +144,9 @@ class Network:
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
-            self.hosts = existing_network.hosts
+            self.hosts = []
+            for n in existing_network.nodes:
+                self.hosts.append(n.host)
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
