@@ -266,15 +266,26 @@ namespace ccf
       bool forced = store->flag_enabled(
         kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-      auto due =
-        (idx - next_snapshot_indices.back().idx) >= snapshot_tx_interval;
+      consensus::Index last_unforced_idx = last_snapshot_idx;
+      for (size_t i = next_snapshot_indices.size() - 1;
+           i < next_snapshot_indices.size();
+           i--)
+      {
+        if (!next_snapshot_indices[i].forced)
+        {
+          last_unforced_idx = next_snapshot_indices[i].idx;
+          break;
+        }
+      }
+
+      auto due = (idx - last_unforced_idx) >= snapshot_tx_interval;
       if (due || forced)
       {
         next_snapshot_indices.push_back({idx, !due});
         LOG_TRACE_FMT(
           "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
         store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        return true;
+        return due;
       }
 
       return false;
