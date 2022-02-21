@@ -155,7 +155,8 @@ namespace asynchost
     // Used when recovering an existing ledger file
     LedgerFile(const std::string& dir, const std::string& file_name_) :
       dir(dir),
-      file_name(file_name_)
+      file_name(file_name_),
+      completed(false)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(file_path.c_str(), "r+b");
@@ -227,16 +228,19 @@ namespace asynchost
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
-            throw std::logic_error(fmt::format(
+            LOG_FAIL_FMT(
               "Malformed incomplete ledger file {} (expecting entry of size "
               "{}, remaining {})",
               file_path,
               entry_size,
-              len));
+              len);
+            return;
           }
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
+
+          LOG_FAIL_FMT("Recovered one entry of size {} at {}", entry_size, pos);
 
           positions.push_back(pos);
           pos += (kv::serialised_entry_header_size + entry_size);
@@ -742,9 +746,10 @@ namespace asynchost
           }
           catch (const std::exception& e)
           {
-            corrupt_files.emplace_back(f.path());
-            LOG_TRACE_FMT(
-              "Ignoring invalid ledger file {}: {}", file_name, e.what());
+            // corrupt_files.emplace_back(f.path());
+            // LOG_TRACE_FMT(
+            //   "Ignoring invalid ledger file {}: {}", file_name, e.what());
+            LOG_FAIL_FMT("Error reading ledger file: {}", file_name);
             continue;
           }
 

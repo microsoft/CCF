@@ -171,12 +171,14 @@ def test_recover_service_truncated_ledger(network, args):
     # 1. Mid-entry
     # 2. Positions table missing
     # 3. Private entry corrupted
+    # 4. File empty
+    # 5. All zeros (truncate with w+ flag)
     truncated_ledger_file = os.listdir(current_ledger_dir)[0]
     truncated_ledger_file_path = os.path.join(current_ledger_dir, truncated_ledger_file)
     truncated_ledger_file_size = os.path.getsize(truncated_ledger_file_path)
-    with open(truncated_ledger_file_path, "w", encoding="utf-8") as f:
+    with open(truncated_ledger_file_path, "r+", encoding="utf-8") as f:
         f.truncate(truncated_ledger_file_size // 2)
-    LOG.info(f"Truncated ledger file {truncated_ledger_file}")
+    LOG.info(f"Truncated ledger file {truncated_ledger_file_path}")
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
