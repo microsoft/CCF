@@ -36,7 +36,6 @@ namespace kv
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
 
-  protected:
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
