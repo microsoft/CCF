@@ -15,4 +15,9 @@ namespace ccf
   // table is public but the shares are encrypted with the latest ledger secret.
 
   using SubmittedShares = ServiceMap<MemberId, std::vector<uint8_t>>;
+  namespace Tables
+  {
+    static constexpr auto SUBMITTED_SHARES =
+      "public:ccf.internal.encrypted_submitted_shares";
+  }
 }

@@ -6,7 +6,9 @@
 #include "consensus/aft/request.h"
 #include "kv/committable_tx.h"
 #include "kv_types.h"
-#include "service/table_names.h"
+#include "service/tables/shares.h"
+#include "service/tables/signatures.h"
+#include "service/tables/snapshot_evidence.h"
 
 #include <vector>
 
