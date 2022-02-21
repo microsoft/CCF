@@ -3,11 +3,11 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/users.h"
 #include "enclave/rpc_context.h"
 #include "service/blit.h"
-#include "service/tables/members.h"
 #include "service/tables/nodes.h"
-#include "service/tables/users.h"
 
 namespace ccf
 {

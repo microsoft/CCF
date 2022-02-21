@@ -4,7 +4,6 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/service/map.h"
-#include "script.h"
 
 #include <unordered_map>
 #include <vector>

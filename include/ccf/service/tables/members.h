@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/entity_id.h"
+#include "ccf/service/map.h"
 #include "ccf/service/signed_req.h"
-#include "ds/hash.h"
-#include "node_signature.h"
 
 #include <vector>
 

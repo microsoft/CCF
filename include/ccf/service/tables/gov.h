@@ -4,7 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/kv/map.h"
-#include "proposals.h"
+#include "ccf/service/tables/proposals.h"
 
 namespace ccf
 {
