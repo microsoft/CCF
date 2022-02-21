@@ -148,6 +148,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 
 @reqs.description("Recover a service from malformed ledger")
+@reqs.recover(number_txs=2)
 def test_recover_service_truncated_ledger(network, args):
     old_primary, _ = network.find_primary()
 
@@ -167,12 +168,7 @@ def test_recover_service_truncated_ledger(network, args):
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    # TODO: Test multiple types of truncation
-    # 1. Mid-entry
-    # 2. Positions table missing
-    # 3. Private entry corrupted
-    # 4. File empty
-    # 5. All zeros (truncate with w+ flag)
+    # Corrupt ledger before starting new service
     truncated_ledger_file = os.listdir(current_ledger_dir)[0]
     truncated_ledger_file_path = os.path.join(current_ledger_dir, truncated_ledger_file)
     truncated_ledger_file_size = os.path.getsize(truncated_ledger_file_path)
@@ -191,6 +187,37 @@ def test_recover_service_truncated_ledger(network, args):
     recovered_network.recover(args)
 
     return recovered_network
+
+
+def run_corrupted_ledger(args):
+    # One node suffice to the ledger recovery
+    nodes = infra.e2e_args.min_nodes(args, f=0)
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        # TODO: Test multiple types of truncation
+        # 1. Mid-entry
+        # 2. Positions table missing
+        # 3. Private entry corrupted
+        # 4. File empty
+        # 5. All zeros (truncate with w+ flag)
+        recovered_network = test_recover_service_truncated_ledger(network, args)
+
+    # Make sure ledger can be read once recovered (i.e. ledger corruption does not affect recovered ledger)
+    for node in recovered_network.nodes:
+        ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
+        _, last_seqno = ledger.get_latest_public_state()
+        LOG.info(
+            f"Successfully read ledger for node {node.local_node_id} up to seqno {last_seqno}"
+        )
 
 
 def run(args):
@@ -284,4 +311,5 @@ checked. Note that the key for each logging message is unique (per table).
     args.ledger_chunk_bytes = "50KB"
     args.snapshot_tx_interval = 30
 
-    run(args)
+    # run(args)
+    run_corrupted_ledger(args)

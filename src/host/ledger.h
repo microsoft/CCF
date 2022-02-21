@@ -213,6 +213,7 @@ namespace asynchost
         size_t pos = sizeof(positions_offset_header_t);
         kv::SerialisedEntryHeader entry_header;
 
+        size_t current_idx = start_idx;
         while (len >= kv::serialised_entry_header_size)
         {
           if (
@@ -228,10 +229,12 @@ namespace asynchost
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
-            LOG_FAIL_FMT(
-              "Malformed incomplete ledger file {} (expecting entry of size "
+            LOG_INFO_FMT(
+              "Malformed incomplete ledger file {} at seqno {} (expecting "
+              "entry of size "
               "{}, remaining {})",
               file_path,
+              current_idx,
               entry_size,
               len);
             return;
@@ -239,6 +242,7 @@ namespace asynchost
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
+          current_idx++;
 
           LOG_FAIL_FMT("Recovered one entry of size {} at {}", entry_size, pos);
 

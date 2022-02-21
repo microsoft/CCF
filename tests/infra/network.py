@@ -178,7 +178,6 @@ class Network:
             pass
 
         for host in self.hosts:
-            LOG.error("Create node")
             self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
