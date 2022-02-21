@@ -267,13 +267,13 @@ namespace ccf
         kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       consensus::Index last_unforced_idx = last_snapshot_idx;
-      for (size_t i = next_snapshot_indices.size() - 1;
-           i < next_snapshot_indices.size();
-           i--)
+      for (auto it = next_snapshot_indices.rbegin();
+           it != next_snapshot_indices.rend();
+           it++)
       {
-        if (!next_snapshot_indices[i].forced)
+        if (!it->forced)
         {
-          last_unforced_idx = next_snapshot_indices[i].idx;
+          last_unforced_idx = it->idx;
           break;
         }
       }
