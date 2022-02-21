@@ -135,6 +135,12 @@ namespace ccf::endpoints
 
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
+  using EndpointsMap = ccf::ServiceMap<EndpointKey, EndpointProperties>;
+  namespace Tables
+  {
+    static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
+  }
+
   /** An Endpoint represents a user-defined resource that can be invoked by
    * authorised users via HTTP requests, over TLS. An Endpoint is accessible
    * at a specific verb and URI, e.g. POST /app/accounts or GET /app/records.

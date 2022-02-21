@@ -87,6 +87,13 @@ namespace ccf
   using NodeEndorsedCertificates =
     kv::RawCopySerialisedMap<NodeId, crypto::Pem>;
 
+  namespace Tables
+  {
+    static constexpr auto NODES = "public:ccf.gov.nodes.info";
+    static constexpr auto NODE_ENDORSED_CERTIFICATES =
+      "public:ccf.gov.nodes.endorsed_certificates";
+  }
+
   inline NodeId compute_node_id_from_pubk_der(
     const std::vector<uint8_t>& node_pubk_der)
   {

@@ -1170,14 +1170,25 @@ namespace ccf
       share_manager.shuffle_recovery_shares(tx);
     }
 
-    void request_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(kv::Tx& tx) override
     {
       auto tx_ = static_cast<kv::CommittableTx*>(&tx);
       if (tx_ == nullptr)
       {
         throw std::logic_error("Could not cast tx to CommittableTx");
       }
-      tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+    }
+
+    void trigger_snapshot(kv::Tx& tx) override
+    {
+      auto committable_tx = static_cast<kv::CommittableTx*>(&tx);
+      if (committable_tx == nullptr)
+      {
+        throw std::logic_error("Could not cast tx to CommittableTx");
+      }
+      committable_tx->set_flag(
+        kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
     }
 
     void trigger_host_process_launch(

@@ -5,7 +5,6 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "kv/untyped_map.h"
 #include "kv_module_loader.h"
@@ -36,7 +35,6 @@ namespace ccfapp
     struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
-    NetworkTables& network;
     ccfapp::AbstractNodeContext& node_context;
     ::metrics::Tracker metrics_tracker;
 
@@ -302,9 +300,8 @@ namespace ccfapp
     }
 
   public:
-    V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
+    V8Handlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       node_context(context)
     {
       metrics_tracker.install_endpoint(*this);
@@ -330,7 +327,8 @@ namespace ccfapp
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
 
-      auto endpoints = tx.ro<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
+      auto endpoints =
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
@@ -419,7 +417,8 @@ namespace ccfapp
       std::set<RESTVerb> verbs =
         ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
 
-      auto endpoints = tx.ro<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
+      auto endpoints =
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
         const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
@@ -464,7 +463,8 @@ namespace ccfapp
     {
       UserEndpointRegistry::build_api(document, tx);
 
-      auto endpoints = tx.ro<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
+      auto endpoints =
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();
@@ -507,30 +507,14 @@ namespace ccfapp
     }
   };
 
-  /**
-   * V8 Frontend for RPC calls
-   */
-  class V8Frontend : public ccf::RpcFrontend
-  {
-  private:
-    V8Handlers handlers;
-
-  public:
-    V8Frontend(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, handlers),
-      handlers(network, context)
-    {}
-  };
-
-  /// Returns a new V8 Rpc Frontend
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+  /// Returns new V8 Endpoints
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
     // V8 initialization needs to move to a more central place
     // once/if V8 is integrated into core CCF.
     v8_initialize();
 
-    return make_shared<V8Frontend>(network, context);
+    return std::make_unique<V8Handlers>(context);
   }
-
 } // namespace ccfapp

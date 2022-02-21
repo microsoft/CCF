@@ -6,10 +6,10 @@
 
 namespace ccfapp
 {
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context)
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-    return get_rpc_handler_impl(network, context);
+    return make_user_endpoints_impl(context);
   }
 
   std::vector<ccf::js::FFIPlugin> get_js_plugins()

@@ -11,7 +11,6 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "node/tx_receipt.h"
 
@@ -166,6 +165,13 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      openapi_info.title = "CCF Sample Logging App";
+      openapi_info.description =
+        "This CCF sample app implements a simple logging application, securely "
+        "recording messages at client-specified IDs. It demonstrates most of "
+        "the features available to CCF apps.";
+      openapi_info.document_version = "1.7.0";
+
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context.get_lfs_access(), 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
@@ -1482,38 +1488,15 @@ namespace loggingapp
       ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
-
-  class Logger : public ccf::RpcFrontend
-  {
-  private:
-    LoggerHandlers logger_handlers;
-
-  public:
-    Logger(ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, logger_handlers),
-      logger_handlers(context)
-    {}
-
-    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
-    {
-      ccf::RpcFrontend::open(identity);
-      logger_handlers.openapi_info.title = "CCF Sample Logging App";
-      logger_handlers.openapi_info.description =
-        "This CCF sample app implements a simple logging application, securely "
-        "recording messages at client-specified IDs. It demonstrates most of "
-        "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "1.7.0";
-    }
-  };
 }
 
 namespace ccfapp
 {
   // SNIPPET_START: app_interface
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<loggingapp::Logger>(nwt, context);
+    return std::make_unique<loggingapp::LoggerHandlers>(context);
   }
   // SNIPPET_END: app_interface
 }

@@ -43,4 +43,8 @@ namespace ccf
     CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "AllowedToJoin"}});
 
   using CodeIDs = ServiceMap<CodeDigest, CodeStatus>;
+  namespace Tables
+  {
+    static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
+  }
 }

@@ -16,6 +16,16 @@ namespace kv
 {
   class CommittableTx : public Tx, public AbstractChangeContainer
   {
+  public:
+    using TxFlags = uint8_t;
+
+    enum class Flag : TxFlags
+    {
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
+      SNAPSHOT_AT_NEXT_SIGNATURE = 0x02,
+      LEDGER_CHUNK_BEFORE_THIS_TX = 0x04,
+    };
+
   protected:
     bool committed = false;
     bool success = false;
@@ -24,7 +34,8 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    SerialisedEntryFlags flags = 0;
+    TxFlags flags = 0;
+    SerialisedEntryFlags entry_flags = 0;
 
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
@@ -70,11 +81,16 @@ namespace kv
         claims_digest.value(),
         claims_digest.empty());
 
+      if (flag_enabled(Flag::LEDGER_CHUNK_BEFORE_THIS_TX))
+      {
+        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_BEFORE;
+      }
+
       KvStoreSerialiser replicated_serialiser(
         e,
         {pimpl->commit_view, version},
         entry_type,
-        flags,
+        entry_flags,
         tx_commit_evidence_digest,
         claims_digest);
 
@@ -176,14 +192,20 @@ namespace kv
         committed = true;
         version = c.value();
 
-        if (flag_enabled(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
+        if (flag_enabled(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
         {
           pimpl->store->set_flag(
             AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
           // This transaction indicates to the store that the next signature
           // should trigger a new ledger chunk, but *this* transaction does not
           // create a new ledger chunk
-          unset_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+          unset_flag(CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        }
+
+        if (flag_enabled(Flag::SNAPSHOT_AT_NEXT_SIGNATURE))
+        {
+          store->set_flag(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          unset_flag(CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         }
 
         if (version == NoVersion)
@@ -347,17 +369,17 @@ namespace kv
       root_at_read_version = r;
     }
 
-    virtual void set_flag(AbstractStore::Flag flag)
+    virtual void set_flag(Flag flag)
     {
       flags |= static_cast<uint8_t>(flag);
     }
 
-    virtual void unset_flag(AbstractStore::Flag flag)
+    virtual void unset_flag(Flag flag)
     {
       flags &= ~static_cast<uint8_t>(flag);
     }
 
-    virtual bool flag_enabled(AbstractStore::Flag f) const
+    virtual bool flag_enabled(Flag f) const
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
     }
@@ -406,13 +428,18 @@ namespace kv
       crypto::Sha256Hash commit_evidence_digest;
       std::string commit_evidence;
 
-      // This is a signature and, if the ledger chunking flag is enabled, we
-      // want the host to create a chunk when it sees this entry.
+      // This is a signature and, if the ledger chunking or snapshot flags are
+      // enabled, we want the host to create a chunk when it sees this entry.
       // version_lock held by Store::commit
-      if (pimpl->store->flag_enabled_unsafe(
-            AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
+      bool force_ledger_chunk =
+        pimpl->store->flag_enabled_unsafe(
+          AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
+        pimpl->store->flag_enabled_unsafe(
+          AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      if (force_ledger_chunk)
       {
-        flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
+        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
           "Forcing ledger chunk for signature at {}.{}",
           pimpl->commit_view,

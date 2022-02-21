@@ -80,6 +80,10 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(Request, rid, caller_cert, raw, frame_format);
 
   using RequestsMap = kv::RawCopySerialisedValue<Request>;
+  namespace Tables
+  {
+    static constexpr auto AFT_REQUESTS = "ccf.internal.consensus.requests";
+  }
 }
 
 namespace kv::serialisers
