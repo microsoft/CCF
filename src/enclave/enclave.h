@@ -17,6 +17,7 @@
 #include "node/rpc/forwarder.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/user_frontend.h"
 #include "oe_init.h"
 #include "ringbuffer_logger.h"
 #include "rpc_map.h"
@@ -164,7 +165,8 @@ namespace enclave
           network, *context, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
-        ccfapp::get_rpc_handler(network, *context));
+        std::make_unique<ccf::UserRpcFrontend>(
+          network, ccfapp::make_user_endpoints(*context)));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
