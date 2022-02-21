@@ -6,11 +6,12 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
+#include "ccf/kv/get_name.h"
+#include "ccf/kv/hooks.h"
 #include "ccf/kv/version.h"
 #include "ccf/tx_id.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
-#include "kv/hooks.h"
 #include "node/identity.h"
 #include "serialiser_declare.h"
 #include "service/tables/resharing_types.h"
@@ -600,24 +601,9 @@ namespace kv
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
-  struct NamedHandleMixin
-  {
-  protected:
-    std::string name;
-
-  public:
-    NamedHandleMixin(const std::string& s) : name(s) {}
-    virtual ~NamedHandleMixin() = default;
-
-    const std::string& get_name() const
-    {
-      return name;
-    }
-  };
-
   class AbstractStore;
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
-                      public NamedHandleMixin
+                      public GetName
   {
   public:
     class Snapshot
@@ -628,7 +614,7 @@ namespace kv
       virtual SecurityDomain get_security_domain() = 0;
     };
 
-    using NamedHandleMixin::NamedHandleMixin;
+    using GetName::GetName;
     virtual ~AbstractMap() {}
 
     virtual std::unique_ptr<AbstractCommitter> create_committer(

@@ -2,12 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/hooks.h"
-#include "kv/untyped_map.h"
-#include "kv_types.h"
-#include "map_handle.h"
-#include "serialise_entry_blit.h"
-#include "serialise_entry_json.h"
+#include "ccf/kv/get_name.h"
+#include "ccf/kv/hooks.h"
+#include "ccf/kv/map_handle.h"
+#include "ccf/kv/serialisers/blit_serialiser.h"
+#include "ccf/kv/serialisers/json_serialiser.h"
+#include "ccf/kv/untyped.h"
+#include "ccf/kv/version_v.h"
 
 namespace kv
 {
@@ -25,32 +26,26 @@ namespace kv
    * which leverages existing JSON serialisation is provided by CCF.
    */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class TypedMap : public NamedHandleMixin
+  class TypedMap : public GetName
   {
-  protected:
-    using This = TypedMap<K, V, KSerialiser, VSerialiser>;
-
   public:
     // Expose correct public aliases of types
-    using VersionV = VersionV<V>;
-
-    using Write = std::map<K, std::optional<V>>;
-
-    using CommitHook = CommitHook<Write>;
-    using MapHook = MapHook<Write>;
-
     using ReadOnlyHandle =
       kv::ReadableMapHandle<K, V, KSerialiser, VSerialiser>;
     using WriteOnlyHandle =
       kv::WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
     using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
 
-    using NamedHandleMixin::NamedHandleMixin;
+    using Write = std::map<K, std::optional<V>>;
+    using CommitHook = CommitHook<Write>;
+    using MapHook = MapHook<Write>;
 
     using Key = K;
     using Value = V;
     using KeySerialiser = KSerialiser;
     using ValueSerialiser = VSerialiser;
+
+    using GetName::GetName;
 
   private:
     static Write deserialise_write(const kv::untyped::Write& w)
@@ -74,14 +69,14 @@ namespace kv
     }
 
   public:
-    static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
+    static kv::untyped::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {
         hook(v, deserialise_write(w));
       };
     }
 
-    static kv::untyped::Map::MapHook wrap_map_hook(const MapHook& hook)
+    static kv::untyped::MapHook wrap_map_hook(const MapHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {
         return hook(v, deserialise_write(w));

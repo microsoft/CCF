@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ccf/kv/set.h"
+#include "ccf/kv/value.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/map.h"
-#include "kv/set.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/value.h"
 #include "node/entities.h"
 #include "node/history.h"
 

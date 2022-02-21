@@ -3,7 +3,9 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "kv/value.h"
+#include "ccf/kv/value.h"
+#include "ds/serialized.h"
+#include "kv/kv_types.h"
 #include "node/entities.h"
 #include "service/map.h"
 

@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/san.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
 #include "kv/map.h"

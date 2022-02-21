@@ -3,9 +3,10 @@
 #pragma once
 
 #include "ccf/byte_vector.h"
-#include "kv/hooks.h"
+#include "ccf/kv/hooks.h"
+#include "ccf/kv/untyped.h"
+#include "ccf/kv/version_v.h"
 #include "kv/kv_types.h"
-#include "kv/version_v.h"
 
 // #include "ds/hash.h"
 // #include "kv/kv_types.h"
@@ -14,8 +15,6 @@
 #else
 #  include "ds/rb_map.h"
 #endif
-
-#include <map>
 
 namespace kv::untyped
 {
@@ -31,7 +30,6 @@ namespace kv::untyped
 #ifndef KV_STATE_RB
   using State = champ::Map<K, VersionV, H>;
 #else
-  // TODO: Test with this define as well, once done
   using State = rb::Map<K, VersionV>;
 #endif
 
@@ -40,12 +38,6 @@ namespace kv::untyped
   // version of last transaction which read the key and committed successfully
   using LastReadVersion = Version;
   using Read = std::map<K, std::tuple<DeletableVersion, LastReadVersion>>;
-
-  // nullopt values represent deletions
-  using Write = std::map<K, std::optional<V>>;
-
-  using CommitHook = kv::CommitHook<Write>;
-  using MapHook = kv::MapHook<Write>;
 
   // This is a container for a write-set + dependencies. It can be applied to
   // a given state, or used to track a set of operations on a state

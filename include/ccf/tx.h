@@ -25,6 +25,11 @@ namespace kv
 
   struct MapChanges
   {
+    MapChanges(
+      const std::shared_ptr<AbstractMap>& m,
+      std::unique_ptr<untyped::ChangeSet>&& cs);
+    ~MapChanges();
+
     // Shared ownership over source map
     std::shared_ptr<AbstractMap> map;
 
@@ -42,7 +47,7 @@ namespace kv
   {
   protected:
     struct PrivateImpl;
-    PrivateImpl* pimpl = nullptr;
+    std::unique_ptr<PrivateImpl> pimpl;
 
     OrderedChanges all_changes;
 

@@ -77,8 +77,7 @@ namespace ccf
 
       remove_endpoints(tx);
 
-      auto endpoints =
-        tx.rw<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
+      auto endpoints = tx.rw<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
 
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
@@ -171,8 +170,7 @@ namespace ccf
 
     void remove_endpoints(kv::Tx& tx)
     {
-      auto endpoints =
-        tx.rw<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
+      auto endpoints = tx.rw<ccf::DynamicEndpoints>(ccf::Tables::ENDPOINTS);
       endpoints->clear();
     }
 

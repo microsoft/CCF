@@ -11,6 +11,17 @@
 
 namespace kv
 {
+  MapChanges::MapChanges(
+    const std::shared_ptr<AbstractMap>& m,
+    std::unique_ptr<untyped::ChangeSet>&& cs) :
+    map(m),
+    changeset(std::move(cs))
+  {}
+
+  // Use default destructor, but instantiate here where untyped::ChangeSet is
+  // not incomplete
+  MapChanges::~MapChanges() = default;
+
   void BaseTx::retain_change_set(
     const std::string& map_name,
     std::unique_ptr<untyped::ChangeSet>&& change_set,
@@ -23,7 +34,10 @@ namespace kv
         fmt::format("Re-creating change set for map {}", map_name));
     }
     all_changes.emplace_hint(
-      it, map_name, MapChanges{abstract_map, std::move(change_set)});
+      it,
+      std::piecewise_construct,
+      std::forward_as_tuple(map_name),
+      std::forward_as_tuple(abstract_map, std::move(change_set)));
   }
 
   void BaseTx::retain_handle(
@@ -114,20 +128,19 @@ namespace kv
 
     all_changes.clear();
     root_at_read_version.reset();
-    delete pimpl;
+    pimpl.reset();
 
-    pimpl = new PrivateImpl;
+    pimpl = std::make_unique<PrivateImpl>();
     pimpl->store = store;
   }
 
   BaseTx::BaseTx(AbstractStore* store_)
   {
-    pimpl = new PrivateImpl;
+    pimpl = std::make_unique<PrivateImpl>();
     pimpl->store = store_;
   }
 
-  BaseTx::~BaseTx()
-  {
-    delete pimpl;
-  }
+  // Use default destructor, but instantiate here where PrivateImpl is not
+  // incomplete
+  BaseTx::~BaseTx() = default;
 }

@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/kv/version.h"
+
 #include <functional>
 #include <memory>
 
 namespace kv
 {
-  using Version = uint64_t;
-
   class ConfigurableConsensus;
 
   class ConsensusHook

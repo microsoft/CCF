@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/kv/abstract_handle.h"
-#include "ccf/kv/serialised_entry.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
 #include "ccf/kv/version.h"
 
 #include <functional>

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/kv/serialised_entry.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
 
 namespace kv::serialisers
 {

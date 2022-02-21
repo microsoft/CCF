@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/map_serializers.h"
-
 namespace kv
 {
   using Version = uint64_t;

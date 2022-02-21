@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/endpoint_metrics.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/node_context.h"

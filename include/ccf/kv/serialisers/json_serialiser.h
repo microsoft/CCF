@@ -2,12 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/kv/serialised_entry.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
 
 #include <nlohmann/json.hpp>
 
 namespace kv::serialisers
 {
+  // Converts values to and from JSON, using nlohmann JSON. To add support for
+  // custom types, make them convertible to nlohmann::json. You may do this
+  // manually with to_json/from_json functions, or use the DECLARE_JSON...
+  // macros from include/ccf/ds/json.h to generate converters for POD structs.
   template <typename T>
   struct JsonSerialiser
   {
