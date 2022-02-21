@@ -5,6 +5,7 @@
 #include "nlohmann/json.hpp"
 #include "v8.h"
 
+#include <span>
 #include <string>
 
 namespace ccf::v8_util
@@ -28,7 +29,7 @@ namespace ccf::v8_util
 
   v8::Local<v8::ArrayBuffer> to_v8_array_buffer_copy(
     v8::Isolate* isolate, const uint8_t* data, size_t size);
-  Buffer get_array_buffer_data(v8::Local<v8::ArrayBuffer> value);
+  std::span<uint8_t> get_array_buffer_data(v8::Local<v8::ArrayBuffer> value);
 
   void throw_error(v8::Isolate* isolate, const std::string& msg);
   void throw_type_error(v8::Isolate* isolate, const std::string& msg);

@@ -4,6 +4,8 @@
 #include "ccf/ds/logger.h"
 #include "v8.h"
 
+#include <span>
+
 namespace ccf::v8_util
 {
 #define CHECK(expr) \
@@ -67,12 +69,11 @@ namespace ccf::v8_util
     return v8::ArrayBuffer::New(isolate, std::move(store));
   }
 
-  Buffer get_array_buffer_data(v8::Local<v8::ArrayBuffer> buffer)
+  std::span<uint8_t> get_array_buffer_data(v8::Local<v8::ArrayBuffer> buffer)
   {
-    Buffer result(
+    return {
       static_cast<uint8_t*>(buffer->GetBackingStore()->Data()),
-      buffer->GetBackingStore()->ByteLength());
-    return result;
+      buffer->GetBackingStore()->ByteLength()};
   }
 
   void throw_error(v8::Isolate* isolate, const std::string& msg)
