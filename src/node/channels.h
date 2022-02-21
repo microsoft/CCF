@@ -419,8 +419,8 @@ namespace ccf
         return false;
       }
 
-      CBuffer salt = extract_buffer(data, size);
-      if (salt.n == 0)
+      auto salt = extract_span(data, size);
+      if (salt.empty())
       {
         CHANNEL_RECV_FAIL("Empty salt");
         return false;
@@ -473,7 +473,7 @@ namespace ccf
         ds::to_hex(pc),
         ds::to_hex(salt));
 
-      hkdf_salt = {salt.p, salt.p + salt.n};
+      hkdf_salt = {salt.data(), salt.data() + salt.size()};
 
       kex_ctx.load_peer_key_share(ks);
 
@@ -626,14 +626,14 @@ namespace ccf
       serialized::write(data, size, msg_type);
     }
 
-    void append_buffer(std::vector<uint8_t>& target, CBuffer src)
+    void append_buffer(std::vector<uint8_t>& target, std::span<const uint8_t> src)
     {
       const auto size_before = target.size();
-      auto size = src.n + sizeof(src.n);
+      auto size = src.size() + sizeof(src.size());
       target.resize(size_before + size);
       auto data = target.data() + size_before;
-      serialized::write(data, size, src.n);
-      serialized::write(data, size, src.p, src.n);
+      serialized::write(data, size, src.size());
+      serialized::write(data, size, src.data(), src.size());
     }
 
     void append_vector(
@@ -669,31 +669,6 @@ namespace ccf
     ChannelStatus get_status()
     {
       return status.value();
-    }
-
-    CBuffer extract_buffer(const uint8_t*& data, size_t& size) const
-    {
-      if (size == 0)
-      {
-        return {};
-      }
-
-      auto sz = serialized::read<size_t>(data, size);
-      CBuffer r(data, sz);
-
-      if (r.n > size)
-      {
-        CHANNEL_RECV_FAIL(
-          "Buffer header wants {} bytes, but only {} remain", r.n, size);
-        r.n = 0;
-      }
-      else
-      {
-        data += r.n;
-        size -= r.n;
-      }
-
-      return r;
     }
 
     std::span<const uint8_t> extract_span(

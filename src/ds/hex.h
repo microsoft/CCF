@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <string>
 #include <vector>
+#include <span>
 
 namespace ds
 {
@@ -42,11 +43,11 @@ namespace ds
     return to_hex(data.begin(), data.end());
   }
 
-  inline static std::string to_hex(CBuffer buf)
+  inline static std::string to_hex(std::span<const uint8_t> buf)
   {
     std::string r;
-    for (size_t i = 0; i < buf.n; i++)
-      r += fmt::format("{:02x}", buf.p[i]);
+    for (size_t i = 0; i < buf.size(); i++)
+      r += fmt::format("{:02x}", buf[i]);
     return r;
   }
 

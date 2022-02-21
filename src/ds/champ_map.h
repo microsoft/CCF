@@ -470,7 +470,7 @@ namespace champ
   {
   private:
     const Map<K, V, H> map;
-    CBuffer serialized_buffer;
+    std::span<const uint8_t> serialized_buffer;
 
     struct KVTuple
     {
@@ -489,7 +489,7 @@ namespace champ
       return map.get_serialized_size();
     }
 
-    CBuffer& get_serialized_buffer()
+    std::span<const uint8_t>& get_serialized_buffer()
     {
       return serialized_buffer;
     }
@@ -530,7 +530,7 @@ namespace champ
         map.size(),
         ordered_state.size());
 
-      serialized_buffer = CBuffer(data, map.get_serialized_size());
+      serialized_buffer = {data, map.get_serialized_size()};
 
       for (const auto& p : ordered_state)
       {

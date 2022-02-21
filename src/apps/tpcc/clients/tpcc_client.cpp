@@ -41,7 +41,7 @@ private:
     db.seed = 42;
     const auto body = db.serialize();
     const auto response =
-      connection->call("tpcc_create", CBuffer{body.data(), body.size()});
+      connection->call("tpcc_create", {body.data(), body.size()});
     check_response(response);
 
     return response;

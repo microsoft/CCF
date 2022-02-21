@@ -78,5 +78,5 @@ namespace crypto
     void* ctx;
   };
 
-  void openssl_sha256(const CBuffer& data, uint8_t* h);
+  void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h);
 }

@@ -8,7 +8,7 @@
 
 namespace crypto
 {
-  extern void default_sha256(const CBuffer& data, uint8_t* h);
+  extern void default_sha256(const std::span<const uint8_t>& data, uint8_t* h);
 
   Sha256Hash::Sha256Hash(const uint8_t* data, size_t size)
   {
@@ -22,7 +22,7 @@ namespace crypto
 
   Sha256Hash::Sha256Hash(const std::string& str)
   {
-    CBuffer cb(str);
+    std::span<const uint8_t> cb(reinterpret_cast<const uint8_t*>(str.data()), str.size());
     default_sha256(cb, h.data());
   }
 

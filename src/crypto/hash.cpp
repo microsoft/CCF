@@ -10,7 +10,7 @@
 
 namespace crypto
 {
-  void default_sha256(const CBuffer& data, uint8_t* h)
+  void default_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
     return openssl_sha256(data, h);
   }
@@ -25,7 +25,7 @@ namespace crypto
 
   std::vector<uint8_t> sha256(const uint8_t* data, size_t len)
   {
-    CBuffer buf(data, len);
+    std::span<const uint8_t> buf{data, len};
     size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
     std::vector<uint8_t> r(hash_size);
     openssl_sha256(buf, r.data());

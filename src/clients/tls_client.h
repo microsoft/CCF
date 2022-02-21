@@ -152,14 +152,14 @@ namespace client
       return SSL_CIPHER_get_name(SSL_get_current_cipher(ssl));
     }
 
-    void write(CBuffer b)
+    void write(std::span<const uint8_t> b)
     {
-      for (size_t written = 0; written < b.n;)
+      for (size_t written = 0; written < b.size();)
       {
         auto ret = 0;
         do
         {
-          ret = BIO_write(bio, b.p + written, b.n - written);
+          ret = BIO_write(bio, b.data() + written, b.size() - written);
         } while (ret < 0 && BIO_should_retry(bio));
 
         if (ret >= 0)

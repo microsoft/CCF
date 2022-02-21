@@ -36,11 +36,11 @@ namespace crypto
 
   using namespace OpenSSL;
 
-  void openssl_sha256(const CBuffer& data, uint8_t* h)
+  void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
     SHA256_CTX ctx;
     SHA256_Init(&ctx);
-    SHA256_Update(&ctx, data.p, data.rawSize());
+    SHA256_Update(&ctx, data.data(), data.size());
     SHA256_Final(h, &ctx);
   }
 

@@ -87,8 +87,7 @@ namespace client
 
     Response call_raw(const std::vector<uint8_t>& raw)
     {
-      CBuffer b(raw);
-      write(b);
+      write(raw);
       return read_response();
     }
 

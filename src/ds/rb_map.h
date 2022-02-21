@@ -290,7 +290,7 @@ namespace rb
   {
   private:
     const Map<K, V> map;
-    CBuffer serialized_buffer;
+    std::span<const uint8_t> serialized_buffer;
 
   public:
     Snapshot(const Map<K, V>& map_) : map(map_) {}
@@ -300,7 +300,7 @@ namespace rb
       return map.get_serialized_size();
     }
 
-    CBuffer& get_serialized_buffer()
+    std::span<const uint8_t>& get_serialized_buffer()
     {
       return serialized_buffer;
     }
@@ -308,7 +308,7 @@ namespace rb
     void serialize(uint8_t* data)
     {
       size_t size = map.get_serialized_size();
-      serialized_buffer = CBuffer(data, size);
+      serialized_buffer = {data, size};
 
       map.foreach([&data, &size](const K& k, const V& v) {
         // Serialize the key
