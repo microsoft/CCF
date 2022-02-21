@@ -39,4 +39,8 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(RevealedNonces, tx_id, nonces)
 
   using RevealedNoncesMap = ccf::ServiceValue<RevealedNonces>;
+  namespace Tables
+  {
+    static constexpr auto NONCES = "public:ccf.internal.consensus.nonces";
+  }
 }
