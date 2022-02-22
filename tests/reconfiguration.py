@@ -68,7 +68,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
             raise Exception("Reconfiguration did not complete in time")
 
 
-@reqs.description("Adding a valid node without snapshot")
+@reqs.description("Adding a valid node")
 def test_add_node(network, args, from_snapshot=True):
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
