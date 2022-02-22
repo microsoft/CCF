@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/lfs_interface.h"
 #include "ccf/indexing/strategies/visit_each_entry_in_map.h"
+#include "ccf/node_context.h"
 #include "ccf/seq_no_collection.h"
 
 namespace ccf::indexing::strategies
@@ -28,7 +28,7 @@ namespace ccf::indexing::strategies
   public:
     SeqnosByKey_Bucketed_Untyped(
       const std::string& map_name_,
-      AbstractLFSAccess& lfs_access_,
+      ccfapp::AbstractNodeContext& node_context,
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10);
 
@@ -43,11 +43,11 @@ namespace ccf::indexing::strategies
 
     SeqnosByKey_Bucketed(
       const M& map,
-      AbstractLFSAccess& lfs_access_,
+      ccfapp::AbstractNodeContext& node_context,
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10) :
       SeqnosByKey_Bucketed_Untyped(
-        map.get_name(), lfs_access_, seqnos_per_bucket_, max_buckets_)
+        map.get_name(), node_context, seqnos_per_bucket_, max_buckets_)
     {}
 
     std::optional<SeqNoCollection> get_write_txs_in_range(

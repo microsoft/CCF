@@ -6,9 +6,9 @@
 #include "ccf/crypto/san.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
+#include "ccf/quote_info.h"
 #include "kv/map.h"
 #include "node_info_network.h"
-#include "quote_info.h"
 #include "service/map.h"
 
 #include <string>
