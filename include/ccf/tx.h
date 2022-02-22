@@ -115,6 +115,9 @@ namespace kv
     // non-copyable
     BaseTx(const BaseTx& that) = delete;
 
+    // To support reset/reconstruction, this is move-assignable.
+    BaseTx& operator=(BaseTx&& other) = default;
+
     virtual ~BaseTx();
 
     std::optional<crypto::Sha256Hash> get_root_at_read_version()

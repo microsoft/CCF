@@ -118,22 +118,6 @@ namespace kv
   public:
     CommittableTx(AbstractStore* _store) : Tx(_store) {}
 
-    // To support reset/reconstruction, a CommittableTx is move-assignable.
-    // Since the base is not move-assignable, we must implement this by hand
-    // TODO: Implementing this by hand is not future-proof, would prefer not to!
-    CommittableTx& operator=(CommittableTx&& other)
-    {
-      // Guard self assignment
-      if (this != &other)
-      {
-        std::swap(pimpl, other.pimpl);
-        std::swap(all_changes, other.all_changes);
-        std::swap(root_at_read_version, other.root_at_read_version);
-      }
-
-      return *this;
-    }
-
     /** Commit this transaction to the local KV and submit it to consensus for
      * replication
      *
