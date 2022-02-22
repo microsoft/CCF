@@ -272,7 +272,9 @@ namespace ccf
         append_vector(payload, kex_ctx.get_own_key_share());
         auto signature = node_kp->sign(kex_ctx.get_own_key_share());
         append_vector(payload, signature);
-        append_buffer(payload, {node_cert.data(), node_cert.size()});
+        append_buffer(
+          payload,
+          std::span<const uint8_t>(node_cert.data(), node_cert.size()));
         append_vector(payload, hkdf_salt);
       }
 
@@ -305,7 +307,9 @@ namespace ccf
         append_protocol_version(payload);
         append_vector(payload, kex_ctx.get_own_key_share());
         append_vector(payload, signature);
-        append_buffer(payload, {node_cert.data(), node_cert.size()});
+        append_buffer(
+          payload,
+          std::span<const uint8_t>(node_cert.data(), node_cert.size()));
       }
 
       CHANNEL_SEND_TRACE(
@@ -695,7 +699,7 @@ namespace ccf
         size -= sz;
       }
 
-      return {data_start, sz};
+      return std::span<const uint8_t>(data_start, sz);
     }
 
     bool verify_peer_certificate(
@@ -875,9 +879,10 @@ namespace ccf
       // 2) gcm header
       // 3) ciphertext
       const serializer::ByteRange payload[] = {
-        {aad.data(), aad.size()},
-        {gcm_hdr_serialised.data(), gcm_hdr_serialised.size()},
-        {cipher.data(), cipher.size()}};
+        {aad.data(), static_cast<size_t>(aad.size())},
+        {gcm_hdr_serialised.data(),
+         static_cast<size_t>(gcm_hdr_serialised.size())},
+        {cipher.data(), static_cast<size_t>(cipher.size())}};
 
       RINGBUFFER_WRITE_MESSAGE(
         node_outbound, to_host, peer_id.value(), type, self.value(), payload);
@@ -938,7 +943,7 @@ namespace ccf
       hdr.deserialise(data_, size_);
       size -= hdr.serialised_size();
 
-      if (!verify_or_decrypt(hdr, {data, size}))
+      if (!verify_or_decrypt(hdr, std::span<const uint8_t>(data, size)))
       {
         CHANNEL_RECV_FAIL("Failed to verify node message with payload");
         return false;
@@ -966,7 +971,8 @@ namespace ccf
       hdr.deserialise(data, size);
 
       std::vector<uint8_t> plain(size);
-      if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
+      if (!verify_or_decrypt(
+            hdr, aad, std::span<const uint8_t>(data, size), plain))
       {
         CHANNEL_RECV_FAIL("Failed to decrypt node message");
         return std::nullopt;

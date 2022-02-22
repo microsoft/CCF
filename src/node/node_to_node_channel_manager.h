@@ -142,7 +142,7 @@ namespace ccf
         this_node != nullptr,
         "Calling send_authenticated before channel manager is initialized");
 
-      return get_channel(to)->send(type, {data, size});
+      return get_channel(to)->send(type, std::span<const uint8_t>(data, size));
     }
 
     bool send_encrypted(
