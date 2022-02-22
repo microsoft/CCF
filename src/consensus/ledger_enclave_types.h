@@ -29,6 +29,7 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_init),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_open),
 
     /// Create and commit a snapshot. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot),
@@ -53,15 +54,19 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::Index,
   consensus::LedgerRequestPurpose);
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_init, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_init,
+  consensus::Index /* start idx */,
+  consensus::Index /* recovery start idx */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_append,
   bool /* committable */,
   bool /* force chunk */,
   std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_truncate, consensus::Index);
+  consensus::ledger_truncate, consensus::Index, bool /* recovery mode */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(consensus::ledger_open);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot,
   consensus::Index /* snapshot idx */,
