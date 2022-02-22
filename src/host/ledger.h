@@ -159,7 +159,7 @@ namespace asynchost
       completed(false)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
-      file = fopen(file_path.c_str(), "r+b");
+      file = fopen(file_path.c_str(), "a+b"); // TODO: Change back to "r+b"
       if (!file)
       {
         throw std::logic_error(fmt::format(
@@ -237,6 +237,22 @@ namespace asynchost
               current_idx,
               entry_size,
               len);
+
+            // TODO: It'd be better to call this from outside the ctor as it
+            // should be up to `Ledger` to decide what to do when an error is
+            // detected
+            size_t truncate_pos =
+              ftello(file) - kv::serialised_entry_header_size;
+            LOG_FAIL_FMT("Truncating file to {}", truncate_pos);
+
+            if (ftruncate(fileno(file), truncate_pos))
+            {
+              throw std::logic_error(
+                fmt::format("Failed to truncate ledger: {}", strerror(errno)));
+            }
+            total_len = truncate_pos;
+            fseeko(file, total_len, SEEK_SET);
+            // TODO: What to do if the file is empty? Delete it!
             return;
           }
 
@@ -309,8 +325,10 @@ namespace asynchost
       return new_idx;
     }
 
-    size_t framed_entries_size(size_t from, size_t to) const
+    size_t entries_size(size_t from, size_t to) const
     {
+      LOG_FAIL_FMT(
+        "entries size from {} to {} (last: {})", from, to, get_last_idx());
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
         return 0;
@@ -327,8 +345,7 @@ namespace asynchost
       }
     }
 
-    std::optional<std::vector<uint8_t>> read_framed_entries(
-      size_t from, size_t to)
+    std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
@@ -337,17 +354,17 @@ namespace asynchost
       }
 
       std::unique_lock<std::mutex> guard(file_lock);
-      auto framed_size = framed_entries_size(from, to);
-      std::vector<uint8_t> framed_entries(framed_size);
+      auto size = entries_size(from, to);
+      std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
-      if (fread(framed_entries.data(), framed_size, 1, file) != 1)
+      if (fread(entries.data(), size, 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
           "Failed to read entry range {} - {} from file", from, to));
       }
 
-      return framed_entries;
+      return entries;
     }
 
     bool truncate(size_t idx, bool force = false)
@@ -356,6 +373,8 @@ namespace asynchost
       // {
       //   return false;
       // }
+
+      LOG_FAIL_FMT("Truncating {} at {}, start {}", file_name, idx, start_idx);
 
       if (idx == start_idx - 1)
       {
@@ -377,7 +396,9 @@ namespace asynchost
       }
 
       completed = false;
+      LOG_FAIL_FMT("{}, pos {}", idx - start_idx + 1, positions.size());
       total_len = positions.at(idx - start_idx + 1);
+      LOG_FAIL_FMT("total: {}", total_len);
       positions.resize(idx - start_idx + 1);
 
       if (fflush(file) != 0)
@@ -641,6 +662,8 @@ namespace asynchost
     std::optional<std::vector<uint8_t>> read_entries_range(
       size_t from, size_t to, bool read_cache_only = false)
     {
+      LOG_FAIL_FMT("Reading entries from {} to {}", from, to);
+
       if ((from <= 0) || (to > last_idx) || (to < from))
       {
         return std::nullopt;
@@ -655,8 +678,9 @@ namespace asynchost
         {
           return std::nullopt;
         }
+        LOG_FAIL_FMT("File: {}", f_from->get_start_idx());
         auto to_ = std::min(f_from->get_last_idx(), to);
-        auto v = f_from->read_framed_entries(idx, to_);
+        auto v = f_from->read_entries(idx, to_);
         if (!v.has_value())
         {
           return std::nullopt;
@@ -751,15 +775,15 @@ namespace asynchost
           try
           {
             ledger_file = std::make_shared<LedgerFile>(ledger_dir, file_name);
-            LOG_FAIL_FMT(
-              "Truncating {} to {}", file_name, ledger_file->get_last_idx());
-            auto ret = ledger_file->truncate(ledger_file->get_last_idx());
-            if (ret)
-            {
-              LOG_FAIL_FMT("Removed file: {}", ret);
-              require_new_file = true;
-              continue;
-            }
+            // LOG_FAIL_FMT(
+            //   "Truncating {} to {}", file_name, ledger_file->get_last_idx());
+            // auto ret = ledger_file->truncate(ledger_file->get_last_idx());
+            // if (ret)
+            // {
+            //   LOG_FAIL_FMT("Removed file: {}", ret);
+            //   require_new_file = true;
+            //   continue;
+            // }
           }
           catch (const std::exception& e)
           {
@@ -913,13 +937,21 @@ namespace asynchost
       return read_entries_range(idx, idx);
     }
 
-    std::optional<std::vector<uint8_t>> read_framed_entries(
-      size_t from, size_t to)
+    std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
     {
       TimeBoundLogger log_if_slow(
-        fmt::format("Reading framed ledger entries from {} to {}", from, to));
+        fmt::format("Reading ledger entries from {} to {}", from, to));
 
-      return read_entries_range(from, to);
+      auto entries = read_entries_range(from, to);
+      if (entries.has_value())
+      {
+        LOG_FAIL_FMT("Entries size: {}", entries->size());
+      }
+      else
+      {
+        LOG_FAIL_FMT("No entries");
+      }
+      return entries;
     }
 
     size_t write_entry(
@@ -946,6 +978,7 @@ namespace asynchost
           "flags");
 
         auto f = get_latest_file();
+        LOG_FAIL_FMT("Latest file: {}", f ? f->get_start_idx() : 0);
         if (f != nullptr)
         {
           f->complete();
@@ -1199,10 +1232,7 @@ namespace asynchost
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
                 write_ledger_get_range_response(
-                  from_idx,
-                  to_idx,
-                  read_framed_entries(from_idx, to_idx),
-                  purpose);
+                  from_idx, to_idx, read_entries(from_idx, to_idx), purpose);
               };
 
               work_handle->data = job;
@@ -1219,7 +1249,7 @@ namespace asynchost
             // Read synchronously, since this accesses uncommitted state and
             // must accurately reflect changing files
             write_ledger_get_range_response(
-              from_idx, to_idx, read_framed_entries(from_idx, to_idx), purpose);
+              from_idx, to_idx, read_entries(from_idx, to_idx), purpose);
           }
         });
     }

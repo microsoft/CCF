@@ -11,6 +11,7 @@ import ccf.ledger
 import os
 import random
 import json
+import copy
 
 from loguru import logger as LOG
 
@@ -149,14 +150,23 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 @reqs.description("Recover a service from malformed ledger")
 @reqs.recover(number_txs=2)
-def test_recover_service_truncated_ledger(network, args):
+def test_recover_service_truncated_ledger(
+    network, args, corrupt_first_tx=False, corrupt_last_tx=False
+):
     old_primary, _ = network.find_primary()
 
+    LOG.info("Force new ledger chunk for app txs to be in committed chunks")
+    network.consortium.force_ledger_chunk(old_primary)
+
     LOG.info(
-        "Fill ledger with dummy entries until at least one ledger chunk is not committed"
+        "Fill ledger with dummy entries until at least one ledger chunk is not committed, and contains a signature"
     )
     current_ledger_path = old_primary.remote.ledger_paths()[0]
     while True:
+        network.consortium.create_and_withdraw_large_proposal(
+            old_primary, wait_for_commit=True
+        )
+        # A signature will have been emitted by then (wait_for_commit)
         network.consortium.create_and_withdraw_large_proposal(old_primary)
         if not all(
             f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
@@ -172,20 +182,41 @@ def test_recover_service_truncated_ledger(network, args):
     ledger = ccf.ledger.Ledger(
         [current_ledger_dir], committed_only=False, insecure_skip_verification=True
     )
+
+    def get_middle_tx_offset(tx):
+        return tx._tx_offset + (tx._next_offset - tx._tx_offset) // 2
+
     for chunk in ledger:
         LOG.success(f"chunk: {chunk.filename()}")
         chunk_filename = chunk.filename()
+        first_tx_offset = None
+        last_tx_offset = None
+        first_sig_offset = None
         for tx in chunk:
-            tx_offset = tx._tx_offset
-            next_tx_offset = tx._next_offset
-            LOG.success(f"Tx offset {tx_offset}, next {next_tx_offset}")
-            break
+            tables = tx.get_public_domain().get_tables()
+            if (
+                first_sig_offset is None
+                and ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+            ):
+                first_sig_offset = get_middle_tx_offset(tx)
+            last_tx_offset = get_middle_tx_offset(tx)
+            if first_tx_offset is None:
+                first_tx_offset = get_middle_tx_offset(tx)
+            LOG.success(f"Tx offset {tx._tx_offset}, next {tx._next_offset}")
+
+    LOG.error(f"First sig: {first_sig_offset}")
 
     truncated_ledger_file_path = os.path.join(current_ledger_dir, chunk_filename)
-    truncate_offset = tx_offset + (next_tx_offset - tx_offset) // 2
+    if corrupt_first_tx:
+        truncate_offset = first_tx_offset
+    elif corrupt_last_tx:
+        truncate_offset = last_tx_offset
+
     with open(truncated_ledger_file_path, "r+", encoding="utf-8") as f:
         f.truncate(truncate_offset)
-    LOG.info(f"Truncated ledger file {truncated_ledger_file_path} at {truncate_offset}")
+    LOG.warning(
+        f"Truncated ledger file {truncated_ledger_file_path} at {truncate_offset}"
+    )
     # input("")
 
     recovered_network = infra.network.Network(
@@ -198,37 +229,57 @@ def test_recover_service_truncated_ledger(network, args):
     )
     recovered_network.recover(args)
 
-    primary, _ = recovered_network.find_primary()
-
     return recovered_network
 
 
+# TODO: Move to new file
 def run_corrupted_ledger(args):
-    # One node suffice to the ledger recovery
-    nodes = infra.e2e_args.min_nodes(args, f=0)
+    args_ = copy.deepcopy(args)
+
+    # Note: this test runs with very a specific node configuration
+    # so that the contents of recovered (and tampered) ledger chunks
+    # can be dictated by the test.
+
+    # One node suffice for the ledger recovery
+    args_.nodes = infra.e2e_args.min_nodes(args, f=0)
+
+    # Large signature interval to create in-progress ledgers files
+    # that do not end on a signature
+    args_.sig_ms_interval = 1000
+
+    # Test is in control of chunking
+    args_.ledger_chunk_bytes = "1GB"
+    args_.snapshot_tx_interval = 1000000
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
-        nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
+        args_.nodes,
+        args_.binary_dir,
+        args_.debug_nodes,
+        args_.perf_nodes,
+        pdb=args_.pdb,
         txs=txs,
     ) as network:
-        network.start_and_open(args)
+        network.start_and_open(args_)
         # TODO: Test multiple types of truncation
         # 0. First transaction
         # 1. Mid-entry
         # 1'. Last transaction
+        # 1''. Last signature
         # 2. Positions table missing
         # 3. Private entry corrupted
         # 4. File empty
         # 5. All zeros (truncate with w+ flag)
-        recovered_network = test_recover_service_truncated_ledger(network, args)
+        # 6. Bit flip
+        # network = test_recover_service_truncated_ledger(
+        #     network, args, corrupt_first_tx=True
+        # )
+        network = test_recover_service_truncated_ledger(
+            network, args, corrupt_last_tx=True
+        )
 
     # Make sure ledger can be read once recovered (i.e. ledger corruption does not affect recovered ledger)
-    for node in recovered_network.nodes:
+    for node in network.nodes:
         ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
         _, last_seqno = ledger.get_latest_public_state()
         LOG.info(

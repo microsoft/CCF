@@ -144,7 +144,7 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
 
 void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
 {
-  auto entries = ledger.read_framed_entries(from, to);
+  auto entries = ledger.read_entries(from, to);
   if (!entries.has_value())
   {
     throw std::logic_error(
@@ -205,7 +205,7 @@ public:
     {
       read_entries_range_from_ledger(ledger, 1, idx);
     }
-    REQUIRE_FALSE(ledger.read_framed_entries(1, idx + 1).has_value());
+    REQUIRE_FALSE(ledger.read_entries(1, idx + 1).has_value());
 
     if (idx < last_idx)
     {
@@ -370,13 +370,11 @@ TEST_CASE("Regular chunking")
     auto last_idx = entry_submitter.get_last_idx();
 
     // Reading from 0 fails
-    REQUIRE_FALSE(
-      ledger.read_framed_entries(0, end_of_first_chunk_idx).has_value());
+    REQUIRE_FALSE(ledger.read_entries(0, end_of_first_chunk_idx).has_value());
 
     // Reading in the future fails
-    REQUIRE_FALSE(ledger.read_framed_entries(1, last_idx + 1).has_value());
-    REQUIRE_FALSE(
-      ledger.read_framed_entries(last_idx, last_idx + 1).has_value());
+    REQUIRE_FALSE(ledger.read_entries(1, last_idx + 1).has_value());
+    REQUIRE_FALSE(ledger.read_entries(last_idx, last_idx + 1).has_value());
 
     // Reading from the start to any valid index succeeds
     read_entries_range_from_ledger(ledger, 1, 1);
@@ -550,7 +548,7 @@ TEST_CASE("Commit")
     last_idx = entry_submitter.get_last_idx();
     ledger.truncate(last_idx - 1); // Deletes entry at last_idx
     read_entries_range_from_ledger(ledger, 1, last_idx - 1);
-    REQUIRE_FALSE(ledger.read_framed_entries(1, last_idx).has_value());
+    REQUIRE_FALSE(ledger.read_entries(1, last_idx).has_value());
   }
 }
 
@@ -1030,8 +1028,7 @@ TEST_CASE("Delete committed file from main directory")
   INFO("Only non-committed entries can be read");
   {
     read_entries_range_from_ledger(ledger, last_idx - 1, last_idx);
-    REQUIRE_FALSE(
-      ledger.read_framed_entries(1, last_committed_idx).has_value());
+    REQUIRE_FALSE(ledger.read_entries(1, last_committed_idx).has_value());
   }
 
   INFO("Move committed files back to read-only ledger directory");

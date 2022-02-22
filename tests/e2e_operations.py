@@ -62,18 +62,7 @@ def test_forced_ledger_chunk(network, args):
     network.txs.issue(network, number_txs=7)
 
     # Submit a proposal to force a ledger chunk at the following signature
-    proposal_body, careful_vote = network.consortium.make_proposal(
-        "request_ledger_chunk", node_id=primary.node_id
-    )
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+    proposal = network.consortium.force_ledger_chunk(primary)
 
     # Issue some more transactions
     network.txs.issue(network, number_txs=13)
