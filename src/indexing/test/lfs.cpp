@@ -149,9 +149,12 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     std::make_shared<ringbuffer::Writer>(inbound_reader));
   host_files.register_message_handlers(host_bp.get_dispatcher());
 
-  ccf::indexing::EnclaveLFSAccess enclave_lfs(
+  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
     std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs.register_message_handlers(enclave_bp.get_dispatcher());
+  enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+
+  ccfapp::AbstractNodeContext node_context;
+  node_context.install_subsystem(enclave_lfs);
 
   auto flush_ringbuffers = [&]() {
     return host_bp.read_all(outbound_reader) +
@@ -160,7 +163,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
   using StratA =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
-  auto index_a = std::make_shared<StratA>(map_a, enclave_lfs, 100, 4);
+  auto index_a = std::make_shared<StratA>(map_a, node_context, 100, 4);
   REQUIRE(indexer.install_strategy(index_a));
 
   static constexpr auto num_transactions =
@@ -270,7 +273,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
   using StratB =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_b)>;
-  auto index_b = std::make_shared<StratB>(map_b, enclave_lfs, 100, 4);
+  auto index_b = std::make_shared<StratB>(map_b, node_context, 100, 4);
   REQUIRE(indexer.install_strategy(index_b));
 
   kv::TxID current_ = kv_store.current_txid();
