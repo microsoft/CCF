@@ -12,8 +12,13 @@
 #include <string>
 #include <vector>
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+
 namespace files
 {
+  namespace fs = std::filesystem;
+
   /**
    * @brief Checks if a path exists
    *
@@ -121,5 +126,16 @@ namespace files
   void dump(const std::string& data, const std::string& file)
   {
     return dump(std::vector<uint8_t>(data.begin(), data.end()), file);
+  }
+
+  void rename(const fs::path& src, const fs::path& dst)
+  {
+    std::error_code ec;
+    fs::rename(src, dst, ec);
+    if (ec)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not rename file {} to {}: {}", src, dst, ec.message()));
+    }
   }
 }
