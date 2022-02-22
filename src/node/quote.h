@@ -5,10 +5,10 @@
 #ifdef GET_QUOTE
 
 #  include "ccf/http_status.h"
+#  include "ccf/quote_info.h"
 #  include "enclave/oe_shim.h"
 #  include "node/rpc/node_interface.h"
 #  include "service/tables/code_id.h"
-#  include "service/tables/quote_info.h"
 
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>

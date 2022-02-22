@@ -10,6 +10,8 @@
 #include "ccf/tx.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
+#include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/host_processes_interface.h"
 #include "node/rpc/node_interface.h"
 
 #include <memory>
@@ -170,8 +172,8 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,

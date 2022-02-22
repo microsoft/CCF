@@ -3,25 +3,13 @@
 #pragma once
 
 #include "ccf/node_startup_state.h"
+#include "ccf/quote_info.h"
+#include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
 #include "service/tables/code_id.h"
-#include "service/tables/quote_info.h"
 
 namespace ccf
 {
-  enum class QuoteVerificationResult
-  {
-    Verified = 0,
-    Failed,
-    FailedCodeIdNotFound,
-    FailedInvalidQuotedPublicKey,
-  };
-
-  using ExtendedState = std::tuple<
-    NodeStartupState,
-    std::optional<kv::Version> /* recovery_target_seqno */,
-    std::optional<kv::Version> /* last_recovered_seqno */>;
-
   class AbstractNodeState
   {
   public:
@@ -41,7 +29,6 @@ namespace ccf
     virtual bool is_reading_private_ledger() const = 0;
     virtual bool is_verifying_snapshot() const = 0;
     virtual bool is_part_of_network() const = 0;
-    virtual NodeId get_node_id() const = 0;
     virtual kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
     virtual ExtendedState state() = 0;
