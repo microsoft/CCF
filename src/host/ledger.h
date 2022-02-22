@@ -159,7 +159,7 @@ namespace asynchost
       completed(false)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
-      file = fopen(file_path.c_str(), "a+b"); // TODO: Change back to "r+b"
+      file = fopen(file_path.c_str(), "r+b"); // TODO: Change back to "r+b"
       if (!file)
       {
         throw std::logic_error(fmt::format(
@@ -207,12 +207,10 @@ namespace asynchost
       {
         // If the chunk was not completed, read all entries to reconstruct
         // positions table
-        total_len = total_file_size;
+        total_len = sizeof(positions_offset_header_t);
+        auto len = total_file_size - total_len;
 
-        auto len = total_len - sizeof(positions_offset_header_t);
-        size_t pos = sizeof(positions_offset_header_t);
         kv::SerialisedEntryHeader entry_header;
-
         size_t current_idx = start_idx;
         while (len >= kv::serialised_entry_header_size)
         {
@@ -221,7 +219,9 @@ namespace asynchost
             1)
           {
             throw std::logic_error(fmt::format(
-              "Failed to read frame from ledger file {}", file_path));
+              "Failed to read entry header from ledger file {} at seqno {}",
+              file_path,
+              current_idx));
           }
 
           len -= kv::serialised_entry_header_size;
@@ -229,7 +229,7 @@ namespace asynchost
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
-            LOG_INFO_FMT(
+            LOG_FAIL_FMT(
               "Malformed incomplete ledger file {} at seqno {} (expecting "
               "entry of size "
               "{}, remaining {})",
@@ -238,32 +238,41 @@ namespace asynchost
               entry_size,
               len);
 
+            // TODO: Remove
+            // Set offset to last successfully recovered entry so that the file
+            // can be safely truncated
+            // fseeko(file, total_len, SEEK_SET);
+            LOG_FAIL_FMT("Total recovered len: {}", total_len);
+            return;
+
             // TODO: It'd be better to call this from outside the ctor as it
             // should be up to `Ledger` to decide what to do when an error is
             // detected
-            size_t truncate_pos =
-              ftello(file) - kv::serialised_entry_header_size;
-            LOG_FAIL_FMT("Truncating file to {}", truncate_pos);
+            // size_t truncate_pos =
+            //   ftello(file) - kv::serialised_entry_header_size;
+            // LOG_FAIL_FMT("Truncating file to {}", truncate_pos);
 
-            if (ftruncate(fileno(file), truncate_pos))
-            {
-              throw std::logic_error(
-                fmt::format("Failed to truncate ledger: {}", strerror(errno)));
-            }
-            total_len = truncate_pos;
-            fseeko(file, total_len, SEEK_SET);
-            // TODO: What to do if the file is empty? Delete it!
-            return;
+            // if (ftruncate(fileno(file), truncate_pos))
+            // {
+            //   throw std::logic_error(
+            //     fmt::format("Failed to truncate ledger: {}",
+            //     strerror(errno)));
+            // }
+            // total_len = truncate_pos;
+            // fseeko(file, total_len, SEEK_SET);
+            // // TODO: What to do if the file is empty? Delete it!
+            // return;
           }
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
           current_idx++;
 
-          LOG_FAIL_FMT("Recovered one entry of size {} at {}", entry_size, pos);
+          LOG_TRACE_FMT(
+            "Recovered one entry of size {} at {}", entry_size, total_len);
 
-          positions.push_back(pos);
-          pos += (kv::serialised_entry_header_size + entry_size);
+          positions.push_back(total_len);
+          total_len += (kv::serialised_entry_header_size + entry_size);
         }
         completed = false;
       }
@@ -367,12 +376,16 @@ namespace asynchost
       return entries;
     }
 
+    // TODO: unit test of truncate at last_idx when chunk is not completed is a
+    // no-op
     bool truncate(size_t idx, bool force = false)
     {
-      // if (committed || (idx < start_idx - 1) || (idx >= get_last_idx()))
-      // {
-      //   return false;
-      // }
+      if (
+        committed || (idx < start_idx - 1) ||
+        (completed && idx >= get_last_idx()))
+      {
+        return false;
+      }
 
       LOG_FAIL_FMT("Truncating {} at {}, start {}", file_name, idx, start_idx);
 
@@ -397,9 +410,12 @@ namespace asynchost
 
       completed = false;
       LOG_FAIL_FMT("{}, pos {}", idx - start_idx + 1, positions.size());
-      total_len = positions.at(idx - start_idx + 1);
+      if (idx != get_last_idx())
+      {
+        total_len = positions.at(idx - start_idx + 1);
+        positions.resize(idx - start_idx + 1);
+      }
       LOG_FAIL_FMT("total: {}", total_len);
-      positions.resize(idx - start_idx + 1);
 
       if (fflush(file) != 0)
       {
@@ -775,15 +791,17 @@ namespace asynchost
           try
           {
             ledger_file = std::make_shared<LedgerFile>(ledger_dir, file_name);
-            // LOG_FAIL_FMT(
-            //   "Truncating {} to {}", file_name, ledger_file->get_last_idx());
-            // auto ret = ledger_file->truncate(ledger_file->get_last_idx());
-            // if (ret)
-            // {
-            //   LOG_FAIL_FMT("Removed file: {}", ret);
-            //   require_new_file = true;
-            //   continue;
-            // }
+            // TODO: Here
+
+            LOG_FAIL_FMT(
+              "Truncating {} to {}", file_name, ledger_file->get_last_idx());
+            auto ret = ledger_file->truncate(ledger_file->get_last_idx());
+            if (ret)
+            {
+              LOG_FAIL_FMT("Removed file: {}", ret);
+              require_new_file = true;
+              continue;
+            }
           }
           catch (const std::exception& e)
           {
