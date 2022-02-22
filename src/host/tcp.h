@@ -608,6 +608,12 @@ namespace asynchost
       {
         static_cast<TCPImpl*>(req->data)->on_resolved(req, rc);
       }
+      else
+      {
+        // The TCPImpl that submitted the request has been destroyed, but we
+        // need to clean up the request object.
+        delete req;
+      }
     }
 
     void on_resolved(uv_getaddrinfo_t* req, int rc)
