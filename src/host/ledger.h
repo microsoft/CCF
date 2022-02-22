@@ -31,7 +31,6 @@ namespace asynchost
   static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
-  static constexpr auto ledger_corrupt_file_suffix = "corrupted";
 
   static inline bool is_ledger_file_committed(const std::string& file_name)
   {
@@ -69,11 +68,6 @@ namespace asynchost
     return std::stol(file_name.substr(pos + 1));
   }
 
-  static inline bool is_ledger_file_name_corrupted(const std::string& file_name)
-  {
-    return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
-  }
-
   static std::optional<std::string> get_file_name_with_idx(
     const std::string& dir, size_t idx)
   {
@@ -81,13 +75,8 @@ namespace asynchost
     for (auto const& f : fs::directory_iterator(dir))
     {
       // If any file, based on its name, contains idx. Only committed
-      // (i.e. those with a last idx) and non-corrupted files are considered
-      // here.
+      // (i.e. those with a last idx) are considered here.
       auto f_name = f.path().filename();
-      if (is_ledger_file_name_corrupted(f_name))
-      {
-        continue;
-      }
 
       size_t start_idx = 0;
       std::optional<size_t> last_idx = std::nullopt;
@@ -378,7 +367,7 @@ namespace asynchost
 
     // TODO: unit test of truncate at last_idx when chunk is not completed is a
     // no-op
-    bool truncate(size_t idx, bool force = false)
+    bool truncate(size_t idx)
     {
       if (
         committed || (idx < start_idx - 1) ||
@@ -386,8 +375,6 @@ namespace asynchost
       {
         return false;
       }
-
-      LOG_FAIL_FMT("Truncating {} at {}, start {}", file_name, idx, start_idx);
 
       if (idx == start_idx - 1)
       {
@@ -397,6 +384,8 @@ namespace asynchost
           throw std::logic_error(
             fmt::format("Could not remove file {}", file_name));
         }
+        LOG_TRACE_FMT(
+          "Removed ledger file {} on truncation at {}", file_name, idx);
         return true;
       }
 
@@ -409,13 +398,11 @@ namespace asynchost
       }
 
       completed = false;
-      LOG_FAIL_FMT("{}, pos {}", idx - start_idx + 1, positions.size());
       if (idx != get_last_idx())
       {
         total_len = positions.at(idx - start_idx + 1);
         positions.resize(idx - start_idx + 1);
       }
-      LOG_FAIL_FMT("total: {}", total_len);
 
       if (fflush(file) != 0)
       {
@@ -429,9 +416,8 @@ namespace asynchost
           fmt::format("Failed to truncate ledger: {}", strerror(errno)));
       }
 
-      LOG_TRACE_FMT("Truncate ledger file {} at idx {}", file_name, idx);
-
       fseeko(file, total_len, SEEK_SET);
+      LOG_TRACE_FMT("Truncated ledger file {} at idx {}", file_name, idx);
       return false;
     }
 
@@ -621,8 +607,16 @@ namespace asynchost
 
       // Emplace file in the max-sized read cache, replacing the oldest entry if
       // the read cache is full
-      auto match_file =
-        std::make_shared<LedgerFile>(ledger_dir_, match.value());
+      std::shared_ptr<LedgerFile> match_file = nullptr;
+      try
+      {
+        match_file = std::make_shared<LedgerFile>(ledger_dir_, match.value());
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Could not open ledger file {}", match.value());
+        return nullptr;
+      }
 
       {
         std::unique_lock<std::mutex> guard(read_cache_lock);
@@ -777,29 +771,22 @@ namespace asynchost
         // If the ledger directory exists, recover ledger files from it
         LOG_INFO_FMT("Recovering main ledger directory \"{}\"", ledger_dir);
 
-        std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           auto file_name = f.path().filename();
-          if (is_ledger_file_name_corrupted(file_name))
-          {
-            LOG_INFO_FMT("Ignoring corrupted ledger file {}", file_name);
-            continue;
-          }
 
           std::shared_ptr<LedgerFile> ledger_file = nullptr;
           try
           {
             ledger_file = std::make_shared<LedgerFile>(ledger_dir, file_name);
-            // TODO: Here
 
-            LOG_FAIL_FMT(
-              "Truncating {} to {}", file_name, ledger_file->get_last_idx());
-            auto ret = ledger_file->truncate(ledger_file->get_last_idx());
-            if (ret)
+            // Truncate file to latest recovered index to cleanup entries that
+            // may have been corrupted (no-op if file isn't corrupted)
+            if (ledger_file->truncate(ledger_file->get_last_idx()))
             {
-              LOG_FAIL_FMT("Removed file: {}", ret);
-              require_new_file = true;
+              // If truncation of corrupted entries removes file, file is not
+              // recovered
+              LOG_FAIL_FMT("Removed ledger file {}", file_name);
               continue;
             }
           }
@@ -808,29 +795,14 @@ namespace asynchost
             LOG_FAIL_FMT(
               "Error reading ledger file {}: {}", file_name, e.what());
 
-            // corrupt_files.emplace_back(f.path());
-            // LOG_TRACE_FMT(
-            //   "Ignoring invalid ledger file {}: {}", file_name, e.what());
+            throw std::logic_error("TODO: More tests to trigger this please!");
+
             continue;
           }
 
           LOG_DEBUG_FMT(
             "Recovering file from main ledger directory: {}", file_name);
           files.emplace_back(std::move(ledger_file));
-        }
-
-        // Rename corrupt files so that they are not considered for reading
-        // entries later on
-        for (auto const& f : corrupt_files)
-        {
-          auto new_file_name = fmt::format(
-            "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
-          fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
-
-          LOG_INFO_FMT(
-            "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
-            f.filename(),
-            new_file_name);
         }
 
         if (files.empty())
