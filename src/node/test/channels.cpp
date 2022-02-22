@@ -113,6 +113,7 @@ struct NodeOutboundMsg
   std::vector<uint8_t> unauthenticated_data() const
   {
     auto r = data();
+    static_assert(sizeof(ChannelMsg) == 8);
     size_t hdr_size = sizeof(ChannelMsg);
     ChannelMsg channel_msg_type =
       serialized::read<ChannelMsg>(r.data(), hdr_size);
