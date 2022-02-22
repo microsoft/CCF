@@ -459,7 +459,7 @@ namespace asynchost
           fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
-      LOG_TRACE_FMT("Complete ledger file {}", file_name);
+      LOG_TRACE_FMT("Completed ledger file {}", file_name);
 
       completed = true;
     }

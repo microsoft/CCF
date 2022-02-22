@@ -11,7 +11,6 @@ import ccf.ledger
 import os
 import random
 import json
-import copy
 from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
@@ -440,15 +439,14 @@ checked. Note that the key for each logging message is unique (per table).
     # so that the contents of recovered (and tampered) ledger chunks
     # can be dictated by the test. In particular, the signature interval is large # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-
-    # cr.add(
-    #     "recovery_corrupt_ledger",
-    #     run_corrupted_ledger,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(args, f=1),
-    #     sig_ms_interval=1000,
-    #     ledger_chunk_bytes="1GB",
-    #     snasphot_tx_interval=1000000,
-    # )
+    cr.add(
+        "recovery_corrupt_ledger",
+        run_corrupted_ledger,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
+        sig_ms_interval=1000,
+        ledger_chunk_bytes="1GB",
+        snasphot_tx_interval=1000000,
+    )
 
     cr.run()
