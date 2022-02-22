@@ -8,8 +8,6 @@
 #include "ccf/kv/version_v.h"
 #include "kv/kv_types.h"
 
-// #include "ds/hash.h"
-// #include "kv/kv_types.h"
 #ifndef KV_STATE_RB
 #  include "ds/champ_map.h"
 #else
