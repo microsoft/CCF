@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/odata_error.h"
-#include "enclave/rpc_context.h"
+#include "ccf/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
 
