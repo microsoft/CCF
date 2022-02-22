@@ -122,18 +122,6 @@ namespace kv
       pimpl->read_txid->version));
   }
 
-  void BaseTx::reset()
-  {
-    auto store = pimpl->store;
-
-    all_changes.clear();
-    root_at_read_version.reset();
-    pimpl.reset();
-
-    pimpl = std::make_unique<PrivateImpl>();
-    pimpl->store = store;
-  }
-
   BaseTx::BaseTx(AbstractStore* store_)
   {
     pimpl = std::make_unique<PrivateImpl>();

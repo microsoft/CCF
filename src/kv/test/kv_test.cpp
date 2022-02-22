@@ -2326,7 +2326,7 @@ TEST_CASE("Conflict resolution")
   REQUIRE(handle3->has("foo"));
 
   // First transaction is rerun on new object, producing different result
-  tx1.reset();
+  tx1 = kv_store.create_tx();
   try_write(tx1, "buzz");
 
   // Expected results are committed

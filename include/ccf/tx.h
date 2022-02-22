@@ -108,8 +108,6 @@ namespace kv
       }
     }
 
-    void reset();
-
   public:
     BaseTx(AbstractStore* _store);
 
