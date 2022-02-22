@@ -143,9 +143,9 @@ namespace http
       }
     }
 
-    virtual enclave::FrameFormat frame_format() const override
+    virtual ccf::FrameFormat frame_format() const override
     {
-      return enclave::FrameFormat::http;
+      return ccf::FrameFormat::http;
     }
 
     virtual size_t get_request_index() const override
@@ -320,12 +320,12 @@ namespace enclave
   inline std::shared_ptr<enclave::RpcContext> make_fwd_rpc_context(
     std::shared_ptr<enclave::SessionContext> s,
     const std::vector<uint8_t>& packed,
-    enclave::FrameFormat frame_format,
+    ccf::FrameFormat frame_format,
     const std::vector<uint8_t>& raw_bft = {})
   {
     switch (frame_format)
     {
-      case enclave::FrameFormat::http:
+      case ccf::FrameFormat::http:
       {
         return make_rpc_context(s, packed, raw_bft);
       }

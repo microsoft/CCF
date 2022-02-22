@@ -14,7 +14,6 @@
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
-#include "entities.h"
 #include "history.h"
 #include "hooks.h"
 #include "indexing/indexer.h"

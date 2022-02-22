@@ -13,7 +13,6 @@
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
-#include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
 #include "node/rpc/error.h"

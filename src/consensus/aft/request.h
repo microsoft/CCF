@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/frame_format.h"
 #include "kv/value.h"
-#include "node/entities.h"
 #include "service/map.h"
 
 #include <vector>
@@ -16,12 +16,12 @@ namespace aft
     kv::TxHistory::RequestID rid;
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
-    uint8_t frame_format = enclave::FrameFormat::http;
+    uint8_t frame_format = ccf::FrameFormat::http;
 
     size_t serialised_size() const
     {
       size_t size = sizeof(rid) + sizeof(bool) + sizeof(size_t) + raw.size() +
-        sizeof(enclave::FrameFormat);
+        sizeof(ccf::FrameFormat);
 
       if (!caller_cert.empty())
       {
@@ -70,7 +70,7 @@ namespace aft
       auto raw_size = serialized::read<size_t>(data_, size_);
       raw = serialized::read(data_, size_, raw_size);
 
-      frame_format = serialized::read<enclave::FrameFormat>(data_, size_);
+      frame_format = serialized::read<ccf::FrameFormat>(data_, size_);
     }
   };
 

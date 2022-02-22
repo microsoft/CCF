@@ -3,22 +3,20 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"
 #include "http/http_builder.h"
-#include "node/entities.h"
 #include "node/rpc/error.h"
-#include "service/tables/node_info_network.h"
 
-#include <variant>
 #include <vector>
 
 namespace enclave
 {
   static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();
-  using ListenInterfaceID = ccf::NodeInfoNetwork::RpcInterfaceID;
+  using ListenInterfaceID = std::string;
 
   struct SessionContext
   {
@@ -52,7 +50,7 @@ namespace enclave
   public:
     std::shared_ptr<SessionContext> session;
 
-    virtual FrameFormat frame_format() const = 0;
+    virtual ccf::FrameFormat frame_format() const = 0;
 
     // raw bft Request
     std::vector<uint8_t> bft_raw = {};
