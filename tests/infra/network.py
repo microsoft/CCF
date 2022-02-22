@@ -134,6 +134,7 @@ class Network:
         if existing_network is None:
             self.consortium = None
             self.users = []
+            self.hosts = hosts
             self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
@@ -143,10 +144,10 @@ class Network:
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
+            self.hosts = [node.host for node in existing_network.nodes]
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
-        self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -176,7 +177,7 @@ class Network:
         except FileNotFoundError:
             pass
 
-        for host in hosts:
+        for host in self.hosts:
             self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
