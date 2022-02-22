@@ -345,7 +345,10 @@ namespace aft
     }
 
     void init_as_backup(
-      Index index, Term term, const std::vector<Index>& term_history) override
+      Index index,
+      Term term,
+      const std::vector<Index>& term_history,
+      Index recovery_start_index = 0) override
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -356,7 +359,7 @@ namespace aft
 
       state->view_history.initialise(term_history);
 
-      ledger->init(index);
+      ledger->init(index, recovery_start_index);
       snapshotter->set_last_snapshot_idx(index);
 
       become_aware_of_new_term(term);

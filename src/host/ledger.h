@@ -5,6 +5,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
+#include "ds/files.h"
 #include "ds/messaging.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
@@ -31,16 +32,7 @@ namespace asynchost
   static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
-
-  static inline bool is_ledger_file_committed(const std::string& file_name)
-  {
-    auto pos = file_name.find(".");
-    if (pos == std::string::npos)
-    {
-      return false;
-    }
-    return file_name.substr(pos + 1) == ledger_committed_suffix;
-  }
+  static constexpr auto ledger_recovery_file_suffix = "recovery";
 
   static inline size_t get_start_idx_from_file_name(
     const std::string& file_name)
@@ -68,8 +60,24 @@ namespace asynchost
     return std::stol(file_name.substr(pos + 1));
   }
 
+  static inline bool is_ledger_file_committed(const std::string& file_name)
+  {
+    return nonstd::ends_with(file_name, ledger_committed_suffix);
+  }
+
+  static inline bool is_ledger_file_name_recovery(const std::string& file_name)
+  {
+    return nonstd::ends_with(file_name, ledger_recovery_file_suffix);
+  }
+
+  static inline fs::path remove_recovery_suffix(const std::string& file_name)
+  {
+    return nonstd::remove_suffix(
+      file_name, fmt::format(".{}", ledger_recovery_file_suffix));
+  }
+
   static std::optional<std::string> get_file_name_with_idx(
-    const std::string& dir, size_t idx)
+    const std::string& dir, size_t idx, bool allow_recovery_files)
   {
     std::optional<std::string> match = std::nullopt;
     for (auto const& f : fs::directory_iterator(dir))
@@ -77,6 +85,10 @@ namespace asynchost
       // If any file, based on its name, contains idx. Only committed
       // (i.e. those with a last idx) are considered here.
       auto f_name = f.path().filename();
+      if (!allow_recovery_files && is_ledger_file_name_recovery(f_name))
+      {
+        continue;
+      }
 
       size_t start_idx = 0;
       std::optional<size_t> last_idx = std::nullopt;
@@ -106,8 +118,8 @@ namespace asynchost
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
-    const std::string dir;
-    std::string file_name;
+    const fs::path dir;
+    fs::path file_name;
 
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
@@ -121,14 +133,23 @@ namespace asynchost
     bool completed = false;
     bool committed = false;
 
+    bool recovery = false;
+
   public:
     // Used when creating a new (empty) ledger file
-    LedgerFile(const std::string& dir, size_t start_idx) :
+    LedgerFile(const fs::path& dir, size_t start_idx, bool recovery = false) :
       dir(dir),
       file_name(fmt::format("{}_{}", file_name_prefix, start_idx)),
-      start_idx(start_idx)
+      start_idx(start_idx),
+      recovery(recovery)
     {
-      auto file_path = fs::path(dir) / fs::path(file_name);
+      if (recovery)
+      {
+        file_name =
+          fmt::format("{}.{}", file_name.string(), ledger_recovery_file_suffix);
+      }
+
+      auto file_path = dir / file_name;
       file = fopen(file_path.c_str(), "w+b");
       if (!file)
       {
@@ -148,7 +169,7 @@ namespace asynchost
       completed(false)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
-      file = fopen(file_path.c_str(), "r+b"); // TODO: Change back to "r+b"
+      file = fopen(file_path.c_str(), "r+b");
       if (!file)
       {
         throw std::logic_error(fmt::format(
@@ -277,6 +298,11 @@ namespace asynchost
       return completed;
     }
 
+    bool is_recovery() const
+    {
+      return recovery;
+    }
+
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       fseeko(file, total_len, SEEK_SET);
@@ -354,7 +380,7 @@ namespace asynchost
       if (idx == start_idx - 1)
       {
         // Truncating everything triggers file deletion
-        if (!fs::remove(fs::path(dir) / fs::path(file_name)))
+        if (!fs::remove(dir / file_name))
         {
           throw std::logic_error(
             fmt::format("Could not remove file {}", file_name));
@@ -438,6 +464,33 @@ namespace asynchost
       completed = true;
     }
 
+    bool rename(const std::string& new_file_name)
+    {
+      auto file_path = dir / file_name;
+      auto new_file_path = dir / new_file_name;
+
+      try
+      {
+        files::rename(file_path, new_file_path);
+      }
+      catch (const std::exception& e)
+      {
+        // If the file cannot be renamed (e.g. file was removed), report an
+        // error and continue
+        LOG_FAIL_FMT("Error renaming ledger file: {}", e.what());
+      }
+      file_name = new_file_name;
+      return true;
+    }
+
+    void open()
+    {
+      auto new_file_name = remove_recovery_suffix(file_name);
+      rename(new_file_name);
+      recovery = false;
+      LOG_DEBUG_FMT("Open recovery ledger file {}", new_file_name);
+    }
+
     bool commit(size_t idx)
     {
       if (!completed || committed || (idx != get_last_idx()))
@@ -452,35 +505,30 @@ namespace asynchost
           fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
-      const auto committed_file_name = fmt::format(
+      auto committed_file_name = fmt::format(
         "{}_{}-{}.{}",
         file_name_prefix,
         start_idx,
         get_last_idx(),
         ledger_committed_suffix);
 
-      auto file_path = fs::path(dir) / fs::path(file_name);
-      auto committed_file_path = fs::path(dir) / fs::path(committed_file_name);
-
-      std::error_code ec;
-      fs::rename(file_path, committed_file_path, ec);
-      if (ec)
+      if (recovery)
       {
-        // Even if the file cannot be renamed (e.g. file was removed), report an
-        // error and continue
-        LOG_FAIL_FMT(
-          "Could not rename committed ledger file {} to {}",
-          file_path,
-          committed_file_path);
-      }
-      else
-      {
-        file_name = committed_file_name;
-        committed = true;
-        LOG_DEBUG_FMT("Committed ledger file {}", file_name);
+        committed_file_name = fmt::format(
+          "{}.{}", committed_file_name, ledger_recovery_file_suffix);
       }
 
-      return true;
+      if (!rename(committed_file_name))
+      {
+        return false;
+      }
+
+      committed = true;
+      LOG_DEBUG_FMT("Committed ledger file {}", file_name);
+
+      // Committed recovery files stay in the list of active files until the
+      // ledger is open
+      return !recovery;
     }
   };
 
@@ -493,10 +541,10 @@ namespace asynchost
     ringbuffer::WriterPtr to_enclave;
 
     // Main ledger directory (write and read)
-    const std::string ledger_dir;
+    const fs::path ledger_dir;
 
     // Ledger directories (read-only)
-    std::vector<std::string> read_ledger_dirs;
+    std::vector<fs::path> read_ledger_dirs;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
@@ -515,6 +563,10 @@ namespace asynchost
 
     // True if a new file should be created when writing an entry
     bool require_new_file;
+
+    // Set during recovery to mark files as temporary until the recovery is
+    // complete
+    std::optional<size_t> recovery_start_idx = std::nullopt;
 
     auto get_it_contains_idx(size_t idx) const
     {
@@ -556,8 +608,10 @@ namespace asynchost
 
       // If the file is not in the cache, find the file from the ledger
       // directories, inspecting the main ledger directory first
+      // Note: reading recovery chunks from main ledger directory is
+      // acceptable and in fact required to complete private recovery.
       std::string ledger_dir_;
-      auto match = get_file_name_with_idx(ledger_dir, idx);
+      auto match = get_file_name_with_idx(ledger_dir, idx, true);
       if (match.has_value())
       {
         ledger_dir_ = ledger_dir;
@@ -566,7 +620,7 @@ namespace asynchost
       {
         for (auto const& dir : read_ledger_dirs)
         {
-          match = get_file_name_with_idx(dir, idx);
+          match = get_file_name_with_idx(dir, idx, false);
           if (match.has_value())
           {
             ledger_dir_ = dir;
@@ -679,14 +733,13 @@ namespace asynchost
 
   public:
     Ledger(
-      const std::string& ledger_dir,
+      const fs::path& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
-      std::vector<std::string> read_ledger_dirs = {}) :
+      const std::vector<std::string>& read_ledger_dirs_ = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
-      read_ledger_dirs(read_ledger_dirs),
       max_read_cache_files(max_read_cache_files),
       chunk_threshold(chunk_threshold)
     {
@@ -698,14 +751,16 @@ namespace asynchost
       }
 
       // Recover last idx from read-only ledger directories
-      for (const auto& read_dir : read_ledger_dirs)
+      for (const auto& read_dir : read_ledger_dirs_)
       {
         LOG_INFO_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
         if (!fs::is_directory(read_dir))
         {
-          throw std::logic_error(fmt::format(
-            "\"{}\" read-only ledger is not a directory", read_dir));
+          throw std::logic_error(
+            fmt::format("{} read-only ledger is not a directory", read_dir));
         }
+
+        read_ledger_dirs.emplace_back(read_dir);
 
         for (auto const& f : fs::directory_iterator(read_dir))
         {
@@ -741,11 +796,20 @@ namespace asynchost
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
-        LOG_INFO_FMT("Recovering main ledger directory \"{}\"", ledger_dir);
+        LOG_INFO_FMT("Recovering main ledger directory {}", ledger_dir);
 
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           auto file_name = f.path().filename();
+
+          if (is_ledger_file_name_recovery(file_name))
+          {
+            LOG_INFO_FMT(
+              "Deleting recovery ledger file {} in main ledger directory",
+              file_name);
+            fs::remove(f);
+            continue;
+          }
 
           std::shared_ptr<LedgerFile> ledger_file = nullptr;
           try
@@ -780,7 +844,7 @@ namespace asynchost
         if (files.empty())
         {
           LOG_INFO_FMT(
-            "Main ledger directory \"{}\" is empty: no ledger file to "
+            "Main ledger directory {} is empty: no ledger file to "
             "recover",
             ledger_dir);
           require_new_file = true;
@@ -849,7 +913,7 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
-    void init(size_t idx)
+    void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
       TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
 
@@ -881,14 +945,59 @@ namespace asynchost
         require_new_file = true;
       }
 
-      LOG_INFO_FMT("Setting last known/commit index to {}", idx);
       last_idx = idx;
       committed_idx = idx;
+      if (recovery_start_idx_ > 0)
+      {
+        // Do not set recovery idx and create recovery chunks
+        // if the ledger is initialised from 0 (i.e. genesis)
+        recovery_start_idx = recovery_start_idx_;
+      }
+
+      LOG_INFO_FMT(
+        "Set last known/commit index to {}, recovery idx to {}",
+        idx,
+        recovery_start_idx_);
+    }
+
+    void complete_recovery()
+    {
+      // When the recovery is completed (i.e. service is open), temporary
+      // recovery ledger chunks are renamed as they can now be recovered.
+      // Note: this operation cannot be rolled back.
+      LOG_INFO_FMT("Ledger complete recovery");
+
+      for (auto it = files.begin(); it != files.end();)
+      {
+        auto& f = *it;
+        if (f->is_recovery())
+        {
+          f->open();
+
+          // Recovery files are kept in the list of active files when committed
+          // so that they can be renamed in a stable order when the service is
+          // open. Once this is done, they can be removed from the list of
+          // active files.
+          if (f->is_committed())
+          {
+            it = files.erase(it);
+            continue;
+          }
+        }
+        ++it;
+      }
+
+      recovery_start_idx.reset();
     }
 
     size_t get_last_idx() const
     {
       return last_idx;
+    }
+
+    void set_recovery_start_idx(size_t idx)
+    {
+      recovery_start_idx = idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
@@ -956,7 +1065,12 @@ namespace asynchost
 
       if (require_new_file)
       {
-        files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
+        size_t start_idx = last_idx + 1;
+        bool is_recovery = recovery_start_idx.has_value() &&
+          start_idx > recovery_start_idx.value();
+
+        files.push_back(
+          std::make_shared<LedgerFile>(ledger_dir, last_idx + 1, is_recovery));
         require_new_file = false;
       }
 
@@ -1131,7 +1245,9 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          init(idx);
+          auto recovery_start_idx =
+            serialized::read<consensus::Index>(data, size);
+          init(idx, recovery_start_idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -1148,7 +1264,12 @@ namespace asynchost
         consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
+          auto recovery_mode = serialized::read<bool>(data, size);
           truncate(idx);
+          if (recovery_mode)
+          {
+            set_recovery_start_idx(idx);
+          }
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -1157,6 +1278,11 @@ namespace asynchost
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
           commit(idx);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, consensus::ledger_open, [this](const uint8_t*, size_t) {
+          complete_recovery();
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

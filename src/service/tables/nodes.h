@@ -6,9 +6,9 @@
 #include "ccf/crypto/san.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
+#include "ccf/quote_info.h"
 #include "kv/map.h"
 #include "node_info_network.h"
-#include "quote_info.h"
 #include "service/map.h"
 
 #include <string>
@@ -85,6 +85,13 @@ namespace ccf
   using Nodes = ServiceMap<NodeId, NodeInfo>;
   using NodeEndorsedCertificates =
     kv::RawCopySerialisedMap<NodeId, crypto::Pem>;
+
+  namespace Tables
+  {
+    static constexpr auto NODES = "public:ccf.gov.nodes.info";
+    static constexpr auto NODE_ENDORSED_CERTIFICATES =
+      "public:ccf.gov.nodes.endorsed_certificates";
+  }
 
   inline NodeId compute_node_id_from_pubk_der(
     const std::vector<uint8_t>& node_pubk_der)

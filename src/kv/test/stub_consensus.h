@@ -82,7 +82,10 @@ namespace kv::test
     }
 
     virtual void init_as_backup(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) override
+      ccf::SeqNo,
+      ccf::View,
+      const std::vector<ccf::SeqNo>&,
+      ccf::SeqNo) override
     {
       state = Backup;
     }

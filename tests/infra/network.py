@@ -144,7 +144,7 @@ class Network:
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
-            self.hosts = existing_network.hosts
+            self.hosts = [node.host for node in existing_network.nodes]
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
@@ -539,7 +539,7 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def check_ledger_files_identical(self):
+    def check_ledger_files_identical(self, read_recovery_ledger_files=False):
         # Note: Should be called on stopped service
         # Verify that all ledger files on stopped nodes exist on most up-to-date node
         # and are identical
@@ -554,7 +554,9 @@ class Network:
                 )
 
             ledger = node.remote.ledger_paths()
-            last_seqno = Ledger(ledger).get_latest_public_state()[1]
+            last_seqno = Ledger(
+                ledger, read_recovery_files=read_recovery_ledger_files
+            ).get_latest_public_state()[1]
             nodes_ledger[node.local_node_id] = [ledger, last_seqno]
             if last_seqno > longest_ledger_seqno:
                 longest_ledger_seqno = last_seqno
@@ -584,7 +586,9 @@ class Network:
                 f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
             )
 
-    def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
+    def stop_all_nodes(
+        self, skip_verification=False, verbose_verification=False, **kwargs
+    ):
         if not skip_verification:
             if self.txs is not None:
                 LOG.info("Verifying that all committed txs can be read before shutdown")
@@ -601,7 +605,7 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        self.check_ledger_files_identical()
+        self.check_ledger_files_identical(**kwargs)
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:

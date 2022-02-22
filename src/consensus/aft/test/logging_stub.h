@@ -23,7 +23,7 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
-    virtual void init(Index idx) {}
+    virtual void init(Index, Index) {}
 
     virtual void put_entry(
       const std::vector<uint8_t>& original,
@@ -369,6 +369,13 @@ namespace aft
       return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
         data, expected_txid);
     }
+
+    bool flag_enabled(kv::AbstractStore::Flag)
+    {
+      return false;
+    }
+
+    void unset_flag(kv::AbstractStore::Flag) {}
   };
 
   class LoggingStubStoreSig : public LoggingStubStore
@@ -385,6 +392,13 @@ namespace aft
       return std::make_unique<
         ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data, expected_txid);
     }
+
+    bool flag_enabled(kv::AbstractStore::Flag)
+    {
+      return false;
+    }
+
+    void unset_flag(kv::AbstractStore::Flag) {}
   };
 
   class StubSnapshotter

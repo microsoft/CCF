@@ -7,4 +7,8 @@
 namespace ccf
 {
   using Constitution = ServiceValue<std::string>;
+  namespace Tables
+  {
+    static constexpr auto CONSTITUTION = "public:ccf.gov.constitution";
+  }
 }

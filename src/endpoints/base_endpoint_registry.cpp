@@ -5,7 +5,6 @@
 
 #include "enclave/enclave_time.h"
 #include "service/blit.h"
-#include "service/table_names.h"
 #include "service/tables/members.h"
 #include "service/tables/nodes.h"
 #include "service/tables/users.h"
@@ -96,7 +95,7 @@ namespace ccf
   {
     try
     {
-      const auto node_id = context.get_node_state().get_node_id();
+      const auto node_id = context.get_node_id();
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       const auto node_info = nodes->get(node_id);
 
@@ -120,7 +119,7 @@ namespace ccf
   {
     try
     {
-      node_id = context.get_node_state().get_node_id();
+      node_id = context.get_node_id();
       return ApiResult::OK;
     }
     catch (const std::exception& e)

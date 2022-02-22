@@ -23,6 +23,11 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
     # at any one (but not the last one, which would have no effect) at random.
     for ledger_file in os.listdir(input_dir):
         sig_seqnos = []
+
+        if ledger_file.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX):
+            # Ignore recovery files
+            continue
+
         ledger_file_path = os.path.join(input_dir, ledger_file)
         ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
         for transaction in ledger_chunk:
@@ -49,7 +54,7 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test(network, args, from_snapshot=False, split_ledger=False):
+def test_recover_service(network, args, from_snapshot=False, split_ledger=False):
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -72,7 +77,82 @@ def test(network, args, from_snapshot=False, split_ledger=False):
             )
 
     recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
+    )
+
+    recovered_network.recover(args)
+
+    return recovered_network
+
+
+@reqs.description("Attempt to recover a service but abort before recovery is complete")
+def test_recover_service_aborted(network, args, from_snapshot=False):
+    old_primary, _ = network.find_primary()
+
+    snapshots_dir = None
+    if from_snapshot:
+        snapshots_dir = network.get_committed_snapshots(old_primary)
+
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    aborted_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+    )
+    aborted_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
+    )
+
+    LOG.info("Fill in ledger to trigger new chunks, which should be marked as recovery")
+    primary, _ = aborted_network.find_primary()
+    while (
+        len(
+            [
+                f
+                for f in os.listdir(primary.remote.ledger_paths()[0])
+                if f.endswith(
+                    f"{ccf.ledger.COMMITTED_FILE_SUFFIX}{ccf.ledger.RECOVERY_FILE_SUFFIX}"
+                )
+            ]
+        )
+        < 2
+    ):
+        # Submit large proposal until at least two recovery ledger chunks are committed
+        aborted_network.consortium.create_and_withdraw_large_proposal(primary)
+
+    LOG.info(
+        "Do not complete service recovery on purpose and initiate new recovery from scratch"
+    )
+
+    snapshots_dir = None
+    if from_snapshot:
+        snapshots_dir = network.get_committed_snapshots(primary)
+
+    # Check that all nodes have the same (recovery) ledger files
+    aborted_network.stop_all_nodes(
+        skip_verification=True, read_recovery_ledger_files=True
+    )
+
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=aborted_network,
     )
     recovered_network.start_in_recovery(
         args,
@@ -81,11 +161,10 @@ def test(network, args, from_snapshot=False, split_ledger=False):
         snapshots_dir=snapshots_dir,
     )
     recovered_network.recover(args)
-
     return recovered_network
 
 
-@reqs.description("Recover a service, kill one node while submitting shares")
+@reqs.description("Recovering a service, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
 def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
@@ -287,7 +366,7 @@ def run_corrupted_ledger(args):
         )
 
 
-def run(args):
+def run(args, recoveries_count):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -299,31 +378,28 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        for i in range(1):  # range(args.recovery):
+        for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
             # when the network is shutdown
             network.txs.issue(network, number_txs=1)
             network.txs.issue(network, number_txs=1, repeat=True)
 
-            network = test_recover_service_truncated_ledger(network, args)
+            # Alternate between recovery with primary change and stable primary-ship,
+            # with and without snapshots
+            if i % recoveries_count == 0:
+                if args.consensus != "BFT":
+                    network = test_share_resilience(network, args, from_snapshot=True)
+            elif i % recoveries_count == 1:
+                network = test_recover_service_aborted(
+                    network, args, from_snapshot=False
+                )  # TODO: Also tests with snapshots
+            else:
+                network = test_recover_service(
+                    network, args, from_snapshot=False, split_ledger=True
+                )
 
-            # # Alternate between recovery with primary change and stable primary-ship,
-            # # with and without snapshots
-            # if i % 2 == 0:
-            #     if args.consensus != "BFT":
-            #         recovered_network = test_share_resilience(
-            #             network, args, from_snapshot=True
-            #         )
-            #     else:
-            #         recovered_network = network
-            # else:
-            #     recovered_network = test(
-            #         network, args, from_snapshot=False, split_ledger=True
-            #     )
-            # network = recovered_network
-
-            # for node in network.get_joined_nodes():
-            #     node.verify_certificate_validity_period()
+            for node in network.get_joined_nodes():
+                node.verify_certificate_validity_period()
 
             primary, _ = network.find_primary()
 
@@ -353,15 +429,12 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.description = """
-This test executes multiple recoveries (as specified by the "--recovery" arg),
+This test_recover_service executes multiple recoveries (as specified by the "--recovery" arg),
 with a fixed number of messages applied between each network crash (as
 specified by the "--msgs-per-recovery" arg). After the network is recovered
 and before applying new transactions, all transactions previously applied are
 checked. Note that the key for each logging message is unique (per table).
 """
-        parser.add_argument(
-            "--recovery", help="Number of recoveries to perform", type=int, default=2
-        )
         parser.add_argument(
             "--msgs-per-recovery",
             help="Number of public and private messages between two recoveries",
@@ -378,5 +451,5 @@ checked. Note that the key for each logging message is unique (per table).
     args.ledger_chunk_bytes = "50KB"
     args.snapshot_tx_interval = 30
 
-    # run(args) # TODO: Re-enable
     run_corrupted_ledger(args)
+    # run(args, recoveries_count=3) # TODO: Re-enable

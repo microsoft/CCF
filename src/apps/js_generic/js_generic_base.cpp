@@ -9,6 +9,7 @@
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
+#include "node/rpc/host_processes_interface.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -289,7 +290,7 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
-        &context.get_node_state(),
+        context.get_subsystem<ccf::AbstractHostProcesses>().get(),
         nullptr,
         &context.get_historical_state(),
         this,
@@ -497,7 +498,7 @@ namespace ccfapp
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
@@ -587,7 +588,7 @@ namespace ccfapp
         ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
         const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
@@ -633,7 +634,7 @@ namespace ccfapp
       UserEndpointRegistry::build_api(document, tx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();

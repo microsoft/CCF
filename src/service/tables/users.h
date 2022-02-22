@@ -29,4 +29,10 @@ namespace ccf
 
   using UserCerts = kv::RawCopySerialisedMap<UserId, crypto::Pem>;
   using UserInfo = ServiceMap<UserId, UserDetails>;
+
+  namespace Tables
+  {
+    static constexpr auto USER_CERTS = "public:ccf.gov.users.certs";
+    static constexpr auto USER_INFO = "public:ccf.gov.users.info";
+  }
 }

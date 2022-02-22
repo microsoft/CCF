@@ -3,7 +3,8 @@
 #pragma once
 
 #include "enclave/rpc_context.h"
-#include "v8.h"
+
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {

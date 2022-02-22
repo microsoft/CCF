@@ -5,6 +5,7 @@
 #include "ccf/endpoint_metrics.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/node_context.h"
+#include "ccf/quote_info.h"
 #include "ccf/tx_status.h"
 
 namespace ccf

@@ -15,8 +15,11 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
+#include "node/rpc/gov_effects.h"
+#include "node/rpc/host_processes.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
 #include "oe_init.h"
 #include "ringbuffer_logger.h"
@@ -47,58 +50,23 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
-        nullptr;
-      ccf::AbstractNodeState* node_state = nullptr;
-      std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
-      std::unique_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
+      const ccf::NodeId this_node;
 
-      NodeContext() {}
+      NodeContext(const ccf::NodeId& id) : this_node(id) {}
 
-      ccf::historical::AbstractStateCache& get_historical_state() override
+      ccf::NodeId get_node_id() const override
       {
-        if (historical_state_cache == nullptr)
-        {
-          throw std::logic_error(
-            "Calling get_historical_state before NodeContext is initialized");
-        }
-        return *historical_state_cache;
-      }
-
-      ccf::AbstractNodeState& get_node_state() override
-      {
-        if (node_state == nullptr)
-        {
-          throw std::logic_error(
-            "Calling get_node_state before NodeContext is initialized");
-        }
-        return *node_state;
-      }
-
-      ccf::indexing::IndexingStrategies& get_indexing_strategies() override
-      {
-        if (indexer == nullptr)
-        {
-          throw std::logic_error(
-            "Calling get_indexing_strategies before NodeContext is "
-            "initialized");
-        }
-        return *indexer;
-      }
-
-      ccf::indexing::AbstractLFSAccess& get_lfs_access() override
-      {
-        if (lfs_access == nullptr)
-        {
-          throw std::logic_error(
-            "Calling get_lfs_access before NodeContext is "
-            "initialized");
-        }
-        return *lfs_access;
+        return this_node;
       }
     };
 
     std::unique_ptr<NodeContext> context = nullptr;
+
+    std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
+      nullptr;
+    std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
+    std::shared_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
+    std::shared_ptr<ccf::HostProcesses> host_processes = nullptr;
 
   public:
     Enclave(
@@ -146,18 +114,28 @@ namespace enclave
         *writer_factory, network, rpcsessions, share_manager, curve_id);
 
       LOG_TRACE_FMT("Creating context");
-      context = std::make_unique<NodeContext>();
-      context->historical_state_cache =
-        std::make_shared<ccf::historical::StateCache>(
-          *network.tables,
-          network.ledger_secrets,
-          writer_factory->create_writer_to_outside());
-      context->node_state = node.get();
-      context->indexer = std::make_shared<ccf::indexing::Indexer>(
-        std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
-          context->historical_state_cache));
-      context->lfs_access = std::make_unique<ccf::indexing::EnclaveLFSAccess>(
+      context = std::make_unique<NodeContext>(node->get_node_id());
+
+      LOG_TRACE_FMT("Creating context subsystems");
+      historical_state_cache = std::make_shared<ccf::historical::StateCache>(
+        *network.tables,
+        network.ledger_secrets,
         writer_factory->create_writer_to_outside());
+      context->install_subsystem(historical_state_cache);
+
+      indexer = std::make_shared<ccf::indexing::Indexer>(
+        std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
+          historical_state_cache));
+      context->install_subsystem(indexer);
+
+      lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
+        writer_factory->create_writer_to_outside());
+      context->install_subsystem(lfs_access);
+
+      context->install_subsystem(std::make_shared<ccf::HostProcesses>(*node));
+      context->install_subsystem(std::make_shared<ccf::NodeOperation>(*node));
+      context->install_subsystem(
+        std::make_shared<ccf::GovernanceEffects>(*node));
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -178,7 +156,7 @@ namespace enclave
         consensus_config,
         rpc_map,
         rpcsessions,
-        context->indexer,
+        indexer,
         sig_tx_interval,
         sig_ms_interval);
     }
@@ -272,7 +250,7 @@ namespace enclave
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
-        context->lfs_access->register_message_handlers(bp.get_dispatcher());
+        lfs_access->register_message_handlers(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
@@ -302,7 +280,7 @@ namespace enclave
               last_tick_time = time_now;
 
               node->tick(elapsed_ms);
-              context->historical_state_cache->tick(elapsed_ms);
+              historical_state_cache->tick(elapsed_ms);
               threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
@@ -362,7 +340,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache->handle_ledger_entries(
+                historical_state_cache->handle_ledger_entries(
                   from_seqno, to_seqno, body);
                 break;
               }
@@ -405,7 +383,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache->handle_no_entry_range(
+                historical_state_cache->handle_no_entry_range(
                   from_seqno, to_seqno);
                 break;
               }

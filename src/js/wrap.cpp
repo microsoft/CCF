@@ -512,7 +512,7 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
 
     auto global_obj = jsctx.get_global_obj();
@@ -527,7 +527,7 @@ namespace ccf::js
         ctx, "No transaction available to rekey ledger");
     }
 
-    bool result = node->rekey_ledger(*tx_ctx_ptr->tx);
+    bool result = gov_effects->rekey_ledger(*tx_ctx_ptr->tx);
 
     if (!result)
     {
@@ -551,10 +551,10 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
 
-    if (node == nullptr)
+    if (gov_effects == nullptr)
     {
       return JS_ThrowInternalError(ctx, "Node state is not set");
     }
@@ -573,7 +573,7 @@ namespace ccf::js
 
     try
     {
-      node->transition_service_to_open(*tx_ctx_ptr->tx);
+      gov_effects->transition_service_to_open(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
@@ -902,7 +902,7 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
     auto ccf = global_obj["ccf"];
@@ -916,12 +916,45 @@ namespace ccf::js
         ctx, "No transaction available to open service");
     }
 
-    node->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
+    gov_effects->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
 
     return JS_UNDEFINED;
   }
 
-  JSValue js_request_ledger_chunk(
+  JSValue js_trigger_ledger_chunk(
+    JSContext* ctx,
+    JSValueConst this_val,
+    [[maybe_unused]] int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
+      JS_GetOpaque(this_val, node_class_id));
+    auto global_obj = jsctx.get_global_obj();
+    auto ccf = global_obj["ccf"];
+    auto kv = ccf["kv"];
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    try
+    {
+      gov_effects->trigger_ledger_chunk(*tx_ctx_ptr->tx);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
+    }
+
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_trigger_snapshot(
     JSContext* ctx,
     JSValueConst this_val,
     [[maybe_unused]] int argc,
@@ -944,11 +977,11 @@ namespace ccf::js
 
     try
     {
-      node->request_ledger_chunk(*tx_ctx_ptr->tx);
+      node->trigger_snapshot(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
-      LOG_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
+      LOG_FAIL_FMT("Unable to request snapshot: {}", e.what());
     }
 
     return JS_UNDEFINED;
@@ -997,10 +1030,10 @@ namespace ccf::js
       process_args.push_back(*arg);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
       JS_GetOpaque(this_val, host_class_id));
 
-    node->trigger_host_process_launch(process_args);
+    host_processes->trigger_host_process_launch(process_args);
 
     return JS_UNDEFINED;
   }
@@ -1383,8 +1416,8 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1500,8 +1533,8 @@ namespace ccf::js
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
 
-    // Node state
-    if (node_state != nullptr)
+    // Gov effects
+    if (gov_effects != nullptr)
     {
       if (txctx == nullptr)
       {
@@ -1509,7 +1542,7 @@ namespace ccf::js
       }
 
       auto node = JS_NewObjectClass(ctx, node_class_id);
-      JS_SetOpaque(node, node_state);
+      JS_SetOpaque(node, gov_effects);
       JS_SetPropertyStr(ctx, ccf, "node", node);
       JS_SetPropertyStr(
         ctx,
@@ -1538,14 +1571,19 @@ namespace ccf::js
       JS_SetPropertyStr(
         ctx,
         node,
-        "requestLedgerChunk",
-        JS_NewCFunction(ctx, js_request_ledger_chunk, "requestLedgerChunk", 0));
+        "triggerLedgerChunk",
+        JS_NewCFunction(ctx, js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "triggerSnapshot",
+        JS_NewCFunction(ctx, js_trigger_snapshot, "triggerSnapshot", 0));
     }
 
-    if (host_node_state != nullptr)
+    if (host_processes != nullptr)
     {
       auto host = JS_NewObjectClass(ctx, host_class_id);
-      JS_SetOpaque(host, host_node_state);
+      JS_SetOpaque(host, host_processes);
       JS_SetPropertyStr(ctx, ccf, "host", host);
 
       JS_SetPropertyStr(
@@ -1671,8 +1709,8 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1690,8 +1728,8 @@ namespace ccf::js
         rpc_ctx,
         transaction_id,
         receipt,
-        node_state,
-        host_node_state,
+        gov_effects,
+        host_processes,
         network_state,
         historical_state,
         endpoint_registry,
@@ -1704,8 +1742,8 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1718,8 +1756,8 @@ namespace ccf::js
       rpc_ctx,
       transaction_id,
       receipt,
-      node_state,
-      host_node_state,
+      gov_effects,
+      host_processes,
       network_state,
       historical_state,
       endpoint_registry,
