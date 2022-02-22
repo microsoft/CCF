@@ -41,7 +41,7 @@ namespace asynchost
     if (pos == std::string::npos)
     {
       throw std::logic_error(fmt::format(
-        "Ledger file name {} does not contain a start idx", file_name));
+        "Ledger file name {} does not contain a start seqno", file_name));
     }
 
     return std::stol(file_name.substr(pos + 1));
@@ -418,7 +418,7 @@ namespace asynchost
       }
 
       fseeko(file, total_len, SEEK_SET);
-      LOG_TRACE_FMT("Truncated ledger file {} at idx {}", file_name, idx);
+      LOG_TRACE_FMT("Truncated ledger file {} at seqno {}", file_name, idx);
       return false;
     }
 
@@ -643,7 +643,8 @@ namespace asynchost
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT("Could not open ledger file {}", match.value());
+        LOG_FAIL_FMT(
+          "Could not open ledger file {} to read seqno {}", match.value(), idx);
         return nullptr;
       }
 
@@ -830,9 +831,6 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "Error reading ledger file {}: {}", file_name, e.what());
-
-            throw std::logic_error("TODO: More tests to trigger this please!");
-
             continue;
           }
 
@@ -861,8 +859,8 @@ namespace asynchost
         if (main_ledger_dir_last_idx < last_idx)
         {
           throw std::logic_error(fmt::format(
-            "Main ledger directory last idx ({}) is less than read-only "
-            "ledger directories last idx ({})",
+            "Main ledger directory last seqno ({}) is less than read-only "
+            "ledger directories last seqno ({})",
             main_ledger_dir_last_idx,
             last_idx));
         }
@@ -915,7 +913,8 @@ namespace asynchost
 
     void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
-      TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
+      TimeBoundLogger log_if_slow(
+        fmt::format("Initing ledger - seqno={}", idx));
 
       // Used to initialise the ledger when starting from a non-empty state,
       // i.e. snapshot. It is assumed that idx is included in a committed
@@ -955,7 +954,7 @@ namespace asynchost
       }
 
       LOG_INFO_FMT(
-        "Set last known/commit index to {}, recovery idx to {}",
+        "Set last known/commit seqno to {}, recovery seqno to {}",
         idx,
         recovery_start_idx_);
     }

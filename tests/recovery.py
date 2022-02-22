@@ -12,6 +12,7 @@ import os
 import random
 import json
 import copy
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -230,7 +231,11 @@ def test_share_resilience(network, args, from_snapshot=False):
 @reqs.description("Recover a service from malformed ledger")
 @reqs.recover(number_txs=2)
 def test_recover_service_truncated_ledger(
-    network, args, corrupt_first_tx=False, corrupt_last_tx=False
+    network,
+    args,
+    corrupt_first_tx=False,
+    corrupt_last_tx=False,
+    corrupt_first_sig=False,
 ):
     old_primary, _ = network.find_primary()
 
@@ -245,7 +250,7 @@ def test_recover_service_truncated_ledger(
         network.consortium.create_and_withdraw_large_proposal(
             old_primary, wait_for_commit=True
         )
-        # A signature will have been emitted by then (wait_for_commit)
+        # A signature will have been emitted by now (wait_for_commit)
         network.consortium.create_and_withdraw_large_proposal(old_primary)
         if not all(
             f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
@@ -266,7 +271,6 @@ def test_recover_service_truncated_ledger(
         return tx._tx_offset + (tx._next_offset - tx._tx_offset) // 2
 
     for chunk in ledger:
-        LOG.success(f"chunk: {chunk.filename()}")
         chunk_filename = chunk.filename()
         first_tx_offset = None
         last_tx_offset = None
@@ -281,22 +285,20 @@ def test_recover_service_truncated_ledger(
             last_tx_offset = get_middle_tx_offset(tx)
             if first_tx_offset is None:
                 first_tx_offset = get_middle_tx_offset(tx)
-            LOG.success(f"Tx offset {tx._tx_offset}, next {tx._next_offset}")
-
-    LOG.error(f"First sig: {first_sig_offset}")
 
     truncated_ledger_file_path = os.path.join(current_ledger_dir, chunk_filename)
     if corrupt_first_tx:
         truncate_offset = first_tx_offset
     elif corrupt_last_tx:
         truncate_offset = last_tx_offset
+    elif corrupt_first_sig:
+        truncate_offset = first_sig_offset
 
     with open(truncated_ledger_file_path, "r+", encoding="utf-8") as f:
         f.truncate(truncate_offset)
     LOG.warning(
         f"Truncated ledger file {truncated_ledger_file_path} at {truncate_offset}"
     )
-    # input("")
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -311,50 +313,25 @@ def test_recover_service_truncated_ledger(
     return recovered_network
 
 
-# TODO: Move to new file
 def run_corrupted_ledger(args):
-    args_ = copy.deepcopy(args)
-
-    # Note: this test runs with very a specific node configuration
-    # so that the contents of recovered (and tampered) ledger chunks
-    # can be dictated by the test.
-
-    # One node suffice for the ledger recovery
-    args_.nodes = infra.e2e_args.min_nodes(args, f=0)
-
-    # Large signature interval to create in-progress ledgers files
-    # that do not end on a signature
-    args_.sig_ms_interval = 1000
-
-    # Test is in control of chunking
-    args_.ledger_chunk_bytes = "1GB"
-    args_.snapshot_tx_interval = 1000000
-
     txs = app.LoggingTxs("user0")
     with infra.network.network(
-        args_.nodes,
-        args_.binary_dir,
-        args_.debug_nodes,
-        args_.perf_nodes,
-        pdb=args_.pdb,
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_open(args_)
-        # TODO: Test multiple types of truncation
-        # 0. First transaction
-        # 1. Mid-entry
-        # 1'. Last transaction
-        # 1''. Last signature
-        # 2. Positions table missing
-        # 3. Private entry corrupted
-        # 4. File empty
-        # 5. All zeros (truncate with w+ flag)
-        # 6. Bit flip
-        # network = test_recover_service_truncated_ledger(
-        #     network, args, corrupt_first_tx=True
-        # )
+        network.start_and_open(args)
         network = test_recover_service_truncated_ledger(
             network, args, corrupt_first_tx=True
+        )
+        network = test_recover_service_truncated_ledger(
+            network, args, corrupt_last_tx=True
+        )
+        network = test_recover_service_truncated_ledger(
+            network, args, corrupt_first_sig=True
         )
 
     # Make sure ledger can be read once recovered (i.e. ledger corruption does not affect recovered ledger)
@@ -366,7 +343,9 @@ def run_corrupted_ledger(args):
         )
 
 
-def run(args, recoveries_count):
+def run(args):
+    recoveries_count = 3
+
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -392,7 +371,7 @@ def run(args, recoveries_count):
             elif i % recoveries_count == 1:
                 network = test_recover_service_aborted(
                     network, args, from_snapshot=False
-                )  # TODO: Also tests with snapshots
+                )
             else:
                 network = test_recover_service(
                     network, args, from_snapshot=False, split_ledger=True
@@ -443,13 +422,33 @@ checked. Note that the key for each logging message is unique (per table).
         )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+
+    cr = ConcurrentRunner()
 
     # Test-specific values so that it is likely that ledger files contain
     # at least two signatures, so that they can be split at the first one
-    args.ledger_chunk_bytes = "50KB"
-    args.snapshot_tx_interval = 30
+    cr.add(
+        "recovery",
+        run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(args, f=1),
+        ledger_chunk_bytes="50KB",
+        snasphot_tx_interval=30,
+    )
 
-    run_corrupted_ledger(args)
-    # run(args, recoveries_count=3) # TODO: Re-enable
+    # Note: `run_corrupted_ledger` runs with very a specific node configuration
+    # so that the contents of recovered (and tampered) ledger chunks
+    # can be dictated by the test. In particular, the signature interval is large # enough to create in-progress ledger files that do not end on a signature. The
+    # test is also in control of the ledger chunking.
+
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(args, f=1),
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snasphot_tx_interval=1000000,
+    # )
+
+    cr.run()
