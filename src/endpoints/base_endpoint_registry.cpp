@@ -5,7 +5,6 @@
 
 #include "enclave/enclave_time.h"
 #include "service/blit.h"
-#include "service/table_names.h"
 #include "service/tables/members.h"
 #include "service/tables/nodes.h"
 #include "service/tables/users.h"

@@ -9,4 +9,8 @@
 namespace ccf
 {
   using GovernanceHistory = ServiceMap<MemberId, SignedReq>;
+  namespace Tables
+  {
+    static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
+  }
 }

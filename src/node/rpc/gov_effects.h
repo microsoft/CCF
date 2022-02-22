@@ -30,9 +30,14 @@ namespace ccf
       impl.trigger_recovery_shares_refresh(tx);
     }
 
-    void request_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(kv::Tx& tx) override
     {
-      impl.request_ledger_chunk(tx);
+      impl.trigger_ledger_chunk(tx);
+    }
+
+    void trigger_snapshot(kv::Tx& tx) override
+    {
+      impl.trigger_snapshot(tx);
     }
   };
 }
