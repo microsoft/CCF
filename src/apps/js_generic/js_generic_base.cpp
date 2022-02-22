@@ -9,6 +9,7 @@
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
+#include "node/rpc/host_processes_interface.h"
 #include "service/tables/endpoints.h"
 
 #include <memory>
@@ -290,7 +291,7 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
-        &context.get_node_state(),
+        context.get_subsystem<ccf::AbstractHostProcesses>().get(),
         nullptr,
         &context.get_historical_state(),
         this,

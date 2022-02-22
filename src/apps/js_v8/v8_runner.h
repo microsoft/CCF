@@ -2,14 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "v8.h"
-
 #include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <v8.h>
 #include <vector>
 
 namespace ccf

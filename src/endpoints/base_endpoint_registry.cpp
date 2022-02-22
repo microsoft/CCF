@@ -96,7 +96,7 @@ namespace ccf
   {
     try
     {
-      const auto node_id = context.get_node_state().get_node_id();
+      const auto node_id = context.get_node_id();
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       const auto node_info = nodes->get(node_id);
 
@@ -120,7 +120,7 @@ namespace ccf
   {
     try
     {
-      node_id = context.get_node_state().get_node_id();
+      node_id = context.get_node_id();
       return ApiResult::OK;
     }
     catch (const std::exception& e)
