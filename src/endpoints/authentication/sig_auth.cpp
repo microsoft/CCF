@@ -8,7 +8,6 @@
 #include "enclave/rpc_context.h"
 #include "http/http_sig.h"
 #include "service/blit.h"
-#include "service/table_names.h"
 #include "service/tables/members.h"
 #include "service/tables/users.h"
 

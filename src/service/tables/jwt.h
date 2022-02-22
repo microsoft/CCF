@@ -6,7 +6,6 @@
 #include "ccf/ds/json.h"
 #include "proposals.h"
 #include "service/map.h"
-#include "service/table_names.h"
 
 #include <openenclave/attestation/verifier.h>
 #include <optional>
@@ -69,6 +68,15 @@ namespace ccf
   using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;
   using JwtPublicSigningKeyIssuer =
     kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
+
+  namespace Tables
+  {
+    static constexpr auto JWT_ISSUERS = "public:ccf.gov.jwt.issuers";
+    static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
+      "public:ccf.gov.jwt.public_signing_keys";
+    static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
+      "public:ccf.gov.jwt.public_signing_key_issuer";
+  }
 
   struct JsonWebKey
   {

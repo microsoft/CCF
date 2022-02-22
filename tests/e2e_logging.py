@@ -187,39 +187,21 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("/app/log/private")
 def test_remove(network, args):
-    primary, _ = network.find_primary()
+    check = infra.checker.Checker()
 
-    with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        check = infra.checker.Checker()
-
-        with primary.client("user0") as c:
-            log_id = network.txs.find_max_log_id() + 1
-            msg = "Will be deleted"
-
-            for table in ["private", "public"]:
-                resource = f"/app/log/{table}"
-                check_commit(
-                    c.post(resource, {"id": log_id, "msg": msg}),
-                    result=True,
-                )
-                check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
-                check(
-                    c.delete(f"{resource}?id={log_id}"),
-                    result=None,
-                )
-                get_r = c.get(f"{resource}?id={log_id}")
-                if args.package in ["libjs_generic", "libjs_v8"]:
-                    check(
-                        get_r,
-                        result={"error": "No such key"},
-                    )
-                else:
-                    check(
-                        get_r,
-                        error=lambda status, msg: status
-                        == http.HTTPStatus.BAD_REQUEST.value,
-                    )
+    for priv in [True, False]:
+        txid = network.txs.issue(network, send_public=not priv, send_private=priv)
+        _, log_id = network.txs.get_log_id(txid)
+        network.txs.delete(log_id, priv=priv)
+        r = network.txs.request(log_id, priv=priv)
+        if args.package in ["libjs_generic", "libjs_v8"]:
+            check(r, result={"error": "No such key"})
+        else:
+            check(
+                r,
+                error=lambda status, msg: status == http.HTTPStatus.BAD_REQUEST.value
+                and msg.json()["error"]["code"] == "ResourceNotFound",
+            )
 
     return network
 

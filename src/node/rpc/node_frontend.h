@@ -1308,7 +1308,7 @@ namespace ccf
           {
             throw std::logic_error("Could not cast tx to CommittableTx");
           }
-          tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+          tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
         }
 
         auto endorsed_certificates =

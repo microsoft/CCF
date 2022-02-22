@@ -8,7 +8,6 @@
 #include "consensus/aft/revealed_nonces.h"
 #include "kv/store.h"
 #include "service/blit.h"
-#include "table_names.h"
 #include "tables/backup_signatures.h"
 #include "tables/cert_bundles.h"
 #include "tables/code_id.h"
@@ -99,10 +98,6 @@ namespace ccf
     //
     // bft related tables
     //
-    aft::RequestsMap bft_requests_map;
-    BackupSignaturesMap backup_signatures_map;
-    aft::RevealedNoncesMap revealed_nonces_map;
-    NewViewsMap new_views_map;
     Resharings resharings;
 
     // JS Constitution
@@ -136,10 +131,6 @@ namespace ccf
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       signatures(Tables::SIGNATURES),
       serialise_tree(Tables::SERIALISED_MERKLE_TREE),
-      bft_requests_map(Tables::AFT_REQUESTS),
-      backup_signatures_map(Tables::BACKUP_SIGNATURES),
-      revealed_nonces_map(Tables::NONCES),
-      new_views_map(Tables::NEW_VIEWS),
       resharings(Tables::RESHARINGS),
       constitution(Tables::CONSTITUTION)
     {}

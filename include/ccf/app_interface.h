@@ -2,36 +2,57 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ccf_deprecated.h"
+#include "ccf/common_endpoint_registry.h"
 #include "ccf/js_plugin.h"
+#include "ccf/node_context.h"
 
 #include <memory>
 #include <vector>
 
+// Forward declarations, can be removed with deprecation
 namespace ccf
 {
-  // Forward declarations
   class RpcFrontend;
+}
 
-  struct NetworkTables;
+namespace kv
+{
+  class Store;
 }
 
 namespace ccfapp
 {
-  // Forward declaration
-  struct AbstractNodeContext;
+  CCF_DEPRECATED("Replace with make_user_endpoints")
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
+    kv::Store& store, AbstractNodeContext& context);
+}
 
+namespace ccf
+{
+  class UserEndpointRegistry : public CommonEndpointRegistry
+  {
+  public:
+    UserEndpointRegistry(ccfapp::AbstractNodeContext& context) :
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
+    {}
+  };
+}
+
+namespace ccfapp
+{
   // SNIPPET_START: app_interface
-  /** To be implemented by the application to be registered by CCF.
+  /** To be implemented by the application. Creates a collection of endpoints
+   * which will be exposed to callers under /app.
    *
-   * @param network Access to the network's replicated tables
    * @param context Access to node and host services
    *
-   * @return Shared pointer to the application handler instance
+   * @return Unique pointer to the endpoint registry instance
    */
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& network, AbstractNodeContext& context);
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context);
 
-  /** To be implemented by the application to be registered by CCF.
+  /** To be implemented by the application.
    *
    * @return Vector of JavaScript FFI plugins
    */

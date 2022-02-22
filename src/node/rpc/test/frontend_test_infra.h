@@ -7,12 +7,12 @@
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/signed_req.h"
-#include "ccf/user_frontend.h"
 #include "ds/files.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
 
