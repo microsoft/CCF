@@ -16,10 +16,19 @@ The recovery procedure consists of two phases:
 Establishing a Recovered Public Network
 ---------------------------------------
 
-To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``recover`` option:
+To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``Recover`` command in the ``cchost`` config file (see also the sample recovery configuration file `recover_config.json <https://github.com/microsoft/CCF/blob/main/samples/config/recover_config.json>`_):
 
 .. code-block:: bash
 
+    $ cat /path/to/config/file
+      ...
+      "command": {
+        "type": "Recover",
+        ...
+        "recover": {
+          "initial_service_certificate_validity_days": 1
+        }
+      ...
     $ cchost --config /path/to/config/file
 
 Each node will then immediately restore the public entries of its ledger ("ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/node/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
