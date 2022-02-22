@@ -72,17 +72,18 @@ def find_ledger_chunk_for_seqno(ledger, seqno):
 
 
 @reqs.description("Forced ledger chunk")
+@app.scoped_txs("user0")
 def test_forced_ledger_chunk(network, args):
     primary, _ = network.find_primary()
 
     # Submit some dummy transactions
-    network.txs.issue(network, number_txs=3)
+    network.txs.issue(network, number_txs=42)
 
     # Submit a proposal to force a ledger chunk at the following signature
     proposal = network.consortium.force_ledger_chunk(primary)
 
     # Issue some more transactions
-    network.txs.issue(network, number_txs=3)
+    network.txs.issue(network, number_txs=42)
 
     ledger_dirs = primary.remote.ledger_paths()
 

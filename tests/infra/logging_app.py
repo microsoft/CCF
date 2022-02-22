@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import functools
 import infra.checker
 import infra.jwt_issuer
 import time
@@ -358,3 +359,20 @@ class LoggingTxs:
             return c.get(
                 f"/app/log/{table}?id={log_id}", headers=self._get_headers_base()
             )
+
+
+def scoped_txs(user):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            network = args[0]
+            old_txs = network.txs
+            network.txs = LoggingTxs("user0")
+            r = func(*args, **kwargs)
+            network.txs.verify()  # may fail if some things aren't flushed?
+            network.txs = old_txs
+            return r
+
+        return wrapper
+
+    return decorator
