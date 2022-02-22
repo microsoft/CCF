@@ -60,14 +60,14 @@ namespace crypto
     CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), NULL));
     CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
     CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
-    if (aad.size() > 0)
+    if (!aad.empty())
       CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
     CHECK1(EVP_EncryptUpdate(ctx, cb.data(), &len, plain.data(), plain.size()));
     CHECK1(EVP_EncryptFinal_ex(ctx, cb.data() + len, &len));
     CHECK1(
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
 
-    if (plain.size() > 0)
+    if (!plain.empty())
       memcpy(cipher, cb.data(), plain.size());
   }
 
@@ -85,7 +85,7 @@ namespace crypto
     CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, NULL, NULL, NULL));
     CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
     CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
-    if (aad.size() > 0)
+    if (!aad.empty())
       CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
     CHECK1(
       EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.data(), cipher.size()));
@@ -94,7 +94,7 @@ namespace crypto
 
     int r = EVP_DecryptFinal_ex(ctx, pb.data() + len, &len) > 0;
 
-    if (r == 1 && cipher.size() > 0)
+    if (r == 1 && !cipher.empty())
       memcpy(plain, pb.data(), cipher.size());
 
     return r == 1;

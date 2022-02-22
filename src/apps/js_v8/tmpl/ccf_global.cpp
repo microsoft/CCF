@@ -350,8 +350,7 @@ namespace ccf::v8_tmpl
     bool valid = false;
     try
     {
-      tls::CA ca(std::span<const uint8_t>{
-        reinterpret_cast<const uint8_t*>(pem.data()), pem.size()});
+      tls::CA ca(pem);
       valid = true;
     }
     catch (const std::logic_error& e)

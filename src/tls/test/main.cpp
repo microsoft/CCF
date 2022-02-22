@@ -268,7 +268,7 @@ unique_ptr<tls::Cert> get_dummy_cert(
   NetworkCA& net_ca, string name, bool auth_required = true)
 {
   // Create a CA with a self-signed certificate
-  auto ca = make_unique<tls::CA>(net_ca.cert.contents());
+  auto ca = make_unique<tls::CA>(net_ca.cert.str());
 
   // Create a signing request and sign with the CA
   auto kp = crypto::make_key_pair();

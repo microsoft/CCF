@@ -17,7 +17,7 @@ namespace tls
     Unique_X509 ca;
 
   public:
-    CA(std::span<const uint8_t> ca_ = {})
+    CA(const std::string& ca_ = "")
     {
       if (!ca_.empty())
       {

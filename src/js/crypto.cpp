@@ -136,9 +136,7 @@ namespace ccf::js
 
     try
     {
-      auto pem_str = pem.value();
-      tls::CA ca(std::span<const uint8_t>(
-        reinterpret_cast<const uint8_t*>(pem_str.data()), pem_str.size()));
+      tls::CA ca(pem.value());
     }
     catch (const std::logic_error& e)
     {

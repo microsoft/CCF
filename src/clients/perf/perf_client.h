@@ -298,7 +298,7 @@ namespace client
       {
         const auto raw_cert = files::slurp(options.cert_file);
         const auto raw_key = files::slurp(options.key_file);
-        const auto ca = files::slurp(options.ca_file);
+        const auto ca = files::slurp_string(options.ca_file);
 
         key = crypto::Pem(raw_key);
 
