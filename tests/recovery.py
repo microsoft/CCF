@@ -275,7 +275,7 @@ def run_corrupted_ledger(args):
         #     network, args, corrupt_first_tx=True
         # )
         network = test_recover_service_truncated_ledger(
-            network, args, corrupt_last_tx=True
+            network, args, corrupt_first_tx=True
         )
 
     # Make sure ledger can be read once recovered (i.e. ledger corruption does not affect recovered ledger)
