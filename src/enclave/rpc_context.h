@@ -5,11 +5,11 @@
 #include "ccf/claims_digest.h"
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
+#include "ccf/http_header_map.h"
+#include "ccf/odata_error.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"
-#include "http/http_builder.h"
-#include "node/rpc/error.h"
 
 #include <vector>
 

@@ -3,9 +3,9 @@
 #include "ccf/json_handler.h"
 
 #include "ccf/http_consts.h"
+#include "ccf/odata_error.h"
 #include "enclave/rpc_context.h"
 #include "http/http_accept.h"
-#include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"
 
 #include <llhttp/llhttp.h>
