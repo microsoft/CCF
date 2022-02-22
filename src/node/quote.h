@@ -59,6 +59,17 @@ namespace ccf
     }
   };
 
+  struct CustomClaims
+  {
+    oe_claim_t* data = nullptr;
+    size_t length = 0;
+
+    ~CustomClaims()
+    {
+      oe_free_custom_claims(data, length);
+    }
+  };
+
   struct SerialisedClaims
   {
     uint8_t* buffer = nullptr;
@@ -138,7 +149,7 @@ namespace ccf
         else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
         {
           // Find sgx report data in custom claims
-          Claims custom_claims;
+          CustomClaims custom_claims;
           rc = oe_deserialize_custom_claims(
             claim.value,
             claim.value_size,
