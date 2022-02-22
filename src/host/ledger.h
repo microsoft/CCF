@@ -227,30 +227,7 @@ namespace asynchost
               entry_size,
               len);
 
-            // TODO: Remove
-            // Set offset to last successfully recovered entry so that the file
-            // can be safely truncated
-            // fseeko(file, total_len, SEEK_SET);
-            LOG_FAIL_FMT("Total recovered len: {}", total_len);
             return;
-
-            // TODO: It'd be better to call this from outside the ctor as it
-            // should be up to `Ledger` to decide what to do when an error is
-            // detected
-            // size_t truncate_pos =
-            //   ftello(file) - kv::serialised_entry_header_size;
-            // LOG_FAIL_FMT("Truncating file to {}", truncate_pos);
-
-            // if (ftruncate(fileno(file), truncate_pos))
-            // {
-            //   throw std::logic_error(
-            //     fmt::format("Failed to truncate ledger: {}",
-            //     strerror(errno)));
-            // }
-            // total_len = truncate_pos;
-            // fseeko(file, total_len, SEEK_SET);
-            // // TODO: What to do if the file is empty? Delete it!
-            // return;
           }
 
           fseeko(file, entry_size, SEEK_CUR);
@@ -325,8 +302,6 @@ namespace asynchost
 
     size_t entries_size(size_t from, size_t to) const
     {
-      LOG_FAIL_FMT(
-        "entries size from {} to {} (last: {})", from, to, get_last_idx());
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
         return 0;
@@ -672,8 +647,6 @@ namespace asynchost
     std::optional<std::vector<uint8_t>> read_entries_range(
       size_t from, size_t to, bool read_cache_only = false)
     {
-      LOG_FAIL_FMT("Reading entries from {} to {}", from, to);
-
       if ((from <= 0) || (to > last_idx) || (to < from))
       {
         return std::nullopt;
@@ -688,7 +661,6 @@ namespace asynchost
         {
           return std::nullopt;
         }
-        LOG_FAIL_FMT("File: {}", f_from->get_start_idx());
         auto to_ = std::min(f_from->get_last_idx(), to);
         auto v = f_from->read_entries(idx, to_);
         if (!v.has_value())
@@ -932,16 +904,7 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entries from {} to {}", from, to));
 
-      auto entries = read_entries_range(from, to);
-      if (entries.has_value())
-      {
-        LOG_FAIL_FMT("Entries size: {}", entries->size());
-      }
-      else
-      {
-        LOG_FAIL_FMT("No entries");
-      }
-      return entries;
+      return read_entries_range(from, to);
     }
 
     size_t write_entry(
@@ -968,7 +931,6 @@ namespace asynchost
           "flags");
 
         auto f = get_latest_file();
-        LOG_FAIL_FMT("Latest file: {}", f ? f->get_start_idx() : 0);
         if (f != nullptr)
         {
           f->complete();
