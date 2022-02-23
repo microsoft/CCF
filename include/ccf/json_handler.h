@@ -6,6 +6,7 @@
 #include "ccf/serdes.h"
 
 #include <llhttp/llhttp.h>
+#include <variant>
 
 namespace ccf
 {

@@ -6,7 +6,6 @@
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
-#include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node_signature_verify.h"
