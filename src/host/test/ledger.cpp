@@ -1,12 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "host/ledger.h"
 
+#include "ccf/ds/logger.h"
 #include "ds/serialized.h"
 #include "host/snapshots.h"
 #include "kv/serialised_entry_format.h"
 
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #include <random>
 #include <string>
@@ -940,61 +941,134 @@ TEST_CASE("Recover from read-only ledger directory only")
   }
 }
 
-TEST_CASE("Invalid ledger file resilience")
+void corrupt_ledger_file(
+  const std::string& ledger_file,
+  bool corrupt_table_offset = false,
+  bool corrupt_first_hdr = false,
+  bool corrupt_last_entry = false)
 {
-  // auto dir = AutoDeleteFolder(ledger_dir);
+  auto file = fopen(ledger_file.c_str(), "r+b");
+  REQUIRE(file);
+  fseeko(file, 0, SEEK_SET);
+  size_t table_offset = 0;
+
+  if (corrupt_table_offset)
+  {
+    table_offset = 0xffffffff;
+    REQUIRE(fwrite(&table_offset, sizeof(table_offset), 1, file) == 1);
+  }
+  else if (corrupt_first_hdr)
+  {
+    REQUIRE(fread(&table_offset, sizeof(table_offset), 1, file) == 1);
+    kv::SerialisedEntryHeader entry_header = {.size = 0xffffffff};
+    fwrite(&entry_header, sizeof(entry_header), 1, file);
+  }
+  else if (corrupt_last_entry)
+  {
+    REQUIRE(fread(&table_offset, sizeof(table_offset), 1, file) == 1);
+    std::vector<uint8_t> last_entry = {};
+    while (true)
+    {
+      kv::SerialisedEntryHeader entry_header = {};
+      if (fread(&entry_header, sizeof(entry_header), 1, file) != 1)
+      {
+        break;
+      }
+      last_entry.resize(entry_header.size);
+      REQUIRE(fread(last_entry.data(), entry_header.size, 1, file) == 1);
+    }
+
+    REQUIRE(fflush(file) == 0);
+    REQUIRE(
+      ftruncate(fileno(file), ftello(file) - (last_entry.size() / 2)) == 0);
+  }
+  REQUIRE(fflush(file) == 0);
+  LOG_DEBUG_FMT("Corrupted ledger file {}", ledger_file);
+}
+
+TEST_CASE("Recovery resilience")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  fs::remove_all(ledger_dir);
 
   size_t max_read_cache_size = 2;
-  size_t chunk_threshold = 30;
-  size_t chunk_count = 5;
+  size_t chunk_threshold = 50;
+  size_t chunk_count = 1;
 
-  size_t entries_per_chunk = 0;
   size_t last_idx = 0;
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
 
   INFO("Write many entries on first ledger");
   {
-    Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
-
     // Writing some committed chunks
-    entries_per_chunk =
-      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
   }
 
-  INFO("Restart with invalid ledger files");
+  SUBCASE("Corrupt table offset in committed chunk")
   {
-    // TODO: Fix. These used to be marked as corrupted on startup but it's
-    // obviously not the case anymore
-    std::vector<std::string> invalid_ledger_file_names = {
-      "invalid_file",
-      "invalid_ledger_file",
-      "ledger_invalid",
-      fmt::format("ledger_{}_invalid", last_idx + 1)};
-
-    // Valid file names but empty ledger files
-    // invalid_ledger_file_names.emplace_back(
-    //   fmt::format("ledger_{}-{}", last_idx + 1, last_idx + 2));
-    // invalid_ledger_file_names.emplace_back(fmt::format("ledger_{}",
-    // last_idx));
-
-    for (auto const& f : invalid_ledger_file_names)
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+    for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      std::ofstream output(fs::path(ledger_dir) / fs::path(f));
-      Ledger ledger(ledger_dir, wf, chunk_threshold, max_read_cache_size);
-
-      // Restarted ledger can read and write entries
-      read_entries_range_from_ledger(ledger, 1, last_idx);
-      TestEntrySubmitter entry_submitter(ledger, last_idx);
-      for (size_t i = 0; i < entries_per_chunk; i++)
-      {
-        entry_submitter.write(true);
-      }
-      last_idx = entry_submitter.get_last_idx();
-      ledger.commit(last_idx);
-      read_entries_range_from_ledger(ledger, 1, last_idx);
+      corrupt_ledger_file(f.path(), true /* corrupt_table_offset */);
     }
+
+    // Corrupted ledger file is ignored
+    Ledger new_ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(new_ledger);
+    entry_submitter.write(true);
+    REQUIRE(entry_submitter.get_last_idx() == 1);
+  }
+
+  SUBCASE("Corrupt first entry header in uncommitted chunk")
+  {
+    // Create new uncommitted ledger chunk
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == 2);
+
+    for (auto const& f : fs::directory_iterator(ledger_dir))
+    {
+      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      {
+        corrupt_ledger_file(f.path(), false, true /* corrupt_first_hdr */);
+      }
+    }
+
+    // Uncommitted ledger file with no valid entry is deleted
+    Ledger new_ledger(ledger_dir, wf, chunk_threshold);
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+    TestEntrySubmitter entry_submitter(new_ledger, new_ledger.get_last_idx());
+    entry_submitter.write(true);
+  }
+
+  SUBCASE("Corrupt last entry")
+  {
+    // Create new uncommitted ledger chunk with two entries
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    size_t last_idx = entry_submitter.get_last_idx();
+
+    REQUIRE(number_of_files_in_ledger_dir() == 2);
+
+    for (auto const& f : fs::directory_iterator(ledger_dir))
+    {
+      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      {
+        corrupt_ledger_file(
+          f.path(), false, false, true /* corrupt_last_entry */);
+      }
+    }
+
+    // Uncommitted ledger file with no valid entry is deleted
+    Ledger new_ledger(ledger_dir, wf, chunk_threshold);
+    // Corrupted entry has been discarded
+    REQUIRE(new_ledger.get_last_idx() == last_idx - 1);
+    REQUIRE(number_of_files_in_ledger_dir() == 2);
+
+    TestEntrySubmitter entry_submitter(new_ledger, new_ledger.get_last_idx());
+    entry_submitter.write(true);
   }
 }
 
@@ -1611,4 +1685,15 @@ TEST_CASE("Recovery")
       read_entries_range_from_ledger(new_ledger, 1, pre_recovery_last_idx);
     }
   }
+}
+
+int main(int argc, char** argv)
+{
+  logger::config::default_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

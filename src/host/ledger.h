@@ -127,7 +127,7 @@ namespace asynchost
     std::mutex file_lock;
 
     size_t start_idx = 1;
-    size_t total_len = 0;
+    size_t total_len = 0; // Points to end of last written entry
     std::vector<uint32_t> positions;
 
     bool completed = false;
@@ -220,7 +220,7 @@ namespace asynchost
         total_len = sizeof(positions_offset_header_t);
         auto len = total_file_size - total_len;
 
-        kv::SerialisedEntryHeader entry_header;
+        kv::SerialisedEntryHeader entry_header = {};
         size_t current_idx = start_idx;
         while (len >= kv::serialised_entry_header_size)
         {
@@ -228,15 +228,17 @@ namespace asynchost
             fread(&entry_header, kv::serialised_entry_header_size, 1, file) !=
             1)
           {
-            throw std::logic_error(fmt::format(
+            LOG_FAIL_FMT(
               "Failed to read entry header from ledger file {} at seqno {}",
               file_path,
-              current_idx));
+              current_idx);
+            return;
           }
 
           len -= kv::serialised_entry_header_size;
 
           const auto& entry_size = entry_header.size;
+          LOG_FAIL_FMT("entry_size: {}", entry_size);
           if (len < entry_size)
           {
             LOG_FAIL_FMT(
@@ -256,7 +258,9 @@ namespace asynchost
           current_idx++;
 
           LOG_TRACE_FMT(
-            "Recovered one entry of size {} at {}", entry_size, total_len);
+            "Recovered one entry of size {} at seqno {}",
+            entry_size,
+            current_idx);
 
           positions.push_back(total_len);
           total_len += (kv::serialised_entry_header_size + entry_size);
@@ -306,8 +310,6 @@ namespace asynchost
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       fseeko(file, total_len, SEEK_SET);
-      positions.push_back(total_len);
-      size_t new_idx = get_last_idx();
 
       if (fwrite(data, size, 1, file) != 1)
       {
@@ -321,9 +323,10 @@ namespace asynchost
           fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
       }
 
+      positions.push_back(total_len);
       total_len += size;
 
-      return new_idx;
+      return get_last_idx();
     }
 
     size_t entries_size(size_t from, size_t to) const
@@ -366,8 +369,6 @@ namespace asynchost
       return entries;
     }
 
-    // TODO: unit test of truncate at last_idx when chunk is not completed is a
-    // no-op
     bool truncate(size_t idx)
     {
       if (
