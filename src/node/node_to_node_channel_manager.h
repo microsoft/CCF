@@ -142,13 +142,13 @@ namespace ccf
         this_node != nullptr,
         "Calling send_authenticated before channel manager is initialized");
 
-      return get_channel(to)->send(type, {data, size});
+      return get_channel(to)->send(type, std::span<const uint8_t>(data, size));
     }
 
     bool send_encrypted(
       const NodeId& to,
       NodeMsgType type,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const std::vector<uint8_t>& data) override
     {
       CCF_ASSERT_FMT(
@@ -161,7 +161,7 @@ namespace ccf
 
     bool recv_authenticated(
       const NodeId& from,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const uint8_t*& data,
       size_t& size) override
     {
@@ -188,7 +188,7 @@ namespace ccf
 
     std::vector<uint8_t> recv_encrypted(
       const NodeId& from,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const uint8_t* data,
       size_t size) override
     {

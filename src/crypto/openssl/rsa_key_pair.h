@@ -19,7 +19,7 @@ namespace crypto
       size_t public_exponent = default_public_exponent);
     RSAKeyPair_OpenSSL(EVP_PKEY* k);
     RSAKeyPair_OpenSSL(const RSAKeyPair&) = delete;
-    RSAKeyPair_OpenSSL(const Pem& pem, CBuffer pw = nullb);
+    RSAKeyPair_OpenSSL(const Pem& pem, std::span<const uint8_t> pw = {});
     virtual ~RSAKeyPair_OpenSSL() = default;
 
     virtual size_t key_size() const override;
@@ -34,7 +34,7 @@ namespace crypto
     virtual std::vector<uint8_t> public_key_der() const override;
 
     virtual std::vector<uint8_t> sign(
-      CBuffer d, MDType md_type = MDType::NONE) const override;
+      std::span<const uint8_t> d, MDType md_type = MDType::NONE) const override;
 
     virtual bool verify(
       const uint8_t* contents,

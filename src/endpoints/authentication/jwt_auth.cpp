@@ -3,7 +3,7 @@
 
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
-#include "enclave/rpc_context.h"
+#include "ccf/rpc_context.h"
 #include "http/http_jwt.h"
 #include "service/tables/jwt.h"
 

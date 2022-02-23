@@ -3,11 +3,11 @@
 #include "js/wrap.h"
 
 #include "ccf/ds/logger.h"
+#include "ccf/rpc_context.h"
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
-#include "enclave/rpc_context.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"

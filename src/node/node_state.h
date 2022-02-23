@@ -14,7 +14,6 @@
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
-#include "entities.h"
 #include "history.h"
 #include "hooks.h"
 #include "indexing/indexer.h"
@@ -392,7 +391,8 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
+      auto network_ca = std::make_shared<tls::CA>(std::string(
+        config.join.service_cert.begin(), config.join.service_cert.end()));
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca,
         self_signed_node_cert,

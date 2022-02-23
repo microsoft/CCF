@@ -7,7 +7,6 @@
 #include "crypto/openssl/x509_time.h"
 #include "ds/hex.h"
 #include "ds/ring_buffer.h"
-#include "node/entities.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/node_types.h"
 
@@ -113,11 +112,11 @@ struct NodeOutboundMsg
   std::vector<uint8_t> unauthenticated_data() const
   {
     auto r = data();
-    auto type_hdr_bytes = std::vector<uint8_t>(r.begin(), r.begin() + 8);
-    CBuffer type_hdr(type_hdr_bytes.data(), type_hdr_bytes.size());
+    static_assert(sizeof(ChannelMsg) == 8);
+    size_t hdr_size = sizeof(ChannelMsg);
     ChannelMsg channel_msg_type =
-      serialized::read<ChannelMsg>(type_hdr.p, type_hdr.n);
-    auto data = std::vector<uint8_t>(r.begin() + 8, r.end());
+      serialized::read<ChannelMsg>(r.data(), hdr_size);
+    auto data = std::vector<uint8_t>(r.begin() + sizeof(ChannelMsg), r.end());
     return data;
   }
 };
