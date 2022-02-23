@@ -1734,6 +1734,7 @@ TEST_CASE("Recover both ledger dirs")
       entry_submitter.write(true);
     }
     read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+    ledger.commit(ledger.get_last_idx());
   }
 }
 
