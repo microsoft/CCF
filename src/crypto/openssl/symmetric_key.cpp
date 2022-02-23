@@ -15,11 +15,11 @@ namespace crypto
 {
   using namespace OpenSSL;
 
-  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(CBuffer rawKey) :
-    key(std::vector<uint8_t>(rawKey.p, rawKey.p + rawKey.n)),
+  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
+    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
     evp_cipher(nullptr)
   {
-    const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);
+    const auto n = static_cast<unsigned int>(rawKey.size() * 8);
     if (n >= 256)
     {
       evp_cipher = EVP_aes_256_gcm();
@@ -48,83 +48,86 @@ namespace crypto
   }
 
   void KeyAesGcm_OpenSSL::encrypt(
-    CBuffer iv,
-    CBuffer plain,
-    CBuffer aad,
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
     uint8_t* cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
-    std::vector<uint8_t> cb(plain.n + GCM_SIZE_TAG);
+    std::vector<uint8_t> cb(plain.size() + GCM_SIZE_TAG);
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), NULL));
-    CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.n, NULL));
-    CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.p));
-    if (aad.n > 0)
-      CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, aad.p, aad.n));
-    CHECK1(EVP_EncryptUpdate(ctx, cb.data(), &len, plain.p, plain.n));
+    CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
+    CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
+    if (!aad.empty())
+      CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
+    CHECK1(EVP_EncryptUpdate(ctx, cb.data(), &len, plain.data(), plain.size()));
     CHECK1(EVP_EncryptFinal_ex(ctx, cb.data() + len, &len));
     CHECK1(
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
 
-    if (plain.n > 0)
-      memcpy(cipher, cb.data(), plain.n);
+    if (!plain.empty())
+      memcpy(cipher, cb.data(), plain.size());
   }
 
   bool KeyAesGcm_OpenSSL::decrypt(
-    CBuffer iv,
+    std::span<const uint8_t> iv,
     const uint8_t tag[GCM_SIZE_TAG],
-    CBuffer cipher,
-    CBuffer aad,
+    std::span<const uint8_t> cipher,
+    std::span<const uint8_t> aad,
     uint8_t* plain) const
   {
-    std::vector<uint8_t> pb(cipher.n + GCM_SIZE_TAG);
+    std::vector<uint8_t> pb(cipher.size() + GCM_SIZE_TAG);
 
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, NULL, NULL, NULL));
-    CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.n, NULL));
-    CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.p));
-    if (aad.n > 0)
-      CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, aad.p, aad.n));
-    CHECK1(EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.p, cipher.n));
+    CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
+    CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
+    if (!aad.empty())
+      CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
+    CHECK1(
+      EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.data(), cipher.size()));
     CHECK1(EVP_CIPHER_CTX_ctrl(
       ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, (uint8_t*)tag));
 
     int r = EVP_DecryptFinal_ex(ctx, pb.data() + len, &len) > 0;
 
-    if (r == 1 && cipher.n > 0)
-      memcpy(plain, pb.data(), cipher.n);
+    if (r == 1 && !cipher.empty())
+      memcpy(plain, pb.data(), cipher.size());
 
     return r == 1;
   }
 
   std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_wrap_pad(
-    CBuffer plain) const
+    std::span<const uint8_t> plain) const
   {
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
     CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher_wrap_pad, NULL, NULL, NULL));
     CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), NULL));
-    CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, plain.p, plain.n));
+    CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, plain.data(), plain.size()));
     std::vector<uint8_t> cipher(len);
-    CHECK1(EVP_EncryptUpdate(ctx, cipher.data(), &len, plain.p, plain.n));
+    CHECK1(
+      EVP_EncryptUpdate(ctx, cipher.data(), &len, plain.data(), plain.size()));
     CHECK1(EVP_EncryptFinal_ex(ctx, NULL, &len));
     return cipher;
   }
 
   std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_unwrap_pad(
-    CBuffer cipher) const
+    std::span<const uint8_t> cipher) const
   {
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
     CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, NULL, NULL, NULL));
     CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), NULL));
-    CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, cipher.p, cipher.n));
+    CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, cipher.data(), cipher.size()));
     std::vector<uint8_t> plain(len);
-    CHECK1(EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.p, cipher.n));
+    CHECK1(
+      EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.data(), cipher.size()));
     plain.resize(len);
     if (EVP_DecryptFinal_ex(ctx, NULL, &len) != 1)
     {

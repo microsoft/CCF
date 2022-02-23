@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/buffer.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/service/signed_req.h"
 #include "consensus/aft/request.h"

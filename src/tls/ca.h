@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
-#include "ccf/ds/buffer.h"
 #include "crypto/openssl/openssl_wrappers.h"
 
 #include <exception>
@@ -18,11 +17,11 @@ namespace tls
     Unique_X509 ca;
 
   public:
-    CA(CBuffer ca_ = nullb)
+    CA(const std::string& ca_ = "")
     {
-      if (ca_.n > 0)
+      if (!ca_.empty())
       {
-        Unique_BIO bio(ca_.p, ca_.n);
+        Unique_BIO bio(ca_.data(), ca_.size());
         if (!(ca = Unique_X509(bio, true)))
         {
           throw std::logic_error(

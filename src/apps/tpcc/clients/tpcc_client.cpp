@@ -41,7 +41,7 @@ private:
     db.seed = 42;
     const auto body = db.serialize();
     const auto response =
-      connection->call("tpcc_create", CBuffer{body.data(), body.size()});
+      connection->call("tpcc_create", {body.data(), body.size()});
     check_response(response);
 
     return response;
@@ -98,9 +98,9 @@ private:
         serialized_body = info.serialize();
         operation = (uint8_t)TransactionTypes::new_order;
       }
-      add_prepared_tx(
+      add_prepared_ser_tx(
         OPERATION_C_STR[operation],
-        CBuffer{serialized_body.data(), serialized_body.size()},
+        serialized_body,
         true, // expect commit
         i);
     }
