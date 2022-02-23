@@ -3,7 +3,7 @@
 
 #include "ccf/endpoints/authentication/authentication_types.h"
 
-#include "enclave/rpc_context.h"
+#include "ccf/rpc_context.h"
 
 namespace ccf
 {

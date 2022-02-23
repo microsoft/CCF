@@ -14,7 +14,6 @@
 #include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/entities.h"
 #include "node/history.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"

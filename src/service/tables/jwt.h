@@ -63,6 +63,7 @@ namespace ccf
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
+  using Cert = std::vector<uint8_t>;
 
   using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
   using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;
