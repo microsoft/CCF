@@ -7,6 +7,8 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/json_handler.h"
+#include "ccf/service/tables/gov.h"
+#include "ccf/service/tables/members.h"
 #include "frontend.h"
 #include "js/wrap.h"
 #include "node/quote.h"
@@ -17,9 +19,8 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"
-#include "service/tables/gov.h"
+#include "service/tables/endpoints.h"
 #include "service/tables/jwt.h"
-#include "service/tables/members.h"
 #include "service/tables/nodes.h"
 
 #include <charconv>
@@ -170,12 +171,7 @@ namespace ccf
       return tx_modules->remove(name);
     }
 
-    void remove_endpoints(kv::Tx& tx)
-    {
-      auto endpoints =
-        tx.rw<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
-      endpoints->clear();
-    }
+    void remove_endpoints(kv::Tx& tx) {}
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
