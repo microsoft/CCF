@@ -30,7 +30,7 @@ jobs:
       env:
         container: sgx
         pool: 1es-dcv2-focal
-      cmake_args: "-DCOMPILE_TARGETS=sgx -DWORKER_THREADS=4 -DENABLE_2TX_RECONFIG=ON -DLONG_TESTS=ON"
+      cmake_args: "-DCOMPILE_TARGETS=sgx -DWORKER_THREADS=4 -DENABLE_2TX_RECONFIG=ON"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
       ctest_filter: '-LE "perf|bft"'
@@ -42,7 +42,7 @@ jobs:
       env:
         container: nosgx
         pool: 1es-dcv2-focal
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF -DCOMPILE_TARGETS=virtual -DWORKER_THREADS=4 -DENABLE_2TX_RECONFIG=ON -DLONG_TESTS=ON"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF -DCOMPILE_TARGETS=virtual -DWORKER_THREADS=4 -DENABLE_2TX_RECONFIG=ON"
       suffix: "MultiThread_Instrumented"
       artifact_name: "MultiThread_Instrumented"
       ctest_filter: '-LE "perf|bft"'
