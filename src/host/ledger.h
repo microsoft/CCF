@@ -846,15 +846,10 @@ namespace asynchost
         });
 
         auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
-        if (main_ledger_dir_last_idx < last_idx)
+        if (main_ledger_dir_last_idx > last_idx)
         {
-          throw std::logic_error(fmt::format(
-            "Main ledger directory last idx ({}) is less than read-only "
-            "ledger directories last idx ({})",
-            main_ledger_dir_last_idx,
-            last_idx));
+          last_idx = main_ledger_dir_last_idx;
         }
-        last_idx = main_ledger_dir_last_idx;
 
         // Remove committed files from list of writable files
         for (auto f = files.begin(); f != files.end();)
@@ -862,7 +857,10 @@ namespace asynchost
           if ((*f)->is_committed())
           {
             const auto f_last_idx = (*f)->get_last_idx();
-            committed_idx = f_last_idx;
+            if (f_last_idx > committed_idx)
+            {
+              committed_idx = f_last_idx;
+            }
             end_of_committed_files_idx = f_last_idx;
             f = files.erase(f);
           }
