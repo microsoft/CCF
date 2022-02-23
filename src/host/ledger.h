@@ -880,8 +880,8 @@ namespace asynchost
             if (f_last_idx > committed_idx)
             {
               committed_idx = f_last_idx;
+              end_of_committed_files_idx = f_last_idx;
             }
-            end_of_committed_files_idx = f_last_idx;
             f = files.erase(f);
           }
           else
