@@ -129,8 +129,7 @@ namespace crypto
    * Create a public / private ECDSA key pair from existing private key data
    *
    * @param pkey PEM key to load
-   * @param pw Password
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const Pem& pkey, std::span<const uint8_t> pw = {});
+  KeyPairPtr make_key_pair(const Pem& pkey);
 }
