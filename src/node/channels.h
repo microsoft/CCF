@@ -874,8 +874,7 @@ namespace ccf
 
       std::vector<uint8_t> cipher;
       assert(send_key);
-      send_key->encrypt(
-        gcm_hdr.get_iv(), plain, aad, cipher, gcm_hdr.tag);
+      send_key->encrypt(gcm_hdr.get_iv(), plain, aad, cipher, gcm_hdr.tag);
 
       const auto gcm_hdr_serialised = gcm_hdr.serialise();
 

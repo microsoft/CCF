@@ -84,8 +84,7 @@ namespace kv
         return false;
       }
 
-      key->encrypt(
-        hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
+      key->encrypt(hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
 
       serialised_header = hdr.serialise();
 
@@ -128,8 +127,8 @@ namespace kv
         return false;
       }
 
-      auto ret = key->decrypt(
-        hdr.get_iv(), hdr.tag, cipher, additional_data, plain);
+      auto ret =
+        key->decrypt(hdr.get_iv(), hdr.tag, cipher, additional_data, plain);
       if (!ret)
       {
         plain.resize(0);
