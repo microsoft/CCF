@@ -252,7 +252,7 @@ def run(args, recoveries_count):
             elif i % recoveries_count == 1:
                 network = test_recover_service_aborted(
                     network, args, from_snapshot=False
-                )  # TODO: Also tests with snapshots
+                )
             else:
                 network = test_recover_service(
                     network, args, from_snapshot=False, split_ledger=True
