@@ -31,7 +31,7 @@ namespace crypto
       std::span<const uint8_t> iv,
       std::span<const uint8_t> plain,
       std::span<const uint8_t> aad,
-      uint8_t* cipher,
+      std::vector<uint8_t>& cipher,
       uint8_t tag[GCM_SIZE_TAG]) const override;
 
     virtual bool decrypt(
@@ -39,7 +39,7 @@ namespace crypto
       const uint8_t tag[GCM_SIZE_TAG],
       std::span<const uint8_t> cipher,
       std::span<const uint8_t> aad,
-      uint8_t* plain) const override;
+      std::vector<uint8_t>& plain) const override;
 
     // @brief RFC 5649 AES key wrap with padding (CKM_AES_KEY_WRAP_PAD)
     // @param plain Plaintext key to wrap
