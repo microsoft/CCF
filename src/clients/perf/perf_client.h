@@ -331,9 +331,9 @@ namespace client
       return conn;
     }
 
-    void add_prepared_tx(
+    void add_prepared_ser_tx(
       const std::string& method,
-      const std::span<uint8_t> params,
+      const std::span<const uint8_t> params,
       bool expects_commit,
       const std::optional<size_t>& index)
     {

@@ -71,9 +71,9 @@ namespace ccf::v8_util
 
   std::span<uint8_t> get_array_buffer_data(v8::Local<v8::ArrayBuffer> buffer)
   {
-    return {
+    return std::span<uint8_t>(
       static_cast<uint8_t*>(buffer->GetBackingStore()->Data()),
-      buffer->GetBackingStore()->ByteLength()};
+      buffer->GetBackingStore()->ByteLength());
   }
 
   void throw_error(v8::Isolate* isolate, const std::string& msg)

@@ -98,7 +98,7 @@ private:
         serialized_body = info.serialize();
         operation = (uint8_t)TransactionTypes::new_order;
       }
-      add_prepared_tx(
+      add_prepared_ser_tx(
         OPERATION_C_STR[operation],
         serialized_body,
         true, // expect commit
