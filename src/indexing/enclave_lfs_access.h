@@ -38,9 +38,8 @@ namespace ccf::indexing
     plaintext = gcm.cipher;
     auto success = true;
 #else
-    plaintext.resize(gcm.cipher.size());
     auto success = encryption_key.decrypt(
-      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, {}, plaintext.data());
+      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, {}, plaintext);
 #endif
 
     // Check key prefix in plaintext

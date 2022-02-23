@@ -77,14 +77,14 @@ namespace ccf
     {
       crypto::GcmCipher encrypted_ls;
       encrypted_ls.deserialise(wrapped_latest_ledger_secret);
-      std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
+      std::vector<uint8_t> decrypted_ls;
 
       if (!crypto::make_key_aes_gcm(data)->decrypt(
             encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,
             {},
-            decrypted_ls.data()))
+            decrypted_ls))
       {
         throw std::logic_error("Unwrapping latest ledger secret failed");
       }
