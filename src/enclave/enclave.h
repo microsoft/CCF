@@ -9,7 +9,6 @@
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/wrap.h"
-#include "node/entities.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"

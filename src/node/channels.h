@@ -15,7 +15,6 @@
 #include "ds/state_machine.h"
 #include "ds/thread_messaging.h"
 #include "enclave/enclave_time.h"
-#include "entities.h"
 #include "node_types.h"
 
 #include <iostream>

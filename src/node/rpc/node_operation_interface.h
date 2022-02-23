@@ -6,7 +6,6 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/quote_info.h"
 #include "ccf/tx.h"
-#include "node/entities.h"
 #include "node/session_metrics.h"
 #include "service/tables/code_id.h"
 

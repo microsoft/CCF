@@ -4,6 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_consts.h"
+#include "ccf/http_header_map.h"
 #include "ccf/http_status.h"
 
 #define FMT_HEADER_ONLY
@@ -15,8 +16,6 @@
 
 namespace http
 {
-  using HeaderMap = std::map<std::string, std::string, std::less<>>;
-
   static std::string get_header_string(const HeaderMap& headers)
   {
     std::string header_string;

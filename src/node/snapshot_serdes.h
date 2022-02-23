@@ -4,7 +4,6 @@
 
 #include "ccf/ds/logger.h"
 #include "ds/serialized.h"
-#include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "node/tx_receipt.h"
