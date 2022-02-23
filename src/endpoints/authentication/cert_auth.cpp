@@ -3,9 +3,9 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/users.h"
-#include "enclave/rpc_context.h"
 #include "service/blit.h"
 #include "service/tables/nodes.h"
 

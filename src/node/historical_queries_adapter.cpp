@@ -3,7 +3,7 @@
 
 #include "ccf/historical_queries_adapter.h"
 
-#include "enclave/rpc_context.h"
+#include "ccf/rpc_context.h"
 #include "kv/kv_types.h"
 
 namespace ccf::historical

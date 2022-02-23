@@ -10,7 +10,6 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/entities.h"
 #include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
