@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/actors.h"
 #include "ccf/ccf_deprecated.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/js_plugin.h"

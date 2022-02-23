@@ -298,7 +298,7 @@ namespace client
       {
         const auto raw_cert = files::slurp(options.cert_file);
         const auto raw_key = files::slurp(options.key_file);
-        const auto ca = files::slurp(options.ca_file);
+        const auto ca = files::slurp_string(options.ca_file);
 
         key = crypto::Pem(raw_key);
 
@@ -331,9 +331,9 @@ namespace client
       return conn;
     }
 
-    void add_prepared_tx(
+    void add_prepared_ser_tx(
       const std::string& method,
-      const CBuffer params,
+      const std::span<const uint8_t> params,
       bool expects_commit,
       const std::optional<size_t>& index)
     {

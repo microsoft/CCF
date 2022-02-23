@@ -9,6 +9,7 @@
 #include "kv/untyped_map.h"
 #include "kv_module_loader.h"
 #include "named_auth_policies.h"
+#include "service/tables/endpoints.h"
 #include "tmpl/ccf_global.h"
 #include "tmpl/console_global.h"
 #include "tmpl/request.h"

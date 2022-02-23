@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/unit.h"
-#include "kv/untyped_map_handle.h"
+#include "ccf/kv/unit.h"
+#include "ccf/kv/untyped_map_handle.h"
 
 namespace kv
 {

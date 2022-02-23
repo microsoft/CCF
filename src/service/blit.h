@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/entity_id.h"
-#include "kv/serialise_entry_blit.h"
+#include "ccf/kv/serialisers/blit_serialiser.h"
 #include "service/tables/code_id.h"
 
 namespace kv::serialisers

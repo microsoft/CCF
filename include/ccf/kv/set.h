@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv_types.h"
-#include "serialise_entry_blit.h"
-#include "serialise_entry_json.h"
-#include "set_handle.h"
+#include "ccf/kv/get_name.h"
+#include "ccf/kv/hooks.h"
+#include "ccf/kv/serialisers/blit_serialiser.h"
+#include "ccf/kv/serialisers/json_serialiser.h"
+#include "ccf/kv/set_handle.h"
+#include "ccf/kv/untyped.h"
 
 namespace kv
 {
@@ -26,11 +28,8 @@ namespace kv
     typename K,
     typename KSerialiser,
     typename Unit = kv::serialisers::ZeroBlitUnitCreator>
-  class TypedSet : public NamedHandleMixin
+  class TypedSet : public GetName
   {
-  protected:
-    using This = TypedSet<K, KSerialiser>;
-
   public:
     using ReadOnlyHandle = kv::ReadableSetHandle<K, KSerialiser>;
     using WriteOnlyHandle = kv::WriteableSetHandle<K, KSerialiser, Unit>;
@@ -43,7 +42,9 @@ namespace kv
     using MapHook = MapHook<Write>;
     using CommitHook = CommitHook<Write>;
 
-    using NamedHandleMixin::NamedHandleMixin;
+    using KeySerialiser = KSerialiser;
+
+    using GetName::GetName;
 
   private:
     static Write deserialise_write(const kv::untyped::Write& w)
@@ -66,14 +67,14 @@ namespace kv
     }
 
   public:
-    static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
+    static kv::untyped::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {
         hook(v, deserialise_write(w));
       };
     }
 
-    static kv::untyped::Map::MapHook wrap_map_hook(const MapHook& hook)
+    static kv::untyped::MapHook wrap_map_hook(const MapHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {
         return hook(v, deserialise_write(w));

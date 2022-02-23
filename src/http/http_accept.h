@@ -4,7 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_status.h"
-#include "node/rpc/error.h"
+#include "ccf/odata_error.h"
 #include "node/rpc/rpc_exception.h"
 
 #include <string_view>

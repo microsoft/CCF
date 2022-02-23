@@ -30,7 +30,6 @@ LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
 # Public table names as defined in CCF
-# https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"

@@ -10,6 +10,7 @@
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "node/rpc/host_processes_interface.h"
+#include "service/tables/endpoints.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>

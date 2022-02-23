@@ -3,6 +3,9 @@
 #pragma once
 
 #include "ccf/service/signed_req.h"
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/proposals.h"
+#include "ccf/service/tables/users.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
@@ -15,10 +18,8 @@
 #include "tables/constitution.h"
 #include "tables/governance_history.h"
 #include "tables/jwt.h"
-#include "tables/members.h"
 #include "tables/modules.h"
 #include "tables/nodes.h"
-#include "tables/proposals.h"
 #include "tables/resharing_types.h"
 #include "tables/resharings.h"
 #include "tables/secrets.h"
@@ -27,7 +28,6 @@
 #include "tables/signatures.h"
 #include "tables/snapshot_evidence.h"
 #include "tables/submitted_shares.h"
-#include "tables/users.h"
 #include "tables/view_change.h"
 
 #include <memory>

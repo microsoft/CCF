@@ -3,16 +3,15 @@
 
 #include "ccf/crypto/sha256_hash.h"
 
-#include "ccf/ds/buffer.h"
 #include "ds/hex.h"
 
 namespace crypto
 {
-  extern void default_sha256(const CBuffer& data, uint8_t* h);
+  extern void default_sha256(const std::span<const uint8_t>& data, uint8_t* h);
 
   Sha256Hash::Sha256Hash(const uint8_t* data, size_t size)
   {
-    default_sha256({data, size}, h.data());
+    default_sha256(std::span<const uint8_t>(data, size), h.data());
   }
 
   Sha256Hash::Sha256Hash(const std::vector<uint8_t>& vec)
@@ -22,7 +21,8 @@ namespace crypto
 
   Sha256Hash::Sha256Hash(const std::string& str)
   {
-    CBuffer cb(str);
+    std::span<const uint8_t> cb(
+      reinterpret_cast<const uint8_t*>(str.data()), str.size());
     default_sha256(cb, h.data());
   }
 

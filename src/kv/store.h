@@ -7,6 +7,7 @@
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
+#include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "snapshot.h"
@@ -473,7 +474,11 @@ namespace kv
 
         // Take ownership of the produced change set, store it to be committed
         // later
-        changes[map_name] = {map, std::move(deserialised_snapshot_changes)};
+        changes.emplace_hint(
+          changes_search,
+          std::piecewise_construct,
+          std::forward_as_tuple(map_name),
+          std::forward_as_tuple(map, std::move(deserialised_snapshot_changes)));
       }
 
       for (auto& it : maps)
@@ -771,8 +776,11 @@ namespace kv
 
         // Take ownership of the produced change set, store it to be applied
         // later
-        changes[map_name] =
-          kv::MapChanges{map, std::move(deserialised_changes)};
+        changes.emplace_hint(
+          change_search,
+          std::piecewise_construct,
+          std::forward_as_tuple(map_name),
+          std::forward_as_tuple(map, std::move(deserialised_changes)));
       }
 
       if (!d.end())

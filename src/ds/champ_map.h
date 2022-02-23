@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ccf_assert.h"
-#include "ccf/ds/buffer.h"
 #include "ds/hash.h"
 #include "ds/map_serializers.h"
 
@@ -128,7 +127,7 @@ namespace champ
         if (k == entry->key)
         {
           bin[i] = std::make_shared<Entry<K, V>>(k, v);
-          return map::get_size<K>(k) + map::get_size<V>(v);
+          return map::get_size(k) + map::get_size(v);
         }
       }
       bin.push_back(std::make_shared<Entry<K, V>>(k, v));
@@ -145,7 +144,7 @@ namespace champ
         if (k == entry->key)
         {
           const auto diff =
-            map::get_size<K>(entry->key) + map::get_size<V>(entry->value);
+            map::get_size(entry->key) + map::get_size(entry->value);
           bin.erase(bin.begin() + i);
           return diff;
         }
@@ -247,8 +246,8 @@ namespace champ
       const auto& entry0 = node_as<Entry<K, V>>(c_idx);
       if (k == entry0->key)
       {
-        auto current_size =
-          map::get_size_with_padding<K, V>(entry0->key, entry0->value);
+        auto current_size = map::get_size_with_padding(entry0->key) +
+          map::get_size_with_padding(entry0->value);
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
         return current_size;
       }
@@ -312,8 +311,8 @@ namespace champ
         if (entry->key != k)
           return 0;
 
-        const auto diff =
-          map::get_size_with_padding<K, V>(entry->key, entry->value);
+        const auto diff = map::get_size_with_padding(entry->key) +
+          map::get_size_with_padding(entry->value);
         nodes.erase(nodes.begin() + c_idx);
         data_map = data_map.clear(idx);
         return diff;
@@ -438,8 +437,9 @@ namespace champ
       if (r.second == 0)
         size_++;
 
-      int64_t size_change =
-        map::get_size_with_padding<K, V>(key, value) - r.second;
+      const auto size_change =
+        (map::get_size_with_padding(key) + map::get_size_with_padding(value)) -
+        r.second;
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
@@ -470,7 +470,6 @@ namespace champ
   {
   private:
     const Map<K, V, H> map;
-    CBuffer serialized_buffer;
 
     struct KVTuple
     {
@@ -487,11 +486,6 @@ namespace champ
     size_t get_serialized_size()
     {
       return map.get_serialized_size();
-    }
-
-    CBuffer& get_serialized_buffer()
-    {
-      return serialized_buffer;
     }
 
     void serialize(uint8_t* data)
@@ -529,8 +523,6 @@ namespace champ
         map.get_serialized_size(),
         map.size(),
         ordered_state.size());
-
-      serialized_buffer = CBuffer(data, map.get_serialized_size());
 
       for (const auto& p : ordered_state)
       {
