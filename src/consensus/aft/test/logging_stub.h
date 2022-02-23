@@ -23,7 +23,7 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
-    virtual void init(Index idx) {}
+    virtual void init(Index, Index) {}
 
     virtual void put_entry(
       const std::vector<uint8_t>& original,

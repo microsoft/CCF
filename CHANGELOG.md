@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-### Changed
+## Changed
 
-- The entry point for creation of C++ apps is now `make_user_endpoints()`. The old entry point `get_rpc_handler()` has been removed.
+- The entry point for creation of C++ apps is now `make_user_endpoints()`. The old entry point `get_rpc_handler()` has been removed (#3562).
+- Failed recovery procedures no longer block subsequent recoveries: `.recovery` ledger files are now created while the recovery is in progress and ignored or deleted by nodes on startup (#3563).
+
+### Removed
+
+- `get_node_state()` is removed from `AbstractNodeContext`. The local node's ID is still available to endpoints as `get_node_id()`, and other subsystems which are app-visible can be fetched directly (#3552).
 
 ## [2.0.0-rc1]
 

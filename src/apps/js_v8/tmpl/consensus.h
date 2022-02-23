@@ -3,7 +3,8 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
-#include "v8.h"
+
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {

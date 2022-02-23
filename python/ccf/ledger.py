@@ -37,6 +37,7 @@ ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certifica
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
+RECOVERY_FILE_SUFFIX = ".recovery"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -110,6 +111,7 @@ def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
     elements = (
         os.path.basename(filename)
         .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace(RECOVERY_FILE_SUFFIX, "")
         .replace("ledger_", "")
         .split("-")
     )
@@ -822,6 +824,7 @@ class Ledger:
         self,
         directories: List[str],
         committed_only: bool = True,
+        read_recovery_files: bool = False,
         insecure_skip_verification: bool = False,
     ):
 
@@ -830,8 +833,17 @@ class Ledger:
         ledger_files: List[str] = []
         for directory in directories:
             for path in os.listdir(directory):
-                if committed_only and not path.endswith(COMMITTED_FILE_SUFFIX):
+                sanitised_path = path
+                if path.endswith(RECOVERY_FILE_SUFFIX):
+                    sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
+                    if not read_recovery_files:
+                        continue
+
+                if committed_only and not sanitised_path.endswith(
+                    COMMITTED_FILE_SUFFIX
+                ):
                     continue
+
                 chunk = os.path.join(directory, path)
                 # The same ledger file may appear multiple times in different directories
                 # so ignore duplicates
