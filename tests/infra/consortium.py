@@ -395,7 +395,7 @@ class Consortium:
             {"ballot": "export function vote (proposal, proposer_id) { return true }"},
         )
 
-    def create_and_withdraw_large_proposal(self, remote_node):
+    def create_and_withdraw_large_proposal(self, remote_node, wait_for_commit=False):
         """
         This is useful to force a ledger chunk to be produced, which is desirable
         when trying to use ccf.ledger to read ledger entries.
@@ -407,7 +407,10 @@ class Consortium:
         )
         m = self.get_any_active_member()
         p = m.propose(remote_node, proposal)
-        m.withdraw(remote_node, p)
+        r = m.withdraw(remote_node, p)
+        if wait_for_commit:
+            with remote_node.client() as c:
+                c.wait_for_commit(r)
 
     def add_users(self, remote_node, users):
         for u in users:
@@ -649,8 +652,7 @@ class Consortium:
             validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        r = self.vote_using_majority(remote_node, proposal, careful_vote)
-        return r
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_service_certificate_validity(
         self, remote_node, valid_from, validity_period_days
@@ -661,8 +663,13 @@ class Consortium:
             validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        r = self.vote_using_majority(remote_node, proposal, careful_vote)
-        return r
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def force_ledger_chunk(self, remote_node):
+        # Submit a proposal to force a ledger chunk at the following signature
+        proposal_body, careful_vote = self.make_proposal("trigger_ledger_chunk")
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def check_for_service(self, remote_node, status):
         """
