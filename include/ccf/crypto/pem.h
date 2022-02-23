@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/buffer.h"
 #include "ccf/ds/json.h"
 
 #include <cstring>
 #include <exception>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -38,7 +38,7 @@ namespace crypto
       s.assign(reinterpret_cast<const char*>(data), size);
     }
 
-    Pem(const CBuffer& b) : Pem(b.p, b.n) {}
+    Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
 
     Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 

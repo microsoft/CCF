@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/entropy.h"
-#include "ccf/ds/buffer.h"
 
+#include <span>
 #include <vector>
 
 namespace crypto
@@ -23,7 +23,7 @@ namespace crypto
     GcmHeader(size_t iv_size);
 
     void set_iv(const uint8_t* data, size_t size);
-    CBuffer get_iv() const;
+    std::span<const uint8_t> get_iv() const;
 
     size_t serialised_size() const;
     std::vector<uint8_t> serialise();
@@ -74,25 +74,25 @@ namespace crypto
 
     // AES-GCM encryption
     virtual void encrypt(
-      CBuffer iv,
-      CBuffer plain,
-      CBuffer aad,
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
       uint8_t* cipher,
       uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
     // AES-GCM decryption
     virtual bool decrypt(
-      CBuffer iv,
+      std::span<const uint8_t> iv,
       const uint8_t tag[GCM_SIZE_TAG],
-      CBuffer cipher,
-      CBuffer aad,
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
       uint8_t* plain) const = 0;
 
     // Key size in bits
     virtual size_t key_size() const = 0;
   };
 
-  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey);
+  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(std::span<const uint8_t> rawKey);
 
   /** Check for unsupported AES key sizes
    * @p num_bits Key size in bits
