@@ -42,10 +42,8 @@ The listing below is an example of what a ledger directory may look like:
 
 .. note::
 
-    - On startup, a CCF node started with existing ledger files may suffix some of the file names with ``.corrupted`` if the ledger file cannot be parsed, depending on the sequence number the node will join from.
     - While the :doc:`/operations/recovery` procedure is in progress, new ledger files are suffixed with ``.recovery``. These files are automatically renamed (i.e. recovery suffix removed) once the recovery procedure is complete. ``.recovery`` files are automatically discarded on node startup so that a failed recovery attempt does not prevent further recoveries.
-
-.. note:: A new ledger chunk can also be created by the ``trigger_ledger_chunk`` governance action, which will automatically produce a new chunk at the following signature transaction.
+    - A new ledger chunk can also be created by the ``trigger_ledger_chunk`` governance action, which will automatically produce a new chunk at the following signature transaction.
 
 Snapshots
 ---------
