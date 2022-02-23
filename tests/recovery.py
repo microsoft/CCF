@@ -267,7 +267,8 @@ def test_recover_service_truncated_ledger(
     )
 
     def get_middle_tx_offset(tx):
-        return tx._tx_offset + (tx._next_offset - tx._tx_offset) // 2
+        offset, next_offset = tx.get_offsets()
+        return offset + (next_offset - offset) // 2
 
     for chunk in ledger:
         chunk_filename = chunk.filename()
