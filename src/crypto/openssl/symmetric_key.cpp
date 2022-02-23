@@ -51,10 +51,10 @@ namespace crypto
     std::span<const uint8_t> iv,
     std::span<const uint8_t> plain,
     std::span<const uint8_t> aad,
-    uint8_t* cipher,
+    std::vector<uint8_t>& cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
-    std::vector<uint8_t> cb(plain.size() + GCM_SIZE_TAG);
+    std::vector<uint8_t> cb(plain.size());
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), NULL));
@@ -68,7 +68,9 @@ namespace crypto
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
 
     if (!plain.empty())
-      memcpy(cipher, cb.data(), plain.size());
+    {
+      cipher = std::move(cb);
+    }
   }
 
   bool KeyAesGcm_OpenSSL::decrypt(
@@ -76,9 +78,9 @@ namespace crypto
     const uint8_t tag[GCM_SIZE_TAG],
     std::span<const uint8_t> cipher,
     std::span<const uint8_t> aad,
-    uint8_t* plain) const
+    std::vector<uint8_t>& plain) const
   {
-    std::vector<uint8_t> pb(cipher.size() + GCM_SIZE_TAG);
+    std::vector<uint8_t> pb(cipher.size());
 
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
@@ -95,7 +97,9 @@ namespace crypto
     int r = EVP_DecryptFinal_ex(ctx, pb.data() + len, &len) > 0;
 
     if (r == 1 && !cipher.empty())
-      memcpy(plain, pb.data(), cipher.size());
+    {
+      plain = std::move(pb);
+    }
 
     return r == 1;
   }
