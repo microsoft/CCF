@@ -962,7 +962,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
     auto ccf = global_obj["ccf"];
@@ -977,7 +977,7 @@ namespace ccf::js
 
     try
     {
-      node->trigger_snapshot(*tx_ctx_ptr->tx);
+      gov_effects->trigger_snapshot(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
