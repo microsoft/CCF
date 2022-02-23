@@ -107,10 +107,10 @@ namespace crypto
   {
     check_supported_aes_key_size(key.size() * 8);
 
-    std::vector<uint8_t> r(plaintext.size());
+    std::vector<uint8_t> r;
     std::vector<uint8_t> tag(GCM_SIZE_TAG);
     auto k = make_key_aes_gcm(key);
-    k->encrypt(iv, plaintext, aad, r.data(), tag.data());
+    k->encrypt(iv, plaintext, aad, r, tag.data());
     r.insert(r.end(), tag.begin(), tag.end());
     return r;
   }
@@ -127,14 +127,14 @@ namespace crypto
       throw std::runtime_error("Not enough ciphertext");
 
     size_t ciphertext_length = ciphertext.size() - GCM_SIZE_TAG;
-    std::vector<uint8_t> r(ciphertext_length);
+    std::vector<uint8_t> r;
     auto k = make_key_aes_gcm(key);
     k->decrypt(
       iv,
       ciphertext.data() + ciphertext_length,
       std::span<const uint8_t>(ciphertext.data(), ciphertext_length),
       aad,
-      r.data());
+      r);
     return r;
   }
 }
