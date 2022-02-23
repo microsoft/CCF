@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
-#include "service/map.h"
+#include "ccf/service/map.h"
 
 #include <nlohmann/json.hpp>
 

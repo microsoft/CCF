@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/map.h"
-#include "kv/set.h"
-#include "kv/value.h"
+#include "ccf/kv/map.h"
+#include "ccf/kv/set.h"
+#include "ccf/kv/value.h"
 
 namespace ccf
 {

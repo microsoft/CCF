@@ -3,8 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "script.h"
-#include "service/map.h"
+#include "ccf/service/map.h"
 
 #include <unordered_map>
 #include <vector>
