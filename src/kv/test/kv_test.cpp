@@ -2,13 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ccf/kv/map.h"
+#include "ccf/kv/set.h"
+#include "ccf/kv/value.h"
+#include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
-#include "kv/map.h"
-#include "kv/set.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/value.h"
 #include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -411,31 +412,37 @@ TEST_CASE("sets and values")
       {
         INFO("Local hook");
 
-        auto tx = kv_store.create_tx();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-        REQUIRE(local_writes.size() == 0); // Commit without puts
+        {
+          auto tx = kv_store.create_tx();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+          REQUIRE(local_writes.size() == 0); // Commit without puts
+        }
 
-        tx = kv_store.create_tx();
-        auto h1 = tx.rw(val1);
-        h1->put(v1);
-        h1->put(v2); // Override previous value
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->put(v1);
+          h1->put(v2); // Override previous value
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(global_writes.size() == 0);
-        REQUIRE(local_writes.size() == 1);
-        auto latest_writes = local_writes.front();
-        REQUIRE(latest_writes.value() == v2);
-        local_writes.clear();
+          REQUIRE(global_writes.size() == 0);
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(latest_writes.value() == v2);
+          local_writes.clear();
+        }
 
-        tx = kv_store.create_tx();
-        h1 = tx.rw(val1);
-        h1->clear();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->clear();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(local_writes.size() == 1);
-        latest_writes = local_writes.front();
-        REQUIRE(!latest_writes.has_value());
-        local_writes.clear();
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(!latest_writes.has_value());
+          local_writes.clear();
+        }
       }
 
       {

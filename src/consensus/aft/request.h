@@ -4,8 +4,10 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/frame_format.h"
-#include "kv/value.h"
-#include "service/map.h"
+#include "ccf/kv/value.h"
+#include "ccf/service/map.h"
+#include "ds/serialized.h"
+#include "kv/kv_types.h"
 
 #include <vector>
 

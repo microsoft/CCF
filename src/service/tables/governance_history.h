@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/entity_id.h"
+#include "ccf/service/map.h"
 #include "ccf/service/signed_req.h"
-#include "service/map.h"
 
 namespace ccf
 {
