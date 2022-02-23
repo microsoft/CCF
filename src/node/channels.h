@@ -188,11 +188,11 @@ namespace ccf
     std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
       local_recv_nonce = {{}};
 
-    bool verify_or_decrypt(
+    bool decrypt(
       const GcmHdr& header,
       std::span<const uint8_t> aad,
-      std::span<const uint8_t> cipher = {},
-      std::span<uint8_t> plain = {})
+      std::span<const uint8_t> cipher,
+      std::vector<uint8_t>& plain)
     {
       status.expect(ESTABLISHED);
 
@@ -216,7 +216,7 @@ namespace ccf
       }
 
       CHANNEL_RECV_TRACE(
-        "verify_or_decrypt({} bytes, {} bytes) (nonce={})",
+        "decrypt({} bytes, {} bytes) (nonce={})",
         aad.size(),
         cipher.size(),
         (size_t)recv_nonce.nonce);
@@ -238,8 +238,8 @@ namespace ccf
         return false;
       }
 
-      auto ret = recv_key->decrypt(
-        header.get_iv(), header.tag, cipher, aad, plain.data());
+      auto ret =
+        recv_key->decrypt(header.get_iv(), header.tag, cipher, aad, plain);
       if (ret)
       {
         // Set local recv nonce to received nonce only if verification is
@@ -260,6 +260,12 @@ namespace ccf
       }
 
       return ret;
+    }
+
+    bool verify(const GcmHdr& header, std::span<const uint8_t> aad)
+    {
+      std::vector<uint8_t> empty_plaintext;
+      return decrypt(header, aad, {}, empty_plaintext);
     }
 
     void send_key_exchange_init()
@@ -866,10 +872,9 @@ namespace ccf
       const auto nonce_n = nonce.get_val();
       gcm_hdr.set_iv((const uint8_t*)&nonce_n, sizeof(nonce_n));
 
-      std::vector<uint8_t> cipher(plain.size());
+      std::vector<uint8_t> cipher;
       assert(send_key);
-      send_key->encrypt(
-        gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
+      send_key->encrypt(gcm_hdr.get_iv(), plain, aad, cipher, gcm_hdr.tag);
 
       const auto gcm_hdr_serialised = gcm_hdr.serialise();
 
@@ -908,7 +913,7 @@ namespace ccf
       GcmHdr hdr;
       hdr.deserialise(data, size);
 
-      if (!verify_or_decrypt(hdr, aad))
+      if (!verify(hdr, aad))
       {
         CHANNEL_RECV_FAIL("Failed to verify node");
         return false;
@@ -942,7 +947,7 @@ namespace ccf
       hdr.deserialise(data_, size_);
       size -= hdr.serialised_size();
 
-      if (!verify_or_decrypt(hdr, std::span<const uint8_t>(data, size)))
+      if (!verify(hdr, std::span<const uint8_t>(data, size)))
       {
         CHANNEL_RECV_FAIL("Failed to verify node message with payload");
         return false;
@@ -969,9 +974,8 @@ namespace ccf
       GcmHdr hdr;
       hdr.deserialise(data, size);
 
-      std::vector<uint8_t> plain(size);
-      if (!verify_or_decrypt(
-            hdr, aad, std::span<const uint8_t>(data, size), plain))
+      std::vector<uint8_t> plain;
+      if (!decrypt(hdr, aad, std::span<const uint8_t>(data, size), plain))
       {
         CHANNEL_RECV_FAIL("Failed to decrypt node message");
         return std::nullopt;
