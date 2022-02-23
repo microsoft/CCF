@@ -46,6 +46,14 @@ namespace loggingapp
     };
   };
 
+  struct LoggingFreshScope
+  {
+    struct Out
+    {
+      std::string scope;
+    };
+  };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
   DECLARE_JSON_OPTIONAL_FIELDS(LoggingRecord::In, record_claim);
@@ -57,6 +65,9 @@ namespace loggingapp
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::In, id);
   DECLARE_JSON_TYPE(LoggingGetReceipt::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::Out, msg, receipt);
+
+  DECLARE_JSON_TYPE(LoggingFreshScope::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingFreshScope::Out, scope);
   // SNIPPET_END: macro_validation_macros
 
   using LoggingGetHistorical = LoggingGet;

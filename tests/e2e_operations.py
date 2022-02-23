@@ -166,6 +166,8 @@ def run_file_operations(args):
             test_save_committed_ledger_files(network, args)
             test_parse_snapshot_file(network, args)
             test_forced_ledger_chunk(network, args)
+            # Run same test again to check TX/table scoping
+            test_forced_ledger_chunk(network, args)
             test_forced_snapshot(network, args)
 
 
