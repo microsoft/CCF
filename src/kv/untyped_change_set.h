@@ -5,8 +5,8 @@
 #include "ccf/byte_vector.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/untyped.h"
-#include "ccf/kv/version_v.h"
 #include "kv/kv_types.h"
+#include "kv/version_v.h"
 
 #ifndef KV_STATE_RB
 #  include "ds/champ_map.h"

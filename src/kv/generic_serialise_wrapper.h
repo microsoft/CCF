@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ccf_assert.h"
-#include "ccf/ds/buffer.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "kv_types.h"
 #include "node/rpc/claims.h"

@@ -8,7 +8,6 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 #include "ccf/kv/serialisers/json_serialiser.h"
 #include "ccf/kv/untyped.h"
-#include "ccf/kv/version_v.h"
 
 namespace kv
 {
