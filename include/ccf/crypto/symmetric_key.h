@@ -77,7 +77,7 @@ namespace crypto
       std::span<const uint8_t> iv,
       std::span<const uint8_t> plain,
       std::span<const uint8_t> aad,
-      uint8_t* cipher,
+      std::vector<uint8_t>& cipher,
       uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
     // AES-GCM decryption
@@ -86,7 +86,7 @@ namespace crypto
       const uint8_t tag[GCM_SIZE_TAG],
       std::span<const uint8_t> cipher,
       std::span<const uint8_t> aad,
-      uint8_t* plain) const = 0;
+      std::vector<uint8_t>& plain) const = 0;
 
     // Key size in bits
     virtual size_t key_size() const = 0;

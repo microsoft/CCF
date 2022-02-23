@@ -110,7 +110,7 @@ namespace ccf::indexing
       gcm.hdr.set_random_iv();
 
       encryption_key->encrypt(
-        gcm.hdr.get_iv(), contents, {}, gcm.cipher.data(), gcm.hdr.tag);
+        gcm.hdr.get_iv(), contents, {}, gcm.cipher, gcm.hdr.tag);
 
 #ifdef PLAINTEXT_CACHE
       gcm.cipher = contents;

@@ -64,7 +64,7 @@ namespace ccf
                                    // key is never re-used for encryption
         ledger_secret->raw_key,
         {},
-        encrypted_ls.cipher.data(),
+        encrypted_ls.cipher,
         encrypted_ls.hdr.tag);
 
       has_wrapped = true;
@@ -201,7 +201,7 @@ namespace ccf
           encrypted_previous_ls.hdr.get_iv(),
           previous_ledger_secret->second->raw_key,
           {},
-          encrypted_previous_ls.cipher.data(),
+          encrypted_previous_ls.cipher,
           encrypted_previous_ls.hdr.tag);
 
         encrypted_previous_secret = encrypted_previous_ls.serialise();
@@ -231,7 +231,7 @@ namespace ccf
         encrypted_submitted_share.hdr.get_iv(),
         submitted_share,
         {},
-        encrypted_submitted_share.cipher.data(),
+        encrypted_submitted_share.cipher,
         encrypted_submitted_share.hdr.tag);
 
       return encrypted_submitted_share.serialise();
@@ -243,14 +243,14 @@ namespace ccf
     {
       crypto::GcmCipher encrypted_share;
       encrypted_share.deserialise(encrypted_submitted_share);
-      std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
+      std::vector<uint8_t> decrypted_share;
 
       current_ledger_secret->key->decrypt(
         encrypted_share.hdr.get_iv(),
         encrypted_share.hdr.tag,
         encrypted_share.cipher,
         {},
-        decrypted_share.data());
+        decrypted_share);
 
       return decrypted_share;
     }
