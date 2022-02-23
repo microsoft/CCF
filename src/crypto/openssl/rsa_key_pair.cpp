@@ -29,10 +29,11 @@ namespace crypto
     RSAPublicKey_OpenSSL(std::move(k))
   {}
 
-  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem, CBuffer pw)
+  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(
+    const Pem& pem, std::span<const uint8_t> pw)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
+    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.data());
     if (!key)
     {
       throw std::runtime_error("could not parse PEM");
@@ -111,10 +112,11 @@ namespace crypto
     return PublicKey_OpenSSL::public_key_der();
   }
 
-  std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(CBuffer d, MDType md_type) const
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(
+    std::span<const uint8_t> d, MDType md_type) const
   {
     std::vector<uint8_t> r(2048);
-    auto hash = OpenSSLHashProvider().Hash(d.p, d.n, md_type);
+    auto hash = OpenSSLHashProvider().Hash(d.data(), d.size(), md_type);
     Unique_EVP_PKEY_CTX pctx(key);
     OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
     OpenSSL::CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));

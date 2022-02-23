@@ -6,6 +6,8 @@
 #include "ccf/ds/buffer.h"
 #include "ds/serialized.h"
 
+#include <span>
+
 namespace map
 {
   template <class T>
@@ -68,14 +70,14 @@ namespace map
   }
 
   template <class M>
-  static M deserialize_map(CBuffer serialized_state)
+  static M deserialize_map(std::span<const uint8_t> serialized_state)
   {
     using KeyType = typename M::KeyType;
     using ValueType = typename M::ValueType;
 
     M map;
-    const uint8_t* data = serialized_state.p;
-    size_t size = serialized_state.rawSize();
+    const uint8_t* data = serialized_state.data();
+    size_t size = serialized_state.size();
 
     while (size != 0)
     {

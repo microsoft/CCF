@@ -127,8 +127,8 @@ namespace ccf::js
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto pem_str = jsctx.to_str(argv[0]);
-    if (!pem_str)
+    auto pem = jsctx.to_str(argv[0]);
+    if (!pem)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
@@ -136,7 +136,7 @@ namespace ccf::js
 
     try
     {
-      tls::CA ca(*pem_str);
+      tls::CA ca(pem.value());
     }
     catch (const std::logic_error& e)
     {

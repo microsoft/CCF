@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ccf_assert.h"
-#include "ccf/ds/buffer.h"
 #include "ds/hash.h"
 #include "ds/map_serializers.h"
 
@@ -471,7 +470,6 @@ namespace champ
   {
   private:
     const Map<K, V, H> map;
-    CBuffer serialized_buffer;
 
     struct KVTuple
     {
@@ -488,11 +486,6 @@ namespace champ
     size_t get_serialized_size()
     {
       return map.get_serialized_size();
-    }
-
-    CBuffer& get_serialized_buffer()
-    {
-      return serialized_buffer;
     }
 
     void serialize(uint8_t* data)
@@ -530,8 +523,6 @@ namespace champ
         map.get_serialized_size(),
         map.size(),
         ordered_state.size());
-
-      serialized_buffer = CBuffer(data, map.get_serialized_size());
 
       for (const auto& p : ordered_state)
       {

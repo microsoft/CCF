@@ -22,6 +22,7 @@
 #include <ctime>
 #include <doctest/doctest.h>
 #include <optional>
+#include <span>
 
 using namespace std;
 using namespace crypto;
@@ -437,7 +438,7 @@ TEST_CASE("ExtendedIv0")
   // setup plain text
   unsigned char rawP[100];
   memset(rawP, 'x', sizeof(rawP));
-  Buffer p{rawP, sizeof(rawP)};
+  const std::span<const uint8_t> p{rawP, sizeof(rawP)};
 
   // test large IV
   using LargeIVGcmHeader = FixedSizeGcmHeader<1234>;
@@ -450,10 +451,10 @@ TEST_CASE("ExtendedIv0")
     h.set_random_iv();
   }
 
-  k->encrypt(h.get_iv(), p, nullb, p.p, h.tag);
+  k->encrypt(h.get_iv(), p, {}, rawP, h.tag);
 
   auto k2 = crypto::make_key_aes_gcm(get_raw_key());
-  REQUIRE(k2->decrypt(h.get_iv(), h.tag, p, nullb, p.p));
+  REQUIRE(k2->decrypt(h.get_iv(), h.tag, p, {}, rawP));
 }
 
 TEST_CASE("AES Key wrap with padding")
