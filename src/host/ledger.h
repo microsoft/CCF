@@ -32,7 +32,6 @@ namespace asynchost
   static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
-  static constexpr auto ledger_corrupt_file_suffix = "corrupted";
   static constexpr auto ledger_recovery_file_suffix = "recovery";
 
   static inline size_t get_start_idx_from_file_name(
@@ -42,7 +41,7 @@ namespace asynchost
     if (pos == std::string::npos)
     {
       throw std::logic_error(fmt::format(
-        "Ledger file name {} does not contain a start idx", file_name));
+        "Ledger file name {} does not contain a start seqno", file_name));
     }
 
     return std::stol(file_name.substr(pos + 1));
@@ -66,11 +65,6 @@ namespace asynchost
     return nonstd::ends_with(file_name, ledger_committed_suffix);
   }
 
-  static inline bool is_ledger_file_name_corrupted(const std::string& file_name)
-  {
-    return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
-  }
-
   static inline bool is_ledger_file_name_recovery(const std::string& file_name)
   {
     return nonstd::ends_with(file_name, ledger_recovery_file_suffix);
@@ -89,12 +83,9 @@ namespace asynchost
     for (auto const& f : fs::directory_iterator(dir))
     {
       // If any file, based on its name, contains idx. Only committed
-      // (i.e. those with a last idx) and non-corrupted files are considered
-      // here.
+      // (i.e. those with a last idx) are considered here.
       auto f_name = f.path().filename();
-      if (
-        is_ledger_file_name_corrupted(f_name) ||
-        (!allow_recovery_files && is_ledger_file_name_recovery(f_name)))
+      if (!allow_recovery_files && is_ledger_file_name_recovery(f_name))
       {
         continue;
       }
@@ -136,7 +127,7 @@ namespace asynchost
     std::mutex file_lock;
 
     size_t start_idx = 1;
-    size_t total_len = 0;
+    size_t total_len = 0; // Points to end of last written entry
     std::vector<uint32_t> positions;
 
     bool completed = false;
@@ -174,9 +165,10 @@ namespace asynchost
     // Used when recovering an existing ledger file
     LedgerFile(const std::string& dir, const std::string& file_name_) :
       dir(dir),
-      file_name(file_name_)
+      file_name(file_name_),
+      completed(false)
     {
-      auto file_path = dir / file_name;
+      auto file_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(file_path.c_str(), "r+b");
       if (!file)
       {
@@ -193,7 +185,7 @@ namespace asynchost
 
       // Second, read offset to header table
       fseeko(file, 0, SEEK_SET);
-      positions_offset_header_t table_offset;
+      positions_offset_header_t table_offset = 0;
       if (fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
@@ -205,6 +197,14 @@ namespace asynchost
         // If the chunk was completed, read positions table from file directly
         total_len = table_offset;
         fseeko(file, table_offset, SEEK_SET);
+
+        if (table_offset > total_file_size)
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid table offset {} greater than total file size {}",
+            table_offset,
+            total_file_size));
+        }
 
         positions.resize(
           (total_file_size - table_offset) / sizeof(positions.at(0)));
@@ -225,20 +225,22 @@ namespace asynchost
       {
         // If the chunk was not completed, read all entries to reconstruct
         // positions table
-        total_len = total_file_size;
+        total_len = sizeof(positions_offset_header_t);
+        auto len = total_file_size - total_len;
 
-        auto len = total_len - sizeof(positions_offset_header_t);
-        size_t pos = sizeof(positions_offset_header_t);
-        kv::SerialisedEntryHeader entry_header;
-
+        kv::SerialisedEntryHeader entry_header = {};
+        size_t current_idx = start_idx;
         while (len >= kv::serialised_entry_header_size)
         {
           if (
             fread(&entry_header, kv::serialised_entry_header_size, 1, file) !=
             1)
           {
-            throw std::logic_error(fmt::format(
-              "Failed to read frame from ledger file {}", file_path));
+            LOG_FAIL_FMT(
+              "Failed to read entry header from ledger file {} at seqno {}",
+              file_path,
+              current_idx);
+            return;
           }
 
           len -= kv::serialised_entry_header_size;
@@ -246,19 +248,29 @@ namespace asynchost
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
-            throw std::logic_error(fmt::format(
-              "Malformed incomplete ledger file {} (expecting entry of size "
+            LOG_FAIL_FMT(
+              "Malformed incomplete ledger file {} at seqno {} (expecting "
+              "entry of size "
               "{}, remaining {})",
               file_path,
+              current_idx,
               entry_size,
-              len));
+              len);
+
+            return;
           }
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
+          current_idx++;
 
-          positions.push_back(pos);
-          pos += (kv::serialised_entry_header_size + entry_size);
+          LOG_TRACE_FMT(
+            "Recovered one entry of size {} at seqno {}",
+            entry_size,
+            current_idx);
+
+          positions.push_back(total_len);
+          total_len += (kv::serialised_entry_header_size + entry_size);
         }
         completed = false;
       }
@@ -305,8 +317,6 @@ namespace asynchost
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       fseeko(file, total_len, SEEK_SET);
-      positions.push_back(total_len);
-      size_t new_idx = get_last_idx();
 
       if (fwrite(data, size, 1, file) != 1)
       {
@@ -320,12 +330,13 @@ namespace asynchost
           fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
       }
 
+      positions.push_back(total_len);
       total_len += size;
 
-      return new_idx;
+      return get_last_idx();
     }
 
-    size_t framed_entries_size(size_t from, size_t to) const
+    size_t entries_size(size_t from, size_t to) const
     {
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
@@ -343,8 +354,7 @@ namespace asynchost
       }
     }
 
-    std::optional<std::vector<uint8_t>> read_framed_entries(
-      size_t from, size_t to)
+    std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
@@ -353,22 +363,24 @@ namespace asynchost
       }
 
       std::unique_lock<std::mutex> guard(file_lock);
-      auto framed_size = framed_entries_size(from, to);
-      std::vector<uint8_t> framed_entries(framed_size);
+      auto size = entries_size(from, to);
+      std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
-      if (fread(framed_entries.data(), framed_size, 1, file) != 1)
+      if (fread(entries.data(), size, 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
           "Failed to read entry range {} - {} from file", from, to));
       }
 
-      return framed_entries;
+      return entries;
     }
 
     bool truncate(size_t idx)
     {
-      if (committed || (idx < start_idx - 1) || (idx >= get_last_idx()))
+      if (
+        committed || (idx < start_idx - 1) ||
+        (completed && idx >= get_last_idx()))
       {
         return false;
       }
@@ -381,6 +393,8 @@ namespace asynchost
           throw std::logic_error(
             fmt::format("Could not remove file {}", file_name));
         }
+        LOG_TRACE_FMT(
+          "Removed ledger file {} on truncation at {}", file_name, idx);
         return true;
       }
 
@@ -393,8 +407,11 @@ namespace asynchost
       }
 
       completed = false;
-      total_len = positions.at(idx - start_idx + 1);
-      positions.resize(idx - start_idx + 1);
+      if (idx != get_last_idx())
+      {
+        total_len = positions.at(idx - start_idx + 1);
+        positions.resize(idx - start_idx + 1);
+      }
 
       if (fflush(file) != 0)
       {
@@ -409,6 +426,7 @@ namespace asynchost
       }
 
       fseeko(file, total_len, SEEK_SET);
+      LOG_TRACE_FMT("Truncated ledger file {} at seqno {}", file_name, idx);
       return false;
     }
 
@@ -448,6 +466,8 @@ namespace asynchost
         throw std::logic_error(
           fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
+
+      LOG_TRACE_FMT("Completed ledger file {}", file_name);
 
       completed = true;
     }
@@ -622,10 +642,19 @@ namespace asynchost
         return nullptr;
       }
 
-      // Emplace file in the max-sized read cache, replacing the oldest entry
-      // if the read cache is full
-      auto match_file =
-        std::make_shared<LedgerFile>(ledger_dir_, match.value());
+      // Emplace file in the max-sized read cache, replacing the oldest entry if
+      // the read cache is full
+      std::shared_ptr<LedgerFile> match_file = nullptr;
+      try
+      {
+        match_file = std::make_shared<LedgerFile>(ledger_dir_, match.value());
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Could not open ledger file {} to read seqno {}", match.value(), idx);
+        return nullptr;
+      }
 
       {
         std::unique_lock<std::mutex> guard(read_cache_lock);
@@ -696,7 +725,7 @@ namespace asynchost
           return std::nullopt;
         }
         auto to_ = std::min(f_from->get_last_idx(), to);
-        auto v = f_from->read_framed_entries(idx, to_);
+        auto v = f_from->read_entries(idx, to_);
         if (!v.has_value())
         {
           return std::nullopt;
@@ -778,15 +807,9 @@ namespace asynchost
         // If the ledger directory exists, recover ledger files from it
         LOG_INFO_FMT("Recovering main ledger directory {}", ledger_dir);
 
-        std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           auto file_name = f.path().filename();
-          if (is_ledger_file_name_corrupted(file_name))
-          {
-            LOG_INFO_FMT("Ignoring corrupted ledger file {}", file_name);
-            continue;
-          }
 
           if (is_ledger_file_name_recovery(file_name))
           {
@@ -801,32 +824,27 @@ namespace asynchost
           try
           {
             ledger_file = std::make_shared<LedgerFile>(ledger_dir, file_name);
+
+            // Truncate file to latest recovered index to cleanup entries that
+            // may have been corrupted (no-op if file isn't corrupted)
+            if (ledger_file->truncate(ledger_file->get_last_idx()))
+            {
+              // If truncation of corrupted entries removes file, file is not
+              // recovered
+              LOG_FAIL_FMT("Removed ledger file {}", file_name);
+              continue;
+            }
           }
           catch (const std::exception& e)
           {
-            corrupt_files.emplace_back(f.path());
-            LOG_TRACE_FMT(
-              "Ignoring invalid ledger file {}: {}", file_name, e.what());
+            LOG_FAIL_FMT(
+              "Error reading ledger file {}: {}", file_name, e.what());
             continue;
           }
 
           LOG_DEBUG_FMT(
             "Recovering file from main ledger directory: {}", file_name);
           files.emplace_back(std::move(ledger_file));
-        }
-
-        // Rename corrupt files so that they are not considered for reading
-        // entries later on
-        for (auto const& f : corrupt_files)
-        {
-          auto new_file_name = fmt::format(
-            "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
-          files::rename(f, ledger_dir / new_file_name);
-
-          LOG_INFO_FMT(
-            "Renamed invalid ledger file {} to {} (file will be ignored)",
-            f.filename(),
-            new_file_name);
         }
 
         if (files.empty())
@@ -849,8 +867,8 @@ namespace asynchost
         if (main_ledger_dir_last_idx < last_idx)
         {
           throw std::logic_error(fmt::format(
-            "Main ledger directory last idx ({}) is less than read-only "
-            "ledger directories last idx ({})",
+            "Main ledger directory last seqno ({}) is less than read-only "
+            "ledger directories last seqno ({})",
             main_ledger_dir_last_idx,
             last_idx));
         }
@@ -903,7 +921,8 @@ namespace asynchost
 
     void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
-      TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
+      TimeBoundLogger log_if_slow(
+        fmt::format("Initing ledger - seqno={}", idx));
 
       // Used to initialise the ledger when starting from a non-empty state,
       // i.e. snapshot. It is assumed that idx is included in a committed
@@ -943,7 +962,7 @@ namespace asynchost
       }
 
       LOG_INFO_FMT(
-        "Set last known/commit index to {}, recovery idx to {}",
+        "Set last known/commit seqno to {}, recovery seqno to {}",
         idx,
         recovery_start_idx_);
     }
@@ -996,11 +1015,10 @@ namespace asynchost
       return read_entries_range(idx, idx);
     }
 
-    std::optional<std::vector<uint8_t>> read_framed_entries(
-      size_t from, size_t to)
+    std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
     {
       TimeBoundLogger log_if_slow(
-        fmt::format("Reading framed ledger entries from {} to {}", from, to));
+        fmt::format("Reading ledger entries from {} to {}", from, to));
 
       return read_entries_range(from, to);
     }
@@ -1108,9 +1126,7 @@ namespace asynchost
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
         if ((*it)->truncate(truncate_idx))
         {
-          auto it_ = it;
-          it++;
-          files.erase(it_);
+          it = files.erase(it);
         }
         else
         {
@@ -1301,10 +1317,7 @@ namespace asynchost
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
                 write_ledger_get_range_response(
-                  from_idx,
-                  to_idx,
-                  read_framed_entries(from_idx, to_idx),
-                  purpose);
+                  from_idx, to_idx, read_entries(from_idx, to_idx), purpose);
               };
 
               work_handle->data = job;
@@ -1321,7 +1334,7 @@ namespace asynchost
             // Read synchronously, since this accesses uncommitted state and
             // must accurately reflect changing files
             write_ledger_get_range_response(
-              from_idx, to_idx, read_framed_entries(from_idx, to_idx), purpose);
+              from_idx, to_idx, read_entries(from_idx, to_idx), purpose);
           }
         });
     }
