@@ -55,7 +55,7 @@ namespace ccf
     const T& recv_authenticated(
       const NodeId& from, const uint8_t*& data, size_t& size)
     {
-      std::span<const uint8_t> ts(data, size);
+      std::span<const uint8_t> ts(data, sizeof(T));
       auto& t = serialized::overlay<T>(data, size);
 
       if (!recv_authenticated(from, ts, data, size))
@@ -119,7 +119,7 @@ namespace ccf
       const T& msg_hdr)
     {
       std::span<const uint8_t> hdr_s{
-        reinterpret_cast<const uint8_t*>(&msg_hdr), sizeof(msg_hdr)};
+        reinterpret_cast<const uint8_t*>(&msg_hdr), sizeof(T)};
       return send_encrypted(to, type, hdr_s, data);
     }
 
@@ -127,7 +127,7 @@ namespace ccf
     std::pair<T, std::vector<uint8_t>> recv_encrypted(
       const NodeId& from, const uint8_t*& data, size_t& size)
     {
-      std::span<const uint8_t> ts(data, size);
+      std::span<const uint8_t> ts(data, sizeof(T));
       auto t = serialized::read<T>(data, size);
 
       std::vector<uint8_t> plain = recv_encrypted(from, ts, data, size);

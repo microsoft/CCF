@@ -512,7 +512,7 @@ namespace ccf::v8_tmpl
         std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
         if (!label.empty())
         {
-          label_opt = {label.data(), label.data() + label.size()};
+          label_opt = {label.begin(), label.end()};
         }
 
         auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
