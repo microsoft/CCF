@@ -185,7 +185,7 @@ namespace asynchost
 
       // Second, read offset to header table
       fseeko(file, 0, SEEK_SET);
-      positions_offset_header_t table_offset;
+      positions_offset_header_t table_offset = 0;
       if (fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
@@ -197,6 +197,14 @@ namespace asynchost
         // If the chunk was completed, read positions table from file directly
         total_len = table_offset;
         fseeko(file, table_offset, SEEK_SET);
+
+        if (table_offset > total_file_size)
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid table offset {} greater than total file size {}",
+            table_offset,
+            total_file_size));
+        }
 
         positions.resize(
           (total_file_size - table_offset) / sizeof(positions.at(0)));
@@ -238,7 +246,6 @@ namespace asynchost
           len -= kv::serialised_entry_header_size;
 
           const auto& entry_size = entry_header.size;
-          LOG_FAIL_FMT("entry_size: {}", entry_size);
           if (len < entry_size)
           {
             LOG_FAIL_FMT(
