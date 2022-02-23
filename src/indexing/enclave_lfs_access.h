@@ -40,7 +40,7 @@ namespace ccf::indexing
 #else
     plaintext.resize(gcm.cipher.size());
     auto success = encryption_key.decrypt(
-      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, nullb, plaintext.data());
+      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, {}, plaintext.data());
 #endif
 
     // Check key prefix in plaintext
@@ -110,7 +110,7 @@ namespace ccf::indexing
       gcm.hdr.set_random_iv();
 
       encryption_key->encrypt(
-        gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
+        gcm.hdr.get_iv(), contents, {}, gcm.cipher.data(), gcm.hdr.tag);
 
 #ifdef PLAINTEXT_CACHE
       gcm.cipher = contents;

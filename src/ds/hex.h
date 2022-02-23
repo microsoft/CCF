@@ -2,11 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/buffer.h"
-
 #define FMT_HEADER_ONLY
 
 #include <fmt/format.h>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -42,11 +41,11 @@ namespace ds
     return to_hex(data.begin(), data.end());
   }
 
-  inline static std::string to_hex(CBuffer buf)
+  inline static std::string to_hex(std::span<const uint8_t> buf)
   {
     std::string r;
-    for (size_t i = 0; i < buf.n; i++)
-      r += fmt::format("{:02x}", buf.p[i]);
+    for (auto c : buf)
+      r += fmt::format("{:02x}", c);
     return r;
   }
 
