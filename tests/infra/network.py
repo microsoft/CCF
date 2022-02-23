@@ -571,6 +571,8 @@ class Network:
             ledger_paths = node.remote.ledger_paths()
 
             ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
+            if not ledger_files:
+                continue
             last_ledger_seqno = ccf.ledger.range_from_filename(ledger_files[-1][0])[1]
             ledger_files = set(ledger_files)
             if last_ledger_seqno > longest_ledger_seqno:
