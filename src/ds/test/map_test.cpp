@@ -23,7 +23,7 @@ using V = uint64_t;
 
 namespace map
 {
-  inline size_t get_size(uint64_t n)
+  inline size_t get_size(uint64_t)
   {
     return sizeof(size_t);
   }
