@@ -472,8 +472,7 @@ namespace ccfapp
     JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
       context(context)
-    {
-    }
+    {}
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
     {
