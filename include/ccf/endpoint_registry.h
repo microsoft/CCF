@@ -263,9 +263,9 @@ namespace ccf::endpoints
 
     void set_history(kv::TxHistory* h);
 
-    void increment_metrics_calls(const EndpointDefinitionPtr& e);
-    void increment_metrics_errors(const EndpointDefinitionPtr& e);
-    void increment_metrics_failures(const EndpointDefinitionPtr& e);
-    void increment_metrics_retries(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_calls(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_errors(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_failures(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_retries(const EndpointDefinitionPtr& e);
   };
 }
