@@ -402,8 +402,9 @@ def scoped_txs(identity, verify=True):
 
             if network:
                 network.txs = LoggingTxs(identity, scope=scope)
-
-            r = func(*args, **dict(kwargs, scope=scope))
+                r = func(*args, **kwargs)
+            else:
+                r = func(*args, **dict(kwargs, scope=scope))
 
             if network:
                 if verify:
