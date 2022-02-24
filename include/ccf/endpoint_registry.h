@@ -257,7 +257,7 @@ namespace ccf::endpoints
       const std::string& path,
       const std::vector<EndpointDefinitionPtr>& matches);
 
-    virtual void tick(std::chrono::milliseconds, size_t);
+    virtual void tick(std::chrono::milliseconds);
 
     void set_consensus(kv::Consensus* c);
 
