@@ -231,7 +231,7 @@ def test_add_as_many_pending_nodes(network, args):
     new_nodes = []
     for _ in range(number_new_nodes):
         new_node = network.create_node("local://localhost")
-        network.join_node(new_node, args.package, args, from_snapshot=False)
+        network.join_node(new_node, args.package, args)
         new_nodes.append(new_node)
 
     for new_node in new_nodes:
@@ -359,7 +359,7 @@ def test_node_replacement(network, args):
         f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
         node_port=node_to_replace.n2n_interface.port,
     )
-    network.join_node(replacement_node, args.package, args, from_snapshot=False)
+    network.join_node(replacement_node, args.package, args)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
@@ -489,7 +489,7 @@ def test_learner_catches_up(network, args):
         num_nodes_before = len(c0)
 
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
 
     with new_node.client() as c:
