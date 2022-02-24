@@ -701,6 +701,7 @@ def test_metrics(network, args):
 
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
+@app.scoped_txs("user0")
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
@@ -1387,6 +1388,7 @@ def test_random_receipts(
 
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
+@app.scoped_txs("user0")
 def test_liveness(network, args):
     network.txs.issue(
         network=network,

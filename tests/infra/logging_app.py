@@ -408,7 +408,7 @@ def scoped_txs(identity, verify=True):
 
             if network:
                 if verify:
-                    network.txs.verify()
+                    network.txs.verify(network=network)
                 network.txs = previous_txs
             return r
 
