@@ -3,7 +3,6 @@
 
 from infra.commit import wait_for_commit
 import pprint
-import http
 
 from infra.logging_app import scoped_txs
 
