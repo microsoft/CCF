@@ -21,7 +21,7 @@ namespace crypto
 
     RSAKeyPair() = default;
     RSAKeyPair(const RSAKeyPair&) = delete;
-    RSAKeyPair(const Pem& pem, std::span<const uint8_t> pw = {});
+    RSAKeyPair(const Pem& pem);
     virtual ~RSAKeyPair() = default;
 
     virtual size_t key_size() const = 0;
@@ -94,6 +94,5 @@ namespace crypto
   /**
    * Create a public / private RSA key pair from existing private key data
    */
-  RSAKeyPairPtr make_rsa_key_pair(
-    const Pem& pem, std::span<const uint8_t> pw = {});
+  RSAKeyPairPtr make_rsa_key_pair(const Pem& pem);
 }
