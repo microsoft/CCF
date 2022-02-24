@@ -29,13 +29,6 @@ namespace loggingapp
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
 
-  typedef struct
-  {
-    std::string public_records;
-    std::string private_records;
-  } ScopedMapNames;
-  std::map<std::string, ScopedMapNames> scoped_maps;
-
   // Stores the index at which each key was first written to. Must be written by
   // the _next_ write transaction to that key.
   using FirstWritesMap = kv::Map<size_t, ccf::SeqNo>;
@@ -204,31 +197,15 @@ namespace loggingapp
       return public_records(get_scope(ctx));
     }
 
-    static auto get_scoped_map_entry(std::string scope)
-    {
-      auto sit = scoped_maps.find(scope);
-      if (sit == scoped_maps.end())
-      {
-        sit = scoped_maps
-                .emplace(
-                  scope,
-                  ScopedMapNames{
-                    std::string(PUBLIC_RECORDS) + "-" + scope,
-                    std::string(PRIVATE_RECORDS) + "-" + scope})
-                .first;
-      }
-      return sit;
-    }
-
     static std::string private_records(const std::optional<std::string>& scope)
     {
-      return scope ? get_scoped_map_entry(*scope)->second.private_records :
+      return scope ? std::string(PRIVATE_RECORDS) + "-" + *scope :
                      PRIVATE_RECORDS;
     }
 
     static std::string public_records(const std::optional<std::string>& scope)
     {
-      return scope ? get_scoped_map_entry(*scope)->second.public_records :
+      return scope ? std::string(PUBLIC_RECORDS) + "-" + *scope :
                      PUBLIC_RECORDS;
     }
 
