@@ -30,7 +30,6 @@ import re
 import infra.crypto
 from infra.runner import ConcurrentRunner
 from hashlib import sha256
-import e2e_common_endpoints
 from types import MappingProxyType
 
 from loguru import logger as LOG
