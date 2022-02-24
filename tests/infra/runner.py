@@ -9,7 +9,6 @@ import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
-import infra.rates
 import cimetrics.upload
 import threading
 import copy
@@ -146,7 +145,6 @@ def run(get_command, args):
 
             try:
                 with cimetrics.upload.metrics(complete=False) as metrics:
-                    tx_rates = infra.rates.TxRates(primary)
                     start_time = time.time()
                     while True:
                         stop_waiting = True
@@ -166,8 +164,6 @@ def run(get_command, args):
 
                         time.sleep(5)
 
-                    tx_rates.get_metrics()
-
                     for remote_client in clients:
                         perf_result = remote_client.get_result()
                         LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
@@ -186,7 +182,6 @@ def run(get_command, args):
                         assert r.status_code == http.HTTPStatus.OK.value
 
                         results = r.body.json()
-                        tx_rates.insert_metrics(**results)
 
                         # Construct name for heap metric, removing ^ suffix if present
                         heap_peak_metric = args.label
@@ -196,9 +191,6 @@ def run(get_command, args):
 
                         peak_value = results["peak_allocated_heap_size"]
                         metrics.put(heap_peak_metric, peak_value)
-
-                    LOG.info(f"Rates:\n{tx_rates}")
-                    tx_rates.save_results(args.metrics_file)
 
                     for remote_client in clients:
                         remote_client.stop()

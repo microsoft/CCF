@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
@@ -34,7 +33,6 @@ namespace ccfapp
     {};
 
     ccfapp::AbstractNodeContext& context;
-    metrics::Tracker metrics_tracker;
 
     js::JSWrappedValue create_caller_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
@@ -474,9 +472,7 @@ namespace ccfapp
     JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
       context(context)
-    {
-      metrics_tracker.install_endpoint(*this);
-    }
+    {}
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
     {
@@ -668,13 +664,6 @@ namespace ccfapp
 
         return true;
       });
-    }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 
