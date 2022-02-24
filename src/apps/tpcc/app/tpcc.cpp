@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #include "../tpcc_serializer.h"
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/common_auth_policies.h"
 #include "tpcc_setup.h"
 #include "tpcc_tables.h"
 #include "tpcc_transactions.h"
@@ -18,8 +19,6 @@ namespace ccfapp
   class TpccHandlers : public UserEndpointRegistry
   {
   private:
-    metrics::Tracker metrics_tracker;
-
     void set_error_status(
       ccf::endpoints::EndpointContext& ctx, int status, std::string&& message)
     {
@@ -132,15 +131,6 @@ namespace ccfapp
         .install();
       make_endpoint("/new_order", HTTP_POST, do_new_order, user_sig_or_cert)
         .install();
-
-      metrics_tracker.install_endpoint(*this);
-    }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 
