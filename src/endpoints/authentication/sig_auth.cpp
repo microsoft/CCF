@@ -4,12 +4,12 @@
 #include "ccf/endpoints/authentication/sig_auth.h"
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/rpc_context.h"
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/users.h"
 #include "ds/lru.h"
-#include "enclave/rpc_context.h"
 #include "http/http_sig.h"
 #include "service/blit.h"
-#include "service/tables/members.h"
-#include "service/tables/users.h"
 
 namespace ccf
 {

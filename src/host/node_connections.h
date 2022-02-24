@@ -339,8 +339,7 @@ namespace asynchost
             uint32_t frame = (uint32_t)size_to_send;
             std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
 
-            framed_entries =
-              ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
+            framed_entries = ledger.read_entries(ae.prev_idx + 1, ae.idx);
             if (framed_entries.has_value())
             {
               frame += (uint32_t)framed_entries->size();

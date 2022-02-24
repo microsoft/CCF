@@ -5,8 +5,8 @@
 #include "ccf/ds/json_schema.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/rpc_context.h"
 #include "ccf/tx.h"
-#include "enclave/rpc_context.h"
 
 #include <charconv>
 #include <functional>
@@ -14,6 +14,12 @@
 #include <nlohmann/json.hpp>
 #include <regex>
 #include <set>
+
+namespace kv
+{
+  class Consensus;
+  class TxHistory;
+}
 
 namespace ccf::endpoints
 {

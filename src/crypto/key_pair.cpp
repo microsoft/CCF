@@ -32,8 +32,8 @@ namespace crypto
     return std::make_shared<KeyPairImpl>(curve_id);
   }
 
-  KeyPairPtr make_key_pair(const Pem& pem, CBuffer pw)
+  KeyPairPtr make_key_pair(const Pem& pem)
   {
-    return std::make_shared<KeyPairImpl>(pem, pw);
+    return std::make_shared<KeyPairImpl>(pem);
   }
 }

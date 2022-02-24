@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
-#include "proposals.h"
-#include "service/map.h"
+#include "ccf/service/map.h"
+#include "ccf/service/tables/proposals.h"
 
 #include <openenclave/attestation/verifier.h>
 #include <optional>
@@ -63,6 +63,7 @@ namespace ccf
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
+  using Cert = std::vector<uint8_t>;
 
   using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
   using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;

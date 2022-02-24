@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/service/map.h"
 #include "kv/kv_types.h"
-#include "service/map.h"
 
 namespace ccf
 {

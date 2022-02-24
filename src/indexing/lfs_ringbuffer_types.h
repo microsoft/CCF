@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/lfs_interface.h"
 #include "ds/ring_buffer_types.h"
+#include "indexing/lfs_interface.h"
 
 namespace ccf::indexing
 {

@@ -108,7 +108,8 @@ namespace ccf::v8_tmpl
         return;
       }
 
-      std::vector<uint8_t> sig(signature);
+      std::vector<uint8_t> sig(
+        signature.data(), signature.data() + signature.size());
 
       if (algo_name == "ECDSA")
       {
@@ -122,14 +123,14 @@ namespace ccf::v8_tmpl
       if (is_cert)
       {
         auto verifier = crypto::make_unique_verifier(key);
-        valid =
-          verifier->verify(data.p, data.n, sig.data(), sig.size(), mdtype);
+        valid = verifier->verify(
+          data.data(), data.size(), sig.data(), sig.size(), mdtype);
       }
       else
       {
         auto public_key = crypto::make_public_key(key);
-        valid =
-          public_key->verify(data.p, data.n, sig.data(), sig.size(), mdtype);
+        valid = public_key->verify(
+          data.data(), data.size(), sig.data(), sig.size(), mdtype);
       }
 
       info.GetReturnValue().Set(v8::Boolean::New(isolate, valid));

@@ -5,9 +5,9 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
-#include "ccf/indexing/lfs_interface.h"
 #include "ds/hex.h"
 #include "ds/messaging.h"
+#include "indexing/lfs_interface.h"
 #include "indexing/lfs_ringbuffer_types.h"
 
 #include <optional>
@@ -38,9 +38,8 @@ namespace ccf::indexing
     plaintext = gcm.cipher;
     auto success = true;
 #else
-    plaintext.resize(gcm.cipher.size());
     auto success = encryption_key.decrypt(
-      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, nullb, plaintext.data());
+      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, {}, plaintext);
 #endif
 
     // Check key prefix in plaintext
@@ -110,7 +109,7 @@ namespace ccf::indexing
       gcm.hdr.set_random_iv();
 
       encryption_key->encrypt(
-        gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
+        gcm.hdr.get_iv(), contents, {}, gcm.cipher, gcm.hdr.tag);
 
 #ifdef PLAINTEXT_CACHE
       gcm.cipher = contents;

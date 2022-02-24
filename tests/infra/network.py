@@ -10,7 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-from ccf.ledger import NodeStatus, Ledger, COMMITTED_FILE_SUFFIX
+import ccf.ledger
 from infra.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
@@ -134,6 +134,7 @@ class Network:
         if existing_network is None:
             self.consortium = None
             self.users = []
+            self.hosts = hosts
             self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
@@ -143,10 +144,10 @@ class Network:
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
+            self.hosts = [node.host for node in existing_network.nodes]
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
-        self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -176,7 +177,7 @@ class Network:
         except FileNotFoundError:
             pass
 
-        for host in hosts:
+        for host in self.hosts:
             self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
@@ -487,7 +488,7 @@ class Network:
 
         # If a common directory was passed in, initialise the consortium from it
         if not self.consortium and common_dir is not None:
-            ledger = Ledger(ledger_dirs, committed_only=False)
+            ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=False)
             public_state, _ = ledger.get_latest_public_state()
 
             self.consortium = infra.consortium.Consortium(
@@ -538,52 +539,55 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def check_ledger_files_identical(self):
+    def check_ledger_files_identical(self, read_recovery_ledger_files=False):
         # Note: Should be called on stopped service
         # Verify that all ledger files on stopped nodes exist on most up-to-date node
         # and are identical
-        longest_ledger_node = None
-        nodes_ledger = {}
 
+        def list_files_in_dirs_with_checksums(dirs):
+            return sorted(
+                [
+                    (f, infra.path.compute_file_checksum(os.path.join(d, f)))
+                    for d in dirs
+                    for f in os.listdir(d)
+                    if f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+                    or (
+                        read_recovery_ledger_files
+                        and f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
+                        and ccf.ledger.COMMITTED_FILE_SUFFIX in f
+                    )
+                ],
+                key=lambda x: ccf.ledger.range_from_filename(x[0])[0],
+            )
+
+        longest_ledger_files = None
+        longest_ledger_node = None
         longest_ledger_seqno = 0
         for node in self.nodes:
             if node.network_state != infra.node.NodeNetworkState.stopped:
                 raise RuntimeError(
                     f"Node {node.node_id} should be stopped before verifying ledger consistency"
                 )
+            ledger_paths = node.remote.ledger_paths()
 
-            ledger = node.remote.ledger_paths()
-            last_seqno = Ledger(ledger).get_latest_public_state()[1]
-            nodes_ledger[node.local_node_id] = [ledger, last_seqno]
-            if last_seqno > longest_ledger_seqno:
-                longest_ledger_seqno = last_seqno
+            ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
+            if not ledger_files:
+                continue
+            last_ledger_seqno = ccf.ledger.range_from_filename(ledger_files[-1][0])[1]
+            ledger_files = set(ledger_files)
+            if last_ledger_seqno > longest_ledger_seqno:
+                longest_ledger_files = ledger_files
                 longest_ledger_node = node
+                longest_ledger_seqno = last_ledger_seqno
 
-        if longest_ledger_node:
+            if not ledger_files.issubset(longest_ledger_files):
+                raise Exception(
+                    f"Ledger files on node {node.local_node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
+                )
 
-            def list_files_in_dirs_with_checksums(dirs):
-                return [
-                    (f, infra.path.compute_file_checksum(os.path.join(d, f)))
-                    for d in dirs
-                    for f in os.listdir(d)
-                    if f.endswith(COMMITTED_FILE_SUFFIX)
-                ]
-
-            longest_ledger_dirs, _ = nodes_ledger[longest_ledger_node.local_node_id]
-            longest_ledger_files = list_files_in_dirs_with_checksums(
-                longest_ledger_dirs
-            )
-            for node_id, (ledger_dirs, _) in nodes_ledger.items():
-                ledger_files = list_files_in_dirs_with_checksums(ledger_dirs)
-                if not set(ledger_files).issubset(longest_ledger_files):
-                    raise Exception(
-                        f"Ledger files on node {node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}"
-                    )
-            LOG.success(
-                f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
-            )
-
-    def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
+    def stop_all_nodes(
+        self, skip_verification=False, verbose_verification=False, **kwargs
+    ):
         if not skip_verification:
             if self.txs is not None:
                 LOG.info("Verifying that all committed txs can be read before shutdown")
@@ -600,7 +604,7 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        self.check_ledger_files_identical()
+        self.check_ledger_files_identical(**kwargs)
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -623,9 +627,9 @@ class Network:
                 primary,
                 node.node_id,
                 node_status=(
-                    NodeStatus.PENDING
+                    ccf.ledger.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
-                    else NodeStatus.TRUSTED
+                    else ccf.ledger.NodeStatus.TRUSTED
                 ),
                 timeout=timeout,
             )
@@ -660,7 +664,7 @@ class Network:
                     timeout=timeout,
                 )
                 self.wait_for_node_in_store(
-                    primary, node.node_id, NodeStatus.TRUSTED, timeout
+                    primary, node.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
                 )
             if not no_wait:
                 # Here, quote verification has already been run when the node
@@ -959,7 +963,7 @@ class Network:
     def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):
         for n in self.nodes:
             self.wait_for_node_in_store(
-                remote_node, n.node_id, NodeStatus.TRUSTED, timeout
+                remote_node, n.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
             )
 
     def wait_for_new_primary(

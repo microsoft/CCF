@@ -3,7 +3,8 @@
 #pragma once
 
 #include "node/tx_receipt.h"
-#include "v8.h"
+
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {

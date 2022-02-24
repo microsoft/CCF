@@ -5,11 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0-rc2]
 
-### Changed
+## Changed
 
-- The entry point for creation of C++ apps is now `make_user_endpoints()`. The old entry point `get_rpc_handler()` has been removed.
+- The entry point for creation of C++ apps is now `make_user_endpoints()`. The old entry point `get_rpc_handler()` has been removed (#3562). For an example of the necessary change, see [this diff](https://github.com/microsoft/CCF/commit/5b40ba7b42d5664d787cc7e3cfc9cbe18c01e5a1#diff-78fa25442e77145040265646434b9582d491928819e58be03c5693c01417c6c6) of the logging sample app (#3562).
+- Failed recovery procedures no longer block subsequent recoveries: `.recovery` ledger files are now created while the recovery is in progress and ignored or deleted by nodes on startup (#3563).
+- Corrupted or incomplete ledger files are now recovered gracefully, until the last valid entry (#3585).
+- The CCF public API is now under `include/ccf`, and all application includes of framework code should use only these files.
+
+### Removed
+
+- `get_node_state()` is removed from `AbstractNodeContext`. The local node's ID is still available to endpoints as `get_node_id()`, and other subsystems which are app-visible can be fetched directly (#3552).
+
+### Fixed
+
+- Nodes no longer crash at start-up if the ledger in the read-only ledger directories (`ledger.read_only_directories`) is ahead of the ledger in the main ledger directory (`ledger.directory`) (#3597).
 
 ### Fixed
 
@@ -1217,6 +1228,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc2
 [2.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc1
 [2.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0
 [2.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev8

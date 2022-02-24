@@ -3,10 +3,9 @@
 #pragma once
 
 #include "ccf/ccf_assert.h"
-#include "ccf/ds/buffer.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
 #include "kv_types.h"
 #include "node/rpc/claims.h"
-#include "serialised_entry.h"
 #include "serialised_entry_format.h"
 
 #include <optional>
@@ -299,11 +298,13 @@ namespace kv
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
 
-      CCF_ASSERT_FMT(
-        tx_header.size == size_,
-        "Reported size in entry header {} does not match size of entry {}",
-        tx_header.size,
-        size_);
+      if (tx_header.size != size_)
+      {
+        throw std::logic_error(fmt::format(
+          "Reported size in entry header {} does not match size of entry {}",
+          tx_header.size,
+          size_));
+      }
 
       auto gcm_hdr_data = data_;
 

@@ -14,12 +14,11 @@
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
-#include "entities.h"
 #include "history.h"
-#include "hooks.h"
 #include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
@@ -392,7 +391,8 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
+      auto network_ca = std::make_shared<tls::CA>(std::string(
+        config.join.service_cert.begin(), config.join.service_cert.end()));
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca,
         self_signed_node_cert,
@@ -564,7 +564,10 @@ namespace ccf
             }
 
             consensus->init_as_backup(
-              network.tables->current_version(), view, view_history);
+              network.tables->current_version(),
+              view,
+              view_history,
+              last_recovered_signed_idx);
 
             if (resp.network_info->public_only)
             {
@@ -728,21 +731,31 @@ namespace ccf
       }
 
       LOG_INFO_FMT(
-        "Deserialising public ledger entry ({})", ledger_entry.size());
+        "Deserialising public ledger entry [{}]", ledger_entry.size());
 
-      auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
-      auto result = r->apply();
-      if (result == kv::ApplyResult::FAIL)
+      kv::ApplyResult result = kv::ApplyResult::FAIL;
+      try
       {
-        LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
+        auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+        result = r->apply();
+        if (result == kv::ApplyResult::FAIL)
+        {
+          LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", result);
+          recover_public_ledger_end_unsafe();
+          return;
+        }
+
+        // Not synchronised because consensus isn't effectively running then
+        for (auto& hook : r->get_hooks())
+        {
+          hook->call(consensus.get());
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", e.what());
         recover_public_ledger_end_unsafe();
         return;
-      }
-
-      // Not synchronised because consensus isn't effectively running then
-      for (auto& hook : r->get_hooks())
-      {
-        hook->call(consensus.get());
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
@@ -893,7 +906,7 @@ namespace ccf
       // Note: KV term must be set before the first Tx is committed
       network.tables->rollback(
         {last_recovered_term, last_recovered_signed_idx}, new_term);
-      ledger_truncate(last_recovered_signed_idx);
+      ledger_truncate(last_recovered_signed_idx, true);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
@@ -922,7 +935,6 @@ namespace ccf
       kv::Term view = 0;
       kv::Version global_commit = 0;
 
-      // auto ls = g.get_last_signature();
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
       {
@@ -977,17 +989,29 @@ namespace ccf
       }
 
       LOG_INFO_FMT(
-        "Deserialising private ledger entry ({})", ledger_entry.size());
+        "Deserialising private ledger entry [{}]", ledger_entry.size());
 
       // When reading the private ledger, deserialise in the recovery store
-      auto result =
-        recovery_store->deserialize(ledger_entry, ConsensusType::CFT)->apply();
-      if (result == kv::ApplyResult::FAIL)
+      kv::ApplyResult result = kv::ApplyResult::FAIL;
+      try
       {
-        LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        // Note: rollback terms do not matter here as recovery store is about to
-        // be discarded
-        recovery_store->rollback({0, ledger_idx - 1}, 0);
+        result = recovery_store->deserialize(ledger_entry, ConsensusType::CFT)
+                   ->apply();
+        if (result == kv::ApplyResult::FAIL)
+        {
+          LOG_FAIL_FMT(
+            "Failed to deserialise private ledger entry: {}", result);
+          // Note: rollback terms do not matter here as recovery store is about
+          // to be discarded
+          recovery_store->rollback({0, ledger_idx - 1}, 0);
+          recover_private_ledger_end_unsafe();
+          return;
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to deserialise private ledger entry: {}", e.what());
         recover_private_ledger_end_unsafe();
         return;
       }
@@ -1050,6 +1074,7 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
+
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1469,7 +1494,7 @@ namespace ccf
       return true;
     }
 
-    NodeId get_node_id() const override
+    NodeId get_node_id() const
     {
       return self;
     }
@@ -1854,8 +1879,15 @@ namespace ccf
               w->cert.str());
             return;
           }
+
           network.identity->set_certificate(w->cert);
-          open_user_frontend();
+          if (w->status == ServiceStatus::OPEN)
+          {
+            open_user_frontend();
+
+            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
+            LOG_INFO_FMT("Service open at seqno {}", hook_version);
+          }
         }));
     }
 
@@ -2071,9 +2103,10 @@ namespace ccf
         consensus::LedgerRequestPurpose::Recovery);
     }
 
-    void ledger_truncate(consensus::Index idx)
+    void ledger_truncate(consensus::Index idx, bool recovery_mode = false)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
   };
 }

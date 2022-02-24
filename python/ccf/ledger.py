@@ -30,13 +30,13 @@ LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
 # Public table names as defined in CCF
-# https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
+RECOVERY_FILE_SUFFIX = ".recovery"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -110,6 +110,7 @@ def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
     elements = (
         os.path.basename(filename)
         .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace(RECOVERY_FILE_SUFFIX, "")
         .replace("ledger_", "")
         .split("-")
     )
@@ -668,6 +669,9 @@ class Transaction(Entry):
     def get_len(self) -> int:
         return len(self.get_raw_tx())
 
+    def get_offsets(self) -> Tuple[int, int]:
+        return (self._tx_offset, self._next_offset)
+
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
         commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
@@ -822,6 +826,7 @@ class Ledger:
         self,
         directories: List[str],
         committed_only: bool = True,
+        read_recovery_files: bool = False,
         insecure_skip_verification: bool = False,
     ):
 
@@ -830,16 +835,22 @@ class Ledger:
         ledger_files: List[str] = []
         for directory in directories:
             for path in os.listdir(directory):
-                if committed_only and not path.endswith(COMMITTED_FILE_SUFFIX):
+                sanitised_path = path
+                if path.endswith(RECOVERY_FILE_SUFFIX):
+                    sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
+                    if not read_recovery_files:
+                        continue
+
+                if committed_only and not sanitised_path.endswith(
+                    COMMITTED_FILE_SUFFIX
+                ):
                     continue
+
                 chunk = os.path.join(directory, path)
                 # The same ledger file may appear multiple times in different directories
                 # so ignore duplicates
-                if (
-                    os.path.isfile(chunk)
-                    and not path.endswith(".corrupted")
-                    and not path.endswith(".ignored")
-                    and not any(os.path.basename(chunk) in f for f in ledger_files)
+                if os.path.isfile(chunk) and not any(
+                    os.path.basename(chunk) in f for f in ledger_files
                 ):
                     ledger_files.append(chunk)
 

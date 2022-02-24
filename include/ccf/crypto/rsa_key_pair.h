@@ -21,7 +21,7 @@ namespace crypto
 
     RSAKeyPair() = default;
     RSAKeyPair(const RSAKeyPair&) = delete;
-    RSAKeyPair(const Pem& pem, CBuffer pw = nullb);
+    RSAKeyPair(const Pem& pem);
     virtual ~RSAKeyPair() = default;
 
     virtual size_t key_size() const = 0;
@@ -54,7 +54,7 @@ namespace crypto
     virtual std::vector<uint8_t> public_key_der() const = 0;
 
     virtual std::vector<uint8_t> sign(
-      CBuffer d, MDType md_type = MDType::NONE) const = 0;
+      std::span<const uint8_t> d, MDType md_type = MDType::NONE) const = 0;
 
     virtual bool verify(
       const uint8_t* contents,
@@ -94,5 +94,5 @@ namespace crypto
   /**
    * Create a public / private RSA key pair from existing private key data
    */
-  RSAKeyPairPtr make_rsa_key_pair(const Pem& pem, CBuffer pw = nullb);
+  RSAKeyPairPtr make_rsa_key_pair(const Pem& pem);
 }

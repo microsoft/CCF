@@ -85,14 +85,14 @@ namespace ccf
   {
     crypto::GcmCipher encrypted_ls;
     encrypted_ls.deserialise(encrypted_previous_secret_raw);
-    std::vector<uint8_t> decrypted_ls_raw(encrypted_ls.cipher.size());
+    std::vector<uint8_t> decrypted_ls_raw;
 
     if (!ledger_secret->key->decrypt(
           encrypted_ls.hdr.get_iv(),
           encrypted_ls.hdr.tag,
           encrypted_ls.cipher,
-          nullb,
-          decrypted_ls_raw.data()))
+          {},
+          decrypted_ls_raw))
     {
       throw std::logic_error("Decryption of previous ledger secret failed");
     }

@@ -5,7 +5,6 @@
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/md_type.h"
 #include "ccf/crypto/sha256_hash.h"
-#include "ccf/ds/buffer.h"
 
 #include <array>
 #include <cstdint>
@@ -38,7 +37,7 @@ namespace crypto
     ISha256Hash() {}
     virtual ~ISha256Hash() {}
 
-    virtual void update_hash(CBuffer data) = 0;
+    virtual void update_hash(std::span<const uint8_t> data) = 0;
     virtual Sha256Hash finalise() = 0;
 
     template <typename T>
@@ -50,7 +49,7 @@ namespace crypto
     template <>
     void update<std::vector<uint8_t>>(const std::vector<uint8_t>& d)
     {
-      update_hash({d.data(), d.size()});
+      update_hash(d);
     }
   };
 

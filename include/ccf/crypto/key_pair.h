@@ -6,7 +6,6 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
 #include "ccf/crypto/san.h"
-#include "ccf/ds/buffer.h"
 
 #include <cstdint>
 #include <optional>
@@ -44,7 +43,8 @@ namespace crypto
       size_t* sig_size,
       uint8_t* sig) const = 0;
 
-    virtual std::vector<uint8_t> sign(CBuffer d, MDType md_type = {}) const = 0;
+    virtual std::vector<uint8_t> sign(
+      std::span<const uint8_t> d, MDType md_type = {}) const = 0;
 
     virtual Pem create_csr(
       const std::string& subject_name,
@@ -129,8 +129,7 @@ namespace crypto
    * Create a public / private ECDSA key pair from existing private key data
    *
    * @param pkey PEM key to load
-   * @param pw Password
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const Pem& pkey, CBuffer pw = nullb);
+  KeyPairPtr make_key_pair(const Pem& pkey);
 }

@@ -7,14 +7,13 @@
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
+#include "ccf/kv/map.h"
 #include "ccf/serdes.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "frontend_test_infra.h"
-#include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/entities.h"
 #include "node/history.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
@@ -385,7 +384,6 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    kv::Store& tables,
     ccf::NetworkState& network,
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
@@ -1391,9 +1389,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network_primary.tables, network_primary, context, share_manager);
+    network_primary, context, share_manager);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network_backup.tables, network_backup, context, share_manager);
+    network_backup, context, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();

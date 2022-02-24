@@ -4,7 +4,8 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/endpoint_context.h"
-#include "v8.h"
+
+#include <v8.h>
 
 using ccf::BaseEndpointRegistry;
 using ccf::endpoints::EndpointContext;

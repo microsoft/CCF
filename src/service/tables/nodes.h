@@ -4,12 +4,13 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/san.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
-#include "kv/map.h"
+#include "ccf/kv/map.h"
+#include "ccf/quote_info.h"
+#include "ccf/service/map.h"
 #include "node_info_network.h"
-#include "quote_info.h"
-#include "service/map.h"
 
 #include <string>
 #include <vector>

@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpc_context.h"
-#include "v8.h"
+#include "ccf/rpc_context.h"
+
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {

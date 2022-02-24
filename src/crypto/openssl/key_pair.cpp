@@ -53,10 +53,10 @@ namespace crypto
       throw std::runtime_error("could not generate new EC key");
   }
 
-  KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem, CBuffer pw)
+  KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
+    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, nullptr);
     if (!key)
       throw std::runtime_error("could not parse PEM");
   }
@@ -110,26 +110,30 @@ namespace crypto
       contents, contents_size, signature, signature_size);
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::sign(CBuffer d, MDType md_type) const
+  std::vector<uint8_t> KeyPair_OpenSSL::sign(
+    std::span<const uint8_t> d, MDType md_type) const
   {
     if (md_type == MDType::NONE)
     {
       md_type = get_md_for_ec(get_curve_id());
     }
     OpenSSLHashProvider hp;
-    HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
+    HashBytes hash = hp.Hash(d.data(), d.size(), md_type);
     return sign_hash(hash.data(), hash.size());
   }
 
   int KeyPair_OpenSSL::sign(
-    CBuffer d, size_t* sig_size, uint8_t* sig, MDType md_type) const
+    std::span<const uint8_t> d,
+    size_t* sig_size,
+    uint8_t* sig,
+    MDType md_type) const
   {
     if (md_type == MDType::NONE)
     {
       md_type = get_md_for_ec(get_curve_id());
     }
     OpenSSLHashProvider hp;
-    HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
+    HashBytes hash = hp.Hash(d.data(), d.size(), md_type);
     return sign_hash(hash.data(), hash.size(), sig_size, sig);
   }
 

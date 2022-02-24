@@ -8,7 +8,6 @@
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
-#include "node/entities.h"
 #include "node/ledger_secrets.h"
 
 #include <doctest/doctest.h>
