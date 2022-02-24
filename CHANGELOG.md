@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `get_node_state()` is removed from `AbstractNodeContext`. The local node's ID is still available to endpoints as `get_node_id()`, and other subsystems which are app-visible can be fetched directly (#3552).
 
+### Fixed
+
+- Nodes no longer crash at start-up if the ledger in the read-only ledger directories (`ledger.read_only_directories`) is ahead of the ledger in the main ledger directory (`ledger.directory`) (#3597).
+
 ## [2.0.0-rc1]
 
 ### Added

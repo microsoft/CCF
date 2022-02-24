@@ -34,14 +34,22 @@ ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
 auto wf = ringbuffer::WriterFactory(eio);
 
 void move_all_from_to(
-  const std::string& from, const std::string& to, const std::string& suffix)
+  const std::string& from,
+  const std::string& to,
+  const std::optional<std::string>& suffix = std::nullopt,
+  bool move = true)
 {
   for (auto const& f : fs::directory_iterator(from))
   {
-    if (nonstd::ends_with(f.path().filename(), suffix))
+    if (
+      !suffix.has_value() ||
+      nonstd::ends_with(f.path().filename(), suffix.value()))
     {
       fs::copy_file(f.path(), fs::path(to) / f.path().filename());
-      fs::remove(f.path());
+      if (move)
+      {
+        fs::remove(f.path());
+      }
     }
   }
 }
@@ -1684,6 +1692,49 @@ TEST_CASE("Recovery")
       // Entries pre-recovery can still be read
       read_entries_range_from_ledger(new_ledger, 1, pre_recovery_last_idx);
     }
+  }
+}
+
+TEST_CASE("Recover both ledger dirs")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto dir2 = AutoDeleteFolder(ledger_dir_read_only);
+
+  fs::create_directory(ledger_dir_read_only);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  size_t last_idx = 0;
+  size_t chunk_count = 3;
+
+  INFO("Create ledger");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_idx = ledger.get_last_idx();
+    ledger.commit(last_idx);
+
+    move_all_from_to(
+      ledger_dir, ledger_dir_read_only, std::nullopt, false /* copy */);
+
+    // Delete last committed file from ledger directory so that new ledger
+    // starts with main ledger directory behind read-only ledger directory
+    REQUIRE(fs::remove(fs::path(ledger_dir) / "ledger_5-6.committed"));
+  }
+
+  INFO("Recover from both ledger dirs");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold, 0, {ledger_dir_read_only});
+    TestEntrySubmitter entry_submitter(ledger, last_idx);
+
+    for (int i = 0; i < entries_per_chunk * chunk_count; i++)
+    {
+      entry_submitter.write(true);
+    }
+    read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+    ledger.commit(ledger.get_last_idx());
   }
 }
 

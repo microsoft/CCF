@@ -773,14 +773,13 @@ namespace asynchost
 
         for (auto const& f : fs::directory_iterator(read_dir))
         {
-          auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
-          if (
-            !last_idx_.has_value() ||
-            !is_ledger_file_committed(f.path().filename()))
+          auto file_name = f.path().filename();
+          auto last_idx_ = get_last_idx_from_file_name(file_name);
+          if (!last_idx_.has_value() || !is_ledger_file_committed(file_name))
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
-              f.path().filename());
+              file_name);
             continue;
           }
 
@@ -790,6 +789,9 @@ namespace asynchost
             committed_idx = last_idx;
             end_of_committed_files_idx = last_idx;
           }
+
+          LOG_DEBUG_FMT(
+            "Recovering file from read-only ledger directory: {}", file_name);
         }
       }
 
@@ -864,15 +866,10 @@ namespace asynchost
         });
 
         auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
-        if (main_ledger_dir_last_idx < last_idx)
+        if (main_ledger_dir_last_idx > last_idx)
         {
-          throw std::logic_error(fmt::format(
-            "Main ledger directory last seqno ({}) is less than read-only "
-            "ledger directories last seqno ({})",
-            main_ledger_dir_last_idx,
-            last_idx));
+          last_idx = main_ledger_dir_last_idx;
         }
-        last_idx = main_ledger_dir_last_idx;
 
         // Remove committed files from list of writable files
         for (auto f = files.begin(); f != files.end();)
@@ -880,8 +877,11 @@ namespace asynchost
           if ((*f)->is_committed())
           {
             const auto f_last_idx = (*f)->get_last_idx();
-            committed_idx = f_last_idx;
-            end_of_committed_files_idx = f_last_idx;
+            if (f_last_idx > committed_idx)
+            {
+              committed_idx = f_last_idx;
+              end_of_committed_files_idx = f_last_idx;
+            }
             f = files.erase(f);
           }
           else
