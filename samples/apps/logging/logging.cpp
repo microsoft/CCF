@@ -6,10 +6,12 @@
 
 // CCF
 #include "ccf/app_interface.h"
+#include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
+#include "ccf/json_handler.h"
 #include "ccf/version.h"
 #include "node/tx_receipt.h"
 
