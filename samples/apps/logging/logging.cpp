@@ -5,7 +5,6 @@
 #include "logging_schema.h"
 
 // CCF
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/historical_queries_adapter.h"
@@ -135,8 +134,6 @@ namespace loggingapp
 
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
-
-    metrics::Tracker metrics_tracker;
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
 
@@ -1477,15 +1474,6 @@ namespace loggingapp
         {ccf::user_signature_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
-
-      metrics_tracker.install_endpoint(*this);
-    }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 }
