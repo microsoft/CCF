@@ -1,0 +1,26 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
+#include "ccf/kv/serialisers/blit_serialiser.h"
+#include "service/tables/code_digest.h"
+
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<ccf::CodeDigest>
+  {
+    static SerialisedEntry to_serialised(const ccf::CodeDigest& code_digest)
+    {
+      auto hex_str = ds::to_hex(code_digest.data);
+      return SerialisedEntry(hex_str.begin(), hex_str.end());
+    }
+
+    static ccf::CodeDigest from_serialised(const SerialisedEntry& data)
+    {
+      ccf::CodeDigest ret;
+      ds::from_hex(std::string(data.data(), data.end()), ret.data);
+      return ret;
+    }
+  };
+}

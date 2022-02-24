@@ -10,7 +10,6 @@
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
 #include "kv/store.h"
-#include "service/blit.h"
 #include "tables/backup_signatures.h"
 #include "tables/cert_bundles.h"
 #include "tables/code_id.h"

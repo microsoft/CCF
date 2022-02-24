@@ -7,7 +7,6 @@
 #include "ccf/service/tables/users.h"
 #include "enclave/enclave_time.h"
 #include "kv/kv_types.h"
-#include "service/blit.h"
 #include "service/tables/nodes.h"
 
 namespace ccf

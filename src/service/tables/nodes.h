@@ -8,6 +8,8 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/map.h"
+#include "ccf/kv/serialisers/blit_serialiser_entity_id.h"
+#include "ccf/kv/serialisers/blit_serialiser_pem.h"
 #include "ccf/quote_info.h"
 #include "ccf/service/map.h"
 #include "node_info_network.h"
