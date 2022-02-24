@@ -283,6 +283,7 @@ def test_protocols(network, args):
 
 @reqs.description("Write/Read large messages on primary")
 @reqs.supports_methods("/app/log/private")
+@app.scoped_txs("user0")
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -295,7 +296,7 @@ def test_large_messages(network, args):
             # 1K and move up to 1M and make sure they can cope with it.
             # Starting below 16K also helps identify problems (by seeing some
             # pass but not others, and finding where does it fail).
-            log_id = network.txs.find_max_log_id() + 1
+            log_id = 7
             for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
                 long_msg = "X" * (2**p)
                 check_commit(
@@ -332,6 +333,7 @@ def test_remove(network, args):
 
 @reqs.description("Write/Read/Clear messages on primary")
 @reqs.supports_methods("/app/log/private/all", "/app/log/public/all")
+@app.scoped_txs("user0")
 def test_clear(network, args):
     primary, _ = network.find_primary()
 
@@ -339,7 +341,7 @@ def test_clear(network, args):
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
-        start_log_id = network.txs.find_max_log_id() + 1
+        start_log_id = 7
         with primary.client("user0") as c:
             log_ids = list(range(start_log_id, start_log_id + 10))
             msg = "Will be deleted"
@@ -377,6 +379,7 @@ def test_clear(network, args):
 
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("/app/log/private/count", "/app/log/public/count")
+@app.scoped_txs("user0")
 def test_record_count(network, args):
     primary, _ = network.find_primary()
 
@@ -398,7 +401,7 @@ def test_record_count(network, args):
                 count = get_count(resource)
 
                 # Add several new IDs
-                start_log_id = network.txs.find_max_log_id() + 1
+                start_log_id = 7
                 for i in range(10):
                     log_id = start_log_id + i
                     check_commit(
@@ -621,10 +624,11 @@ def test_custom_auth_safety(network, args):
 
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
+@app.scoped_txs("user0")
 def test_raw_text(network, args):
     primary, _ = network.find_primary()
 
-    log_id = network.txs.find_max_log_id() + 1
+    log_id = 7
     msg = "This message is not in JSON"
     with primary.client("user0") as c:
         r = c.post(
@@ -1057,6 +1061,7 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs("user0")
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
@@ -1069,7 +1074,7 @@ def test_forwarding_frontends(network, args):
         check_commit = infra.checker.Checker(c)
         check = infra.checker.Checker()
         msg = "forwarded_msg"
-        log_id = network.txs.find_max_log_id() + 1
+        log_id = 7
         check_commit(
             c.post("/app/log/private", {"id": log_id, "msg": msg}),
             result=True,
@@ -1487,34 +1492,34 @@ if __name__ == "__main__":
     )
 
     # Is there a better way to do this?
-    if os.path.exists(
-        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-        cr.add(
-            "js_v8",
-            run,
-            package="libjs_v8",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-        )
+    # if os.path.exists(
+    #     os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
+    # ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
+    #     cr.add(
+    #         "js_v8",
+    #         run,
+    #         package="libjs_v8",
+    #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #         initial_user_count=4,
+    #         initial_member_count=2,
+    #     )
 
-    cr.add(
-        "cpp",
-        run,
-        package="samples/apps/logging/liblogging",
-        js_app_bundle=None,
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "cpp",
+    #     run,
+    #     package="samples/apps/logging/liblogging",
+    #     js_app_bundle=None,
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
     cr.add(
