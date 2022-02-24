@@ -15,6 +15,12 @@
 #include <regex>
 #include <set>
 
+namespace kv
+{
+  class Consensus;
+  class TxHistory;
+}
+
 namespace ccf::endpoints
 {
   struct PathTemplateSpec

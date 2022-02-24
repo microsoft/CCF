@@ -127,21 +127,6 @@ auto frontend_process(
   return processor.received.front();
 }
 
-auto get_vote(
-  MemberRpcFrontend& frontend,
-  ProposalId proposal_id,
-  const MemberId& voter,
-  const crypto::Pem& caller)
-{
-  const auto getter = create_request(
-    nullptr,
-    fmt::format("proposals/{}/ballots/{}", proposal_id, voter),
-    HTTP_GET);
-
-  return parse_response_body<Script>(
-    frontend_process(frontend, getter, caller));
-}
-
 auto activate(
   MemberRpcFrontend& frontend,
   const crypto::KeyPairPtr& kp,

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/tx.h"
+#include "kv/untyped_change_set.h"
 #include "kv_types.h"
-#include "untyped_map_handle.h"
 
 #include <functional>
 #include <map>
