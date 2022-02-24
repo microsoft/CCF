@@ -375,32 +375,50 @@ class LoggingTxs:
             )
 
 
-def scoped_txs(user):
+def scoped_txs(identity, verify=True):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            network = args[0]
-            old_txs = network.txs
-            headers = (
-                infra.jwt_issuer.make_bearer_header(network.jwt_issuer.issue_jwt())
-                if network.jwt_issuer
-                else {}
-            )
-            primary, _ = network.find_primary()
-            scope = None
-            with primary.client(user) as c:
+            network = None
+            node = None
+            previous_txs = None
+            headers = {}
+
+            if isinstance(args[0], infra.network.Network):
+                network = args[0]
+                if hasattr(network, "txs"):
+                    previous_txs = network.txs
+                if hasattr(network, "jwt_issuer") and network.jwt_issuer is not None:
+                    headers = infra.jwt_issuer.make_bearer_header(
+                        network.jwt_issuer.issue_jwt()
+                    )
+                node = network.find_random_node()
+            elif isinstance(args[0], infra.node.Node):
+                node = args[0]
+            else:
+                raise ValueError("invalid args[0]")
+
+            scope = get_fresh_scope(node, identity, headers)
+
+            if network:
+                network.txs = LoggingTxs(identity, scope=scope)
+
+            r = func(*args, **dict(kwargs, scope=scope))
+
+            if network:
+                if verify:
+                    network.txs.verify()
+                network.txs = previous_txs
+            return r
+
+        def get_fresh_scope(node, identity, headers):
+            with node.client(identity) as c:
                 r = c.get(
                     f"/app/log/fresh_scope?scope={func.__name__}", headers=headers
                 )
                 if r.status_code == http.HTTPStatus.OK:
-                    scope = r.body.json()["scope"]
-                else:
-                    raise ValueError("fresh scope request failed")
-            network.txs = LoggingTxs(user, scope=scope)
-            r = func(*args, **kwargs)
-            network.txs.verify()  # may fail if some things aren't flushed?
-            network.txs = old_txs
-            return r
+                    return r.body.json()["scope"]
+            raise ValueError("fresh scope request failed")
 
         return wrapper
 
