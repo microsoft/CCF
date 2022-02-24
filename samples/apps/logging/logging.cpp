@@ -12,7 +12,8 @@
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/version.h"
-#include "node/tx_receipt.h"
+// #include "node/tx_receipt.h"
+#include "kv/store.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -155,6 +156,25 @@ namespace loggingapp
           first_writes->put(id, prev_version.value());
         }
       }
+    }
+
+    std::optional<ccf::TxStatus> get_tx_status(ccf::SeqNo seqno)
+    {
+      ccf::ApiResult result;
+
+      ccf::View view_of_seqno;
+      result = get_view_for_seqno_v1(seqno, view_of_seqno);
+      if (result == ccf::ApiResult::OK)
+      {
+        ccf::TxStatus status;
+        result = get_status_for_txid_v1(view_of_seqno, seqno, status);
+        if (result == ccf::ApiResult::OK)
+        {
+          return status;
+        }
+      }
+
+      return std::nullopt;
     }
 
   public:
@@ -822,7 +842,7 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
-            historical_state->receipt->describe(out.receipt);
+            // historical_state->receipt->describe(out.receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
@@ -878,7 +898,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
-            historical_state->receipt->describe(out.receipt);
+            // historical_state->receipt->describe(out.receipt);
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
             out.receipt.leaf_components->claims_digest = std::nullopt;
@@ -1015,43 +1035,42 @@ namespace loggingapp
         }
 
         // End of range must be committed
-        if (consensus == nullptr)
+        const auto tx_status = get_tx_status(to_seqno);
+        if (!tx_status.has_value())
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Node is not fully operational");
+            "Unable to retrieve Tx status");
           return;
         }
 
-        const auto view_of_final_seqno = consensus->get_view(to_seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-        const auto tx_status = ccf::evaluate_tx_status(
-          view_of_final_seqno,
-          to_seqno,
-          view_of_final_seqno,
-          committed_view,
-          committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
+        if (tx_status.value() != ccf::TxStatus::Committed)
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
-              "Only committed transactions can be queried. Transaction {}.{} "
-              "is {}",
-              view_of_final_seqno,
+              "Only committed transactions can be queried. Transaction at "
+              "seqno {} is {}",
               to_seqno,
-              ccf::tx_status_to_str(tx_status)));
+              ccf::tx_status_to_str(tx_status.value())));
           return;
         }
 
         const auto indexed_txid = index_per_public_key->get_indexed_watermark();
         if (indexed_txid.seqno < to_seqno)
         {
-          index_per_public_key->extend_index_to(
-            {view_of_final_seqno, to_seqno});
+          {
+            ccf::View view_of_to_seqno;
+            const auto result =
+              get_view_for_seqno_v1(to_seqno, view_of_to_seqno);
+            if (result == ccf::ApiResult::OK)
+            {
+              index_per_public_key->extend_index_to(
+                {view_of_to_seqno, to_seqno});
+            }
+          }
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
           ctx.rpc_ctx->set_response_header(
@@ -1262,38 +1281,30 @@ namespace loggingapp
         }
 
         // End of range must be committed
-        if (consensus == nullptr)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Node is not fully operational");
-          return;
-        }
 
         std::sort(seqnos.begin(), seqnos.end());
 
         const auto final_seqno = seqnos.back();
-        const auto view_of_final_seqno = consensus->get_view(final_seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-        const auto tx_status = ccf::evaluate_tx_status(
-          view_of_final_seqno,
-          final_seqno,
-          view_of_final_seqno,
-          committed_view,
-          committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
+        const auto tx_status = get_tx_status(final_seqno);
+        if (!tx_status.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to retrieve Tx status");
+          return;
+        }
+
+        if (tx_status.value() != ccf::TxStatus::Committed)
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
-              "Only committed transactions can be queried. Transaction {}.{} "
-              "is {}",
-              view_of_final_seqno,
+              "Only committed transactions can be queried. Transaction at "
+              "seqno {} is {}",
               final_seqno,
-              ccf::tx_status_to_str(tx_status)));
+              ccf::tx_status_to_str(tx_status.value())));
           return;
         }
 
