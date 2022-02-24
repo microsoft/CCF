@@ -53,10 +53,10 @@ namespace crypto
       throw std::runtime_error("could not generate new EC key");
   }
 
-  KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem, std::span<const uint8_t> pw)
+  KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.data());
+    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, nullptr);
     if (!key)
       throw std::runtime_error("could not parse PEM");
   }
