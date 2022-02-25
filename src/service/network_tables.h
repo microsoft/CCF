@@ -4,6 +4,7 @@
 
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
 #include "ccf/service/tables/users.h"
 #include "consensus/aft/raft_tables.h"
@@ -18,7 +19,6 @@
 #include "tables/governance_history.h"
 #include "tables/jwt.h"
 #include "tables/modules.h"
-#include "tables/nodes.h"
 #include "tables/resharing_types.h"
 #include "tables/resharings.h"
 #include "tables/secrets.h"

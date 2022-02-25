@@ -4,10 +4,10 @@
 #include "ccf/base_endpoint_registry.h"
 
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
 #include "enclave/enclave_time.h"
 #include "kv/kv_types.h"
-#include "service/tables/nodes.h"
 
 namespace ccf
 {

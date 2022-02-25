@@ -3,12 +3,12 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "forwarder_types.h"
 #include "http/http_endpoint.h"
 #include "node/session_metrics.h"
 #include "rpc_handler.h"
-#include "service/tables/node_info_network.h"
 #include "tls/cert.h"
 #include "tls/client.h"
 #include "tls/context.h"

@@ -1,9 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// TODO: This is temporary, and I don't know what it proves
-#include "ccf/service/tables/members.h"
-
 // This app's includes
 #include "logging_schema.h"
 
@@ -24,12 +21,6 @@
 
 using namespace std;
 using namespace nlohmann;
-
-struct Foo
-{};
-
-using FooMap = kv::Map<Foo, Foo>; // TODO: Can we make this an error, if Foo
-                                  // isn't serializable here?
 
 namespace loggingapp
 {
@@ -189,9 +180,6 @@ namespace loggingapp
 
       // SNIPPET_START: record
       auto record = [this](auto& ctx, nlohmann::json&& params) {
-        auto members =
-          ctx.tx.template ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
-
         // SNIPPET_START: macro_validation_record
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record

@@ -9,6 +9,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/service/tables/gov.h"
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
 #include "frontend.h"
 #include "js/wrap.h"
 #include "node/quote.h"
@@ -21,7 +22,6 @@
 #include "service/genesis_gen.h"
 #include "service/tables/endpoints.h"
 #include "service/tables/jwt.h"
-#include "service/tables/nodes.h"
 
 #include <charconv>
 #include <exception>
