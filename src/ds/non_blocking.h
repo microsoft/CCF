@@ -144,7 +144,7 @@ namespace ringbuffer
 
     size_t get_max_message_size() override
     {
-      return std::numeric_limits<size_t>::max();
+      return underlying_writer->get_max_message_size();
     }
 
     // Returns true if flush completed and there are no more pending messages.
