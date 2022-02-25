@@ -101,6 +101,7 @@ class LoggingTxs:
         send_private=True,
         send_public=True,
         record_claim=False,
+        msg=None,
     ):
         self.network = network
         remote_node, _ = network.find_primary(log_capture=log_capture)
@@ -123,7 +124,10 @@ class LoggingTxs:
                     target_idx = self.idx
 
                 if send_private:
-                    priv_msg = f"Private message at idx {target_idx} [{len(self.priv[target_idx])}]"
+                    if msg:
+                        priv_msg = msg
+                    else:
+                        priv_msg = f"Private message at idx {target_idx} [{len(self.priv[target_idx])}]"
                     args = {"id": target_idx, "msg": priv_msg}
                     if self.scope is not None:
                         args["scope"] = self.scope
@@ -147,7 +151,10 @@ class LoggingTxs:
                     wait_point = rep_priv
 
                 if send_public:
-                    pub_msg = f"Public message at idx {target_idx} [{len(self.pub[target_idx])}]"
+                    if msg:
+                        pub_msg = msg
+                    else:
+                        pub_msg = f"Public message at idx {target_idx} [{len(self.pub[target_idx])}]"
                     payload = {
                         "id": target_idx,
                         "msg": pub_msg,
@@ -374,6 +381,18 @@ class LoggingTxs:
                 headers=self._get_headers_base(),
             )
 
+    def post_raw_text(self, log_id, msg, log_capture=None):
+        primary, _ = self.network.find_primary(log_capture=log_capture)
+        with primary.client(self.user) as c:
+            url = f"/app/log/private/raw_text/{log_id}"
+            if self.scope is not None:
+                url += "?scope=" + self.scope
+            return c.post(
+                url,
+                msg,
+                headers={"content-type": "text/plain"},
+            )
+
 
 def scoped_txs(identity, verify=True):
     def decorator(func):
@@ -402,6 +421,7 @@ def scoped_txs(identity, verify=True):
 
             if network:
                 network.txs = LoggingTxs(identity, scope=scope)
+                network.txs.network = network
                 r = func(*args, **kwargs)
             else:
                 r = func(*args, **dict(kwargs, scope=scope))

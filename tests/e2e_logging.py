@@ -285,26 +285,18 @@ def test_protocols(network, args):
 @reqs.supports_methods("/app/log/private")
 @app.scoped_txs("user0")
 def test_large_messages(network, args):
-    primary, _ = network.find_primary()
+    check = infra.checker.Checker()
 
-    with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        check = infra.checker.Checker()
-
-        with primary.client("user0") as c:
-            # TLS libraries usually have 16K intrernal buffers, so we start at
-            # 1K and move up to 1M and make sure they can cope with it.
-            # Starting below 16K also helps identify problems (by seeing some
-            # pass but not others, and finding where does it fail).
-            log_id = 7
-            for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2**p)
-                check_commit(
-                    c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
-                    result=True,
-                )
-                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": long_msg})
-                log_id += 1
+    # TLS libraries usually have 16K intrernal buffers, so we start at
+    # 1K and move up to 1M and make sure they can cope with it.
+    # Starting below 16K also helps identify problems (by seeing some
+    # pass but not others, and finding where does it fail).
+    log_id = 7
+    for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
+        long_msg = "X" * (2**p)
+        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
+        check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
+        log_id += 1
 
     return network
 
@@ -626,19 +618,13 @@ def test_custom_auth_safety(network, args):
 @reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
 @app.scoped_txs("user0")
 def test_raw_text(network, args):
-    primary, _ = network.find_primary()
-
     log_id = 7
     msg = "This message is not in JSON"
-    with primary.client("user0") as c:
-        r = c.post(
-            f"/app/log/private/raw_text/{log_id}",
-            msg,
-            headers={"content-type": "text/plain"},
-        )
-        assert r.status_code == http.HTTPStatus.OK.value
-        r = c.get(f"/app/log/private?id={log_id}")
-        assert msg in r.body.json()["msg"], r
+
+    r = network.txs.post_raw_text(log_id, msg)
+    assert r.status_code == http.HTTPStatus.OK.value
+    r = network.txs.request(log_id, priv=True)
+    assert msg in r.body.json()["msg"], r
 
     return network
 
