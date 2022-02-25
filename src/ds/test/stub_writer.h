@@ -4,6 +4,7 @@
 
 #include "ds/ring_buffer_types.h"
 
+#include <limits>
 #include <mutex>
 #include <vector>
 
@@ -53,5 +54,10 @@ public:
     auto& write = get_write(marker);
     write.contents.insert(write.contents.end(), bytes, bytes + size);
     return marker;
+  }
+
+  size_t get_max_message_size() override
+  {
+    return std::numeric_limits<size_t>::max();
   }
 };

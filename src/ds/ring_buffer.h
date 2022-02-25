@@ -273,6 +273,11 @@ namespace ringbuffer
       }
     }
 
+    virtual size_t get_max_message_size() override
+    {
+      return Const::max_size();
+    }
+
   protected:
     virtual WriteMarker write_bytes(
       const WriteMarker& marker, const uint8_t* bytes, size_t size) override

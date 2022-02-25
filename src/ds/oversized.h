@@ -313,7 +313,7 @@ namespace oversized
       return next;
     }
 
-    std::optional<size_t> get_max_message_size() override
+    size_t get_max_message_size() override
     {
       return max_total_size;
     }

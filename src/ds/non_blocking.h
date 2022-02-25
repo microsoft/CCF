@@ -7,6 +7,7 @@
 #include <deque>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -139,6 +140,11 @@ namespace ringbuffer
       // Otherwise, this was successfully prepared on the underlying
       // implementation - delegate to it for remaining writes
       return underlying_writer->write_bytes(marker, bytes, size);
+    }
+
+    size_t get_max_message_size() override
+    {
+      return std::numeric_limits<size_t>::max();
     }
 
     // Returns true if flush completed and there are no more pending messages.

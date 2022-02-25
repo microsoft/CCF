@@ -85,15 +85,13 @@ namespace ccf
       consensus::Index evidence_idx,
       const std::vector<uint8_t>& serialised_snapshot)
     {
-      std::optional<size_t> max_message_size = to_host->get_max_message_size();
-      if (
-        max_message_size.has_value() &&
-        serialised_snapshot.size() > max_message_size.value())
+      size_t max_message_size = to_host->get_max_message_size();
+      if (serialised_snapshot.size() > max_message_size)
       {
         LOG_FAIL_FMT(
           "Could not write snapshot of size {} > max ring buffer msg size {}",
           serialised_snapshot.size(),
-          max_message_size.value());
+          max_message_size);
         return;
       }
       RINGBUFFER_WRITE_MESSAGE(
