@@ -8,7 +8,6 @@
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "node/tx_receipt.h"
-#include "service/tables/service.h"
 
 #include <nlohmann/json.hpp>
 

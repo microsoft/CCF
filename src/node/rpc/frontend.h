@@ -5,6 +5,7 @@
 #include "ccf/endpoint_registry.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/service.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
@@ -13,7 +14,6 @@
 #include "kv/store.h"
 #include "rpc_exception.h"
 #include "service/tables/jwt.h"
-#include "service/tables/service.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

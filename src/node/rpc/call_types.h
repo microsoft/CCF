@@ -12,7 +12,6 @@
 #include "node/ledger_secrets.h"
 #include "node_call_types.h"
 #include "service/tables/code_id.h"
-#include "service/tables/service.h"
 
 #include <nlohmann/json.hpp>
 
