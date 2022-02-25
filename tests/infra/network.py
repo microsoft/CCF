@@ -576,8 +576,6 @@ class Network:
 
             last_ledger_seqno = ccf.ledger.range_from_filename(ledger_files[-1][0])[1]
             ledger_files = set(ledger_files)
-            LOG.error(ledger_files)
-            LOG.success(longest_ledger_files)
 
             if last_ledger_seqno > longest_ledger_seqno:
                 if longest_ledger_files and not longest_ledger_files.issubset(
