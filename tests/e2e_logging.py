@@ -429,7 +429,7 @@ def test_cert_prefix(network, args):
             log_id = network.txs.find_max_log_id() + 1
             msg = "This message will be prefixed"
             c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
-            r = c.get(f"/app/log/private?id={log_id}")
+            r = network.txs.request(log_id, priv=True)
             assert f"CN={user.local_id}" in r.body.json()["msg"], r
 
     return network
@@ -448,11 +448,11 @@ def test_anonymous_caller(network, args):
     with primary.client("user5") as c:
         r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
         assert r.body.json() == True
-        r = c.get(f"/app/log/private?id={log_id}")
+        r = network.txs.request(log_id, priv=True)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
 
     with primary.client("user0") as c:
-        r = c.get(f"/app/log/private?id={log_id}")
+        r = network.txs.request(log_id, priv=True)
         assert msg in r.body.json()["msg"], r
 
     return network
@@ -1062,12 +1062,8 @@ def test_forwarding_frontends(network, args):
         check = infra.checker.Checker()
         msg = "forwarded_msg"
         log_id = 7
-        check_commit(
-            c.post("/app/log/private", {"id": log_id, "msg": msg}),
-            result=True,
-        )
-        check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
-
+        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=msg)
+        check(network.txs.request(log_id, priv=True), result={"msg": msg})
         if args.package == "samples/apps/logging/liblogging":
             escaped_query_tests(c, "request_query")
 
@@ -1233,13 +1229,13 @@ class SentTxs:
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
 @reqs.supports_methods("/app/log/private")
+@app.scoped_txs("user0")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.client("user0") as c:
         check = infra.checker.Checker()
-        r = c.post("/app/log/private", {"id": 0, "msg": "Ignored"})
-        check(r)
+        r = network.txs.issue(network, 1, idx=0, send_public=False, msg="Ignored")
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
         target_view = r.view
@@ -1278,29 +1274,27 @@ def test_tx_statuses(network, args):
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs("user0")
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    with primary.client() as mc:
-        check_commit = infra.checker.Checker(mc)
-        msg = "Hello world"
+    msg = "Hello world"
 
-        LOG.info("Write/Read on primary")
-        with primary.client("user0") as c:
-            for j in range(10):
-                idx = j + 10000
-                r = c.post("/app/log/private", {"id": idx, "msg": msg})
-                check_commit(r, result=True)
-                start_time = time.time()
-                while time.time() < (start_time + 3.0):
-                    rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
-                    if rc.status_code == http.HTTPStatus.OK:
-                        receipt = rc.body.json()
-                        verify_receipt(receipt, network.cert)
-                        break
-                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                        time.sleep(0.5)
-                    else:
-                        assert False, rc
+    LOG.info("Write/Read on primary")
+    with primary.client("user0") as c:
+        for j in range(10):
+            idx = j + 10000
+            r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
+            start_time = time.time()
+            while time.time() < (start_time + 3.0):
+                rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    receipt = rc.body.json()
+                    verify_receipt(receipt, network.cert)
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    assert False, rc
 
     return network
 
