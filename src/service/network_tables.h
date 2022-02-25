@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/service/signed_req.h"
+#include "ccf/service/tables/constitution.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
@@ -15,7 +16,6 @@
 #include "tables/cert_bundles.h"
 #include "tables/code_id.h"
 #include "tables/config.h"
-#include "tables/constitution.h"
 #include "tables/governance_history.h"
 #include "tables/jwt.h"
 #include "tables/modules.h"
