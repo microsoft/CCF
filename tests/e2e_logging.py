@@ -93,6 +93,7 @@ def verify_receipt(
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs("user0", verify=False)
 def test(network, args):
     network.txs.issue(
         network=network,
