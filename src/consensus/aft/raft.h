@@ -2471,17 +2471,19 @@ namespace aft
           continue;
         }
 
-        if (!channels->have_channel(node_info.first))
-        {
-          LOG_DEBUG_FMT(
-            "Configurations: create node channel with {}", node_info.first);
-
-          channels->associate_node_address(
-            node_info.first, node_info.second.hostname, node_info.second.port);
-        }
-
         if (nodes.find(node_info.first) == nodes.end())
         {
+          if (!channels->have_channel(node_info.first))
+          {
+            LOG_DEBUG_FMT(
+              "Configurations: create node channel with {}", node_info.first);
+
+            channels->associate_node_address(
+              node_info.first,
+              node_info.second.hostname,
+              node_info.second.port);
+          }
+
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;
