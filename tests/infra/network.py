@@ -576,15 +576,24 @@ class Network:
 
             last_ledger_seqno = ccf.ledger.range_from_filename(ledger_files[-1][0])[1]
             ledger_files = set(ledger_files)
-            if longest_ledger_files and not ledger_files.issubset(longest_ledger_files):
-                raise Exception(
-                    f"Ledger files on node {node.local_node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
-                )
+            LOG.error(ledger_files)
+            LOG.success(longest_ledger_files)
 
-            if last_ledger_seqno >= longest_ledger_seqno:
+            if last_ledger_seqno > longest_ledger_seqno:
+                if longest_ledger_files and not longest_ledger_files.issubset(
+                    ledger_files
+                ):
+                    raise Exception(
+                        f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: {ledger_files - longest_ledger_files}"
+                    )
                 longest_ledger_files = ledger_files
                 longest_ledger_node = node
                 longest_ledger_seqno = last_ledger_seqno
+            else:
+                if not ledger_files.issubset(longest_ledger_files):
+                    raise Exception(
+                        f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
+                    )
 
         LOG.info(
             f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
