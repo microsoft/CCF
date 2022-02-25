@@ -1250,8 +1250,6 @@ namespace aft
           continue;
         }
 
-        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
-
         std::vector<uint8_t> entry;
         try
         {
@@ -1298,16 +1296,16 @@ namespace aft
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
-        state->last_idx = i;
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
         kv::ApplyResult apply_success = ds->apply();
         if (apply_success == kv::ApplyResult::FAIL)
         {
-          state->last_idx = i - 1;
-          ledger->truncate(state->last_idx);
+          ledger->truncate(i - 1);
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
+        state->last_idx = i;
 
         for (auto& hook : ds->get_hooks())
         {
@@ -2313,15 +2311,6 @@ namespace aft
       return state->cft_watermark_idx;
     }
 
-    const Configuration::Nodes& get_last_configuration_nodes()
-    {
-      if (configurations.empty())
-      {
-        throw std::logic_error("Configurations is empty");
-      }
-      return configurations.back().nodes;
-    }
-
     bool is_self_in_latest_config()
     {
       bool present = false;
@@ -2482,20 +2471,21 @@ namespace aft
           continue;
         }
 
-        if (
-          nodes.find(node_info.first) == nodes.end() ||
-          !channels->have_channel(node_info.first))
+        if (!channels->have_channel(node_info.first))
         {
           LOG_DEBUG_FMT(
             "Configurations: create node channel with {}", node_info.first);
 
+          channels->associate_node_address(
+            node_info.first, node_info.second.hostname, node_info.second.port);
+        }
+
+        if (nodes.find(node_info.first) == nodes.end())
+        {
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
-
-          channels->associate_node_address(
-            node_info.first, node_info.second.hostname, node_info.second.port);
 
           if (leadership_state == kv::LeadershipState::Leader)
           {
