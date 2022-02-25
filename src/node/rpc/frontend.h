@@ -13,7 +13,7 @@
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "rpc_exception.h"
-#include "service/tables/jwt.h"
+#include "ccf/service/tables/jwt.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

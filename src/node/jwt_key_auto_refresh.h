@@ -6,7 +6,7 @@
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
-#include "service/tables/jwt.h"
+#include "ccf/service/tables/jwt.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

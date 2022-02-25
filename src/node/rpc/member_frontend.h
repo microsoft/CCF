@@ -21,7 +21,7 @@
 #include "node_interface.h"
 #include "service/genesis_gen.h"
 #include "service/tables/endpoints.h"
-#include "service/tables/jwt.h"
+#include "ccf/service/tables/jwt.h"
 
 #include <charconv>
 #include <exception>
