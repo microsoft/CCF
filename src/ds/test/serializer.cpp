@@ -5,6 +5,7 @@
 #include "../ring_buffer.h"
 
 #include <doctest/doctest.h>
+#include <limits>
 
 using namespace ringbuffer;
 using namespace serializer;
@@ -58,6 +59,11 @@ struct VectorWriter : public AbstractWriter
     REQUIRE(index + size <= payload.size());
     ::memcpy(payload.data() + index, bytes, size);
     return {index + size};
+  }
+
+  size_t get_max_message_size() override
+  {
+    return std::numeric_limits<size_t>::max();
   }
 
   template <typename FnCheckPayload>
