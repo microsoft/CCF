@@ -312,6 +312,11 @@ namespace oversized
 
       return next;
     }
+
+    size_t get_max_message_size() override
+    {
+      return max_total_size;
+    }
   };
 
   struct WriterConfig
