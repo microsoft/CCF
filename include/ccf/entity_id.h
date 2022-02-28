@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <string>
 
@@ -192,3 +193,23 @@ struct formatter<ccf::EntityId<FmtExtender>>
   }
 };
 FMT_END_NAMESPACE
+
+namespace kv::serialisers
+{
+  template <typename FmtExtender>
+  struct BlitSerialiser<ccf::EntityId<FmtExtender>>
+  {
+    static SerialisedEntry to_serialised(
+      const ccf::EntityId<FmtExtender>& entity_id)
+    {
+      const auto& data = entity_id.value();
+      return SerialisedEntry(data.begin(), data.end());
+    }
+
+    static ccf::EntityId<FmtExtender> from_serialised(
+      const SerialisedEntry& data)
+    {
+      return ccf::EntityId<FmtExtender>(std::string(data.begin(), data.end()));
+    }
+  };
+}

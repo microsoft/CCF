@@ -3,7 +3,7 @@
 
 #include "ccf/crypto/sha256_hash.h"
 
-#include "ds/hex.h"
+#include "ccf/ds/hex.h"
 
 namespace crypto
 {

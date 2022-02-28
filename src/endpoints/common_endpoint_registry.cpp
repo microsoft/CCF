@@ -10,10 +10,9 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
+#include "ccf/service/tables/code_id.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
-#include "service/blit.h" // TODO: Can remove after merge
-#include "service/tables/code_id.h"
 
 namespace ccf
 {

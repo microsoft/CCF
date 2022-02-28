@@ -4,8 +4,8 @@
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
 #include "ccf/rpc_context.h"
+#include "ccf/service/tables/jwt.h"
 #include "http/http_jwt.h"
-#include "service/tables/jwt.h"
 
 namespace ccf
 {

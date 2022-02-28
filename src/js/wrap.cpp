@@ -4,6 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/rpc_context.h"
+#include "ccf/service/tables/jwt.h"
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -15,8 +16,8 @@
 #include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
+#include "node/rpc/jwt_management.h"
 #include "node/rpc/node_interface.h"
-#include "service/tables/jwt.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>

@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Snapshot generation no longer causes a node crash if the snapshot is larger than the ring buffer message size (`memory.max_msg_size`). Instead, the generation of the large snapshot is skipped. (#3603).
+- Snapshot generation no longer causes a node crash if the snapshot is larger than the ring buffer message size (`memory.max_msg_size`). Instead, the generation of the large snapshot is skipped (#3603).
 
 ### Changed
 
-- `TxReceipt::describe()` has been replaced with `ccf::describe_receipt()`. Includes of the private `node/tx_receipt.h` from C++ applications should be removed.
+- The C++ types used to define public governance tables are now exposed in public headers. Any C++ applications reading these tables should update their include paths (ie - `#include "service/tables/nodes.h"` => `#include "ccf/service/tables/nodes.h"`) (#3608).
+- `TxReceipt::describe()` has been replaced with `ccf::describe_receipt()`. Includes of the private `node/tx_receipt.h` from C++ applications should be removed (#3610).
 
 ## [2.0.0-rc2]
 

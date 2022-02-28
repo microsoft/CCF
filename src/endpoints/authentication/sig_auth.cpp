@@ -9,7 +9,6 @@
 #include "ccf/service/tables/users.h"
 #include "ds/lru.h"
 #include "http/http_sig.h"
-#include "service/blit.h"
 
 namespace ccf
 {
