@@ -437,23 +437,28 @@ def test_cert_prefix(network, args):
 
 @reqs.description("Write as anonymous caller")
 @reqs.supports_methods("/app/log/private/anonymous", "/app/log/private")
+@app.scoped_txs("user0")
 def test_anonymous_caller(network, args):
-    primary, _ = network.find_primary()
-
     # Create a new user but do not record its identity
     network.create_user("user5", args.participants_curve, record=False)
 
-    log_id = network.txs.find_max_log_id() + 1
+    log_id = 7
     msg = "This message is anonymous"
-    with primary.client("user5") as c:
-        r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
-        assert r.body.json() == True
-        r = network.txs.request(log_id, priv=True)
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
 
-    with primary.client("user0") as c:
-        r = network.txs.request(log_id, priv=True)
-        assert msg in r.body.json()["msg"], r
+    network.txs.issue(
+        network,
+        1,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+        user="user5",
+        anonymous=True,
+    )
+    r = network.txs.request(log_id, priv=True, user="user5")
+    assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
+
+    r = network.txs.request(log_id, priv=True)
+    assert msg in r.body.json()["msg"], r
 
     return network
 

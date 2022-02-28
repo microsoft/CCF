@@ -102,6 +102,8 @@ class LoggingTxs:
         send_public=True,
         record_claim=False,
         msg=None,
+        user=None,
+        anonymous=False,
     ):
         self.network = network
         remote_node, _ = network.find_primary(log_capture=log_capture)
@@ -112,7 +114,7 @@ class LoggingTxs:
             f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
         )
 
-        with remote_node.client(self.user) as c:
+        with remote_node.client(user if user else self.user) as c:
             check_commit = infra.checker.Checker(c)
 
             for _ in range(number_txs):
@@ -132,6 +134,8 @@ class LoggingTxs:
                     if self.scope is not None:
                         args["scope"] = self.scope
                     url = "/app/log/private"
+                    if anonymous:
+                        url += "/anonymous"
                     if self.scope is not None:
                         url += "?scope=" + self.scope
                     rep_priv = c.post(
@@ -141,9 +145,12 @@ class LoggingTxs:
                         log_capture=log_capture,
                     )
                     assert rep_priv.status_code == http.HTTPStatus.OK, rep_priv
+                    recorded_msg = priv_msg
+                    if anonymous:
+                        recorded_msg = "Anonymous: " + recorded_msg
                     self.priv[target_idx].append(
                         {
-                            "msg": priv_msg,
+                            "msg": recorded_msg,
                             "seqno": rep_priv.seqno,
                             "view": rep_priv.view,
                         }
@@ -160,6 +167,8 @@ class LoggingTxs:
                         "msg": pub_msg,
                     }
                     url = "/app/log/public"
+                    if anonymous:
+                        url += "/anonymous"
                     if self.scope is not None:
                         url += "?scope=" + self.scope
                     if record_claim:
@@ -171,8 +180,15 @@ class LoggingTxs:
                         log_capture=log_capture,
                     )
                     assert rep_pub.status_code == http.HTTPStatus.OK, rep_pub
+                    recorded_msg = pub_msg
+                    if anonymous:
+                        recorded_msg = "Anonymous: " + recorded_msg
                     self.pub[target_idx].append(
-                        {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
+                        {
+                            "msg": recorded_msg,
+                            "seqno": rep_pub.seqno,
+                            "view": rep_pub.view,
+                        }
                     )
                     wait_point = rep_pub
             if number_txs and wait_for_sync:
@@ -355,10 +371,10 @@ class LoggingTxs:
                 f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
 
-    def delete(self, log_id, priv=False, log_capture=None):
+    def delete(self, log_id, priv=False, log_capture=None, user=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
         check = infra.checker.Checker()
-        with primary.client(self.user) as c:
+        with primary.client(user if user else self.user) as c:
             table = "private" if priv else "public"
             url = f"/app/log/{table}?id={log_id}"
             if self.scope is not None:
@@ -369,9 +385,9 @@ class LoggingTxs:
             else:
                 self.pub.pop(log_id)
 
-    def request(self, log_id, priv=False, log_capture=None):
+    def request(self, log_id, priv=False, log_capture=None, user=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
-        with primary.client(self.user) as c:
+        with primary.client(user if user else self.user) as c:
             table = "private" if priv else "public"
             url = f"/app/log/{table}?id={log_id}"
             if self.scope is not None:
@@ -381,9 +397,9 @@ class LoggingTxs:
                 headers=self._get_headers_base(),
             )
 
-    def post_raw_text(self, log_id, msg, log_capture=None):
+    def post_raw_text(self, log_id, msg, log_capture=None, user=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
-        with primary.client(self.user) as c:
+        with primary.client(user if user else self.user) as c:
             url = f"/app/log/private/raw_text/{log_id}"
             if self.scope is not None:
                 url += "?scope=" + self.scope
