@@ -83,9 +83,9 @@ Building older versions of CCF may require a different toolchain than the one us
     $ git checkout ccf-1.0.15 # e.g. building CCF 1.0.15
     $ docker run -ti --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v $LOCAL_CCF_CHECKOUT_PATH:/CCF ccfciteam/ccf-ci:$CCF_CI_IMAGE_TAG bash
     # container started, following lines are in container
-    $ root@:/# cd CCF/
-    $ root@:/# mkdir build_docker && cd build_docker
-    $ root@:/# cmake -GNinja .. && ninja
+     $ cd CCF/
+     $ mkdir build_docker && cd build_docker
+     $ cmake -GNinja .. && ninja
 
 The built libraries and binaries are then available outside of the container in the ``build_docker`` directory in the local CCF checkout.
 
