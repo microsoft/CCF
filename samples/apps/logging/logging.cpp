@@ -5,12 +5,13 @@
 #include "logging_schema.h"
 
 // CCF
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
+#include "ccf/json_handler.h"
 #include "ccf/version.h"
 #include "kv/store.h"
 
@@ -136,8 +137,6 @@ namespace loggingapp
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
 
-    metrics::Tracker metrics_tracker;
-
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
 
     static void update_first_write(
@@ -189,7 +188,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.7.0";
+      openapi_info.document_version = "1.8.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -1487,15 +1486,6 @@ namespace loggingapp
         {ccf::user_signature_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
-
-      metrics_tracker.install_endpoint(*this);
-    }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 }

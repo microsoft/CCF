@@ -38,7 +38,6 @@ namespace ccf
     kv::TxHistory* history;
 
     size_t sig_tx_interval = 5000;
-    std::atomic<size_t> tx_count_since_tick = 0;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     crypto::Pem* service_identity = nullptr;
@@ -252,8 +251,6 @@ namespace ccf
       }
 
       auto args = endpoints::EndpointContext(ctx, std::move(identity), tx);
-
-      tx_count_since_tick++;
 
       size_t attempts = 0;
       constexpr auto max_attempts = 30;
@@ -568,11 +565,7 @@ namespace ccf
     {
       update_consensus();
 
-      // reset tx_count_since_tick for next tick interval, but pass current
-      // value for stats
-      size_t tx_count = tx_count_since_tick.exchange(0u);
-
-      endpoints.tick(elapsed, tx_count);
+      endpoints.tick(elapsed);
     }
   };
 }
