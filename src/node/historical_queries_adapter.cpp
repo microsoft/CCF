@@ -3,8 +3,73 @@
 
 #include "ccf/historical_queries_adapter.h"
 
+#include "ccf/crypto/base64.h"
 #include "ccf/rpc_context.h"
 #include "kv/kv_types.h"
+#include "node/tx_receipt.h"
+
+namespace ccf
+{
+  ccf::Receipt describe_receipt(const TxReceiptPtr& receipt, bool include_root)
+  {
+    if (receipt == nullptr)
+    {
+      throw std::runtime_error("Cannot describe nullptr receipt");
+    }
+
+    ccf::Receipt out;
+    out.signature = crypto::b64_from_raw(receipt->signature);
+    if (include_root)
+    {
+      out.root = receipt->root.to_string();
+    }
+    if (receipt->path != nullptr)
+    {
+      for (const auto& node : *receipt->path)
+      {
+        ccf::Receipt::Element n;
+        if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+        {
+          n.left = node.hash.to_string();
+        }
+        else
+        {
+          n.right = node.hash.to_string();
+        }
+        out.proof.emplace_back(std::move(n));
+      }
+    }
+    out.node_id = receipt->node_id;
+
+    if (receipt->cert.has_value())
+    {
+      out.cert = receipt->cert->str();
+    }
+
+    if (receipt->path == nullptr)
+    {
+      // Signature transaction
+      out.leaf = receipt->root.to_string();
+    }
+    else if (!receipt->commit_evidence.has_value())
+    {
+      out.leaf = receipt->write_set_digest->hex_str();
+    }
+    else
+    {
+      std::optional<std::string> write_set_digest_str = std::nullopt;
+      if (receipt->write_set_digest.has_value())
+        write_set_digest_str = receipt->write_set_digest->hex_str();
+      std::optional<std::string> claims_digest_str = std::nullopt;
+      if (!receipt->claims_digest.empty())
+        claims_digest_str = receipt->claims_digest.value().hex_str();
+      out.leaf_components = Receipt::LeafComponents{
+        write_set_digest_str, receipt->commit_evidence, claims_digest_str};
+    }
+
+    return out;
+  }
+}
 
 namespace ccf::historical
 {

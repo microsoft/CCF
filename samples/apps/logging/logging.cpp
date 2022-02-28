@@ -12,7 +12,6 @@
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/version.h"
-// #include "node/tx_receipt.h"
 #include "kv/store.h"
 
 #include <charconv>
@@ -842,7 +841,7 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
-            // historical_state->receipt->describe(out.receipt);
+            out.receipt = ccf::describe_receipt(historical_state->receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
@@ -898,7 +897,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
-            // historical_state->receipt->describe(out.receipt);
+            out.receipt = ccf::describe_receipt(historical_state->receipt);
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
             out.receipt.leaf_components->claims_digest = std::nullopt;

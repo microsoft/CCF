@@ -12,7 +12,7 @@
 #include "ccf/node_context.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
-#include "node/tx_receipt.h"
+#include "service/blit.h" // TODO: Can remove after merge
 #include "service/tables/code_id.h"
 
 namespace ccf
@@ -236,9 +236,8 @@ namespace ccf
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
-        ccf::Receipt out;
         assert(historical_state->receipt);
-        historical_state->receipt->describe(out);
+        ccf::Receipt out = ccf::describe_receipt(historical_state->receipt);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
       };

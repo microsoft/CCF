@@ -13,8 +13,13 @@
 
 namespace ccf
 {
+  // This is an opaque, incomplete type, but can be summarised by the function
+  // below
   struct TxReceipt;
   using TxReceiptPtr = std::shared_ptr<TxReceipt>;
+
+  ccf::Receipt describe_receipt(
+    const TxReceiptPtr& receipt, bool include_root = false);
 }
 
 namespace ccf::historical
