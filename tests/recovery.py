@@ -438,7 +438,8 @@ checked. Note that the key for each logging message is unique (per table).
 
     # Note: `run_corrupted_ledger` runs with very a specific node configuration
     # so that the contents of recovered (and tampered) ledger chunks
-    # can be dictated by the test. In particular, the signature interval is large # enough to create in-progress ledger files that do not end on a signature. The
+    # can be dictated by the test. In particular, the signature interval is large
+    # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
     cr.add(
         "recovery_corrupt_ledger",
