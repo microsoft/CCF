@@ -457,6 +457,21 @@ int main(int argc, char** argv)
 #endif
     }
 
+    std::atomic<bool> ecall_completed = false;
+    auto flush_outbound = [&]() {
+      while (true)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        bp.read_all(circuit.read_from_inside());
+
+        if (ecall_completed)
+        {
+          break;
+        }
+      }
+    };
+    std::thread flusher_thread(flush_outbound);
     auto create_status = enclave.create_node(
       enclave_config,
       startup_config,
@@ -465,6 +480,8 @@ int main(int argc, char** argv)
       config.command.type,
       config.worker_threads,
       time_updater->behaviour.get_value());
+    ecall_completed.store(true);
+    flusher_thread.join();
 
     if (create_status != CreateNodeStatus::OK)
     {
