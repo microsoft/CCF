@@ -49,8 +49,8 @@ The most common build switches include:
 * **COMPILE_TARGETS**: String. List of target compilation platforms. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
-Running Tests
--------------
+Run Tests
+---------
 
 Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 
@@ -70,17 +70,36 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 
     Tests that require enclave attestation will be skipped.
 
-Updating the Documentation
---------------------------
+Build Older Versions of CCF
+---------------------------
+
+Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`). To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image. The version tag of the ``cci-ci`` image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``).
+
+.. code-block:: bash
+
+    $ export CCF_CI_IMAGE_TAG="oe0.17.2-clang-8" # e.g. building CCF 1.0.15
+    $ export LOCAL_CCF_CHECKOUT_PATH=/path/to/local/ccf/checkout
+    $ cd $LOCAL_CCF_CHECKOUT_PATH
+    $ git checkout ccf-1.0.15 # e.g. building CCF 1.0.15
+    $ docker run -ti --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v $LOCAL_CCF_CHECKOUT_PATH:/CCF ccfciteam/ccf-ci:$CCF_CI_IMAGE_TAG bash
+    # container started, following lines are in container
+    $ root@:/# cd CCF/
+    $ root@:/# mkdir build_docker && cd build_docker
+    $ root@:/# cmake -GNinja .. && ninja
+
+The built libraries and binaries are then available outside of the container in the ``build_docker`` directory in the local CCF checkout.
+
+Update the Documentation
+------------------------
 
 It is possible to preview local documentation changes by running
 
 .. code-block:: bash
 
-    $ ./livehtml.sh ..
+    $ ./livehtml.sh
 
 or if there are no Doxygen changes
 
 .. code-block:: bash
 
-    $ SKIP_DOXYGEN=ON ./livehtml.sh ..
+    $ SKIP_DOXYGEN=ON ./livehtml.sh
