@@ -3,12 +3,12 @@
 #pragma once
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
 #include "ccf/tx.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
-#include "service/tables/code_id.h"
-#include "service/tables/nodes.h"
 
 #include <algorithm>
 #include <fstream>

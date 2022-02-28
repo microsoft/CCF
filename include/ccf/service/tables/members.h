@@ -5,6 +5,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/entity_id.h"
+#include "ccf/service/blit_serialiser_pem.h"
 #include "ccf/service/map.h"
 #include "ccf/service/signed_req.h"
 
