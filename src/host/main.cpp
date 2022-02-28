@@ -456,8 +456,8 @@ int main(int argc, char** argv)
         "Selected consensus BFT is not supported in {}", ccf::ccf_version);
 #endif
     }
-    LOG_INFO_FMT("Initialising enclave: enclave_create_node");
 
+    LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     auto create_status = enclave.create_node(
       enclave_config,
       startup_config,
