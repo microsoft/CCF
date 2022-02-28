@@ -460,17 +460,12 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
     auto flush_outbound = [&]() {
-      while (true)
+      do
       {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         bp.read_all(circuit.read_from_inside());
-
-        if (ecall_completed)
-        {
-          break;
-        }
-      }
+      } while (!ecall_completed);
     };
     std::thread flusher_thread(flush_outbound);
     auto create_status = enclave.create_node(
