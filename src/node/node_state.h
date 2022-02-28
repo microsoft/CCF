@@ -2246,6 +2246,7 @@ namespace ccf
         reconfiguration_type);
 
       network.tables->set_consensus(consensus);
+      network.tables->set_snapshotter(snapshotter);
 
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.

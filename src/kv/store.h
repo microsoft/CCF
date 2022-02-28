@@ -542,6 +542,18 @@ namespace kv
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
+
+      if (snapshotter)
+      {
+        bool generate_snapshot = false;
+        auto c = get_consensus();
+        if (c && c->is_primary())
+        {
+          generate_snapshot = true;
+        }
+        snapshotter->commit(v, generate_snapshot);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       if (v > current_version())
@@ -590,6 +602,12 @@ namespace kv
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
+
+      if (snapshotter)
+      {
+        snapshotter->rollback(idx);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       {

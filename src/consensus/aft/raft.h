@@ -2165,11 +2165,11 @@ namespace aft
       }
 
       LOG_DEBUG_FMT("Compacting...");
-      // Snapshots are not yet supported with BFT
-      snapshotter->commit(
-        idx,
-        leadership_state == kv::LeadershipState::Leader &&
-          consensus_type == ConsensusType::CFT);
+      // // Snapshots are not yet supported with BFT
+      // snapshotter->commit(
+      //   idx,
+      //   leadership_state == kv::LeadershipState::Leader &&
+      //     consensus_type == ConsensusType::CFT);
 
       store->compact(idx);
       ledger->commit(idx);
@@ -2354,7 +2354,7 @@ namespace aft
         return;
       }
 
-      snapshotter->rollback(idx);
+      // snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
 
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
