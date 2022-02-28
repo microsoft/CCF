@@ -8,6 +8,7 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/json_handler.h"
 #include "ccf/service/tables/gov.h"
+#include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
@@ -21,7 +22,6 @@
 #include "node_interface.h"
 #include "service/genesis_gen.h"
 #include "service/tables/endpoints.h"
-#include "ccf/service/tables/jwt.h"
 
 #include <charconv>
 #include <exception>
