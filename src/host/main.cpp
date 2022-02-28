@@ -456,6 +456,7 @@ int main(int argc, char** argv)
         "Selected consensus BFT is not supported in {}", ccf::ccf_version);
 #endif
     }
+    LOG_INFO_FMT("Initialising enclave: enclave_create_node");
 
     auto create_status = enclave.create_node(
       enclave_config,
@@ -516,6 +517,7 @@ int main(int argc, char** argv)
       }
     };
 
+    LOG_INFO_FMT("Starting enclave thread(s)");
     // Start threads which will ECall and process messages inside the enclave
     std::vector<std::thread> threads;
     for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
@@ -523,7 +525,9 @@ int main(int argc, char** argv)
       threads.emplace_back(std::thread(enclave_thread_start));
     }
 
+    LOG_INFO_FMT("Entering event loop");
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    LOG_INFO_FMT("Exited event loop");
     for (auto& t : threads)
     {
       t.join();
