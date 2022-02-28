@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/kv/read_only_store.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/receipt.h"
 #include "ccf/seq_no_collection.h"
@@ -22,6 +23,7 @@ namespace ccf::historical
   struct State
   {
     /// Read-only historical store at transaction_id
+    // TODO: Problem is re-using this for interface and implementation
     kv::StorePtr store = nullptr;
     /// Receipt for ledger entry at transaction_id
     TxReceiptPtr receipt = nullptr;
@@ -91,7 +93,7 @@ namespace ccf::historical
      * is equivalent to get_store_at(handle, seqno, seqno), but returns nullptr
      * if the state is currently unavailable.
      */
-    virtual kv::StorePtr get_store_at(
+    virtual kv::ReadOnlyStorePtr get_store_at(
       RequestHandle handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) = 0;
@@ -99,7 +101,7 @@ namespace ccf::historical
     /** Same as @c get_store_at but uses default expiry value.
      * @see get_store_at
      */
-    virtual kv::StorePtr get_store_at(
+    virtual kv::ReadOnlyStorePtr get_store_at(
       RequestHandle handle, ccf::SeqNo seqno) = 0;
 
     /** Retrieve a full state at a given seqno, including the Store, the TxID
@@ -133,7 +135,7 @@ namespace ccf::historical
      * vector will be of length (end_seqno - start_seqno + 1) and will contain
      * no nullptrs.
      */
-    virtual std::vector<kv::StorePtr> get_store_range(
+    virtual std::vector<kv::ReadOnlyStorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -142,7 +144,7 @@ namespace ccf::historical
     /** Same as @c get_store_range but uses default expiry value.
      * @see get_store_range
      */
-    virtual std::vector<kv::StorePtr> get_store_range(
+    virtual std::vector<kv::ReadOnlyStorePtr> get_store_range(
       RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
 
     /** Retrieve a range of states at the given indices, including the Store,
@@ -163,11 +165,11 @@ namespace ccf::historical
 
     /** Retrieve stores for a set of given indices.
      */
-    virtual std::vector<kv::StorePtr> get_stores_for(
+    virtual std::vector<kv::ReadOnlyStorePtr> get_stores_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) = 0;
-    virtual std::vector<kv::StorePtr> get_stores_for(
+    virtual std::vector<kv::ReadOnlyStorePtr> get_stores_for(
       RequestHandle handle, const SeqNoCollection& seqnos) = 0;
 
     /** Retrieve states for a set of given indices.

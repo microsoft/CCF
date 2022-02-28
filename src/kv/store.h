@@ -3,6 +3,7 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/kv/read_only_store.h"
 #include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
@@ -75,7 +76,8 @@ namespace kv
 
   class Store : public AbstractStore,
                 public StoreState,
-                public ExecutionWrapperStore
+                public ExecutionWrapperStore,
+                public ReadOnlyStore
   {
   private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
@@ -1201,7 +1203,7 @@ namespace kv
       }
     }
 
-    ReadOnlyTx create_read_only_tx()
+    ReadOnlyTx create_read_only_tx() override
     {
       return ReadOnlyTx(this);
     }

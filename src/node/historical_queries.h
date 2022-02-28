@@ -841,10 +841,10 @@ namespace ccf::historical
       }
     }
 
-    std::vector<kv::StorePtr> states_to_stores(
+    std::vector<kv::ReadOnlyStorePtr> states_to_stores(
       const std::vector<StatePtr>& states)
     {
-      std::vector<kv::StorePtr> stores;
+      std::vector<kv::ReadOnlyStorePtr> stores;
       for (size_t i = 0; i < states.size(); i++)
       {
         stores.push_back(states[i]->store);
@@ -865,7 +865,7 @@ namespace ccf::historical
         std::make_shared<ccf::NodeEncryptor>(historical_ledger_secrets))
     {}
 
-    kv::StorePtr get_store_at(
+    kv::ReadOnlyStorePtr get_store_at(
       const CompoundHandle& handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry)
@@ -879,7 +879,8 @@ namespace ccf::historical
       return range[0];
     }
 
-    kv::StorePtr get_store_at(const CompoundHandle& handle, ccf::SeqNo seqno)
+    kv::ReadOnlyStorePtr get_store_at(
+      const CompoundHandle& handle, ccf::SeqNo seqno)
     {
       return get_store_at(handle, seqno, default_expiry_duration);
     }
@@ -903,7 +904,7 @@ namespace ccf::historical
       return get_state_at(handle, seqno, default_expiry_duration);
     }
 
-    std::vector<kv::StorePtr> get_store_range(
+    std::vector<kv::ReadOnlyStorePtr> get_store_range(
       const CompoundHandle& handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -916,7 +917,7 @@ namespace ccf::historical
         false));
     }
 
-    std::vector<kv::StorePtr> get_store_range(
+    std::vector<kv::ReadOnlyStorePtr> get_store_range(
       const CompoundHandle& handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno)
@@ -947,7 +948,7 @@ namespace ccf::historical
         handle, start_seqno, end_seqno, default_expiry_duration);
     }
 
-    std::vector<kv::StorePtr> get_stores_for(
+    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
       const CompoundHandle& handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry)
@@ -956,7 +957,7 @@ namespace ccf::historical
         get_states_internal(handle, seqnos, seconds_until_expiry, false));
     }
 
-    std::vector<kv::StorePtr> get_stores_for(
+    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
       const CompoundHandle& handle, const SeqNoCollection& seqnos)
     {
       return get_stores_for(handle, seqnos, default_expiry_duration);
@@ -1239,7 +1240,7 @@ namespace ccf::historical
     StateCache(Ts&&... ts) : StateCacheImpl(std::forward<Ts>(ts)...)
     {}
 
-    kv::StorePtr get_store_at(
+    kv::ReadOnlyStorePtr get_store_at(
       RequestHandle handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) override
@@ -1248,7 +1249,8 @@ namespace ccf::historical
         make_compound_handle(handle), seqno, seconds_until_expiry);
     }
 
-    kv::StorePtr get_store_at(RequestHandle handle, ccf::SeqNo seqno) override
+    kv::ReadOnlyStorePtr get_store_at(
+      RequestHandle handle, ccf::SeqNo seqno) override
     {
       return StateCacheImpl::get_store_at(make_compound_handle(handle), seqno);
     }
@@ -1267,7 +1269,7 @@ namespace ccf::historical
       return StateCacheImpl::get_state_at(make_compound_handle(handle), seqno);
     }
 
-    std::vector<kv::StorePtr> get_store_range(
+    std::vector<kv::ReadOnlyStorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -1280,7 +1282,7 @@ namespace ccf::historical
         seconds_until_expiry);
     }
 
-    std::vector<kv::StorePtr> get_store_range(
+    std::vector<kv::ReadOnlyStorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno) override
@@ -1311,7 +1313,7 @@ namespace ccf::historical
         make_compound_handle(handle), start_seqno, end_seqno);
     }
 
-    std::vector<kv::StorePtr> get_stores_for(
+    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) override
@@ -1320,7 +1322,7 @@ namespace ccf::historical
         make_compound_handle(handle), seqnos, seconds_until_expiry);
     }
 
-    std::vector<kv::StorePtr> get_stores_for(
+    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
       RequestHandle handle, const SeqNoCollection& seqnos) override
     {
       return StateCacheImpl::get_stores_for(
