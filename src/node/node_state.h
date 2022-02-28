@@ -1751,7 +1751,12 @@ namespace ccf
         network.secrets.wrap_map_hook(
           [this](kv::Version hook_version, const Secrets::Write& w)
             -> kv::ConsensusHookPtr {
-            LedgerSecretsMap restored_ledger_secrets = {};
+            // Used to rekey the ledger on a live service
+            if (is_part_of_public_network())
+            {
+              // Ledger rekey is not allowed during recovery
+              return kv::ConsensusHookPtr(nullptr);
+            }
 
             const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
@@ -1776,45 +1781,82 @@ namespace ccf
                 auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
                   node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
 
-                // On rekey, the version is inferred from the version at which
-                // the hook is executed. Otherwise, on recovery, use the version
-                // read from the write set.
-                kv::Version ledger_secret_version =
-                  encrypted_ledger_secret.version.value_or(hook_version);
-
-                if (is_part_of_public_network())
-                {
-                  // On recovery, accumulate restored ledger secrets
-                  restored_ledger_secrets.emplace(
-                    ledger_secret_version,
-                    std::make_shared<LedgerSecret>(
-                      std::move(plain_ledger_secret),
-                      encrypted_ledger_secret.previous_secret_stored_version));
-                }
-                else
-                {
-                  // When rekeying, set the encryption key for the next version
-                  // onward (backups deserialise this transaction with the
-                  // previous ledger secret)
-                  network.ledger_secrets->set_secret(
-                    ledger_secret_version + 1,
-                    std::make_shared<LedgerSecret>(
-                      std::move(plain_ledger_secret), hook_version));
-                }
+                // When rekeying, set the encryption key for the next version
+                // onward (backups deserialise this transaction with the
+                // previous ledger secret)
+                network.ledger_secrets->set_secret(
+                  hook_version + 1,
+                  std::make_shared<LedgerSecret>(
+                    std::move(plain_ledger_secret), hook_version));
               }
             }
 
-            if (!restored_ledger_secrets.empty() && is_part_of_public_network())
+            return kv::ConsensusHookPtr(nullptr);
+          }));
+
+      network.tables->set_global_hook(
+        network.secrets.get_name(),
+        network.secrets.wrap_commit_hook([this](
+                                           kv::Version hook_version,
+                                           const Secrets::Write& w) {
+          // Used on recovery to initiate private recovery on backup nodes.
+          if (!is_part_of_public_network())
+          {
+            return;
+          }
+
+          const auto& ledger_secrets_for_nodes = w;
+          if (!ledger_secrets_for_nodes.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Unexpected removal from {} table", network.secrets.get_name()));
+          }
+
+          for (const auto& [node_id, encrypted_ledger_secrets] :
+               ledger_secrets_for_nodes.value())
+          {
+            if (node_id != self)
+            {
+              // Only consider ledger secrets for this node
+              continue;
+            }
+
+            LedgerSecretsMap restored_ledger_secrets = {};
+            for (const auto& encrypted_ledger_secret : encrypted_ledger_secrets)
+            {
+              // On rekey, the version is inferred from the version at which
+              // the hook is executed. Otherwise, on recovery, use the version
+              // read from the write set.
+              if (!encrypted_ledger_secret.version.has_value())
+              {
+                throw std::logic_error(fmt::format(
+                  "Commit hook at seqno {} for table {}: no version for "
+                  "encrypted ledger secret",
+                  hook_version,
+                  network.secrets.get_name()));
+              }
+
+              auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
+                node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
+
+              restored_ledger_secrets.emplace(
+                encrypted_ledger_secret.version.value(),
+                std::make_shared<LedgerSecret>(
+                  std::move(plain_ledger_secret),
+                  encrypted_ledger_secret.previous_secret_stored_version));
+            }
+
+            if (!restored_ledger_secrets.empty())
             {
               // When recovering, restore ledger secrets and trigger end of
               // recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
               backup_initiate_private_recovery();
+              return;
             }
-
-            return kv::ConsensusHookPtr(nullptr);
-          }));
+          }
+        }));
 
       network.tables->set_global_hook(
         network.encrypted_submitted_shares.get_name(),
@@ -1822,7 +1864,8 @@ namespace ccf
           [this](
             kv::Version hook_version,
             const EncryptedSubmittedShares::Write& w) {
-            // Initiate recovery procedure from global hook
+            // Initiate recovery procedure from global hook, once all recovery
+            // shares have been submitted (i.e. recovered_ledger_secrets is set)
             if (!recovered_ledger_secrets.empty())
             {
               network.ledger_secrets->restore_historical(
