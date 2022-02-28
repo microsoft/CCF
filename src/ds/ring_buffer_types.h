@@ -96,6 +96,8 @@ namespace ringbuffer
 
     virtual WriteMarker write_bytes(
       const WriteMarker& marker, const uint8_t* bytes, size_t size) = 0;
+
+    virtual size_t get_max_message_size() = 0;
     ///@}
 
   private:
