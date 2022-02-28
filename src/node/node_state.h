@@ -1289,14 +1289,9 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
-      // TODO: OK, transactional
       recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
         tx, recovered_encrypted_ledger_secrets);
 
-      LOG_FAIL_FMT(
-        "Recovered ledger secrets: {}", recovered_ledger_secrets.size());
-
-      // TODO: OK, transactional
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
       LedgerSecretsBroadcast::broadcast_some(
