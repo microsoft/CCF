@@ -785,8 +785,6 @@ namespace ccf
             error_msg);
         }
 
-        share_manager.clear_submitted_recovery_shares(ctx.tx);
-
         return make_success(SubmitRecoveryShare::Out{fmt::format(
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",

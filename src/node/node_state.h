@@ -1072,6 +1072,10 @@ namespace ccf
         setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
 
+        // Clear recovery shares that were submitted to initiate the recovery
+        // procedure
+        share_manager.clear_submitted_recovery_shares(tx);
+
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
