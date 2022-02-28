@@ -1293,32 +1293,14 @@ namespace ccf
       recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
         tx, recovered_encrypted_ledger_secrets);
 
+      LOG_FAIL_FMT(
+        "Recovered ledger secrets: {}", recovered_ledger_secrets.size());
+
       // TODO: OK, transactional
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
       LedgerSecretsBroadcast::broadcast_some(
         network, self, tx, recovered_ledger_secrets);
-
-      // // TODO: Not ok!
-      // network.ledger_secrets->restore_historical(
-      //   std::move(recovered_ledger_secrets));
-
-      // LOG_INFO_FMT("Initiating end of recovery (primary)");
-
-      // // Emit signature to certify transactions that happened on public
-      // // network
-      // history->emit_signature();
-
-      // setup_private_recovery_store();
-      // reset_recovery_hook();
-
-      // // TODO: Also clear submitted recovery shares
-
-      // // Start reading private security domain of ledger
-      // ledger_idx = recovery_store->current_version();
-      // read_ledger_idx(++ledger_idx);
-
-      // sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     //
@@ -1769,7 +1751,7 @@ namespace ccf
         network.secrets.wrap_map_hook(
           [this](kv::Version hook_version, const Secrets::Write& w)
             -> kv::ConsensusHookPtr {
-            LedgerSecretsMap restored_ledger_secrets;
+            LedgerSecretsMap restored_ledger_secrets = {};
 
             const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
@@ -1840,7 +1822,23 @@ namespace ccf
           [this](
             kv::Version hook_version,
             const EncryptedSubmittedShares::Write& w) {
-            LOG_FAIL_FMT("lala");
+            // Initiate recovery procedure from global hook
+            if (!recovered_ledger_secrets.empty())
+            {
+              network.ledger_secrets->restore_historical(
+                std::move(recovered_ledger_secrets));
+
+              LOG_INFO_FMT("Initiating end of recovery (primary)");
+
+              setup_private_recovery_store();
+              reset_recovery_hook();
+
+              // Start reading private security domain of ledger
+              ledger_idx = recovery_store->current_version();
+              read_ledger_idx(++ledger_idx);
+
+              sm.advance(NodeStartupState::readingPrivateLedger);
+            }
 
             return;
           }));
@@ -1946,7 +1944,7 @@ namespace ccf
                   .has_value())
             {
               LOG_DEBUG_FMT(
-                "Recovery encrypted ledger secret valid at seqno {}",
+                "Recovering encrypted ledger secret valid at seqno {}",
                 encrypted_ledger_secret_info->previous_ledger_secret->version);
             }
 

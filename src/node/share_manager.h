@@ -427,9 +427,6 @@ namespace ccf
         latest_ls = s.first->second;
       }
 
-      // TODO: Move outside of here!
-      // recovery_ledger_secrets.clear();
-
       return restored_ledger_secrets;
     }
 
@@ -460,20 +457,7 @@ namespace ccf
     {
       auto encrypted_submitted_shares =
         tx.rw(network.encrypted_submitted_shares);
-
-      std::vector<MemberId> submitted_share_ids = {};
-
-      encrypted_submitted_shares->foreach(
-        [&submitted_share_ids](
-          const MemberId& member_id, const std::vector<uint8_t>&) {
-          submitted_share_ids.push_back(member_id);
-          return true;
-        });
-
-      for (auto const& id : submitted_share_ids)
-      {
-        encrypted_submitted_shares->remove(id);
-      }
+      encrypted_submitted_shares->clear();
     }
   };
 }
