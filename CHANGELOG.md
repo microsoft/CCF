@@ -11,9 +11,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Snapshot generation no longer causes a node crash if the snapshot is larger than the ring buffer message size (`memory.max_msg_size`). Instead, the generation of the large snapshot is skipped. (#3603).
 
+### Changed
+
+- `TxReceipt::describe()` has been replaced with `ccf::describe_receipt()`. Includes of the private `node/tx_receipt.h` from C++ applications should be removed.
+
 ## [2.0.0-rc2]
 
-## Changed
+### Changed
 
 - The entry point for creation of C++ apps is now `make_user_endpoints()`. The old entry point `get_rpc_handler()` has been removed (#3562). For an example of the necessary change, see [this diff](https://github.com/microsoft/CCF/commit/5b40ba7b42d5664d787cc7e3cfc9cbe18c01e5a1#diff-78fa25442e77145040265646434b9582d491928819e58be03c5693c01417c6c6) of the logging sample app (#3562).
 - Failed recovery procedures no longer block subsequent recoveries: `.recovery` ledger files are now created while the recovery is in progress and ignored or deleted by nodes on startup (#3563).
