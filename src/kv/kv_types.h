@@ -589,8 +589,18 @@ namespace kv
     virtual crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) = 0;
   };
-
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
+
+  class AbstractSnapshotter
+  {
+  public:
+    virtual ~AbstractSnapshotter(){};
+
+    virtual bool record_committable(kv::Version v) = 0;
+    virtual void commit(kv::Version v, bool generate_snapshot) = 0;
+    virtual void rollback(kv::Version v) = 0;
+  };
+  using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
   class AbstractChangeSet
   {

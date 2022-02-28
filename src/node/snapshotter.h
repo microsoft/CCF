@@ -16,7 +16,8 @@
 
 namespace ccf
 {
-  class Snapshotter : public std::enable_shared_from_this<Snapshotter>
+  class Snapshotter : public std::enable_shared_from_this<Snapshotter>,
+                      public kv::AbstractSnapshotter
   {
   public:
     static constexpr auto max_tx_interval = std::numeric_limits<size_t>::max();
@@ -260,7 +261,7 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, false});
     }
 
-    bool record_committable(consensus::Index idx)
+    bool record_committable(consensus::Index idx) override
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
@@ -348,7 +349,7 @@ namespace ccf
         std::move(msg));
     }
 
-    void commit(consensus::Index idx, bool generate_snapshot)
+    void commit(consensus::Index idx, bool generate_snapshot) override
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
       // at the last snapshottable index before idx, and schedule snapshot
@@ -396,7 +397,7 @@ namespace ccf
       }
     }
 
-    void rollback(consensus::Index idx)
+    void rollback(consensus::Index idx) override
     {
       std::lock_guard<std::mutex> guard(lock);
 
