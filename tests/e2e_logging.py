@@ -422,15 +422,21 @@ def test_record_count(network, args):
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("/app/log/private/prefix_cert", "/app/log/private")
 def test_cert_prefix(network, args):
-    primary, _ = network.find_primary()
-
+    msg = "This message will be prefixed"
+    log_id = 7
     for user in network.users:
-        with primary.client(user.local_id) as c:
-            log_id = network.txs.find_max_log_id() + 1
-            msg = "This message will be prefixed"
-            c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
-            r = network.txs.request(log_id, priv=True)
-            assert f"CN={user.local_id}" in r.body.json()["msg"], r
+        network.txs.issue(
+            network,
+            idx=log_id,
+            msg=msg,
+            send_public=False,
+            url_suffix="prefix_cert",
+            user=user.local_id,
+        )
+        r = network.txs.request(log_id, priv=True, user=user.local_id)
+        prefixed_msg = f"CN={user.local_id}: {msg}"
+        network.txs.priv[log_id][-1]["msg"] = prefixed_msg
+        assert prefixed_msg in r.body.json()["msg"], r
 
     return network
 
@@ -452,8 +458,11 @@ def test_anonymous_caller(network, args):
         send_public=False,
         msg=msg,
         user="user5",
-        anonymous=True,
+        url_suffix="anonymous",
     )
+    prefixed_msg = f"Anonymous: {msg}"
+    network.txs.priv[log_id][-1]["msg"] = prefixed_msg
+
     r = network.txs.request(log_id, priv=True, user="user5")
     assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
 

@@ -103,7 +103,7 @@ class LoggingTxs:
         record_claim=False,
         msg=None,
         user=None,
-        anonymous=False,
+        url_suffix=None,
     ):
         self.network = network
         remote_node, _ = network.find_primary(log_capture=log_capture)
@@ -134,8 +134,8 @@ class LoggingTxs:
                     if self.scope is not None:
                         args["scope"] = self.scope
                     url = "/app/log/private"
-                    if anonymous:
-                        url += "/anonymous"
+                    if url_suffix:
+                        url += "/" + url_suffix
                     if self.scope is not None:
                         url += "?scope=" + self.scope
                     rep_priv = c.post(
@@ -145,12 +145,9 @@ class LoggingTxs:
                         log_capture=log_capture,
                     )
                     assert rep_priv.status_code == http.HTTPStatus.OK, rep_priv
-                    recorded_msg = priv_msg
-                    if anonymous:
-                        recorded_msg = "Anonymous: " + recorded_msg
                     self.priv[target_idx].append(
                         {
-                            "msg": recorded_msg,
+                            "msg": priv_msg,
                             "seqno": rep_priv.seqno,
                             "view": rep_priv.view,
                         }
@@ -167,8 +164,8 @@ class LoggingTxs:
                         "msg": pub_msg,
                     }
                     url = "/app/log/public"
-                    if anonymous:
-                        url += "/anonymous"
+                    if url_suffix:
+                        url += "/" + url_suffix
                     if self.scope is not None:
                         url += "?scope=" + self.scope
                     if record_claim:
@@ -180,12 +177,9 @@ class LoggingTxs:
                         log_capture=log_capture,
                     )
                     assert rep_pub.status_code == http.HTTPStatus.OK, rep_pub
-                    recorded_msg = pub_msg
-                    if anonymous:
-                        recorded_msg = "Anonymous: " + recorded_msg
                     self.pub[target_idx].append(
                         {
-                            "msg": recorded_msg,
+                            "msg": pub_msg,
                             "seqno": rep_pub.seqno,
                             "view": rep_pub.view,
                         }
