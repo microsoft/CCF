@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
-#include "ds/hex.h"
 
 namespace ccf
 {

@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/code_digest.h"
 #include "ccf/service/map.h"
-#include "service/tables/code_digest.h"
 
 namespace ccf
 {

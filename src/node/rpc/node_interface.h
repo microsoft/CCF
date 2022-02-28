@@ -4,9 +4,9 @@
 
 #include "ccf/node_startup_state.h"
 #include "ccf/quote_info.h"
+#include "ccf/service/tables/code_id.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
-#include "service/tables/code_id.h"
 
 namespace ccf
 {

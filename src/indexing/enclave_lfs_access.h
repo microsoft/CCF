@@ -5,7 +5,7 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
-#include "ds/hex.h"
+#include "ccf/ds/hex.h"
 #include "ds/messaging.h"
 #include "indexing/lfs_interface.h"
 #include "indexing/lfs_ringbuffer_types.h"
