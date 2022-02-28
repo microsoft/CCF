@@ -11,7 +11,9 @@ import ccf.ledger
 import os
 import random
 import json
+import shutil
 from infra.runner import ConcurrentRunner
+from infra.consortium import slurp_file
 
 from loguru import logger as LOG
 
@@ -52,9 +54,17 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         os.remove(ledger_file_path)
 
 
+def save_service_identity(network, args):
+    current_identity = os.path.join(network.common_dir, "service_cert.pem")
+    previous_identity = os.path.join(network.common_dir, "previous_service_cert.pem")
+    shutil.copy(current_identity, previous_identity)
+    args.previous_service_identity_file = previous_identity
+
+
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
 def test_recover_service(network, args, from_snapshot=False, split_ledger=False):
+    save_service_identity(network, args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -95,8 +105,87 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
     return recovered_network
 
 
+@reqs.description("Recover a service with previous service identity")
+@reqs.recover(number_txs=2)
+def test_recover_service_with_previous_identity(network, args):
+    old_primary, _ = network.find_primary()
+
+    snapshots_dir = network.get_committed_snapshots(old_primary)
+
+    network.stop_all_nodes()
+
+    save_service_identity(network, args)
+    first_service_identity_file = args.previous_service_identity_file
+
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    # Attempt a recovery with the wrong previous service certificate
+
+    args.previous_service_identity_file = network.consortium.user_cert_path("user0")
+
+    broken_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+
+    exception = None
+    try:
+        broken_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+    except Exception as ex:
+        exception = ex
+
+    # At least one node has to abort because of the snapshot cert check failure
+    found_expected_error = False
+    for n in broken_network.nodes:
+        broken_network.ignoring_shutdown_errors = True
+        if n.check_log_for_error_message(
+            "Error starting node: Previous service identity does not endorse the node identity that signed the snapshot"
+        ):
+            found_expected_error = True
+            break
+
+    if exception is None:
+        raise ValueError("Recovery should have failed")
+    if not found_expected_error:
+        raise ValueError("Node log does not contain the expect error message")
+
+    broken_network.stop_all_nodes(skip_verification=True)
+
+    # Recover, now with the right service identity
+
+    args.previous_service_identity_file = first_service_identity_file
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
+    )
+
+    recovered_network.recover(args)
+
+    return recovered_network
+
+
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
 def test_recover_service_aborted(network, args, from_snapshot=False):
+    save_service_identity(network, args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -167,6 +256,7 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
 @reqs.description("Recovering a service, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
 def test_share_resilience(network, args, from_snapshot=False):
+    save_service_identity(network, args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -187,7 +277,10 @@ def test_share_resilience(network, args, from_snapshot=False):
         snapshots_dir=snapshots_dir,
     )
     primary, _ = recovered_network.find_primary()
-    recovered_network.consortium.transition_service_to_open(primary)
+    recovered_network.consortium.transition_service_to_open(
+        primary,
+        previous_service_identity=slurp_file(args.previous_service_identity_file),
+    )
 
     # Submit all required recovery shares minus one. Last recovery share is
     # submitted after a new primary is found.
@@ -356,6 +449,8 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
+
+        network = test_recover_service_with_previous_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery

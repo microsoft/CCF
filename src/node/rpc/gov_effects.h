@@ -15,9 +15,11 @@ namespace ccf
   public:
     GovernanceEffects(AbstractNodeState& impl_) : impl(impl_) {}
 
-    void transition_service_to_open(kv::Tx& tx) override
+    void transition_service_to_open(
+      kv::Tx& tx,
+      std::optional<ServiceIdentities> identities = std::nullopt) override
     {
-      impl.transition_service_to_open(tx);
+      impl.transition_service_to_open(tx, identities);
     }
 
     bool rekey_ledger(kv::Tx& tx) override

@@ -5,6 +5,7 @@
 #include "ccf/node_startup_state.h"
 #include "ccf/quote_info.h"
 #include "ccf/service/tables/code_id.h"
+#include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
 
@@ -14,7 +15,11 @@ namespace ccf
   {
   public:
     virtual ~AbstractNodeState() {}
-    virtual void transition_service_to_open(kv::Tx& tx) = 0;
+
+    virtual void transition_service_to_open(
+      kv::Tx& tx,
+      std::optional<AbstractGovernanceEffects::ServiceIdentities> identities =
+        std::nullopt) = 0;
     virtual bool rekey_ledger(kv::Tx& tx) = 0;
     virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(kv::Tx& tx) = 0;

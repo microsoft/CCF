@@ -5,6 +5,7 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/tables/service.h"
@@ -230,7 +231,8 @@ namespace ccf
         hooks,
         &view_history,
         true,
-        config.startup_snapshot_evidence_seqno_for_1_x);
+        config.startup_snapshot_evidence_seqno_for_1_x,
+        config.recover.previous_service_identity);
 
       startup_seqno = startup_snapshot_info->seqno;
       ledger_idx = startup_seqno.value();
@@ -431,6 +433,13 @@ namespace ccf
 
           sm.advance(NodeStartupState::readingPublicLedger);
 
+          if (config.recover.previous_service_identity)
+          {
+            crypto::Pem pem(*config.recover.previous_service_identity);
+            LOG_INFO_FMT(
+              "Recovering with previous service identity: {}", pem.str());
+          }
+
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
         }
@@ -587,7 +596,8 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info->public_only,
-                startup_snapshot_info->evidence_seqno);
+                startup_snapshot_info->evidence_seqno,
+                config.recover.previous_service_identity);
 
               for (auto& hook : hooks)
               {
@@ -1236,7 +1246,8 @@ namespace ccf
           hooks,
           &view_history,
           false,
-          startup_snapshot_info->evidence_seqno);
+          startup_snapshot_info->evidence_seqno,
+          config.recover.previous_service_identity);
         startup_snapshot_info.reset();
       }
 
@@ -1282,7 +1293,10 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(AppMessage::launch_host_process, to_host, json);
     }
 
-    void transition_service_to_open(kv::Tx& tx) override
+    void transition_service_to_open(
+      kv::Tx& tx,
+      std::optional<AbstractGovernanceEffects::ServiceIdentities> identities)
+      override
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -1303,6 +1317,29 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Service in state {} is already open", service_info->status);
         return;
+      }
+
+      if (
+        config.recover.previous_service_identity.has_value() !=
+        identities.has_value())
+      {
+        throw std::logic_error(
+          "Recovery with service certificates requires both, a previous "
+          "service identity certificate during node startup and a "
+          "transition_service_to_open proposal that contains previous and next "
+          "service certificates");
+      }
+
+      if (identities)
+      {
+        if (identities->next != service_info->cert)
+        {
+          throw std::logic_error(
+            "Service identity mismatch: the next service identity in the "
+            "transition_service_to_open proposal does not match the current "
+            "service identity");
+        }
+        service_info->previous_service_identity = identities->previous;
       }
 
       if (is_part_of_public_network())

@@ -20,6 +20,7 @@ import http
 import pprint
 import functools
 from datetime import datetime, timedelta
+from infra.consortium import slurp_file
 
 from loguru import logger as LOG
 
@@ -113,6 +114,7 @@ class Network:
         "reconfiguration_type",
         "config_file",
         "ubsan_options",
+        "previous_service_identity_file",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -520,7 +522,14 @@ class Network:
             self.find_random_node(), status=ServiceStatus.OPENING
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
-        self.consortium.transition_service_to_open(self.find_random_node())
+
+        prev_service_identity = None
+        if args.previous_service_identity_file:
+            prev_service_identity = slurp_file(args.previous_service_identity_file)
+
+        self.consortium.transition_service_to_open(
+            self.find_random_node(), prev_service_identity
+        )
         self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
@@ -572,6 +581,10 @@ class Network:
                 raise RuntimeError(
                     f"Node {node.node_id} should be stopped before verifying ledger consistency"
                 )
+
+            if node.remote is None:
+                continue
+
             ledger_paths = node.remote.ledger_paths()
 
             ledger_files = list_files_in_dirs_with_checksums(ledger_paths)

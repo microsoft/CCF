@@ -609,6 +609,15 @@ class Node:
             f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {validity_period})"
         )
 
+    def check_log_for_error_message(self, msg):
+        if self.remote is not None:
+            with open(self.remote.remote.out, encoding="utf-8") as f:
+                for line in f:
+                    if msg in line:
+                        return True
+                    line = f.readline()
+        return False
+
 
 @contextmanager
 def node(

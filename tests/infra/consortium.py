@@ -568,7 +568,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def transition_service_to_open(self, remote_node):
+    def transition_service_to_open(self, remote_node, previous_service_identity=None):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -580,7 +580,17 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
-        proposal_body, careful_vote = self.make_proposal("transition_service_to_open")
+        next_service_identity = None
+        if previous_service_identity is not None:
+            next_service_identity = slurp_file(
+                os.path.join(self.common_dir, "service_cert.pem")
+            )
+
+        proposal_body, careful_vote = self.make_proposal(
+            "transition_service_to_open",
+            previous_service_identity=previous_service_identity,
+            next_service_identity=next_service_identity,
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, careful_vote, wait_for_global_commit=True

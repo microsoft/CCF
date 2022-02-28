@@ -573,10 +573,33 @@ const actions = new Map([
   [
     "transition_service_to_open",
     new Action(
-      function (args) {},
+      function (args) {
+        if (args) {
+          checkType(
+            args.previous_service_identity,
+            "string?",
+            "previous service identity (PEM certificate)"
+          );
+          checkX509CertBundle(args.previous_service_identity, "cert");
+          checkType(
+            args.next_service_identity,
+            "string?",
+            "next service identity (PEM certificate)"
+          );
+          checkX509CertBundle(args.next_service_identity, "cert");
+        }
+      },
 
       function (args) {
-        ccf.node.transitionServiceToOpen();
+        const psi =
+          args !== undefined && args.previous_service_identity !== undefined
+            ? ccf.strToBuf(args.previous_service_identity)
+            : undefined;
+        const nsi =
+          args !== undefined && args.next_service_identity !== undefined
+            ? ccf.strToBuf(args.next_service_identity)
+            : undefined;
+        ccf.node.transitionServiceToOpen(psi, nsi);
       }
     ),
   ],

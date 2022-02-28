@@ -27,6 +27,7 @@
 #include <fstream>
 #include <iostream>
 #include <locale>
+#include <regex>
 #include <string>
 #include <sys/types.h>
 #include <thread>
@@ -424,6 +425,14 @@ int main(int argc, char** argv)
       LOG_INFO_FMT("Creating new node - recover");
       startup_config.initial_service_certificate_validity_days =
         config.command.recover.initial_service_certificate_validity_days;
+      if (!config.command.recover.previous_service_identity_file.empty())
+      {
+        LOG_INFO_FMT(
+          "Reading previous service identity from {}",
+          config.command.recover.previous_service_identity_file);
+        startup_config.recover.previous_service_identity =
+          files::slurp(config.command.recover.previous_service_identity_file);
+      }
     }
     else
     {
