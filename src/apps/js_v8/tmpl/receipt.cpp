@@ -3,6 +3,7 @@
 #include "receipt.h"
 
 #include "ccf/ds/logger.h"
+#include "ccf/historical_queries_interface.h"
 #include "ccf/receipt.h"
 #include "template.h"
 
