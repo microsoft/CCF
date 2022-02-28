@@ -118,7 +118,8 @@ namespace ccf
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
     consensus::Index last_recovered_signed_idx = 0;
-    RecoveredEncryptedLedgerSecrets recovery_ledger_secrets;
+    RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
+    LedgerSecretsMap recovered_ledger_secrets = {};
     consensus::Index ledger_idx = 0;
 
     //
@@ -1288,31 +1289,36 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
-      auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
-        tx, std::move(recovery_ledger_secrets));
+      // TODO: OK, transactional
+      recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
+        tx, recovered_encrypted_ledger_secrets);
 
+      // TODO: OK, transactional
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
       LedgerSecretsBroadcast::broadcast_some(
-        network, self, tx, restored_ledger_secrets);
+        network, self, tx, recovered_ledger_secrets);
 
-      network.ledger_secrets->restore_historical(
-        std::move(restored_ledger_secrets));
+      // // TODO: Not ok!
+      // network.ledger_secrets->restore_historical(
+      //   std::move(recovered_ledger_secrets));
 
-      LOG_INFO_FMT("Initiating end of recovery (primary)");
+      // LOG_INFO_FMT("Initiating end of recovery (primary)");
 
-      // Emit signature to certify transactions that happened on public
-      // network
-      history->emit_signature();
+      // // Emit signature to certify transactions that happened on public
+      // // network
+      // history->emit_signature();
 
-      setup_private_recovery_store();
-      reset_recovery_hook();
+      // setup_private_recovery_store();
+      // reset_recovery_hook();
 
-      // Start reading private security domain of ledger
-      ledger_idx = recovery_store->current_version();
-      read_ledger_idx(++ledger_idx);
+      // // TODO: Also clear submitted recovery shares
 
-      sm.advance(NodeStartupState::readingPrivateLedger);
+      // // Start reading private security domain of ledger
+      // ledger_idx = recovery_store->current_version();
+      // read_ledger_idx(++ledger_idx);
+
+      // sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     //
@@ -1829,6 +1835,17 @@ namespace ccf
           }));
 
       network.tables->set_global_hook(
+        network.encrypted_submitted_shares.get_name(),
+        network.encrypted_submitted_shares.wrap_commit_hook(
+          [this](
+            kv::Version hook_version,
+            const EncryptedSubmittedShares::Write& w) {
+            LOG_FAIL_FMT("lala");
+
+            return;
+          }));
+
+      network.tables->set_global_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_commit_hook(
           [this](
@@ -1933,7 +1950,7 @@ namespace ccf
                 encrypted_ledger_secret_info->previous_ledger_secret->version);
             }
 
-            recovery_ledger_secrets.emplace_back(
+            recovered_encrypted_ledger_secrets.emplace_back(
               std::move(encrypted_ledger_secret_info.value()));
 
             return kv::ConsensusHookPtr(nullptr);

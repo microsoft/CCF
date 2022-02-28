@@ -735,11 +735,12 @@ namespace ccf
         auto raw_recovery_share = crypto::raw_from_b64(in.share);
         OPENSSL_cleanse(const_cast<char*>(in.share.data()), in.share.size());
 
-        size_t submitted_shares_count = 0;
+        size_t encrypted_submitted_shares_count = 0;
         try
         {
-          submitted_shares_count = share_manager.submit_recovery_share(
-            ctx.tx, member_id.value(), raw_recovery_share);
+          encrypted_submitted_shares_count =
+            share_manager.submit_recovery_share(
+              ctx.tx, member_id.value(), raw_recovery_share);
         }
         catch (const std::exception& e)
         {
@@ -753,13 +754,13 @@ namespace ccf
         }
         OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
-        if (submitted_shares_count < g.get_recovery_threshold())
+        if (encrypted_submitted_shares_count < g.get_recovery_threshold())
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
           return make_success(SubmitRecoveryShare::Out{fmt::format(
             "{}/{} recovery shares successfully submitted.",
-            submitted_shares_count,
+            encrypted_submitted_shares_count,
             g.get_recovery_threshold())});
         }
 
@@ -790,7 +791,7 @@ namespace ccf
         return make_success(SubmitRecoveryShare::Out{fmt::format(
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",
-          submitted_shares_count,
+          encrypted_submitted_shares_count,
           g.get_recovery_threshold())});
       };
       make_endpoint(

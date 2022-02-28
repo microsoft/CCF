@@ -591,16 +591,16 @@ class Consortium:
             self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN)
 
     def recover_with_shares(self, remote_node):
-        submitted_shares_count = 0
+        encrypted_submitted_shares_count = 0
         with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_recovery_members():
                 r = m.get_and_submit_recovery_share(remote_node)
-                submitted_shares_count += 1
+                encrypted_submitted_shares_count += 1
                 check_commit(r)
 
-                if submitted_shares_count >= self.recovery_threshold:
+                if encrypted_submitted_shares_count >= self.recovery_threshold:
                     assert "End of recovery procedure initiated" in r.body.text()
                     break
                 else:

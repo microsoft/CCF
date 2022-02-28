@@ -191,11 +191,11 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     # Submit all required recovery shares minus one. Last recovery share is
     # submitted after a new primary is found.
-    submitted_shares_count = 0
+    encrypted_submitted_shares_count = 0
     for m in recovered_network.consortium.get_active_members():
         with primary.client() as nc:
             if (
-                submitted_shares_count
+                encrypted_submitted_shares_count
                 >= recovered_network.consortium.recovery_threshold - 1
             ):
                 last_member_to_submit = m
@@ -203,7 +203,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
             check_commit = infra.checker.Checker(nc)
             check_commit(m.get_and_submit_recovery_share(primary))
-            submitted_shares_count += 1
+            encrypted_submitted_shares_count += 1
 
     LOG.info(
         f"Shutting down node {primary.node_id} before submitting last recovery share"
@@ -440,14 +440,14 @@ checked. Note that the key for each logging message is unique (per table).
     # so that the contents of recovered (and tampered) ledger chunks
     # can be dictated by the test. In particular, the signature interval is large # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snasphot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snasphot_tx_interval=1000000,
+    # )
 
     cr.run()
