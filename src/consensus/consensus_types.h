@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/tables/nodes.h"
 #include "ccf/tx_id.h"
 #include "ds/unit_strings.h"
 #include "enclave/consensus_type.h"
-#include "service/tables/nodes.h"
 
 #include <stdint.h>
 
