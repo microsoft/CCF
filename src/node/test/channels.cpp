@@ -3,9 +3,9 @@
 #include "../channels.h"
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
-#include "ds/hex.h"
 #include "ds/ring_buffer.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/node_types.h"

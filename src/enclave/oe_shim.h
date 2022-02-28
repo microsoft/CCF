@@ -9,6 +9,7 @@
 
 #endif
 
+#include <openenclave/bits/defs.h>
 #include <openenclave/log.h>
 #include <openenclave/tracee.h>
 

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/hex.h"
+#include "ccf/ds/hex.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/sha256_hash.h"
+#include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
-#include "ccf/service/map.h"
-#include "ds/hex.h"
 
 namespace ccf
 {
@@ -41,10 +41,4 @@ namespace ccf
   };
   DECLARE_JSON_ENUM(
     CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "AllowedToJoin"}});
-
-  using CodeIDs = ServiceMap<CodeDigest, CodeStatus>;
-  namespace Tables
-  {
-    static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
-  }
 }

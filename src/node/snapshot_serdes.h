@@ -3,12 +3,11 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/service/tables/nodes.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "node/tx_receipt.h"
-#include "service/tables/nodes.h"
-#include "service/tables/service.h"
 
 #include <nlohmann/json.hpp>
 
