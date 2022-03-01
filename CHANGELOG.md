@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- New `GET /gov/members` endpoint which returns details of all members from the KV (#3615).
 - Add `--insecure-skip-verification` to `ledger_viz` utility, to allow visualisation of unverified ledger chunks (#3618).
 - Add `--split-services` to `ledger_viz` utility, to easily find out at which TxID new services were created (#3621).
 
