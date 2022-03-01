@@ -106,7 +106,8 @@ class Member:
             os.path.join(self.common_dir, self.member_info["certificate_file"]),
             encoding="utf-8",
         ) as c:
-            self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
+            self.cert = c.read()
+            self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(self.cert)
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
