@@ -73,9 +73,9 @@ namespace ccf
     crypto::Pem cert;
     std::optional<crypto::Pem> public_encryption_key;
   };
-  DECLARE_JSON_TYPE(FullMemberDetails)
+  DECLARE_JSON_TYPE(FullMemberDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
-    FullMemberDetails, status, member_data, cert, public_encryption_key)
+    FullMemberDetails, status, member_data, cert, public_encryption_key);
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
