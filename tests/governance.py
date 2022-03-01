@@ -212,6 +212,37 @@ def test_member_data(network, args):
     return network
 
 
+@reqs.description("Check /gov/members endpoint")
+def test_all_members(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client() as c:
+        r = c.get("/gov/members")
+        assert r.status_code == http.HTTPStatus.OK.value
+        response_members = r.body.json()
+
+    network_members = network.get_members()
+    assert len(network_members) == len(response_members)
+
+    for member in network_members:
+        assert member.service_id in response_members
+        response_details = response_members[member.service_id]
+        assert response_details["cert"] == member.cert
+        assert (
+            infra.member.MemberStatus(response_details["status"]) == member.status_code
+        )
+        assert response_details["member_data"] == member.member_data
+        if member.is_recovery_member:
+            recovery_enc_key = open(
+                member.member_info["encryption_public_key_file"]
+            ).read()
+            assert response_details["public_encryption_key"] == recovery_enc_key
+        else:
+            assert response_details["public_encryption_key"] is None
+
+    return network
+
+
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
@@ -399,6 +430,7 @@ def gov(args):
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
         test_member_data(network, args)
+        test_all_members(network, args)
         test_quote(network, args)
         test_user(network, args)
         test_jinja_templates(network, args)
