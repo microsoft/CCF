@@ -495,7 +495,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.6.0";
+      openapi_info.document_version = "2.7.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1422,6 +1422,7 @@ namespace ccf
 
 #pragma clang diagnostic pop
 
+      using AllMemberDetails = std::map<ccf::MemberId, FullMemberDetails>;
       auto get_all_members =
         [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           auto members = ctx.tx.ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
@@ -1431,7 +1432,7 @@ namespace ccf
             ctx.tx.ro<ccf::MemberPublicEncryptionKeys>(
               ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-          std::map<ccf::MemberId, FullMemberDetails> response;
+          AllMemberDetails response;
 
           members->foreach(
             [&response, member_certs, member_public_encryption_keys](
@@ -1464,7 +1465,7 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_all_members),
         ccf::no_auth_required)
-        .set_auto_schema<void, FullMemberDetails>()
+        .set_auto_schema<void, AllMemberDetails>()
         .install();
     }
   };
