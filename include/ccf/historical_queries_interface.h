@@ -13,8 +13,8 @@
 
 namespace ccf
 {
-  // This is an opaque, incomplete type, but can be summarised by the functions
-  // below
+  // This is an opaque, incomplete type, but can be summarised to a
+  // JSON-serialisable form by the functions below
   struct TxReceipt;
   using TxReceiptPtr = std::shared_ptr<TxReceipt>;
 
