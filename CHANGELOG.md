@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `TxReceipt::describe()` has been replaced with `ccf::describe_receipt()`. Includes of the private `node/tx_receipt.h` from C++ applications should be removed (#3610).
 - Python `ccf.read_ledger` and `ccf.ledger_viz` tools now accept paths to individual ledger chunks, to avoid parsing the entire ledger.
 
+### Added
+
+- Add `--insecure-skip-verification` to `ledger_viz` utility, to allow visualisation of unverified ledger chunks
+
 ## [2.0.0-rc2]
 
 ### Changed

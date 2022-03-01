@@ -118,10 +118,20 @@ def main():
         help="Write each view on a new line, prefixed by the view number",
         action="store_true",
     )
+    parser.add_argument(
+        "--insecure-skip-verification",
+        help="INSECURE: skip ledger Merkle tree integrity verification",
+        action="store_true",
+        default=False,
+    )
     args = parser.parse_args()
 
     ledger_paths = args.paths
-    ledger = ccf.ledger.Ledger(ledger_paths, committed_only=not args.uncommitted)
+    ledger = ccf.ledger.Ledger(
+        ledger_paths,
+        committed_only=not args.uncommitted,
+        insecure_skip_verification=args.insecure_skip_verification,
+    )
 
     l = DefaultLiner(args.write_views, args.split_views)
     l.help()
