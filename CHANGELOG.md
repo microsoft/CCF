@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Add `--insecure-skip-verification` to `ledger_viz` utility, to allow visualisation of unverified ledger chunks
+- Add `--split-services` to `ledger_viz` utility, to easily find out at which TxID new services were created 
+
 
 ## [2.0.0-rc2]
 
