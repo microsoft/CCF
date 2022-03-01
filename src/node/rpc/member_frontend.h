@@ -1412,6 +1412,27 @@ namespace ccf
         .install();
 
 #pragma clang diagnostic pop
+
+      auto get_all_members =
+        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          auto members = ctx.tx.ro(this->network.member_info);
+
+          nlohmann::json response_body = nlohmann::json::object();
+
+          members->foreach([&response_body](const auto& k, const auto& v) {
+            response_body[k] = v;
+            return true;
+          });
+
+          return make_success(response_body);
+        };
+      make_read_only_endpoint(
+        "/members",
+        HTTP_GET,
+        json_read_only_adapter(get_all_members),
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>() // TODO
+        .install();
     }
   };
 
