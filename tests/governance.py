@@ -214,33 +214,59 @@ def test_member_data(network, args):
 
 @reqs.description("Check /gov/members endpoint")
 def test_all_members(network, args):
+    def run_test_all_members(network):
+        primary, _ = network.find_primary()
+
+        with primary.client() as c:
+            r = c.get("/gov/members")
+            assert r.status_code == http.HTTPStatus.OK.value
+            response_members = r.body.json()
+
+        network_members = network.get_members()
+        assert len(network_members) == len(response_members)
+
+        for member in network_members:
+            assert member.service_id in response_members
+            response_details = response_members[member.service_id]
+            assert response_details["cert"] == member.cert
+            assert (
+                infra.member.MemberStatus(response_details["status"])
+                == member.status_code
+            )
+            assert response_details["member_data"] == member.member_data
+            if member.is_recovery_member:
+                recovery_enc_key = open(
+                    member.member_info["encryption_public_key_file"], encoding="utf-8"
+                ).read()
+                assert response_details["public_encryption_key"] == recovery_enc_key
+            else:
+                assert response_details["public_encryption_key"] is None
+
+    # Test on current network
+    run_test_all_members(network)
+
+    # Test on mid-recovery network
     primary, _ = network.find_primary()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    snapshots_dir = network.get_committed_snapshots(primary)
+    network.stop_all_nodes()
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
+    )
+    run_test_all_members(recovered_network)
+    recovered_network.recover(args)
 
-    with primary.client() as c:
-        r = c.get("/gov/members")
-        assert r.status_code == http.HTTPStatus.OK.value
-        response_members = r.body.json()
-
-    network_members = network.get_members()
-    assert len(network_members) == len(response_members)
-
-    for member in network_members:
-        assert member.service_id in response_members
-        response_details = response_members[member.service_id]
-        assert response_details["cert"] == member.cert
-        assert (
-            infra.member.MemberStatus(response_details["status"]) == member.status_code
-        )
-        assert response_details["member_data"] == member.member_data
-        if member.is_recovery_member:
-            recovery_enc_key = open(
-                member.member_info["encryption_public_key_file"], encoding="utf-8"
-            ).read()
-            assert response_details["public_encryption_key"] == recovery_enc_key
-        else:
-            assert response_details["public_encryption_key"] is None
-
-    return network
+    return recovered_network
 
 
 @reqs.description("Test ack state digest updates")
@@ -430,7 +456,7 @@ def gov(args):
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
         test_member_data(network, args)
-        test_all_members(network, args)
+        network = test_all_members(network, args)
         test_quote(network, args)
         test_user(network, args)
         test_jinja_templates(network, args)
