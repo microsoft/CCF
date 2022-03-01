@@ -99,7 +99,12 @@ def main():
         description="Visualise content of CCF ledger",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("paths", help="Path to ledger directories", nargs="+")
+    parser.add_argument(
+        "paths",
+        help="Path to ledger directories or ledger chunks. "
+        "Note that parsing individual ledger chunks requires the additional --insecure-skip-verification option",
+        nargs="+",
+    )
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
@@ -115,8 +120,8 @@ def main():
     )
     args = parser.parse_args()
 
-    ledger_dirs = args.paths
-    ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not args.uncommitted)
+    ledger_paths = args.paths
+    ledger = ccf.ledger.Ledger(ledger_paths, committed_only=not args.uncommitted)
 
     l = DefaultLiner(args.write_views, args.split_views)
     l.help()
