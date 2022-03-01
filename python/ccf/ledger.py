@@ -824,7 +824,7 @@ class Ledger:
 
     def __init__(
         self,
-        directories: List[str],
+        paths: List[str],
         committed_only: bool = True,
         read_recovery_files: bool = False,
         insecure_skip_verification: bool = False,
@@ -833,26 +833,31 @@ class Ledger:
         self._filenames = []
 
         ledger_files: List[str] = []
-        for directory in directories:
-            for path in os.listdir(directory):
-                sanitised_path = path
-                if path.endswith(RECOVERY_FILE_SUFFIX):
-                    sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
-                    if not read_recovery_files:
-                        continue
 
-                if committed_only and not sanitised_path.endswith(
-                    COMMITTED_FILE_SUFFIX
-                ):
-                    continue
+        def try_add_chunk(path):
+            sanitised_path = path
+            if path.endswith(RECOVERY_FILE_SUFFIX):
+                sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
+                if not read_recovery_files:
+                    return
 
-                chunk = os.path.join(directory, path)
-                # The same ledger file may appear multiple times in different directories
-                # so ignore duplicates
-                if os.path.isfile(chunk) and not any(
-                    os.path.basename(chunk) in f for f in ledger_files
-                ):
-                    ledger_files.append(chunk)
+            if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
+                return
+
+            # The same ledger file may appear multiple times in different directories
+            # so ignore duplicates
+            if os.path.isfile(path) and not any(
+                os.path.basename(path) in f for f in ledger_files
+            ):
+                ledger_files.append(path)
+
+        for p in paths:
+            if os.path.isdir(p):
+                for path in os.listdir(p):
+                    chunk = os.path.join(p, path)
+                    try_add_chunk(chunk)
+            elif os.path.isfile(p):
+                try_add_chunk(p)
 
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
