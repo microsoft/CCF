@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Snapshot generation no longer causes a node crash if the snapshot is larger than the ring buffer message size (`memory.max_msg_size`). Instead, the generation of the large snapshot is skipped (#3603).
 
+### Added
+
+- New `GET /gov/members` endpoint which returns details of all members from the KV (#3615).
+
 ### Changed
 
 - The C++ types used to define public governance tables are now exposed in public headers. Any C++ applications reading these tables should update their include paths (ie - `#include "service/tables/nodes.h"` => `#include "ccf/service/tables/nodes.h"`) (#3608).
