@@ -95,7 +95,9 @@ namespace ccf
     else
     {
       throw JsonParseError(fmt::format(
-        "{} should be hex-encoded string: {}", FmtExtender::ID_LABEL, j.dump()));
+        "{} should be hex-encoded string: {}",
+        FmtExtender::ID_LABEL,
+        j.dump()));
     }
   }
 
