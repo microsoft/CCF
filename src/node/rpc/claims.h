@@ -12,6 +12,13 @@ namespace ccf
     return ClaimsDigest();
   }
 
+  static ClaimsDigest empty_claims()
+  {
+    ClaimsDigest cd;
+    cd.set(ClaimsDigest::Digest::Representation());
+    return cd;
+  }
+
   static crypto::Sha256Hash entry_leaf(
     const std::vector<uint8_t>& write_set,
     const std::optional<crypto::Sha256Hash>& commit_evidence_digest,

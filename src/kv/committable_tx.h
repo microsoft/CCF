@@ -40,7 +40,7 @@ namespace kv
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
-      const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       bool include_reads = false)
     {
       if (!committed)
@@ -72,14 +72,9 @@ namespace kv
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
       crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
-      auto entry_type = claims_digest.empty() ?
-        EntryType::WriteSetWithCommitEvidence :
-        EntryType::WriteSetWithCommitEvidenceAndClaims;
-
-      LOG_TRACE_FMT(
-        "Serialising claim digest {} {}",
-        claims_digest.value(),
-        claims_digest.empty());
+      // Set empty claims on transactions that do not provide them
+      const ccf::ClaimsDigest& claims_digest = claims_digest_.empty() ? ccf::empty_claims() : claims_digest_;
+      auto entry_type = EntryType::WriteSetWithCommitEvidenceAndClaims;
 
       if (flag_enabled(Flag::LEDGER_CHUNK_BEFORE_THIS_TX))
       {
@@ -453,7 +448,7 @@ namespace kv
       return {
         CommitResult::SUCCESS,
         std::move(data),
-        ccf::no_claims(),
+        ccf::empty_claims(),
         std::move(commit_evidence_digest),
         std::move(hooks)};
     }
