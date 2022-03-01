@@ -5,15 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0-rc3]
 
 ### Fixed
 
 - Snapshot generation no longer causes a node crash if the snapshot is larger than the ring buffer message size (`memory.max_msg_size`). Instead, the generation of the large snapshot is skipped (#3603).
-
-### Added
-
-- New `GET /gov/members` endpoint which returns details of all members from the KV (#3615).
 
 ### Changed
 
@@ -23,7 +19,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Add `--insecure-skip-verification` to `ledger_viz` utility, to allow visualisation of unverified ledger chunks
+- New `GET /gov/members` endpoint which returns details of all members from the KV (#3615).
+- Add `--insecure-skip-verification` to `ledger_viz` utility, to allow visualisation of unverified ledger chunks (#3618).
+- Add `--split-services` to `ledger_viz` utility, to easily find out at which TxID new services were created (#3621).
 
 ## [2.0.0-rc2]
 
@@ -1244,6 +1242,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc3
 [2.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc2
 [2.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc1
 [2.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0
