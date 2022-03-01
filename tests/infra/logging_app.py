@@ -442,13 +442,18 @@ def scoped_txs(identity, verify=True):
                 network.txs = previous_txs
             return r
 
-        def get_fresh_scope(node, identity, headers):
-            with node.client(identity) as c:
-                r = c.get(
-                    f"/app/log/fresh_scope?scope={func.__name__}", headers=headers
-                )
-                if r.status_code == http.HTTPStatus.OK:
-                    return r.body.json()["scope"]
+        def get_fresh_scope(node, identity, headers, attempts=5):
+            while attempts > 0:
+                with node.client(identity) as c:
+                    r = c.get(
+                        f"/app/log/fresh_scope?scope={func.__name__}", headers=headers
+                    )
+                    if r.status_code == http.HTTPStatus.OK:
+                        return r.body.json()["scope"]
+                    elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                        attempts -= 1
+                        time.sleep(0.1)
+
             raise ValueError("fresh scope request failed")
 
         return wrapper
