@@ -110,6 +110,29 @@ namespace ccf
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
 
+    static std::pair<http_status, std::string> quote_verification_error(
+      QuoteVerificationResult result)
+    {
+      switch (result)
+      {
+        case QuoteVerificationResult::Failed:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
+        case QuoteVerificationResult::FailedCodeIdNotFound:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote does not contain known enclave measurement");
+        case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote report data does not contain node's public key hash");
+        default:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Unknown quote verification error");
+      }
+    }
+
     struct ExistingNodeInfo
     {
       NodeId node_id;
