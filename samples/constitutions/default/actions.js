@@ -580,13 +580,19 @@ const actions = new Map([
             "string?",
             "previous service identity (PEM certificate)"
           );
-          checkX509CertBundle(args.previous_service_identity, "cert");
           checkType(
             args.next_service_identity,
             "string?",
             "next service identity (PEM certificate)"
           );
-          checkX509CertBundle(args.next_service_identity, "cert");
+          if (args !== undefined) {
+            if (args.previous_service_identity !== undefined) {
+              checkX509CertBundle(args.previous_service_identity, "cert");
+            }
+            if (args.next_service_identity !== undefined) {
+              checkX509CertBundle(args.next_service_identity, "cert");
+            }
+          }
         }
       },
 
