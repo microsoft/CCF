@@ -87,35 +87,6 @@
         },
         "type": "array"
       },
-      "EntityId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
-      "EntityId_to_Failure": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Failure"
-        },
-        "type": "object"
-      },
-      "EntityId_to_FullMemberDetails": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/FullMemberDetails"
-        },
-        "type": "object"
-      },
-      "EntityId_to_boolean": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/boolean"
-        },
-        "type": "object"
-      },
-      "EntityId_to_string": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/string"
-        },
-        "type": "object"
-      },
       "Failure": {
         "properties": {
           "reason": {
@@ -237,11 +208,45 @@
         ],
         "type": "object"
       },
+      "MemberId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "MemberId_to_Failure": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Failure"
+        },
+        "type": "object"
+      },
+      "MemberId_to_FullMemberDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/FullMemberDetails"
+        },
+        "type": "object"
+      },
+      "MemberId_to_boolean": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/boolean"
+        },
+        "type": "object"
+      },
+      "MemberId_to_string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "object"
+      },
       "MemberStatus": {
         "enum": [
           "Accepted",
           "Active"
         ],
+        "type": "string"
+      },
+      "NodeId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
       "Pem": {
@@ -261,22 +266,22 @@
       "ProposalInfo": {
         "properties": {
           "ballots": {
-            "$ref": "#/components/schemas/EntityId_to_string"
+            "$ref": "#/components/schemas/MemberId_to_string"
           },
           "failure": {
             "$ref": "#/components/schemas/Failure"
           },
           "final_votes": {
-            "$ref": "#/components/schemas/EntityId_to_boolean"
+            "$ref": "#/components/schemas/MemberId_to_boolean"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/MemberId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
           },
           "vote_failures": {
-            "$ref": "#/components/schemas/EntityId_to_Failure"
+            "$ref": "#/components/schemas/MemberId_to_Failure"
           }
         },
         "required": [
@@ -298,16 +303,16 @@
             "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/MemberId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
           },
           "vote_failures": {
-            "$ref": "#/components/schemas/EntityId_to_Failure"
+            "$ref": "#/components/schemas/MemberId_to_Failure"
           },
           "votes": {
-            "$ref": "#/components/schemas/EntityId_to_boolean"
+            "$ref": "#/components/schemas/MemberId_to_boolean"
           }
         },
         "required": [
@@ -341,7 +346,7 @@
             "$ref": "#/components/schemas/Receipt__LeafComponents"
           },
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "proof": {
             "$ref": "#/components/schemas/Receipt__Element_array"
@@ -629,7 +634,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EntityId_to_FullMemberDetails"
+                  "$ref": "#/components/schemas/MemberId_to_FullMemberDetails"
                 }
               }
             },

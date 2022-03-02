@@ -94,15 +94,17 @@ namespace ccf
     }
     else
     {
-      throw JsonParseError(
-        fmt::format("Entity id should be hex-encoded string: {}", j.dump()));
+      throw JsonParseError(fmt::format(
+        "{} should be hex-encoded string: {}",
+        FmtExtender::ID_LABEL,
+        j.dump()));
     }
   }
 
   template <typename FmtExtender>
   inline std::string schema_name(const EntityId<FmtExtender>&)
   {
-    return "EntityId";
+    return FmtExtender::ID_LABEL;
   }
 
   template <typename FmtExtender>
@@ -125,6 +127,8 @@ namespace ccf
     {
       return fmt::format("m[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "MemberId";
   };
   using MemberId = EntityId<MemberIdFormatter>;
 
@@ -134,6 +138,8 @@ namespace ccf
     {
       return fmt::format("u[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "UserId";
   };
   using UserId = EntityId<UserIdFormatter>;
 
@@ -143,6 +149,8 @@ namespace ccf
     {
       return fmt::format("n[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "NodeId";
   };
   using NodeId = EntityId<NodeIdFormatter>;
 }
