@@ -3,12 +3,13 @@
 
 #include "ccf/quote.h"
 
-#include "ccf/service/tables/code_id.h"
+#ifdef GET_QUOTE
+#  include "ccf/service/tables/code_id.h"
 
-#include <openenclave/attestation/attester.h>
-#include <openenclave/attestation/custom_claims.h>
-#include <openenclave/attestation/sgx/evidence.h>
-#include <openenclave/attestation/verifier.h>
+#  include <openenclave/attestation/attester.h>
+#  include <openenclave/attestation/custom_claims.h>
+#  include <openenclave/attestation/sgx/evidence.h>
+#  include <openenclave/attestation/verifier.h>
 
 namespace ccf
 {
@@ -275,3 +276,4 @@ namespace ccf
       expected_node_public_key_der, quoted_hash);
   }
 }
+#endif
