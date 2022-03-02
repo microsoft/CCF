@@ -7,7 +7,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/json_handler.h"
-#include "ccf/quote.h"
+#include "ccf/node/quote.h"
 #include "ccf/service/tables/gov.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"

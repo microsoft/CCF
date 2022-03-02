@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/quote.h"
+#include "ccf/node/quote.h"
 
 #ifdef GET_QUOTE
 #  include "ccf/service/tables/code_id.h"
