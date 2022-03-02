@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/quote.h"
-// #ifdef GET_QUOTE // TODO: Move GET_QUOTE switches to implementation only
+#include "ccf/quote.h"
+
+#include "ccf/service/tables/code_id.h"
 
 #include <openenclave/attestation/attester.h>
 #include <openenclave/attestation/custom_claims.h>
@@ -70,7 +71,7 @@ namespace ccf
   static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
   static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
 
-  QuoteVerificationResult EnclaveAttestationProvider::verify_quote(
+  QuoteVerificationResult verify_quote(
     const QuoteInfo& quote_info,
     CodeDigest& unique_id,
     crypto::Sha256Hash& hash_node_public_key)
@@ -153,9 +154,8 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  QuoteVerificationResult EnclaveAttestationProvider::
-    verify_enclave_measurement_against_store(
-      kv::ReadOnlyTx& tx, const CodeDigest& unique_id)
+  QuoteVerificationResult verify_enclave_measurement_against_store(
+    kv::ReadOnlyTx& tx, const CodeDigest& unique_id)
   {
     auto code_ids = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS);
     auto code_id_status = code_ids->get(unique_id);
@@ -167,10 +167,9 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  QuoteVerificationResult EnclaveAttestationProvider::
-    verify_quoted_node_public_key(
-      const std::vector<uint8_t>& expected_node_public_key,
-      const crypto::Sha256Hash& quoted_hash)
+  QuoteVerificationResult verify_quoted_node_public_key(
+    const std::vector<uint8_t>& expected_node_public_key,
+    const crypto::Sha256Hash& quoted_hash)
   {
     if (quoted_hash != crypto::Sha256Hash(expected_node_public_key))
     {

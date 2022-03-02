@@ -82,9 +82,6 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
-#ifdef GET_QUOTE
-    EnclaveAttestationProvider enclave_attestation_provider;
-#endif
 
     //
     // kv store, replication, and I/O
@@ -209,7 +206,7 @@ namespace ccf
       CodeDigest& code_digest) override
     {
 #ifdef GET_QUOTE
-      return enclave_attestation_provider.verify_quote_against_store(
+      return EnclaveAttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
 #else
       (void)tx;
@@ -278,9 +275,9 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      quote_info = enclave_attestation_provider.generate_quote(
+      quote_info = EnclaveAttestationProvider::generate_quote(
         node_sign_kp->public_key_der());
-      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
         node_code_id = code_id.value();

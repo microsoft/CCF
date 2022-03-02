@@ -4,6 +4,7 @@
 
 #include "ccf/node_startup_state.h"
 #include "ccf/node_subsystem_interface.h"
+#include "ccf/quote.h"
 #include "ccf/quote_info.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
@@ -11,14 +12,6 @@
 
 namespace ccf
 {
-  enum class QuoteVerificationResult
-  {
-    Verified = 0,
-    Failed,
-    FailedCodeIdNotFound,
-    FailedInvalidQuotedPublicKey,
-  };
-
   using ExtendedState = std::tuple<
     NodeStartupState,
     std::optional<kv::Version> /* recovery_target_seqno */,
