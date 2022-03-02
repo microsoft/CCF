@@ -858,6 +858,8 @@ class Ledger:
                     try_add_chunk(chunk)
             elif os.path.isfile(p):
                 try_add_chunk(p)
+            else:
+                raise ValueError(f"{p} is not a ledger directory or ledger chunk")
 
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
@@ -865,6 +867,15 @@ class Ledger:
             ledger_files,
             key=lambda x: range_from_filename(x)[0],
         )
+
+        # If we do not have a single contiguous range, report an error
+        for file_a, file_b in zip(self._filenames[:-1], self._filenames[1:]):
+            range_a = range_from_filename(file_a)
+            range_b = range_from_filename(file_b)
+            if range_a[1] + 1 != range_b[0]:
+                raise ValueError(
+                    f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
+                )
 
         self._reset_iterators(insecure_skip_verification)
 
