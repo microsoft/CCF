@@ -152,12 +152,12 @@ def test_recover_service_with_previous_identity(network, args):
             found_expected_error = True
             break
 
+    broken_network.stop_all_nodes(skip_verification=True)
+
     if exception is None:
         raise ValueError("Recovery should have failed")
     if not found_expected_error:
         raise ValueError("Node log does not contain the expect error message")
-
-    broken_network.stop_all_nodes(skip_verification=True)
 
     # Recover, now with the right service identity
 
