@@ -142,6 +142,8 @@ def test_recover_service_with_previous_identity(network, args):
     except Exception as ex:
         exception = ex
 
+    broken_network.stop_all_nodes(skip_verification=True)
+
     # At least one node has to abort because of the snapshot cert check failure
     found_expected_error = False
     for n in broken_network.nodes:
@@ -151,8 +153,6 @@ def test_recover_service_with_previous_identity(network, args):
         ):
             found_expected_error = True
             break
-
-    broken_network.stop_all_nodes(skip_verification=True)
 
     if exception is None:
         raise ValueError("Recovery should have failed")
