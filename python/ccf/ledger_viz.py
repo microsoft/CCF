@@ -42,17 +42,22 @@ class DefaultLiner(Liner):
     def view_to_char(view):
         return str(view)[-1]
 
-    def __init__(self, write_views, split_views):
+    def __init__(self, write_views, split_views, split_services):
         self.write_views = write_views
         self.split_views = split_views
+        self.split_services = split_services
 
-    def entry(self, category, view):
+    def entry(self, category, view, seqno):
         view_change = view != self._last_view
         self._last_view = view
 
         if view_change and self.split_views:
             self.flush()
             self.append(f"{view}: ", "White")
+
+        if self.split_services and category == "New Service":
+            self.flush()
+            self.append(f"{view}.{seqno}: ", "White")
 
         char = " "
         if self.write_views:
@@ -124,6 +129,11 @@ def main():
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--split-services",
+        help="Write each new service on a new line, prefixed by the TxID",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     ledger_paths = args.paths
@@ -133,7 +143,7 @@ def main():
         insecure_skip_verification=args.insecure_skip_verification,
     )
 
-    l = DefaultLiner(args.write_views, args.split_views)
+    l = DefaultLiner(args.write_views, args.split_views, args.split_services)
     l.help()
     current_service_identity = None
     for chunk in ledger:
@@ -142,30 +152,31 @@ def main():
             has_private = tx.get_private_domain_size()
 
             view = tx.gcm_header.view
+            seqno = tx.gcm_header.seqno
             if not has_private:
                 if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public:
-                    l.entry("Signature", view)
+                    l.entry("Signature", view, seqno)
                 else:
                     if all(
                         table.startswith("public:ccf.internal.") for table in public
                     ):
-                        l.entry("Internal", view)
+                        l.entry("Internal", view, seqno)
                     elif any(table.startswith("public:ccf.gov.") for table in public):
                         service_info = try_get_service_info(public)
                         if service_info is None:
-                            l.entry("Governance", view)
+                            l.entry("Governance", view, seqno)
                         elif service_info["status"] == "Opening":
-                            l.entry("New Service", view)
+                            l.entry("New Service", view, seqno)
                             current_service_identity = service_info["cert"]
                         elif (
                             service_info["cert"] == current_service_identity
                             and service_info["status"] == "Open"
                         ):
-                            l.entry("Service Open", view)
+                            l.entry("Service Open", view, seqno)
                     else:
-                        l.entry("User Public", view)
+                        l.entry("User Public", view, seqno)
             else:
-                l.entry("User Private", view)
+                l.entry("User Private", view, seqno)
 
     l.flush()
 

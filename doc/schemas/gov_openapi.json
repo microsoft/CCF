@@ -101,6 +101,29 @@
         ],
         "type": "object"
       },
+      "FullMemberDetails": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "member_data": {
+            "$ref": "#/components/schemas/json"
+          },
+          "public_encryption_key": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemberStatus"
+          }
+        },
+        "required": [
+          "status",
+          "member_data",
+          "cert",
+          "public_encryption_key"
+        ],
+        "type": "object"
+      },
       "GetCode__Out": {
         "properties": {
           "versions": {
@@ -196,6 +219,12 @@
         },
         "type": "object"
       },
+      "MemberId_to_FullMemberDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/FullMemberDetails"
+        },
+        "type": "object"
+      },
       "MemberId_to_boolean": {
         "additionalProperties": {
           "$ref": "#/components/schemas/boolean"
@@ -207,6 +236,13 @@
           "$ref": "#/components/schemas/string"
         },
         "type": "object"
+      },
+      "MemberStatus": {
+        "enum": [
+          "Accepted",
+          "Active"
+        ],
+        "type": "string"
       },
       "NodeId": {
         "format": "hex",
@@ -583,6 +619,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTxStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/gov/members": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_FullMemberDetails"
                 }
               }
             },
