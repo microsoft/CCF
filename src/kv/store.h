@@ -848,11 +848,17 @@ namespace kv
       return version;
     }
 
-    TxID current_txid() override
+    kv::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
       return current_txid_unsafe();
+    }
+
+    ccf::TxID get_txid() override
+    {
+      const auto kv_id = current_txid();
+      return {kv_id.term, kv_id.version};
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
