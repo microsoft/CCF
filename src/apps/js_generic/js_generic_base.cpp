@@ -248,7 +248,7 @@ namespace ccfapp
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            auto tx = state->store->create_tx();
+            auto tx = state->store->create_read_only_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
             assert(receipt);
@@ -267,7 +267,7 @@ namespace ccfapp
     void do_execute_request(
       const JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      kv::Tx* historical_tx,
+      kv::ReadOnlyTx* historical_tx,
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptPtr receipt)
     {
@@ -279,7 +279,7 @@ namespace ccfapp
 
       js::Context ctx(rt);
       js::TxContext txctx{&endpoint_ctx.tx, js::TxAccess::APP};
-      js::TxContext historical_txctx{historical_tx, js::TxAccess::APP};
+      js::ReadOnlyTxContext historical_txctx{historical_tx, js::TxAccess::APP};
 
       js::register_request_body_class(ctx);
       js::populate_global(

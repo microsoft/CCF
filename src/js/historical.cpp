@@ -155,7 +155,7 @@ namespace ccf::js
       // Note: The state_ctx object is deleted by js_historical_state_finalizer
       // which is registered as the finalizer for historical_state_class_id.
       auto state_ctx = new HistoricalStateContext{
-        state, state->store->create_tx(), TxContext{nullptr, TxAccess::APP}};
+        state, state->store->create_read_only_tx(), ReadOnlyTxContext{nullptr, TxAccess::APP}};
       state_ctx->tx_ctx.tx = &state_ctx->tx;
       JS_SetOpaque(js_state, state_ctx);
 

@@ -30,15 +30,14 @@ namespace ccf::historical
   struct State
   {
     /// Read-only historical store at transaction_id
-    // TODO: Problem is re-using this for interface and implementation
-    kv::StorePtr store = nullptr;
+    kv::ReadOnlyStorePtr store = nullptr;
     /// Receipt for ledger entry at transaction_id
     TxReceiptPtr receipt = nullptr;
     /// View and Sequence Number for the State
     ccf::TxID transaction_id;
 
     State(
-      const kv::StorePtr& store_,
+      const kv::ReadOnlyStorePtr& store_,
       const TxReceiptPtr& receipt_,
       const ccf::TxID& transaction_id_) :
       store(store_),

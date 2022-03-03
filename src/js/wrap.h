@@ -49,11 +49,17 @@ namespace ccf::js
     TxAccess access = js::TxAccess::APP;
   };
 
+  struct ReadOnlyTxContext
+  {
+    kv::ReadOnlyTx* tx = nullptr;
+    TxAccess access = js::TxAccess::APP;
+  };
+
   struct HistoricalStateContext
   {
     ccf::historical::StatePtr state;
-    kv::CommittableTx tx;
-    TxContext tx_ctx;
+    kv::ReadOnlyTx tx;
+    ReadOnlyTxContext tx_ctx;
   };
 
 #pragma clang diagnostic push
@@ -168,7 +174,7 @@ namespace ccf::js
   void register_request_body_class(JSContext* ctx);
   void populate_global(
     TxContext* txctx,
-    TxContext* historical_txctx,
+    ReadOnlyTxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
