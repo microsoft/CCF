@@ -1259,4 +1259,6 @@ namespace kv
       return (flags & static_cast<uint8_t>(f)) != 0;
     }
   };
+
+  using StorePtr = std::shared_ptr<kv::Store>;
 }

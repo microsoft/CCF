@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/seq_no_collection.h"
-#include "ccf/store_ptr.h"
 #include "ccf/tx_id.h"
 
 namespace ccf::indexing

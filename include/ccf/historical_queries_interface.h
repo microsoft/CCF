@@ -6,7 +6,6 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/receipt.h"
 #include "ccf/seq_no_collection.h"
-#include "ccf/store_ptr.h"
 #include "ccf/tx_id.h"
 
 #include <chrono>

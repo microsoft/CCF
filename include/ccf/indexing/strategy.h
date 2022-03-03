@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/kv/read_only_store.h"
-#include "ccf/store_ptr.h"
 #include "ccf/tx_id.h"
 
 #include <optional>
