@@ -417,7 +417,9 @@ namespace ccf
           service_config->reconfiguration_type.value_or(
             ReconfigurationType::ONE_TRANSACTION);
 
-        if (active_service->status == ServiceStatus::OPENING)
+        if (
+          active_service->status == ServiceStatus::OPENING ||
+          active_service->status == ServiceStatus::RECOVERING)
         {
           // If the service is opening, new nodes are trusted straight away
           NodeStatus joining_node_status = NodeStatus::TRUSTED;
@@ -1258,13 +1260,14 @@ namespace ccf
       auto create = [this](auto& ctx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
 
+        bool recovering = node_operation.is_reading_public_ledger();
+
         // This endpoint can only be called once, directly from the starting
         // node for the genesis or end of public recovery transaction to
         // initialise the service
         if (
           network.consensus_type == ConsensusType::CFT &&
-          !node_operation.is_in_initialised_state() &&
-          !node_operation.is_reading_public_ledger())
+          !node_operation.is_in_initialised_state() && !recovering)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1282,7 +1285,7 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.service_cert);
+        g.create_service(in.service_cert, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();

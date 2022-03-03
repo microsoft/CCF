@@ -47,6 +47,7 @@ class NodeRole(Enum):
 class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
+    RECOVERING = "Recovering"
     CLOSED = "Closed"
 
 
@@ -269,8 +270,11 @@ class Network:
             **kwargs,
         )
 
-        # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING:
+        # If the network is opening or recovering, nodes are trusted without consortium approval
+        if (
+            self.status == ServiceStatus.OPENING
+            or self.status == ServiceStatus.RECOVERING
+        ):
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
@@ -292,7 +296,9 @@ class Network:
         if not args.package:
             raise ValueError("A package name must be specified.")
 
-        self.status = ServiceStatus.OPENING
+        self.status = (
+            ServiceStatus.OPENING if not recovery else ServiceStatus.RECOVERING
+        )
         LOG.debug(f"Opening CCF service on {hosts}")
 
         forwarded_args = {
@@ -519,7 +525,7 @@ class Network:
         """
         self.consortium.activate(self.find_random_node())
         self.consortium.check_for_service(
-            self.find_random_node(), status=ServiceStatus.OPENING
+            self.find_random_node(), status=ServiceStatus.RECOVERING
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
 

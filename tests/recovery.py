@@ -107,7 +107,7 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
 
 @reqs.description("Recover a service with previous service identity")
 @reqs.recover(number_txs=2)
-def test_recover_service_with_previous_identity(network, args):
+def test_recover_service_with_wrong_identity(network, args):
     old_primary, _ = network.find_primary()
 
     snapshots_dir = network.get_committed_snapshots(old_primary)
@@ -443,7 +443,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service_with_previous_identity(network, args)
+        network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery

@@ -597,6 +597,25 @@ const actions = new Map([
       },
 
       function (args) {
+        const service_info = "public:ccf.gov.service.info";
+        const rawService = ccf.kv[service_info].get(getSingletonKvKey());
+        if (rawService === undefined) {
+          throw new Error("Service information could not be found");
+        }
+
+        const service = ccf.bufToJsonCompatible(rawService);
+
+        if (
+          service.status === "Recovering" &&
+          (args === undefined ||
+            args.previous_service_identity === undefined ||
+            args.next_service_identity === undefined)
+        ) {
+          throw new Error(
+            `Opening a recovering network requires both, the previous and the next service identity`
+          );
+        }
+
         const psi =
           args !== undefined && args.previous_service_identity !== undefined
             ? ccf.strToBuf(args.previous_service_identity)

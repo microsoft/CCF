@@ -458,7 +458,7 @@ class LocalRemote(CmdMixin):
         path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
         while time.time() < end_time and (
-            self.proc.returncode is None or self.proc.returncode == 0
+            not self.proc or (self.proc.returncode is None or self.proc.returncode == 0)
         ):
             if os.path.exists(path):
                 break

@@ -615,7 +615,6 @@ class Node:
                 for line in f:
                     if msg in line:
                         return True
-                    line = f.readline()
         return False
 
 
