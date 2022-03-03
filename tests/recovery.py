@@ -145,18 +145,11 @@ def test_recover_service_with_previous_identity(network, args):
     broken_network.ignoring_shutdown_errors = True
     broken_network.stop_all_nodes(skip_verification=True)
 
-    # At least one node has to abort because of the snapshot cert check failure
-    found_expected_error = False
-    for n in broken_network.nodes:
-        if n.check_log_for_error_message(
-            "Error starting node: Previous service identity does not endorse the node identity that signed the snapshot"
-        ):
-            found_expected_error = True
-            break
-
     if exception is None:
         raise ValueError("Recovery should have failed")
-    if not found_expected_error:
+    if not broken_network.nodes[0].check_log_for_error_message(
+        "Error starting node: Previous service identity does not endorse the node identity that signed the snapshot"
+    ):
         raise ValueError("Node log does not contain the expect error message")
 
     # Recover, now with the right service identity
