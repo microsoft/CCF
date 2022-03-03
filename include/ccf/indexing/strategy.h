@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/kv/read_only_store.h"
 #include "ccf/store_ptr.h"
 #include "ccf/tx_id.h"
 
@@ -25,7 +26,7 @@ namespace ccf::indexing
 
     // Receives every committed transaction, in-order
     virtual void handle_committed_transaction(
-      const ccf::TxID& tx_id, const kv::StorePtr& store) = 0;
+      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) = 0;
 
     virtual void tick() {}
 

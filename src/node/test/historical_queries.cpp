@@ -168,7 +168,7 @@ kv::Version rekey(
   return tx_version;
 }
 
-void validate_business_transaction(kv::StorePtr store, ccf::SeqNo seqno)
+void validate_business_transaction(kv::ReadOnlyStorePtr store, ccf::SeqNo seqno)
 {
   REQUIRE(store != nullptr);
 
@@ -1031,20 +1031,21 @@ TEST_CASE("StateCache concurrent access")
       }
     };
 
-  auto validate_all_stores = [&](const std::vector<kv::StorePtr>& stores) {
-    for (auto& store : stores)
-    {
-      REQUIRE(store != nullptr);
-      const auto seqno = store->current_version();
-      if (
-        std::find(
-          signature_versions.begin(), signature_versions.end(), seqno) ==
-        signature_versions.end())
+  auto validate_all_stores =
+    [&](const std::vector<kv::ReadOnlyStorePtr>& stores) {
+      for (auto& store : stores)
       {
-        validate_business_transaction(store, seqno);
+        REQUIRE(store != nullptr);
+        const auto seqno = store->current_version();
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), seqno) ==
+          signature_versions.end())
+        {
+          validate_business_transaction(store, seqno);
+        }
       }
-    }
-  };
+    };
 
   auto validate_all_states =
     [&](const std::vector<ccf::historical::StatePtr>& states) {
@@ -1064,7 +1065,7 @@ TEST_CASE("StateCache concurrent access")
 
   auto query_random_point_store =
     [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
-      kv::StorePtr store;
+      kv::ReadOnlyStorePtr store;
       auto fetch_result = [&]() {
         store = cache.get_store_at(handle, target_seqno);
       };
@@ -1091,7 +1092,7 @@ TEST_CASE("StateCache concurrent access")
                                      ccf::SeqNo range_end,
                                      size_t handle,
                                      const auto& error_printer) {
-    std::vector<kv::StorePtr> stores;
+    std::vector<kv::ReadOnlyStorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_store_range(handle, range_start, range_end);
     };
@@ -1120,7 +1121,7 @@ TEST_CASE("StateCache concurrent access")
                                           const ccf::SeqNoCollection& seqnos,
                                           size_t handle,
                                           const auto& error_printer) {
-    std::vector<kv::StorePtr> stores;
+    std::vector<kv::ReadOnlyStorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_stores_for(handle, seqnos);
     };
