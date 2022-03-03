@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/base64.h"
 #include "ccf/receipt.h"
 #include "node/history.h"
 
@@ -37,58 +36,6 @@ namespace ccf
       commit_evidence(commit_evidence_),
       claims_digest(claims_digest_)
     {}
-
-    void describe(ccf::Receipt& r, bool include_root = false) const
-    {
-      r.signature = crypto::b64_from_raw(signature);
-      if (include_root)
-      {
-        r.root = root.to_string();
-      }
-      if (path != nullptr)
-      {
-        for (const auto& node : *path)
-        {
-          ccf::Receipt::Element n;
-          if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
-          {
-            n.left = node.hash.to_string();
-          }
-          else
-          {
-            n.right = node.hash.to_string();
-          }
-          r.proof.emplace_back(std::move(n));
-        }
-      }
-      r.node_id = node_id;
-
-      if (cert.has_value())
-      {
-        r.cert = cert->str();
-      }
-
-      if (path == nullptr)
-      {
-        // Signature transaction
-        r.leaf = root.to_string();
-      }
-      else if (!commit_evidence.has_value())
-      {
-        r.leaf = write_set_digest->hex_str();
-      }
-      else
-      {
-        std::optional<std::string> write_set_digest_str = std::nullopt;
-        if (write_set_digest.has_value())
-          write_set_digest_str = write_set_digest->hex_str();
-        std::optional<std::string> claims_digest_str = std::nullopt;
-        if (!claims_digest.empty())
-          claims_digest_str = claims_digest.value().hex_str();
-        r.leaf_components = Receipt::LeafComponents{
-          write_set_digest_str, commit_evidence, claims_digest_str};
-      }
-    }
   };
 
   using TxReceiptPtr = std::shared_ptr<TxReceipt>;
