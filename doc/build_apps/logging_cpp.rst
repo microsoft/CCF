@@ -19,7 +19,7 @@ The Logging application simply has:
 
 .. note::
 
-    :cpp:class:`kv::Store` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
+    :cpp:class:`kv::Map` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
 
     The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 

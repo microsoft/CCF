@@ -1,30 +1,27 @@
 Key-Value Store How-To
 ======================
 
-The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:type:`kv::Map` objects that are available from all the end-points of an application. There is one unique ``Store`` created in the enclave of each node that is passed to the constructor of all applications.
-
-.. code-block:: cpp
-
-    Store tables;
+The `Key-Value Store` (KV) consists of a set of :cpp:type:`kv::Map` objects that are available to the end-points of an application. Endpoint handlers create handles which allow them to read and write from these :cpp:type:`kv::Map` objects. The framework handles conflicts between concurrent execution of multiple transactions, and produces a consistent order of transactions which is replicated between nodes, allowing the entries to be read from multiple nodes. This page outlines the core concepts and C++ APIs used to interact with the KV.
 
 Creating a Map
 --------------
 
-A :cpp:type:`kv::Map` (often referred to as a ``Table``) is a collection of key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` in a :cpp:class:`kv::Store` during a transaction.
+A :cpp:type:`kv::Map` (often referred to as a `Table`) is a collection of key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` from the local store during a transaction.
 
-If a ``Map`` with the given name did not previously exist, it will be created in this transaction..
+If a :cpp:type:`kv::Map` with the given name did not previously exist, it will be created in this transaction.
 
-A ``Map`` can either be created as private (default) or public. Public map's names begin with a ``public:`` prefix, any any other name indicates a private map. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of the nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave (only their integrity is protected). The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name. Public and private maps with similar names are distinct; writes to "public:foo" have no impact on "foo", and vice versa.
+A :cpp:type:`kv::Map` can either be created as private (default) or public. Public map's names begin with a ``public:`` prefix, any any other name indicates a private map. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of the nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave; only their integrity is protected. The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name. Public and private maps with similar names in different domains are distinct; writes to "public:foo" have no impact on "foo", and vice versa.
 
+Transaction Semantics
+---------------------
 
-Accessing the Transaction
--------------------------
+A transaction (:cpp:class:`kv::Tx`) encapsulates to the atomic operations that can be executed on the KV. Transactions may read from and write to multiple :cpp:type:`kv::Map`, and are automatically ordered, applied, serialised, and committed by the framework.
 
-A :cpp:class:`kv::Tx` corresponds to the atomic operations that can be executed on the Key-Value ``Store``. A transaction can affect one or multiple ``Map`` and are automatically committed by CCF once the endpoint's handler returns successfully.
+A reference to a new :cpp:class:`kv::Tx` is passed to each endpoint handler, and used to interact with the KV.
 
-A single ``Transaction`` (``tx``) is passed to each endpoint of an application and should be used to interact with the Key-Value ``Store``.
+Each :cpp:class:`kv::Tx` gets a consistent, opaque view of the KV, including the values which have been left by previous writes. Any writes produced by this transaction will be visible to all future transactions.
 
-When the end-point successfully completes, the node on which the end-point was triggered attempts to commit the transaction to apply the changes to the Store. Once the transaction is committed successfully, it is automatically replicated by CCF and should globally commit.
+When the endpoint handler indicates that its :cpp:class:`kv::Tx` should be applied (see :ref:`Applying and reverting writes`_), the executing node attempts to apply the changes to its local KV. If this produces conflicts with concurrently executing transactions, it will be automatically re-executed. Once the transaction is applied successfully, it is automatically replicated to other nodes and will, if the network is healthy, eventually be globally committed.
 
 For each :cpp:type:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:type:`kv::Map` instance which defines both the map's name and key-value types.
 
@@ -39,7 +36,7 @@ By name:
     auto map2_handle = tx.rw<kv::Map<string, uint64_t>>("public:map2");
     auto map3_handle = tx.rw<kv::Map<uint64_t, MyCustomClass>>("map3");
 
-By ``Map``:
+By:cpp:type:`kv::Map`:
 
 .. code-block:: cpp
 
@@ -54,8 +51,7 @@ By ``Map``:
 
 The latter approach introduces a named binding between the map's name and the types of its keys and values, reducing the chance for errors where code attempts to read a map with the wrong type.
 
-As noted above, this access may cause the ``Map`` to be created, if it did not previously. In fact all ``Maps`` are created like this, in the first transaction in which they are written to. Within a transaction, a newly created ``Map`` behaves exactly the same as an existing ``Map`` with no keys - the framework views these as semantically identical, and offers no way for the application logic to tell them apart. Any writes to a newly created ``Map`` will be persisted when the transaction commits, and future transactions will be able to access this ``Map`` by name to read those writes.
-
+.. note:: As mentioned above, there is no need to explicitly declare a :cpp:type:`kv::Map` before it is used. The first write to a :cpp:type:`kv::Map` implicitly creates it in the underlying KV. Within a transaction, a newly created :cpp:type:`kv::Map` behaves exactly the same as an existing :cpp:type:`kv::Map` with no keys - the framework views these as semantically identical, and offers no way for the application logic to tell them apart. Any writes to a newly created :cpp:type:`kv::Map` will be persisted when the transaction commits, and future transactions will be able to access this :cpp:type:`kv::Map` by name to read those writes.
 
 Accessing Map content via a Handle
 ----------------------------------
@@ -93,7 +89,7 @@ Once a :cpp:class:`kv::MapHandle` on a specific :cpp:type:`kv::Map` has been obt
 Read/Write safety
 -----------------
 
-If you are only reading from or only writing to a given :cpp:type:`kv::Map` you can retrieve a `read-only` or `write-only` handle for it, turning unexpected reads/writes (which would introduce unintended dependencies between transactions) into compile-time errors. Instead of calling :cpp:func:`kv::Tx::rw` to get a handle which can both read and write, you can call :cpp:func:`kv::Tx::ro` to acquire a read-only handle or :cpp:func:`kv::Tx::wo` to acquire a write-only handle.
+If you are only reading from or only writing to a given :cpp:type:`kv::Map` you can retrieve a `read-only` or `write-only` handle for it. This will turn unexpected reads/writes (which would introduce unintended dependencies between transactions) into compile-time errors. Instead of calling :cpp:func:`kv::Tx::rw` to get a handle which can both read and write, you can call :cpp:func:`kv::Tx::ro` to acquire a `read-only` handle or :cpp:func:`kv::Tx::wo` to acquire a `write-only` handle.
 
 .. code-block:: cpp
 
@@ -124,11 +120,11 @@ Note that, as in the sample above, it is possible to acquire different kinds of 
 Removing a key
 --------------
 
-If a Key-Value pair was written to a ``Map`` by a previous ``Transaction``, it is possible to delete this key. Because of the append-only nature of the ``Store``, this Key-Value pair is not actually removed from the ``Map`` but instead explicitly marked as deleted from the version that the corresponding ``Transaction`` is committed at.
+If a Key-Value pair was written to a :cpp:type:`kv::Map` by a previous :cpp:class:`kv::Tx`, it is possible to delete this key. Because of the append-only nature of the KV, this Key-Value pair is not actually removed from the :cpp:type:`kv::Map` but instead explicitly marked as deleted in the version that the deleting :cpp:class:`kv::Tx` is applied at.
 
 .. code-block:: cpp
 
-    // In transaction A, assuming that "key1" has already been committed
+    // In transaction A, assuming that "key1" has already been written to
     auto handle = tx.rw(map_priv);
     auto v = handle->get("key1"); // v.value() == "value1"
     handle->remove("key1");
@@ -141,8 +137,7 @@ If a Key-Value pair was written to a ``Map`` by a previous ``Transaction``, it i
 Global commit
 -------------
 
-A ``Map`` is globally committed at a specific :cpp:type:`kv::Version` when it is not possible to access the state of that ``Map`` prior to that version.
-This is useful when it is certain that the state of the ``Store`` prior to a specific version will never need to be read or modified. A transaction is automatically globally committed once the consensus protocol has established that a majority of nodes in the CCF network have successfully received and acknowledged that transaction.
+A transaction is automatically globally committed once the consensus protocol has established that a majority of nodes in the CCF network have successfully received and acknowledged that transaction. To operate on durable state, an application may want to query the globally committed state rather than the current state of the KV.
 
 The :cpp:func:`kv::MapHandle::get_globally_committed` member function returns the value of a key that we know has been globally committed.
 
@@ -171,7 +166,7 @@ Miscellaneous
 
 Values can only be retrieved directly (:cpp:func:`kv::MapHandle::get`) for a given target key. However, it is sometimes necessary to access unknown keys, or to iterate through all Key-Value pairs.
 
-CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over all the elements written to that ``Map`` so far, and run a lambda function for each Key-Value pair. Note that a :cpp:class:`kv::MapHandle::foreach` loop can be ended early by returning ``false`` from this lambda, while ``true`` should be returned to continue iteration.
+CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over all the elements written to that :cpp:type:`kv::Map` so far, and run a lambda function for each Key-Value pair. Note that a :cpp:class:`kv::MapHandle::foreach` loop can be ended early by returning ``false`` from this lambda, while ``true`` should be returned to continue iteration.
 
 .. code-block:: cpp
 
@@ -189,14 +184,13 @@ CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over 
         if (/* condition*/)
         {
             return false;
-
         }
     });
 
 Applying and reverting writes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Changes to the ``Store`` are made by atomic transactions. For a given :cpp:class:`kv::Tx`, either all of its writes are applied, or none are. Only applied writes are replicated and may be globally committed. Transactions may be abandoned without applying their writes - their changes will never be seen by other transactions.
+Changes to the KV are made by atomic transactions. For a given :cpp:class:`kv::Tx`, either all of its writes are applied, or none are. Only applied writes are replicated and may be globally committed. Transactions may be abandoned without applying their writes - their changes will never be seen by other transactions.
 
 By default CCF decides which transactions are successful (so should be applied to the persistent store) by looking at the status code contained in the response: all transactions producing ``2xx`` status codes will be applied, while any other status code will be treated as an error and will `not` be applied to the persistent store. If this behaviour is not desired, for instance when an app wants to log incoming requests even though they produce an error, then it can be dynamically overridden by explicitly telling CCF whether it should apply a given transaction:
 

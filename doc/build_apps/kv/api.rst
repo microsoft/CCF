@@ -5,13 +5,6 @@ This page presents the API that a CCF application must use to access and mutate 
 
 A CCF application should store its data in one or more :cpp:type:`kv::Map`. The name, type, and serialisation of these maps is under the application's control. Each invocation of an :cpp:class:`ccf::EndpointRegistry::Endpoint` is given a :cpp:class:`kv::Tx` transaction object, through which it can read and write to its :cpp:type:`kv::Map`.
 
-Store
------
-
-.. doxygenclass:: kv::Store
-   :project: CCF
-   :members: create, get
-
 Map
 ---
 
