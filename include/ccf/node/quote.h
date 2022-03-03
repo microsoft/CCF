@@ -22,10 +22,10 @@ namespace ccf
   class EnclaveAttestationProvider
   {
   public:
+    /// Extracts the MRENCLAVE from an OE quote. This fails on quotes with
+    /// expired collateral, so it is recommended to cache code IDs once they
+    /// have been successfully extracted.
     static std::optional<CodeDigest> get_code_id(const QuoteInfo& quote_info);
-
-    static QuoteInfo generate_quote(
-      const std::vector<uint8_t>& node_public_key_der);
 
     static QuoteVerificationResult verify_quote_against_store(
       kv::ReadOnlyTx& tx,
