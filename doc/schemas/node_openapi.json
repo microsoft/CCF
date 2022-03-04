@@ -622,6 +622,7 @@
           "Opening",
           "Open",
           "WaitingForRecoveryShares",
+          "Recovering",
           "Closed"
         ],
         "type": "string"
