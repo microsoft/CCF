@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "js/wrap.h"
+
 #include "ccf/ds/logger.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/jwt.h"
@@ -12,7 +14,6 @@
 #include "js/crypto.cpp"
 #include "js/historical.cpp"
 #include "js/no_plugins.cpp"
-#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
