@@ -574,25 +574,20 @@ const actions = new Map([
     "transition_service_to_open",
     new Action(
       function (args) {
-        if (args) {
-          checkType(
-            args.previous_service_identity,
-            "string?",
-            "previous service identity (PEM certificate)"
-          );
-          checkType(
-            args.next_service_identity,
-            "string?",
-            "next service identity (PEM certificate)"
-          );
-          if (args !== undefined) {
-            if (args.previous_service_identity !== undefined) {
-              checkX509CertBundle(args.previous_service_identity, "cert");
-            }
-            if (args.next_service_identity !== undefined) {
-              checkX509CertBundle(args.next_service_identity, "cert");
-            }
-          }
+        checkType(
+          args.next_service_identity,
+          "string",
+          "next service identity (PEM certificate)"
+        );
+        checkX509CertBundle(args.next_service_identity, "cert");
+
+        checkType(
+          args.previous_service_identity,
+          "string?",
+          "previous service identity (PEM certificate)"
+        );
+        if (args.previous_service_identity !== undefined) {
+          checkX509CertBundle(args.previous_service_identity, "cert");
         }
       },
 
@@ -607,8 +602,7 @@ const actions = new Map([
 
         if (
           service.status === "Recovering" &&
-          (args === undefined ||
-            args.previous_service_identity === undefined ||
+          (args.previous_service_identity === undefined ||
             args.next_service_identity === undefined)
         ) {
           throw new Error(
@@ -616,15 +610,12 @@ const actions = new Map([
           );
         }
 
-        const psi =
-          args !== undefined && args.previous_service_identity !== undefined
+        const previous_identity =
+          args.previous_service_identity !== undefined
             ? ccf.strToBuf(args.previous_service_identity)
             : undefined;
-        const nsi =
-          args !== undefined && args.next_service_identity !== undefined
-            ? ccf.strToBuf(args.next_service_identity)
-            : undefined;
-        ccf.node.transitionServiceToOpen(psi, nsi);
+        const next_identity = ccf.strToBuf(args.next_service_identity);
+        ccf.node.transitionServiceToOpen(previous_identity, next_identity);
       }
     ),
   ],

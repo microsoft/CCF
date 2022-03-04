@@ -19,12 +19,12 @@ namespace ccf
 
     struct ServiceIdentities
     {
-      std::vector<uint8_t> previous;
+      std::optional<std::vector<uint8_t>> previous;
       std::vector<uint8_t> next;
     };
 
     virtual void transition_service_to_open(
-      kv::Tx& tx, std::optional<ServiceIdentities> identities) = 0;
+      kv::Tx& tx, ServiceIdentities identities) = 0;
     virtual bool rekey_ledger(kv::Tx& tx) = 0;
     virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(kv::Tx& tx) = 0;

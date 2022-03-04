@@ -1,7 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "js/wrap.h"
-
 #include "ccf/ds/logger.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/jwt.h"
@@ -14,6 +12,7 @@
 #include "js/crypto.cpp"
 #include "js/historical.cpp"
 #include "js/no_plugins.cpp"
+#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
@@ -547,10 +546,10 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    if (argc != 0 && argc != 2)
+    if (argc != 2)
     {
       return JS_ThrowTypeError(
-        ctx, "Passed %d arguments but expected none or two", argc);
+        ctx, "Passed %d arguments but expected two", argc);
     }
 
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
@@ -575,30 +574,42 @@ namespace ccf::js
 
     try
     {
-      std::optional<AbstractGovernanceEffects::ServiceIdentities> identities;
+      AbstractGovernanceEffects::ServiceIdentities identities;
 
-      if (argc >= 2 && !JS_IsUndefined(argv[0]) && !JS_IsUndefined(argv[1]))
+      size_t prev_bytes_sz = 0;
+      uint8_t* prev_bytes = nullptr;
+      if (!JS_IsUndefined(argv[0]))
       {
-        size_t prev_bytes_sz = 0;
-        uint8_t* prev_bytes = JS_GetArrayBuffer(ctx, &prev_bytes_sz, argv[0]);
-
-        size_t next_bytes_sz = 0;
-        uint8_t* next_bytes = JS_GetArrayBuffer(ctx, &next_bytes_sz, argv[1]);
-
-        if (!prev_bytes || !next_bytes)
+        prev_bytes = JS_GetArrayBuffer(ctx, &prev_bytes_sz, argv[0]);
+        if (!prev_bytes)
         {
-          return JS_ThrowTypeError(ctx, "Arguments are not array buffers");
+          return JS_ThrowTypeError(
+            ctx, "Previous service identity argument is not an array buffer");
         }
-
-        identities = {
-          std::vector<uint8_t>{prev_bytes, prev_bytes + prev_bytes_sz},
-          std::vector<uint8_t>{next_bytes, next_bytes + next_bytes_sz}};
-
+        identities.previous =
+          std::vector<uint8_t>{prev_bytes, prev_bytes + prev_bytes_sz};
         LOG_DEBUG_FMT(
-          "previous service identity: {}", ds::to_hex(identities->previous));
-        LOG_DEBUG_FMT(
-          "next service identity: {}", ds::to_hex(identities->next));
+          "previous service identity: {}", ds::to_hex(*identities.previous));
       }
+
+      if (JS_IsUndefined(argv[1]))
+      {
+        return JS_ThrowInternalError(
+          ctx, "Proposal requires a service identity");
+      }
+
+      size_t next_bytes_sz = 0;
+      uint8_t* next_bytes = JS_GetArrayBuffer(ctx, &next_bytes_sz, argv[1]);
+
+      if (!next_bytes)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Next service identity argument is not an array buffer");
+      }
+
+      identities.next =
+        std::vector<uint8_t>{next_bytes, next_bytes + next_bytes_sz};
+      LOG_DEBUG_FMT("next service identity: {}", ds::to_hex(identities.next));
 
       gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
     }

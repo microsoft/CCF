@@ -17,9 +17,7 @@ namespace ccf
     virtual ~AbstractNodeState() {}
 
     virtual void transition_service_to_open(
-      kv::Tx& tx,
-      std::optional<AbstractGovernanceEffects::ServiceIdentities> identities =
-        std::nullopt) = 0;
+      kv::Tx& tx, AbstractGovernanceEffects::ServiceIdentities identities) = 0;
     virtual bool rekey_ledger(kv::Tx& tx) = 0;
     virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(kv::Tx& tx) = 0;

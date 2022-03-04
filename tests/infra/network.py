@@ -534,7 +534,8 @@ class Network:
             prev_service_identity = slurp_file(args.previous_service_identity_file)
 
         self.consortium.transition_service_to_open(
-            self.find_random_node(), prev_service_identity
+            self.find_random_node(),
+            previous_service_identity=prev_service_identity,
         )
         self.consortium.recover_with_shares(self.find_random_node())
 

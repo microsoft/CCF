@@ -90,8 +90,7 @@ namespace ccf
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects
   {
   public:
-    void transition_service_to_open(
-      kv::Tx& tx, std::optional<ServiceIdentities>) override
+    void transition_service_to_open(kv::Tx& tx, ServiceIdentities) override
     {
       return;
     }

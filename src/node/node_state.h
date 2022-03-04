@@ -1295,8 +1295,7 @@ namespace ccf
 
     void transition_service_to_open(
       kv::Tx& tx,
-      std::optional<AbstractGovernanceEffects::ServiceIdentities> identities)
-      override
+      AbstractGovernanceEffects::ServiceIdentities identities) override
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -1320,8 +1319,9 @@ namespace ccf
       }
 
       if (
+        service_info->status == ServiceStatus::RECOVERING &&
         config.recover.previous_service_identity.has_value() !=
-        identities.has_value())
+          identities.previous.has_value())
       {
         throw std::logic_error(
           "Recovery with service certificates requires both, a previous "
@@ -1330,16 +1330,16 @@ namespace ccf
           "service certificates");
       }
 
-      if (identities)
+      if (identities.next != service_info->cert)
       {
-        if (identities->next != service_info->cert)
-        {
-          throw std::logic_error(
-            "Service identity mismatch: the next service identity in the "
-            "transition_service_to_open proposal does not match the current "
-            "service identity");
-        }
-        service_info->previous_service_identity = identities->previous;
+        throw std::logic_error(
+          "Service identity mismatch: the next service identity in the "
+          "transition_service_to_open proposal does not match the current "
+          "service identity");
+      }
+      if (identities.previous)
+      {
+        service_info->previous_service_identity = *identities.previous;
       }
 
       if (is_part_of_public_network())

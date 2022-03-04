@@ -105,7 +105,7 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
     return recovered_network
 
 
-@reqs.description("Recover a service with previous service identity")
+@reqs.description("Recover a service with wrong service identity")
 @reqs.recover(number_txs=2)
 def test_recover_service_with_wrong_identity(network, args):
     old_primary, _ = network.find_primary()
@@ -322,6 +322,7 @@ def test_recover_service_truncated_ledger(
     corrupt_last_tx=False,
     corrupt_first_sig=False,
 ):
+    save_service_identity(network, args)
     old_primary, _ = network.find_primary()
 
     LOG.info("Force new ledger chunk for app txs to be in committed chunks")

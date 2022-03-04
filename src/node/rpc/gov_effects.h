@@ -16,8 +16,7 @@ namespace ccf
     GovernanceEffects(AbstractNodeState& impl_) : impl(impl_) {}
 
     void transition_service_to_open(
-      kv::Tx& tx,
-      std::optional<ServiceIdentities> identities = std::nullopt) override
+      kv::Tx& tx, ServiceIdentities identities) override
     {
       impl.transition_service_to_open(tx, identities);
     }
