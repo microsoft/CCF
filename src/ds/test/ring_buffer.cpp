@@ -123,6 +123,78 @@ TEST_CASE("Basic ringbuffer" * doctest::test_suite("ringbuffer"))
   }
 }
 
+TEST_CASE("Buffer size and alignment" * doctest::test_suite("ringbuffer"))
+{
+  {
+    INFO("Explicit tests");
+    constexpr uint8_t size = 32;
+    auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+
+    REQUIRE_NOTHROW(Reader(buffer->bd));
+
+    buffer->bd.size = 3;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 7;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 8;
+    REQUIRE_NOTHROW(Reader(buffer->bd));
+
+    buffer->bd.size = 9;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 31;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 32;
+    REQUIRE_NOTHROW(Reader(buffer->bd));
+
+    auto data = buffer->bd.data;
+    for (auto i = 0; i < buffer->bd.size; ++i)
+    {
+      buffer->bd.data = data + i;
+      if (i % 8 == 0)
+      {
+        REQUIRE_NOTHROW(Reader(buffer->bd));
+      }
+      else
+      {
+        REQUIRE_THROWS(Reader(buffer->bd));
+      }
+    }
+  }
+
+  {
+    INFO("Correcting a misaligned buffer");
+    constexpr size_t orig_size = 64;
+    uint8_t* orig_data = new uint8_t[orig_size];
+
+    ringbuffer::Offsets offsets;
+
+    ringbuffer::BufferDef bd;
+    bd.offsets = &offsets;
+
+    for (size_t i = 0; i < orig_size; ++i)
+    {
+      void* data = reinterpret_cast<void*>(orig_data + i);
+      size_t size = orig_size - i;
+
+      data = std::align(8, sizeof(uint64_t), data, size);
+
+      // Re-aligning may make size no longer a power of 2, so round it to
+      // previous power of 2
+      auto lz = __builtin_clz(size);
+      bd.size = 1 << (sizeof(size_t) * 8 - 1 - lz);
+      bd.data = reinterpret_cast<uint8_t*>(data);
+
+      REQUIRE_NOTHROW(Reader r(bd));
+    }
+
+    delete[] orig_data;
+  }
+}
+
 TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
 {
   constexpr size_t size = 1 << 8;
