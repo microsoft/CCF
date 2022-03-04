@@ -177,18 +177,21 @@ TEST_CASE("Buffer size and alignment" * doctest::test_suite("ringbuffer"))
 
     for (size_t i = 0; i < orig_size; ++i)
     {
-      void* data = reinterpret_cast<void*>(orig_data + i);
+      auto data = orig_data + i;
       size_t size = orig_size - i;
 
-      data = std::align(8, sizeof(uint64_t), data, size);
-
-      // Re-aligning may make size no longer a power of 2, so round it to
-      // previous power of 2
-      auto lz = __builtin_clz(size);
-      bd.size = 1 << (sizeof(size_t) * 8 - 1 - lz);
-      bd.data = reinterpret_cast<uint8_t*>(data);
-
-      REQUIRE_NOTHROW(Reader r(bd));
+      if (size >= 8)
+      {
+        REQUIRE(ringbuffer::Const::find_acceptable_sub_buffer(data, size));
+        bd.data = data;
+        bd.size = size;
+        REQUIRE_NOTHROW(Reader r(bd));
+      }
+      else
+      {
+        REQUIRE_FALSE(
+          ringbuffer::Const::find_acceptable_sub_buffer(data, size));
+      }
     }
 
     delete[] orig_data;

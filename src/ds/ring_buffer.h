@@ -85,6 +85,29 @@ namespace ringbuffer
       // create a sufficiently large region.
       return buffer_size / 2;
     }
+
+    static constexpr size_t previous_power_of_2(size_t n)
+    {
+      const auto lz = __builtin_clz(n);
+      return 1 << (sizeof(size_t) * 8 - 1 - lz);
+    }
+
+    static bool find_acceptable_sub_buffer(
+      uint8_t*& data_, size_t& size_)
+    {
+      void* data = reinterpret_cast<void*>(data_);
+      size_t size = size_;
+
+      auto ret = std::align(8, sizeof(size_t), data, size);
+      if (ret == nullptr)
+      {
+        return false;
+      }
+
+      data_ = reinterpret_cast<uint8_t*>(data);
+      size_ = previous_power_of_2(size);
+      return true;
+    }
   };
 
   struct BufferDef
