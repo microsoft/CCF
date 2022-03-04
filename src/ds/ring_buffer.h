@@ -47,6 +47,11 @@ namespace ringbuffer
       return n && ((n & (~n + 1)) == n);
     }
 
+    static bool is_aligned(uint8_t const* data, size_t align)
+    {
+      return reinterpret_cast<std::uintptr_t>(data) % align == 0;
+    }
+
     static constexpr size_t header_size()
     {
       // The header is a 32 bit length and a 32 bit message ID.
@@ -80,15 +85,6 @@ namespace ringbuffer
       // create a sufficiently large region.
       return buffer_size / 2;
     }
-
-    Const(uint8_t* const buffer, size_t size) : buffer(buffer), size(size)
-    {
-      if (!is_power_of_2(size))
-        throw std::logic_error("Buffer size must be a power of 2");
-    }
-
-    uint8_t* const buffer;
-    const size_t size;
   };
 
   struct BufferDef
@@ -101,19 +97,19 @@ namespace ringbuffer
 
   namespace
   {
-    uint64_t read64(const BufferDef& bd, size_t index)
+    static inline uint64_t read64(const BufferDef& bd, size_t index)
     {
       uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
       atomic_thread_fence(std::memory_order_acq_rel);
       return r;
     }
 
-    static Message message(uint64_t header)
+    static inline Message message(uint64_t header)
     {
       return (Message)(header >> 32);
     }
 
-    static uint32_t length(uint64_t header)
+    static inline uint32_t length(uint64_t header)
     {
       return header & std::numeric_limits<uint32_t>::max();
     }
@@ -183,6 +179,7 @@ namespace ringbuffer
   {
   protected:
     BufferDef bd; // copy of reader's buffer definition
+    const size_t rmax;
 
     virtual void checkAccess(size_t, size_t) {}
 
@@ -197,9 +194,12 @@ namespace ringbuffer
     };
 
   public:
-    Writer(const Reader& r) : bd(r.bd) {}
+    Writer(const Reader& r) :
+      bd(r.bd),
+      rmax(Const::max_reservation_size(bd.size))
+    {}
 
-    Writer(const Writer& that) : bd(that.bd) {}
+    Writer(const Writer& that) : bd(that.bd), rmax(that.rmax) {}
 
     virtual ~Writer() {}
 
@@ -229,7 +229,6 @@ namespace ringbuffer
       }
 
       auto rsize = Const::entry_size(size);
-      auto rmax = Const::max_reservation_size(bd.size);
       if (rsize > rmax)
       {
         throw message_error(
@@ -422,7 +421,27 @@ namespace ringbuffer
       const BufferDef& from_inside_buffer) :
       from_outside(from_outside_buffer),
       from_inside(from_inside_buffer)
-    {}
+    {
+      if (!Const::is_power_of_2(from_outside_buffer.size))
+      {
+        throw std::logic_error("Inbound buffer size must be a power of 2");
+      }
+
+      if (!Const::is_aligned(from_outside_buffer.data, 8))
+      {
+        throw std::logic_error("Inbound buffer must be 8-byte aligned");
+      }
+
+      if (!Const::is_power_of_2(from_inside_buffer.size))
+      {
+        throw std::logic_error("Outbound buffer size must be a power of 2");
+      }
+
+      if (!Const::is_aligned(from_inside_buffer.data, 8))
+      {
+        throw std::logic_error("Outbound buffer must be 8-byte aligned");
+      }
+    }
 
     ringbuffer::Reader& read_from_outside()
     {
