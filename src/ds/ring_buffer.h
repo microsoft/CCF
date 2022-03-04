@@ -99,6 +99,26 @@ namespace ringbuffer
     Offsets* offsets;
   };
 
+  namespace
+  {
+    uint64_t read64(const BufferDef& bd, size_t index)
+    {
+      uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
+      atomic_thread_fence(std::memory_order_acq_rel);
+      return r;
+    }
+
+    static Message message(uint64_t header)
+    {
+      return (Message)(header >> 32);
+    }
+
+    static uint32_t length(uint64_t header)
+    {
+      return header & std::numeric_limits<uint32_t>::max();
+    }
+  }
+
   class Reader
   {
     friend class Writer;
@@ -120,7 +140,7 @@ namespace ringbuffer
       while ((advance < block) && (count < limit))
       {
         auto msg_index = hd_index + advance;
-        auto header = read64(msg_index);
+        auto header = read64(bd, msg_index);
         auto size = length(header);
 
         // If we see a pending write, we're done.
@@ -156,24 +176,6 @@ namespace ringbuffer
       }
 
       return count;
-    }
-
-  private:
-    uint64_t read64(size_t index)
-    {
-      uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
-      atomic_thread_fence(std::memory_order_acq_rel);
-      return r;
-    }
-
-    static Message message(uint64_t header)
-    {
-      return (Message)(header >> 32);
-    }
-
-    static uint32_t length(uint64_t header)
-    {
-      return header & std::numeric_limits<uint32_t>::max();
     }
   };
 
@@ -276,8 +278,11 @@ namespace ringbuffer
       {
         // Fix up the size to indicate we're done writing - unset pending bit.
         const auto index = marker.value() - Const::header_size();
-        auto size = read32(index);
-        write32(index, size & length_mask);
+        const auto header = read64(bd, index);
+        const auto size = length(header);
+        const auto m = message(header);
+        const auto finished_header = make_header(m, size, false);
+        write64(index, finished_header);
       }
     }
 
@@ -307,22 +312,6 @@ namespace ringbuffer
     }
 
   private:
-    uint32_t read32(size_t index)
-    {
-      uint32_t r;
-      checkAccess(index, sizeof(r));
-      r = *reinterpret_cast<volatile uint32_t*>(bd.data + index);
-      atomic_thread_fence(std::memory_order_acq_rel);
-      return r;
-    }
-
-    void write32(size_t index, uint32_t value)
-    {
-      atomic_thread_fence(std::memory_order_acq_rel);
-      checkAccess(index, sizeof(value));
-      *reinterpret_cast<volatile uint32_t*>(bd.data + index) = value;
-    }
-
     void write64(size_t index, uint64_t value)
     {
       atomic_thread_fence(std::memory_order_acq_rel);
