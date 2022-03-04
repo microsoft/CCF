@@ -5,7 +5,6 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
-#include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/tables/service.h"
@@ -417,6 +416,13 @@ namespace ccf
         }
         case StartType::Recover:
         {
+          if (!config.recover.previous_service_identity)
+          {
+            throw std::logic_error(
+              "Recovery requires the certificate of the previous service "
+              "identity");
+          }
+
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             curve_id,
             config.startup_host_time,
@@ -432,13 +438,6 @@ namespace ccf
           }
 
           sm.advance(NodeStartupState::readingPublicLedger);
-
-          if (config.recover.previous_service_identity)
-          {
-            crypto::Pem pem(*config.recover.previous_service_identity);
-            LOG_INFO_FMT(
-              "Recovering with previous service identity: {}", pem.str());
-          }
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -1320,8 +1319,8 @@ namespace ccf
 
       if (
         service_info->status == ServiceStatus::RECOVERING &&
-        config.recover.previous_service_identity.has_value() !=
-          identities.previous.has_value())
+        (!config.recover.previous_service_identity ||
+         !identities.previous.has_value()))
       {
         throw std::logic_error(
           "Recovery with service certificates requires both, a previous "
@@ -1337,6 +1336,7 @@ namespace ccf
           "transition_service_to_open proposal does not match the current "
           "service identity");
       }
+
       if (identities.previous)
       {
         service_info->previous_service_identity = *identities.previous;

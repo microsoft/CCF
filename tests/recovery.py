@@ -11,7 +11,6 @@ import ccf.ledger
 import os
 import random
 import json
-import shutil
 from infra.runner import ConcurrentRunner
 from infra.consortium import slurp_file
 
@@ -54,17 +53,10 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         os.remove(ledger_file_path)
 
 
-def save_service_identity(network, args):
-    current_identity = os.path.join(network.common_dir, "service_cert.pem")
-    previous_identity = os.path.join(network.common_dir, "previous_service_cert.pem")
-    shutil.copy(current_identity, previous_identity)
-    args.previous_service_identity_file = previous_identity
-
-
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
 def test_recover_service(network, args, from_snapshot=False, split_ledger=False):
-    save_service_identity(network, args)
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -114,7 +106,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
     network.stop_all_nodes()
 
-    save_service_identity(network, args)
+    network.save_service_identity(args)
     first_service_identity_file = args.previous_service_identity_file
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
@@ -178,7 +170,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
 def test_recover_service_aborted(network, args, from_snapshot=False):
-    save_service_identity(network, args)
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -249,7 +241,7 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
 @reqs.description("Recovering a service, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
 def test_share_resilience(network, args, from_snapshot=False):
-    save_service_identity(network, args)
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -322,7 +314,7 @@ def test_recover_service_truncated_ledger(
     corrupt_last_tx=False,
     corrupt_first_sig=False,
 ):
-    save_service_identity(network, args)
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     LOG.info("Force new ledger chunk for app txs to be in committed chunks")

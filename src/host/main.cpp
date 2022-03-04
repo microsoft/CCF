@@ -27,7 +27,6 @@
 #include <fstream>
 #include <iostream>
 #include <locale>
-#include <regex>
 #include <string>
 #include <sys/types.h>
 #include <thread>
@@ -425,14 +424,16 @@ int main(int argc, char** argv)
       LOG_INFO_FMT("Creating new node - recover");
       startup_config.initial_service_certificate_validity_days =
         config.command.recover.initial_service_certificate_validity_days;
-      if (!config.command.recover.previous_service_identity_file.empty())
+      auto idf = config.command.recover.previous_service_identity_file;
+      if (!files::exists(idf))
       {
-        LOG_INFO_FMT(
-          "Reading previous service identity from {}",
-          config.command.recover.previous_service_identity_file);
-        startup_config.recover.previous_service_identity =
-          files::slurp(config.command.recover.previous_service_identity_file);
+        throw std::logic_error(fmt::format(
+          "Recovery requires a previous service identity certificate; cannot "
+          "open '{}'",
+          idf));
       }
+      LOG_INFO_FMT("Reading previous service identity from {}", idf);
+      startup_config.recover.previous_service_identity = files::slurp(idf);
     }
     else
     {

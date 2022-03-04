@@ -168,10 +168,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig::Join, target_rpc_address, retry_timeout, service_cert);
 
 DECLARE_JSON_TYPE(StartupConfig::Recover);
-DECLARE_JSON_REQUIRED_FIELDS( // DECLARE_JSON_OPTIONAL_FIELDS does not work here
-                              // for some reason
-  StartupConfig::Recover,
-  previous_service_identity);
+DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(

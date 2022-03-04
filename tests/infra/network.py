@@ -19,6 +19,7 @@ from math import ceil
 import http
 import pprint
 import functools
+import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 
@@ -1269,6 +1270,13 @@ class Network:
         LOG.info(
             f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
+
+    def save_service_identity(self, args):
+        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
+        shutil.copy(current_identity, previous_identity)
+        args.previous_service_identity_file = previous_identity
+        return args
 
 
 @contextmanager
