@@ -209,16 +209,22 @@ namespace ringbuffer
     {
       // Make sure we aren't using a reserved message.
       if ((m < Const::msg_min) || (m > Const::msg_max))
+      {
         throw message_error(
-          m, "Cannot use a reserved message (" + std::to_string(m) + ")");
+          m, fmt::format("Cannot use a reserved message ({})", m));
+      }
 
       // Make sure the message fits.
       if (size > Const::max_size())
+      {
         throw message_error(
           m,
-          "Message (" + std::to_string(m) + ") is too long for any writer (" +
-            std::to_string(size) + " > " + std::to_string(Const::max_size()) +
-            ")");
+          fmt::format(
+            "Message ({}) is too long for any writer: {} > {}",
+            m,
+            size,
+            Const::max_size()));
+      }
 
       auto rsize = Const::entry_size(size);
       auto rmax = Const::max_reservation_size(bd.size);
@@ -226,9 +232,11 @@ namespace ringbuffer
       {
         throw message_error(
           m,
-          "Message (" + std::to_string(m) +
-            ") with header is too long for this writer (" +
-            std::to_string(rsize) + " > " + std::to_string(rmax) + ")");
+          fmt::format(
+            "Message ({}) is too long for this writer: {} > {}",
+            m,
+            rsize,
+            rmax));
       }
 
       auto r = reserve(rsize);
