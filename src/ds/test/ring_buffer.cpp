@@ -126,6 +126,38 @@ TEST_CASE("Basic ringbuffer" * doctest::test_suite("ringbuffer"))
 TEST_CASE("Buffer size and alignment" * doctest::test_suite("ringbuffer"))
 {
   {
+    INFO("previous_power_of_2");
+    REQUIRE(ringbuffer::Const::previous_power_of_2(1) == 1);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(2) == 2);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(3) == 2);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4) == 4);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(5) == 4);
+
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4194303) == 2097152);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4194304) == 4194304);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4194305) == 4194304);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(5252525) == 4194304);
+
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8589934591) == 4294967296);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8589934592) == 8589934592);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8589934593) == 8589934592);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8989898989) == 8589934592);
+
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1125899906842623) ==
+      562949953421312);
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1125899906842624) ==
+      1125899906842624);
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1125899906842625) ==
+      1125899906842624);
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1234567890987654) ==
+      1125899906842624);
+  }
+
+  {
     INFO("Explicit tests");
     constexpr uint8_t size = 32;
     auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);

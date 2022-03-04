@@ -335,11 +335,11 @@ int main(int argc, char** argv)
     std::vector<uint8_t> service_cert(certificate_size);
 
     EnclaveConfig enclave_config;
-    enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
-    enclave_config.to_enclave_buffer_size = to_enclave_buffer.size();
+    enclave_config.to_enclave_buffer_start = to_enclave_def.data;
+    enclave_config.to_enclave_buffer_size = to_enclave_def.size;
     enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
-    enclave_config.from_enclave_buffer_start = from_enclave_buffer.data();
-    enclave_config.from_enclave_buffer_size = from_enclave_buffer.size();
+    enclave_config.from_enclave_buffer_start = from_enclave_def.data;
+    enclave_config.from_enclave_buffer_size = from_enclave_def.size;
     enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
     enclave_config.writer_config = writer_config;

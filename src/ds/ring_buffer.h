@@ -88,8 +88,8 @@ namespace ringbuffer
 
     static constexpr size_t previous_power_of_2(size_t n)
     {
-      const auto lz = __builtin_clz(n);
-      return 1 << (sizeof(size_t) * 8 - 1 - lz);
+      const auto lz = __builtin_clzll(n);
+      return 1ul << (sizeof(size_t) * 8 - 1 - lz);
     }
 
     static bool find_acceptable_sub_buffer(uint8_t*& data_, size_t& size_)
@@ -148,7 +148,8 @@ namespace ringbuffer
     {
       if (!Const::is_power_of_2(bd.size))
       {
-        throw std::logic_error("Buffer size must be a power of 2");
+        throw std::logic_error(
+          fmt::format("Buffer size must be a power of 2, not {}", bd.size));
       }
 
       if (!Const::is_aligned(bd.data, 8))
