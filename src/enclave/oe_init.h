@@ -3,6 +3,8 @@
 #pragma once
 
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/attestation/attester.h>
+#  include <openenclave/attestation/verifier.h>
 #  include <openenclave/enclave.h>
 #else
 #  include <openenclave/host_verify.h>

@@ -6,6 +6,7 @@
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
@@ -15,7 +16,6 @@
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
 #include "node/network_state.h"
-#include "node/quote.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
@@ -109,6 +109,29 @@ namespace ccf
   private:
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
+
+    static std::pair<http_status, std::string> quote_verification_error(
+      QuoteVerificationResult result)
+    {
+      switch (result)
+      {
+        case QuoteVerificationResult::Failed:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
+        case QuoteVerificationResult::FailedCodeIdNotFound:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote does not contain known enclave measurement");
+        case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote report data does not contain node's public key hash");
+        default:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Unknown quote verification error");
+      }
+    }
 
     struct ExistingNodeInfo
     {
