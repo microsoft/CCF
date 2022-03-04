@@ -122,7 +122,18 @@ namespace ringbuffer
     BufferDef bd;
 
   public:
-    Reader(const BufferDef& bd_) : bd(bd_) {}
+    Reader(const BufferDef& bd_) : bd(bd_)
+    {
+      if (!Const::is_power_of_2(bd.size))
+      {
+        throw std::logic_error("Buffer size must be a power of 2");
+      }
+
+      if (!Const::is_aligned(bd.data, 8))
+      {
+        throw std::logic_error("Buffer must be 8-byte aligned");
+      }
+    }
 
     size_t read(size_t limit, Handler f)
     {
@@ -421,27 +432,7 @@ namespace ringbuffer
       const BufferDef& from_inside_buffer) :
       from_outside(from_outside_buffer),
       from_inside(from_inside_buffer)
-    {
-      if (!Const::is_power_of_2(from_outside_buffer.size))
-      {
-        throw std::logic_error("Inbound buffer size must be a power of 2");
-      }
-
-      if (!Const::is_aligned(from_outside_buffer.data, 8))
-      {
-        throw std::logic_error("Inbound buffer must be 8-byte aligned");
-      }
-
-      if (!Const::is_power_of_2(from_inside_buffer.size))
-      {
-        throw std::logic_error("Outbound buffer size must be a power of 2");
-      }
-
-      if (!Const::is_aligned(from_inside_buffer.data, 8))
-      {
-        throw std::logic_error("Outbound buffer must be 8-byte aligned");
-      }
-    }
+    {}
 
     ringbuffer::Reader& read_from_outside()
     {
