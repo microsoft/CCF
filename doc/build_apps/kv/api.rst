@@ -41,7 +41,7 @@ Transaction
 
 .. doxygenclass:: kv::Tx
    :project: CCF
-   :members: rw, ro, wo
+   :members: rw, wo
 
 Handles
 -------

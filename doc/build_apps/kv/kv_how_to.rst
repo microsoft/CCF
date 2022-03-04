@@ -1,27 +1,27 @@
 Key-Value Store How-To
 ======================
 
-The `Key-Value Store` (KV) consists of a set of :cpp:type:`kv::Map` objects that are available to the end-points of an application. Endpoint handlers create handles which allow them to read and write from these :cpp:type:`kv::Map` objects. The framework handles conflicts between concurrent execution of multiple transactions, and produces a consistent order of transactions which is replicated between nodes, allowing the entries to be read from multiple nodes. This page outlines the core concepts and C++ APIs used to interact with the KV.
+The `Key-Value Store` (KV) consists of a set of :cpp:type:`kv::Map` objects that are available to the endpoints of an application. Endpoint handlers create handles which allow them to read and write from these :cpp:type:`kv::Map` objects. The framework handles conflicts between concurrent execution of multiple transactions, and produces a consistent order of transactions which is replicated between nodes, allowing the entries to be read from multiple nodes. This page outlines the core concepts and C++ APIs used to interact with the KV.
 
-Creating a Map
---------------
+Map Naming
+----------
 
 A :cpp:type:`kv::Map` (often referred to as a `Table`) is a collection of key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` from the local store during a transaction.
 
 If a :cpp:type:`kv::Map` with the given name did not previously exist, it will be created in this transaction.
 
-A :cpp:type:`kv::Map` can either be created as private (default) or public. Public map's names begin with a ``public:`` prefix, any any other name indicates a private map. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of the nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave; only their integrity is protected. The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name. Public and private maps with similar names in different domains are distinct; writes to "public:foo" have no impact on "foo", and vice versa.
+A :cpp:type:`kv::Map` can either be created as private (default) or public. Public map's names begin with a ``public:`` prefix, any any other name indicates a private map. For instance the name ``public:foo`` to a public map, while ``foo`` refers to a private map. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave; only their integrity is protected. The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name. Public and private maps with similar names in different domains are distinct; writes to ``public:foo`` have no impact on ``foo``, and vice versa.
 
 Transaction Semantics
 ---------------------
 
-A transaction (:cpp:class:`kv::Tx`) encapsulates to the atomic operations that can be executed on the KV. Transactions may read from and write to multiple :cpp:type:`kv::Map`, and are automatically ordered, applied, serialised, and committed by the framework.
+A transaction (:cpp:class:`kv::Tx`) encapsulates an individual endpoint invocation's atomic interaction with the KV. Transactions may read from and write to multiple :cpp:type:`kv::Map`, and each is automatically ordered, applied, serialised, and committed by the framework.
 
 A reference to a new :cpp:class:`kv::Tx` is passed to each endpoint handler, and used to interact with the KV.
 
 Each :cpp:class:`kv::Tx` gets a consistent, opaque view of the KV, including the values which have been left by previous writes. Any writes produced by this transaction will be visible to all future transactions.
 
-When the endpoint handler indicates that its :cpp:class:`kv::Tx` should be applied (see :ref:`Applying and reverting writes`_), the executing node attempts to apply the changes to its local KV. If this produces conflicts with concurrently executing transactions, it will be automatically re-executed. Once the transaction is applied successfully, it is automatically replicated to other nodes and will, if the network is healthy, eventually be globally committed.
+When the endpoint handler indicates that its :cpp:class:`kv::Tx` should be applied (see :ref:`this section <build_apps/kv/kv_how_to:Applying and reverting writes>` for details), the executing node attempts to apply the changes to its local KV. If this produces conflicts with concurrently executing transactions, it will be automatically re-executed. Once the transaction is applied successfully, it is automatically replicated to other nodes and will, if the network is healthy, eventually be globally committed.
 
 For each :cpp:type:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:type:`kv::Map` instance which defines both the map's name and key-value types.
 
@@ -36,7 +36,7 @@ By name:
     auto map2_handle = tx.rw<kv::Map<string, uint64_t>>("public:map2");
     auto map3_handle = tx.rw<kv::Map<uint64_t, MyCustomClass>>("map3");
 
-By:cpp:type:`kv::Map`:
+By :cpp:type:`kv::Map`:
 
 .. code-block:: cpp
 
@@ -58,11 +58,11 @@ Accessing Map content via a Handle
 
 Once a :cpp:class:`kv::MapHandle` on a specific :cpp:type:`kv::Map` has been obtained, it is possible to:
 
-- test (:cpp:func:`kv::MapHandle::has`) whether a key has any associated value;
-- read (:cpp:func:`kv::MapHandle::get`) the value associated with a key;
-- write (:cpp:func:`kv::MapHandle::put`) a new value for a key;
-- delete (:cpp:func:`kv::MapHandle::remove`) a key and its current value;
-- iterate (:cpp:func:`kv::MapHandle::foreach`) through all key-value pairs.
+- test (:cpp:func:`kv::ReadableMapHandle::has`) whether a key has any associated value;
+- read (:cpp:func:`kv::ReadableMapHandle::get`) the value associated with a key;
+- write (:cpp:func:`kv::WriteableMapHandle::put`) a new value for a key;
+- delete (:cpp:func:`kv::WriteableMapHandle::remove`) a key and its current value;
+- iterate (:cpp:func:`kv::ReadableMapHandle::foreach`) through all key-value pairs.
 
 .. code-block:: cpp
 
@@ -89,7 +89,7 @@ Once a :cpp:class:`kv::MapHandle` on a specific :cpp:type:`kv::Map` has been obt
 Read/Write safety
 -----------------
 
-If you are only reading from or only writing to a given :cpp:type:`kv::Map` you can retrieve a `read-only` or `write-only` handle for it. This will turn unexpected reads/writes (which would introduce unintended dependencies between transactions) into compile-time errors. Instead of calling :cpp:func:`kv::Tx::rw` to get a handle which can both read and write, you can call :cpp:func:`kv::Tx::ro` to acquire a `read-only` handle or :cpp:func:`kv::Tx::wo` to acquire a `write-only` handle.
+If you are only reading from or only writing to a given :cpp:type:`kv::Map` you can retrieve a `read-only` or `write-only` handle for it. This will turn unexpected reads/writes (which would introduce unintended dependencies between transactions) into compile-time errors. Instead of calling :cpp:func:`kv::Tx::rw` to get a handle which can both read and write, you can call :cpp:func:`kv::ReadOnlyTx::ro` to acquire a `read-only` handle or :cpp:func:`kv::Tx::wo` to acquire a `write-only` handle.
 
 .. code-block:: cpp
 
