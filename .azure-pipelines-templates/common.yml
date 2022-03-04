@@ -47,3 +47,6 @@ jobs:
           - template: publish_compatibility_report.yml
           - template: install.yml
           - template: publish_sbom.yml
+
+      - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
+          - template: install.yml
