@@ -92,8 +92,7 @@ namespace ringbuffer
       return 1 << (sizeof(size_t) * 8 - 1 - lz);
     }
 
-    static bool find_acceptable_sub_buffer(
-      uint8_t*& data_, size_t& size_)
+    static bool find_acceptable_sub_buffer(uint8_t*& data_, size_t& size_)
     {
       void* data = reinterpret_cast<void*>(data_);
       size_t size = size_;
