@@ -78,6 +78,7 @@ add_custom_target(ccf ALL)
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/js/wrap.cpp
+    ${CCF_DIR}/src/node/quote.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
