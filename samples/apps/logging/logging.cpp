@@ -200,13 +200,13 @@ namespace loggingapp
     static std::string private_records(const std::optional<std::string>& scope)
     {
       return scope.has_value() ? fmt::format("{}-{}", PRIVATE_RECORDS, *scope) :
-                     PRIVATE_RECORDS;
+                                 PRIVATE_RECORDS;
     }
 
     static std::string public_records(const std::optional<std::string>& scope)
     {
-      return scope ? std::string(PUBLIC_RECORDS) + "-" + *scope :
-                     PUBLIC_RECORDS;
+      return scope.has_value() ? fmt::format("{}-{}", PUBLIC_RECORDS, *scope) :
+                                 PUBLIC_RECORDS;
     }
 
   public:
@@ -1547,7 +1547,7 @@ namespace loggingapp
           {
             return ccf::make_success(LoggingFreshScope::Out{scope});
           }
-          scope = prefix.value_or("") + "_" + std::to_string(i + 1);
+          scope = fmt::format("{}_{}", scope, std::to_string(i + 1));
         }
 
         return ccf::make_error(

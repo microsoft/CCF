@@ -1488,34 +1488,34 @@ if __name__ == "__main__":
     )
 
     # Is there a better way to do this?
-    # if os.path.exists(
-    #     os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    # ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-    #     cr.add(
-    #         "js_v8",
-    #         run,
-    #         package="libjs_v8",
-    #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #         initial_user_count=4,
-    #         initial_member_count=2,
-    #     )
+    if os.path.exists(
+        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
+    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
+        cr.add(
+            "js_v8",
+            run,
+            package="libjs_v8",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+            initial_user_count=4,
+            initial_member_count=2,
+        )
 
-    # cr.add(
-    #     "cpp",
-    #     run,
-    #     package="samples/apps/logging/liblogging",
-    #     js_app_bundle=None,
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "cpp",
+        run,
+        package="samples/apps/logging/liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
-    # cr.add(
-    #     "common",
-    #     e2e_common_endpoints.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    cr.add(
+        "common",
+        e2e_common_endpoints.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
     cr.add(
