@@ -114,14 +114,15 @@ def test(network, args):
 def test_illegal(network, args):
     primary, _ = network.find_primary()
 
+    cafile = os.path.join(network.common_dir, "service_cert.pem")
+    context = ssl.create_default_context(cafile=cafile)
+    context.load_cert_chain(
+        certfile=os.path.join(network.common_dir, "user0_cert.pem"),
+        keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
+    )
+
     def send_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
-        cafile = os.path.join(network.common_dir, "service_cert.pem")
-        context = ssl.create_default_context(cafile=cafile)
-        context.load_cert_chain(
-            certfile=os.path.join(network.common_dir, "user0_cert.pem"),
-            keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
-        )
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn = context.wrap_socket(
             sock, server_side=False, server_hostname=primary.get_public_rpc_host()
