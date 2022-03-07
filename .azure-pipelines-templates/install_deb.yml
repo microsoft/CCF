@@ -12,3 +12,9 @@ steps:
       echo "##vso[task.setvariable variable=pkgname]$GITHUB_PKG"
     workingDirectory: build
     displayName: "Make .deb package"
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      path: $(Build.ArtifactStagingDirectory)/$(pkgname)
+      artifact: $(pkgname)
+      displayName: "Publish CCF Debian Package"
