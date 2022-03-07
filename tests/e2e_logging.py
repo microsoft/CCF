@@ -134,13 +134,11 @@ def test_illegal(network, args):
         assert response.status == expected_status, response.status
         return response
 
-    def send_bad_raw_content(content, expect_in_response=True):
+    def send_bad_raw_content(content):
         response = send_raw_content(content, http.HTTPStatus.BAD_REQUEST)
-        if expect_in_response:
-            # TODO: Response should always contain corrupt request, regardless of null bytes!
-            response_body = response.read()
-            LOG.warning(response_body)
-            assert content in response_body, response
+        response_body = response.read()
+        LOG.warning(response_body)
+        assert content in response_body, response
 
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
@@ -150,10 +148,9 @@ def test_illegal(network, args):
 
     def send_corrupt_variations(content):
         for i in range(len(content) - 1):
-            corrupt_content = content[:i] + b"\x01" + content[i + 1 :]
-            send_bad_raw_content(corrupt_content)
-            truncated_content = content[:i] + b"\0"
-            send_bad_raw_content(truncated_content, False)
+            for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
+                corrupt_content = content[:i] + replacement + content[i + 1 :]
+                send_bad_raw_content(corrupt_content)
 
     good_content = b"GET /node/state HTTP/1.1\r\nx-custom-header: Some junk\r\n\r\n"
     send_raw_content(good_content, http.HTTPStatus.OK)
