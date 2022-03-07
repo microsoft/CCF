@@ -23,9 +23,9 @@ namespace ccf
   class Forwarder : public enclave::AbstractForwarder
   {
   private:
-    std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder;
+    std::weak_ptr<enclave::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::weak_ptr<enclave::RPCMap> rpc_map;
     ConsensusType consensus_type;
     NodeId self;
 
@@ -33,9 +33,9 @@ namespace ccf
 
   public:
     Forwarder(
-      std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder,
+      std::weak_ptr<enclave::AbstractRPCResponder> rpcresponder,
       std::shared_ptr<ChannelProxy> n2n_channels,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::weak_ptr<enclave::RPCMap> rpc_map_,
       ConsensusType consensus_type_) :
       rpcresponder(rpcresponder),
       n2n_channels(n2n_channels),
@@ -196,7 +196,8 @@ namespace ccf
         {
           case ForwardedMsg::forwarded_cmd:
           {
-            if (rpc_map)
+            std::shared_ptr<enclave::RPCMap> rpc_map_shared = rpc_map.lock();
+            if (rpc_map_shared)
             {
               auto ctx = recv_forwarded_command(from, data, size);
               if (ctx == nullptr)
@@ -216,8 +217,8 @@ namespace ccf
               }
 
               const auto& actor_s = actor_opt.value();
-              auto actor = rpc_map->resolve(actor_s);
-              auto handler = rpc_map->find(actor);
+              auto actor = rpc_map_shared->resolve(actor_s);
+              auto handler = rpc_map_shared->find(actor);
               if (actor == ccf::ActorsType::unknown || !handler.has_value())
               {
                 LOG_FAIL_FMT(
@@ -259,7 +260,11 @@ namespace ccf
             LOG_DEBUG_FMT(
               "Sending forwarded response to RPC endpoint {}", rep->first);
 
-            if (!rpcresponder->reply_async(rep->first, std::move(rep->second)))
+            auto rpc_responder_shared = rpcresponder.lock();
+            if (
+              rpc_responder_shared &&
+              !rpc_responder_shared->reply_async(
+                rep->first, std::move(rep->second)))
             {
               return;
             }
