@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/nonstd.h"
-#include "hash.h"
+#include "ccf/ds/nonstd.h"
+#include "ds/hash.h"
 #include "serializer.h"
 
 #include <atomic>
@@ -96,6 +96,8 @@ namespace ringbuffer
 
     virtual WriteMarker write_bytes(
       const WriteMarker& marker, const uint8_t* bytes, size_t size) = 0;
+
+    virtual size_t get_max_message_size() = 0;
     ///@}
 
   private:

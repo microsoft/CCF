@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
 #include "http_parser.h"

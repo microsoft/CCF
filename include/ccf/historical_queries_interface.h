@@ -2,32 +2,41 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node_subsystem_interface.h"
 #include "ccf/receipt.h"
+#include "ccf/seq_no_collection.h"
+#include "ccf/store_ptr.h"
 #include "ccf/tx_id.h"
-#include "consensus/ledger_enclave_types.h"
-#include "ds/contiguous_set.h"
-#include "kv/store.h"
-#include "node/history.h"
-#include "node/tx_receipt.h"
 
 #include <chrono>
 #include <memory>
 
+namespace ccf
+{
+  // This is an opaque, incomplete type, but can be summarised to a
+  // JSON-serialisable form by the functions below
+  struct TxReceipt;
+  using TxReceiptPtr = std::shared_ptr<TxReceipt>;
+
+  ccf::Receipt describe_receipt(
+    const TxReceipt& receipt, bool include_root = false);
+  ccf::Receipt describe_receipt(
+    const TxReceiptPtr& receipt_ptr, bool include_root = false);
+}
+
 namespace ccf::historical
 {
-  using StorePtr = std::shared_ptr<kv::Store>;
-
   struct State
   {
     /// Read-only historical store at transaction_id
-    StorePtr store = nullptr;
+    kv::StorePtr store = nullptr;
     /// Receipt for ledger entry at transaction_id
     TxReceiptPtr receipt = nullptr;
     /// View and Sequence Number for the State
     ccf::TxID transaction_id;
 
     State(
-      const StorePtr& store_,
+      const kv::StorePtr& store_,
       const TxReceiptPtr& receipt_,
       const ccf::TxID& transaction_id_) :
       store(store_),
@@ -53,8 +62,6 @@ namespace ccf::historical
 
   using ExpiryDuration = std::chrono::seconds;
 
-  using SeqNoCollection = ds::ContiguousSet<ccf::SeqNo>;
-
   /** Stores the progress of historical query requests.
    *
    * A request will generally need to be made multiple times (with the same
@@ -67,10 +74,15 @@ namespace ccf::historical
    * correlated across HTTP requests, how the active quota is divided between
    * callers) is left to the calling system.
    */
-  class AbstractStateCache
+  class AbstractStateCache : public ccf::AbstractNodeSubSystem
   {
   public:
     virtual ~AbstractStateCache() = default;
+
+    static char const* get_subsystem_name()
+    {
+      return "StateCache";
+    }
 
     /** Set the default time after which a request's state will be deleted, and
      * will not be accessible without retrieving it again from the ledger. Any
@@ -86,7 +98,7 @@ namespace ccf::historical
      * is equivalent to get_store_at(handle, seqno, seqno), but returns nullptr
      * if the state is currently unavailable.
      */
-    virtual StorePtr get_store_at(
+    virtual kv::StorePtr get_store_at(
       RequestHandle handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) = 0;
@@ -94,7 +106,8 @@ namespace ccf::historical
     /** Same as @c get_store_at but uses default expiry value.
      * @see get_store_at
      */
-    virtual StorePtr get_store_at(RequestHandle handle, ccf::SeqNo seqno) = 0;
+    virtual kv::StorePtr get_store_at(
+      RequestHandle handle, ccf::SeqNo seqno) = 0;
 
     /** Retrieve a full state at a given seqno, including the Store, the TxID
      * assigned by consensus, and an offline-verifiable receipt for the Tx.
@@ -127,7 +140,7 @@ namespace ccf::historical
      * vector will be of length (end_seqno - start_seqno + 1) and will contain
      * no nullptrs.
      */
-    virtual std::vector<StorePtr> get_store_range(
+    virtual std::vector<kv::StorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -136,7 +149,7 @@ namespace ccf::historical
     /** Same as @c get_store_range but uses default expiry value.
      * @see get_store_range
      */
-    virtual std::vector<StorePtr> get_store_range(
+    virtual std::vector<kv::StorePtr> get_store_range(
       RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
 
     /** Retrieve a range of states at the given indices, including the Store,
@@ -157,11 +170,11 @@ namespace ccf::historical
 
     /** Retrieve stores for a set of given indices.
      */
-    virtual std::vector<StorePtr> get_stores_for(
+    virtual std::vector<kv::StorePtr> get_stores_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) = 0;
-    virtual std::vector<StorePtr> get_stores_for(
+    virtual std::vector<kv::StorePtr> get_stores_for(
       RequestHandle handle, const SeqNoCollection& seqnos) = 0;
 
     /** Retrieve states for a set of given indices.

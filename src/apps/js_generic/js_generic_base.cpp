@@ -1,16 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
+#include "node/rpc/host_processes_interface.h"
+#include "service/tables/endpoints.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -33,9 +32,7 @@ namespace ccfapp
     struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
-    NetworkTables& network;
     ccfapp::AbstractNodeContext& context;
-    metrics::Tracker metrics_tracker;
 
     js::JSWrappedValue create_caller_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
@@ -292,7 +289,7 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
-        &context.get_node_state(),
+        context.get_subsystem<ccf::AbstractHostProcesses>().get(),
         nullptr,
         &context.get_historical_state(),
         this,
@@ -472,13 +469,10 @@ namespace ccfapp
     }
 
   public:
-    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+    JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       context(context)
-    {
-      metrics_tracker.install_endpoint(*this);
-    }
+    {}
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
     {
@@ -501,7 +495,7 @@ namespace ccfapp
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
@@ -591,7 +585,7 @@ namespace ccfapp
         ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
         const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
@@ -637,7 +631,7 @@ namespace ccfapp
       UserEndpointRegistry::build_api(document, tx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();
@@ -671,32 +665,14 @@ namespace ccfapp
         return true;
       });
     }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
-    }
   };
 
 #pragma clang diagnostic pop
 
-  class JS : public ccf::RpcFrontend
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
-  private:
-    JSHandlers js_handlers;
-
-  public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, context)
-    {}
-  };
-
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
-  {
-    return make_shared<JS>(network, context);
+    return std::make_unique<JSHandlers>(context);
   }
+
 } // namespace ccfapp

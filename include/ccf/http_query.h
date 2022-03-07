@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/nonstd.h"
+#include "ccf/ds/nonstd.h"
 
 #define FMT_HEADER_ONLY
 #include <charconv>
@@ -19,7 +19,7 @@ namespace http
   // query string.
   using ParsedQuery = std::multimap<std::string_view, std::string_view>;
 
-  static inline ParsedQuery parse_query(const std::string_view& query)
+  static ParsedQuery parse_query(const std::string_view& query)
   {
     ParsedQuery parsed;
     const auto params = nonstd::split(query, "&");

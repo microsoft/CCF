@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/ds/json.h"
+#include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "ds/ccf_exception.h"
-#include "ds/json.h"
-#include "ds/logger.h"
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
@@ -82,6 +82,12 @@ extern "C"
       return CreateNodeStatus::NodeAlreadyCreated;
     }
 
+    if (!oe_is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
+    {
+      LOG_FAIL_FMT("Memory outside enclave: enclave_config");
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 
     // Setup logger to allow enclave logs to reach the host before node is
@@ -143,12 +149,6 @@ extern "C"
 
       enclave::host_time =
         static_cast<decltype(enclave::host_time)>(time_location);
-
-      if (!oe_is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: enclave_config");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
 
       // Check that ringbuffer memory ranges are entirely outside of the enclave
       if (!oe_is_outside_enclave(
@@ -217,7 +217,7 @@ extern "C"
     }
 #endif
 
-    enclave::Enclave* enclave;
+    enclave::Enclave* enclave = nullptr;
 
     try
     {
@@ -249,18 +249,29 @@ extern "C"
       return CreateNodeStatus::EnclaveInitFailed;
     }
 
-    auto status = enclave->create_new_node(
-      start_type,
-      std::move(cc),
-      node_cert,
-      node_cert_size,
-      node_cert_len,
-      service_cert,
-      service_cert_size,
-      service_cert_len);
+    CreateNodeStatus status = EnclaveInitFailed;
+
+    try
+    {
+      status = enclave->create_new_node(
+        start_type,
+        std::move(cc),
+        node_cert,
+        node_cert_size,
+        node_cert_len,
+        service_cert,
+        service_cert_size,
+        service_cert_len);
+    }
+    catch (...)
+    {
+      delete enclave;
+      throw;
+    }
 
     if (status != CreateNodeStatus::OK)
     {
+      delete enclave;
       return status;
     }
 

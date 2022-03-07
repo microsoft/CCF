@@ -6,11 +6,11 @@
 #include "timing.h"
 
 // CCF
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
 #include "clients/rpc_tls_client.h"
-#include "crypto/verifier.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 
 // STL/3rdparty
 #include <CLI11/CLI11.hpp>
@@ -298,7 +298,7 @@ namespace client
       {
         const auto raw_cert = files::slurp(options.cert_file);
         const auto raw_key = files::slurp(options.key_file);
-        const auto ca = files::slurp(options.ca_file);
+        const auto ca = files::slurp_string(options.ca_file);
 
         key = crypto::Pem(raw_key);
 
@@ -331,9 +331,9 @@ namespace client
       return conn;
     }
 
-    void add_prepared_tx(
+    void add_prepared_ser_tx(
       const std::string& method,
-      const CBuffer params,
+      const std::span<const uint8_t> params,
       bool expects_commit,
       const std::optional<size_t>& index)
     {

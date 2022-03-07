@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "crypto/hash.h"
+
+#include "ccf/service/map.h"
 #include "node_signature.h"
-#include "service/map.h"
 
 #include <string>
 #include <vector>
@@ -93,4 +93,8 @@ namespace ccf
     ViewChangeConfirmation, view, primary_id, signature, view_change_messages);
 
   using NewViewsMap = ServiceValue<ViewChangeConfirmation>;
+  namespace Tables
+  {
+    static constexpr auto NEW_VIEWS = "public:ccf.internal.consensus.new_views";
+  }
 }

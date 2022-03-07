@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "receipt.h"
 
+#include "ccf/ds/logger.h"
+#include "ccf/historical_queries_interface.h"
 #include "ccf/receipt.h"
-#include "ds/logger.h"
 #include "template.h"
 
 namespace ccf::v8_tmpl
@@ -118,7 +119,7 @@ namespace ccf::v8_tmpl
     ccf::Receipt* receipt_out = new ccf::Receipt();
     V8Context::from_context(context).register_finalizer(
       [](void* data) { delete static_cast<ccf::Receipt*>(data); }, receipt_out);
-    receipt.describe(*receipt_out);
+    *receipt_out = ccf::describe_receipt(receipt);
 
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);

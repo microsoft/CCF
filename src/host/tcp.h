@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/logger.h"
 #include "before_io.h"
+#include "ccf/ds/logger.h"
 #include "dns.h"
 #include "proxy.h"
 
@@ -607,6 +607,12 @@ namespace asynchost
       if (req->data)
       {
         static_cast<TCPImpl*>(req->data)->on_resolved(req, rc);
+      }
+      else
+      {
+        // The TCPImpl that submitted the request has been destroyed, but we
+        // need to clean up the request object.
+        delete req;
       }
     }
 

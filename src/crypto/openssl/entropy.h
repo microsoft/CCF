@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/entropy.h"
+#include "ccf/crypto/entropy.h"
 #include "openssl_wrappers.h"
 
 #include <functional>

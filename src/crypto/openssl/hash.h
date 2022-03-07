@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash_provider.h"
+#include "ccf/crypto/hash_provider.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/evp.h>
@@ -71,12 +71,12 @@ namespace crypto
   public:
     ISha256OpenSSL();
     ~ISha256OpenSSL();
-    virtual void update_hash(CBuffer data);
+    virtual void update_hash(std::span<const uint8_t> data);
     virtual Sha256Hash finalise();
 
   protected:
     void* ctx;
   };
 
-  void openssl_sha256(const CBuffer& data, uint8_t* h);
+  void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h);
 }

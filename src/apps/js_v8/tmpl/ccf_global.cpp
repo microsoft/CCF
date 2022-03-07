@@ -2,12 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf_global.h"
 
+#include "apps/js_v8/tmpl/crypto.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/sha256.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
 #include "consensus.h"
-#include "crypto.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
-#include "ds/logger.h"
 #include "historical.h"
 #include "historical_state.h"
 #include "kv_store.h"
@@ -221,7 +223,7 @@ namespace ccf::v8_tmpl
     }
 
     auto data = v8_util::get_array_buffer_data(buffer);
-    auto h = crypto::SHA256(data.p, data.n);
+    auto h = crypto::sha256(data.data(), data.size());
     v8::Local<v8::Value> value =
       v8_util::to_v8_array_buffer_copy(isolate, h.data(), h.size());
 
@@ -491,7 +493,7 @@ namespace ccf::v8_tmpl
         // in rsa_key_pair.h). wrapping_key is a public RSA key.
 
         v8::Local<v8::Value> label_val;
-        Buffer label;
+        std::span<uint8_t> label;
         if (parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
               .ToLocal(&label_val))
         {
@@ -508,13 +510,15 @@ namespace ccf::v8_tmpl
         }
 
         std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-        if (label.n > 0)
+        if (!label.empty())
         {
-          label_opt = {label.p, label.p + label.n};
+          label_opt = {label.begin(), label.end()};
         }
 
         auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
-          crypto::Pem(wrapping_key), {key.p, key.p + key.n}, label_opt);
+          crypto::Pem(wrapping_key),
+          {key.data(), key.data() + key.size()},
+          label_opt);
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
           isolate, wrapped_key.data(), wrapped_key.size()));
@@ -523,8 +527,8 @@ namespace ccf::v8_tmpl
       else if (algo_name == "AES-KWP")
       {
         std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
-          {wrapping_key.p, wrapping_key.p + wrapping_key.n},
-          {key.p, key.p + key.n});
+          {wrapping_key.data(), wrapping_key.data() + wrapping_key.size()},
+          {key.data(), key.data() + key.size()});
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
           isolate, wrapped_key.data(), wrapped_key.size()));
@@ -547,7 +551,7 @@ namespace ccf::v8_tmpl
         }
 
         v8::Local<v8::Value> label_val;
-        Buffer label;
+        std::span<uint8_t> label;
         if (parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
               .ToLocal(&label_val))
         {
@@ -564,15 +568,15 @@ namespace ccf::v8_tmpl
         }
 
         std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-        if (label.n > 0)
+        if (!label.empty())
         {
-          label_opt = {label.p, label.p + label.n};
+          label_opt = {label.data(), label.data() + label.size()};
         }
 
         auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
           aes_key_size,
           crypto::Pem(wrapping_key),
-          {key.p, key.p + key.n},
+          {key.data(), key.data() + key.size()},
           label_opt);
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "key_pair.h"
+#include "ccf/crypto/key_pair.h"
 
 #include "openssl/key_pair.h"
 #include "openssl/public_key.h"
@@ -32,8 +32,8 @@ namespace crypto
     return std::make_shared<KeyPairImpl>(curve_id);
   }
 
-  KeyPairPtr make_key_pair(const Pem& pem, CBuffer pw)
+  KeyPairPtr make_key_pair(const Pem& pem)
   {
-    return std::make_shared<KeyPairImpl>(pem, pw);
+    return std::make_shared<KeyPairImpl>(pem);
   }
 }

@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
+#include "ccf/service/map.h"
 #include "kv/kv_types.h"
-#include "service/map.h"
 
 namespace ccf
 {
@@ -21,4 +20,9 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SnapshotHash, hash, version)
 
   using SnapshotEvidence = ServiceValue<SnapshotHash>;
+  namespace Tables
+  {
+    static constexpr auto SNAPSHOT_EVIDENCE =
+      "public:ccf.internal.snapshot_evidence";
+  }
 }

@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "v8.h"
-
 #include <map>
 #include <string>
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {

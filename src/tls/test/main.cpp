@@ -1,20 +1,18 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
 #include "crypto/certs.h"
-#include "crypto/key_pair.h"
-#include "crypto/verifier.h"
-#include "tls/tls.h"
-
-#include <exception>
-#include <openssl/err.h>
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "ds/buffer.h"
-#include "ds/logger.h"
 #include "tls/client.h"
 #include "tls/msg_types.h"
 #include "tls/server.h"
+#include "tls/tls.h"
 
 #include <chrono>
+#include <exception>
+#include <openssl/err.h>
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <iostream>
 #include <memory>
@@ -270,7 +268,7 @@ unique_ptr<tls::Cert> get_dummy_cert(
   NetworkCA& net_ca, string name, bool auth_required = true)
 {
   // Create a CA with a self-signed certificate
-  auto ca = make_unique<tls::CA>(CBuffer(net_ca.cert.str()));
+  auto ca = make_unique<tls::CA>(net_ca.cert.str());
 
   // Create a signing request and sign with the CA
   auto kp = crypto::make_key_pair();

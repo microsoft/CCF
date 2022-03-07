@@ -30,13 +30,13 @@ LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
 # Public table names as defined in CCF
-# https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
+RECOVERY_FILE_SUFFIX = ".recovery"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -104,6 +104,22 @@ def unpack_array(stream, fmt, length):
         except StopIteration:
             break
     return ret
+
+
+def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
+    elements = (
+        os.path.basename(filename)
+        .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace(RECOVERY_FILE_SUFFIX, "")
+        .replace("ledger_", "")
+        .split("-")
+    )
+    if len(elements) == 2:
+        return (int(elements[0]), int(elements[1]))
+    elif len(elements) == 1:
+        return (int(elements[0]), None)
+    else:
+        raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
 
 class GcmHeader:
@@ -650,6 +666,12 @@ class Transaction(Entry):
             pos=self._tx_offset,
         )
 
+    def get_len(self) -> int:
+        return len(self.get_raw_tx())
+
+    def get_offsets(self) -> Tuple[int, int]:
+        return (self._tx_offset, self._next_offset)
+
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
         commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
@@ -739,6 +761,9 @@ class Snapshot(Entry):
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
 
+    def get_len(self) -> int:
+        return self._file_size
+
 
 class LedgerChunk:
     """
@@ -757,6 +782,7 @@ class LedgerChunk:
         self._current_tx = Transaction(name, ledger_validator)
         self._pos_offset = self._current_tx._pos_offset
         self._filename = name
+        self.start_seqno, self.end_seqno = range_from_filename(name)
 
     def __next__(self) -> Transaction:
         return next(self._current_tx)
@@ -773,6 +799,9 @@ class LedgerChunk:
     def is_complete(self):
         return self._pos_offset > 0
 
+    def get_seqnos(self):
+        return self.start_seqno, self.end_seqno
+
 
 class Ledger:
     """
@@ -784,61 +813,76 @@ class Ledger:
     _filenames: list
     _fileindex: int
     _current_chunk: LedgerChunk
-    _ledger_validator: LedgerValidator
+    _ledger_validator: Optional[LedgerValidator] = None
 
-    def _reset_iterators(self):
+    def _reset_iterators(self, insecure_skip_verification: bool = False):
         self._fileindex = -1
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
-        self._ledger_validator = LedgerValidator()
-
-    @classmethod
-    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
-        elements = (
-            os.path.basename(filename)
-            .replace(COMMITTED_FILE_SUFFIX, "")
-            .replace("ledger_", "")
-            .split("-")
+        self._ledger_validator = (
+            LedgerValidator() if not insecure_skip_verification else None
         )
-        if len(elements) == 2:
-            return (int(elements[0]), int(elements[1]))
-        elif len(elements) == 1:
-            return (int(elements[0]), None)
-        else:
-            assert False, elements
 
-    def __init__(self, directories: List[str], committed_only: bool = True):
+    def __init__(
+        self,
+        paths: List[str],
+        committed_only: bool = True,
+        read_recovery_files: bool = False,
+        insecure_skip_verification: bool = False,
+    ):
 
         self._filenames = []
 
         ledger_files: List[str] = []
-        for directory in directories:
-            for path in os.listdir(directory):
-                if committed_only and not path.endswith(COMMITTED_FILE_SUFFIX):
-                    continue
-                chunk = os.path.join(directory, path)
-                # The same ledger file may appear multiple times in different directories
-                # so ignore duplicates
-                if (
-                    os.path.isfile(chunk)
-                    and not path.endswith(".corrupted")
-                    and not path.endswith(".ignored")
-                    and not any(os.path.basename(chunk) in f for f in ledger_files)
-                ):
-                    ledger_files.append(chunk)
+
+        def try_add_chunk(path):
+            sanitised_path = path
+            if path.endswith(RECOVERY_FILE_SUFFIX):
+                sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
+                if not read_recovery_files:
+                    return
+
+            if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
+                return
+
+            # The same ledger file may appear multiple times in different directories
+            # so ignore duplicates
+            if os.path.isfile(path) and not any(
+                os.path.basename(path) in f for f in ledger_files
+            ):
+                ledger_files.append(path)
+
+        for p in paths:
+            if os.path.isdir(p):
+                for path in os.listdir(p):
+                    chunk = os.path.join(p, path)
+                    try_add_chunk(chunk)
+            elif os.path.isfile(p):
+                try_add_chunk(p)
+            else:
+                raise ValueError(f"{p} is not a ledger directory or ledger chunk")
 
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: Ledger._range_from_filename(x)[0],
+            key=lambda x: range_from_filename(x)[0],
         )
 
-        self._reset_iterators()
+        # If we do not have a single contiguous range, report an error
+        for file_a, file_b in zip(self._filenames[:-1], self._filenames[1:]):
+            range_a = range_from_filename(file_a)
+            range_b = range_from_filename(file_b)
+            if range_a[1] is None or range_a[1] + 1 != range_b[0]:
+                raise ValueError(
+                    f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
+                )
+
+        self._reset_iterators(insecure_skip_verification)
 
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
         last_chunk_name = self._filenames[-1]
-        return Ledger._range_from_filename(last_chunk_name)
+        return range_from_filename(last_chunk_name)
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
@@ -928,9 +972,9 @@ class Ledger:
 
         :return int: Number of verified signature transactions.
         """
-        return self._ledger_validator.signature_count
+        return self._ledger_validator.signature_count if self._ledger_validator else 0
 
-    def last_verified_txid(self) -> TxID:
+    def last_verified_txid(self) -> Optional[TxID]:
         """
         Return the :py:class:`ccf.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
 
@@ -938,9 +982,13 @@ class Ledger:
 
         :return: :py:class:`ccf.tx_id.TxID`
         """
-        return TxID(
-            self._ledger_validator.last_verified_view,
-            self._ledger_validator.last_verified_seqno,
+        return (
+            TxID(
+                self._ledger_validator.last_verified_view,
+                self._ledger_validator.last_verified_seqno,
+            )
+            if self._ledger_validator
+            else None
         )
 
 

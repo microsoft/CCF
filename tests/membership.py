@@ -123,7 +123,7 @@ def service_startups(args):
     args.initial_operator_count = 1
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
         try:
-            network.start_and_join(args)
+            network.start_and_open(args)
             assert False, "Service cannot be opened with no recovery members"
         except AssertionError:
             primary, _ = network.find_primary()
@@ -141,7 +141,7 @@ def service_startups(args):
     args.initial_recovery_member_count = 1
     args.initial_operator_count = 2
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
     LOG.info(
         "Starting service with a recovery operator member, a recovery non-operator member and a non-recovery non-operator member"
@@ -150,7 +150,7 @@ def service_startups(args):
     args.initial_recovery_member_count = 2
     args.initial_operator_count = 1
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
 
 def recovery_shares_scenario(args):
@@ -163,7 +163,7 @@ def recovery_shares_scenario(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with CFT

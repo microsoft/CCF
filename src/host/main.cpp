@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"
@@ -457,6 +457,17 @@ int main(int argc, char** argv)
 #endif
     }
 
+    LOG_INFO_FMT("Initialising enclave: enclave_create_node");
+    std::atomic<bool> ecall_completed = false;
+    auto flush_outbound = [&]() {
+      do
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        bp.read_all(circuit.read_from_inside());
+      } while (!ecall_completed);
+    };
+    std::thread flusher_thread(flush_outbound);
     auto create_status = enclave.create_node(
       enclave_config,
       startup_config,
@@ -465,6 +476,8 @@ int main(int argc, char** argv)
       config.command.type,
       config.worker_threads,
       time_updater->behaviour.get_value());
+    ecall_completed.store(true);
+    flusher_thread.join();
 
     if (create_status != CreateNodeStatus::OK)
     {
@@ -516,6 +529,7 @@ int main(int argc, char** argv)
       }
     };
 
+    LOG_INFO_FMT("Starting enclave thread(s)");
     // Start threads which will ECall and process messages inside the enclave
     std::vector<std::thread> threads;
     for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
@@ -523,7 +537,9 @@ int main(int argc, char** argv)
       threads.emplace_back(std::thread(enclave_thread_start));
     }
 
+    LOG_INFO_FMT("Entering event loop");
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    LOG_INFO_FMT("Exited event loop");
     for (auto& t : threads)
     {
       t.join();

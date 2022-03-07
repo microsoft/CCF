@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "consensus/aft/raft.h"
-#include "ds/logger.h"
 #include "logging_stub.h"
 
 #include <chrono>
@@ -97,6 +97,13 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
                     << std::endl;
     aft::LoggingStubStoreSig::initialise_term(t);
   }
+
+  bool flag_enabled(kv::AbstractStore::Flag)
+  {
+    return false;
+  }
+
+  void unset_flag(kv::AbstractStore::Flag) {}
 };
 
 using ms = std::chrono::milliseconds;

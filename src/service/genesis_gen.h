@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
+#include "ccf/crypto/verifier.h"
+#include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
 #include "ccf/tx.h"
-#include "crypto/hash.h"
-#include "crypto/verifier.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
-#include "service/tables/code_id.h"
-#include "service/tables/members.h"
-#include "service/tables/nodes.h"
 
 #include <algorithm>
 #include <fstream>

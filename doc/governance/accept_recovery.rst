@@ -22,7 +22,7 @@ A member proposes to recover the network and other members can vote on the propo
         ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert --key member1_privk --cert member1_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -30,7 +30,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --signing-key member2_privk.pem --signing-cert member2_cert.pem --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -38,7 +38,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --signing-key member3_privk.pem --signing-cert member3_cert.pem --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -61,15 +61,15 @@ The recovery share retrieval, decryption and submission steps can be convenientl
 
 .. code-block:: bash
 
-    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member0_enc_privk.pem --cert member0_cert
-    --key member0_privk --cacert service_cert
+    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member0_enc_privk.pem --cert member0_cert.pem
+    --key member0_privk.pem --cacert service_cert.pem
     HTTP/1.1 200 OK
     content-type: text/plain
     x-ms-ccf-transaction-id: 4.28
     1/2 recovery shares successfully submitted.
 
-    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member1_enc_privk.pem --cert member1_cert
-    --key member1_privk --cacert service_cert
+    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member1_enc_privk.pem --cert member1_cert.pem
+    --key member1_privk.pem --cacert service_cert.pem
     HTTP/1.1 200 OK
     content-type: text/plain
     x-ms-ccf-transaction-id: 4.30

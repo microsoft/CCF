@@ -5,14 +5,15 @@
 #include "logging_schema.h"
 
 // CCF
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/common_auth_policies.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "ccf/user_frontend.h"
+#include "ccf/json_handler.h"
 #include "ccf/version.h"
-#include "crypto/verifier.h"
+#include "kv/store.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -136,8 +137,6 @@ namespace loggingapp
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
 
-    metrics::Tracker metrics_tracker;
-
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
 
     static void update_first_write(
@@ -157,6 +156,25 @@ namespace loggingapp
       }
     }
 
+    std::optional<ccf::TxStatus> get_tx_status(ccf::SeqNo seqno)
+    {
+      ccf::ApiResult result;
+
+      ccf::View view_of_seqno;
+      result = get_view_for_seqno_v1(seqno, view_of_seqno);
+      if (result == ccf::ApiResult::OK)
+      {
+        ccf::TxStatus status;
+        result = get_status_for_txid_v1(view_of_seqno, seqno, status);
+        if (result == ccf::ApiResult::OK)
+        {
+          return status;
+        }
+      }
+
+      return std::nullopt;
+    }
+
   public:
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
@@ -165,8 +183,15 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      openapi_info.title = "CCF Sample Logging App";
+      openapi_info.description =
+        "This CCF sample app implements a simple logging application, securely "
+        "recording messages at client-specified IDs. It demonstrates most of "
+        "the features available to CCF apps.";
+      openapi_info.document_version = "1.9.0";
+
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS, context.get_lfs_access(), 10000, 20);
+        PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
@@ -443,11 +468,11 @@ namespace loggingapp
           return;
         }
 
-        std::shared_ptr<Verifier> verifier;
+        std::shared_ptr<crypto::Verifier> verifier;
         try
         {
           const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
-          verifier = make_verifier(cert_data);
+          verifier = crypto::make_verifier(cert_data);
         }
         catch (const std::exception& ex)
         {
@@ -815,7 +840,7 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
-            historical_state->receipt->describe(out.receipt);
+            out.receipt = ccf::describe_receipt(historical_state->receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
@@ -871,7 +896,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
-            historical_state->receipt->describe(out.receipt);
+            out.receipt = ccf::describe_receipt(historical_state->receipt);
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
             out.receipt.leaf_components->claims_digest = std::nullopt;
@@ -1008,43 +1033,42 @@ namespace loggingapp
         }
 
         // End of range must be committed
-        if (consensus == nullptr)
+        const auto tx_status = get_tx_status(to_seqno);
+        if (!tx_status.has_value())
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Node is not fully operational");
+            "Unable to retrieve Tx status");
           return;
         }
 
-        const auto view_of_final_seqno = consensus->get_view(to_seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-        const auto tx_status = ccf::evaluate_tx_status(
-          view_of_final_seqno,
-          to_seqno,
-          view_of_final_seqno,
-          committed_view,
-          committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
+        if (tx_status.value() != ccf::TxStatus::Committed)
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
-              "Only committed transactions can be queried. Transaction {}.{} "
-              "is {}",
-              view_of_final_seqno,
+              "Only committed transactions can be queried. Transaction at "
+              "seqno {} is {}",
               to_seqno,
-              ccf::tx_status_to_str(tx_status)));
+              ccf::tx_status_to_str(tx_status.value())));
           return;
         }
 
         const auto indexed_txid = index_per_public_key->get_indexed_watermark();
         if (indexed_txid.seqno < to_seqno)
         {
-          index_per_public_key->extend_index_to(
-            {view_of_final_seqno, to_seqno});
+          {
+            ccf::View view_of_to_seqno;
+            const auto result =
+              get_view_for_seqno_v1(to_seqno, view_of_to_seqno);
+            if (result == ccf::ApiResult::OK)
+            {
+              index_per_public_key->extend_index_to(
+                {view_of_to_seqno, to_seqno});
+            }
+          }
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
           ctx.rpc_ctx->set_response_header(
@@ -1255,38 +1279,30 @@ namespace loggingapp
         }
 
         // End of range must be committed
-        if (consensus == nullptr)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Node is not fully operational");
-          return;
-        }
 
         std::sort(seqnos.begin(), seqnos.end());
 
         const auto final_seqno = seqnos.back();
-        const auto view_of_final_seqno = consensus->get_view(final_seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-        const auto tx_status = ccf::evaluate_tx_status(
-          view_of_final_seqno,
-          final_seqno,
-          view_of_final_seqno,
-          committed_view,
-          committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
+        const auto tx_status = get_tx_status(final_seqno);
+        if (!tx_status.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to retrieve Tx status");
+          return;
+        }
+
+        if (tx_status.value() != ccf::TxStatus::Committed)
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
-              "Only committed transactions can be queried. Transaction {}.{} "
-              "is {}",
-              view_of_final_seqno,
+              "Only committed transactions can be queried. Transaction at "
+              "seqno {} is {}",
               final_seqno,
-              ccf::tx_status_to_str(tx_status)));
+              ccf::tx_status_to_str(tx_status.value())));
           return;
         }
 
@@ -1318,8 +1334,7 @@ namespace loggingapp
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        ccf::historical::SeqNoCollection seqno_collection(
-          seqnos.begin(), seqnos.end());
+        ccf::SeqNoCollection seqno_collection(seqnos.begin(), seqnos.end());
 
         auto stores = historical_cache.get_stores_for(handle, seqno_collection);
         if (stores.empty())
@@ -1471,38 +1486,6 @@ namespace loggingapp
         {ccf::user_signature_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
-
-      metrics_tracker.install_endpoint(*this);
-    }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
-    }
-  };
-
-  class Logger : public ccf::RpcFrontend
-  {
-  private:
-    LoggerHandlers logger_handlers;
-
-  public:
-    Logger(ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, logger_handlers),
-      logger_handlers(context)
-    {}
-
-    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
-    {
-      ccf::RpcFrontend::open(identity);
-      logger_handlers.openapi_info.title = "CCF Sample Logging App";
-      logger_handlers.openapi_info.description =
-        "This CCF sample app implements a simple logging application, securely "
-        "recording messages at client-specified IDs. It demonstrates most of "
-        "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "1.7.0";
     }
   };
 }
@@ -1510,10 +1493,10 @@ namespace loggingapp
 namespace ccfapp
 {
   // SNIPPET_START: app_interface
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<loggingapp::Logger>(nwt, context);
+    return std::make_unique<loggingapp::LoggerHandlers>(context);
   }
   // SNIPPET_END: app_interface
 }

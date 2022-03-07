@@ -1,13 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/pem.h"
-#include "crypto/verifier.h"
-#include "ds/logger.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
+#include "ccf/serdes.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
 
@@ -234,7 +234,7 @@ TEST_CASE("Add a node to an open service")
 
   ShareManager share_manager(network);
   StubNodeContext context;
-  context.state.set_is_public(true);
+  context.node_operation->is_public = true;
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 

@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "crypto/openssl/x509_time.h"
-#include "ds/json.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 
@@ -50,4 +50,8 @@ namespace ccf
   // The there is always only one active configuration, so this is a single
   // Value
   using Configuration = ServiceValue<ServiceConfiguration>;
+  namespace Tables
+  {
+    static constexpr auto CONFIGURATION = "public:ccf.gov.service.config";
+  }
 }

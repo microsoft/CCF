@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
-#include "ds/serialized.h"
+#include "ccf/ds/json.h"
+#include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <string>
 
@@ -94,15 +94,17 @@ namespace ccf
     }
     else
     {
-      throw JsonParseError(
-        fmt::format("Entity id should be hex-encoded string: {}", j.dump()));
+      throw JsonParseError(fmt::format(
+        "{} should be hex-encoded string: {}",
+        FmtExtender::ID_LABEL,
+        j.dump()));
     }
   }
 
   template <typename FmtExtender>
   inline std::string schema_name(const EntityId<FmtExtender>&)
   {
-    return "EntityId";
+    return FmtExtender::ID_LABEL;
   }
 
   template <typename FmtExtender>
@@ -125,6 +127,8 @@ namespace ccf
     {
       return fmt::format("m[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "MemberId";
   };
   using MemberId = EntityId<MemberIdFormatter>;
 
@@ -134,6 +138,8 @@ namespace ccf
     {
       return fmt::format("u[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "UserId";
   };
   using UserId = EntityId<UserIdFormatter>;
 
@@ -143,6 +149,8 @@ namespace ccf
     {
       return fmt::format("n[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "NodeId";
   };
   using NodeId = EntityId<NodeIdFormatter>;
 }
@@ -174,23 +182,42 @@ namespace std
   };
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <typename FmtExtender>
+struct formatter<ccf::EntityId<FmtExtender>>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
+  {
+    std::stringstream ss;
+    ss << v;
+    return format_to(ctx.out(), "{}", ss.str());
+  }
+};
+FMT_END_NAMESPACE
+
+namespace kv::serialisers
 {
   template <typename FmtExtender>
-  struct formatter<ccf::EntityId<FmtExtender>>
+  struct BlitSerialiser<ccf::EntityId<FmtExtender>>
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
+    static SerialisedEntry to_serialised(
+      const ccf::EntityId<FmtExtender>& entity_id)
     {
-      return ctx.begin();
+      const auto& data = entity_id.value();
+      return SerialisedEntry(data.begin(), data.end());
     }
 
-    template <typename FormatContext>
-    auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
+    static ccf::EntityId<FmtExtender> from_serialised(
+      const SerialisedEntry& data)
     {
-      std::stringstream ss;
-      ss << v;
-      return format_to(ctx.out(), "{}", ss.str());
+      return ccf::EntityId<FmtExtender>(std::string(data.begin(), data.end()));
     }
   };
 }

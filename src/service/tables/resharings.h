@@ -3,10 +3,14 @@
 
 #pragma once
 
+#include "ccf/service/map.h"
 #include "resharing_types.h"
-#include "service/map.h"
 
 namespace ccf
 {
   using Resharings = ServiceMap<kv::ReconfigurationId, ResharingResult>;
+  namespace Tables
+  {
+    static constexpr auto RESHARINGS = "public:ccf.internal.resharings";
+  }
 }

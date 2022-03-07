@@ -3,7 +3,7 @@
 
 #include "openssl/base64.h"
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 
 namespace crypto
 {

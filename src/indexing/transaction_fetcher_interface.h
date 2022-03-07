@@ -2,7 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "indexing/indexing_types.h"
+#include "ccf/seq_no_collection.h"
+#include "ccf/store_ptr.h"
+#include "ccf/tx_id.h"
 
 namespace ccf::indexing
 {
@@ -11,10 +13,10 @@ namespace ccf::indexing
   public:
     virtual ~TransactionFetcher() = default;
 
-    virtual StorePtr deserialise_transaction(
+    virtual kv::StorePtr deserialise_transaction(
       ccf::SeqNo seqno, const uint8_t* data, size_t size) = 0;
 
-    virtual std::vector<StorePtr> fetch_transactions(
+    virtual std::vector<kv::StorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) = 0;
   };
 }

@@ -3,11 +3,13 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
+#include "ccf/kv/get_name.h"
+#include "ccf/kv/hooks.h"
+#include "ccf/kv/version.h"
 #include "ccf/tx_id.h"
-#include "crypto/hash.h"
-#include "crypto/pem.h"
-#include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
@@ -37,10 +39,6 @@ namespace aft
 
 namespace kv
 {
-  // Version indexes modifications to the local kv store.
-  using Version = uint64_t;
-  static constexpr Version NoVersion = 0u;
-
   // DeletableVersion describes the version of an individual key within each
   // table, which may be negative to indicate a deletion
   using DeletableVersion = int64_t;
@@ -245,16 +243,6 @@ namespace kv
       kv::Version version, const std::vector<uint8_t>& tree) = 0;
     virtual void update_parameters(ConsensusParameters& params) = 0;
   };
-
-  class ConsensusHook
-  {
-  public:
-    virtual void call(ConfigurableConsensus*) = 0;
-    virtual ~ConsensusHook(){};
-  };
-
-  using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
-  using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
 
   using BatchVector = std::vector<std::tuple<
     Version,
@@ -470,7 +458,7 @@ namespace kv
     virtual void force_become_primary(
       ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
     virtual void init_as_backup(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) = 0;
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
 
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
@@ -613,30 +601,9 @@ namespace kv
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
-  class AbstractHandle
-  {
-  public:
-    virtual ~AbstractHandle() = default;
-  };
-
-  struct NamedHandleMixin
-  {
-  protected:
-    std::string name;
-
-  public:
-    NamedHandleMixin(const std::string& s) : name(s) {}
-    virtual ~NamedHandleMixin() = default;
-
-    const std::string& get_name() const
-    {
-      return name;
-    }
-  };
-
   class AbstractStore;
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
-                      public NamedHandleMixin
+                      public GetName
   {
   public:
     class Snapshot
@@ -647,7 +614,7 @@ namespace kv
       virtual SecurityDomain get_security_domain() = 0;
     };
 
-    using NamedHandleMixin::NamedHandleMixin;
+    using GetName::GetName;
     virtual ~AbstractMap() {}
 
     virtual std::unique_ptr<AbstractCommitter> create_committer(
@@ -770,7 +737,8 @@ namespace kv
 
     enum class Flag : uint8_t
     {
-      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
+      SNAPSHOT_AT_NEXT_SIGNATURE = 0x02
     };
 
     virtual void set_flag(Flag f) = 0;

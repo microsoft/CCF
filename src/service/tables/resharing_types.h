@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
+#include "ccf/ds/json.h"
+#include "ccf/tx_id.h"
 #include "kv/kv_types.h"
-
-#include <ccf/tx_id.h>
 
 namespace ccf
 {

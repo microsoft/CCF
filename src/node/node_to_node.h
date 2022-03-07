@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/serialized.h"
 #include "enclave/rpc_handler.h"
 #include "node_types.h"
@@ -55,9 +55,10 @@ namespace ccf
     const T& recv_authenticated(
       const NodeId& from, const uint8_t*& data, size_t& size)
     {
+      std::span<const uint8_t> ts(data, sizeof(T));
       auto& t = serialized::overlay<T>(data, size);
 
-      if (!recv_authenticated(from, asCb(t), data, size))
+      if (!recv_authenticated(from, ts, data, size))
       {
         throw DroppedMessageException(from);
       }
@@ -88,7 +89,7 @@ namespace ccf
 
     virtual bool recv_authenticated(
       const NodeId& from,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const uint8_t*& data,
       size_t& size) = 0;
 
@@ -107,7 +108,7 @@ namespace ccf
     virtual bool send_encrypted(
       const NodeId& to,
       NodeMsgType type,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const std::vector<uint8_t>& data) = 0;
 
     template <class T>
@@ -117,20 +118,26 @@ namespace ccf
       const std::vector<uint8_t>& data,
       const T& msg_hdr)
     {
-      return send_encrypted(to, type, asCb(msg_hdr), data);
+      std::span<const uint8_t> hdr_s{
+        reinterpret_cast<const uint8_t*>(&msg_hdr), sizeof(T)};
+      return send_encrypted(to, type, hdr_s, data);
     }
 
     template <class T>
     std::pair<T, std::vector<uint8_t>> recv_encrypted(
       const NodeId& from, const uint8_t*& data, size_t& size)
     {
+      std::span<const uint8_t> ts(data, sizeof(T));
       auto t = serialized::read<T>(data, size);
 
-      std::vector<uint8_t> plain = recv_encrypted(from, asCb(t), data, size);
+      std::vector<uint8_t> plain = recv_encrypted(from, ts, data, size);
       return std::make_pair(t, plain);
     }
 
     virtual std::vector<uint8_t> recv_encrypted(
-      const NodeId& from, CBuffer header, const uint8_t* data, size_t size) = 0;
+      const NodeId& from,
+      std::span<const uint8_t> header,
+      const uint8_t* data,
+      size_t size) = 0;
   };
 }

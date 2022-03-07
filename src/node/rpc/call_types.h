@@ -2,17 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json_schema.h"
 #include "ccf/receipt.h"
+#include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/nodes.h"
 #include "ccf/tx_id.h"
-#include "ds/json_schema.h"
+#include "ccf/tx_status.h"
 #include "kv/kv_types.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node_call_types.h"
-#include "service/tables/code_id.h"
-#include "service/tables/nodes.h"
-#include "service/tables/service.h"
-#include "tx_status.h"
 
 #include <nlohmann/json.hpp>
 

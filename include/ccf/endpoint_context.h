@@ -2,11 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpc_context.h"
-#include "http/authentication/authentication_types.h"
+#include "ccf/endpoints/authentication/authentication_types.h"
 
 #include <functional>
 #include <memory>
+
+namespace enclave
+{
+  class RpcContext;
+}
 
 /**
  * Defines the different types of context an Endpoint can operate over,

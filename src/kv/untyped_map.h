@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
+#include "ccf/kv/untyped_map_handle.h"
 #include "ds/dl_list.h"
-#include "ds/logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
-#include "kv/untyped_map_handle.h"
+#include "kv/untyped_change_set.h"
 
 #include <functional>
 #include <list>
@@ -65,14 +66,14 @@ namespace kv::untyped
   class Map : public AbstractMap
   {
   public:
-    using K = SerialisedEntry;
-    using V = SerialisedEntry;
-    using H = SerialisedKeyHasher;
+    using K = kv::untyped::SerialisedEntry;
+    using V = kv::untyped::SerialisedEntry;
+    using H = kv::untyped::SerialisedKeyHasher;
 
-    using StateSnapshot = kv::Snapshot<K, V, H>;
+    using StateSnapshot = kv::untyped::State::Snapshot;
 
-    using CommitHook = CommitHook<Write>;
-    using MapHook = MapHook<Write>;
+    using CommitHook = kv::untyped::CommitHook;
+    using MapHook = kv::untyped::MapHook;
 
   private:
     AbstractStore* store;

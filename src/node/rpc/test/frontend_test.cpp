@@ -5,21 +5,19 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
-#include "ccf/user_frontend.h"
+#include "ccf/kv/map.h"
+#include "ccf/serdes.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 #include "frontend_test_infra.h"
-#include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/entities.h"
 #include "node/history.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
@@ -33,6 +31,19 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 using namespace ccf;
 using namespace std;
+
+class SimpleUserRpcFrontend : public RpcFrontend
+{
+protected:
+  UserEndpointRegistry common_handlers;
+
+public:
+  SimpleUserRpcFrontend(
+    kv::Store& tables, ccfapp::AbstractNodeContext& context) :
+    RpcFrontend(tables, common_handlers),
+    common_handlers(context)
+  {}
+};
 
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {
@@ -373,7 +384,6 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    kv::Store& tables,
     ccf::NetworkState& network,
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
@@ -1137,8 +1147,10 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   network_primary.tables->set_consensus(primary_consensus);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
+  auto rpc_responder = std::weak_ptr<enclave::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<enclave::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
@@ -1297,8 +1309,10 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
+  auto rpc_responder = std::weak_ptr<enclave::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<enclave::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
@@ -1341,8 +1355,10 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
+  auto rpc_responder = std::weak_ptr<enclave::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<enclave::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
@@ -1379,16 +1395,18 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network_primary.tables, network_primary, context, share_manager);
+    network_primary, context, share_manager);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network_backup.tables, network_backup, context, share_manager);
+    network_backup, context, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
+  auto rpc_responder = std::weak_ptr<enclave::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<enclave::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);

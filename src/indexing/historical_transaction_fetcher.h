@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 #include "node/historical_queries.h"
 
@@ -19,7 +19,7 @@ namespace ccf::indexing
       historical_cache(sc)
     {}
 
-    StorePtr deserialise_transaction(
+    kv::StorePtr deserialise_transaction(
       ccf::SeqNo seqno, const uint8_t* data, size_t size) override
     {
       kv::ApplyResult result;
@@ -39,14 +39,12 @@ namespace ccf::indexing
       return nullptr;
     }
 
-    std::vector<StorePtr> fetch_transactions(
+    std::vector<kv::StorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) override
     {
       const ccf::historical::CompoundHandle handle{
         historical::RequestNamespace::System, 0};
-      ccf::historical::SeqNoCollection historical_seqnos(
-        seqnos.begin(), seqnos.end());
-      auto stores = historical_cache->get_stores_for(handle, historical_seqnos);
+      auto stores = historical_cache->get_stores_for(handle, seqnos);
       if (!stores.empty())
       {
         historical_cache->drop_cached_states(handle);

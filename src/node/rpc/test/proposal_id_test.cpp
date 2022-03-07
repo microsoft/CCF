@@ -119,14 +119,14 @@ public:
       forced = false;
       return {
         {term_of_last_version, forced_version},
-        crypto::Sha256Hash(CBuffer(std::to_string(version))),
+        crypto::Sha256Hash(std::to_string(version)),
         term_of_next_version};
     }
     else
     {
       return {
         {term_of_last_version, version},
-        crypto::Sha256Hash(CBuffer(std::to_string(version))),
+        crypto::Sha256Hash(std::to_string(version)),
         term_of_next_version};
     }
   }

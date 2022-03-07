@@ -2,12 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/lfs_interface.h"
-#include "crypto/entropy.h"
-#include "crypto/hash.h"
-#include "crypto/symmetric_key.h"
-#include "ds/hex.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/sha256.h"
+#include "ccf/crypto/symmetric_key.h"
+#include "ccf/ds/hex.h"
 #include "ds/messaging.h"
+#include "indexing/lfs_interface.h"
+#include "indexing/lfs_ringbuffer_types.h"
 
 #include <optional>
 #include <set>
@@ -37,9 +38,8 @@ namespace ccf::indexing
     plaintext = gcm.cipher;
     auto success = true;
 #else
-    plaintext.resize(gcm.cipher.size());
     auto success = encryption_key.decrypt(
-      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, nullb, plaintext.data());
+      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, {}, plaintext);
 #endif
 
     // Check key prefix in plaintext
@@ -106,11 +106,10 @@ namespace ccf::indexing
       crypto::GcmCipher gcm(contents.size());
 
       // Use a random IV for each call
-      auto iv = entropy_src->random(crypto::GCM_SIZE_IV);
-      gcm.hdr.set_iv(iv.data(), iv.size());
+      gcm.hdr.set_random_iv();
 
       encryption_key->encrypt(
-        gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
+        gcm.hdr.get_iv(), contents, {}, gcm.cipher, gcm.hdr.tag);
 
 #ifdef PLAINTEXT_CACHE
       gcm.cipher = contents;
@@ -126,8 +125,8 @@ namespace ccf::indexing
     {
       // Generate a fresh random key. Only this specific instance, in this
       // enclave, can read these files!
-      encryption_key =
-        crypto::make_key_aes_gcm(entropy_src->random(crypto::GCM_SIZE_KEY));
+      encryption_key = crypto::make_key_aes_gcm(
+        entropy_src->random(crypto::GCM_DEFAULT_KEY_SIZE));
     }
 
     void register_message_handlers(
@@ -239,7 +238,7 @@ namespace ccf::indexing
 #ifdef PLAINTEXT_CACHE
       return key;
 #else
-      const auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
+      const auto h = crypto::sha256((const uint8_t*)key.data(), key.size());
       return ds::to_hex(h);
 #endif
     }

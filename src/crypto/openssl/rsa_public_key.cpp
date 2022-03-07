@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "hash.h"
+#include "crypto/openssl/hash.h"
+#include "crypto/openssl/rsa_key_pair.h"
 #include "openssl_wrappers.h"
-#include "rsa_key_pair.h"
 
 namespace crypto
 {

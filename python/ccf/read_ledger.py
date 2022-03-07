@@ -82,7 +82,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
     flags = entry.get_transaction_header().flags
     flags_msg = "" if flags == 0 else f", flags={hex(flags)}"
     LOG.success(
-        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{len(entry.get_raw_tx())} bytes{flags_msg}]"
+        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{entry.get_len()} bytes{flags_msg}]"
     )
 
     private_table_size = entry.get_private_domain_size()
@@ -116,13 +116,82 @@ def dump_entry(entry, table_filter, tables_format_rules):
                 )
 
 
-def run(args_, tables_format_rules=None):
+def run(
+    paths,
+    is_snapshot=False,
+    tables=".*",
+    uncommitted=False,
+    insecure_skip_verification=False,
+    tables_format_rules=None,
+):
+
+    # Extend and compile rules
+    table_filter = re.compile(tables)
+    tables_format_rules = tables_format_rules or []
+    tables_format_rules.extend(default_tables_format_rules)
+    tables_format_rules = [
+        (re.compile(table_name_re), _) for (table_name_re, _) in tables_format_rules
+    ]
+
+    if is_snapshot:
+        snapshot_file = paths[0]
+        with ccf.ledger.Snapshot(snapshot_file) as snapshot:
+            LOG.info(
+                f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
+            )
+            dump_entry(snapshot, table_filter, tables_format_rules)
+        return True
+    else:
+        ledger_paths = paths
+        ledger = ccf.ledger.Ledger(
+            ledger_paths,
+            committed_only=not uncommitted,
+            insecure_skip_verification=insecure_skip_verification,
+        )
+
+        LOG.info(f"Reading ledger from {ledger_paths}")
+        LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
+
+        try:
+            for chunk in ledger:
+                LOG.info(
+                    f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
+                )
+                for transaction in chunk:
+                    dump_entry(transaction, table_filter, tables_format_rules)
+        except Exception as e:
+            LOG.exception(f"Error parsing ledger: {e}")
+            has_error = True
+        else:
+            LOG.success("Ledger verification complete")
+            has_error = False
+        finally:
+            if insecure_skip_verification:
+                LOG.warning("Skipped ledger integrity verification")
+            else:
+                LOG.info(
+                    f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
+                )
+        return not has_error
+
+
+if __name__ == "__main__":
+
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<level>{message}</level>",
+    )
+
     parser = argparse.ArgumentParser(
         description="Read CCF ledger or snapshot",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "paths", help="Path to ledger directories or snapshot file", nargs="+"
+        "paths",
+        help="Path to ledger directories, ledger chunks, or snapshot file. "
+        "Note that parsing individual ledger chunks requires the additional --insecure-skip-verification option",
+        nargs="+",
     )
     parser.add_argument(
         "-s",
@@ -140,58 +209,19 @@ def run(args_, tables_format_rules=None):
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
-    args = parser.parse_args(args_)
-
-    table_filter = re.compile(args.tables)
-
-    # Extend and compile rules
-    tables_format_rules = tables_format_rules or []
-    tables_format_rules.extend(default_tables_format_rules)
-    tables_format_rules = [
-        (re.compile(table_name_re), _) for (table_name_re, _) in tables_format_rules
-    ]
-
-    if args.snapshot:
-        snapshot_file = args.paths[0]
-        with ccf.ledger.Snapshot(snapshot_file) as snapshot:
-            LOG.info(
-                f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
-            )
-            dump_entry(snapshot, table_filter, tables_format_rules)
-    else:
-        ledger_dirs = args.paths
-        ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not args.uncommitted)
-
-        LOG.info(f"Reading ledger from {ledger_dirs}")
-        LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
-
-        try:
-            for chunk in ledger:
-                LOG.info(
-                    f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
-                )
-                for transaction in chunk:
-                    dump_entry(transaction, table_filter, tables_format_rules)
-        except Exception as e:
-            LOG.exception(f"Error parsing ledger: {e}")
-            has_error = True
-        else:
-            LOG.success("Ledger verification complete")
-            has_error = False
-        finally:
-            LOG.info(
-                f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
-            )
-        return not has_error
-
-
-if __name__ == "__main__":
-
-    LOG.remove()
-    LOG.add(
-        sys.stdout,
-        format="<level>{message}</level>",
+    parser.add_argument(
+        "--insecure-skip-verification",
+        help="INSECURE: skip ledger Merkle tree integrity verification",
+        action="store_true",
+        default=False,
     )
+    args = parser.parse_args()
 
-    if not run(sys.argv[1:]):
+    if not run(
+        args.paths,
+        args.snapshot,
+        args.tables,
+        args.uncommitted,
+        args.insecure_skip_verification,
+    ):
         sys.exit(1)

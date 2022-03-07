@@ -2,18 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/hkdf.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/symmetric_key.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
+#include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
-#include "crypto/hash_provider.h"
 #include "crypto/key_exchange.h"
-#include "crypto/key_pair.h"
-#include "crypto/symmetric_key.h"
-#include "crypto/verifier.h"
-#include "ds/hex.h"
-#include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
+#include "ds/thread_messaging.h"
 #include "enclave/enclave_time.h"
-#include "entities.h"
 #include "node_types.h"
 
 #include <iostream>
@@ -35,7 +36,7 @@
 namespace ccf
 {
   using SendNonce = uint64_t;
-  using GcmHdr = crypto::GcmHeader<sizeof(SendNonce)>;
+  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(SendNonce)>;
 
   struct RecvNonce
   {
@@ -58,7 +59,7 @@ namespace ccf
 
   static inline RecvNonce get_nonce(const GcmHdr& header)
   {
-    return RecvNonce(header.get_iv_int());
+    return *reinterpret_cast<const RecvNonce*>(header.iv.data());
   }
 
   enum ChannelStatus
@@ -70,49 +71,48 @@ namespace ccf
   };
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ChannelStatus>
 {
-  template <>
-  struct formatter<ccf::ChannelStatus>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+  template <typename FormatContext>
+  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+  {
+    char const* s = "Unknown";
+    switch (cs)
     {
-      char const* s = "Unknown";
-      switch (cs)
+      case (ccf::INACTIVE):
       {
-        case (ccf::INACTIVE):
-        {
-          s = "INACTIVE";
-          break;
-        }
-        case (ccf::INITIATED):
-        {
-          s = "INITIATED";
-          break;
-        }
-        case (ccf::WAITING_FOR_FINAL):
-        {
-          s = "WAITING_FOR_FINAL";
-          break;
-        }
-        case (ccf::ESTABLISHED):
-        {
-          s = "ESTABLISHED";
-          break;
-        }
+        s = "INACTIVE";
+        break;
       }
-
-      return format_to(ctx.out(), "{}", s);
+      case (ccf::INITIATED):
+      {
+        s = "INITIATED";
+        break;
+      }
+      case (ccf::WAITING_FOR_FINAL):
+      {
+        s = "WAITING_FOR_FINAL";
+        break;
+      }
+      case (ccf::ESTABLISHED):
+      {
+        s = "ESTABLISHED";
+        break;
+      }
     }
-  };
-}
+
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE
 
 namespace ccf
 {
@@ -138,10 +138,13 @@ namespace ccf
       std::vector<uint8_t> raw_aad; // To be integrity-protected
       std::vector<uint8_t> raw_plain; // To be encrypted
 
-      OutgoingMsg(NodeMsgType msg_type, CBuffer raw_aad_, CBuffer raw_plain_) :
+      OutgoingMsg(
+        NodeMsgType msg_type,
+        std::span<const uint8_t> raw_aad_,
+        std::span<const uint8_t> raw_plain_) :
         type(msg_type),
-        raw_aad(raw_aad_),
-        raw_plain(raw_plain_)
+        raw_aad(raw_aad_.begin(), raw_aad_.end()),
+        raw_plain(raw_plain_.begin(), raw_plain_.end())
       {}
     };
 
@@ -185,15 +188,15 @@ namespace ccf
     std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
       local_recv_nonce = {{}};
 
-    bool verify_or_decrypt(
+    bool decrypt(
       const GcmHdr& header,
-      CBuffer aad,
-      CBuffer cipher = nullb,
-      Buffer plain = {})
+      std::span<const uint8_t> aad,
+      std::span<const uint8_t> cipher,
+      std::vector<uint8_t>& plain)
     {
       status.expect(ESTABLISHED);
 
-      RecvNonce recv_nonce(header.get_iv_int());
+      auto recv_nonce = get_nonce(header);
       auto tid = recv_nonce.tid;
       assert(tid < threading::ThreadMessaging::max_num_threads);
 
@@ -213,9 +216,9 @@ namespace ccf
       }
 
       CHANNEL_RECV_TRACE(
-        "verify_or_decrypt({} bytes, {} bytes) (nonce={})",
-        aad.n,
-        cipher.n,
+        "decrypt({} bytes, {} bytes) (nonce={})",
+        aad.size(),
+        cipher.size(),
         (size_t)recv_nonce.nonce);
 
       // Note: We must assume that some messages are dropped, i.e. we may not
@@ -236,7 +239,7 @@ namespace ccf
       }
 
       auto ret =
-        recv_key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
+        recv_key->decrypt(header.get_iv(), header.tag, cipher, aad, plain);
       if (ret)
       {
         // Set local recv nonce to received nonce only if verification is
@@ -259,6 +262,12 @@ namespace ccf
       return ret;
     }
 
+    bool verify(const GcmHdr& header, std::span<const uint8_t> aad)
+    {
+      std::vector<uint8_t> empty_plaintext;
+      return decrypt(header, aad, {}, empty_plaintext);
+    }
+
     void send_key_exchange_init()
     {
       std::vector<uint8_t> payload;
@@ -268,7 +277,9 @@ namespace ccf
         append_vector(payload, kex_ctx.get_own_key_share());
         auto signature = node_kp->sign(kex_ctx.get_own_key_share());
         append_vector(payload, signature);
-        append_buffer(payload, {node_cert.data(), node_cert.size()});
+        append_buffer(
+          payload,
+          std::span<const uint8_t>(node_cert.data(), node_cert.size()));
         append_vector(payload, hkdf_salt);
       }
 
@@ -301,7 +312,9 @@ namespace ccf
         append_protocol_version(payload);
         append_vector(payload, kex_ctx.get_own_key_share());
         append_vector(payload, signature);
-        append_buffer(payload, {node_cert.data(), node_cert.size()});
+        append_buffer(
+          payload,
+          std::span<const uint8_t>(node_cert.data(), node_cert.size()));
       }
 
       CHANNEL_SEND_TRACE(
@@ -394,29 +407,29 @@ namespace ccf
         return false;
       }
 
-      CBuffer ks = extract_buffer(data, size);
-      if (ks.n == 0)
+      auto ks = extract_span(data, size);
+      if (ks.empty())
       {
         CHANNEL_RECV_FAIL("Empty keyshare");
         return false;
       }
 
-      CBuffer sig = extract_buffer(data, size);
-      if (sig.n == 0)
+      auto sig = extract_span(data, size);
+      if (sig.empty())
       {
         CHANNEL_RECV_FAIL("Empty signature");
         return false;
       }
 
-      CBuffer pc = extract_buffer(data, size);
-      if (pc.n == 0)
+      auto pc = extract_span(data, size);
+      if (pc.empty())
       {
         CHANNEL_RECV_FAIL("Empty cert");
         return false;
       }
 
-      CBuffer salt = extract_buffer(data, size);
-      if (salt.n == 0)
+      auto salt = extract_span(data, size);
+      if (salt.empty())
       {
         CHANNEL_RECV_FAIL("Empty salt");
         return false;
@@ -469,7 +482,7 @@ namespace ccf
         ds::to_hex(pc),
         ds::to_hex(salt));
 
-      hkdf_salt = {salt.p, salt.p + salt.n};
+      hkdf_salt = {salt.data(), salt.data() + salt.size()};
 
       kex_ctx.load_peer_key_share(ks);
 
@@ -503,22 +516,22 @@ namespace ccf
         return false;
       }
 
-      CBuffer ks = extract_buffer(data, size);
-      if (ks.n == 0)
+      auto ks = extract_span(data, size);
+      if (ks.empty())
       {
         CHANNEL_RECV_FAIL("Empty keyshare");
         return false;
       }
 
-      CBuffer sig = extract_buffer(data, size);
-      if (sig.n == 0)
+      auto sig = extract_span(data, size);
+      if (sig.empty())
       {
         CHANNEL_RECV_FAIL("Empty signature");
         return false;
       }
 
-      CBuffer pc = extract_buffer(data, size);
-      if (pc.n == 0)
+      auto pc = extract_span(data, size);
+      if (pc.empty())
       {
         CHANNEL_RECV_FAIL("Empty cert");
         return false;
@@ -541,7 +554,7 @@ namespace ccf
 
       {
         // We are the initiator and expect a signature over both key shares
-        std::vector<uint8_t> signed_msg = {ks.p, ks.p + ks.n};
+        std::vector<uint8_t> signed_msg(ks.begin(), ks.end());
         const auto& oks = kex_ctx.get_own_key_share();
         signed_msg.insert(signed_msg.end(), oks.begin(), oks.end());
 
@@ -586,8 +599,8 @@ namespace ccf
       //   return false;
       // }
 
-      CBuffer sig = extract_buffer(data, size);
-      if (sig.n == 0)
+      auto sig = extract_span(data, size);
+      if (sig.empty())
       {
         CHANNEL_RECV_FAIL("Empty signature");
         return false;
@@ -622,14 +635,15 @@ namespace ccf
       serialized::write(data, size, msg_type);
     }
 
-    void append_buffer(std::vector<uint8_t>& target, CBuffer src)
+    void append_buffer(
+      std::vector<uint8_t>& target, std::span<const uint8_t> src)
     {
       const auto size_before = target.size();
-      auto size = src.n + sizeof(src.n);
+      auto size = src.size() + sizeof(src.size());
       target.resize(size_before + size);
       auto data = target.data() + size_before;
-      serialized::write(data, size, src.n);
-      serialized::write(data, size, src.p, src.n);
+      serialized::write(data, size, src.size());
+      serialized::write(data, size, src.data(), src.size());
     }
 
     void append_vector(
@@ -667,7 +681,8 @@ namespace ccf
       return status.value();
     }
 
-    CBuffer extract_buffer(const uint8_t*& data, size_t& size) const
+    std::span<const uint8_t> extract_span(
+      const uint8_t*& data, size_t& size) const
     {
       if (size == 0)
       {
@@ -675,27 +690,29 @@ namespace ccf
       }
 
       auto sz = serialized::read<size_t>(data, size);
-      CBuffer r(data, sz);
+      const uint8_t* data_start = data;
 
-      if (r.n > size)
+      if (sz > size)
       {
         CHANNEL_RECV_FAIL(
-          "Buffer header wants {} bytes, but only {} remain", r.n, size);
-        r.n = 0;
+          "Buffer header wants {} bytes, but only {} remain", sz, size);
+        return {};
       }
       else
       {
-        data += r.n;
-        size -= r.n;
+        data += sz;
+        size -= sz;
       }
 
-      return r;
+      return std::span<const uint8_t>(data_start, sz);
     }
 
     bool verify_peer_certificate(
-      CBuffer pc, crypto::Pem& cert, crypto::VerifierPtr& verifier)
+      std::span<const uint8_t> pc,
+      crypto::Pem& cert,
+      crypto::VerifierPtr& verifier)
     {
-      if (pc.n != 0)
+      if (!pc.empty())
       {
         cert = crypto::Pem(pc);
         verifier = crypto::make_verifier(cert);
@@ -719,7 +736,9 @@ namespace ccf
     }
 
     bool verify_peer_signature(
-      CBuffer msg, CBuffer sig, crypto::VerifierPtr verifier)
+      std::span<const uint8_t> msg,
+      std::span<const uint8_t> sig,
+      crypto::VerifierPtr verifier)
     {
       CHANNEL_RECV_TRACE(
         "Verifying peer signature with peer certificate serial {}",
@@ -819,7 +838,10 @@ namespace ccf
       send_key_exchange_init();
     }
 
-    bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
+    bool send(
+      NodeMsgType type,
+      std::span<const uint8_t> aad,
+      std::span<const uint8_t> plain = {})
     {
       if (!status.check(ESTABLISHED))
       {
@@ -842,17 +864,17 @@ namespace ccf
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
         (size_t)type,
-        aad.n,
-        plain.n,
+        aad.size(),
+        plain.size(),
         (size_t)nonce.nonce);
 
       GcmHdr gcm_hdr;
-      gcm_hdr.set_iv_seq(nonce.get_val());
+      const auto nonce_n = nonce.get_val();
+      gcm_hdr.set_iv((const uint8_t*)&nonce_n, sizeof(nonce_n));
 
-      std::vector<uint8_t> cipher(plain.n);
+      std::vector<uint8_t> cipher;
       assert(send_key);
-      send_key->encrypt(
-        gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
+      send_key->encrypt(gcm_hdr.get_iv(), plain, aad, cipher, gcm_hdr.tag);
 
       const auto gcm_hdr_serialised = gcm_hdr.serialise();
 
@@ -861,9 +883,10 @@ namespace ccf
       // 2) gcm header
       // 3) ciphertext
       const serializer::ByteRange payload[] = {
-        {aad.p, aad.n},
-        {gcm_hdr_serialised.data(), gcm_hdr_serialised.size()},
-        {cipher.data(), cipher.size()}};
+        {aad.data(), static_cast<size_t>(aad.size())},
+        {gcm_hdr_serialised.data(),
+         static_cast<size_t>(gcm_hdr_serialised.size())},
+        {cipher.data(), static_cast<size_t>(cipher.size())}};
 
       RINGBUFFER_WRITE_MESSAGE(
         node_outbound, to_host, peer_id.value(), type, self.value(), payload);
@@ -871,7 +894,8 @@ namespace ccf
       return true;
     }
 
-    bool recv_authenticated(CBuffer aad, const uint8_t*& data, size_t& size)
+    bool recv_authenticated(
+      std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload
@@ -889,7 +913,7 @@ namespace ccf
       GcmHdr hdr;
       hdr.deserialise(data, size);
 
-      if (!verify_or_decrypt(hdr, aad))
+      if (!verify(hdr, aad))
       {
         CHANNEL_RECV_FAIL("Failed to verify node");
         return false;
@@ -918,12 +942,12 @@ namespace ccf
       const uint8_t* data_ = data;
       size_t size_ = size;
 
-      serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
       GcmHdr hdr;
+      serialized::skip(data_, size_, (size_ - hdr.serialised_size()));
       hdr.deserialise(data_, size_);
-      size -= sizeof(GcmHdr);
+      size -= hdr.serialised_size();
 
-      if (!verify_or_decrypt(hdr, {data, size}))
+      if (!verify(hdr, std::span<const uint8_t>(data, size)))
       {
         CHANNEL_RECV_FAIL("Failed to verify node message with payload");
         return false;
@@ -933,7 +957,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> recv_encrypted(
-      CBuffer aad, const uint8_t*& data, size_t& size)
+      std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
       // Receive encrypted message, returning the decrypted payload
       if (!status.check(ESTABLISHED))
@@ -950,8 +974,8 @@ namespace ccf
       GcmHdr hdr;
       hdr.deserialise(data, size);
 
-      std::vector<uint8_t> plain(size);
-      if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
+      std::vector<uint8_t> plain;
+      if (!decrypt(hdr, aad, std::span<const uint8_t>(data, size), plain))
       {
         CHANNEL_RECV_FAIL("Failed to decrypt node message");
         return std::nullopt;

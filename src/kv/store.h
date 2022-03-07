@@ -3,9 +3,11 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
+#include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "snapshot.h"
@@ -317,7 +319,7 @@ namespace kv
 
     bool should_track_dependencies(const std::string& name) override
     {
-      return name.compare(ccf::Tables::AFT_REQUESTS) != 0;
+      return name.compare(aft::Tables::AFT_REQUESTS) != 0;
     }
 
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
@@ -472,7 +474,11 @@ namespace kv
 
         // Take ownership of the produced change set, store it to be committed
         // later
-        changes[map_name] = {map, std::move(deserialised_snapshot_changes)};
+        changes.emplace_hint(
+          changes_search,
+          std::piecewise_construct,
+          std::forward_as_tuple(map_name),
+          std::forward_as_tuple(map, std::move(deserialised_snapshot_changes)));
       }
 
       for (auto& it : maps)
@@ -611,6 +617,7 @@ namespace kv
         last_replicated = tx_id.version;
         last_committable = tx_id.version;
         unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
@@ -769,8 +776,11 @@ namespace kv
 
         // Take ownership of the produced change set, store it to be applied
         // later
-        changes[map_name] =
-          kv::MapChanges{map, std::move(deserialised_changes)};
+        changes.emplace_hint(
+          change_search,
+          std::piecewise_construct,
+          std::forward_as_tuple(map_name),
+          std::forward_as_tuple(map, std::move(deserialised_changes)));
       }
 
       if (!d.end())
