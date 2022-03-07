@@ -114,7 +114,7 @@ def test(network, args):
 def test_illegal(network, args):
     primary, _ = network.find_primary()
 
-    def send_raw_content(content, expected_status):
+    def send_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
         cafile = os.path.join(network.common_dir, "service_cert.pem")
         context = ssl.create_default_context(cafile=cafile)
@@ -131,14 +131,19 @@ def test_illegal(network, args):
         conn.sendall(content)
         response = HTTPResponse(conn)
         response.begin()
-        assert response.status == expected_status, (response.status, response.read())
         return response
 
     def send_bad_raw_content(content):
-        response = send_raw_content(content, http.HTTPStatus.BAD_REQUEST)
+        response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
-        assert content in response_body, response
+        if response.status == http.HTTPStatus.BAD_REQUEST:
+            assert content in response_body, response_body
+        else:
+            assert response.status in {http.HTTPStatus.NOT_FOUND}, (
+                response.status,
+                response_body,
+            )
 
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
@@ -152,8 +157,9 @@ def test_illegal(network, args):
                 corrupt_content = content[:i] + replacement + content[i + 1 :]
                 send_bad_raw_content(corrupt_content)
 
-    good_content = b"GET /node/state HTTP/1.1\r\nx-custom-header: Some junk\r\n\r\n"
-    send_raw_content(good_content, http.HTTPStatus.OK)
+    good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
+    response = send_raw_content(good_content)
+    assert response.status == http.HTTPStatus.OK, (response.status, response.read())
     send_corrupt_variations(good_content)
 
     # Valid transactions are still accepted
