@@ -53,6 +53,12 @@ Glossary
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
 
+  QUIC
+    `QUIC <https://quicwg.org/>`_ is a new protocol that uses multiple UDP streams in a single :term:`TLS` 1.3+ encrypted connection to achieve speed and scalability for very large and complex traffic.
+
+  Ring Buffer
+    The ring buffer is a data structure that allows communication between the (unprotected) host and the enclave. Data that is written to one side can be read on the other. Only specific types of messages are supported to make sure each package that goes across is read by the right process in the right way.
+
   SGX
     `Intel Software Guard Extensions <https://software.intel.com/en-us/sgx>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
 

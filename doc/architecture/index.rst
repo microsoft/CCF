@@ -57,6 +57,20 @@ Architecture
 
     Indexing system used to speed up historical queries.
 
+    ---
+
+    :fa:`address-book` :doc:`tls_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of TLS communication.
+
+    ---
+
+    :fa:`address-book` :doc:`quic_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of QUIC communication (in progress).
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -69,3 +83,5 @@ Architecture
     raft_tla
     node_to_node
     indexing
+    tls_internals
+    quic_internals
