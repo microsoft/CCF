@@ -199,7 +199,7 @@ namespace loggingapp
 
     static std::string private_records(const std::optional<std::string>& scope)
     {
-      return scope ? std::string(PRIVATE_RECORDS) + "-" + *scope :
+      return scope.has_value() ? fmt::format("{}-{}", PRIVATE_RECORDS, *scope) :
                      PRIVATE_RECORDS;
     }
 
