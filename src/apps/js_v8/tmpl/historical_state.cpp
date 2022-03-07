@@ -12,8 +12,8 @@ namespace ccf::v8_tmpl
   struct HistoricalStateContext
   {
     ccf::historical::StatePtr state;
-    kv::CommittableTx tx;
-    TxContext tx_ctx;
+    kv::ReadOnlyTx tx;
+    ReadOnlyTxContext tx_ctx;
   };
 
   enum class InternalField
@@ -37,7 +37,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
-    v8::Local<v8::Value> value = KVStore::wrap(context, &state_ctx->tx_ctx);
+    v8::Local<v8::Value> value = KVStoreReadOnly::wrap(context, &state_ctx->tx_ctx);
     info.GetReturnValue().Set(value);
   }
 
@@ -89,8 +89,8 @@ namespace ccf::v8_tmpl
   {
     auto state_ctx = new HistoricalStateContext{
       historical_state,
-      historical_state->store->create_tx(),
-      TxContext{nullptr, TxAccess::APP}};
+      historical_state->store->create_read_only_tx(),
+      ReadOnlyTxContext{nullptr, TxAccess::APP}};
     state_ctx->tx_ctx.tx = &state_ctx->tx;
     V8Context::from_context(context).register_finalizer(
       [](void* data) { delete static_cast<HistoricalStateContext*>(data); },

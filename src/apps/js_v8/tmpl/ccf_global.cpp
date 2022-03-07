@@ -603,7 +603,7 @@ namespace ccf::v8_tmpl
     TxContext* tx_ctx = unwrap_tx_ctx(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
-    v8::Local<v8::Value> value = KVStore::wrap(context, tx_ctx);
+    v8::Local<v8::Value> value = KVStoreReadWrite::wrap(context, tx_ctx);
     info.GetReturnValue().Set(value);
   }
 
