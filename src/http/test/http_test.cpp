@@ -102,6 +102,32 @@ DOCTEST_TEST_CASE("Parsing error")
   DOCTEST_CHECK(sp.received.empty());
 }
 
+DOCTEST_TEST_CASE("Parsing fuzzing")
+{
+  std::vector<uint8_t> r;
+
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
+
+  const auto orig_req = http::build_post_request(r);
+
+  for (auto i = 0; i < orig_req.size(); ++i)
+  {
+    std::vector<char> replacements;
+    replacements.push_back('\0');
+    replacements.push_back('\1');
+    replacements.push_back((i + 128) % 256);
+    for (auto c : replacements)
+    {
+      auto req = orig_req;
+      req[i] = c;
+
+      DOCTEST_CHECK_THROWS(p.execute(req.data(), req.size()));
+      DOCTEST_CHECK(sp.received.empty());
+    }
+  }
+}
+
 DOCTEST_TEST_CASE("Partial request")
 {
   http::SimpleRequestProcessor sp;
