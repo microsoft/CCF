@@ -287,7 +287,7 @@ def test_protocols(network, args):
 def test_large_messages(network, args):
     check = infra.checker.Checker()
 
-    # TLS libraries usually have 16K intrernal buffers, so we start at
+    # TLS libraries usually have 16K internal buffers, so we start at
     # 1K and move up to 1M and make sure they can cope with it.
     # Starting below 16K also helps identify problems (by seeing some
     # pass but not others, and finding where does it fail).
