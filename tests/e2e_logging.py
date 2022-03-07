@@ -131,7 +131,7 @@ def test_illegal(network, args):
         conn.sendall(content)
         response = HTTPResponse(conn)
         response.begin()
-        assert response.status == expected_status, response.status
+        assert response.status == expected_status, (response.status, response.read())
         return response
 
     def send_bad_raw_content(content):
