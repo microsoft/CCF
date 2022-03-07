@@ -271,6 +271,7 @@ extern "C"
 
     if (status != CreateNodeStatus::OK)
     {
+      delete enclave;
       return status;
     }
 
@@ -301,10 +302,9 @@ extern "C"
 
       LOG_INFO_FMT("All threads are ready!");
 
-      bool s = false;
       if (tid == threading::MAIN_THREAD_ID)
       {
-        s = e.load()->run_main();
+        auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::thread_count - 1)
         {
@@ -312,14 +312,14 @@ extern "C"
         // All threads are done, we can drop any remaining tasks safely and
         // completely
         threading::ThreadMessaging::thread_messaging.drop_tasks();
+        return s;
       }
       else
       {
-        s = e.load()->run_worker();
+        auto s = e.load()->run_worker();
         num_complete_threads.fetch_add(1);
+        return s;
       }
-      delete e.load();
-      return s;
     }
     else
     {
