@@ -147,23 +147,10 @@ def test_protocols(network, args):
 
     common_options = [url, "-sS", "--cacert", ca_path]
 
-    # Check that websocket upgrade request is ignored
-    res = infra.proc.ccall(
-        "curl",
-        "--no-buffer",
-        "-H",
-        "Connection: Upgrade",
-        "-H",
-        "Upgrade: websocket",
-        "-w",
-        "\n%{http_code}",
-        *common_options,
-    )
-    assert res.returncode == 0, res.returncode
-    body = res.stdout.decode()
-    status_code = body.splitlines()[-1]
-    assert status_code == "200", body
-    expected_response_body = body[: body.rfind("\n")]
+    with primary.client("user0") as c:
+        r = c.get("/node/state")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        expected_response_body = r.body.text()
 
     # Test additional HTTP versions with curl
     for (protocol, expected_error) in (
@@ -196,10 +183,7 @@ def test_protocols(network, args):
         number_txs=1,
         on_backup=True,
     )
-    if verify:
-        network.txs.verify()
-    else:
-        LOG.warning("Skipping log messages verification")
+    network.txs.verify()
 
     return network
 
@@ -1289,34 +1273,34 @@ def run(args):
         )
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_protocols(network, args)
-        # network = test_large_messages(network, args)
-        # network = test_remove(network, args)
-        # network = test_forwarding_frontends(network, args)
-        # network = test_signed_escapes(network, args)
-        # network = test_user_data_ACL(network, args)
-        # network = test_cert_prefix(network, args)
-        # network = test_anonymous_caller(network, args)
-        # network = test_multi_auth(network, args)
-        # network = test_custom_auth(network, args)
-        # network = test_custom_auth_safety(network, args)
-        # network = test_raw_text(network, args)
-        # network = test_historical_query(network, args)
-        # network = test_historical_query_range(network, args)
-        # network = test_view_history(network, args)
-        # network = test_primary(network, args)
-        # network = test_network_node_info(network, args)
-        # network = test_metrics(network, args)
-        # network = test_memory(network, args)
-        # # BFT does not handle re-keying yet
-        # if args.consensus == "cft":
-        #     network = test_liveness(network, args)
-        #     network = test_rekey(network, args)
-        #     network = test_liveness(network, args)
-        #     network = test_random_receipts(network, args)
-        # if args.package == "liblogging":
-        #     network = test_ws(network, args)
-        #     network = test_receipts(network, args)
-        # network = test_historical_receipts(network, args)
+        network = test_large_messages(network, args)
+        network = test_remove(network, args)
+        network = test_forwarding_frontends(network, args)
+        network = test_signed_escapes(network, args)
+        network = test_user_data_ACL(network, args)
+        network = test_cert_prefix(network, args)
+        network = test_anonymous_caller(network, args)
+        network = test_multi_auth(network, args)
+        network = test_custom_auth(network, args)
+        network = test_custom_auth_safety(network, args)
+        network = test_raw_text(network, args)
+        network = test_historical_query(network, args)
+        network = test_historical_query_range(network, args)
+        network = test_view_history(network, args)
+        network = test_primary(network, args)
+        network = test_network_node_info(network, args)
+        network = test_metrics(network, args)
+        network = test_memory(network, args)
+        # BFT does not handle re-keying yet
+        if args.consensus == "cft":
+            network = test_liveness(network, args)
+            network = test_rekey(network, args)
+            network = test_liveness(network, args)
+            network = test_random_receipts(network, args)
+        if args.package == "liblogging":
+            network = test_ws(network, args)
+            network = test_receipts(network, args)
+        network = test_historical_receipts(network, args)
 
 
 if __name__ == "__main__":
