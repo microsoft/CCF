@@ -189,7 +189,6 @@ def test_illegal(network, args):
 def test_protocols(network, args):
     primary, _ = network.find_primary()
 
-    # Test additional HTTP versions with curl
     primary_root = (
         f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}"
     )
@@ -198,17 +197,40 @@ def test_protocols(network, args):
 
     common_options = [url, "-sS", "--cacert", ca_path]
 
+    # Check that websocket upgrade request is ignored
+    res = infra.proc.ccall(
+        "curl",
+        "--no-buffer",
+        "-H",
+        "Connection: Upgrade",
+        "-H",
+        "Upgrade: websocket",
+        "-w",
+        "\n%{http_code}",
+        *common_options,
+    )
+    assert res.returncode == 0, res.returncode
+    body = res.stdout.decode()
+    status_code = body.splitlines()[-1]
+    assert status_code == "200", body
+    expected_response_body = body[: body.rfind("\n")]
+
+    # Test additional HTTP versions with curl
     for (protocol, expected_error) in (
         ("", None),
         ("--http1.0", None),
         ("--http1.1", None),
-        ("--http2", None),
+        ("--http2", None),  # Upgrade request is ignored
         ("--http2-prior-knowledge", "Error in the HTTP2 framing layer"),
         ("--http3", "the installed libcurl version doesn't support this"),
     ):
         res = infra.proc.ccall("curl", protocol, *common_options)
         if expected_error is None:
             assert res.returncode == 0, res.returncode
+            out = res.stdout.decode()
+            assert (
+                out == expected_response_body
+            ), f"{out}\n !=\n{expected_response_body}"
         else:
             assert res.returncode != 0, res.returncode
             err = res.stderr.decode()
