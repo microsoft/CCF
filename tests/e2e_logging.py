@@ -7,6 +7,7 @@ import infra.e2e_args
 from infra.tx_status import TxStatus
 import infra.checker
 import infra.jwt_issuer
+import infra.proc
 import http
 from http.client import HTTPResponse
 import ssl
@@ -166,6 +167,52 @@ def test_illegal(network, args):
     response = send_raw_content(good_content)
     assert response.status == http.HTTPStatus.OK, (response.status, response.read())
     send_corrupt_variations(good_content)
+
+    # Valid transactions are still accepted
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
+    network.txs.verify()
+
+    return network
+
+
+@reqs.description("Alternative protocols")
+@reqs.supports_methods("/app/log/private", "/app/log/public")
+@reqs.at_least_n_nodes(2)
+def test_protocols(network, args):
+    primary, _ = network.find_primary()
+
+    # Test additional HTTP versions with curl
+    primary_root = (
+        f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}"
+    )
+    url = f"{primary_root}/node/state"
+    ca_path = os.path.join(network.common_dir, "service_cert.pem")
+
+    common_options = [url, "-sS", "--cacert", ca_path]
+
+    for (protocol, expected_error) in (
+        ("", None),
+        ("--http1.0", None),
+        ("--http1.1", None),
+        ("--http2", None),
+        ("--http2-prior-knowledge", "Error in the HTTP2 framing layer"),
+        ("--http3", "the installed libcurl version doesn't support this"),
+    ):
+        res = infra.proc.ccall("curl", protocol, *common_options)
+        if expected_error is None:
+            assert res.returncode == 0, res.returncode
+        else:
+            assert res.returncode != 0, res.returncode
+            err = res.stderr.decode()
+            assert expected_error in err, err
 
     # Valid transactions are still accepted
     network.txs.issue(
@@ -1327,36 +1374,37 @@ def run(args):
         network.start_and_open(args)
 
         network = test(network, args)
-        network = test_illegal(network, args)
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_clear(network, args)
-        network = test_record_count(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_signed_escapes(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_metrics(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "CFT":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-            network = test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            network = test_receipts(network, args)
-            network = test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            network = test_historical_receipts(network, args)
-            network = test_historical_receipts_with_claims(network, args)
+        # network = test_illegal(network, args)
+        network = test_protocols(network, args)
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_clear(network, args)
+        # network = test_record_count(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_signed_escapes(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_multi_auth(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_custom_auth_safety(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
+        # network = test_historical_query_range(network, args)
+        # network = test_view_history(network, args)
+        # network = test_metrics(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "CFT":
+        #     network = test_liveness(network, args)
+        #     network = test_rekey(network, args)
+        #     network = test_liveness(network, args)
+        #     network = test_random_receipts(network, args, False)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     network = test_receipts(network, args)
+        #     network = test_historical_query_sparse(network, args)
+        # if "v8" not in args.package:
+        #     network = test_historical_receipts(network, args)
+        #     network = test_historical_receipts_with_claims(network, args)
 
 
 if __name__ == "__main__":
