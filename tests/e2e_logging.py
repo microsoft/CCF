@@ -152,6 +152,8 @@ def test_illegal(network, args):
     send_bad_raw_content(b"NOTAVERB ")
     send_bad_raw_content(b"POST / HTTP/42.42")
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
+    # Tests non-UTF8 encoding in OData
+    send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
 
     for _ in range(40):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 40)))
