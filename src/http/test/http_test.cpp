@@ -110,10 +110,7 @@ DOCTEST_TEST_CASE("Parsing fuzzing")
   http::RequestParser p(sp);
 
 #define ADD_HTTP_METHOD(NUM, NAME, STRING) HTTP_##NAME,
-  std::vector<llhttp_method> all_methods
-  {
-    HTTP_ALL_METHOD_MAP(ADD_HTTP_METHOD)
-  };
+  std::vector<llhttp_method> all_methods{HTTP_ALL_METHOD_MAP(ADD_HTTP_METHOD)};
 #undef HTTP_METHOD_GEN
 
   for (auto method : all_methods)
