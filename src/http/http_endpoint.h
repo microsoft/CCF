@@ -27,9 +27,7 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_),
-      wp(wp_)
+      TLSEndpoint(session_id, writer_factory, std::move(ctx)), p(p_), wp(wp_)
     {}
 
   public:
@@ -124,11 +122,16 @@ namespace http
             response.set_header(
               http::headers::CONTENT_TYPE,
               http::headervalues::contenttype::TEXT);
-            auto body = fmt::format(
-              "Unable to parse data as a HTTP request. Error details are "
-              "below.\n\n{}",
+            // NB: Avoid formatting input data a string, as it may contain null
+            // bytes. Instead insert it at the end of this message, verbatim
+            auto body_s = fmt::format(
+              "Unable to parse data as a HTTP request. Error message is: {}\n"
+              "Error occured while parsing fragment:\n",
               e.what());
-            response.set_body((const uint8_t*)body.data(), body.size());
+            std::vector<uint8_t> response_body(
+              std::begin(body_s), std::end(body_s));
+            response_body.insert(response_body.end(), data, data + n_read);
+            response.set_body(response_body.data(), response_body.size());
             send_raw(response.build_response());
 
             close();

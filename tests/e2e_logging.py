@@ -8,6 +8,7 @@ from ccf.tx_status import TxStatus
 import infra.checker
 import infra.jwt_issuer
 import inspect
+import infra.proc
 import http
 from http.client import HTTPResponse
 import ssl
@@ -61,15 +62,16 @@ def test(network, args, verify=True):
 def test_illegal(network, args, verify=True):
     primary, _ = network.find_primary()
 
-    def send_bad_raw_content(content):
+    cafile = os.path.join(network.common_dir, "service_cert.pem")
+    context = ssl.create_default_context(cafile=cafile)
+    context.set_ecdh_curve(ccf.clients.get_curve(cafile).name)
+    context.load_cert_chain(
+        certfile=os.path.join(network.common_dir, "user0_cert.pem"),
+        keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
+    )
+
+    def send_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
-        cafile = os.path.join(network.common_dir, "networkcert.pem")
-        context = ssl.create_default_context(cafile=cafile)
-        context.set_ecdh_curve(ccf.clients.get_curve(cafile).name)
-        context.load_cert_chain(
-            certfile=os.path.join(network.common_dir, "user0_cert.pem"),
-            keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
-        )
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn = context.wrap_socket(
             sock, server_side=False, server_hostname=primary.host
@@ -79,16 +81,110 @@ def test_illegal(network, args, verify=True):
         conn.sendall(content)
         response = HTTPResponse(conn)
         response.begin()
-        assert response.status == http.HTTPStatus.BAD_REQUEST, response.status
+        return response
+
+    def send_bad_raw_content(content):
+        response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
-        assert content in response_body, response
+        if response.status == http.HTTPStatus.BAD_REQUEST:
+            assert content in response_body, response_body
+        else:
+            assert response.status in {http.HTTPStatus.NOT_FOUND}, (
+                response.status,
+                response_body,
+            )
 
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
     send_bad_raw_content(b"NOTAVERB ")
     send_bad_raw_content(b"POST / HTTP/42.42")
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
+    # Tests non-UTF8 encoding in OData
+    send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
+
+    for _ in range(40):
+        content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 40)))
+        send_bad_raw_content(content)
+
+    def send_corrupt_variations(content):
+        for i in range(len(content) - 1):
+            for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
+                corrupt_content = content[:i] + replacement + content[i + 1 :]
+                send_bad_raw_content(corrupt_content)
+
+    good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
+    response = send_raw_content(good_content)
+    assert response.status == http.HTTPStatus.OK, (response.status, response.read())
+    send_corrupt_variations(good_content)
+
+    # Valid transactions are still accepted
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
+    network.txs.verify()
+
+    return network
+
+
+@reqs.description("Alternative protocols")
+@reqs.supports_methods("/app/log/private", "/app/log/public")
+@reqs.at_least_n_nodes(2)
+def test_protocols(network, args):
+    primary, _ = network.find_primary()
+
+    primary_root = (
+        f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}"
+    )
+    url = f"{primary_root}/node/state"
+    ca_path = os.path.join(network.common_dir, "service_cert.pem")
+
+    common_options = [url, "-sS", "--cacert", ca_path]
+
+    # Check that websocket upgrade request is ignored
+    res = infra.proc.ccall(
+        "curl",
+        "--no-buffer",
+        "-H",
+        "Connection: Upgrade",
+        "-H",
+        "Upgrade: websocket",
+        "-w",
+        "\n%{http_code}",
+        *common_options,
+    )
+    assert res.returncode == 0, res.returncode
+    body = res.stdout.decode()
+    status_code = body.splitlines()[-1]
+    assert status_code == "200", body
+    expected_response_body = body[: body.rfind("\n")]
+
+    # Test additional HTTP versions with curl
+    for (protocol, expected_error) in (
+        ("", None),
+        ("--http1.0", None),
+        ("--http1.1", None),
+        ("--http2", None),  # Upgrade request is ignored
+        ("--http2-prior-knowledge", "Error in the HTTP2 framing layer"),
+        ("--http3", "the installed libcurl version doesn't support this"),
+    ):
+        res = infra.proc.ccall("curl", protocol, *common_options)
+        if expected_error is None:
+            assert res.returncode == 0, res.returncode
+            out = res.stdout.decode()
+            assert (
+                out == expected_response_body
+            ), f"{out}\n !=\n{expected_response_body}"
+        else:
+            assert res.returncode != 0, res.returncode
+            err = res.stderr.decode()
+            assert expected_error in err, err
 
     # Valid transactions are still accepted
     network.txs.issue(
@@ -1192,6 +1288,7 @@ def run(args):
             verify=args.package != "libjs_generic",
         )
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        network = test_protocols(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_forwarding_frontends(network, args)
