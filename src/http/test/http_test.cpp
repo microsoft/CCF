@@ -107,11 +107,11 @@ DOCTEST_TEST_CASE("Parsing fuzzing")
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);
 
-#define ADD_HTTP_METHOD(NUM, NAME, STRING) HTTP_##NAME,
-  std::vector<llhttp_method> all_methods{HTTP_ALL_METHOD_MAP(ADD_HTTP_METHOD)};
-#undef HTTP_METHOD_GEN
+// #define ADD_HTTP_METHOD(NUM, NAME, STRING) HTTP_##NAME,
+//   std::vector<llhttp_method> all_methods{HTTP_ALL_METHOD_MAP(ADD_HTTP_METHOD)};
+// #undef ADD_HTTP_METHOD
 
-  for (auto method : all_methods)
+  for (auto method : {HTTP_POST, HTTP_GET, HTTP_PRI})
   {
     const auto orig_req = http::build_request(method, r);
 
