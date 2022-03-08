@@ -109,21 +109,31 @@ DOCTEST_TEST_CASE("Parsing fuzzing")
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);
 
-  const auto orig_req = http::build_post_request(r);
-
-  for (auto i = 0; i < orig_req.size(); ++i)
+#define ADD_HTTP_METHOD(NUM, NAME, STRING) HTTP_##NAME,
+  std::vector<llhttp_method> all_methods
   {
-    std::vector<char> replacements;
-    replacements.push_back('\0');
-    replacements.push_back('\1');
-    replacements.push_back((i + 128) % 256);
-    for (auto c : replacements)
-    {
-      auto req = orig_req;
-      req[i] = c;
+    HTTP_ALL_METHOD_MAP(ADD_HTTP_METHOD)
+  };
+#undef HTTP_METHOD_GEN
 
-      DOCTEST_CHECK_THROWS(p.execute(req.data(), req.size()));
-      DOCTEST_CHECK(sp.received.empty());
+  for (auto method : all_methods)
+  {
+    const auto orig_req = http::build_request(method, r);
+
+    for (auto i = 0; i < orig_req.size(); ++i)
+    {
+      std::vector<char> replacements;
+      replacements.push_back('\0');
+      replacements.push_back('\1');
+      replacements.push_back((i + 128) % 256);
+      for (auto c : replacements)
+      {
+        auto req = orig_req;
+        req[i] = c;
+
+        DOCTEST_CHECK_THROWS(p.execute(req.data(), req.size()));
+        DOCTEST_CHECK(sp.received.empty());
+      }
     }
   }
 }
