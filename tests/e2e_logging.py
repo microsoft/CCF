@@ -152,7 +152,7 @@ def test_illegal(network, args):
     send_bad_raw_content(b"POST / HTTP/42.42")
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
 
-    for i in range(40):
+    for _ in range(40):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 40)))
         send_bad_raw_content(content)
 
