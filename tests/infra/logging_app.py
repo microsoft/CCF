@@ -368,7 +368,7 @@ class LoggingTxs:
     def delete(self, log_id, priv=False, log_capture=None, user=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
         check = infra.checker.Checker()
-        with primary.client(user if user else self.user) as c:
+        with primary.client(user or self.user) as c:
             table = "private" if priv else "public"
             url = f"/app/log/{table}?id={log_id}"
             if self.scope is not None:
