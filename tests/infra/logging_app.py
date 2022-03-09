@@ -412,7 +412,7 @@ class LoggingTxs:
             )
 
 
-def scoped_txs(identity="user0", verify=True):
+def scoped_txs(identity="user0", verify=False):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
