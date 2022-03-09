@@ -94,7 +94,7 @@ def verify_receipt(
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
-@app.scoped_txs("user0", verify=False)
+@app.scoped_txs(verify=False)
 def test(network, args):
     network.txs.issue(
         network=network,
@@ -284,7 +284,7 @@ def test_protocols(network, args):
 
 @reqs.description("Write/Read large messages on primary")
 @reqs.supports_methods("/app/log/private")
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_large_messages(network, args):
     check = infra.checker.Checker()
 
@@ -326,7 +326,7 @@ def test_remove(network, args):
 
 @reqs.description("Write/Read/Clear messages on primary")
 @reqs.supports_methods("/app/log/private/all", "/app/log/public/all")
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_clear(network, args):
     primary, _ = network.find_primary()
 
@@ -372,7 +372,7 @@ def test_clear(network, args):
 
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("/app/log/private/count", "/app/log/public/count")
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_record_count(network, args):
     primary, _ = network.find_primary()
 
@@ -444,7 +444,7 @@ def test_cert_prefix(network, args):
 
 @reqs.description("Write as anonymous caller")
 @reqs.supports_methods("/app/log/private/anonymous", "/app/log/private")
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_anonymous_caller(network, args):
     # Create a new user but do not record its identity
     network.create_user("user5", args.participants_curve, record=False)
@@ -631,7 +631,7 @@ def test_custom_auth_safety(network, args):
 
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_raw_text(network, args):
     log_id = 7
     msg = "This message is not in JSON"
@@ -703,7 +703,7 @@ def test_metrics(network, args):
 
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
@@ -1063,7 +1063,7 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
@@ -1244,7 +1244,7 @@ class SentTxs:
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
 @reqs.supports_methods("/app/log/private")
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
@@ -1289,7 +1289,7 @@ def test_tx_statuses(network, args):
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
     msg = "Hello world"
@@ -1384,7 +1384,7 @@ def test_random_receipts(
 
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
-@app.scoped_txs("user0")
+@app.scoped_txs()
 def test_liveness(network, args):
     network.txs.issue(
         network=network,
