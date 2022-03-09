@@ -251,12 +251,7 @@ def test_protocols(network, args):
         else:
             assert res.returncode != 0, res.returncode
             err = res.stderr.decode()
-            failed = False
-            for err_i in expected_errors:
-                if err_i in err:
-                    failed = True
-                    break
-            assert failed, "none of the expected error messages were found"
+            assert any(expected_error in err for expected_error in expected_errors), err
 
     # Valid transactions are still accepted
     network.txs.issue(
