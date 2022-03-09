@@ -387,13 +387,13 @@ class Node:
                     # In the infra, public RPC port is always the same as local RPC port
                     rpc_interface.public_port = rpc_interface.port
 
-    def stop(self):
+    def stop(self, *args, **kwargs):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
             LOG.info(f"Stopping node {self.local_node_id}")
-            return self.remote.stop()
+            return self.remote.stop(*args, **kwargs)
         return [], []
 
     def is_stopped(self):

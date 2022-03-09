@@ -197,13 +197,13 @@ class DockerShim(infra.remote.CCFRemote):
     def get_host(self):
         return self.container_ip
 
-    def stop(self):
+    def stop(self, *args, **kwargs):
         try:
             self.container.stop()
             LOG.info(f"Stopped container {self.container.name}")
         except docker.errors.NotFound:
             pass
-        return self.remote.get_logs()
+        return self.remote.get_logs(*args, **kwargs)
 
     def suspend(self):
         self.container.pause()
