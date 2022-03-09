@@ -282,12 +282,13 @@ class Node:
             if self.pubport is None:
                 self.pubport = self.rpc_port
 
-    def stop(self):
+    def stop(self, *args, **kwargs):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
-            return self.remote.stop()
+            LOG.info(f"Stopping node {self.local_node_id}")
+            return self.remote.stop(*args, **kwargs)
         return [], []
 
     def is_stopped(self):
