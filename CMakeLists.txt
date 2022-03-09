@@ -661,6 +661,7 @@ if(BUILD_TESTS)
   endif()
 
   if(TLS_TEST)
+    # TODO: add_custom_command, to avoid forcing rebuilds after this?
     add_custom_target(
       testssl ALL
       COMMAND
