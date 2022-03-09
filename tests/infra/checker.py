@@ -4,8 +4,6 @@
 from infra.commit import wait_for_commit
 import pprint
 
-from infra.logging_app import scoped_txs
-
 
 class Checker:
     def __init__(self, client=None):
