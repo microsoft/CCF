@@ -114,7 +114,7 @@ class LoggingTxs:
             f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
         )
 
-        with remote_node.client(user if user else self.user) as c:
+        with remote_node.client(user or self.user) as c:
             check_commit = infra.checker.Checker(c)
 
             for _ in range(number_txs):
