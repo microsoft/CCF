@@ -52,7 +52,12 @@ def sftp_session(hostname):
 DEFAULT_TAIL_LINES_LEN = 10
 
 
-def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None):
+def log_errors(
+    out_path,
+    err_path,
+    tail_lines_len=DEFAULT_TAIL_LINES_LEN,
+    ignore_error_patterns=None,
+):
     error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
     error_lines = []
     try:

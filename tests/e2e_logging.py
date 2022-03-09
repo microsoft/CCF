@@ -159,8 +159,13 @@ def test_illegal(network, args):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
         # If we've accidentally produced something that might look like a valid HTTP request prefix, mangle it further
         first_byte = content[0]
-        if first_byte >= ord('A') and first_byte <= ord('Z') or first_byte == ord('\r') or first_byte == ord('\n'):
-            content = b'\00' + content
+        if (
+            first_byte >= ord("A")
+            and first_byte <= ord("Z")
+            or first_byte == ord("\r")
+            or first_byte == ord("\n")
+        ):
+            content = b"\00" + content
         send_bad_raw_content(content)
 
     def send_corrupt_variations(content):
@@ -1448,6 +1453,7 @@ def run_parsing_errors(args):
         network = test_illegal(network, args)
         network = test_protocols(network, args)
         network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
+
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()

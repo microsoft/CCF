@@ -620,7 +620,9 @@ class Network:
                 LOG.warning(f"  {pattern}")
 
         for node in self.nodes:
-            _, fatal_errors = node.stop(ignore_error_patterns=self.ignore_error_patterns)
+            _, fatal_errors = node.stop(
+                ignore_error_patterns=self.ignore_error_patterns
+            )
             if fatal_errors:
                 fatal_error_found = True
 
