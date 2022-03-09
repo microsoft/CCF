@@ -465,7 +465,7 @@ def scoped_txs(identity="user0", verify=True):
                         if public_count + private_count == 0:
                             return scope
                         else:
-                            scope = prefix + "_" + i
+                            scope = f"{prefix}_{i}"
 
             raise ValueError("fresh scope request failed")
 
