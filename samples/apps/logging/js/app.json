@@ -151,16 +151,6 @@
         "mode": "readonly",
         "openapi": {}
       }
-    },
-    "/log/fresh_scope": {
-      "get": {
-        "js_module": "logging.js",
-        "js_function": "get_fresh_scope",
-        "forwarding_required": "always",
-        "authn_policies": ["jwt", "user_cert"],
-        "mode": "readonly",
-        "openapi": {}
-      }
     }
   }
 }

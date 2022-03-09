@@ -1530,41 +1530,6 @@ namespace loggingapp
         {ccf::user_signature_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
-
-      auto fresh_scope = [this](auto& ctx, nlohmann::json&&) {
-        auto prefix = get_scope(ctx);
-
-        std::string scope = prefix.value_or("");
-
-        constexpr size_t max_tries = SIZE_MAX;
-        for (size_t i = 0; i < max_tries; i++)
-        {
-          size_t pub_sz =
-            ctx.tx.template ro<RecordsMap>(public_records({scope}))->size();
-          size_t prv_sz =
-            ctx.tx.template ro<RecordsMap>(private_records({scope}))->size();
-          if (pub_sz + prv_sz == 0)
-          {
-            return ccf::make_success(LoggingFreshScope::Out{scope});
-          }
-          scope = fmt::format("{}_{}", scope, std::to_string(i + 1));
-        }
-
-        return ccf::make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format(
-            "Could not find a suitable scope after {} tries", max_tries));
-      };
-
-      make_read_only_endpoint(
-        "/log/fresh_scope",
-        HTTP_GET,
-        ccf::json_read_only_adapter(fresh_scope),
-        auth_policies)
-        .add_query_parameter<std::string>("scope")
-        .set_auto_schema<void, LoggingFreshScope::Out>()
-        .install();
     }
   };
 }

@@ -15,16 +15,12 @@ function get_id_from_query(parsedQuery) {
   return ccf.strToBuf(parsedQuery.id);
 }
 
-function get_scope(parsedQuery) {
-  return parsedQuery.scope === undefined ? undefined : parsedQuery.scope;
-}
-
-function public_records(store, scope = undefined) {
+function public_records(store, scope) {
   if (scope === undefined) return store["public:records"];
   return store["public:records-" + scope];
 }
 
-function private_records(store, scope = undefined) {
+function private_records(store, scope) {
   if (scope === undefined) return store["records"];
   return store["records-" + scope];
 }
@@ -44,7 +40,7 @@ function delete_record(map, id) {
   return { body: true };
 }
 
-function update_first_write(id, is_private = false, scope = undefined) {
+function update_first_write(id, is_private = false, scope) {
   const first_writes =
     ccf.kv[is_private ? "first_write_version" : "public:first_write_version"];
   if (!first_writes.has(id)) {
@@ -58,10 +54,10 @@ function update_first_write(id, is_private = false, scope = undefined) {
   }
 }
 
-export function get_private(request, scope = undefined) {
+export function get_private(request, scope) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
-  return get_record(private_records(ccf.kv, get_scope(parsedQuery)), id);
+  return get_record(private_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function get_historical(request) {
@@ -69,7 +65,7 @@ export function get_historical(request) {
   const id = get_id_from_query(parsedQuery);
   // Forward-compatibility with 2.x
   const kv = ccf.historicalState.kv || ccf.kv;
-  return get_record(private_records(kv, get_scope(parsedQuery)), id);
+  return get_record(private_records(kv, parsedQuery.scope), id);
 }
 
 export function get_historical_with_receipt(request) {
@@ -83,7 +79,7 @@ export function get_historical_public(request) {
   const id = get_id_from_query(parsedQuery);
   // Forward-compatibility with 2.x
   const kv = ccf.historicalState.kv || ccf.kv;
-  return get_record(public_records(kv, get_scope(parsedQuery)), id);
+  return get_record(public_records(kv, parsedQuery.scope), id);
 }
 
 export function get_historical_public_with_receipt(request) {
@@ -106,7 +102,7 @@ function get_first_write_version(id, is_private = true) {
   return version;
 }
 
-function get_last_write_version(id, is_private = true, scope = undefined) {
+function get_last_write_version(id, is_private = true, scope) {
   const records = is_private
     ? private_records(ccf.kv, scope)
     : public_records(ccf.kv, scope);
@@ -215,7 +211,7 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
 
   // Process the fetched states
   const entries = [];
-  const scope = get_scope(parsedQuery);
+  const scope = parsedQuery.scope;
   for (const state of states) {
     const records = isPrivate
       ? private_records(state.kv, scope)
@@ -291,17 +287,14 @@ export function get_historical_range_public(request) {
 export function get_public(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
-  return get_record(public_records(ccf.kv, get_scope(parsedQuery)), id);
+  return get_record(public_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function post_private(request) {
   const parsedQuery = parse_request_query(request);
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
-  private_records(ccf.kv, get_scope(parsedQuery)).set(
-    id,
-    ccf.strToBuf(params.msg)
-  );
+  private_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
   update_first_write(id);
   return { body: true };
 }
@@ -310,10 +303,7 @@ export function post_public(request) {
   const parsedQuery = parse_request_query(request);
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
-  public_records(ccf.kv, get_scope(parsedQuery)).set(
-    id,
-    ccf.strToBuf(params.msg)
-  );
+  public_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
   update_first_write(id, false);
   if (params.record_claim) {
     const claims_digest = ccf.digest("SHA-256", ccf.strToBuf(params.msg));
@@ -326,19 +316,19 @@ export function delete_private(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
   update_first_write(id);
-  return delete_record(private_records(ccf.kv, get_scope(parsedQuery)), id);
+  return delete_record(private_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function delete_public(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
   update_first_write(id, false);
-  return delete_record(public_records(ccf.kv, get_scope(parsedQuery)), id);
+  return delete_record(public_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function clear_private(request) {
   const parsedQuery = parse_request_query(request);
-  const records = private_records(ccf.kv, get_scope(parsedQuery));
+  const records = private_records(ccf.kv, parsedQuery.scope);
   records.forEach((_, id) => {
     update_first_write(id);
   });
@@ -348,7 +338,7 @@ export function clear_private(request) {
 
 export function clear_public(request) {
   const parsedQuery = parse_request_query(request);
-  const records = public_records(ccf.kv, get_scope(parsedQuery));
+  const records = public_records(ccf.kv, parsedQuery.scope);
   records.forEach((_, id) => {
     update_first_write(id, false);
   });
@@ -358,31 +348,14 @@ export function clear_public(request) {
 
 export function count_private(request) {
   const parsedQuery = parse_request_query(request);
-  const records = private_records(ccf.kv, get_scope(parsedQuery));
+  const records = private_records(ccf.kv, parsedQuery.scope);
   const count = records.size;
   return { body: count };
 }
 
 export function count_public(request) {
   const parsedQuery = parse_request_query(request);
-  const records = public_records(ccf.kv, get_scope(parsedQuery));
+  const records = public_records(ccf.kv, parsedQuery.scope);
   const count = records.size;
   return { body: count };
-}
-
-export function get_fresh_scope(request) {
-  const parsedQuery = parse_request_query(request);
-  let prefix = get_scope(parsedQuery);
-  if (prefix === undefined) prefix = "";
-
-  let scope = prefix;
-  const max_tries = Number.MAX_SAFE_INTEGER;
-  for (let i = 0; i < max_tries; i++) {
-    const pub_sz = public_records(ccf.kv, scope).size;
-    const prv_sz = private_records(ccf.kv, scope).size;
-    if (pub_sz + prv_sz == 0) return { body: { scope: scope } };
-    scope = prefix + "_" + (i + 1);
-  }
-
-  throw new Error(`Could not find a suitable scope after ${max_tries} tries`);
 }

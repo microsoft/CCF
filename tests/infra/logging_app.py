@@ -442,17 +442,30 @@ def scoped_txs(identity, verify=True):
                 network.txs = previous_txs
             return r
 
+        def get_count(client, headers, scope, private=False):
+            table = "private" if private else "public"
+            r = client.get(f"/app/log/{table}/count?scope={scope}", headers=headers)
+            if r.status_code == http.HTTPStatus.OK:
+                return int(r.body.json())
+            else:
+                return None
+
         def get_fresh_scope(node, identity, headers, attempts=5):
+            prefix = func.__name__
+            scope = prefix
+            i = 1
             while attempts > 0:
                 with node.client(identity) as c:
-                    r = c.get(
-                        f"/app/log/fresh_scope?scope={func.__name__}", headers=headers
-                    )
-                    if r.status_code == http.HTTPStatus.OK:
-                        return r.body.json()["scope"]
-                    elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                    public_count = get_count(c, headers, scope)
+                    if public_count is None:
                         attempts -= 1
                         time.sleep(0.1)
+                    else:
+                        private_count = get_count(c, headers, scope, private=True)
+                        if public_count + private_count == 0:
+                            return scope
+                        else:
+                            scope = prefix + "_" + i
 
             raise ValueError("fresh scope request failed")
 
