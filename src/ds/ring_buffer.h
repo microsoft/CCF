@@ -47,6 +47,11 @@ namespace ringbuffer
       return n && ((n & (~n + 1)) == n);
     }
 
+    static bool is_aligned(uint8_t const* data, size_t align)
+    {
+      return reinterpret_cast<std::uintptr_t>(data) % align == 0;
+    }
+
     static constexpr size_t header_size()
     {
       // The header is a 32 bit length and a 32 bit message ID.
@@ -81,14 +86,27 @@ namespace ringbuffer
       return buffer_size / 2;
     }
 
-    Const(uint8_t* const buffer, size_t size) : buffer(buffer), size(size)
+    static constexpr size_t previous_power_of_2(size_t n)
     {
-      if (!is_power_of_2(size))
-        throw std::logic_error("Buffer size must be a power of 2");
+      const auto lz = __builtin_clzll(n);
+      return 1ul << (sizeof(size_t) * 8 - 1 - lz);
     }
 
-    uint8_t* const buffer;
-    const size_t size;
+    static bool find_acceptable_sub_buffer(uint8_t*& data_, size_t& size_)
+    {
+      void* data = reinterpret_cast<void*>(data_);
+      size_t size = size_;
+
+      auto ret = std::align(8, sizeof(size_t), data, size);
+      if (ret == nullptr)
+      {
+        return false;
+      }
+
+      data_ = reinterpret_cast<uint8_t*>(data);
+      size_ = previous_power_of_2(size);
+      return true;
+    }
   };
 
   struct BufferDef
@@ -99,6 +117,26 @@ namespace ringbuffer
     Offsets* offsets;
   };
 
+  namespace
+  {
+    static inline uint64_t read64(const BufferDef& bd, size_t index)
+    {
+      uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
+      atomic_thread_fence(std::memory_order_acq_rel);
+      return r;
+    }
+
+    static inline Message message(uint64_t header)
+    {
+      return (Message)(header >> 32);
+    }
+
+    static inline uint32_t length(uint64_t header)
+    {
+      return header & std::numeric_limits<uint32_t>::max();
+    }
+  }
+
   class Reader
   {
     friend class Writer;
@@ -106,7 +144,19 @@ namespace ringbuffer
     BufferDef bd;
 
   public:
-    Reader(const BufferDef& bd_) : bd(bd_) {}
+    Reader(const BufferDef& bd_) : bd(bd_)
+    {
+      if (!Const::is_power_of_2(bd.size))
+      {
+        throw std::logic_error(
+          fmt::format("Buffer size must be a power of 2, not {}", bd.size));
+      }
+
+      if (!Const::is_aligned(bd.data, 8))
+      {
+        throw std::logic_error("Buffer must be 8-byte aligned");
+      }
+    }
 
     size_t read(size_t limit, Handler f)
     {
@@ -120,7 +170,7 @@ namespace ringbuffer
       while ((advance < block) && (count < limit))
       {
         auto msg_index = hd_index + advance;
-        auto header = read64(msg_index);
+        auto header = read64(bd, msg_index);
         auto size = length(header);
 
         // If we see a pending write, we're done.
@@ -157,30 +207,13 @@ namespace ringbuffer
 
       return count;
     }
-
-  private:
-    uint64_t read64(size_t index)
-    {
-      uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
-      atomic_thread_fence(std::memory_order_acq_rel);
-      return r;
-    }
-
-    static Message message(uint64_t header)
-    {
-      return (Message)(header >> 32);
-    }
-
-    static uint32_t length(uint64_t header)
-    {
-      return header & std::numeric_limits<uint32_t>::max();
-    }
   };
 
   class Writer : public AbstractWriter
   {
   protected:
     BufferDef bd; // copy of reader's buffer definition
+    const size_t rmax;
 
     virtual void checkAccess(size_t, size_t) {}
 
@@ -195,9 +228,12 @@ namespace ringbuffer
     };
 
   public:
-    Writer(const Reader& r) : bd(r.bd) {}
+    Writer(const Reader& r) :
+      bd(r.bd),
+      rmax(Const::max_reservation_size(bd.size))
+    {}
 
-    Writer(const Writer& that) : bd(that.bd) {}
+    Writer(const Writer& that) : bd(that.bd), rmax(that.rmax) {}
 
     virtual ~Writer() {}
 
@@ -209,26 +245,33 @@ namespace ringbuffer
     {
       // Make sure we aren't using a reserved message.
       if ((m < Const::msg_min) || (m > Const::msg_max))
+      {
         throw message_error(
-          m, "Cannot use a reserved message (" + std::to_string(m) + ")");
+          m, fmt::format("Cannot use a reserved message ({})", m));
+      }
 
       // Make sure the message fits.
       if (size > Const::max_size())
+      {
         throw message_error(
           m,
-          "Message (" + std::to_string(m) + ") is too long for any writer (" +
-            std::to_string(size) + " > " + std::to_string(Const::max_size()) +
-            ")");
+          fmt::format(
+            "Message ({}) is too long for any writer: {} > {}",
+            m,
+            size,
+            Const::max_size()));
+      }
 
       auto rsize = Const::entry_size(size);
-      auto rmax = Const::max_reservation_size(bd.size);
       if (rsize > rmax)
       {
         throw message_error(
           m,
-          "Message (" + std::to_string(m) +
-            ") with header is too long for this writer (" +
-            std::to_string(rsize) + " > " + std::to_string(rmax) + ")");
+          fmt::format(
+            "Message ({}) is too long for this writer: {} > {}",
+            m,
+            rsize,
+            rmax));
       }
 
       auto r = reserve(rsize);
@@ -268,9 +311,17 @@ namespace ringbuffer
       {
         // Fix up the size to indicate we're done writing - unset pending bit.
         const auto index = marker.value() - Const::header_size();
-        auto size = read32(index);
-        write32(index, size & length_mask);
+        const auto header = read64(bd, index);
+        const auto size = length(header);
+        const auto m = message(header);
+        const auto finished_header = make_header(m, size, false);
+        write64(index, finished_header);
       }
+    }
+
+    virtual size_t get_max_message_size() override
+    {
+      return Const::max_size();
     }
 
   protected:
@@ -294,22 +345,6 @@ namespace ringbuffer
     }
 
   private:
-    uint32_t read32(size_t index)
-    {
-      uint32_t r;
-      checkAccess(index, sizeof(r));
-      r = *reinterpret_cast<volatile uint32_t*>(bd.data + index);
-      atomic_thread_fence(std::memory_order_acq_rel);
-      return r;
-    }
-
-    void write32(size_t index, uint32_t value)
-    {
-      atomic_thread_fence(std::memory_order_acq_rel);
-      checkAccess(index, sizeof(value));
-      *reinterpret_cast<volatile uint32_t*>(bd.data + index) = value;
-    }
-
     void write64(size_t index, uint64_t value)
     {
       atomic_thread_fence(std::memory_order_acq_rel);

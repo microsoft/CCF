@@ -7,6 +7,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "ccf/service/tables/service.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -18,6 +19,7 @@
 #include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/attestation_types.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
@@ -61,6 +63,64 @@ namespace ccf
     data.shrink_to_fit();
   }
 
+#ifdef GET_QUOTE
+  static QuoteInfo generate_quote(
+    const std::vector<uint8_t>& node_public_key_der)
+  {
+    QuoteInfo node_quote_info;
+    node_quote_info.format = QuoteFormat::oe_sgx_v1;
+
+    crypto::Sha256Hash h{node_public_key_der};
+
+    Evidence evidence;
+    Endorsements endorsements;
+    SerialisedClaims serialised_custom_claims;
+
+    // Serialise hash of node's public key as a custom claim
+    const size_t custom_claim_length = 1;
+    oe_claim_t custom_claim;
+    custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
+    custom_claim.value = h.h.data();
+    custom_claim.value_size = h.SIZE;
+
+    auto rc = oe_serialize_custom_claims(
+      &custom_claim,
+      custom_claim_length,
+      &serialised_custom_claims.buffer,
+      &serialised_custom_claims.size);
+    if (rc != OE_OK)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not serialise node's public key as quote custom claim: {}",
+        oe_result_str(rc)));
+    }
+
+    rc = oe_get_evidence(
+      &oe_quote_format,
+      0,
+      serialised_custom_claims.buffer,
+      serialised_custom_claims.size,
+      nullptr,
+      0,
+      &evidence.buffer,
+      &evidence.size,
+      &endorsements.buffer,
+      &endorsements.size);
+    if (rc != OE_OK)
+    {
+      throw std::logic_error(
+        fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
+    }
+
+    node_quote_info.quote.assign(
+      evidence.buffer, evidence.buffer + evidence.size);
+    node_quote_info.endorsements.assign(
+      endorsements.buffer, endorsements.buffer + endorsements.size);
+
+    return node_quote_info;
+  }
+#endif
+
   class NodeState : public ccf::AbstractNodeState
   {
   private:
@@ -81,9 +141,6 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
-#ifdef GET_QUOTE
-    EnclaveAttestationProvider enclave_attestation_provider;
-#endif
 
     //
     // kv store, replication, and I/O
@@ -208,7 +265,7 @@ namespace ccf
       CodeDigest& code_digest) override
     {
 #ifdef GET_QUOTE
-      return enclave_attestation_provider.verify_quote_against_store(
+      return EnclaveAttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
 #else
       (void)tx;
@@ -277,9 +334,8 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      quote_info = enclave_attestation_provider.generate_quote(
-        node_sign_kp->public_key_der());
-      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      quote_info = generate_quote(node_sign_kp->public_key_der());
+      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
         node_code_id = code_id.value();

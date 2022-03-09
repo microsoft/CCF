@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
+#include "ccf/service/blit_serialiser_pem.h"
 #include "ccf/service/map.h"
 
 #include <nlohmann/json.hpp>

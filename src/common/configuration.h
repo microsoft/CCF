@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/ds/logger.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/members.h"
 #include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
@@ -13,7 +14,6 @@
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "service/tables/config.h"
-#include "service/tables/node_info_network.h"
 
 #include <optional>
 #include <string>

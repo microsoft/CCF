@@ -141,6 +141,11 @@ namespace ringbuffer
       return underlying_writer->write_bytes(marker, bytes, size);
     }
 
+    size_t get_max_message_size() override
+    {
+      return underlying_writer->get_max_message_size();
+    }
+
     // Returns true if flush completed and there are no more pending messages.
     // False means 0 or more pending messages were written, but some remain
     bool try_flush_pending()

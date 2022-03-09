@@ -3,13 +3,13 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/service/tables/nodes.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node_signature_verify.h"
-#include "service/tables/nodes.h"
 #include "service/tables/signatures.h"
 
 #include <array>

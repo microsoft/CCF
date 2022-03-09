@@ -13,7 +13,7 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
-pushd "$ROOT_DIR"
+pushd "$ROOT_DIR" > /dev/null
 
 CHECK_DELIMITER="---------------------------"
 
@@ -24,6 +24,18 @@ git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s ba
 echo "$CHECK_DELIMITER"
 echo "-- TODOs"
 "$SCRIPT_DIR"/check-todo.sh include src
+
+echo "$CHECK_DELIMITER"
+echo "-- Public includes"
+# Enforce that no private headers are included from public header files
+violations=$(find "$ROOT_DIR/include/ccf" -type f -print0 | xargs --null grep -e "#include \"" | grep -v "#include \"ccf" | sort)
+if [[ -n "$violations" ]]; then
+  echo "Public headers include private implementation files:"
+  echo "$violations"
+  exit 1
+else
+  echo "No public header violations"
+fi
 
 echo "$CHECK_DELIMITER"
 echo "-- Release notes"
