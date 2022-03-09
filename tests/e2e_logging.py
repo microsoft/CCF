@@ -1402,39 +1402,52 @@ def run(args):
         network.start_and_open(args)
 
         network = test(network, args)
-        network = test_illegal(network, args)
-        # TODO
-        # network = test_protocols(network, args)
-        # network = test_large_messages(network, args)
-        # network = test_remove(network, args)
-        # network = test_clear(network, args)
-        # network = test_record_count(network, args)
-        # network = test_forwarding_frontends(network, args)
-        # network = test_signed_escapes(network, args)
-        # network = test_user_data_ACL(network, args)
-        # network = test_cert_prefix(network, args)
-        # network = test_anonymous_caller(network, args)
-        # network = test_multi_auth(network, args)
-        # network = test_custom_auth(network, args)
-        # network = test_custom_auth_safety(network, args)
-        # network = test_raw_text(network, args)
-        # network = test_historical_query(network, args)
-        # network = test_historical_query_range(network, args)
-        # network = test_view_history(network, args)
-        # network = test_metrics(network, args)
-        # # BFT does not handle re-keying yet
-        # if args.consensus == "CFT":
-        #     network = test_liveness(network, args)
-        #     network = test_rekey(network, args)
-        #     network = test_liveness(network, args)
-        #     network = test_random_receipts(network, args, False)
-        # if args.package == "samples/apps/logging/liblogging":
-        #     network = test_receipts(network, args)
-        #     network = test_historical_query_sparse(network, args)
-        # if "v8" not in args.package:
-        #     network = test_historical_receipts(network, args)
-        #     network = test_historical_receipts_with_claims(network, args)
+        network = test_protocols(network, args)
+        network = test_large_messages(network, args)
+        network = test_remove(network, args)
+        network = test_clear(network, args)
+        network = test_record_count(network, args)
+        network = test_forwarding_frontends(network, args)
+        network = test_signed_escapes(network, args)
+        network = test_user_data_ACL(network, args)
+        network = test_cert_prefix(network, args)
+        network = test_anonymous_caller(network, args)
+        network = test_multi_auth(network, args)
+        network = test_custom_auth(network, args)
+        network = test_custom_auth_safety(network, args)
+        network = test_raw_text(network, args)
+        network = test_historical_query(network, args)
+        network = test_historical_query_range(network, args)
+        network = test_view_history(network, args)
+        network = test_metrics(network, args)
+        # BFT does not handle re-keying yet
+        if args.consensus == "CFT":
+            network = test_liveness(network, args)
+            network = test_rekey(network, args)
+            network = test_liveness(network, args)
+            network = test_random_receipts(network, args, False)
+        if args.package == "samples/apps/logging/liblogging":
+            network = test_receipts(network, args)
+            network = test_historical_query_sparse(network, args)
+        if "v8" not in args.package:
+            network = test_historical_receipts(network, args)
+            network = test_historical_receipts_with_claims(network, args)
 
+
+def run_illegal(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
+        network = test_illegal(network, args)
+        network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
@@ -1474,6 +1487,21 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
+    cr.add(
+        "js_illegal",
+        run_illegal,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "cpp_illegal",
+        run_illegal,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )

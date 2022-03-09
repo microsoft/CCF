@@ -147,6 +147,7 @@ class Network:
             self.hosts = [node.host for node in existing_network.nodes]
 
         self.ignoring_shutdown_errors = False
+        self.ignore_error_patterns = []
         self.nodes = []
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
@@ -539,6 +540,9 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
+    def ignore_error_pattern_on_shutdown(self, pattern):
+        self.ignore_error_patterns.append(pattern)
+
     def check_ledger_files_identical(self, read_recovery_ledger_files=False):
         # Note: Should be called on stopped service
         # Verify that all ledger files on stopped nodes exist on most up-to-date node
@@ -610,8 +614,13 @@ class Network:
 
         fatal_error_found = False
 
+        if len(self.ignore_error_patterns) > 0:
+            LOG.warning("Ignoring error patterns on shutdown:")
+            for pattern in self.ignore_error_patterns:
+                LOG.warning(f"  {pattern}")
+
         for node in self.nodes:
-            _, fatal_errors = node.stop()
+            _, fatal_errors = node.stop(ignore_error_patterns=self.ignore_error_patterns)
             if fatal_errors:
                 fatal_error_found = True
 

@@ -52,7 +52,7 @@ def sftp_session(hostname):
 DEFAULT_TAIL_LINES_LEN = 10
 
 
-def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None):
     error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
     error_lines = []
     try:
@@ -62,8 +62,15 @@ def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
-                    LOG.error("{}: {}".format(out_path, stripped_line))
-                    error_lines.append(stripped_line)
+                    ignore = False
+                    if ignore_error_patterns is not None:
+                        for pattern in ignore_error_patterns:
+                            if pattern in stripped_line:
+                                ignore = True
+                                break
+                    if not ignore:
+                        LOG.error("{}: {}".format(out_path, stripped_line))
+                        error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
                 "{} errors found, printing end of output for context:", len(error_lines)
@@ -265,7 +272,9 @@ class SSHRemote(CmdMixin):
                 raise ValueError(self.root)
         return files
 
-    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+    def get_logs(
+        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
+    ):
         with sftp_session(self.hostname) as session:
             for filepath in (self.err, self.out):
                 try:
@@ -285,6 +294,7 @@ class SSHRemote(CmdMixin):
             os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
             os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
             tail_lines_len=tail_lines_len,
+            ignore_error_patterns=ignore_error_patterns,
         )
 
     def start(self):
@@ -325,7 +335,7 @@ class SSHRemote(CmdMixin):
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume remote {self.name} from suspension!")
 
-    def stop(self):
+    def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
@@ -333,7 +343,7 @@ class SSHRemote(CmdMixin):
         (
             errors,
             fatal_errors,
-        ) = self.get_logs()
+        ) = self.get_logs(ignore_error_patterns=ignore_error_patterns)
         self.client.close()
         self.proc_client.close()
         return errors, fatal_errors
@@ -478,10 +488,17 @@ class LocalRemote(CmdMixin):
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
 
-    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
-        return log_errors(self.out, self.err, tail_lines_len=tail_lines_len)
+    def get_logs(
+        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
+    ):
+        return log_errors(
+            self.out,
+            self.err,
+            tail_lines_len=tail_lines_len,
+            ignore_error_patterns=ignore_error_patterns,
+        )
 
-    def stop(self):
+    def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
@@ -497,7 +514,7 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            return self.get_logs()
+            return self.get_logs(ignore_error_patterns=ignore_error_patterns)
 
     def setup(self):
         """
@@ -872,10 +889,10 @@ class CCFRemote(object):
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()
 
-    def stop(self):
+    def stop(self, *args, **kwargs):
         errors, fatal_errors = [], []
         try:
-            errors, fatal_errors = self.remote.stop()
+            errors, fatal_errors = self.remote.stop(*args, **kwargs)
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
         return errors, fatal_errors
@@ -922,8 +939,12 @@ class CCFRemote(object):
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
         return paths
 
-    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
-        return self.remote.get_logs(tail_lines_len=tail_lines_len)
+    def get_logs(
+        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
+    ):
+        return self.remote.get_logs(
+            tail_lines_len=tail_lines_len, ignore_error_patterns=ignore_error_patterns
+        )
 
     def get_host(self):
         return self.pub_host
