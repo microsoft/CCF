@@ -150,6 +150,7 @@ class LoggingTxs:
                             "msg": priv_msg,
                             "seqno": rep_priv.seqno,
                             "view": rep_priv.view,
+                            "scope": self.scope,
                         }
                     )
                     wait_point = rep_priv
@@ -182,6 +183,7 @@ class LoggingTxs:
                             "msg": pub_msg,
                             "seqno": rep_pub.seqno,
                             "view": rep_pub.view,
+                            "scope": self.scope,
                         }
                     )
                     wait_point = rep_pub
@@ -222,6 +224,7 @@ class LoggingTxs:
                     entry["msg"],
                     entry["seqno"],
                     entry["view"],
+                    entry["scope"],
                     priv=False,
                     timeout=timeout,
                     log_capture=log_capture,
@@ -238,6 +241,7 @@ class LoggingTxs:
                             v["msg"],
                             v["seqno"],
                             v["view"],
+                            v["scope"],
                             priv=True,
                             historical=is_historical_entry,
                             timeout=timeout,
@@ -253,11 +257,15 @@ class LoggingTxs:
         msg,
         seqno,
         view,
+        scope,
         priv=True,
         historical=False,
         log_capture=None,
         timeout=3,
     ):
+        if self.scope is not None and scope != self.scope:
+            return
+
         if historical and not priv:
             raise ValueError(
                 "Historical queries are only implemented with private records"
@@ -274,8 +282,8 @@ class LoggingTxs:
             )
 
         url = f"{cmd}?id={idx}"
-        if self.scope is not None:
-            url += "&scope=" + self.scope
+        if scope is not None:
+            url += "&scope=" + scope
 
         found = False
         start_time = time.time()
@@ -408,29 +416,25 @@ def scoped_txs(identity="user0", verify=True):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            network = None
+            if not isinstance(args[0], infra.network.Network):
+                raise ValueError("expected first argument to be of type Network")
+
+            network = args[0]
             node = None
-            previous_txs = None
+            previous_scope = None
             headers = {}
 
-            if isinstance(args[0], infra.network.Network):
-                network = args[0]
-                if hasattr(network, "txs"):
-                    previous_txs = network.txs
-                if hasattr(network, "jwt_issuer") and network.jwt_issuer is not None:
-                    headers = infra.jwt_issuer.make_bearer_header(
-                        network.jwt_issuer.issue_jwt()
-                    )
-                node = network.find_random_node()
-            elif isinstance(args[0], infra.node.Node):
-                node = args[0]
-            else:
-                raise ValueError("invalid args[0]")
+            if hasattr(network, "jwt_issuer") and network.jwt_issuer is not None:
+                headers = infra.jwt_issuer.make_bearer_header(
+                    network.jwt_issuer.issue_jwt()
+                )
+            node = network.find_random_node()
+            previous_scope = network.txs.scope
 
             scope = get_fresh_scope(node, identity, headers)
 
             if network:
-                network.txs = LoggingTxs(identity, scope=scope)
+                network.txs.scope = scope
                 network.txs.network = network
                 r = func(*args, **kwargs)
             else:
@@ -439,7 +443,8 @@ def scoped_txs(identity="user0", verify=True):
             if network:
                 if verify:
                     network.txs.verify(network=network)
-                network.txs = previous_txs
+                network.txs.scope = previous_scope
+
             return r
 
         def get_count(client, headers, scope, private=False):

@@ -46,12 +46,11 @@ def _post_private_record(c, scope):
     return c.post(url, {"id": 3, "msg": "Hello world"})
 
 
-@scoped_txs(verify=False)
-def check_can_progress(node, timeout=3, scope=None):
+def check_can_progress(node, timeout=3):
     # Check that a write transaction issued on one node is eventually
     # committed by the service by a specified timeout
     with node.client("user0") as c:
-        r = _post_private_record(c, scope)
+        r = _post_private_record(c, "check_can_progress")
         try:
             c.wait_for_commit(r, timeout=timeout)
             return r
@@ -60,12 +59,11 @@ def check_can_progress(node, timeout=3, scope=None):
             assert False, f"Stuck before {r.view}.{r.seqno}: {pprint.pformat(details)}"
 
 
-@scoped_txs(verify=False)
-def check_does_not_progress(node, timeout=3, scope=None):
+def check_does_not_progress(node, timeout=3):
     # Check that a write transaction issued on one node is _not_
     # committed by the service by a specified timeout
     with node.client("user0") as c:
-        r = _post_private_record(c, scope)
+        r = _post_private_record(c, "check_does_not_progress")
         try:
             c.wait_for_commit(r, timeout=timeout)
         except TimeoutError:
