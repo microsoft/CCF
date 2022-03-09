@@ -393,7 +393,7 @@ class LoggingTxs:
 
     def post_raw_text(self, log_id, msg, log_capture=None, user=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
-        with primary.client(user if user else self.user) as c:
+        with primary.client(user or self.user) as c:
             url = f"/app/log/private/raw_text/{log_id}"
             if self.scope is not None:
                 url += "?scope=" + self.scope
