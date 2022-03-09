@@ -1325,4 +1325,3 @@ Initial pre-release
 [0.5]: https://github.com/microsoft/CCF/releases/tag/v0.5
 [0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
-[2.0.0-rc4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc4
