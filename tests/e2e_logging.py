@@ -156,7 +156,16 @@ def test_illegal(network, args):
     send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
 
     for _ in range(40):
-        content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 40)))
+        content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
+        # If we've accidentally produced something that might look like a valid HTTP request prefix, mangle it further
+        first_byte = content[0]
+        if (
+            first_byte >= ord("A")
+            and first_byte <= ord("Z")
+            or first_byte == ord("\r")
+            or first_byte == ord("\n")
+        ):
+            content = b"\00" + content
         send_bad_raw_content(content)
 
     def send_corrupt_variations(content):
@@ -1398,8 +1407,6 @@ def run(args):
         network.start_and_open(args)
 
         network = test(network, args)
-        network = test_illegal(network, args)
-        network = test_protocols(network, args)
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_clear(network, args)
@@ -1429,6 +1436,23 @@ def run(args):
         if "v8" not in args.package:
             network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
+
+
+def run_parsing_errors(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
+        network = test_illegal(network, args)
+        network = test_protocols(network, args)
+        network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
 
 
 if __name__ == "__main__":
@@ -1469,6 +1493,21 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
+    cr.add(
+        "js_illegal",
+        run_parsing_errors,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "cpp_illegal",
+        run_parsing_errors,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
