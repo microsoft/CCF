@@ -1402,7 +1402,6 @@ def run(args):
         network.start_and_open(args)
 
         network = test(network, args)
-        network = test_protocols(network, args)
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_clear(network, args)
@@ -1434,7 +1433,7 @@ def run(args):
             network = test_historical_receipts_with_claims(network, args)
 
 
-def run_illegal(args):
+def run_parsing_errors(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -1447,6 +1446,7 @@ def run_illegal(args):
         network.start_and_open(args)
 
         network = test_illegal(network, args)
+        network = test_protocols(network, args)
         network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
 
 if __name__ == "__main__":
@@ -1494,14 +1494,14 @@ if __name__ == "__main__":
     # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
     cr.add(
         "js_illegal",
-        run_illegal,
+        run_parsing_errors,
         package="libjs_generic",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
     cr.add(
         "cpp_illegal",
-        run_illegal,
+        run_parsing_errors,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
