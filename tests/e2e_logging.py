@@ -227,16 +227,22 @@ def test_protocols(network, args):
     expected_response_body = body[: body.rfind("\n")]
 
     # Test additional HTTP versions with curl
-    for (protocol, expected_error) in (
+    for (protocol, expected_errors) in (
         ("", None),
         ("--http1.0", None),
         ("--http1.1", None),
         ("--http2", None),  # Upgrade request is ignored
-        ("--http2-prior-knowledge", "Error in the HTTP2 framing layer"),
-        ("--http3", "the installed libcurl version doesn't support this"),
+        ("--http2-prior-knowledge", ["Error in the HTTP2 framing layer"]),
+        (
+            "--http3",
+            [
+                "the installed libcurl version doesn't support this",
+                "option --http3: is unknown",
+            ],
+        ),
     ):
         res = infra.proc.ccall("curl", protocol, *common_options)
-        if expected_error is None:
+        if expected_errors is None:
             assert res.returncode == 0, res.returncode
             out = res.stdout.decode()
             assert (
@@ -245,7 +251,7 @@ def test_protocols(network, args):
         else:
             assert res.returncode != 0, res.returncode
             err = res.stderr.decode()
-            assert expected_error in err, err
+            assert any(expected_error in err for expected_error in expected_errors), err
 
     # Valid transactions are still accepted
     network.txs.issue(
