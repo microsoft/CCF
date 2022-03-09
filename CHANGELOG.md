@@ -1248,6 +1248,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc4
 [2.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc3
 [2.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc2
 [2.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc1
@@ -1324,3 +1325,4 @@ Initial pre-release
 [0.5]: https://github.com/microsoft/CCF/releases/tag/v0.5
 [0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
+[2.0.0-rc4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc4
