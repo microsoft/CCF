@@ -206,51 +206,64 @@ def test_protocols(network, args):
     url = f"{primary_root}/node/state"
     ca_path = os.path.join(network.common_dir, "service_cert.pem")
 
-    common_options = [url, "-sS", "--cacert", ca_path]
+    common_options = [
+        url,
+        "-sS",
+        "--cacert",
+        ca_path,
+        "-w",
+        "\\n%{http_code}\\n%{http_version}",
+    ]
 
-    # Check that websocket upgrade request is ignored
+    def parse_result_out(r):
+        assert r.returncode == 0, r.returncode
+        body = r.stdout.decode()
+        return body.rsplit("\n", 2)
+
+    # Call without any extra args to get golden response
     res = infra.proc.ccall(
         "curl",
-        "--no-buffer",
-        "-H",
-        "Connection: Upgrade",
-        "-H",
-        "Upgrade: websocket",
-        "-w",
-        "\n%{http_code}",
         *common_options,
     )
-    assert res.returncode == 0, res.returncode
-    body = res.stdout.decode()
-    status_code = body.splitlines()[-1]
-    assert status_code == "200", body
-    expected_response_body = body[: body.rfind("\n")]
+    expected_response_body, status_code, http_version = parse_result_out(res)
+    assert status_code == "200", status_code
+    assert http_version == "1.1", http_version
 
-    # Test additional HTTP versions with curl
-    for (protocol, expected_errors) in (
-        ("", None),
-        ("--http1.0", None),
-        ("--http1.1", None),
-        ("--http2", None),  # Upgrade request is ignored
-        ("--http2-prior-knowledge", ["Error in the HTTP2 framing layer"]),
-        (
-            "--http3",
-            [
+    # Test additional protocols with curl
+    for protocol, expected_result in {
+        # HTTP/1.x requests succeed, as HTTP/1.1
+        "--http1.0": {"http_status": "200", "http_version": "1.1"},
+        "--http1.1": {"http_status": "200", "http_version": "1.1"},
+        # WebSockets upgrade request is ignored
+        "websockets": {"extra_args": [], "http_status": "200", "http_version": "1.1"},
+        # TLS handshake negotiates HTTP/1.1
+        "--http2": {"http_status": "200", "http_version": "1.1"},
+        "--http2-prior-knowledge": {"http_status": "200", "http_version": "1.1"},
+        # HTTP3 is not supported by curl _or_ CCF
+        "--http3": {
+            "errors": [
                 "the installed libcurl version doesn't support this",
                 "option --http3: is unknown",
-            ],
-        ),
-    ):
-        res = infra.proc.ccall("curl", protocol, *common_options)
-        if expected_errors is None:
-            assert res.returncode == 0, res.returncode
-            out = res.stdout.decode()
+            ]
+        },
+    }.items():
+        cmd = ["curl", *common_options]
+        if "extra_args" in expected_result:
+            cmd.extend(expected_result["extra_args"])
+        else:
+            cmd.append(protocol)
+        res = infra.proc.ccall(*cmd)
+        if "errors" not in expected_result:
+            response_body, status_code, http_version = parse_result_out(res)
             assert (
-                out == expected_response_body
-            ), f"{out}\n !=\n{expected_response_body}"
+                response_body == expected_response_body
+            ), f"{response_body}\n !=\n{expected_response_body}"
+            assert status_code == "200", status_code
+            assert http_version == "1.1", http_version
         else:
             assert res.returncode != 0, res.returncode
             err = res.stderr.decode()
+            expected_errors = expected_result["errors"]
             assert any(expected_error in err for expected_error in expected_errors), err
 
     # Valid transactions are still accepted
@@ -1456,9 +1469,9 @@ def run_parsing_errors(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_illegal(network, args)
-        network = test_protocols(network, args)
         network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
+        # network = test_illegal(network, args)
+        network = test_protocols(network, args)
 
 
 if __name__ == "__main__":
