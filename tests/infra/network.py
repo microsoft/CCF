@@ -135,6 +135,7 @@ class Network:
             self.jwt_issuer = existing_network.jwt_issuer
 
         self.ignoring_shutdown_errors = False
+        self.ignore_error_patterns = []
         self.nodes = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
@@ -504,7 +505,12 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
+    def ignore_error_pattern_on_shutdown(self, pattern):
+        self.ignore_error_patterns.append(pattern)
+
+    def stop_all_nodes(
+        self, skip_verification=False, verbose_verification=False, **kwargs
+    ):
         if not skip_verification:
             if self.txs is not None:
                 LOG.info("Verifying that all committed txs can be read before shutdown")
@@ -515,8 +521,15 @@ class Network:
 
         fatal_error_found = False
 
+        if len(self.ignore_error_patterns) > 0:
+            LOG.warning("Ignoring error patterns on shutdown:")
+            for pattern in self.ignore_error_patterns:
+                LOG.warning(f"  {pattern}")
+
         for node in self.nodes:
-            _, fatal_errors = node.stop()
+            _, fatal_errors = node.stop(
+                ignore_error_patterns=self.ignore_error_patterns
+            )
             if fatal_errors:
                 fatal_error_found = True
 
