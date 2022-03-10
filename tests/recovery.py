@@ -13,6 +13,7 @@ import random
 import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
+from infra.consortium import slurp_file
 
 from loguru import logger as LOG
 
