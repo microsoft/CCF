@@ -114,6 +114,10 @@ class LoggingTxs:
             f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
         )
 
+        headers = None
+        if not user:
+            headers = self._get_headers_base()
+
         with remote_node.client(user or self.user) as c:
             check_commit = infra.checker.Checker(c)
 
@@ -141,7 +145,7 @@ class LoggingTxs:
                     rep_priv = c.post(
                         url,
                         args,
-                        headers=self._get_headers_base(),
+                        headers=headers,
                         log_capture=log_capture,
                     )
                     assert rep_priv.status_code == http.HTTPStatus.OK, rep_priv
@@ -174,7 +178,7 @@ class LoggingTxs:
                     rep_pub = c.post(
                         url,
                         payload,
-                        headers=self._get_headers_base(),
+                        headers=headers,
                         log_capture=log_capture,
                     )
                     assert rep_pub.status_code == http.HTTPStatus.OK, rep_pub
@@ -381,7 +385,7 @@ class LoggingTxs:
             url = f"/app/log/{table}?id={log_id}"
             if self.scope is not None:
                 url += "&scope=" + self.scope
-            check(c.delete(url, headers=self._get_headers_base()))
+            check(c.delete(url, headers=None if user else self._get_headers_base()))
             if priv:
                 self.priv.pop(log_id)
             else:
@@ -394,10 +398,7 @@ class LoggingTxs:
             url = f"/app/log/{table}?id={log_id}"
             if self.scope is not None:
                 url += "&scope=" + self.scope
-            return c.get(
-                url,
-                headers=self._get_headers_base(),
-            )
+            return c.get(url, headers=None if user else self._get_headers_base())
 
     def post_raw_text(self, log_id, msg, log_capture=None, user=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
@@ -405,10 +406,13 @@ class LoggingTxs:
             url = f"/app/log/private/raw_text/{log_id}"
             if self.scope is not None:
                 url += "?scope=" + self.scope
+            headers = {"content-type": "text/plain"}
+            if not user:
+                headers = {**headers, **self._get_headers_base()}
             return c.post(
                 url,
                 msg,
-                headers={"content-type": "text/plain"},
+                headers=headers,
             )
 
 
