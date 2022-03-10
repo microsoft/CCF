@@ -466,6 +466,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        test_recover_service_with_wrong_identity(network, args)
+
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
             # when the network is shutdown
@@ -493,7 +495,6 @@ def run(args):
 
             LOG.success("Recovery complete on all nodes")
 
-        test_recover_service_with_wrong_identity(network, args)
         test_recover_service_with_expired_cert(args)
 
     # Verify that a new ledger chunk was created at the start of each recovery
