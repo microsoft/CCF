@@ -622,7 +622,7 @@
           "Opening",
           "Open",
           "WaitingForRecoveryShares",
-          "Closed"
+          "Recovering"
         ],
         "type": "string"
       },
@@ -738,7 +738,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.14.0"
+    "version": "2.14.1"
   },
   "openapi": "3.0.0",
   "paths": {

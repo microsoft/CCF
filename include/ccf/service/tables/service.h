@@ -12,7 +12,7 @@ namespace ccf
     OPENING = 1,
     OPEN = 2,
     WAITING_FOR_RECOVERY_SHARES = 3,
-    CLOSED = 4 // For now, unused
+    RECOVERING = 4
   };
 
   DECLARE_JSON_ENUM(
@@ -20,7 +20,7 @@ namespace ccf
     {{ServiceStatus::OPENING, "Opening"},
      {ServiceStatus::OPEN, "Open"},
      {ServiceStatus::WAITING_FOR_RECOVERY_SHARES, "WaitingForRecoveryShares"},
-     {ServiceStatus::CLOSED, "Closed"}});
+     {ServiceStatus::RECOVERING, "Recovering"}});
 
   struct ServiceInfo
   {
@@ -28,9 +28,12 @@ namespace ccf
     crypto::Pem cert;
     /// Status of the service
     ServiceStatus status;
+    /// Previous service identity, before the last recovery
+    std::optional<crypto::Pem> previous_service_identity = std::nullopt;
   };
   DECLARE_JSON_TYPE(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
+  DECLARE_JSON_OPTIONAL_FIELDS(ServiceInfo, previous_service_identity);
 
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV
