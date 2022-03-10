@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Aside from regular release packages, CCF now also provides `unsafe` packages with verbose logging, helpful for troubleshooting. The extent of the logging in these builds make them fundamentally UNSAFE to use for production purposes, hence the name.
 
+### Changed
+
+- The `transition_service_to_open` governance proposal now requires the service identity as an argument to ensure the correct service is started. During recovery, it further requires the previous service identity to ensure the right service is recovered (#3624).
+
 ## [2.0.0-rc3]
 
 ### Fixed
@@ -22,7 +26,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The C++ types used to define public governance tables are now exposed in public headers. Any C++ applications reading these tables should update their include paths (ie - `#include "service/tables/nodes.h"` => `#include "ccf/service/tables/nodes.h"`) (#3608).
 - `TxReceipt::describe()` has been replaced with `ccf::describe_receipt()`. Includes of the private `node/tx_receipt.h` from C++ applications should be removed (#3610).
 - Python `ccf.read_ledger` and `ccf.ledger_viz` tools now accept paths to individual ledger chunks, to avoid parsing the entire ledger.
-- The `transition_service_to_open` governance proposal now requires the service identity as an argument to ensure the correct service is started. During recovery, it further requires the previous service identity to ensure the right service is recovered (#3624).
 
 ### Added
 
