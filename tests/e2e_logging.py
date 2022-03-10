@@ -1338,4 +1338,5 @@ if __name__ == "__main__":
     args.initial_user_count = 4
     args.initial_member_count = 2
     run(args)
-    run_parsing_errors(args)
+    if args.consensus == "cft":
+        run_parsing_errors(args)
