@@ -185,7 +185,7 @@ namespace crypto
      * @param trusted_certs Vector of trusted certificates
      * @param chain Vector of ordered untrusted certificates used to
      *  build a chain to trusted certificates
-     * @param ignore_time disables certificate expiry checks
+     * @param ignore_time Flag to disable certificate expiry checks
      * @return true if the verification is successfull
      */
     virtual bool verify_certificate(
