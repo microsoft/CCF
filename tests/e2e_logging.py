@@ -1470,7 +1470,7 @@ def run_parsing_errors(args):
         network.start_and_open(args)
 
         network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
-        # network = test_illegal(network, args)
+        network = test_illegal(network, args)
         network = test_protocols(network, args)
 
 
