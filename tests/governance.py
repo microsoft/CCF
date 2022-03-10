@@ -247,9 +247,9 @@ def test_all_members(network, args):
 
     # Test on mid-recovery network
     primary, _ = network.find_primary()
+    network.stop_all_nodes()
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
     snapshots_dir = network.get_committed_snapshots(primary)
-    network.stop_all_nodes()
     recovered_network = infra.network.Network(
         args.nodes,
         args.binary_dir,
