@@ -389,12 +389,12 @@ class Consortium:
         for user_id in users:
             cert = slurp_file(self.user_cert_path(user_id))
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
-        proposal["actions"].append(
-            {
-                "name": "transition_service_to_open",
-                "args": {"next_service_identity": self.get_service_identity()},
-            }
-        )
+
+        args = {}
+        if not remote_node.version_before("ccf-2.0.0-rc4"):
+            args = {"next_service_identity": self.get_service_identity()}
+        proposal["actions"].append({"name": "transition_service_to_open", **args})
+
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(
             remote_node,
@@ -587,11 +587,18 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
+        if remote_node.version_before("ccf-2.0.0-rc4"):
+            args = {}
+        else:
+            args = {
+                "previous_service_identity": previous_service_identity,
+                "next_service_identity": self.get_service_identity(),
+            }
+
         proposal_body, careful_vote = self.make_proposal(
-            "transition_service_to_open",
-            previous_service_identity=previous_service_identity,
-            next_service_identity=self.get_service_identity(),
+            "transition_service_to_open", **args
         )
+
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, careful_vote, wait_for_global_commit=True

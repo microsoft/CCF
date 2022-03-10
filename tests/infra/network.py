@@ -526,9 +526,15 @@ class Network:
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         """
-        self.consortium.activate(self.find_random_node())
+        random_node = self.find_random_node()
+        self.consortium.activate(random_node)
+        expected_status = (
+            ServiceStatus.OPENING
+            if random_node.version_before("ccf-2.0.0-rc4")
+            else ServiceStatus.RECOVERING
+        )
         self.consortium.check_for_service(
-            self.find_random_node(), status=ServiceStatus.RECOVERING
+            self.find_random_node(), status=expected_status
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
 

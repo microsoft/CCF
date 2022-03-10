@@ -79,6 +79,12 @@ def strip_version(full_version):
     return full_version.split("-")[dash_offset]
 
 
+def version_rc(full_version):
+    tokens = full_version.split("-")
+    rc_tkn = tokens[2] if len(tokens) > 2 else None
+    return int(rc_tkn[2:]) if rc_tkn else None
+
+
 class Node:
     # Default to using httpx
     curl = False
@@ -619,6 +625,13 @@ class Node:
                     if msg in line:
                         return True
         return False
+
+    def version_before(self, version):
+        rc = version_rc(version)
+        self_rc = version_rc(self.version)
+        ver = Version(strip_version(version))
+        self_ver = Version(strip_version(self.version))
+        return self_ver < ver or (self_ver == ver and (not self_rc or self_rc <= rc))
 
 
 @contextmanager
