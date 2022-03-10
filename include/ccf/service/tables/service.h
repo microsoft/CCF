@@ -12,8 +12,7 @@ namespace ccf
     OPENING = 1,
     OPEN = 2,
     WAITING_FOR_RECOVERY_SHARES = 3,
-    RECOVERING = 4,
-    CLOSED = 5 // For now, unused
+    RECOVERING = 4
   };
 
   DECLARE_JSON_ENUM(
@@ -21,8 +20,7 @@ namespace ccf
     {{ServiceStatus::OPENING, "Opening"},
      {ServiceStatus::OPEN, "Open"},
      {ServiceStatus::WAITING_FOR_RECOVERY_SHARES, "WaitingForRecoveryShares"},
-     {ServiceStatus::RECOVERING, "Recovering"},
-     {ServiceStatus::CLOSED, "Closed"}});
+     {ServiceStatus::RECOVERING, "Recovering"}});
 
   struct ServiceInfo
   {
