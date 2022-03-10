@@ -1320,7 +1320,7 @@ def run_parsing_errors(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_open(args)
+        network.start_and_join(args)
 
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_protocols(network, args)
