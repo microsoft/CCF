@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Aside from regular release packages, CCF now also provides `unsafe` packages with verbose logging, helpful for troubleshooting. The extent of the logging in these builds make them fundamentally UNSAFE to use for production purposes, hence the name.
 
+### Changed
+
+- The `transition_service_to_open` governance proposal now requires the service identity as an argument to ensure the correct service is started. During recovery, it further requires the previous service identity to ensure the right service is recovered (#3624).
+
 ## [2.0.0-rc3]
 
 ### Fixed

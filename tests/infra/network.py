@@ -19,7 +19,9 @@ from math import ceil
 import http
 import pprint
 import functools
+import shutil
 from datetime import datetime, timedelta
+from infra.consortium import slurp_file
 
 from loguru import logger as LOG
 
@@ -46,6 +48,7 @@ class NodeRole(Enum):
 class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
+    RECOVERING = "Recovering"
     CLOSED = "Closed"
 
 
@@ -113,6 +116,7 @@ class Network:
         "reconfiguration_type",
         "config_file",
         "ubsan_options",
+        "previous_service_identity_file",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -267,8 +271,11 @@ class Network:
             **kwargs,
         )
 
-        # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING:
+        # If the network is opening or recovering, nodes are trusted without consortium approval
+        if (
+            self.status == ServiceStatus.OPENING
+            or self.status == ServiceStatus.RECOVERING
+        ):
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
@@ -290,7 +297,9 @@ class Network:
         if not args.package:
             raise ValueError("A package name must be specified.")
 
-        self.status = ServiceStatus.OPENING
+        self.status = (
+            ServiceStatus.OPENING if not recovery else ServiceStatus.RECOVERING
+        )
         LOG.debug(f"Opening CCF service on {hosts}")
 
         forwarded_args = {
@@ -517,10 +526,18 @@ class Network:
         """
         self.consortium.activate(self.find_random_node())
         self.consortium.check_for_service(
-            self.find_random_node(), status=ServiceStatus.OPENING
+            self.find_random_node(), status=ServiceStatus.RECOVERING
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
-        self.consortium.transition_service_to_open(self.find_random_node())
+
+        prev_service_identity = None
+        if args.previous_service_identity_file:
+            prev_service_identity = slurp_file(args.previous_service_identity_file)
+
+        self.consortium.transition_service_to_open(
+            self.find_random_node(),
+            previous_service_identity=prev_service_identity,
+        )
         self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
@@ -572,6 +589,10 @@ class Network:
                 raise RuntimeError(
                     f"Node {node.node_id} should be stopped before verifying ledger consistency"
                 )
+
+            if node.remote is None:
+                continue
+
             ledger_paths = node.remote.ledger_paths()
 
             ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
@@ -1249,6 +1270,13 @@ class Network:
         LOG.info(
             f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
+
+    def save_service_identity(self, args):
+        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
+        shutil.copy(current_identity, previous_identity)
+        args.previous_service_identity_file = previous_identity
+        return args
 
 
 @contextmanager
