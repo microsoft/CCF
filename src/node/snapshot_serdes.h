@@ -176,7 +176,7 @@ namespace ccf
       if (prev_service_identity)
       {
         crypto::Pem prev_pem(*prev_service_identity);
-        if (!v->verify_certificate({&prev_pem}))
+        if (!v->verify_certificate({&prev_pem}, {}, /* ignore_time */ true))
         {
           throw std::logic_error(
             "Previous service identity does not endorse the node identity that "

@@ -189,7 +189,8 @@ namespace crypto
      */
     virtual bool verify_certificate(
       const std::vector<const Pem*>& trusted_certs,
-      const std::vector<const Pem*>& chain = {}) = 0;
+      const std::vector<const Pem*>& chain = {},
+      bool ignore_time = false) = 0;
 
     /** Indicates whether the certificate (held intenally) is self-signed */
     virtual bool is_self_signed() const = 0;

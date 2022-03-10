@@ -1,16 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/openssl/verifier.h"
-
 #include "ccf/crypto/public_key.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/openssl/verifier.h"
 #include "x509_time.h"
 
 #include <openssl/evp.h>
+#include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
 
 namespace crypto
 {
@@ -92,7 +93,8 @@ namespace crypto
 
   bool Verifier_OpenSSL::verify_certificate(
     const std::vector<const Pem*>& trusted_certs,
-    const std::vector<const Pem*>& chain)
+    const std::vector<const Pem*>& chain,
+    bool ignore_time)
   {
     Unique_X509_STORE store;
     Unique_X509_STORE_CTX store_ctx;
@@ -118,6 +120,15 @@ namespace crypto
     CHECK1(X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN));
 
     CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, chain_stack));
+
+    if (ignore_time)
+    {
+      X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
+      X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME);
+      X509_VERIFY_PARAM_set_depth(param, 1);
+      X509_STORE_CTX_set0_param(store_ctx, param);
+    }
+
     auto valid = X509_verify_cert(store_ctx) == 1;
     if (!valid)
     {

@@ -12,7 +12,7 @@ import os
 import random
 import json
 from infra.runner import ConcurrentRunner
-from infra.consortium import slurp_file
+from distutils.dir_util import copy_tree
 
 from loguru import logger as LOG
 
@@ -166,6 +166,35 @@ def test_recover_service_with_wrong_identity(network, args):
     recovered_network.recover(args)
 
     return recovered_network
+
+
+@reqs.description("Recover a service with expired service identity")
+def test_recover_service_with_expired_cert(args):
+    expired_service_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "expired_service"
+    )
+
+    new_common = infra.network.get_common_folder_name(args.workspace, args.label)
+    copy_tree(os.path.join(expired_service_dir, "common"), new_common)
+
+    network = infra.network.Network(args.nodes, args.binary_dir)
+
+    args.previous_service_identity_file = os.path.join(
+        expired_service_dir, "common", "service_cert.pem"
+    )
+
+    network.start_in_recovery(
+        args,
+        ledger_dir=os.path.join(expired_service_dir, "0.ledger"),
+        committed_ledger_dirs=[os.path.join(expired_service_dir, "0.ledger")],
+        snapshots_dir=os.path.join(expired_service_dir, "0.snapshots"),
+        common_dir=new_common,
+    )
+
+    network.recover(args)
+
+    primary, _ = network.find_primary()
+    infra.checker.check_can_progress(primary)
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -436,8 +465,6 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service_with_wrong_identity(network, args)
-
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
             # when the network is shutdown
@@ -464,6 +491,9 @@ def run(args):
             primary, _ = network.find_primary()
 
             LOG.success("Recovery complete on all nodes")
+
+        test_recover_service_with_wrong_identity(network, args)
+        test_recover_service_with_expired_cert(args)
 
     # Verify that a new ledger chunk was created at the start of each recovery
     ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)

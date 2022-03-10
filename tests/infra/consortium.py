@@ -61,7 +61,6 @@ class Consortium:
         self.key_generator = key_generator
         self.share_script = share_script
         self.consensus = consensus
-        self.members = []
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
         self.reconfiguration_type = reconfiguration_type
