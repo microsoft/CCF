@@ -75,6 +75,8 @@ def get_snapshot_seqnos(file_name):
 
 
 def strip_version(full_version):
+    if full_version is None:
+        return None
     dash_offset = 1 if full_version.startswith("ccf-") else 0
     return full_version.split("-")[dash_offset]
 
