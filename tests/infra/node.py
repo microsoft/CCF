@@ -80,6 +80,8 @@ def strip_version(full_version):
 
 
 def version_rc(full_version):
+    if full_version is None:
+        return None
     tokens = full_version.split("-")
     rc_tkn = tokens[2] if len(tokens) > 2 else None
     return int(rc_tkn[2:]) if rc_tkn else None
