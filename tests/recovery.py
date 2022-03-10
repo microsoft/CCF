@@ -466,7 +466,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_recover_service_with_wrong_identity(network, args)
+        network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
@@ -495,8 +495,6 @@ def run(args):
 
             LOG.success("Recovery complete on all nodes")
 
-        test_recover_service_with_expired_cert(args)
-
     # Verify that a new ledger chunk was created at the start of each recovery
     ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
     for chunk in ledger:
@@ -515,6 +513,8 @@ def run(args):
                     assert (
                         chunk_start_seqno == seqno
                     ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
+
+    test_recover_service_with_expired_cert(args)
 
 
 if __name__ == "__main__":
