@@ -246,6 +246,7 @@ def test_all_members(network, args):
     run_test_all_members(network)
 
     # Test on mid-recovery network
+    network.save_service_identity(args)
     primary, _ = network.find_primary()
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
     snapshots_dir = network.get_committed_snapshots(primary)

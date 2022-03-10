@@ -333,6 +333,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("OneTransaction", "TwoTransaction"),
     )
     parser.add_argument(
+        "--previous-service-identity-file",
+        help="Path to previous service identity file",
+        type=str,
+        default="",
+    )
+    parser.add_argument(
         "--config-file",
         help="Absolute path to node JSON configuration file",
         default=None,

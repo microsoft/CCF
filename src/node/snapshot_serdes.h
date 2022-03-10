@@ -118,7 +118,8 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
   {
     const auto* data = snapshot.data();
     auto size = snapshot.size();
@@ -171,6 +172,18 @@ namespace ccf
         throw std::logic_error(
           "Signature verification failed for snapshot receipt");
       }
+
+      if (prev_service_identity)
+      {
+        crypto::Pem prev_pem(*prev_service_identity);
+        if (!v->verify_certificate({&prev_pem}, {}, /* ignore_time */ true))
+        {
+          throw std::logic_error(
+            "Previous service identity does not endorse the node identity that "
+            "signed the snapshot");
+        }
+        LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
+      }
     }
 
     LOG_INFO_FMT(
@@ -196,10 +209,18 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    std::optional<std::vector<uint8_t>> previous_service_identity =
+      std::nullopt)
   {
     deserialise_snapshot(
-      store, snapshot, hooks, view_history, public_only, evidence_seqno);
+      store,
+      snapshot,
+      hooks,
+      view_history,
+      public_only,
+      evidence_seqno,
+      previous_service_identity);
     return std::make_unique<StartupSnapshotInfo>(
       store, std::move(snapshot), store->current_version(), evidence_seqno);
   }

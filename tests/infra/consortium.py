@@ -61,7 +61,6 @@ class Consortium:
         self.key_generator = key_generator
         self.share_script = share_script
         self.consensus = consensus
-        self.members = []
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
         self.reconfiguration_type = reconfiguration_type
@@ -382,12 +381,20 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def get_service_identity(self):
+        return slurp_file(os.path.join(self.common_dir, "service_cert.pem"))
+
     def add_users_and_transition_service_to_open(self, remote_node, users):
         proposal = {"actions": []}
         for user_id in users:
             cert = slurp_file(self.user_cert_path(user_id))
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
-        proposal["actions"].append({"name": "transition_service_to_open"})
+        proposal["actions"].append(
+            {
+                "name": "transition_service_to_open",
+                "args": {"next_service_identity": self.get_service_identity()},
+            }
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(
             remote_node,
@@ -568,7 +575,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def transition_service_to_open(self, remote_node):
+    def transition_service_to_open(self, remote_node, previous_service_identity=None):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -580,7 +587,11 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
-        proposal_body, careful_vote = self.make_proposal("transition_service_to_open")
+        proposal_body, careful_vote = self.make_proposal(
+            "transition_service_to_open",
+            previous_service_identity=previous_service_identity,
+            next_service_identity=self.get_service_identity(),
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, careful_vote, wait_for_global_commit=True
