@@ -392,7 +392,7 @@ class Consortium:
 
         args = {}
         if remote_node.version_after("ccf-2.0.0-rc3"):
-            args = {"next_service_identity": self.get_service_identity()}
+            args = {"args": {"next_service_identity": self.get_service_identity()}}
         proposal["actions"].append({"name": "transition_service_to_open", **args})
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
