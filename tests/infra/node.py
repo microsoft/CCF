@@ -632,6 +632,8 @@ class Node:
 
     def version_before(self, version):
         rc = version_rc(version)
+        if rc is None or self.version is None:
+            return False
         self_rc = version_rc(self.version)
         ver = Version(strip_version(version))
         self_ver = Version(strip_version(self.version))
