@@ -416,6 +416,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
             else:
                 version = args.ccf_version
                 install_path = LOCAL_CHECKOUT_DIRECTORY
+                get_new_constitution_for_install(args, install_path)
 
             binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
                 install_path
@@ -436,7 +437,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network.start_and_open(args)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
-                    get_new_constitution_for_install(args, install_path)
                     network = infra.network.Network(
                         **network_args, existing_network=network
                     )
