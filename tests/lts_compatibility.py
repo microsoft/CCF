@@ -436,6 +436,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network.start_and_open(args)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
+                    get_new_constitution_for_install(args, install_path)
                     network = infra.network.Network(
                         **network_args, existing_network=network
                     )
@@ -484,10 +485,10 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
-                network.stop_all_nodes(skip_verification=True)
                 snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
+                network.stop_all_nodes(skip_verification=True)
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
                 network.save_service_identity(args)
 

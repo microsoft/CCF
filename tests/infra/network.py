@@ -538,6 +538,10 @@ class Network:
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
 
+        # The new service may be running a newer version of the constitution,
+        # so we make sure that we're running the right one.
+        self.consortium.set_constitution(random_node, args.constitution)
+
         prev_service_identity = None
         if args.previous_service_identity_file:
             prev_service_identity = slurp_file(args.previous_service_identity_file)
