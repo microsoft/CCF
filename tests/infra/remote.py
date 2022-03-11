@@ -457,13 +457,15 @@ class LocalRemote(CmdMixin):
     ):
         path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
+        # TODO: this does not look legitimate at all...
         while time.time() < end_time and (
             not self.proc or (self.proc.returncode is None or self.proc.returncode == 0)
         ):
             if os.path.exists(path):
                 break
             time.sleep(0.1)
-            self.proc.poll()
+            if self.proc:
+                self.proc.poll()
         else:
             raise ValueError(path)
         if not pre_condition_func(path, os.listdir):
