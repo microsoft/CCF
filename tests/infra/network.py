@@ -474,6 +474,7 @@ class Network:
         committed_ledger_dirs=None,
         snapshots_dir=None,
         common_dir=None,
+        **kwargs,
     ):
         """
         Starts a CCF network in recovery mode.
@@ -494,6 +495,7 @@ class Network:
             ledger_dir=ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
+            **kwargs
         )
 
         # If a common directory was passed in, initialise the consortium from it

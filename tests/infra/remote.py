@@ -457,13 +457,10 @@ class LocalRemote(CmdMixin):
     ):
         path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
-        while time.time() < end_time and (
-            not self.proc or (self.proc.returncode is None or self.proc.returncode == 0)
-        ):
+        while time.time() < end_time:
             if os.path.exists(path):
                 break
             time.sleep(0.1)
-            self.proc.poll()
         else:
             raise ValueError(path)
         if not pre_condition_func(path, os.listdir):
@@ -885,14 +882,14 @@ class CCFRemote(object):
     def resume(self):
         self.remote.resume()
 
-    def get_startup_files(self, dst_path):
-        self.remote.get(self.pem, dst_path)
+    def get_startup_files(self, dst_path, timeout=FILE_TIMEOUT):
+        self.remote.get(self.pem, dst_path, timeout=timeout)
         if self.node_address_file is not None:
-            self.remote.get(self.node_address_file, dst_path)
+            self.remote.get(self.node_address_file, dst_path, timeout=timeout)
         if self.rpc_addresses_file is not None:
-            self.remote.get(self.rpc_addresses_file, dst_path)
+            self.remote.get(self.rpc_addresses_file, dst_path, timeout=timeout)
         if self.start_type in {StartType.start, StartType.recover}:
-            self.remote.get("service_cert.pem", dst_path)
+            self.remote.get("service_cert.pem", dst_path, timeout=timeout)
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()
