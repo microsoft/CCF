@@ -393,7 +393,7 @@ class Consortium:
         args = {}
         if not remote_node.version_before("ccf-2.0.0-rc4"):
             args = {"next_service_identity": self.get_service_identity()}
-        proposal["actions"].append({"name": "transition_service_to_open", **args})
+        proposal["actions"].append({"name": "transition_service_to_open", "args": args})
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(
