@@ -529,9 +529,9 @@ class Network:
         random_node = self.find_random_node()
         self.consortium.activate(random_node)
         expected_status = (
-            ServiceStatus.OPENING
-            if random_node.version_before("ccf-2.0.0-rc4")
-            else ServiceStatus.RECOVERING
+            ServiceStatus.RECOVERING
+            if random_node.version_after("ccf-2.0.0-rc3")
+            else ServiceStatus.OPENING
         )
         self.consortium.check_for_service(
             self.find_random_node(), status=expected_status

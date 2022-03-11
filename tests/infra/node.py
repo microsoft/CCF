@@ -83,10 +83,10 @@ def strip_version(full_version):
 
 def version_rc(full_version):
     if full_version is None:
-        return None
+        return (None, 0)
     tokens = full_version.split("-")
     rc_tkn = tokens[2] if len(tokens) > 2 else None
-    return int(rc_tkn[2:]) if rc_tkn else None
+    return (int(rc_tkn[2:]), len(tokens)) if rc_tkn else (None, 0)
 
 
 class Node:
@@ -630,14 +630,19 @@ class Node:
                         return True
         return False
 
-    def version_before(self, version):
-        rc = version_rc(version)
+    def version_after(self, version):
+        rc, _ = version_rc(version)
         if rc is None or self.version is None:
-            return False
-        self_rc = version_rc(self.version)
+            return True
+        self_rc, self_num_rc_tkns = version_rc(self.version)
         ver = Version(strip_version(version))
         self_ver = Version(strip_version(self.version))
-        return self_ver < ver or (self_ver == ver and (not self_rc or self_rc <= rc))
+        return self_ver > ver or (
+            self_ver == ver
+            and (
+                not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3)
+            )
+        )
 
 
 @contextmanager
