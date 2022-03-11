@@ -446,6 +446,8 @@ def run_corrupted_ledger(args):
             network, args, corrupt_first_sig=True
         )
 
+    network.stop_all_nodes()
+
     # Make sure ledger can be read once recovered (i.e. ledger corruption does not affect recovered ledger)
     for node in network.nodes:
         ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
