@@ -587,7 +587,7 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
-            args = {}
+        args = {}
         if remote_node.version_after("ccf-2.0.0-rc3"):
             args = {
                 "previous_service_identity": previous_service_identity,
