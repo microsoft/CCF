@@ -661,11 +661,15 @@ if(BUILD_TESTS)
   endif()
 
   if(TLS_TEST)
-    add_custom_target(
-      testssl ALL
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
-        test -d testssl || git clone https://github.com/drwetter/testssl.sh
+        rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
+        https://github.com/drwetter/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
+    )
+    add_custom_target(
+      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
     )
   endif()
 
