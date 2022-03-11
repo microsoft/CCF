@@ -495,7 +495,7 @@ class Network:
             ledger_dir=ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
-            **kwargs
+            **kwargs,
         )
 
         # If a common directory was passed in, initialise the consortium from it
