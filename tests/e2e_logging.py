@@ -94,6 +94,7 @@ def verify_receipt(
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs(verify=False)
 def test(network, args):
     network.txs.issue(
         network=network,
@@ -283,27 +284,20 @@ def test_protocols(network, args):
 
 @reqs.description("Write/Read large messages on primary")
 @reqs.supports_methods("/app/log/private")
+@app.scoped_txs()
 def test_large_messages(network, args):
-    primary, _ = network.find_primary()
+    check = infra.checker.Checker()
 
-    with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        check = infra.checker.Checker()
-
-        with primary.client("user0") as c:
-            # TLS libraries usually have 16K intrernal buffers, so we start at
-            # 1K and move up to 1M and make sure they can cope with it.
-            # Starting below 16K also helps identify problems (by seeing some
-            # pass but not others, and finding where does it fail).
-            log_id = network.txs.find_max_log_id() + 1
-            for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2**p)
-                check_commit(
-                    c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
-                    result=True,
-                )
-                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": long_msg})
-                log_id += 1
+    # TLS libraries usually have 16K internal buffers, so we start at
+    # 1K and move up to 1M and make sure they can cope with it.
+    # Starting below 16K also helps identify problems (by seeing some
+    # pass but not others, and finding where does it fail).
+    log_id = 7
+    for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
+        long_msg = "X" * (2**p)
+        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
+        check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
+        log_id += 1
 
     return network
 
@@ -332,6 +326,7 @@ def test_remove(network, args):
 
 @reqs.description("Write/Read/Clear messages on primary")
 @reqs.supports_methods("/app/log/private/all", "/app/log/public/all")
+@app.scoped_txs()
 def test_clear(network, args):
     primary, _ = network.find_primary()
 
@@ -339,7 +334,7 @@ def test_clear(network, args):
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
-        start_log_id = network.txs.find_max_log_id() + 1
+        start_log_id = 7
         with primary.client("user0") as c:
             log_ids = list(range(start_log_id, start_log_id + 10))
             msg = "Will be deleted"
@@ -377,6 +372,7 @@ def test_clear(network, args):
 
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("/app/log/private/count", "/app/log/public/count")
+@app.scoped_txs()
 def test_record_count(network, args):
     primary, _ = network.find_primary()
 
@@ -398,7 +394,7 @@ def test_record_count(network, args):
                 count = get_count(resource)
 
                 # Add several new IDs
-                start_log_id = network.txs.find_max_log_id() + 1
+                start_log_id = 7
                 for i in range(10):
                     log_id = start_log_id + i
                     check_commit(
@@ -427,38 +423,52 @@ def test_record_count(network, args):
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("/app/log/private/prefix_cert", "/app/log/private")
 def test_cert_prefix(network, args):
-    primary, _ = network.find_primary()
-
+    msg = "This message will be prefixed"
+    log_id = 7
     for user in network.users:
-        with primary.client(user.local_id) as c:
-            log_id = network.txs.find_max_log_id() + 1
-            msg = "This message will be prefixed"
-            c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
-            r = c.get(f"/app/log/private?id={log_id}")
-            assert f"CN={user.local_id}" in r.body.json()["msg"], r
+        network.txs.issue(
+            network,
+            idx=log_id,
+            msg=msg,
+            send_public=False,
+            url_suffix="prefix_cert",
+            user=user.local_id,
+        )
+        r = network.txs.request(log_id, priv=True, user=user.local_id)
+        prefixed_msg = f"CN={user.local_id}: {msg}"
+        network.txs.priv[log_id][-1]["msg"] = prefixed_msg
+        assert prefixed_msg in r.body.json()["msg"], r
 
     return network
 
 
 @reqs.description("Write as anonymous caller")
 @reqs.supports_methods("/app/log/private/anonymous", "/app/log/private")
+@app.scoped_txs()
 def test_anonymous_caller(network, args):
-    primary, _ = network.find_primary()
-
     # Create a new user but do not record its identity
     network.create_user("user5", args.participants_curve, record=False)
 
-    log_id = network.txs.find_max_log_id() + 1
+    log_id = 7
     msg = "This message is anonymous"
-    with primary.client("user5") as c:
-        r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
-        assert r.body.json() == True
-        r = c.get(f"/app/log/private?id={log_id}")
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
 
-    with primary.client("user0") as c:
-        r = c.get(f"/app/log/private?id={log_id}")
-        assert msg in r.body.json()["msg"], r
+    network.txs.issue(
+        network,
+        1,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+        user="user5",
+        url_suffix="anonymous",
+    )
+    prefixed_msg = f"Anonymous: {msg}"
+    network.txs.priv[log_id][-1]["msg"] = prefixed_msg
+
+    r = network.txs.request(log_id, priv=True, user="user5")
+    assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
+
+    r = network.txs.request(log_id, priv=True)
+    assert msg in r.body.json()["msg"], r
 
     return network
 
@@ -621,20 +631,15 @@ def test_custom_auth_safety(network, args):
 
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
+@app.scoped_txs()
 def test_raw_text(network, args):
-    primary, _ = network.find_primary()
-
-    log_id = network.txs.find_max_log_id() + 1
+    log_id = 7
     msg = "This message is not in JSON"
-    with primary.client("user0") as c:
-        r = c.post(
-            f"/app/log/private/raw_text/{log_id}",
-            msg,
-            headers={"content-type": "text/plain"},
-        )
-        assert r.status_code == http.HTTPStatus.OK.value
-        r = c.get(f"/app/log/private?id={log_id}")
-        assert msg in r.body.json()["msg"], r
+
+    r = network.txs.post_raw_text(log_id, msg)
+    assert r.status_code == http.HTTPStatus.OK.value
+    r = network.txs.request(log_id, priv=True)
+    assert msg in r.body.json()["msg"], r
 
     return network
 
@@ -698,6 +703,7 @@ def test_metrics(network, args):
 
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
+@app.scoped_txs()
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
@@ -1057,6 +1063,7 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
@@ -1069,13 +1076,9 @@ def test_forwarding_frontends(network, args):
         check_commit = infra.checker.Checker(c)
         check = infra.checker.Checker()
         msg = "forwarded_msg"
-        log_id = network.txs.find_max_log_id() + 1
-        check_commit(
-            c.post("/app/log/private", {"id": log_id, "msg": msg}),
-            result=True,
-        )
-        check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
-
+        log_id = 7
+        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=msg)
+        check(network.txs.request(log_id, priv=True), result={"msg": msg})
         if args.package == "samples/apps/logging/liblogging":
             escaped_query_tests(c, "request_query")
 
@@ -1241,13 +1244,13 @@ class SentTxs:
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
 @reqs.supports_methods("/app/log/private")
+@app.scoped_txs()
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.client("user0") as c:
         check = infra.checker.Checker()
-        r = c.post("/app/log/private", {"id": 0, "msg": "Ignored"})
-        check(r)
+        r = network.txs.issue(network, 1, idx=0, send_public=False, msg="Ignored")
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
         target_view = r.view
@@ -1286,29 +1289,27 @@ def test_tx_statuses(network, args):
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs()
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    with primary.client() as mc:
-        check_commit = infra.checker.Checker(mc)
-        msg = "Hello world"
+    msg = "Hello world"
 
-        LOG.info("Write/Read on primary")
-        with primary.client("user0") as c:
-            for j in range(10):
-                idx = j + 10000
-                r = c.post("/app/log/private", {"id": idx, "msg": msg})
-                check_commit(r, result=True)
-                start_time = time.time()
-                while time.time() < (start_time + 3.0):
-                    rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
-                    if rc.status_code == http.HTTPStatus.OK:
-                        receipt = rc.body.json()
-                        verify_receipt(receipt, network.cert)
-                        break
-                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                        time.sleep(0.5)
-                    else:
-                        assert False, rc
+    LOG.info("Write/Read on primary")
+    with primary.client("user0") as c:
+        for j in range(10):
+            idx = j + 10000
+            r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
+            start_time = time.time()
+            while time.time() < (start_time + 3.0):
+                rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    receipt = rc.body.json()
+                    verify_receipt(receipt, network.cert)
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    assert False, rc
 
     return network
 
@@ -1383,6 +1384,7 @@ def test_random_receipts(
 
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
+@app.scoped_txs()
 def test_liveness(network, args):
     network.txs.issue(
         network=network,
