@@ -69,8 +69,9 @@ Operations compatibility
 Support policy
 --------------
 
-In addition to the latest release, CCF will provide security patches and bugfixes on two long term support releases at any given time. These releases are guaranteed to be API-stable, but not ABI-stable.
-Applications will need to rebuild to pick up updates, but will not need to change their code.
+In addition to the latest release, CCF will provide security patches and bugfixes on two long term support releases at any given time. These releases are guaranteed to be API-stable, but not ABI-stable. Applications will need to rebuild to pick up updates, but will not need to change their code.
+
+From 2.0.0 onwards, LTS patches will be released no more frequently than monthly, at the end of the month except for critical fixes. LTS patches will pick up third-party dependency patches systematically, as long as they have been out for more than 14 days at the time of the release, again with an exception for critical fixes.
 
 A long term support release (LTS) will be supported for 1 year starting from its release date. That means that when a new LTS comes out, users effectively have a 6 months window to upgrade to the latest LTS.
 
