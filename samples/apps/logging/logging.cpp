@@ -140,14 +140,17 @@ namespace loggingapp
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
 
     static void update_first_write(
-      kv::Tx& tx, size_t id, bool is_private = true)
+      kv::Tx& tx,
+      size_t id,
+      bool is_private = true,
+      const optional<std::string>& scope = std::nullopt)
     {
       auto first_writes =
         tx.rw<FirstWritesMap>(is_private ? FIRST_WRITES : PUBLIC_FIRST_WRITES);
       if (!first_writes->has(id))
       {
-        auto records =
-          tx.ro<RecordsMap>(is_private ? PRIVATE_RECORDS : PUBLIC_RECORDS);
+        auto records = tx.ro<RecordsMap>(
+          is_private ? private_records(scope) : public_records(scope));
         const auto prev_version = records->get_version_of_previous_write(id);
         if (prev_version.has_value())
         {
@@ -173,6 +176,37 @@ namespace loggingapp
       }
 
       return std::nullopt;
+    }
+
+    static std::optional<std::string> get_scope(auto& ctx)
+    {
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+      std::string error_string;
+      return http::get_query_value_opt<std::string>(
+        parsed_query, "scope", error_string);
+    }
+
+    static std::string private_records(auto& ctx)
+    {
+      return private_records(get_scope(ctx));
+    }
+
+    static std::string public_records(auto& ctx)
+    {
+      return public_records(get_scope(ctx));
+    }
+
+    static std::string private_records(const std::optional<std::string>& scope)
+    {
+      return scope.has_value() ? fmt::format("{}-{}", PRIVATE_RECORDS, *scope) :
+                                 PRIVATE_RECORDS;
+    }
+
+    static std::string public_records(const std::optional<std::string>& scope)
+    {
+      return scope.has_value() ? fmt::format("{}-{}", PUBLIC_RECORDS, *scope) :
+                                 PUBLIC_RECORDS;
     }
 
   public:
@@ -212,9 +246,10 @@ namespace loggingapp
         }
 
         // SNIPPET: private_table_access
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, in.msg);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -242,7 +277,8 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template ro<RecordsMap>(private_records(ctx));
         auto record = records_handle->get(id);
 
         if (record.has_value())
@@ -283,9 +319,10 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         auto removed = records_handle->remove(id);
-        update_first_write(ctx.tx, id);
+        update_first_write(ctx.tx, id, true, get_scope(ctx));
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -296,9 +333,10 @@ namespace loggingapp
         .install();
 
       auto clear = [this](auto& ctx, nlohmann::json&&) {
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->foreach([&ctx](const auto& id, const auto&) {
-          update_first_write(ctx.tx, id);
+          update_first_write(ctx.tx, id, true, get_scope(ctx));
           return true;
         });
         records_handle->clear();
@@ -313,7 +351,8 @@ namespace loggingapp
         .install();
 
       auto count = [this](auto& ctx, nlohmann::json&&) {
-        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template ro<RecordsMap>(private_records(ctx));
         return ccf::make_success(records_handle->size());
       };
       make_endpoint(
@@ -334,9 +373,10 @@ namespace loggingapp
         }
 
         // SNIPPET: public_table_access
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(public_records(ctx));
         records_handle->put(params["id"], in.msg);
-        update_first_write(ctx.tx, in.id, false);
+        update_first_write(ctx.tx, in.id, false, get_scope(ctx));
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
         {
@@ -371,7 +411,7 @@ namespace loggingapp
         }
 
         auto public_records_handle =
-          ctx.tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+          ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
@@ -407,9 +447,10 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(public_records(ctx));
         auto removed = records_handle->remove(id);
-        update_first_write(ctx.tx, id, false);
+        update_first_write(ctx.tx, id, false, get_scope(ctx));
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -424,9 +465,9 @@ namespace loggingapp
 
       auto clear_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
-          ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
+          ctx.tx.template rw<RecordsMap>(public_records(ctx));
         public_records_handle->foreach([&ctx](const auto& id, const auto&) {
-          update_first_write(ctx.tx, id, false);
+          update_first_write(ctx.tx, id, false, get_scope(ctx));
           return true;
         });
         public_records_handle->clear();
@@ -442,7 +483,7 @@ namespace loggingapp
 
       auto count_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
-          ctx.tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+          ctx.tx.template ro<RecordsMap>(public_records(ctx));
         return ccf::make_success(public_records_handle->size());
       };
       make_endpoint(
@@ -485,9 +526,10 @@ namespace loggingapp
 
         const auto log_line =
           fmt::format("{}: {}", verifier->subject(), in.msg);
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
@@ -514,9 +556,10 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -739,9 +782,10 @@ namespace loggingapp
         const std::vector<uint8_t>& content = ctx.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(id, log_line);
-        update_first_write(ctx.tx, id);
+        update_first_write(ctx.tx, id, true, get_scope(ctx));
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -773,7 +817,7 @@ namespace loggingapp
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle =
-          historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+          historical_tx.template ro<RecordsMap>(private_records(ctx));
         const auto v = records_handle->get(id);
 
         if (v.has_value())
@@ -832,7 +876,7 @@ namespace loggingapp
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+            historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -887,7 +931,7 @@ namespace loggingapp
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+            historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -962,7 +1006,7 @@ namespace loggingapp
             // It's possible there's been a single write but no subsequent
             // transaction to write this to the FirstWritesMap - check version
             // of previous write
-            auto records = ctx.tx.ro<RecordsMap>(PUBLIC_RECORDS);
+            auto records = ctx.tx.ro<RecordsMap>(public_records(ctx));
             const auto last_written_version =
               records->get_version_of_previous_write(id);
             if (last_written_version.has_value())
@@ -991,7 +1035,7 @@ namespace loggingapp
         {
           // If no end point is specified, use the last time this ID was
           // written to
-          auto records = ctx.tx.ro<RecordsMap>(PUBLIC_RECORDS);
+          auto records = ctx.tx.ro<RecordsMap>(public_records(ctx));
           const auto last_written_version =
             records->get_version_of_previous_write(id);
           if (last_written_version.has_value())
@@ -1149,7 +1193,7 @@ namespace loggingapp
         {
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+            historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -1356,7 +1400,7 @@ namespace loggingapp
         {
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+            historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -1442,9 +1486,9 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto view = ctx.tx.template rw<RecordsMap>(private_records(ctx));
         view->put(in.id, in.msg);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       make_endpoint(

@@ -246,10 +246,12 @@ def test_all_members(network, args):
     run_test_all_members(network)
 
     # Test on mid-recovery network
+    network.save_service_identity(args)
     primary, _ = network.find_primary()
-    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
-    snapshots_dir = network.get_committed_snapshots(primary)
     network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    # NB: Don't try to get snapshots, since there may not be any committed,
+    # and we cannot wait for commit now that the node is stopped
     recovered_network = infra.network.Network(
         args.nodes,
         args.binary_dir,
@@ -261,7 +263,6 @@ def test_all_members(network, args):
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
-        snapshots_dir=snapshots_dir,
     )
     run_test_all_members(recovered_network)
     recovered_network.recover(args)

@@ -75,6 +75,13 @@ To remove an installation of CCF, run:
 
     $ sudo apt remove ccf
 
+Unsafe packages
+---------------
+
+Separate packages with extremely verbose logging are provided for troubleshooting purposes. Their version always end in ``unsafe`` to make them easily distinguishable.
+
+The extent of the logging in these packages mean that they cannot be relied upon to offer confidentiality and integrity guarantees. They should never be used for production purposes.
+
 From Source
 -----------
 

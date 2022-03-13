@@ -72,6 +72,7 @@ def find_ledger_chunk_for_seqno(ledger, seqno):
 
 
 @reqs.description("Forced ledger chunk")
+@app.scoped_txs()
 def test_forced_ledger_chunk(network, args):
     primary, _ = network.find_primary()
 
@@ -82,7 +83,7 @@ def test_forced_ledger_chunk(network, args):
     proposal = network.consortium.force_ledger_chunk(primary)
 
     # Issue some more transactions
-    network.txs.issue(network, number_txs=3)
+    network.txs.issue(network, number_txs=5)
 
     ledger_dirs = primary.remote.ledger_paths()
 
@@ -102,6 +103,7 @@ def test_forced_ledger_chunk(network, args):
 
 
 @reqs.description("Forced snapshot")
+@app.scoped_txs()
 def test_forced_snapshot(network, args):
     primary, _ = network.find_primary()
 
@@ -123,7 +125,7 @@ def test_forced_snapshot(network, args):
     )
 
     # Issue some more transactions
-    network.txs.issue(network, number_txs=3)
+    network.txs.issue(network, number_txs=5)
 
     ledger_dirs = primary.remote.ledger_paths()
 

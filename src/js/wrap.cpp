@@ -16,6 +16,7 @@
 #include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
+#include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/node_interface.h"
 
@@ -546,10 +547,10 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    if (argc != 0)
+    if (argc != 2)
     {
       return JS_ThrowTypeError(
-        ctx, "Passed %d arguments but expected none", argc);
+        ctx, "Passed %d arguments but expected two", argc);
     }
 
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
@@ -574,7 +575,44 @@ namespace ccf::js
 
     try
     {
-      gov_effects->transition_service_to_open(*tx_ctx_ptr->tx);
+      AbstractGovernanceEffects::ServiceIdentities identities;
+
+      size_t prev_bytes_sz = 0;
+      uint8_t* prev_bytes = nullptr;
+      if (!JS_IsUndefined(argv[0]))
+      {
+        prev_bytes = JS_GetArrayBuffer(ctx, &prev_bytes_sz, argv[0]);
+        if (!prev_bytes)
+        {
+          return JS_ThrowTypeError(
+            ctx, "Previous service identity argument is not an array buffer");
+        }
+        identities.previous =
+          std::vector<uint8_t>{prev_bytes, prev_bytes + prev_bytes_sz};
+        LOG_DEBUG_FMT(
+          "previous service identity: {}", ds::to_hex(*identities.previous));
+      }
+
+      if (JS_IsUndefined(argv[1]))
+      {
+        return JS_ThrowInternalError(
+          ctx, "Proposal requires a service identity");
+      }
+
+      size_t next_bytes_sz = 0;
+      uint8_t* next_bytes = JS_GetArrayBuffer(ctx, &next_bytes_sz, argv[1]);
+
+      if (!next_bytes)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Next service identity argument is not an array buffer");
+      }
+
+      identities.next =
+        std::vector<uint8_t>{next_bytes, next_bytes + next_bytes_sz};
+      LOG_DEBUG_FMT("next service identity: {}", ds::to_hex(identities.next));
+
+      gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
     }
     catch (const std::exception& e)
     {
@@ -765,11 +803,15 @@ namespace ccf::js
     uint8_t* digest = JS_GetArrayBuffer(ctx, &digest_size, argv[0]);
 
     if (!digest)
+    {
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+    }
 
     if (digest_size != ccf::ClaimsDigest::Digest::SIZE)
+    {
       return JS_ThrowTypeError(
         ctx, "Argument must be an ArrayBuffer of the right size");
+    }
 
     std::span<uint8_t, ccf::ClaimsDigest::Digest::SIZE> digest_bytes(
       digest, ccf::ClaimsDigest::Digest::SIZE);
@@ -1560,7 +1602,7 @@ namespace ccf::js
           ctx,
           js_node_transition_service_to_open,
           "transitionServiceToOpen",
-          0));
+          2));
       JS_SetPropertyStr(
         ctx,
         node,

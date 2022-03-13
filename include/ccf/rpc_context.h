@@ -116,7 +116,10 @@ namespace enclave
     {
       nlohmann::json body = ccf::ODataErrorResponse{
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-      const auto s = body.dump();
+      // Set error_handler to replace, to avoid throwing if the error message
+      // contains non-UTF8 characters. Other args are default values
+      const auto s =
+        body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
       set_response_status(error.status);
       set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
       set_response_header(

@@ -3,7 +3,6 @@
 
 from infra.commit import wait_for_commit
 import pprint
-import http
 
 
 class Checker:
@@ -38,28 +37,18 @@ class Checker:
             wait_for_commit(self.client, rpc_result.seqno, rpc_result.view)
 
 
-def get_free_log_id(c):
-    log_id = 42
-    r = c.get(f"/app/log/private?id={log_id}")
-    while (
-        r.status_code != http.HTTPStatus.NOT_FOUND
-        and r.status_code != http.HTTPStatus.BAD_REQUEST
-        and not (
-            r.status_code == http.HTTPStatus.OK
-            and r.body.json() == {"error": "No such key"}
-        )
-    ):
-        log_id = log_id + 1
-        r = c.get(f"/app/log/private?id={log_id}")
-    return log_id
+def _post_private_record(c, scope):
+    url = "/app/log/private"
+    if scope:
+        url += f"?scope={scope}"
+    return c.post(url, {"id": 3, "msg": "Hello world"})
 
 
 def check_can_progress(node, timeout=3):
     # Check that a write transaction issued on one node is eventually
     # committed by the service by a specified timeout
     with node.client("user0") as c:
-        log_id = get_free_log_id(c)
-        r = c.post("/app/log/private", {"id": log_id, "msg": "Hello world"})
+        r = _post_private_record(c, "check_can_progress")
         try:
             c.wait_for_commit(r, timeout=timeout)
             return r
@@ -72,8 +61,7 @@ def check_does_not_progress(node, timeout=3):
     # Check that a write transaction issued on one node is _not_
     # committed by the service by a specified timeout
     with node.client("user0") as c:
-        log_id = get_free_log_id(c)
-        r = c.post("/app/log/private", {"id": log_id, "msg": "Hello world"})
+        r = _post_private_record(c, "check_does_not_progress")
         try:
             c.wait_for_commit(r, timeout=timeout)
         except TimeoutError:
