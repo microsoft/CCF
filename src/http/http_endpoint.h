@@ -77,6 +77,8 @@ namespace http
           LOG_FAIL_FMT("Error parsing HTTP request");
           LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
+          // TODO: Report HTTP parsing error to session
+
           auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
           response.set_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
