@@ -4,15 +4,15 @@
 
 #include "ccf/ds/json_schema.h"
 #include "ccf/node_startup_state.h"
+#include "ccf/service/node_info_network.h"
+#include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/service.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
-#include "service/tables/code_id.h"
 #include "service/tables/config.h"
-#include "service/tables/node_info_network.h"
-#include "service/tables/service.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>

@@ -347,7 +347,7 @@ namespace ccf::endpoints
   }
 
   // Default implementation does nothing
-  void EndpointRegistry::tick(std::chrono::milliseconds, size_t) {}
+  void EndpointRegistry::tick(std::chrono::milliseconds) {}
 
   void EndpointRegistry::set_consensus(kv::Consensus* c)
   {

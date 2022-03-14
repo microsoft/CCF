@@ -142,14 +142,14 @@ def run(
             dump_entry(snapshot, table_filter, tables_format_rules)
         return True
     else:
-        ledger_dirs = paths
+        ledger_paths = paths
         ledger = ccf.ledger.Ledger(
-            ledger_dirs,
+            ledger_paths,
             committed_only=not uncommitted,
             insecure_skip_verification=insecure_skip_verification,
         )
 
-        LOG.info(f"Reading ledger from {ledger_dirs}")
+        LOG.info(f"Reading ledger from {ledger_paths}")
         LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
         try:
@@ -188,7 +188,10 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "paths", help="Path to ledger directories or snapshot file", nargs="+"
+        "paths",
+        help="Path to ledger directories, ledger chunks, or snapshot file. "
+        "Note that parsing individual ledger chunks requires the additional --insecure-skip-verification option",
+        nargs="+",
     )
     parser.add_argument(
         "-s",

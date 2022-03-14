@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <string>
 
@@ -93,15 +94,17 @@ namespace ccf
     }
     else
     {
-      throw JsonParseError(
-        fmt::format("Entity id should be hex-encoded string: {}", j.dump()));
+      throw JsonParseError(fmt::format(
+        "{} should be hex-encoded string: {}",
+        FmtExtender::ID_LABEL,
+        j.dump()));
     }
   }
 
   template <typename FmtExtender>
   inline std::string schema_name(const EntityId<FmtExtender>&)
   {
-    return "EntityId";
+    return FmtExtender::ID_LABEL;
   }
 
   template <typename FmtExtender>
@@ -124,6 +127,8 @@ namespace ccf
     {
       return fmt::format("m[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "MemberId";
   };
   using MemberId = EntityId<MemberIdFormatter>;
 
@@ -133,6 +138,8 @@ namespace ccf
     {
       return fmt::format("u[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "UserId";
   };
   using UserId = EntityId<UserIdFormatter>;
 
@@ -142,6 +149,8 @@ namespace ccf
     {
       return fmt::format("n[{}]", core);
     }
+
+    static constexpr auto ID_LABEL = "NodeId";
   };
   using NodeId = EntityId<NodeIdFormatter>;
 }
@@ -192,3 +201,23 @@ struct formatter<ccf::EntityId<FmtExtender>>
   }
 };
 FMT_END_NAMESPACE
+
+namespace kv::serialisers
+{
+  template <typename FmtExtender>
+  struct BlitSerialiser<ccf::EntityId<FmtExtender>>
+  {
+    static SerialisedEntry to_serialised(
+      const ccf::EntityId<FmtExtender>& entity_id)
+    {
+      const auto& data = entity_id.value();
+      return SerialisedEntry(data.begin(), data.end());
+    }
+
+    static ccf::EntityId<FmtExtender> from_serialised(
+      const SerialisedEntry& data)
+    {
+      return ccf::EntityId<FmtExtender>(std::string(data.begin(), data.end()));
+    }
+  };
+}

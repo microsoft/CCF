@@ -78,6 +78,7 @@ add_custom_target(ccf ALL)
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/js/wrap.cpp
+    ${CCF_DIR}/src/node/quote.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -363,7 +364,9 @@ if(BUILD_TESTS)
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE ccf_kv.host)
+    target_link_libraries(
+      snapshotter_test PRIVATE ccf_kv.host ccf_endpoints.host
+    )
 
     add_unit_test(
       node_info_json_test
@@ -462,13 +465,16 @@ if(BUILD_TESTS)
       PROPERTY LABELS unit_test
     )
 
-    add_test(NAME versionifier_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
-    )
+    if(NOT UNSAFE_VERSION)
+      # Unsafe builds do not follow normal version conventions
+      add_test(NAME versionifier_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+      )
 
-    add_test(NAME github_version_lts_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
-    )
+      add_test(NAME github_version_lts_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
+      )
+    endif()
   endif()
 
   # Picobench benchmarks
@@ -658,11 +664,15 @@ if(BUILD_TESTS)
   endif()
 
   if(TLS_TEST)
-    add_custom_target(
-      testssl ALL
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
-        test -d testssl || git clone https://github.com/drwetter/testssl.sh
+        rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
+        https://github.com/drwetter/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
+    )
+    add_custom_target(
+      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
     )
   endif()
 
@@ -736,13 +746,16 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_e2e_test(
-    NAME lts_compatibility
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-    CONSENSUS cft
-    LABEL e2e
-    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-  )
+  if(NOT UNSAFE_VERSION)
+    # Unsafe builds do not follow normal version conventions
+    add_e2e_test(
+      NAME lts_compatibility
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      CONSENSUS cft
+      LABEL e2e
+      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+    )
+  endif()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)

@@ -3,12 +3,13 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/historical_queries_adapter.h"
+#include "ccf/service/tables/nodes.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
+#include "node/history.h"
 #include "node/tx_receipt.h"
-#include "service/tables/nodes.h"
-#include "service/tables/service.h"
 
 #include <nlohmann/json.hpp>
 
@@ -117,7 +118,8 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
   {
     const auto* data = snapshot.data();
     auto size = snapshot.size();
@@ -170,6 +172,18 @@ namespace ccf
         throw std::logic_error(
           "Signature verification failed for snapshot receipt");
       }
+
+      if (prev_service_identity)
+      {
+        crypto::Pem prev_pem(*prev_service_identity);
+        if (!v->verify_certificate({&prev_pem}, {}, /* ignore_time */ true))
+        {
+          throw std::logic_error(
+            "Previous service identity does not endorse the node identity that "
+            "signed the snapshot");
+        }
+        LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
+      }
     }
 
     LOG_INFO_FMT(
@@ -195,10 +209,18 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    std::optional<std::vector<uint8_t>> previous_service_identity =
+      std::nullopt)
   {
     deserialise_snapshot(
-      store, snapshot, hooks, view_history, public_only, evidence_seqno);
+      store,
+      snapshot,
+      hooks,
+      view_history,
+      public_only,
+      evidence_seqno,
+      previous_service_identity);
     return std::make_unique<StartupSnapshotInfo>(
       store, std::move(snapshot), store->current_version(), evidence_seqno);
   }
@@ -217,7 +239,7 @@ namespace ccf
     auto proof = history.get_proof(seqno);
     ccf::ClaimsDigest cd;
     cd.set(std::move(claims_digest));
-    auto tx_receipt = ccf::TxReceipt(
+    auto tx_receipt = std::make_shared<ccf::TxReceipt>(
       sig,
       proof.get_root(),
       proof.get_path(),
@@ -227,8 +249,7 @@ namespace ccf
       commit_evidence,
       cd);
 
-    Receipt receipt;
-    tx_receipt.describe(receipt);
+    Receipt receipt = ccf::describe_receipt(tx_receipt);
     const auto receipt_str = nlohmann::json(receipt).dump();
     return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
   }

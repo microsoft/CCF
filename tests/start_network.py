@@ -58,6 +58,9 @@ def run(args):
                 LOG.warning(
                     "No available snapshot to recover from. Entire transaction history will be replayed."
                 )
+            args.previous_service_identity_file = os.path.join(
+                args.common_dir, "service_cert.pem"
+            )
             network.start_in_recovery(
                 args,
                 args.ledger_dir,

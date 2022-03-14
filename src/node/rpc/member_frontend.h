@@ -7,11 +7,13 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/quote.h"
 #include "ccf/service/tables/gov.h"
+#include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
 #include "frontend.h"
 #include "js/wrap.h"
-#include "node/quote.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
@@ -20,8 +22,6 @@
 #include "node_interface.h"
 #include "service/genesis_gen.h"
 #include "service/tables/endpoints.h"
-#include "service/tables/jwt.h"
-#include "service/tables/nodes.h"
 
 #include <charconv>
 #include <exception>
@@ -67,6 +67,15 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(KeyIdInfo)
   DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
+
+  struct FullMemberDetails : public ccf::MemberDetails
+  {
+    crypto::Pem cert;
+    std::optional<crypto::Pem> public_encryption_key;
+  };
+  DECLARE_JSON_TYPE(FullMemberDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    FullMemberDetails, status, member_data, cert, public_encryption_key);
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -486,7 +495,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.6.0";
+      openapi_info.document_version = "2.7.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1412,6 +1421,52 @@ namespace ccf
         .install();
 
 #pragma clang diagnostic pop
+
+      using AllMemberDetails = std::map<ccf::MemberId, FullMemberDetails>;
+      auto get_all_members =
+        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          auto members = ctx.tx.ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
+          auto member_certs =
+            ctx.tx.ro<ccf::MemberCerts>(ccf::Tables::MEMBER_CERTS);
+          auto member_public_encryption_keys =
+            ctx.tx.ro<ccf::MemberPublicEncryptionKeys>(
+              ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+          AllMemberDetails response;
+
+          members->foreach(
+            [&response, member_certs, member_public_encryption_keys](
+              const auto& k, const auto& v) {
+              FullMemberDetails md;
+              md.status = v.status;
+              md.member_data = v.member_data;
+
+              const auto cert = member_certs->get(k);
+              if (cert.has_value())
+              {
+                md.cert = cert.value();
+              }
+
+              const auto public_encryption_key =
+                member_public_encryption_keys->get(k);
+              if (public_encryption_key.has_value())
+              {
+                md.public_encryption_key = public_encryption_key.value();
+              }
+
+              response[k] = md;
+              return true;
+            });
+
+          return make_success(response);
+        };
+      make_read_only_endpoint(
+        "/members",
+        HTTP_GET,
+        json_read_only_adapter(get_all_members),
+        ccf::no_auth_required)
+        .set_auto_schema<void, AllMemberDetails>()
+        .install();
     }
   };
 

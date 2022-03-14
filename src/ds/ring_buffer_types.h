@@ -7,6 +7,8 @@
 #include "serializer.h"
 
 #include <atomic>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <optional>
 #include <string>
 #include <vector>
@@ -96,6 +98,8 @@ namespace ringbuffer
 
     virtual WriteMarker write_bytes(
       const WriteMarker& marker, const uint8_t* bytes, size_t size) = 0;
+
+    virtual size_t get_max_message_size() = 0;
     ///@}
 
   private:
@@ -194,7 +198,7 @@ namespace ringbuffer
     }
     catch (const ringbuffer::message_error& ex)
     {
-      throw std::logic_error(std::string("[") + prefix + "] " + ex.what());
+      throw std::logic_error(fmt::format("[{}] {}", prefix, ex.what()));
     }
   }
 
@@ -208,7 +212,7 @@ namespace ringbuffer
     }
     catch (const ringbuffer::message_error& ex)
     {
-      throw std::logic_error(std::string("[") + prefix + "] " + ex.what());
+      throw std::logic_error(fmt::format("[{}] {}", prefix, ex.what()));
     }
 
     return false;
