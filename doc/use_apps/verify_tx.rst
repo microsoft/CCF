@@ -92,18 +92,33 @@ Note that receipts over signature transactions are a special case, for example:
      'cert': '<PEM string>'}
 
 The proof is empty, and the 'leaf' field is set to the value being signed, which is the root of the Merkle Tree covering all transactions until the signature.
-This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is not
+This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is _not_
 the digest of the signature transaction itself.
 
-Verifying a receipt involves the following steps:
+Verification
+------------
 
-  - Digest ``commit_evidence`` to produce ``commit_evidence_digest`` and ``claims`` to produce ``claims_digest`` when applicable.
-  - If the receipt contains ``leaf_components``, digest the concatenation ``write_set_digest + commit_evidence_digest + claims_digest`` to produce ``leaf``.
-  - Combine ``leaf`` with the successive elements in ``proof`` to calculate the value of ``root``. See :py:func:`ccf.receipt.root` for a reference implementation.
-  - Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id`` and ``cert``. See :py:func:`ccf.receipt.verify` for a reference implementation.
-  - Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsement` for a reference implementation.
+Verifying a receipt consists of the following steps:
+
+  1. Digest ``commit_evidence`` to produce ``commit_evidence_digest`` and ``claims`` to produce ``claims_digest`` when applicable.
+  2. If the receipt contains ``leaf_components``, digest the concatenation ``write_set_digest + commit_evidence_digest + claims_digest`` to produce ``leaf``.
+  3. Combine ``leaf`` with the successive elements in ``proof`` to calculate the value of ``root``. See :py:func:`ccf.receipt.root` for a reference implementation.
+  4. Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id`` and ``cert``. See :py:func:`ccf.receipt.verify` for a reference implementation.
+  5. Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsement` for a reference implementation.
 
 Application Claims
 ------------------
 
-TBD
+CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`set_claims_digest()` API, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
+
+This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
+For example, a logging application may choose to set the digest of the payload being load as `claims_digest`.
+A user who logs a payload can then present the receipt and the payload to a third party, who can confirm that they match, having verified the receipt. They can perform this verification without access to the network.
+
+Multiple claims can be registered by storing them in a collection or object whose digest is set as `claims_digest`. It is possible to reveal them selectively, by capturing their digest in turn, rather than their raw value directly, eg:
+
+`claims_digest = hash( hash(claim_a) + hash(claim_b) )`
+
+Revealing `hash(claim_a)` and `claim_b` allows verification without revealing `claim_a` in this case.
+
+Although CCF takes the approach of concatenating leaf components to keep its implementation simple and format-agnostic, an application may choose to encode its claims in a structured way for convenience, for example as JSON, CBOR etc.

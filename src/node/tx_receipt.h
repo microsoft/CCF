@@ -9,6 +9,7 @@ namespace ccf
 {
   struct TxReceipt
   {
+    /// Signature
     std::vector<uint8_t> signature = {};
     HistoryTree::Hash root = {};
     std::shared_ptr<ccf::HistoryTree::Path> path = {};

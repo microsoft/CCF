@@ -214,12 +214,13 @@ A user wanting to tie transaction-specific values to a receipt can do so by atta
     :end-before: SNIPPET_END: set_claims_digest
     :dedent:
 
-CCF will then record the digest of the transaction as the combined digest of the write set, plus this claims digest.
+CCF will then record the digest of the transaction as the combined digest of the write set, plus this `claims_digest`, as well the commit evidence.
 
-Receipts for transactions that have set a claims digest expose a ``leaf_components``, rather than an opaque ``leaf``,
-which means that a receipt endpoint can choose to reveal the claims and remove their digest from the receipt.
+This ``claims_digest`` will be exposed in receipts under ``leaf_components``. It can then be revealed externally,
+or by the endpoint directly if has been stored in the ledger. :cpp:struct:`ccf::TxReceipt` deliberately makes the ``claims_digest`` optional,
+to allow the endpoint to remove it when the claims themselves are revealed.
 
-The receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
+Receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
 ``leaf`` that correctly combines with the ``proof`` to form the ``root`` that the signature covers. Receipt verification
 therefore establishes the authenticity of the claims.
 
@@ -229,5 +230,5 @@ therefore establishes the authenticity of the claims.
     :end-before: SNIPPET_END: claims_digest_in_receipt
     :dedent:
 
-A client consuming the output of this endpoint can then digest the claims themselves, combine the digest with the other leaf component
-(``write_set_digest``) to obtain the equivalent ``leaf``.
+A client consuming the output of this endpoint must digest the claims themselves, combine the digest with the other leaf component
+(``write_set_digest`` and ``hash(commit_evidence)``) to obtain the equivalent ``leaf``. See :ref:`use_apps/verify_tx:Verification` for the full set of steps.
