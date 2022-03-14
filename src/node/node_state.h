@@ -1093,6 +1093,7 @@ namespace ccf
             "Could not commit transaction when finishing network recovery");
         }
       }
+      recovered_encrypted_ledger_secrets.clear();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(NodeStartupState::partOfNetwork);
@@ -1752,7 +1753,7 @@ namespace ccf
           [this](kv::Version hook_version, const Secrets::Write& w)
             -> kv::ConsensusHookPtr {
             // Used to rekey the ledger on a live service
-            if (is_part_of_public_network())
+            if (!is_part_of_network())
             {
               // Ledger rekey is not allowed during recovery
               return kv::ConsensusHookPtr(nullptr);

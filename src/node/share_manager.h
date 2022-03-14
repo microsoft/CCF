@@ -414,8 +414,6 @@ namespace ccf
           break;
         }
 
-        // This seems potentially dangerous, in that it requires that RVO
-        // occurs and std::move does not leave an unscrubbed copy on the stack
         auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(
           latest_ls, it->previous_ledger_secret->encrypted_data);
 
