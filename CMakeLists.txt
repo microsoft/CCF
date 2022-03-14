@@ -465,13 +465,15 @@ if(BUILD_TESTS)
       PROPERTY LABELS unit_test
     )
 
-    add_test(NAME versionifier_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
-    )
+    if(NOT UNSAFE_VERSION)
+      add_test(NAME versionifier_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+      )
 
-    add_test(NAME github_version_lts_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
-    )
+      add_test(NAME github_version_lts_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
+      )
+    endif()
   endif()
 
   # Picobench benchmarks
@@ -743,13 +745,15 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_e2e_test(
-    NAME lts_compatibility
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-    CONSENSUS cft
-    LABEL e2e
-    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-  )
+  if(NOT UNSAFE_VERSION)
+    add_e2e_test(
+      NAME lts_compatibility
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      CONSENSUS cft
+      LABEL e2e
+      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+    )
+  endif()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
