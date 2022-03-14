@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash.h"
+#include "ccf/service/map.h"
 #include "node_signature.h"
-#include "service/map.h"
 
 #include <string>
 #include <vector>
@@ -31,4 +30,9 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures);
 
   using BackupSignaturesMap = ServiceValue<BackupSignatures>;
+  namespace Tables
+  {
+    static constexpr auto BACKUP_SIGNATURES =
+      "public:ccf.internal.consensus.backup_signatures";
+  }
 }

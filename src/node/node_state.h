@@ -2,25 +2,25 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "ccf/service/tables/service.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
-#include "crypto/entropy.h"
-#include "crypto/pem.h"
-#include "crypto/symmetric_key.h"
-#include "crypto/verifier.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
-#include "entities.h"
 #include "history.h"
-#include "hooks.h"
 #include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/attestation_types.h"
+#include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
@@ -47,17 +47,6 @@
 #include <unordered_set>
 #include <vector>
 
-// Used by fmtlib to render ccf::State
-namespace std
-{
-  std::ostream& operator<<(std::ostream& os, ccf::State s)
-  {
-    nlohmann::json j;
-    to_json(j, s);
-    return os << j.dump();
-  }
-}
-
 namespace ccf
 {
   using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
@@ -74,16 +63,74 @@ namespace ccf
     data.shrink_to_fit();
   }
 
+#ifdef GET_QUOTE
+  static QuoteInfo generate_quote(
+    const std::vector<uint8_t>& node_public_key_der)
+  {
+    QuoteInfo node_quote_info;
+    node_quote_info.format = QuoteFormat::oe_sgx_v1;
+
+    crypto::Sha256Hash h{node_public_key_der};
+
+    Evidence evidence;
+    Endorsements endorsements;
+    SerialisedClaims serialised_custom_claims;
+
+    // Serialise hash of node's public key as a custom claim
+    const size_t custom_claim_length = 1;
+    oe_claim_t custom_claim;
+    custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
+    custom_claim.value = h.h.data();
+    custom_claim.value_size = h.SIZE;
+
+    auto rc = oe_serialize_custom_claims(
+      &custom_claim,
+      custom_claim_length,
+      &serialised_custom_claims.buffer,
+      &serialised_custom_claims.size);
+    if (rc != OE_OK)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not serialise node's public key as quote custom claim: {}",
+        oe_result_str(rc)));
+    }
+
+    rc = oe_get_evidence(
+      &oe_quote_format,
+      0,
+      serialised_custom_claims.buffer,
+      serialised_custom_claims.size,
+      nullptr,
+      0,
+      &evidence.buffer,
+      &evidence.size,
+      &endorsements.buffer,
+      &endorsements.size);
+    if (rc != OE_OK)
+    {
+      throw std::logic_error(
+        fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
+    }
+
+    node_quote_info.quote.assign(
+      evidence.buffer, evidence.buffer + evidence.size);
+    node_quote_info.endorsements.assign(
+      endorsements.buffer, endorsements.buffer + endorsements.size);
+
+    return node_quote_info;
+  }
+#endif
+
   class NodeState : public ccf::AbstractNodeState
   {
   private:
     //
     // this node's core state
     //
-    ds::StateMachine<State> sm;
+    ds::StateMachine<NodeStartupState> sm;
     std::mutex lock;
 
-    CurveID curve_id;
+    crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
 
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
@@ -94,9 +141,6 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
-#ifdef GET_QUOTE
-    EnclaveAttestationProvider enclave_attestation_provider;
-#endif
 
     //
     // kv store, replication, and I/O
@@ -130,7 +174,7 @@ namespace ccf
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    consensus::Index last_recovered_signed_idx = 1;
+    consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
 
@@ -186,7 +230,8 @@ namespace ccf
         hooks,
         &view_history,
         true,
-        config.startup_snapshot_evidence_seqno_for_1_x);
+        config.startup_snapshot_evidence_seqno_for_1_x,
+        config.recover.previous_service_identity);
 
       startup_seqno = startup_snapshot_info->seqno;
       ledger_idx = startup_seqno.value();
@@ -201,8 +246,8 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
-      CurveID curve_id_) :
-      sm("NodeState", State::uninitialized),
+      crypto::CurveID curve_id_) :
+      sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
       self(compute_node_id_from_kp(node_sign_kp)),
@@ -221,7 +266,7 @@ namespace ccf
       CodeDigest& code_digest) override
     {
 #ifdef GET_QUOTE
-      return enclave_attestation_provider.verify_quote_against_store(
+      return EnclaveAttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
 #else
       (void)tx;
@@ -244,7 +289,7 @@ namespace ccf
       size_t sig_ms_interval_)
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::uninitialized);
+      sm.expect(NodeStartupState::uninitialized);
 
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
@@ -258,7 +303,7 @@ namespace ccf
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.type);
 
-      sm.advance(State::initialized);
+      sm.advance(NodeStartupState::initialized);
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
@@ -273,7 +318,7 @@ namespace ccf
     NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::initialized);
+      sm.expect(NodeStartupState::initialized);
 
       config = std::move(config_);
       subject_alt_names = get_subject_alternative_names();
@@ -290,9 +335,8 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      quote_info = enclave_attestation_provider.generate_quote(
-        node_sign_kp->public_key_der());
-      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      quote_info = generate_quote(node_sign_kp->public_key_der());
+      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
         node_code_id = code_id.value();
@@ -347,7 +391,7 @@ namespace ccf
 
           reset_data(quote_info.quote);
           reset_data(quote_info.endorsements);
-          sm.advance(State::partOfNetwork);
+          sm.advance(NodeStartupState::partOfNetwork);
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -359,12 +403,12 @@ namespace ccf
           {
             // Note: 2.x snapshots are self-verified so the ledger verification
             // of its evidence can be skipped entirely
-            sm.advance(State::pending);
+            sm.advance(NodeStartupState::pending);
           }
           else
           {
             // Node joins from a 1.x snapshot
-            sm.advance(State::verifyingSnapshot);
+            sm.advance(NodeStartupState::verifyingSnapshot);
           }
 
           LOG_INFO_FMT("Created join node {}", self);
@@ -372,6 +416,13 @@ namespace ccf
         }
         case StartType::Recover:
         {
+          if (!config.recover.previous_service_identity)
+          {
+            throw std::logic_error(
+              "Recovery requires the certificate of the previous service "
+              "identity");
+          }
+
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             curve_id,
             config.startup_host_time,
@@ -386,7 +437,7 @@ namespace ccf
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
 
-          sm.advance(State::readingPublicLedger);
+          sm.advance(NodeStartupState::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -404,7 +455,8 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
+      auto network_ca = std::make_shared<tls::CA>(std::string(
+        config.join.service_cert.begin(), config.join.service_cert.end()));
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca,
         self_signed_node_cert,
@@ -426,7 +478,7 @@ namespace ccf
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           std::lock_guard<std::mutex> guard(lock);
-          if (!sm.check(State::pending))
+          if (!sm.check(NodeStartupState::pending))
           {
             return false;
           }
@@ -543,7 +595,8 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info->public_only,
-                startup_snapshot_info->evidence_seqno);
+                startup_snapshot_info->evidence_seqno,
+                config.recover.previous_service_identity);
 
               for (auto& hook : hooks)
               {
@@ -576,17 +629,20 @@ namespace ccf
             }
 
             consensus->init_as_backup(
-              network.tables->current_version(), view, view_history);
+              network.tables->current_version(),
+              view,
+              view_history,
+              last_recovered_signed_idx);
 
             if (resp.network_info->public_only)
             {
-              sm.advance(State::partOfPublicNetwork);
+              sm.advance(NodeStartupState::partOfPublicNetwork);
             }
             else
             {
               reset_data(quote_info.quote);
               reset_data(quote_info.endorsements);
-              sm.advance(State::partOfNetwork);
+              sm.advance(NodeStartupState::partOfNetwork);
             }
 
             LOG_INFO_FMT(
@@ -641,7 +697,7 @@ namespace ccf
 
       auto timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
-          if (msg->data.self.sm.check(State::pending))
+          if (msg->data.self.sm.check(NodeStartupState::pending))
           {
             msg->data.self.initiate_join();
             auto delay = std::chrono::milliseconds(
@@ -660,7 +716,7 @@ namespace ccf
     void join()
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::pending);
+      sm.expect(NodeStartupState::pending);
       start_join_timer();
     }
 
@@ -703,13 +759,13 @@ namespace ccf
     {
       std::lock_guard<std::mutex> guard(lock);
       if (
-        !sm.check(State::readingPublicLedger) &&
-        !sm.check(State::verifyingSnapshot))
+        !sm.check(NodeStartupState::readingPublicLedger) &&
+        !sm.check(NodeStartupState::verifyingSnapshot))
       {
         throw std::logic_error(fmt::format(
           "Node should be in state {} or {} to start reading ledger",
-          State::readingPublicLedger,
-          State::verifyingSnapshot));
+          NodeStartupState::readingPublicLedger,
+          NodeStartupState::verifyingSnapshot));
       }
 
       LOG_INFO_FMT("Starting to read public ledger");
@@ -721,12 +777,12 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
 
       std::shared_ptr<kv::Store> store;
-      if (sm.check(State::readingPublicLedger))
+      if (sm.check(NodeStartupState::readingPublicLedger))
       {
         // In recovery, use the main store to deserialise public entries
         store = network.tables;
       }
-      else if (sm.check(State::verifyingSnapshot))
+      else if (sm.check(NodeStartupState::verifyingSnapshot))
       {
         store = startup_snapshot_info->store;
       }
@@ -734,27 +790,37 @@ namespace ccf
       {
         LOG_FAIL_FMT(
           "Node should be in state {} or {} to recover public ledger entry",
-          State::readingPublicLedger,
-          State::verifyingSnapshot);
+          NodeStartupState::readingPublicLedger,
+          NodeStartupState::verifyingSnapshot);
         return;
       }
 
       LOG_INFO_FMT(
-        "Deserialising public ledger entry ({})", ledger_entry.size());
+        "Deserialising public ledger entry [{}]", ledger_entry.size());
 
-      auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
-      auto result = r->apply();
-      if (result == kv::ApplyResult::FAIL)
+      kv::ApplyResult result = kv::ApplyResult::FAIL;
+      try
       {
-        LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
+        auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+        result = r->apply();
+        if (result == kv::ApplyResult::FAIL)
+        {
+          LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", result);
+          recover_public_ledger_end_unsafe();
+          return;
+        }
+
+        // Not synchronised because consensus isn't effectively running then
+        for (auto& hook : r->get_hooks())
+        {
+          hook->call(consensus.get());
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", e.what());
         recover_public_ledger_end_unsafe();
         return;
-      }
-
-      // Not synchronised because consensus isn't effectively running then
-      for (auto& hook : r->get_hooks())
-      {
-        hook->call(consensus.get());
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
@@ -801,7 +867,7 @@ namespace ccf
           startup_snapshot_info->is_evidence_committed = true;
         }
 
-        if (sm.check(State::readingPublicLedger))
+        if (sm.check(NodeStartupState::readingPublicLedger))
         {
           // Inform snapshotter of all signature entries so that this node can
           // continue generating snapshots at the correct interval once the
@@ -843,7 +909,7 @@ namespace ccf
     void verify_snapshot_end()
     {
       std::lock_guard<std::mutex> guard(lock);
-      if (!sm.check(State::verifyingSnapshot))
+      if (!sm.check(NodeStartupState::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
           "Node in state {} cannot finalise snapshot verification", sm.value());
@@ -870,13 +936,13 @@ namespace ccf
 
       ledger_truncate(startup_snapshot_info->seqno);
 
-      sm.advance(State::pending);
+      sm.advance(NodeStartupState::pending);
       start_join_timer();
     }
 
     void recover_public_ledger_end_unsafe()
     {
-      sm.expect(State::readingPublicLedger);
+      sm.expect(NodeStartupState::readingPublicLedger);
 
       if (
         startup_snapshot_info &&
@@ -905,7 +971,7 @@ namespace ccf
       // Note: KV term must be set before the first Tx is committed
       network.tables->rollback(
         {last_recovered_term, last_recovered_signed_idx}, new_term);
-      ledger_truncate(last_recovered_signed_idx);
+      ledger_truncate(last_recovered_signed_idx, true);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
@@ -934,7 +1000,6 @@ namespace ccf
       kv::Term view = 0;
       kv::Version global_commit = 0;
 
-      // auto ls = g.get_last_signature();
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
       {
@@ -972,7 +1037,7 @@ namespace ccf
           "End of public recovery transaction could not be committed");
       }
 
-      sm.advance(State::partOfPublicNetwork);
+      sm.advance(NodeStartupState::partOfPublicNetwork);
     }
 
     //
@@ -981,7 +1046,7 @@ namespace ccf
     void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<std::mutex> guard(lock);
-      if (!sm.check(State::readingPrivateLedger))
+      if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
           "Node is state {} cannot recover private ledger entry", sm.value());
@@ -989,17 +1054,29 @@ namespace ccf
       }
 
       LOG_INFO_FMT(
-        "Deserialising private ledger entry ({})", ledger_entry.size());
+        "Deserialising private ledger entry [{}]", ledger_entry.size());
 
       // When reading the private ledger, deserialise in the recovery store
-      auto result =
-        recovery_store->deserialize(ledger_entry, ConsensusType::CFT)->apply();
-      if (result == kv::ApplyResult::FAIL)
+      kv::ApplyResult result = kv::ApplyResult::FAIL;
+      try
       {
-        LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        // Note: rollback terms do not matter here as recovery store is about to
-        // be discarded
-        recovery_store->rollback({0, ledger_idx - 1}, 0);
+        result = recovery_store->deserialize(ledger_entry, ConsensusType::CFT)
+                   ->apply();
+        if (result == kv::ApplyResult::FAIL)
+        {
+          LOG_FAIL_FMT(
+            "Failed to deserialise private ledger entry: {}", result);
+          // Note: rollback terms do not matter here as recovery store is about
+          // to be discarded
+          recovery_store->rollback({0, ledger_idx - 1}, 0);
+          recover_private_ledger_end_unsafe();
+          return;
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to deserialise private ledger entry: {}", e.what());
         recover_private_ledger_end_unsafe();
         return;
       }
@@ -1025,7 +1102,7 @@ namespace ccf
       // When reaching the end of the private ledger, make sure the same
       // ledger has been read and swap in private state
 
-      sm.expect(State::readingPrivateLedger);
+      sm.expect(NodeStartupState::readingPrivateLedger);
 
       if (recovery_v != recovery_store->current_version())
       {
@@ -1062,6 +1139,7 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
+
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1076,7 +1154,7 @@ namespace ccf
       }
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
-      sm.advance(State::partOfNetwork);
+      sm.advance(NodeStartupState::partOfNetwork);
     }
 
     void setup_one_off_secret_hook()
@@ -1167,7 +1245,8 @@ namespace ccf
           hooks,
           &view_history,
           false,
-          startup_snapshot_info->evidence_seqno);
+          startup_snapshot_info->evidence_seqno,
+          config.recover.previous_service_identity);
         startup_snapshot_info.reset();
       }
 
@@ -1182,10 +1261,25 @@ namespace ccf
       share_manager.shuffle_recovery_shares(tx);
     }
 
-    void request_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(kv::Tx& tx) override
     {
-      auto tx2 = static_cast<kv::CommittableTx*>(&tx);
-      tx2->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      auto tx_ = static_cast<kv::CommittableTx*>(&tx);
+      if (tx_ == nullptr)
+      {
+        throw std::logic_error("Could not cast tx to CommittableTx");
+      }
+      tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+    }
+
+    void trigger_snapshot(kv::Tx& tx) override
+    {
+      auto committable_tx = static_cast<kv::CommittableTx*>(&tx);
+      if (committable_tx == nullptr)
+      {
+        throw std::logic_error("Could not cast tx to CommittableTx");
+      }
+      committable_tx->set_flag(
+        kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
     }
 
     void trigger_host_process_launch(
@@ -1198,7 +1292,9 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(AppMessage::launch_host_process, to_host, json);
     }
 
-    void transition_service_to_open(kv::Tx& tx) override
+    void transition_service_to_open(
+      kv::Tx& tx,
+      AbstractGovernanceEffects::ServiceIdentities identities) override
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -1219,6 +1315,31 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Service in state {} is already open", service_info->status);
         return;
+      }
+
+      if (
+        service_info->status == ServiceStatus::RECOVERING &&
+        (!config.recover.previous_service_identity ||
+         !identities.previous.has_value()))
+      {
+        throw std::logic_error(
+          "Recovery with service certificates requires both, a previous "
+          "service identity certificate during node startup and a "
+          "transition_service_to_open proposal that contains previous and next "
+          "service certificates");
+      }
+
+      if (identities.next != service_info->cert)
+      {
+        throw std::logic_error(
+          "Service identity mismatch: the next service identity in the "
+          "transition_service_to_open proposal does not match the current "
+          "service identity");
+      }
+
+      if (identities.previous)
+      {
+        service_info->previous_service_identity = *identities.previous;
       }
 
       if (is_part_of_public_network())
@@ -1258,7 +1379,7 @@ namespace ccf
     void initiate_private_recovery(kv::Tx& tx) override
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::partOfPublicNetwork);
+      sm.expect(NodeStartupState::partOfPublicNetwork);
 
       auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
         tx, std::move(recovery_ledger_secrets));
@@ -1284,7 +1405,7 @@ namespace ccf
       ledger_idx = recovery_store->current_version();
       read_ledger_idx(++ledger_idx);
 
-      sm.advance(State::readingPrivateLedger);
+      sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     //
@@ -1293,16 +1414,16 @@ namespace ccf
     void tick(std::chrono::milliseconds elapsed)
     {
       if (
-        !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork) &&
-        !sm.check(State::readingPrivateLedger))
+        !sm.check(NodeStartupState::partOfNetwork) &&
+        !sm.check(NodeStartupState::partOfPublicNetwork) &&
+        !sm.check(NodeStartupState::readingPrivateLedger))
       {
         return;
       }
 
       consensus->periodic(elapsed);
 
-      if (sm.check(State::partOfNetwork))
+      if (sm.check(NodeStartupState::partOfNetwork))
       {
         const auto tx_id = consensus->get_committed_txid();
         indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
@@ -1312,9 +1433,9 @@ namespace ccf
     void tick_end()
     {
       if (
-        !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork) &&
-        !sm.check(State::readingPrivateLedger))
+        !sm.check(NodeStartupState::partOfNetwork) &&
+        !sm.check(NodeStartupState::partOfPublicNetwork) &&
+        !sm.check(NodeStartupState::readingPrivateLedger))
       {
         return;
       }
@@ -1338,9 +1459,9 @@ namespace ccf
       {
         // Only process messages once part of network
         if (
-          !sm.check(State::partOfNetwork) &&
-          !sm.check(State::partOfPublicNetwork) &&
-          !sm.check(State::readingPrivateLedger))
+          !sm.check(NodeStartupState::partOfNetwork) &&
+          !sm.check(NodeStartupState::partOfPublicNetwork) &&
+          !sm.check(NodeStartupState::readingPrivateLedger))
         {
           LOG_DEBUG_FMT(
             "Ignoring node msg received too early - current state is {}",
@@ -1378,56 +1499,56 @@ namespace ccf
     bool is_primary() const override
     {
       return (
-        (sm.check(State::partOfNetwork) ||
-         sm.check(State::partOfPublicNetwork) ||
-         sm.check(State::readingPrivateLedger)) &&
+        (sm.check(NodeStartupState::partOfNetwork) ||
+         sm.check(NodeStartupState::partOfPublicNetwork) ||
+         sm.check(NodeStartupState::readingPrivateLedger)) &&
         consensus->is_primary());
     }
 
     bool can_replicate() override
     {
       return (
-        (sm.check(State::partOfNetwork) ||
-         sm.check(State::partOfPublicNetwork) ||
-         sm.check(State::readingPrivateLedger)) &&
+        (sm.check(NodeStartupState::partOfNetwork) ||
+         sm.check(NodeStartupState::partOfPublicNetwork) ||
+         sm.check(NodeStartupState::readingPrivateLedger)) &&
         consensus->can_replicate());
     }
 
     bool is_in_initialised_state() const override
     {
-      return sm.check(State::initialized);
+      return sm.check(NodeStartupState::initialized);
     }
 
     bool is_part_of_network() const override
     {
-      return sm.check(State::partOfNetwork);
+      return sm.check(NodeStartupState::partOfNetwork);
     }
 
     bool is_reading_public_ledger() const override
     {
-      return sm.check(State::readingPublicLedger);
+      return sm.check(NodeStartupState::readingPublicLedger);
     }
 
     bool is_reading_private_ledger() const override
     {
-      return sm.check(State::readingPrivateLedger);
+      return sm.check(NodeStartupState::readingPrivateLedger);
     }
 
     bool is_verifying_snapshot() const override
     {
-      return sm.check(State::verifyingSnapshot);
+      return sm.check(NodeStartupState::verifyingSnapshot);
     }
 
     bool is_part_of_public_network() const override
     {
-      return sm.check(State::partOfPublicNetwork);
+      return sm.check(NodeStartupState::partOfPublicNetwork);
     }
 
     ExtendedState state() override
     {
       std::lock_guard<std::mutex> guard(lock);
-      State s = sm.value();
-      if (s == State::readingPrivateLedger)
+      auto s = sm.value();
+      if (s == NodeStartupState::readingPrivateLedger)
       {
         return {s, recovery_v, recovery_store->current_version()};
       }
@@ -1440,7 +1561,7 @@ namespace ccf
     bool rekey_ledger(kv::Tx& tx) override
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::partOfNetwork);
+      sm.expect(NodeStartupState::partOfNetwork);
 
       // The ledger should not be re-keyed when the service is not open because:
       // - While waiting for recovery shares, the submitted shares are stored
@@ -1466,7 +1587,7 @@ namespace ccf
       return true;
     }
 
-    NodeId get_node_id() const override
+    NodeId get_node_id() const
     {
       return self;
     }
@@ -1712,7 +1833,7 @@ namespace ccf
       if (!consensus->is_backup())
         return;
 
-      sm.expect(State::partOfPublicNetwork);
+      sm.expect(NodeStartupState::partOfPublicNetwork);
 
       LOG_INFO_FMT("Initiating end of recovery (backup)");
 
@@ -1725,7 +1846,7 @@ namespace ccf
       ledger_idx = recovery_store->current_version();
       read_ledger_idx(++ledger_idx);
 
-      sm.advance(State::readingPrivateLedger);
+      sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     void setup_basic_hooks()
@@ -1830,16 +1951,37 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.service.get_name(),
-        network.service.wrap_commit_hook(
-          [this](kv::Version hook_version, const Service::Write& w) {
-            if (!w.has_value())
-            {
-              throw std::logic_error("Unexpected deletion in service value");
-            }
+        network.service.wrap_commit_hook([this](
+                                           kv::Version hook_version,
+                                           const Service::Write& w) {
+          if (!w.has_value())
+          {
+            throw std::logic_error("Unexpected deletion in service value");
+          }
 
-            network.identity->set_certificate(w->cert);
+          // Service open on historical service has no effect
+          auto hook_pubk_pem =
+            crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(w->cert));
+          auto current_pubk_pem =
+            crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
+          if (hook_pubk_pem != current_pubk_pem)
+          {
+            LOG_TRACE_FMT(
+              "Ignoring historical service open at seqno {} for {}",
+              hook_version,
+              w->cert.str());
+            return;
+          }
+
+          network.identity->set_certificate(w->cert);
+          if (w->status == ServiceStatus::OPEN)
+          {
             open_user_frontend();
-          }));
+
+            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
+            LOG_INFO_FMT("Service open at seqno {}", hook_version);
+          }
+        }));
     }
 
     kv::Version get_last_recovered_signed_idx() override
@@ -2054,9 +2196,10 @@ namespace ccf
         consensus::LedgerRequestPurpose::Recovery);
     }
 
-    void ledger_truncate(consensus::Index idx)
+    void ledger_truncate(consensus::Index idx, bool recovery_mode = false)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
   };
 }

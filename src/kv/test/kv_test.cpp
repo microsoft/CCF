@@ -2,17 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ccf/kv/map.h"
+#include "ccf/kv/set.h"
+#include "ccf/kv/value.h"
+#include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
-#include "kv/map.h"
-#include "kv/set.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/value.h"
-#include "node/entities.h"
 #include "node/history.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
 #include <random>
@@ -412,31 +412,37 @@ TEST_CASE("sets and values")
       {
         INFO("Local hook");
 
-        auto tx = kv_store.create_tx();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-        REQUIRE(local_writes.size() == 0); // Commit without puts
+        {
+          auto tx = kv_store.create_tx();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+          REQUIRE(local_writes.size() == 0); // Commit without puts
+        }
 
-        tx = kv_store.create_tx();
-        auto h1 = tx.rw(val1);
-        h1->put(v1);
-        h1->put(v2); // Override previous value
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->put(v1);
+          h1->put(v2); // Override previous value
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(global_writes.size() == 0);
-        REQUIRE(local_writes.size() == 1);
-        auto latest_writes = local_writes.front();
-        REQUIRE(latest_writes.value() == v2);
-        local_writes.clear();
+          REQUIRE(global_writes.size() == 0);
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(latest_writes.value() == v2);
+          local_writes.clear();
+        }
 
-        tx = kv_store.create_tx();
-        h1 = tx.rw(val1);
-        h1->clear();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->clear();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(local_writes.size() == 1);
-        latest_writes = local_writes.front();
-        REQUIRE(!latest_writes.has_value());
-        local_writes.clear();
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(!latest_writes.has_value());
+          local_writes.clear();
+        }
       }
 
       {
@@ -2887,89 +2893,136 @@ TEST_CASE("Ledger entry chunk request")
     std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
-  // Ledger chunk flag is not set in the store
-  REQUIRE(!store.flag_enabled(
-    kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
-
-  INFO("Add a transaction with the chunking flag enabled");
+  SUBCASE("Chunk at next signature")
   {
-    MapTypes::StringString map("public:map");
-    auto tx = store.create_tx();
+    // Ledger chunk flag is not set in the store
+    REQUIRE(!store.flag_enabled(
+      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
-    // Request a ledger chunk at the next signature
-    tx.set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+    INFO("Add a transaction with the chunking flag enabled");
+    {
+      MapTypes::StringString map("public:map");
+      auto tx = store.create_tx();
 
-    auto h1 = tx.rw(map);
-    h1->put("key", "value");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-  }
+      // Request a ledger chunk at the next signature
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
-  // Flag is now set in the store
-  REQUIRE(store.flag_enabled(
-    kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      auto h1 = tx.rw(map);
+      h1->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
 
-  INFO("Roll back the last transaction");
-  {
-    // Dummy rollback to the current TxID, which doesn't clear the chunking flag
-    store.rollback(store.current_txid(), store.commit_view());
-
-    // Ledger chunk flag is still set in the store
+    // Flag is now set in the store
     REQUIRE(store.flag_enabled(
       kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
-    // Roll the last transaction back to clear the flag in the store
-    store.rollback(
-      {store.commit_view(), store.current_version() - 1}, store.commit_view());
+    INFO("Roll back the last transaction");
+    {
+      // Dummy rollback to the current TxID, which doesn't clear the chunking
+      // flag
+      store.rollback(store.current_txid(), store.commit_view());
+
+      // Ledger chunk flag is still set in the store
+      REQUIRE(store.flag_enabled(
+        kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+
+      // Roll the last transaction back to clear the flag in the store
+      store.rollback(
+        {store.commit_view(), store.current_version() - 1},
+        store.commit_view());
+
+      // Ledger chunk flag is not set in the store anymore
+      REQUIRE(!store.flag_enabled(
+        kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+    }
+
+    INFO("Add another transaction with the chunking flag enabled");
+    {
+      MapTypes::StringString map("public:map");
+      auto tx = store.create_tx();
+
+      // Request a ledger chunk at the next signature again
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+
+      auto h1 = tx.rw(map);
+      h1->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    // Ledger chunk flag is now set in the store
+    REQUIRE(store.flag_enabled(
+      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+
+    INFO(
+      "Add a signature transaction which triggers chunk via entry header flag");
+    {
+      auto txid = store.next_txid();
+      auto tx = store.create_reserved_tx(txid);
+      auto sig_handle = tx.rw(signatures);
+      auto tree_handle = tx.rw(serialised_tree);
+      ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+      sig_handle->put(sigv);
+      tree_handle->put({});
+      auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+        tx.commit_reserved();
+      REQUIRE(success == kv::CommitResult::SUCCESS);
+
+      REQUIRE(
+        store.deserialize(data, ConsensusType::CFT)->apply() ==
+        kv::ApplyResult::PASS_SIGNATURE);
+
+      // Header flag is set in the last entry
+      const uint8_t* entry_data = data.data();
+      size_t entry_data_size = data.size();
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+        entry_data, entry_data_size);
+      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
+    }
 
     // Ledger chunk flag is not set in the store anymore
     REQUIRE(!store.flag_enabled(
       kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
   }
 
-  INFO("Add another transaction with the chunking flag enabled");
+  SUBCASE("Chunk before this transaction")
   {
-    MapTypes::StringString map("public:map");
-    auto tx = store.create_tx();
+    REQUIRE(!consensus->get_latest_data().has_value());
 
-    // Request a ledger chunk at the next signature again
-    tx.set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+    INFO("Add a transaction with the chunking flag enabled");
+    {
+      MapTypes::StringString map("public:map");
+      auto tx = store.create_tx();
 
-    auto h1 = tx.rw(map);
-    h1->put("key", "value");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      // Request a ledger chunk before tx
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+
+      auto h1 = tx.rw(map);
+      h1->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Verify that flag is included in serialised entry");
+    {
+      auto data_ = consensus->get_latest_data();
+      REQUIRE(data_.has_value());
+      auto& data = data_.value();
+
+      const uint8_t* entry_data = data.data();
+      size_t entry_data_size = data.size();
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+        entry_data, entry_data_size);
+      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0);
+    }
   }
+}
 
-  // Ledger chunk flag is now set in the store
-  REQUIRE(store.flag_enabled(
-    kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
-
-  INFO(
-    "Add a signature transaction which triggers chunk via entry header flag");
-  {
-    auto txid = store.next_txid();
-    auto tx = store.create_reserved_tx(txid);
-    auto sig_handle = tx.rw(signatures);
-    auto tree_handle = tx.rw(serialised_tree);
-    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
-    sig_handle->put(sigv);
-    tree_handle->put({});
-    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
-      tx.commit_reserved();
-    REQUIRE(success == kv::CommitResult::SUCCESS);
-
-    REQUIRE(
-      store.deserialize(data, ConsensusType::CFT)->apply() ==
-      kv::ApplyResult::PASS_SIGNATURE);
-
-    // Header flag is set in the last entry
-    const uint8_t* entry_data = data.data();
-    size_t entry_data_size = data.size();
-    auto header =
-      serialized::peek<kv::SerialisedEntryHeader>(entry_data, entry_data_size);
-    REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK) != 0);
-  }
-
-  // Ledger chunk flag is not set in the store anymore
-  REQUIRE(!store.flag_enabled(
-    kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+int main(int argc, char** argv)
+{
+  logger::config::default_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

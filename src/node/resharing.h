@@ -2,18 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/serdes.h"
+#include "ccf/service/map.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/impl/state.h"
-#include "crypto/pem.h"
-#include "crypto/verifier.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
 #include "node/identity.h"
 #include "node/resharing_tracker.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
-#include "service/map.h"
 
 #include <optional>
 #include <vector>

@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
-#include "crypto/entropy.h"
-#include "crypto/rsa_key_pair.h"
-#include "crypto/symmetric_key.h"
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
@@ -20,7 +20,7 @@ namespace ccf
   class LedgerSecretWrappingKey
   {
   private:
-    static constexpr auto KZ_KEY_SIZE = crypto::GCM_SIZE_KEY;
+    static constexpr auto KZ_KEY_SIZE = crypto::GCM_DEFAULT_KEY_SIZE;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
     bool has_wrapped = false;
 
@@ -63,8 +63,8 @@ namespace ccf
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
         ledger_secret->raw_key,
-        nullb,
-        encrypted_ls.cipher.data(),
+        {},
+        encrypted_ls.cipher,
         encrypted_ls.hdr.tag);
 
       has_wrapped = true;
@@ -77,14 +77,14 @@ namespace ccf
     {
       crypto::GcmCipher encrypted_ls;
       encrypted_ls.deserialise(wrapped_latest_ledger_secret);
-      std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
+      std::vector<uint8_t> decrypted_ls;
 
       if (!crypto::make_key_aes_gcm(data)->decrypt(
             encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,
-            nullb,
-            decrypted_ls.data()))
+            {},
+            decrypted_ls))
       {
         throw std::logic_error("Unwrapping latest ledger secret failed");
       }
@@ -195,14 +195,13 @@ namespace ccf
 
         crypto::GcmCipher encrypted_previous_ls(
           previous_ledger_secret->second->raw_key.size());
-        auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
-        encrypted_previous_ls.hdr.set_iv(iv.data(), iv.size());
+        encrypted_previous_ls.hdr.set_random_iv();
 
         latest_ledger_secret->key->encrypt(
           encrypted_previous_ls.hdr.get_iv(),
           previous_ledger_secret->second->raw_key,
-          nullb,
-          encrypted_previous_ls.cipher.data(),
+          {},
+          encrypted_previous_ls.cipher,
           encrypted_previous_ls.hdr.tag);
 
         encrypted_previous_secret = encrypted_previous_ls.serialise();
@@ -226,14 +225,13 @@ namespace ccf
       // Submitted recovery shares are encrypted with the latest ledger secret.
       crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
 
-      auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
-      encrypted_submitted_share.hdr.set_iv(iv.data(), iv.size());
+      encrypted_submitted_share.hdr.set_random_iv();
 
       current_ledger_secret->key->encrypt(
         encrypted_submitted_share.hdr.get_iv(),
         submitted_share,
-        nullb,
-        encrypted_submitted_share.cipher.data(),
+        {},
+        encrypted_submitted_share.cipher,
         encrypted_submitted_share.hdr.tag);
 
       return encrypted_submitted_share.serialise();
@@ -245,14 +243,14 @@ namespace ccf
     {
       crypto::GcmCipher encrypted_share;
       encrypted_share.deserialise(encrypted_submitted_share);
-      std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
+      std::vector<uint8_t> decrypted_share;
 
       current_ledger_secret->key->decrypt(
         encrypted_share.hdr.get_iv(),
         encrypted_share.hdr.tag,
         encrypted_share.cipher,
-        nullb,
-        decrypted_share.data());
+        {},
+        decrypted_share);
 
       return decrypted_share;
     }

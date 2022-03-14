@@ -3,10 +3,14 @@
 #pragma once
 
 #include "ccf/endpoints/authentication/authentication_types.h"
-#include "enclave/rpc_context.h"
 
 #include <functional>
 #include <memory>
+
+namespace enclave
+{
+  class RpcContext;
+}
 
 /**
  * Defines the different types of context an Endpoint can operate over,

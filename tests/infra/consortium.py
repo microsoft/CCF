@@ -61,7 +61,6 @@ class Consortium:
         self.key_generator = key_generator
         self.share_script = share_script
         self.consensus = consensus
-        self.members = []
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
         self.reconfiguration_type = reconfiguration_type
@@ -173,7 +172,7 @@ class Consortium:
         return f"@{proposal_output_path}", f"@{ballot_output_path}"
 
     def activate(self, remote_node):
-        for m in self.members:
+        for m in [m for m in self.members if not m.is_retired]:
             m.ack(remote_node)
 
     def generate_and_propose_new_member(
@@ -382,12 +381,20 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def get_service_identity(self):
+        return slurp_file(os.path.join(self.common_dir, "service_cert.pem"))
+
     def add_users_and_transition_service_to_open(self, remote_node, users):
         proposal = {"actions": []}
         for user_id in users:
             cert = slurp_file(self.user_cert_path(user_id))
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
-        proposal["actions"].append({"name": "transition_service_to_open"})
+
+        args = {}
+        if remote_node.version_after("ccf-2.0.0-rc3"):
+            args = {"args": {"next_service_identity": self.get_service_identity()}}
+        proposal["actions"].append({"name": "transition_service_to_open", **args})
+
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(
             remote_node,
@@ -395,7 +402,7 @@ class Consortium:
             {"ballot": "export function vote (proposal, proposer_id) { return true }"},
         )
 
-    def create_and_withdraw_large_proposal(self, remote_node):
+    def create_and_withdraw_large_proposal(self, remote_node, wait_for_commit=False):
         """
         This is useful to force a ledger chunk to be produced, which is desirable
         when trying to use ccf.ledger to read ledger entries.
@@ -407,7 +414,10 @@ class Consortium:
         )
         m = self.get_any_active_member()
         p = m.propose(remote_node, proposal)
-        m.withdraw(remote_node, p)
+        r = m.withdraw(remote_node, p)
+        if wait_for_commit:
+            with remote_node.client() as c:
+                c.wait_for_commit(r)
 
     def add_users(self, remote_node, users):
         for u in users:
@@ -565,7 +575,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def transition_service_to_open(self, remote_node):
+    def transition_service_to_open(self, remote_node, previous_service_identity=None):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -577,7 +587,17 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
-        proposal_body, careful_vote = self.make_proposal("transition_service_to_open")
+        args = {}
+        if remote_node.version_after("ccf-2.0.0-rc3"):
+            args = {
+                "previous_service_identity": previous_service_identity,
+                "next_service_identity": self.get_service_identity(),
+            }
+
+        proposal_body, careful_vote = self.make_proposal(
+            "transition_service_to_open", **args
+        )
+
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, careful_vote, wait_for_global_commit=True
@@ -649,8 +669,7 @@ class Consortium:
             validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        r = self.vote_using_majority(remote_node, proposal, careful_vote)
-        return r
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_service_certificate_validity(
         self, remote_node, valid_from, validity_period_days
@@ -661,8 +680,13 @@ class Consortium:
             validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        r = self.vote_using_majority(remote_node, proposal, careful_vote)
-        return r
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def force_ledger_chunk(self, remote_node):
+        # Submit a proposal to force a ledger chunk at the following signature
+        proposal_body, careful_vote = self.make_proposal("trigger_ledger_chunk")
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def check_for_service(self, remote_node, status):
         """

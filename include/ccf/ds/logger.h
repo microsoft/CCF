@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/thread_ids.h"
 
 #define FMT_HEADER_ONLY
@@ -12,30 +13,6 @@
 #include <optional>
 #include <sstream>
 #include <type_traits>
-
-/**
- * Generic formatter for scoped enums.
- * Newer version of fmt does not include it by default.
- */
-namespace fmt
-{
-  template <typename E>
-  struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const E& value, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), "{}", static_cast<std::underlying_type_t<E>>(value));
-    }
-  };
-}
 
 namespace logger
 {

@@ -5,6 +5,7 @@
 #include "ccf/ds/json_schema.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/rpc_context.h"
 #include "ccf/tx.h"
 
 #include <charconv>
@@ -13,6 +14,12 @@
 #include <nlohmann/json.hpp>
 #include <regex>
 #include <set>
+
+namespace kv
+{
+  class Consensus;
+  class TxHistory;
+}
 
 namespace ccf::endpoints
 {
@@ -250,15 +257,15 @@ namespace ccf::endpoints
       const std::string& path,
       const std::vector<EndpointDefinitionPtr>& matches);
 
-    virtual void tick(std::chrono::milliseconds, size_t);
+    virtual void tick(std::chrono::milliseconds);
 
     void set_consensus(kv::Consensus* c);
 
     void set_history(kv::TxHistory* h);
 
-    void increment_metrics_calls(const EndpointDefinitionPtr& e);
-    void increment_metrics_errors(const EndpointDefinitionPtr& e);
-    void increment_metrics_failures(const EndpointDefinitionPtr& e);
-    void increment_metrics_retries(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_calls(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_errors(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_failures(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_retries(const EndpointDefinitionPtr& e);
   };
 }

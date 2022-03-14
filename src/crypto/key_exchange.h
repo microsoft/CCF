@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/key_pair.h"
 #include "ccf/ds/logger.h"
-#include "crypto/entropy.h"
-#include "crypto/key_pair.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
 
@@ -74,14 +73,14 @@ namespace tls
       own_key = make_key_pair(crypto::CurveID::SECP384R1);
     }
 
-    void load_peer_key_share(const std::vector<uint8_t>& ks)
+    void load_peer_key_share(std::span<const uint8_t> ks)
     {
       if (ks.size() == 0)
       {
         throw std::runtime_error("missing peer key share");
       }
 
-      auto tmp = ks;
+      std::vector<uint8_t> tmp(ks.begin(), ks.end());
       tmp.erase(tmp.begin());
 
       int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(curve);
@@ -93,11 +92,6 @@ namespace tls
       }
 
       peer_key = std::make_shared<crypto::PublicKey_OpenSSL>(pk);
-    }
-
-    void load_peer_key_share(CBuffer ks)
-    {
-      load_peer_key_share({ks.p, ks.p + ks.n});
     }
 
     std::vector<uint8_t> compute_shared_secret()

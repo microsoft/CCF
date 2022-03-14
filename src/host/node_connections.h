@@ -17,7 +17,7 @@ namespace asynchost
   class NodeConnections
   {
   private:
-    class ConnectionBehaviour : public TCPBehaviour
+    class NodeConnectionBehaviour : public TCPBehaviour
     {
     private:
     public:
@@ -26,7 +26,7 @@ namespace asynchost
       std::optional<size_t> msg_size = std::nullopt;
       std::vector<uint8_t> pending;
 
-      ConnectionBehaviour(
+      NodeConnectionBehaviour(
         NodeConnections& parent,
         std::optional<ccf::NodeId> node = std::nullopt) :
         parent(parent),
@@ -110,14 +110,14 @@ namespace asynchost
       virtual void associate_incoming(const ccf::NodeId&) {}
     };
 
-    class IncomingBehaviour : public ConnectionBehaviour
+    class NodeIncomingBehaviour : public NodeConnectionBehaviour
     {
     public:
       size_t id;
       std::optional<ccf::NodeId> node_id;
 
-      IncomingBehaviour(NodeConnections& parent, size_t id_) :
-        ConnectionBehaviour(parent),
+      NodeIncomingBehaviour(NodeConnections& parent, size_t id_) :
+        NodeConnectionBehaviour(parent),
         id(id_)
       {}
 
@@ -159,11 +159,11 @@ namespace asynchost
       }
     };
 
-    class OutgoingBehaviour : public ConnectionBehaviour
+    class NodeOutgoingBehaviour : public NodeConnectionBehaviour
     {
     public:
-      OutgoingBehaviour(NodeConnections& parent, const ccf::NodeId& node) :
-        ConnectionBehaviour(parent, node)
+      NodeOutgoingBehaviour(NodeConnections& parent, const ccf::NodeId& node) :
+        NodeConnectionBehaviour(parent, node)
       {}
 
       void on_bind_failed() override
@@ -215,7 +215,8 @@ namespace asynchost
       void on_accept(TCP& peer) override
       {
         auto id = parent.get_next_id();
-        peer->set_behaviour(std::make_unique<IncomingBehaviour>(parent, id));
+        peer->set_behaviour(
+          std::make_unique<NodeIncomingBehaviour>(parent, id));
         parent.unassociated_incoming.emplace(id, peer);
         LOG_DEBUG_FMT("Accepted new incoming node connection ({})", id);
       }
@@ -339,8 +340,7 @@ namespace asynchost
             uint32_t frame = (uint32_t)size_to_send;
             std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
 
-            framed_entries =
-              ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
+            framed_entries = ledger.read_entries(ae.prev_idx + 1, ae.idx);
             if (framed_entries.has_value())
             {
               frame += (uint32_t)framed_entries->size();
@@ -384,7 +384,7 @@ namespace asynchost
       const std::string& service)
     {
       auto s = TCP(true, client_connection_timeout);
-      s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node_id));
+      s->set_behaviour(std::make_unique<NodeOutgoingBehaviour>(*this, node_id));
 
       if (!s->connect(host, service, client_interface))
       {

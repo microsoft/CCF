@@ -65,6 +65,20 @@ Architecture
     Receipts can be used with the ledger for audit purposes.
 
 
+    ---
+
+    :fa:`address-book` :doc:`tls_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of TLS communication.
+
+    ---
+
+    :fa:`address-book` :doc:`quic_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of QUIC communication (in progress).
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -78,3 +92,5 @@ Architecture
     node_to_node
     indexing
     receipts
+    tls_internals
+    quic_internals

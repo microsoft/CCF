@@ -6,18 +6,17 @@
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/quote.h"
+#include "ccf/odata_error.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
-#include "crypto/hash.h"
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
-#include "node/entities.h"
 #include "node/network_state.h"
-#include "node/quote.h"
-#include "node/rpc/error.h"
+#include "node/rpc/jwt_management.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -109,6 +108,30 @@ namespace ccf
   {
   private:
     NetworkState& network;
+    ccf::AbstractNodeOperation& node_operation;
+
+    static std::pair<http_status, std::string> quote_verification_error(
+      QuoteVerificationResult result)
+    {
+      switch (result)
+      {
+        case QuoteVerificationResult::Failed:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
+        case QuoteVerificationResult::FailedCodeIdNotFound:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote does not contain known enclave measurement");
+        case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote report data does not contain node's public key hash");
+        default:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Unknown quote verification error");
+      }
+    }
 
     struct ExistingNodeInfo
     {
@@ -214,9 +237,8 @@ namespace ccf
       CodeDigest code_digest;
 
 #ifdef GET_QUOTE
-      QuoteVerificationResult verify_result =
-        this->context.get_node_state().verify_quote(
-          tx, in.quote_info, pubk_der, code_digest);
+      QuoteVerificationResult verify_result = this->node_operation.verify_quote(
+        tx, in.quote_info, pubk_der, code_digest);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -302,8 +324,8 @@ namespace ccf
         }
 
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
-          context.get_node_state().is_part_of_public_network(),
-          context.get_node_state().get_last_recovered_signed_idx(),
+          node_operation.is_part_of_public_network(),
+          node_operation.get_last_recovered_signed_idx(),
           this->network.consensus_type,
           reconfiguration_type,
           this->network.ledger_secrets->get(tx),
@@ -316,15 +338,16 @@ namespace ccf
 
   public:
     NodeEndpoints(
-      NetworkState& network, ccfapp::AbstractNodeContext& context_) :
+      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
-      network(network)
+      network(network_),
+      node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>())
     {
       openapi_info.title = "CCF Public Node API";
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.13.0";
+      openapi_info.document_version = "2.14.1";
     }
 
     void init_handlers() override
@@ -335,9 +358,9 @@ namespace ccf
         const auto in = params.get<JoinNetworkNodeToNode::In>();
 
         if (
-          !this->context.get_node_state().is_part_of_network() &&
-          !this->context.get_node_state().is_part_of_public_network() &&
-          !this->context.get_node_state().is_reading_private_ledger())
+          !this->node_operation.is_part_of_network() &&
+          !this->node_operation.is_part_of_public_network() &&
+          !this->node_operation.is_reading_private_ledger())
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -360,7 +383,7 @@ namespace ccf
         // If the joiner and this node both started from a snapshot, make sure
         // that the joiner's snapshot is more recent than this node's snapshot
         auto this_startup_seqno =
-          this->context.get_node_state().get_startup_snapshot_seqno();
+          this->node_operation.get_startup_snapshot_seqno();
         if (
           this_startup_seqno.has_value() && in.startup_seqno.has_value() &&
           this_startup_seqno.value() > in.startup_seqno.value())
@@ -394,7 +417,9 @@ namespace ccf
           service_config->reconfiguration_type.value_or(
             ReconfigurationType::ONE_TRANSACTION);
 
-        if (active_service->status == ServiceStatus::OPENING)
+        if (
+          active_service->status == ServiceStatus::OPENING ||
+          active_service->status == ServiceStatus::RECOVERING)
         {
           // If the service is opening, new nodes are trusted straight away
           NodeStatus joining_node_status = NodeStatus::TRUSTED;
@@ -407,8 +432,8 @@ namespace ccf
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
-              context.get_node_state().is_part_of_public_network(),
-              context.get_node_state().get_last_recovered_signed_idx(),
+              node_operation.is_part_of_public_network(),
+              node_operation.get_last_recovered_signed_idx(),
               this->network.consensus_type,
               reconfiguration_type,
               this->network.ledger_secrets->get(
@@ -422,7 +447,7 @@ namespace ccf
 
           if (
             consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->context.get_node_state().can_replicate())
+            !this->node_operation.can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -486,8 +511,8 @@ namespace ccf
           if (is_taking_part_in_acking(node_status))
           {
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
-              context.get_node_state().is_part_of_public_network(),
-              context.get_node_state().get_last_recovered_signed_idx(),
+              node_operation.is_part_of_public_network(),
+              node_operation.get_last_recovered_signed_idx(),
               this->network.consensus_type,
               reconfiguration_type,
               this->network.ledger_secrets->get(
@@ -516,7 +541,7 @@ namespace ccf
         {
           if (
             consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->context.get_node_state().can_replicate())
+            !this->node_operation.can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -577,7 +602,7 @@ namespace ccf
                          const auto& node_id, const auto& node_info) {
           if (
             node_info.status == ccf::NodeStatus::RETIRED &&
-            node_id != this->context.get_node_state().get_node_id())
+            node_id != this->context.get_node_id())
           {
             nodes->remove(node_id);
             node_endorsed_certificates->remove(node_id);
@@ -599,14 +624,13 @@ namespace ccf
 
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
-        auto [s, rts, lrs] = this->context.get_node_state().state();
-        result.node_id = this->context.get_node_state().get_node_id();
+        auto [s, rts, lrs] = this->node_operation.state();
+        result.node_id = this->context.get_node_id();
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
         result.startup_seqno =
-          this->context.get_node_state().get_startup_snapshot_seqno().value_or(
-            0);
+          this->node_operation.get_startup_snapshot_seqno().value_or(0);
 
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get();
@@ -634,7 +658,7 @@ namespace ccf
         if (result == ApiResult::OK)
         {
           Quote q;
-          q.node_id = context.get_node_state().get_node_id();
+          q.node_id = context.get_node_id();
           q.raw = node_quote_info.quote;
           q.endorsements = node_quote_info.endorsements;
           q.format = node_quote_info.format;
@@ -647,7 +671,7 @@ namespace ccf
           // that value when possible and only call the unreliable get_code_id
           // otherwise.
           auto nodes = args.tx.ro(network.nodes);
-          auto node_info = nodes->get(context.get_node_state().get_node_id());
+          auto node_info = nodes->get(context.get_node_id());
           if (node_info.has_value() && node_info->code_digest.has_value())
           {
             q.mrenclave = node_info->code_digest.value();
@@ -922,7 +946,7 @@ namespace ccf
         .install();
 
       auto get_self_node = [this](auto& args) {
-        auto node_id = this->context.get_node_state().get_node_id();
+        auto node_id = this->context.get_node_id();
         auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
         if (info)
@@ -962,7 +986,7 @@ namespace ccf
       auto get_primary_node = [this](auto& args) {
         if (consensus != nullptr)
         {
-          auto node_id = this->context.get_node_state().get_node_id();
+          auto node_id = this->context.get_node_id();
           auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
@@ -1014,7 +1038,7 @@ namespace ccf
         .install();
 
       auto is_primary = [this](auto& args) {
-        if (this->context.get_node_state().can_replicate())
+        if (this->node_operation.can_replicate())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         }
@@ -1153,7 +1177,7 @@ namespace ccf
 
       auto node_metrics = [this](auto& args) {
         NodeMetrics nm;
-        nm.sessions = context.get_node_state().get_session_metrics();
+        nm.sessions = node_operation.get_session_metrics();
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
@@ -1199,7 +1223,7 @@ namespace ccf
         JWTMetrics m;
         // Attempts are recorded by the key refresh code itself, registering
         // before each call to each issuer's keys
-        m.attempts = context.get_node_state().get_jwt_attempts();
+        m.attempts = node_operation.get_jwt_attempts();
         // Success is marked by the fact that the key succeeded and called
         // our internal "jwt_keys/refresh" endpoint.
         auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
@@ -1236,13 +1260,14 @@ namespace ccf
       auto create = [this](auto& ctx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
 
+        bool recovering = node_operation.is_reading_public_ledger();
+
         // This endpoint can only be called once, directly from the starting
         // node for the genesis or end of public recovery transaction to
         // initialise the service
         if (
           network.consensus_type == ConsensusType::CFT &&
-          !context.get_node_state().is_in_initialised_state() &&
-          !context.get_node_state().is_reading_public_ledger())
+          !node_operation.is_in_initialised_state() && !recovering)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1260,7 +1285,7 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.service_cert);
+        g.create_service(in.service_cert, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
@@ -1302,6 +1327,16 @@ namespace ccf
 
           g.init_configuration(in.genesis_info->service_configuration);
           g.set_constitution(in.genesis_info->constitution);
+        }
+        else
+        {
+          // On recovery, force a new ledger chunk
+          auto tx_ = static_cast<kv::CommittableTx*>(&ctx.tx);
+          if (tx_ == nullptr)
+          {
+            throw std::logic_error("Could not cast tx to CommittableTx");
+          }
+          tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
         }
 
         auto endorsed_certificates =
@@ -1480,7 +1515,7 @@ namespace ccf
               "Primary unknown");
           }
 
-          if (primary_id.value() != context.get_node_state().get_node_id())
+          if (primary_id.value() != context.get_node_id())
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,

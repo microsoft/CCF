@@ -23,7 +23,7 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
-    virtual void init(Index idx) {}
+    virtual void init(Index, Index) {}
 
     virtual void put_entry(
       const std::vector<uint8_t>& original,
@@ -209,7 +209,7 @@ namespace aft
 
     bool recv_authenticated(
       const ccf::NodeId& from_node,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const uint8_t*& data,
       size_t& size) override
     {
@@ -232,7 +232,7 @@ namespace aft
     bool send_encrypted(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const std::vector<uint8_t>& data) override
     {
       return true;
@@ -240,7 +240,7 @@ namespace aft
 
     std::vector<uint8_t> recv_encrypted(
       const ccf::NodeId& fromfpf32,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const uint8_t* data,
       size_t size) override
     {
@@ -369,6 +369,13 @@ namespace aft
       return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
         data, expected_txid);
     }
+
+    bool flag_enabled(kv::AbstractStore::Flag)
+    {
+      return false;
+    }
+
+    void unset_flag(kv::AbstractStore::Flag) {}
   };
 
   class LoggingStubStoreSig : public LoggingStubStore
@@ -385,6 +392,13 @@ namespace aft
       return std::make_unique<
         ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data, expected_txid);
     }
+
+    bool flag_enabled(kv::AbstractStore::Flag)
+    {
+      return false;
+    }
+
+    void unset_flag(kv::AbstractStore::Flag) {}
   };
 
   class StubSnapshotter

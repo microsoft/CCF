@@ -123,6 +123,113 @@ TEST_CASE("Basic ringbuffer" * doctest::test_suite("ringbuffer"))
   }
 }
 
+TEST_CASE("Buffer size and alignment" * doctest::test_suite("ringbuffer"))
+{
+  {
+    INFO("previous_power_of_2");
+    REQUIRE(ringbuffer::Const::previous_power_of_2(1) == 1);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(2) == 2);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(3) == 2);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4) == 4);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(5) == 4);
+
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4194303) == 2097152);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4194304) == 4194304);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(4194305) == 4194304);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(5252525) == 4194304);
+
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8589934591) == 4294967296);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8589934592) == 8589934592);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8589934593) == 8589934592);
+    REQUIRE(ringbuffer::Const::previous_power_of_2(8989898989) == 8589934592);
+
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1125899906842623) ==
+      562949953421312);
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1125899906842624) ==
+      1125899906842624);
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1125899906842625) ==
+      1125899906842624);
+    REQUIRE(
+      ringbuffer::Const::previous_power_of_2(1234567890987654) ==
+      1125899906842624);
+  }
+
+  {
+    INFO("Explicit tests");
+    constexpr uint8_t size = 32;
+    auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
+
+    REQUIRE_NOTHROW(Reader(buffer->bd));
+
+    buffer->bd.size = 3;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 7;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 8;
+    REQUIRE_NOTHROW(Reader(buffer->bd));
+
+    buffer->bd.size = 9;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 31;
+    REQUIRE_THROWS(Reader(buffer->bd));
+
+    buffer->bd.size = 32;
+    REQUIRE_NOTHROW(Reader(buffer->bd));
+
+    auto data = buffer->bd.data;
+    for (auto i = 0; i < buffer->bd.size; ++i)
+    {
+      buffer->bd.data = data + i;
+      if (i % 8 == 0)
+      {
+        REQUIRE_NOTHROW(Reader(buffer->bd));
+      }
+      else
+      {
+        REQUIRE_THROWS(Reader(buffer->bd));
+      }
+    }
+  }
+
+  {
+    INFO("Correcting a misaligned buffer");
+    constexpr size_t orig_size = 64;
+    uint8_t* orig_data = new uint8_t[orig_size];
+
+    ringbuffer::Offsets offsets;
+
+    ringbuffer::BufferDef bd;
+    bd.offsets = &offsets;
+
+    for (size_t i = 0; i < orig_size; ++i)
+    {
+      auto data = orig_data + i;
+      size_t size = orig_size - i;
+
+      if (size >= 8)
+      {
+        REQUIRE(ringbuffer::Const::find_acceptable_sub_buffer(data, size));
+        bd.data = data;
+        bd.size = size;
+        REQUIRE_NOTHROW(Reader r(bd));
+      }
+      else
+      {
+        REQUIRE_FALSE(
+          ringbuffer::Const::find_acceptable_sub_buffer(data, size));
+      }
+    }
+
+    delete[] orig_data;
+  }
+}
+
 TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
 {
   constexpr size_t size = 1 << 8;

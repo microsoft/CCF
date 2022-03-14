@@ -3,9 +3,11 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "kv/value.h"
-#include "node/entities.h"
-#include "service/map.h"
+#include "ccf/frame_format.h"
+#include "ccf/kv/value.h"
+#include "ccf/service/map.h"
+#include "ds/serialized.h"
+#include "kv/kv_types.h"
 
 #include <vector>
 
@@ -16,12 +18,12 @@ namespace aft
     kv::TxHistory::RequestID rid;
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
-    uint8_t frame_format = enclave::FrameFormat::http;
+    uint8_t frame_format = ccf::FrameFormat::http;
 
     size_t serialised_size() const
     {
       size_t size = sizeof(rid) + sizeof(bool) + sizeof(size_t) + raw.size() +
-        sizeof(enclave::FrameFormat);
+        sizeof(ccf::FrameFormat);
 
       if (!caller_cert.empty())
       {
@@ -70,7 +72,7 @@ namespace aft
       auto raw_size = serialized::read<size_t>(data_, size_);
       raw = serialized::read(data_, size_, raw_size);
 
-      frame_format = serialized::read<enclave::FrameFormat>(data_, size_);
+      frame_format = serialized::read<ccf::FrameFormat>(data_, size_);
     }
   };
 
@@ -78,6 +80,10 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(Request, rid, caller_cert, raw, frame_format);
 
   using RequestsMap = kv::RawCopySerialisedValue<Request>;
+  namespace Tables
+  {
+    static constexpr auto AFT_REQUESTS = "ccf.internal.consensus.requests";
+  }
 }
 
 namespace kv::serialisers

@@ -2,12 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/tx.h"
-#include "crypto/entropy.h"
-#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "ledger_secret.h"
-#include "service/table_names.h"
 #include "service/tables/secrets.h"
 #include "service/tables/shares.h"
 

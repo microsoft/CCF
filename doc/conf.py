@@ -132,7 +132,7 @@ html_css_files = [
 
 html_js_files = ["https://kit.fontawesome.com/c75a35380d.js"]
 
-html_extra_path = ["../doxygen/"]
+html_extra_path = []
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
@@ -398,7 +398,8 @@ def setup(app):
         app.connect("config-inited", config_inited)
 
     doc_dir = pathlib.Path(app.srcdir)  # CCF/doc/
-    root_dir = os.path.abspath(doc_dir / "..")  # CCF/
+    root_dir = pathlib.Path(os.path.abspath(doc_dir / ".."))  # CCF/
+    out_dir = pathlib.Path(app.outdir)  # CCF/build/html
 
     # import ccf python package to generate docs for this version
     python_path = os.path.abspath(doc_dir / "../python")
@@ -408,6 +409,12 @@ def setup(app):
     breathe_projects["CCF"] = str(doc_dir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=root_dir, check=True)
+        doxygen_html_src = root_dir / "doxygen/html"
+        if doxygen_html_src.exists() and doxygen_html_src.is_dir():
+            doxygen_html_dest = str(out_dir / "doxygen")
+            subprocess.run(
+                ["cp", "-r", str(doxygen_html_src), doxygen_html_dest], check=True
+            )
 
     # configuration generator
     input_file_path = doc_dir / "host_config_schema/cchost_config.json"

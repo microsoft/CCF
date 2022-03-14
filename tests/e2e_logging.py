@@ -7,6 +7,7 @@ import infra.e2e_args
 from infra.tx_status import TxStatus
 import infra.checker
 import infra.jwt_issuer
+import infra.proc
 import http
 from http.client import HTTPResponse
 import ssl
@@ -93,6 +94,7 @@ def verify_receipt(
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs(verify=False)
 def test(network, args):
     network.txs.issue(
         network=network,
@@ -114,14 +116,15 @@ def test(network, args):
 def test_illegal(network, args):
     primary, _ = network.find_primary()
 
-    def send_bad_raw_content(content):
+    cafile = os.path.join(network.common_dir, "service_cert.pem")
+    context = ssl.create_default_context(cafile=cafile)
+    context.load_cert_chain(
+        certfile=os.path.join(network.common_dir, "user0_cert.pem"),
+        keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
+    )
+
+    def send_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
-        cafile = os.path.join(network.common_dir, "service_cert.pem")
-        context = ssl.create_default_context(cafile=cafile)
-        context.load_cert_chain(
-            certfile=os.path.join(network.common_dir, "user0_cert.pem"),
-            keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
-        )
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn = context.wrap_socket(
             sock, server_side=False, server_hostname=primary.get_public_rpc_host()
@@ -131,16 +134,138 @@ def test_illegal(network, args):
         conn.sendall(content)
         response = HTTPResponse(conn)
         response.begin()
-        assert response.status == http.HTTPStatus.BAD_REQUEST, response.status
+        return response
+
+    def send_bad_raw_content(content):
+        response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
-        assert content in response_body, response
+        if response.status == http.HTTPStatus.BAD_REQUEST:
+            assert content in response_body, response_body
+        else:
+            assert response.status in {http.HTTPStatus.NOT_FOUND}, (
+                response.status,
+                response_body,
+            )
 
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
     send_bad_raw_content(b"NOTAVERB ")
     send_bad_raw_content(b"POST / HTTP/42.42")
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
+    # Tests non-UTF8 encoding in OData
+    send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
+
+    for _ in range(40):
+        content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
+        # If we've accidentally produced something that might look like a valid HTTP request prefix, mangle it further
+        first_byte = content[0]
+        if (
+            first_byte >= ord("A")
+            and first_byte <= ord("Z")
+            or first_byte == ord("\r")
+            or first_byte == ord("\n")
+        ):
+            content = b"\00" + content
+        send_bad_raw_content(content)
+
+    def send_corrupt_variations(content):
+        for i in range(len(content) - 1):
+            for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
+                corrupt_content = content[:i] + replacement + content[i + 1 :]
+                send_bad_raw_content(corrupt_content)
+
+    good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
+    response = send_raw_content(good_content)
+    assert response.status == http.HTTPStatus.OK, (response.status, response.read())
+    send_corrupt_variations(good_content)
+
+    # Valid transactions are still accepted
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
+    network.txs.verify()
+
+    return network
+
+
+@reqs.description("Alternative protocols")
+@reqs.supports_methods("/app/log/private", "/app/log/public")
+@reqs.at_least_n_nodes(2)
+def test_protocols(network, args):
+    primary, _ = network.find_primary()
+
+    primary_root = (
+        f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}"
+    )
+    url = f"{primary_root}/node/state"
+    ca_path = os.path.join(network.common_dir, "service_cert.pem")
+
+    common_options = [
+        url,
+        "-sS",
+        "--cacert",
+        ca_path,
+        "-w",
+        "\\n%{http_code}\\n%{http_version}",
+    ]
+
+    def parse_result_out(r):
+        assert r.returncode == 0, r.returncode
+        body = r.stdout.decode()
+        return body.rsplit("\n", 2)
+
+    # Call without any extra args to get golden response
+    res = infra.proc.ccall(
+        "curl",
+        *common_options,
+    )
+    expected_response_body, status_code, http_version = parse_result_out(res)
+    assert status_code == "200", status_code
+    assert http_version == "1.1", http_version
+
+    # Test additional protocols with curl
+    for protocol, expected_result in {
+        # HTTP/1.x requests succeed, as HTTP/1.1
+        "--http1.0": {"http_status": "200", "http_version": "1.1"},
+        "--http1.1": {"http_status": "200", "http_version": "1.1"},
+        # WebSockets upgrade request is ignored
+        "websockets": {"extra_args": [], "http_status": "200", "http_version": "1.1"},
+        # TLS handshake negotiates HTTP/1.1
+        "--http2": {"http_status": "200", "http_version": "1.1"},
+        "--http2-prior-knowledge": {"http_status": "200", "http_version": "1.1"},
+        # HTTP3 is not supported by curl _or_ CCF
+        "--http3": {
+            "errors": [
+                "the installed libcurl version doesn't support this",
+                "option --http3: is unknown",
+            ]
+        },
+    }.items():
+        cmd = ["curl", *common_options]
+        if "extra_args" in expected_result:
+            cmd.extend(expected_result["extra_args"])
+        else:
+            cmd.append(protocol)
+        res = infra.proc.ccall(*cmd)
+        if "errors" not in expected_result:
+            response_body, status_code, http_version = parse_result_out(res)
+            assert (
+                response_body == expected_response_body
+            ), f"{response_body}\n !=\n{expected_response_body}"
+            assert status_code == "200", status_code
+            assert http_version == "1.1", http_version
+        else:
+            assert res.returncode != 0, res.returncode
+            err = res.stderr.decode()
+            expected_errors = expected_result["errors"]
+            assert any(expected_error in err for expected_error in expected_errors), err
 
     # Valid transactions are still accepted
     network.txs.issue(
@@ -159,27 +284,20 @@ def test_illegal(network, args):
 
 @reqs.description("Write/Read large messages on primary")
 @reqs.supports_methods("/app/log/private")
+@app.scoped_txs()
 def test_large_messages(network, args):
-    primary, _ = network.find_primary()
+    check = infra.checker.Checker()
 
-    with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        check = infra.checker.Checker()
-
-        with primary.client("user0") as c:
-            # TLS libraries usually have 16K intrernal buffers, so we start at
-            # 1K and move up to 1M and make sure they can cope with it.
-            # Starting below 16K also helps identify problems (by seeing some
-            # pass but not others, and finding where does it fail).
-            log_id = 40
-            for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2**p)
-                check_commit(
-                    c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
-                    result=True,
-                )
-                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": long_msg})
-                log_id += 1
+    # TLS libraries usually have 16K internal buffers, so we start at
+    # 1K and move up to 1M and make sure they can cope with it.
+    # Starting below 16K also helps identify problems (by seeing some
+    # pass but not others, and finding where does it fail).
+    log_id = 7
+    for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
+        long_msg = "X" * (2**p)
+        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
+        check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
+        log_id += 1
 
     return network
 
@@ -187,45 +305,28 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("/app/log/private")
 def test_remove(network, args):
-    primary, _ = network.find_primary()
+    check = infra.checker.Checker()
 
-    with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        check = infra.checker.Checker()
-
-        with primary.client("user0") as c:
-            log_id = 44
-            msg = "Will be deleted"
-
-            for table in ["private", "public"]:
-                resource = f"/app/log/{table}"
-                check_commit(
-                    c.post(resource, {"id": log_id, "msg": msg}),
-                    result=True,
-                )
-                check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
-                check(
-                    c.delete(f"{resource}?id={log_id}"),
-                    result=None,
-                )
-                get_r = c.get(f"{resource}?id={log_id}")
-                if args.package in ["libjs_generic", "libjs_v8"]:
-                    check(
-                        get_r,
-                        result={"error": "No such key"},
-                    )
-                else:
-                    check(
-                        get_r,
-                        error=lambda status, msg: status
-                        == http.HTTPStatus.BAD_REQUEST.value,
-                    )
+    for priv in [True, False]:
+        txid = network.txs.issue(network, send_public=not priv, send_private=priv)
+        _, log_id = network.txs.get_log_id(txid)
+        network.txs.delete(log_id, priv=priv)
+        r = network.txs.request(log_id, priv=priv)
+        if args.package in ["libjs_generic", "libjs_v8"]:
+            check(r, result={"error": "No such key"})
+        else:
+            check(
+                r,
+                error=lambda status, msg: status == http.HTTPStatus.BAD_REQUEST.value
+                and msg.json()["error"]["code"] == "ResourceNotFound",
+            )
 
     return network
 
 
 @reqs.description("Write/Read/Clear messages on primary")
 @reqs.supports_methods("/app/log/private/all", "/app/log/public/all")
+@app.scoped_txs()
 def test_clear(network, args):
     primary, _ = network.find_primary()
 
@@ -233,8 +334,9 @@ def test_clear(network, args):
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
+        start_log_id = 7
         with primary.client("user0") as c:
-            log_ids = list(range(40, 50))
+            log_ids = list(range(start_log_id, start_log_id + 10))
             msg = "Will be deleted"
 
             for table in ["private", "public"]:
@@ -270,6 +372,7 @@ def test_clear(network, args):
 
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("/app/log/private/count", "/app/log/public/count")
+@app.scoped_txs()
 def test_record_count(network, args):
     primary, _ = network.find_primary()
 
@@ -291,8 +394,9 @@ def test_record_count(network, args):
                 count = get_count(resource)
 
                 # Add several new IDs
+                start_log_id = 7
                 for i in range(10):
-                    log_id = 234 + i
+                    log_id = start_log_id + i
                     check_commit(
                         c.post(resource, {"id": log_id, "msg": msg}),
                         result=True,
@@ -319,38 +423,52 @@ def test_record_count(network, args):
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("/app/log/private/prefix_cert", "/app/log/private")
 def test_cert_prefix(network, args):
-    primary, _ = network.find_primary()
-
+    msg = "This message will be prefixed"
+    log_id = 7
     for user in network.users:
-        with primary.client(user.local_id) as c:
-            log_id = 101
-            msg = "This message will be prefixed"
-            c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
-            r = c.get(f"/app/log/private?id={log_id}")
-            assert f"CN={user.local_id}" in r.body.json()["msg"], r
+        network.txs.issue(
+            network,
+            idx=log_id,
+            msg=msg,
+            send_public=False,
+            url_suffix="prefix_cert",
+            user=user.local_id,
+        )
+        r = network.txs.request(log_id, priv=True, user=user.local_id)
+        prefixed_msg = f"CN={user.local_id}: {msg}"
+        network.txs.priv[log_id][-1]["msg"] = prefixed_msg
+        assert prefixed_msg in r.body.json()["msg"], r
 
     return network
 
 
 @reqs.description("Write as anonymous caller")
 @reqs.supports_methods("/app/log/private/anonymous", "/app/log/private")
+@app.scoped_txs()
 def test_anonymous_caller(network, args):
-    primary, _ = network.find_primary()
-
     # Create a new user but do not record its identity
     network.create_user("user5", args.participants_curve, record=False)
 
-    log_id = 101
+    log_id = 7
     msg = "This message is anonymous"
-    with primary.client("user5") as c:
-        r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
-        assert r.body.json() == True
-        r = c.get(f"/app/log/private?id={log_id}")
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
 
-    with primary.client("user0") as c:
-        r = c.get(f"/app/log/private?id={log_id}")
-        assert msg in r.body.json()["msg"], r
+    network.txs.issue(
+        network,
+        1,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+        user="user5",
+        url_suffix="anonymous",
+    )
+    prefixed_msg = f"Anonymous: {msg}"
+    network.txs.priv[log_id][-1]["msg"] = prefixed_msg
+
+    r = network.txs.request(log_id, priv=True, user="user5")
+    assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
+
+    r = network.txs.request(log_id, priv=True)
+    assert msg in r.body.json()["msg"], r
 
     return network
 
@@ -513,20 +631,15 @@ def test_custom_auth_safety(network, args):
 
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
+@app.scoped_txs()
 def test_raw_text(network, args):
-    primary, _ = network.find_primary()
-
-    log_id = 101
+    log_id = 7
     msg = "This message is not in JSON"
-    with primary.client("user0") as c:
-        r = c.post(
-            f"/app/log/private/raw_text/{log_id}",
-            msg,
-            headers={"content-type": "text/plain"},
-        )
-        assert r.status_code == http.HTTPStatus.OK.value
-        r = c.get(f"/app/log/private?id={log_id}")
-        assert msg in r.body.json()["msg"], r
+
+    r = network.txs.post_raw_text(log_id, msg)
+    assert r.status_code == http.HTTPStatus.OK.value
+    r = network.txs.request(log_id, priv=True)
+    assert msg in r.body.json()["msg"], r
 
     return network
 
@@ -590,6 +703,7 @@ def test_metrics(network, args):
 
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
+@app.scoped_txs()
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
@@ -949,6 +1063,7 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
@@ -961,13 +1076,9 @@ def test_forwarding_frontends(network, args):
         check_commit = infra.checker.Checker(c)
         check = infra.checker.Checker()
         msg = "forwarded_msg"
-        log_id = 123
-        check_commit(
-            c.post("/app/log/private", {"id": log_id, "msg": msg}),
-            result=True,
-        )
-        check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
-
+        log_id = 7
+        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=msg)
+        check(network.txs.request(log_id, priv=True), result={"msg": msg})
         if args.package == "samples/apps/logging/liblogging":
             escaped_query_tests(c, "request_query")
 
@@ -996,9 +1107,11 @@ def test_user_data_ACL(network, args):
         primary, user.service_id, user_data={"isAdmin": True}
     )
 
+    log_id = network.txs.find_max_log_id() + 1
+
     # Confirm that user can now use this endpoint
     with primary.client(user.local_id) as c:
-        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        r = c.post("/app/log/private/admin_only", {"id": log_id, "msg": "hello world"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
     # Remove permission
@@ -1008,7 +1121,7 @@ def test_user_data_ACL(network, args):
 
     # Confirm that user is now forbidden on this endpoint
     with primary.client(user.local_id) as c:
-        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        r = c.post("/app/log/private/admin_only", {"id": log_id, "msg": "hello world"})
         assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
 
     return network
@@ -1131,13 +1244,13 @@ class SentTxs:
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
 @reqs.supports_methods("/app/log/private")
+@app.scoped_txs()
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.client("user0") as c:
         check = infra.checker.Checker()
-        r = c.post("/app/log/private", {"id": 0, "msg": "Ignored"})
-        check(r)
+        r = network.txs.issue(network, 1, idx=0, send_public=False, msg="Ignored")
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
         target_view = r.view
@@ -1176,29 +1289,27 @@ def test_tx_statuses(network, args):
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
+@app.scoped_txs()
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    with primary.client() as mc:
-        check_commit = infra.checker.Checker(mc)
-        msg = "Hello world"
+    msg = "Hello world"
 
-        LOG.info("Write/Read on primary")
-        with primary.client("user0") as c:
-            for j in range(10):
-                idx = j + 10000
-                r = c.post("/app/log/private", {"id": idx, "msg": msg})
-                check_commit(r, result=True)
-                start_time = time.time()
-                while time.time() < (start_time + 3.0):
-                    rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
-                    if rc.status_code == http.HTTPStatus.OK:
-                        receipt = rc.body.json()
-                        verify_receipt(receipt, network.cert)
-                        break
-                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                        time.sleep(0.5)
-                    else:
-                        assert False, rc
+    LOG.info("Write/Read on primary")
+    with primary.client("user0") as c:
+        for j in range(10):
+            idx = j + 10000
+            r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
+            start_time = time.time()
+            while time.time() < (start_time + 3.0):
+                rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    receipt = rc.body.json()
+                    verify_receipt(receipt, network.cert)
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    assert False, rc
 
     return network
 
@@ -1273,6 +1384,7 @@ def test_random_receipts(
 
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
+@app.scoped_txs()
 def test_liveness(network, args):
     network.txs.issue(
         network=network,
@@ -1313,10 +1425,9 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         network = test(network, args)
-        network = test_illegal(network, args)
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_clear(network, args)
@@ -1346,6 +1457,23 @@ def run(args):
         if "v8" not in args.package:
             network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
+
+
+def run_parsing_errors(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
+        network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
+        network = test_illegal(network, args)
+        network = test_protocols(network, args)
 
 
 if __name__ == "__main__":
@@ -1386,6 +1514,21 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
+    cr.add(
+        "js_illegal",
+        run_parsing_errors,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "cpp_illegal",
+        run_parsing_errors,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )

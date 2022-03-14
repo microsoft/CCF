@@ -3,16 +3,16 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 #include "ccf/app_interface.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/signed_req.h"
-#include "ccf/user_frontend.h"
-#include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
 
@@ -125,21 +125,6 @@ auto frontend_process(
   DOCTEST_REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
-}
-
-auto get_vote(
-  MemberRpcFrontend& frontend,
-  ProposalId proposal_id,
-  const MemberId& voter,
-  const crypto::Pem& caller)
-{
-  const auto getter = create_request(
-    nullptr,
-    fmt::format("proposals/{}/ballots/{}", proposal_id, voter),
-    HTTP_GET);
-
-  return parse_response_body<Script>(
-    frontend_process(frontend, getter, caller));
 }
 
 auto activate(

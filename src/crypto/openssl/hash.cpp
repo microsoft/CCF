@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "hash.h"
+#include "crypto/openssl/hash.h"
 
 #include <openssl/sha.h>
 #include <stdexcept>
@@ -36,11 +36,11 @@ namespace crypto
 
   using namespace OpenSSL;
 
-  void openssl_sha256(const CBuffer& data, uint8_t* h)
+  void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
     SHA256_CTX ctx;
     SHA256_Init(&ctx);
-    SHA256_Update(&ctx, data.p, data.rawSize());
+    SHA256_Update(&ctx, data.data(), data.size());
     SHA256_Final(h, &ctx);
   }
 
@@ -55,14 +55,14 @@ namespace crypto
     delete (SHA256_CTX*)ctx;
   }
 
-  void ISha256OpenSSL::update_hash(CBuffer data)
+  void ISha256OpenSSL::update_hash(std::span<const uint8_t> data)
   {
     if (!ctx)
     {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
 
-    SHA256_Update((SHA256_CTX*)ctx, data.p, data.rawSize());
+    SHA256_Update((SHA256_CTX*)ctx, data.data(), data.size());
   }
 
   Sha256Hash ISha256OpenSSL::finalise()

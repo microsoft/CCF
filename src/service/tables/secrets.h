@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/map.h"
 #include "kv/kv_types.h"
-#include "service/map.h"
 
 #include <vector>
 
@@ -33,4 +33,9 @@ namespace ccf
   // This map is used to communicate encrypted ledger secrets from the primary
   // to the backups during recovery (past secrets) and re-keying (new secret)
   using Secrets = ServiceValue<LedgerSecretsForNodes>;
+  namespace Tables
+  {
+    static constexpr auto ENCRYPTED_LEDGER_SECRETS =
+      "public:ccf.internal.encrypted_ledger_secrets";
+  }
 }

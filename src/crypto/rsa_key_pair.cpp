@@ -3,7 +3,7 @@
 
 #include "openssl/rsa_key_pair.h"
 
-#include "rsa_key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
 
 namespace crypto
 {
@@ -50,8 +50,8 @@ namespace crypto
   /**
    * Create a public / private RSA key pair from existing private key data
    */
-  RSAKeyPairPtr make_rsa_key_pair(const Pem& pem, CBuffer pw)
+  RSAKeyPairPtr make_rsa_key_pair(const Pem& pem)
   {
-    return std::make_shared<RSAKeyPairImpl>(pem, pw);
+    return std::make_shared<RSAKeyPairImpl>(pem);
   }
 }

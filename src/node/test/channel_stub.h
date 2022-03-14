@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/entities.h"
 #include "node/node_types.h"
 
 #include <vector>

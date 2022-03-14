@@ -3,16 +3,13 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "crypto/hash.h"
-#include "crypto/verifier.h"
+#include "ccf/service/tables/nodes.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
-#include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node_signature_verify.h"
-#include "service/tables/nodes.h"
 #include "service/tables/signatures.h"
 
 #include <array>
@@ -24,25 +21,24 @@
 // #include "merklecpp_trace.h"
 #include <merklecpp/merklecpp.h>
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<kv::TxHistory::RequestID>
 {
-  template <>
-  struct formatter<kv::TxHistory::RequestID>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
+  {
+    return format_to(
+      ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
+  }
+};
+FMT_END_NAMESPACE
 
 namespace ccf
 {
@@ -199,7 +195,7 @@ namespace ccf
     {
       return {
         {term_of_last_version, version},
-        crypto::Sha256Hash(CBuffer(std::to_string(version))),
+        crypto::Sha256Hash(std::to_string(version)),
         term_of_next_version};
     }
 
@@ -802,7 +798,7 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& data) override
     {
-      crypto::Sha256Hash rh({data.data(), data.size()});
+      crypto::Sha256Hash rh(data);
       log_hash(rh, APPEND);
       std::lock_guard<std::mutex> guard(state_lock);
       replicated_state_tree.append(rh);

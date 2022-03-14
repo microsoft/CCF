@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import functools
 import infra.checker
 import infra.jwt_issuer
 import time
@@ -40,7 +41,8 @@ def sample_list(l, n):
 
 
 class LoggingTxs:
-    def __init__(self, user_id=None, jwt_issuer=None):
+    def __init__(self, user_id=None, jwt_issuer=None, scope=None):
+        self.scope = scope
         self.pub = defaultdict(list)
         self.priv = defaultdict(list)
         self.idx = 0
@@ -70,6 +72,23 @@ class LoggingTxs:
         msgs = txs[idx]
         return (idx, msgs[-1])
 
+    def find_max_log_id(self):
+        max_id = None
+        for txs in [self.priv, self.pub]:
+            for k in txs:
+                if max_id is None or k > max_id:
+                    max_id = k
+        return 0 if max_id is None else max_id
+
+    def get_log_id(self, txid):
+        for p in [True, False]:
+            txs = self.priv if p else self.pub
+            for k, v in txs.items():
+                for e in v:
+                    if e["seqno"] == txid.seqno:
+                        return (p, k)
+        raise ValueError("tx not found")
+
     def issue(
         self,
         network,
@@ -82,6 +101,9 @@ class LoggingTxs:
         send_private=True,
         send_public=True,
         record_claim=False,
+        msg=None,
+        user=None,
+        url_suffix=None,
     ):
         self.network = network
         remote_node, _ = network.find_primary(log_capture=log_capture)
@@ -92,7 +114,11 @@ class LoggingTxs:
             f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
         )
 
-        with remote_node.client(self.user) as c:
+        headers = None
+        if not user:
+            headers = self._get_headers_base()
+
+        with remote_node.client(user or self.user) as c:
             check_commit = infra.checker.Checker(c)
 
             for _ in range(number_txs):
@@ -104,14 +130,22 @@ class LoggingTxs:
                     target_idx = self.idx
 
                 if send_private:
-                    priv_msg = f"Private message at idx {target_idx} [{len(self.priv[target_idx])}]"
+                    if msg:
+                        priv_msg = msg
+                    else:
+                        priv_msg = f"Private message at idx {target_idx} [{len(self.priv[target_idx])}]"
+                    args = {"id": target_idx, "msg": priv_msg}
+                    if self.scope is not None:
+                        args["scope"] = self.scope
+                    url = "/app/log/private"
+                    if url_suffix:
+                        url += "/" + url_suffix
+                    if self.scope is not None:
+                        url += "?scope=" + self.scope
                     rep_priv = c.post(
-                        "/app/log/private",
-                        {
-                            "id": target_idx,
-                            "msg": priv_msg,
-                        },
-                        headers=self._get_headers_base(),
+                        url,
+                        args,
+                        headers=headers,
                         log_capture=log_capture,
                     )
                     assert rep_priv.status_code == http.HTTPStatus.OK, rep_priv
@@ -120,27 +154,41 @@ class LoggingTxs:
                             "msg": priv_msg,
                             "seqno": rep_priv.seqno,
                             "view": rep_priv.view,
+                            "scope": self.scope,
                         }
                     )
                     wait_point = rep_priv
 
                 if send_public:
-                    pub_msg = f"Public message at idx {target_idx} [{len(self.pub[target_idx])}]"
+                    if msg:
+                        pub_msg = msg
+                    else:
+                        pub_msg = f"Public message at idx {target_idx} [{len(self.pub[target_idx])}]"
                     payload = {
                         "id": target_idx,
                         "msg": pub_msg,
                     }
+                    url = "/app/log/public"
+                    if url_suffix:
+                        url += "/" + url_suffix
+                    if self.scope is not None:
+                        url += "?scope=" + self.scope
                     if record_claim:
                         payload["record_claim"] = True
                     rep_pub = c.post(
-                        "/app/log/public",
+                        url,
                         payload,
-                        headers=self._get_headers_base(),
+                        headers=headers,
                         log_capture=log_capture,
                     )
                     assert rep_pub.status_code == http.HTTPStatus.OK, rep_pub
                     self.pub[target_idx].append(
-                        {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
+                        {
+                            "msg": pub_msg,
+                            "seqno": rep_pub.seqno,
+                            "view": rep_pub.view,
+                            "scope": self.scope,
+                        }
                     )
                     wait_point = rep_pub
             if number_txs and wait_for_sync:
@@ -180,6 +228,7 @@ class LoggingTxs:
                     entry["msg"],
                     entry["seqno"],
                     entry["view"],
+                    entry["scope"],
                     priv=False,
                     timeout=timeout,
                     log_capture=log_capture,
@@ -196,6 +245,7 @@ class LoggingTxs:
                             v["msg"],
                             v["seqno"],
                             v["view"],
+                            v["scope"],
                             priv=True,
                             historical=is_historical_entry,
                             timeout=timeout,
@@ -211,11 +261,15 @@ class LoggingTxs:
         msg,
         seqno,
         view,
+        scope,
         priv=True,
         historical=False,
         log_capture=None,
         timeout=3,
     ):
+        if self.scope is not None and scope != self.scope:
+            return
+
         if historical and not priv:
             raise ValueError(
                 "Historical queries are only implemented with private records"
@@ -231,6 +285,10 @@ class LoggingTxs:
                 }
             )
 
+        url = f"{cmd}?id={idx}"
+        if scope is not None:
+            url += "&scope=" + scope
+
         found = False
         start_time = time.time()
         while time.time() < (start_time + timeout):
@@ -239,7 +297,7 @@ class LoggingTxs:
                     c, seqno, view, timeout, log_capture=log_capture
                 )
 
-                rep = c.get(f"{cmd}?id={idx}", headers=headers, log_capture=log_capture)
+                rep = c.get(url, headers=headers, log_capture=log_capture)
                 if rep.status_code == http.HTTPStatus.OK:
                     expected_result = {"msg": msg}
                     assert (
@@ -318,3 +376,108 @@ class LoggingTxs:
             raise LoggingTxsVerifyException(
                 f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
+
+    def delete(self, log_id, priv=False, log_capture=None, user=None):
+        primary, _ = self.network.find_primary(log_capture=log_capture)
+        check = infra.checker.Checker()
+        with primary.client(user or self.user) as c:
+            table = "private" if priv else "public"
+            url = f"/app/log/{table}?id={log_id}"
+            if self.scope is not None:
+                url += "&scope=" + self.scope
+            check(c.delete(url, headers=None if user else self._get_headers_base()))
+            if priv:
+                self.priv.pop(log_id)
+            else:
+                self.pub.pop(log_id)
+
+    def request(self, log_id, priv=False, log_capture=None, user=None):
+        primary, _ = self.network.find_primary(log_capture=log_capture)
+        with primary.client(user or self.user) as c:
+            table = "private" if priv else "public"
+            url = f"/app/log/{table}?id={log_id}"
+            if self.scope is not None:
+                url += "&scope=" + self.scope
+            return c.get(url, headers=None if user else self._get_headers_base())
+
+    def post_raw_text(self, log_id, msg, log_capture=None, user=None):
+        primary, _ = self.network.find_primary(log_capture=log_capture)
+        with primary.client(user or self.user) as c:
+            url = f"/app/log/private/raw_text/{log_id}"
+            if self.scope is not None:
+                url += "?scope=" + self.scope
+            headers = {"content-type": "text/plain"}
+            if not user:
+                headers = {**headers, **self._get_headers_base()}
+            return c.post(
+                url,
+                msg,
+                headers=headers,
+            )
+
+
+def scoped_txs(identity="user0", verify=False):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not isinstance(args[0], infra.network.Network):
+                raise ValueError("expected first argument to be of type Network")
+
+            network = args[0]
+            node = None
+            previous_scope = None
+            headers = {}
+
+            if hasattr(network, "jwt_issuer") and network.jwt_issuer is not None:
+                headers = infra.jwt_issuer.make_bearer_header(
+                    network.jwt_issuer.issue_jwt()
+                )
+            node = network.find_random_node()
+            previous_scope = network.txs.scope
+
+            scope = get_fresh_scope(node, identity, headers)
+
+            if network:
+                network.txs.scope = scope
+                network.txs.network = network
+                r = func(*args, **kwargs)
+            else:
+                r = func(*args, **dict(kwargs, scope=scope))
+
+            if network:
+                if verify:
+                    network.txs.verify(network=network)
+                network.txs.scope = previous_scope
+
+            return r
+
+        def get_count(client, headers, scope, private=False):
+            table = "private" if private else "public"
+            r = client.get(f"/app/log/{table}/count?scope={scope}", headers=headers)
+            if r.status_code == http.HTTPStatus.OK:
+                return int(r.body.json())
+            else:
+                return None
+
+        def get_fresh_scope(node, identity, headers, attempts=5):
+            prefix = func.__name__
+            scope = prefix
+            i = 1
+            while attempts > 0:
+                with node.client(identity) as c:
+                    public_count = get_count(c, headers, scope)
+                    if public_count is None:
+                        attempts -= 1
+                        time.sleep(0.1)
+                    else:
+                        private_count = get_count(c, headers, scope, private=True)
+                        if public_count + private_count == 0:
+                            return scope
+                        else:
+                            scope = f"{prefix}_{i}"
+
+            raise ValueError("fresh scope request failed")
+
+        return wrapper
+
+    return decorator

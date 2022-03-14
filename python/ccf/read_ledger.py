@@ -117,7 +117,12 @@ def dump_entry(entry, table_filter, tables_format_rules):
 
 
 def run(
-    paths, is_snapshot=False, tables=".*", uncommitted=False, tables_format_rules=None
+    paths,
+    is_snapshot=False,
+    tables=".*",
+    uncommitted=False,
+    insecure_skip_verification=False,
+    tables_format_rules=None,
 ):
 
     # Extend and compile rules
@@ -137,10 +142,14 @@ def run(
             dump_entry(snapshot, table_filter, tables_format_rules)
         return True
     else:
-        ledger_dirs = paths
-        ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not uncommitted)
+        ledger_paths = paths
+        ledger = ccf.ledger.Ledger(
+            ledger_paths,
+            committed_only=not uncommitted,
+            insecure_skip_verification=insecure_skip_verification,
+        )
 
-        LOG.info(f"Reading ledger from {ledger_dirs}")
+        LOG.info(f"Reading ledger from {ledger_paths}")
         LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
         try:
@@ -157,9 +166,12 @@ def run(
             LOG.success("Ledger verification complete")
             has_error = False
         finally:
-            LOG.info(
-                f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
-            )
+            if insecure_skip_verification:
+                LOG.warning("Skipped ledger integrity verification")
+            else:
+                LOG.info(
+                    f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
+                )
         return not has_error
 
 
@@ -176,7 +188,10 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "paths", help="Path to ledger directories or snapshot file", nargs="+"
+        "paths",
+        help="Path to ledger directories, ledger chunks, or snapshot file. "
+        "Note that parsing individual ledger chunks requires the additional --insecure-skip-verification option",
+        nargs="+",
     )
     parser.add_argument(
         "-s",
@@ -194,7 +209,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
+    parser.add_argument(
+        "--insecure-skip-verification",
+        help="INSECURE: skip ledger Merkle tree integrity verification",
+        action="store_true",
+        default=False,
+    )
     args = parser.parse_args()
 
-    if not run(args.paths, args.snapshot, args.tables, args.uncommitted):
+    if not run(
+        args.paths,
+        args.snapshot,
+        args.tables,
+        args.uncommitted,
+        args.insecure_skip_verification,
+    ):
         sys.exit(1)

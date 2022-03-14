@@ -5,9 +5,7 @@
 #include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
 #include "consensus/ledger_enclave_types.h"
-#include "crypto/hash.h"
 #include "ds/thread_messaging.h"
-#include "entities.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/snapshot_serdes.h"
@@ -63,20 +61,39 @@ namespace ccf
     // committed
     std::deque<SnapshotInfo> pending_snapshots;
 
+    // Initial snapshot index
+    static constexpr consensus::Index initial_snapshot_idx = 0;
+
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
 
     // Used to suspend snapshot generation during public recovery
     bool snapshot_generation_enabled = true;
 
-    // Indices at which a snapshot will be next generated
-    std::deque<consensus::Index> next_snapshot_indices;
+    // Indices at which a snapshot will be next generated and Boolean to
+    // indicate whether a snapshot was forced at the given index
+    struct SnapshotEntry
+    {
+      consensus::Index idx;
+      bool forced;
+    };
+
+    std::deque<SnapshotEntry> next_snapshot_indices;
 
     void record_snapshot(
       consensus::Index idx,
       consensus::Index evidence_idx,
       const std::vector<uint8_t>& serialised_snapshot)
     {
+      size_t max_message_size = to_host->get_max_message_size();
+      if (serialised_snapshot.size() > max_message_size)
+      {
+        LOG_FAIL_FMT(
+          "Could not write snapshot of size {} > max ring buffer msg size {}",
+          serialised_snapshot.size(),
+          max_message_size);
+        return;
+      }
       RINGBUFFER_WRITE_MESSAGE(
         consensus::snapshot, to_host, idx, evidence_idx, serialised_snapshot);
     }
@@ -166,7 +183,7 @@ namespace ccf
     void update_indices(consensus::Index idx)
     {
       while ((next_snapshot_indices.size() > 1) &&
-             (*std::next(next_snapshot_indices.begin()) <= idx))
+             (std::next(next_snapshot_indices.begin())->idx <= idx))
       {
         next_snapshot_indices.pop_front();
       }
@@ -205,7 +222,7 @@ namespace ccf
       store(store_),
       snapshot_tx_interval(snapshot_tx_interval_)
     {
-      next_snapshot_indices.push_back(last_snapshot_idx);
+      next_snapshot_indices.push_back({initial_snapshot_idx, false});
     }
 
     void init_after_public_recovery()
@@ -215,7 +232,7 @@ namespace ccf
       // generation can continue at the correct interval
       std::lock_guard<std::mutex> guard(lock);
 
-      last_snapshot_idx = next_snapshot_indices.back();
+      last_snapshot_idx = next_snapshot_indices.back().idx;
     }
 
     void set_snapshot_generation(bool enabled)
@@ -239,7 +256,7 @@ namespace ccf
       last_snapshot_idx = idx;
 
       next_snapshot_indices.clear();
-      next_snapshot_indices.push_back(last_snapshot_idx);
+      next_snapshot_indices.push_back({last_snapshot_idx, false});
     }
 
     bool record_committable(consensus::Index idx)
@@ -249,16 +266,34 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
 
       CCF_ASSERT_FMT(
-        idx >= next_snapshot_indices.back(),
+        idx >= next_snapshot_indices.back().idx,
         "Committable seqno {} < next snapshot seqno {}",
         idx,
-        next_snapshot_indices.back());
+        next_snapshot_indices.back().idx);
 
-      if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
+      bool forced = store->flag_enabled(
+        kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      consensus::Index last_unforced_idx = last_snapshot_idx;
+      for (auto it = next_snapshot_indices.rbegin();
+           it != next_snapshot_indices.rend();
+           it++)
       {
-        next_snapshot_indices.push_back(idx);
-        LOG_TRACE_FMT("Recorded {} as snapshot index", idx);
-        return true;
+        if (!it->forced)
+        {
+          last_unforced_idx = it->idx;
+          break;
+        }
+      }
+
+      auto due = (idx - last_unforced_idx) >= snapshot_tx_interval;
+      if (due || forced)
+      {
+        next_snapshot_indices.push_back({idx, !due});
+        LOG_TRACE_FMT(
+          "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
+        store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        return due;
       }
 
       return false;
@@ -301,6 +336,17 @@ namespace ccf
       }
     }
 
+    void schedule_snapshot(consensus::Index idx)
+    {
+      auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
+      msg->data.self = shared_from_this();
+      msg->data.snapshot = store->snapshot(idx);
+      static uint32_t generation_count = 0;
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::ThreadMessaging::get_execution_thread(generation_count++),
+        std::move(msg));
+    }
+
     void commit(consensus::Index idx, bool generate_snapshot)
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
@@ -321,30 +367,30 @@ namespace ccf
       }
 
       CCF_ASSERT_FMT(
-        idx >= next_snapshot_indices.front(),
+        idx >= next_snapshot_indices.front().idx,
         "Cannot commit snapshotter at {}, which is before last snapshottable "
         "idx {}",
         idx,
-        next_snapshot_indices.front());
+        next_snapshot_indices.front().idx);
 
-      auto snapshot_idx = next_snapshot_indices.front();
-      if (snapshot_idx - last_snapshot_idx >= snapshot_tx_interval)
+      auto next = next_snapshot_indices.front();
+      auto due = next.idx - last_snapshot_idx >= snapshot_tx_interval;
+      if (due || next.forced)
       {
-        if (generate_snapshot && snapshot_generation_enabled && snapshot_idx)
+        if (snapshot_generation_enabled && generate_snapshot && next.idx)
         {
-          auto msg =
-            std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-          msg->data.self = shared_from_this();
-          msg->data.snapshot = store->snapshot(snapshot_idx);
-          static uint32_t generation_count = 0;
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::ThreadMessaging::get_execution_thread(
-              generation_count++),
-            std::move(msg));
+          schedule_snapshot(next.idx);
         }
 
-        last_snapshot_idx = snapshot_idx;
-        LOG_TRACE_FMT("Recorded {} as last snapshot index", last_snapshot_idx);
+        if (due && !next.forced)
+        {
+          // last_snapshot_idx records the last normally scheduled, i.e.
+          // unforced, snapshot index, so that backups (which don't know forced
+          // indices) continue the snapshot interval normally.
+          last_snapshot_idx = next.idx;
+          LOG_TRACE_FMT(
+            "Recorded {} as last snapshot index", last_snapshot_idx);
+        }
       }
     }
 
@@ -353,19 +399,19 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
 
       while (!next_snapshot_indices.empty() &&
-             (next_snapshot_indices.back() > idx))
+             (next_snapshot_indices.back().idx > idx))
       {
         next_snapshot_indices.pop_back();
       }
 
       if (next_snapshot_indices.empty())
       {
-        next_snapshot_indices.push_back(last_snapshot_idx);
+        next_snapshot_indices.push_back({last_snapshot_idx, false});
       }
 
       LOG_TRACE_FMT(
         "Rolled back snapshotter: last snapshottable idx is now {}",
-        next_snapshot_indices.front());
+        next_snapshot_indices.front().idx);
 
       while (!pending_snapshots.empty() &&
              (pending_snapshots.back().evidence_idx > idx))

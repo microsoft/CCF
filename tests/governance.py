@@ -212,6 +212,64 @@ def test_member_data(network, args):
     return network
 
 
+@reqs.description("Check /gov/members endpoint")
+def test_all_members(network, args):
+    def run_test_all_members(network):
+        primary, _ = network.find_primary()
+
+        with primary.client() as c:
+            r = c.get("/gov/members")
+            assert r.status_code == http.HTTPStatus.OK.value
+            response_members = r.body.json()
+
+        network_members = network.get_members()
+        assert len(network_members) == len(response_members)
+
+        for member in network_members:
+            assert member.service_id in response_members
+            response_details = response_members[member.service_id]
+            assert response_details["cert"] == member.cert
+            assert (
+                infra.member.MemberStatus(response_details["status"])
+                == member.status_code
+            )
+            assert response_details["member_data"] == member.member_data
+            if member.is_recovery_member:
+                recovery_enc_key = open(
+                    member.member_info["encryption_public_key_file"], encoding="utf-8"
+                ).read()
+                assert response_details["public_encryption_key"] == recovery_enc_key
+            else:
+                assert response_details["public_encryption_key"] is None
+
+    # Test on current network
+    run_test_all_members(network)
+
+    # Test on mid-recovery network
+    network.save_service_identity(args)
+    primary, _ = network.find_primary()
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    # NB: Don't try to get snapshots, since there may not be any committed,
+    # and we cannot wait for commit now that the node is stopped
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    run_test_all_members(recovered_network)
+    recovered_network.recover(args)
+
+    return recovered_network
+
+
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
@@ -394,11 +452,12 @@ def gov(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
         test_member_data(network, args)
+        network = test_all_members(network, args)
         test_quote(network, args)
         test_user(network, args)
         test_jinja_templates(network, args)
@@ -415,7 +474,7 @@ def js_gov(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         governance_js.test_proposal_validation(network, args)
         governance_js.test_proposal_storage(network, args)
         governance_js.test_proposal_withdrawal(network, args)

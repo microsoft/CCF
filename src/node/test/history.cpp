@@ -3,13 +3,11 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/service/tables/nodes.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/entities.h"
-#include "service/blit.h"
-#include "service/tables/nodes.h"
 #include "service/tables/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT

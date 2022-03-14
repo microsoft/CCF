@@ -5,15 +5,15 @@
 #include "logging_schema.h"
 
 // CCF
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/common_auth_policies.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "ccf/user_frontend.h"
+#include "ccf/json_handler.h"
 #include "ccf/version.h"
-#include "crypto/verifier.h"
-#include "node/tx_receipt.h"
+#include "kv/store.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -137,25 +137,76 @@ namespace loggingapp
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
 
-    metrics::Tracker metrics_tracker;
-
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
 
     static void update_first_write(
-      kv::Tx& tx, size_t id, bool is_private = true)
+      kv::Tx& tx,
+      size_t id,
+      bool is_private = true,
+      const optional<std::string>& scope = std::nullopt)
     {
       auto first_writes =
         tx.rw<FirstWritesMap>(is_private ? FIRST_WRITES : PUBLIC_FIRST_WRITES);
       if (!first_writes->has(id))
       {
-        auto records =
-          tx.ro<RecordsMap>(is_private ? PRIVATE_RECORDS : PUBLIC_RECORDS);
+        auto records = tx.ro<RecordsMap>(
+          is_private ? private_records(scope) : public_records(scope));
         const auto prev_version = records->get_version_of_previous_write(id);
         if (prev_version.has_value())
         {
           first_writes->put(id, prev_version.value());
         }
       }
+    }
+
+    std::optional<ccf::TxStatus> get_tx_status(ccf::SeqNo seqno)
+    {
+      ccf::ApiResult result;
+
+      ccf::View view_of_seqno;
+      result = get_view_for_seqno_v1(seqno, view_of_seqno);
+      if (result == ccf::ApiResult::OK)
+      {
+        ccf::TxStatus status;
+        result = get_status_for_txid_v1(view_of_seqno, seqno, status);
+        if (result == ccf::ApiResult::OK)
+        {
+          return status;
+        }
+      }
+
+      return std::nullopt;
+    }
+
+    static std::optional<std::string> get_scope(auto& ctx)
+    {
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+      std::string error_string;
+      return http::get_query_value_opt<std::string>(
+        parsed_query, "scope", error_string);
+    }
+
+    static std::string private_records(auto& ctx)
+    {
+      return private_records(get_scope(ctx));
+    }
+
+    static std::string public_records(auto& ctx)
+    {
+      return public_records(get_scope(ctx));
+    }
+
+    static std::string private_records(const std::optional<std::string>& scope)
+    {
+      return scope.has_value() ? fmt::format("{}-{}", PRIVATE_RECORDS, *scope) :
+                                 PRIVATE_RECORDS;
+    }
+
+    static std::string public_records(const std::optional<std::string>& scope)
+    {
+      return scope.has_value() ? fmt::format("{}-{}", PUBLIC_RECORDS, *scope) :
+                                 PUBLIC_RECORDS;
     }
 
   public:
@@ -166,8 +217,15 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      openapi_info.title = "CCF Sample Logging App";
+      openapi_info.description =
+        "This CCF sample app implements a simple logging application, securely "
+        "recording messages at client-specified IDs. It demonstrates most of "
+        "the features available to CCF apps.";
+      openapi_info.document_version = "1.9.0";
+
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS, context.get_lfs_access(), 10000, 20);
+        PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
@@ -188,9 +246,10 @@ namespace loggingapp
         }
 
         // SNIPPET: private_table_access
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, in.msg);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -218,7 +277,8 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template ro<RecordsMap>(private_records(ctx));
         auto record = records_handle->get(id);
 
         if (record.has_value())
@@ -259,9 +319,10 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         auto removed = records_handle->remove(id);
-        update_first_write(ctx.tx, id);
+        update_first_write(ctx.tx, id, true, get_scope(ctx));
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -272,9 +333,10 @@ namespace loggingapp
         .install();
 
       auto clear = [this](auto& ctx, nlohmann::json&&) {
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->foreach([&ctx](const auto& id, const auto&) {
-          update_first_write(ctx.tx, id);
+          update_first_write(ctx.tx, id, true, get_scope(ctx));
           return true;
         });
         records_handle->clear();
@@ -289,7 +351,8 @@ namespace loggingapp
         .install();
 
       auto count = [this](auto& ctx, nlohmann::json&&) {
-        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template ro<RecordsMap>(private_records(ctx));
         return ccf::make_success(records_handle->size());
       };
       make_endpoint(
@@ -310,9 +373,10 @@ namespace loggingapp
         }
 
         // SNIPPET: public_table_access
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(public_records(ctx));
         records_handle->put(params["id"], in.msg);
-        update_first_write(ctx.tx, in.id, false);
+        update_first_write(ctx.tx, in.id, false, get_scope(ctx));
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
         {
@@ -347,7 +411,7 @@ namespace loggingapp
         }
 
         auto public_records_handle =
-          ctx.tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+          ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
@@ -383,9 +447,10 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(public_records(ctx));
         auto removed = records_handle->remove(id);
-        update_first_write(ctx.tx, id, false);
+        update_first_write(ctx.tx, id, false, get_scope(ctx));
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -400,9 +465,9 @@ namespace loggingapp
 
       auto clear_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
-          ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
+          ctx.tx.template rw<RecordsMap>(public_records(ctx));
         public_records_handle->foreach([&ctx](const auto& id, const auto&) {
-          update_first_write(ctx.tx, id, false);
+          update_first_write(ctx.tx, id, false, get_scope(ctx));
           return true;
         });
         public_records_handle->clear();
@@ -418,7 +483,7 @@ namespace loggingapp
 
       auto count_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
-          ctx.tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+          ctx.tx.template ro<RecordsMap>(public_records(ctx));
         return ccf::make_success(public_records_handle->size());
       };
       make_endpoint(
@@ -444,11 +509,11 @@ namespace loggingapp
           return;
         }
 
-        std::shared_ptr<Verifier> verifier;
+        std::shared_ptr<crypto::Verifier> verifier;
         try
         {
           const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
-          verifier = make_verifier(cert_data);
+          verifier = crypto::make_verifier(cert_data);
         }
         catch (const std::exception& ex)
         {
@@ -461,9 +526,10 @@ namespace loggingapp
 
         const auto log_line =
           fmt::format("{}: {}", verifier->subject(), in.msg);
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
@@ -490,9 +556,10 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -715,9 +782,10 @@ namespace loggingapp
         const std::vector<uint8_t>& content = ctx.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(id, log_line);
-        update_first_write(ctx.tx, id);
+        update_first_write(ctx.tx, id, true, get_scope(ctx));
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -749,7 +817,7 @@ namespace loggingapp
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle =
-          historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+          historical_tx.template ro<RecordsMap>(private_records(ctx));
         const auto v = records_handle->get(id);
 
         if (v.has_value())
@@ -808,7 +876,7 @@ namespace loggingapp
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+            historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -816,7 +884,7 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
-            historical_state->receipt->describe(out.receipt);
+            out.receipt = ccf::describe_receipt(historical_state->receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
@@ -863,7 +931,7 @@ namespace loggingapp
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+            historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -872,7 +940,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
-            historical_state->receipt->describe(out.receipt);
+            out.receipt = ccf::describe_receipt(historical_state->receipt);
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
             out.receipt.leaf_components->claims_digest = std::nullopt;
@@ -938,7 +1006,7 @@ namespace loggingapp
             // It's possible there's been a single write but no subsequent
             // transaction to write this to the FirstWritesMap - check version
             // of previous write
-            auto records = ctx.tx.ro<RecordsMap>(PUBLIC_RECORDS);
+            auto records = ctx.tx.ro<RecordsMap>(public_records(ctx));
             const auto last_written_version =
               records->get_version_of_previous_write(id);
             if (last_written_version.has_value())
@@ -967,7 +1035,7 @@ namespace loggingapp
         {
           // If no end point is specified, use the last time this ID was
           // written to
-          auto records = ctx.tx.ro<RecordsMap>(PUBLIC_RECORDS);
+          auto records = ctx.tx.ro<RecordsMap>(public_records(ctx));
           const auto last_written_version =
             records->get_version_of_previous_write(id);
           if (last_written_version.has_value())
@@ -1009,43 +1077,42 @@ namespace loggingapp
         }
 
         // End of range must be committed
-        if (consensus == nullptr)
+        const auto tx_status = get_tx_status(to_seqno);
+        if (!tx_status.has_value())
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Node is not fully operational");
+            "Unable to retrieve Tx status");
           return;
         }
 
-        const auto view_of_final_seqno = consensus->get_view(to_seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-        const auto tx_status = ccf::evaluate_tx_status(
-          view_of_final_seqno,
-          to_seqno,
-          view_of_final_seqno,
-          committed_view,
-          committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
+        if (tx_status.value() != ccf::TxStatus::Committed)
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
-              "Only committed transactions can be queried. Transaction {}.{} "
-              "is {}",
-              view_of_final_seqno,
+              "Only committed transactions can be queried. Transaction at "
+              "seqno {} is {}",
               to_seqno,
-              ccf::tx_status_to_str(tx_status)));
+              ccf::tx_status_to_str(tx_status.value())));
           return;
         }
 
         const auto indexed_txid = index_per_public_key->get_indexed_watermark();
         if (indexed_txid.seqno < to_seqno)
         {
-          index_per_public_key->extend_index_to(
-            {view_of_final_seqno, to_seqno});
+          {
+            ccf::View view_of_to_seqno;
+            const auto result =
+              get_view_for_seqno_v1(to_seqno, view_of_to_seqno);
+            if (result == ccf::ApiResult::OK)
+            {
+              index_per_public_key->extend_index_to(
+                {view_of_to_seqno, to_seqno});
+            }
+          }
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
           ctx.rpc_ctx->set_response_header(
@@ -1126,7 +1193,7 @@ namespace loggingapp
         {
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+            historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -1256,38 +1323,30 @@ namespace loggingapp
         }
 
         // End of range must be committed
-        if (consensus == nullptr)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Node is not fully operational");
-          return;
-        }
 
         std::sort(seqnos.begin(), seqnos.end());
 
         const auto final_seqno = seqnos.back();
-        const auto view_of_final_seqno = consensus->get_view(final_seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-        const auto tx_status = ccf::evaluate_tx_status(
-          view_of_final_seqno,
-          final_seqno,
-          view_of_final_seqno,
-          committed_view,
-          committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
+        const auto tx_status = get_tx_status(final_seqno);
+        if (!tx_status.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to retrieve Tx status");
+          return;
+        }
+
+        if (tx_status.value() != ccf::TxStatus::Committed)
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
-              "Only committed transactions can be queried. Transaction {}.{} "
-              "is {}",
-              view_of_final_seqno,
+              "Only committed transactions can be queried. Transaction at "
+              "seqno {} is {}",
               final_seqno,
-              ccf::tx_status_to_str(tx_status)));
+              ccf::tx_status_to_str(tx_status.value())));
           return;
         }
 
@@ -1319,8 +1378,7 @@ namespace loggingapp
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        ccf::historical::SeqNoCollection seqno_collection(
-          seqnos.begin(), seqnos.end());
+        ccf::SeqNoCollection seqno_collection(seqnos.begin(), seqnos.end());
 
         auto stores = historical_cache.get_stores_for(handle, seqno_collection);
         if (stores.empty())
@@ -1342,7 +1400,7 @@ namespace loggingapp
         {
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+            historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -1428,9 +1486,9 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto view = ctx.tx.template rw<RecordsMap>(private_records(ctx));
         view->put(in.id, in.msg);
-        update_first_write(ctx.tx, in.id);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -1472,38 +1530,6 @@ namespace loggingapp
         {ccf::user_signature_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
-
-      metrics_tracker.install_endpoint(*this);
-    }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
-    }
-  };
-
-  class Logger : public ccf::RpcFrontend
-  {
-  private:
-    LoggerHandlers logger_handlers;
-
-  public:
-    Logger(ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, logger_handlers),
-      logger_handlers(context)
-    {}
-
-    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
-    {
-      ccf::RpcFrontend::open(identity);
-      logger_handlers.openapi_info.title = "CCF Sample Logging App";
-      logger_handlers.openapi_info.description =
-        "This CCF sample app implements a simple logging application, securely "
-        "recording messages at client-specified IDs. It demonstrates most of "
-        "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "1.7.0";
     }
   };
 }
@@ -1511,10 +1537,10 @@ namespace loggingapp
 namespace ccfapp
 {
   // SNIPPET_START: app_interface
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<loggingapp::Logger>(nwt, context);
+    return std::make_unique<loggingapp::LoggerHandlers>(context);
   }
   // SNIPPET_END: app_interface
 }

@@ -9,7 +9,8 @@
 #include "ccf/endpoints/authentication/jwt_auth.h"
 #include "ccf/endpoints/authentication/sig_auth.h"
 #include "ccf/tx.h"
-#include "v8.h"
+
+#include <v8.h>
 
 using ccf::BaseEndpointRegistry;
 using ccf::endpoints::EndpointContext;

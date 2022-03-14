@@ -95,4 +95,4 @@ Note that this diagram deliberately does not represent host-to-enclave communica
 Doxygen
 -------
 
-Doxygen description of the codebase is available `here </doxygen_html>`__.
+Doxygen description of the codebase is available `here <../doxygen/index.html>`_.

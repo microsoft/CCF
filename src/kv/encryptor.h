@@ -30,7 +30,10 @@ namespace kv
 
       hdr.set_iv_seq(tx_id.version);
       hdr.set_iv_term(tx_id.term);
-      hdr.set_iv_snapshot(entry_type == EntryType::Snapshot);
+      if (entry_type == EntryType::Snapshot)
+      {
+        hdr.set_iv_is_snapshot();
+      }
     }
 
   public:
@@ -38,12 +41,14 @@ namespace kv
 
     size_t get_header_length() override
     {
-      return S::RAW_DATA_SIZE;
+      return S::serialised_size();
     }
 
     uint64_t get_term(const uint8_t* data, size_t size) override
     {
-      return S(data, size).get_term();
+      S s;
+      s.deserialise(data, size);
+      return s.get_term();
     }
 
     /**
@@ -70,7 +75,6 @@ namespace kv
       EntryType entry_type = EntryType::WriteSet) override
     {
       S hdr;
-      cipher.resize(plain.size());
 
       set_iv(hdr, tx_id, entry_type);
 
@@ -80,8 +84,7 @@ namespace kv
         return false;
       }
 
-      key->encrypt(
-        hdr.get_iv(), plain, additional_data, cipher.data(), hdr.tag);
+      key->encrypt(hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
 
       serialised_header = hdr.serialise();
 
@@ -116,7 +119,6 @@ namespace kv
       S hdr;
       hdr.deserialise(serialised_header);
       term = hdr.get_term();
-      plain.resize(cipher.size());
 
       auto key =
         ledger_secrets->get_encryption_key_for(version, historical_hint);
@@ -125,8 +127,8 @@ namespace kv
         return false;
       }
 
-      auto ret = key->decrypt(
-        hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
+      auto ret =
+        key->decrypt(hdr.get_iv(), hdr.tag, cipher, additional_data, plain);
       if (!ret)
       {
         plain.resize(0);

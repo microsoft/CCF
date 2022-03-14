@@ -169,6 +169,10 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/sig_auth.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
+    ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
+    ${CCF_DIR}/src/node/historical_queries_adapter.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
@@ -303,6 +307,29 @@ add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS http_parser.host
+  EXPORT ccf
+  DESTINATION lib
+)
+
+# CCF kv libs
+set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
+                   ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+)
+
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")
+  add_warning_checks(ccf_kv.enclave)
+  install(
+    TARGETS ccf_kv.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
+add_san(ccf_kv.host)
+add_warning_checks(ccf_kv.host)
+install(
+  TARGETS ccf_kv.host
   EXPORT ccf
   DESTINATION lib
 )

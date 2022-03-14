@@ -3,11 +3,12 @@
 #include "js/wrap.h"
 
 #include "ccf/ds/logger.h"
+#include "ccf/rpc_context.h"
+#include "ccf/service/tables/jwt.h"
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
-#include "enclave/rpc_context.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
@@ -15,8 +16,9 @@
 #include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
+#include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/jwt_management.h"
 #include "node/rpc/node_interface.h"
-#include "service/tables/jwt.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -512,7 +514,7 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
 
     auto global_obj = jsctx.get_global_obj();
@@ -527,7 +529,7 @@ namespace ccf::js
         ctx, "No transaction available to rekey ledger");
     }
 
-    bool result = node->rekey_ledger(*tx_ctx_ptr->tx);
+    bool result = gov_effects->rekey_ledger(*tx_ctx_ptr->tx);
 
     if (!result)
     {
@@ -545,16 +547,16 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    if (argc != 0)
+    if (argc != 2)
     {
       return JS_ThrowTypeError(
-        ctx, "Passed %d arguments but expected none", argc);
+        ctx, "Passed %d arguments but expected two", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
 
-    if (node == nullptr)
+    if (gov_effects == nullptr)
     {
       return JS_ThrowInternalError(ctx, "Node state is not set");
     }
@@ -573,7 +575,44 @@ namespace ccf::js
 
     try
     {
-      node->transition_service_to_open(*tx_ctx_ptr->tx);
+      AbstractGovernanceEffects::ServiceIdentities identities;
+
+      size_t prev_bytes_sz = 0;
+      uint8_t* prev_bytes = nullptr;
+      if (!JS_IsUndefined(argv[0]))
+      {
+        prev_bytes = JS_GetArrayBuffer(ctx, &prev_bytes_sz, argv[0]);
+        if (!prev_bytes)
+        {
+          return JS_ThrowTypeError(
+            ctx, "Previous service identity argument is not an array buffer");
+        }
+        identities.previous =
+          std::vector<uint8_t>{prev_bytes, prev_bytes + prev_bytes_sz};
+        LOG_DEBUG_FMT(
+          "previous service identity: {}", ds::to_hex(*identities.previous));
+      }
+
+      if (JS_IsUndefined(argv[1]))
+      {
+        return JS_ThrowInternalError(
+          ctx, "Proposal requires a service identity");
+      }
+
+      size_t next_bytes_sz = 0;
+      uint8_t* next_bytes = JS_GetArrayBuffer(ctx, &next_bytes_sz, argv[1]);
+
+      if (!next_bytes)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Next service identity argument is not an array buffer");
+      }
+
+      identities.next =
+        std::vector<uint8_t>{next_bytes, next_bytes + next_bytes_sz};
+      LOG_DEBUG_FMT("next service identity: {}", ds::to_hex(identities.next));
+
+      gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
     }
     catch (const std::exception& e)
     {
@@ -764,11 +803,15 @@ namespace ccf::js
     uint8_t* digest = JS_GetArrayBuffer(ctx, &digest_size, argv[0]);
 
     if (!digest)
+    {
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+    }
 
     if (digest_size != ccf::ClaimsDigest::Digest::SIZE)
+    {
       return JS_ThrowTypeError(
         ctx, "Argument must be an ArrayBuffer of the right size");
+    }
 
     std::span<uint8_t, ccf::ClaimsDigest::Digest::SIZE> digest_bytes(
       digest, ccf::ClaimsDigest::Digest::SIZE);
@@ -902,7 +945,7 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
     auto ccf = global_obj["ccf"];
@@ -916,12 +959,12 @@ namespace ccf::js
         ctx, "No transaction available to open service");
     }
 
-    node->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
+    gov_effects->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
 
     return JS_UNDEFINED;
   }
 
-  JSValue js_request_ledger_chunk(
+  JSValue js_trigger_ledger_chunk(
     JSContext* ctx,
     JSValueConst this_val,
     [[maybe_unused]] int argc,
@@ -929,7 +972,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
     auto ccf = global_obj["ccf"];
@@ -944,11 +987,44 @@ namespace ccf::js
 
     try
     {
-      node->request_ledger_chunk(*tx_ctx_ptr->tx);
+      gov_effects->trigger_ledger_chunk(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
       LOG_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
+    }
+
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_trigger_snapshot(
+    JSContext* ctx,
+    JSValueConst this_val,
+    [[maybe_unused]] int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
+      JS_GetOpaque(this_val, node_class_id));
+    auto global_obj = jsctx.get_global_obj();
+    auto ccf = global_obj["ccf"];
+    auto kv = ccf["kv"];
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    try
+    {
+      gov_effects->trigger_snapshot(*tx_ctx_ptr->tx);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unable to request snapshot: {}", e.what());
     }
 
     return JS_UNDEFINED;
@@ -997,10 +1073,10 @@ namespace ccf::js
       process_args.push_back(*arg);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
       JS_GetOpaque(this_val, host_class_id));
 
-    node->trigger_host_process_launch(process_args);
+    host_processes->trigger_host_process_launch(process_args);
 
     return JS_UNDEFINED;
   }
@@ -1383,8 +1459,8 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1500,8 +1576,8 @@ namespace ccf::js
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
 
-    // Node state
-    if (node_state != nullptr)
+    // Gov effects
+    if (gov_effects != nullptr)
     {
       if (txctx == nullptr)
       {
@@ -1509,7 +1585,7 @@ namespace ccf::js
       }
 
       auto node = JS_NewObjectClass(ctx, node_class_id);
-      JS_SetOpaque(node, node_state);
+      JS_SetOpaque(node, gov_effects);
       JS_SetPropertyStr(ctx, ccf, "node", node);
       JS_SetPropertyStr(
         ctx,
@@ -1525,7 +1601,7 @@ namespace ccf::js
           ctx,
           js_node_transition_service_to_open,
           "transitionServiceToOpen",
-          0));
+          2));
       JS_SetPropertyStr(
         ctx,
         node,
@@ -1538,14 +1614,19 @@ namespace ccf::js
       JS_SetPropertyStr(
         ctx,
         node,
-        "requestLedgerChunk",
-        JS_NewCFunction(ctx, js_request_ledger_chunk, "requestLedgerChunk", 0));
+        "triggerLedgerChunk",
+        JS_NewCFunction(ctx, js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "triggerSnapshot",
+        JS_NewCFunction(ctx, js_trigger_snapshot, "triggerSnapshot", 0));
     }
 
-    if (host_node_state != nullptr)
+    if (host_processes != nullptr)
     {
       auto host = JS_NewObjectClass(ctx, host_class_id);
-      JS_SetOpaque(host, host_node_state);
+      JS_SetOpaque(host, host_processes);
       JS_SetPropertyStr(ctx, ccf, "host", host);
 
       JS_SetPropertyStr(
@@ -1671,8 +1752,8 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1690,8 +1771,8 @@ namespace ccf::js
         rpc_ctx,
         transaction_id,
         receipt,
-        node_state,
-        host_node_state,
+        gov_effects,
+        host_processes,
         network_state,
         historical_state,
         endpoint_registry,
@@ -1704,8 +1785,8 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1718,8 +1799,8 @@ namespace ccf::js
       rpc_ctx,
       transaction_id,
       receipt,
-      node_state,
-      host_node_state,
+      gov_effects,
+      host_processes,
       network_state,
       historical_state,
       endpoint_registry,

@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
-#include "crypto/key_pair.h"
-#include "crypto/verifier.h"
 #include "kv/kv_types.h"
 
 #include <map>
@@ -138,27 +138,20 @@ namespace aft
 
   struct State
   {
-    State(const ccf::NodeId& my_node_id_) :
-      my_node_id(my_node_id_),
-      current_view(0),
-      last_idx(0),
-      commit_idx(0),
-      cft_watermark_idx(0),
-      new_view_idx(0)
-    {}
+    State(const ccf::NodeId& my_node_id_) : my_node_id(my_node_id_) {}
 
     std::mutex lock;
     std::map<ccf::NodeId, std::shared_ptr<Replica>> configuration;
 
     ccf::NodeId my_node_id;
-    ccf::View current_view;
-    kv::Version last_idx;
-    kv::Version commit_idx;
+    ccf::View current_view = 0;
+    kv::Version last_idx = 0;
+    kv::Version commit_idx = 0;
 
-    kv::Version cft_watermark_idx;
+    kv::Version cft_watermark_idx = 0;
 
     ViewHistory view_history;
-    kv::Version new_view_idx;
+    kv::Version new_view_idx = 0;
     std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
 
     // When running with BFT, replicas do not know which replica to trust as the

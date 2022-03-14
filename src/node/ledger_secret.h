@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/entropy.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "crypto/hmac.h"
-#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "service/tables/secrets.h"
 #include "service/tables/shares.h"
@@ -76,7 +76,7 @@ namespace ccf
   inline LedgerSecretPtr make_ledger_secret()
   {
     return std::make_shared<LedgerSecret>(
-      crypto::create_entropy()->random(crypto::GCM_SIZE_KEY));
+      crypto::create_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE));
   }
 
   inline std::vector<uint8_t> decrypt_previous_ledger_secret_raw(
@@ -85,14 +85,14 @@ namespace ccf
   {
     crypto::GcmCipher encrypted_ls;
     encrypted_ls.deserialise(encrypted_previous_secret_raw);
-    std::vector<uint8_t> decrypted_ls_raw(encrypted_ls.cipher.size());
+    std::vector<uint8_t> decrypted_ls_raw;
 
     if (!ledger_secret->key->decrypt(
           encrypted_ls.hdr.get_iv(),
           encrypted_ls.hdr.tag,
           encrypted_ls.cipher,
-          nullb,
-          decrypted_ls_raw.data()))
+          {},
+          decrypted_ls_raw))
     {
       throw std::logic_error("Decryption of previous ledger secret failed");
     }

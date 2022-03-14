@@ -5,12 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-rc4]
+
+### Added
+
+- Aside from regular release packages, CCF now also provides `unsafe` packages with verbose logging, helpful for troubleshooting. The extent of the logging in these builds make them fundamentally UNSAFE to use for production purposes, hence the name.
+
+### Changed
+
+- The `transition_service_to_open` governance proposal now requires the service identity as an argument to ensure the correct service is started. During recovery, it further requires the previous service identity to ensure the right service is recovered (#3624).
+
+## [2.0.0-rc3]
+
+### Fixed
+
+- Snapshot generation no longer causes a node crash if the snapshot is larger than the ring buffer message size (`memory.max_msg_size`). Instead, the generation of the large snapshot is skipped (#3603).
+
+### Changed
+
+- The C++ types used to define public governance tables are now exposed in public headers. Any C++ applications reading these tables should update their include paths (ie - `#include "service/tables/nodes.h"` => `#include "ccf/service/tables/nodes.h"`) (#3608).
+- `TxReceipt::describe()` has been replaced with `ccf::describe_receipt()`. Includes of the private `node/tx_receipt.h` from C++ applications should be removed (#3610).
+- Python `ccf.read_ledger` and `ccf.ledger_viz` tools now accept paths to individual ledger chunks, to avoid parsing the entire ledger.
+
+### Added
+
+- New `GET /gov/members` endpoint which returns details of all members from the KV (#3615).
+- Add `--insecure-skip-verification` to `ledger_viz` utility, to allow visualisation of unverified ledger chunks (#3618).
+- Add `--split-services` to `ledger_viz` utility, to easily find out at which TxID new services were created (#3621).
+
+## [2.0.0-rc2]
+
+### Changed
+
+- The entry point for creation of C++ apps is now `make_user_endpoints()`. The old entry point `get_rpc_handler()` has been removed (#3562). For an example of the necessary change, see [this diff](https://github.com/microsoft/CCF/commit/5b40ba7b42d5664d787cc7e3cfc9cbe18c01e5a1#diff-78fa25442e77145040265646434b9582d491928819e58be03c5693c01417c6c6) of the logging sample app (#3562).
+- Failed recovery procedures no longer block subsequent recoveries: `.recovery` ledger files are now created while the recovery is in progress and ignored or deleted by nodes on startup (#3563).
+- Corrupted or incomplete ledger files are now recovered gracefully, until the last valid entry (#3585).
+- The CCF public API is now under `include/ccf`, and all application includes of framework code should use only these files.
+
+### Removed
+
+- `get_node_state()` is removed from `AbstractNodeContext`. The local node's ID is still available to endpoints as `get_node_id()`, and other subsystems which are app-visible can be fetched directly (#3552).
+
+### Fixed
+
+- Nodes no longer crash at start-up if the ledger in the read-only ledger directories (`ledger.read_only_directories`) is ahead of the ledger in the main ledger directory (`ledger.directory`) (#3597).
+
 ## [2.0.0-rc1]
 
 ### Added
 
 - The new `endorsement` configuration entry lets operators set the desired TLS certificate endorsement, either service-endorsed or node-endorsed (self-signed), for each network RPC interface of a node, defaulting to service-endorsed (#2875).
-- A new governance action `request_ledger_chunk` to request the creation of a ledger chunk at the next signature (#3519).
+- A new governance action `trigger_ledger_chunk` to request the creation of a ledger chunk at the next signature (#3519).
+- A new governance action `trigger_snapshot` to request the creation of a snapshot at the next signature (#3544).
 
 ### Changed
 
@@ -1206,6 +1252,9 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc4
+[2.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc3
+[2.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc2
 [2.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc1
 [2.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0
 [2.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev8

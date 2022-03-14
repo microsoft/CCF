@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "js/wrap.h"
-#include "node/tx_receipt.h"
 
 namespace ccf::js
 {
@@ -10,8 +9,7 @@ namespace ccf::js
 
   static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptPtr receipt)
   {
-    ccf::Receipt receipt_out;
-    receipt->describe(receipt_out);
+    ccf::Receipt receipt_out = ccf::describe_receipt(receipt);
     auto js_receipt = JS_NewObject(ctx);
     JS_SetPropertyStr(
       ctx,

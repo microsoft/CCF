@@ -58,6 +58,9 @@ def run(args):
                 LOG.warning(
                     "No available snapshot to recover from. Entire transaction history will be replayed."
                 )
+            args.previous_service_identity_file = os.path.join(
+                args.common_dir, "service_cert.pem"
+            )
             network.start_in_recovery(
                 args,
                 args.ledger_dir,
@@ -66,7 +69,7 @@ def run(args):
             )
             network.recover(args)
         else:
-            network.start_and_join(args)
+            network.start_and_open(args)
 
         nodes = network.get_joined_nodes()
         max_len = max([len(str(node.local_node_id)) for node in nodes])

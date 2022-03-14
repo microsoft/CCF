@@ -3,32 +3,30 @@
 #pragma once
 
 #include "ccf/service/signed_req.h"
+#include "ccf/service/tables/cert_bundles.h"
+#include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/constitution.h"
+#include "ccf/service/tables/jwt.h"
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/modules.h"
+#include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/proposals.h"
+#include "ccf/service/tables/service.h"
+#include "ccf/service/tables/users.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
 #include "kv/store.h"
-#include "service/blit.h"
-#include "table_names.h"
 #include "tables/backup_signatures.h"
-#include "tables/cert_bundles.h"
-#include "tables/code_id.h"
 #include "tables/config.h"
-#include "tables/constitution.h"
 #include "tables/governance_history.h"
-#include "tables/jwt.h"
-#include "tables/members.h"
-#include "tables/modules.h"
-#include "tables/nodes.h"
-#include "tables/proposals.h"
 #include "tables/resharing_types.h"
 #include "tables/resharings.h"
 #include "tables/secrets.h"
-#include "tables/service.h"
 #include "tables/shares.h"
 #include "tables/signatures.h"
 #include "tables/snapshot_evidence.h"
 #include "tables/submitted_shares.h"
-#include "tables/users.h"
 #include "tables/view_change.h"
 
 #include <memory>
@@ -99,10 +97,6 @@ namespace ccf
     //
     // bft related tables
     //
-    aft::RequestsMap bft_requests_map;
-    BackupSignaturesMap backup_signatures_map;
-    aft::RevealedNoncesMap revealed_nonces_map;
-    NewViewsMap new_views_map;
     Resharings resharings;
 
     // JS Constitution
@@ -136,10 +130,6 @@ namespace ccf
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       signatures(Tables::SIGNATURES),
       serialise_tree(Tables::SERIALISED_MERKLE_TREE),
-      bft_requests_map(Tables::AFT_REQUESTS),
-      backup_signatures_map(Tables::BACKUP_SIGNATURES),
-      revealed_nonces_map(Tables::NONCES),
-      new_views_map(Tables::NEW_VIEWS),
       resharings(Tables::RESHARINGS),
       constitution(Tables::CONSTITUTION)
     {}

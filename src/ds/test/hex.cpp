@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "../hex.h"
+#include "ccf/ds/hex.h"
 
 #include "ccf/ds/logger.h"
-#include "ds/nonstd.h"
+#include "ccf/ds/nonstd.h"
 
 #include <algorithm>
 #include <cctype>

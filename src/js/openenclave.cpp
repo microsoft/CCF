@@ -34,6 +34,17 @@ namespace ccf::js
     }
   };
 
+  struct CustomClaims
+  {
+    oe_claim_t* data = nullptr;
+    size_t length = 0;
+
+    ~CustomClaims()
+    {
+      oe_free_custom_claims(data, length);
+    }
+  };
+
   static JSValue js_verify_open_enclave_evidence(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
@@ -119,7 +130,7 @@ namespace ccf::js
 
       if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
       {
-        Claims custom_claims;
+        CustomClaims custom_claims;
         rc = oe_deserialize_custom_claims(
           claim.value,
           claim.value_size,

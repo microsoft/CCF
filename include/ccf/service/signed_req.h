@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto.h"
+#include "ccf/crypto/md_type.h"
 #include "ccf/ds/json.h"
 
 #include <vector>
