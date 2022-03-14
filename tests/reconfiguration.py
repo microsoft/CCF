@@ -164,7 +164,10 @@ def test_change_curve(network, args):
 def test_add_node_from_backup(network, args):
     new_node = network.create_node("local://localhost")
     network.join_node(
-        new_node, args.package, args, target_node=network.find_any_backup()
+        new_node,
+        args.package,
+        args,
+        target_node=network.find_any_backup(),
     )
     network.trust_node(new_node, args)
     return network
@@ -562,15 +565,15 @@ def run(args):
         test_version(network, args)
 
         if args.consensus != "BFT":
+            test_add_node(network, args, from_snapshot=False)
             test_add_node_with_read_only_ledger(network, args)
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
-            test_add_node(network, args, from_snapshot=False)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             test_add_as_many_pending_nodes(network, args)
-            test_add_node(network, args, from_snapshot=False)
+            test_add_node(network, args)
             test_retire_primary(network, args)
 
             test_add_node_from_snapshot(network, args)
@@ -644,7 +647,7 @@ def run_join_old_snapshot(args):
                     snapshots_dir=tmp_dir,
                     timeout=3,
                 )
-            except infra.network.StartupSnapshotIsOld:
+            except infra.network.StartupSeqnoIsOld:
                 LOG.info(
                     f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
                 )
@@ -663,7 +666,7 @@ def run_join_old_snapshot(args):
                     from_snapshot=False,
                     timeout=3,
                 )
-            except infra.network.StartupSnapshotIsOld:
+            except infra.network.StartupSeqnoIsOld:
                 LOG.info(
                     f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
                 )
@@ -787,13 +790,13 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
 
-    cr.add(
-        "1tx_reconfig",
-        run_all,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="OneTransaction",
-    )
+    # cr.add(
+    #     "1tx_reconfig",
+    #     run_all,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #     reconfiguration_type="OneTransaction",
+    # )
 
     if cr.args.include_2tx_reconfig:
         cr.add(
@@ -804,12 +807,12 @@ if __name__ == "__main__":
             reconfiguration_type="TwoTransaction",
         )
 
-        cr.add(
-            "migration",
-            run_migration_tests,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="OneTransaction",
-        )
+        # cr.add(
+        #     "migration",
+        #     run_migration_tests,
+        #     package="samples/apps/logging/liblogging",
+        #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        #     reconfiguration_type="OneTransaction",
+        # )
 
     cr.run()

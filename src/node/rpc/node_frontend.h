@@ -380,8 +380,9 @@ namespace ccf
               this->network.consensus_type));
         }
 
-        // If the joiner and this node both started from a snapshot, make sure
-        // that the joiner's snapshot is more recent than this node's snapshot
+        // Make sure that the joiner's snapshot is more recent than this node's
+        // snapshot. Otherwise, the joiner may not be given all the ledger
+        // secrets required to replay historical transactions.
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         if (
@@ -390,7 +391,7 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::StartupSnapshotIsOld,
+            ccf::errors::StartupSeqnoIsOld,
             fmt::format(
               "Node requested to join from seqno {} which is "
               "older than this node startup seqno {}",
