@@ -133,6 +133,8 @@ namespace enclave
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
 
+    /** Associate a claims digest with the current transaction. The digest will
+     * be included in receipts issued for that transaction. */
     virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest)
     {
       claims.set(std::move(digest));

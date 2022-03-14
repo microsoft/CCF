@@ -95,8 +95,8 @@ The proof is empty, and the 'leaf' field is set to the value being signed, which
 This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is _not_
 the digest of the signature transaction itself.
 
-Verification
-------------
+Receipt Verification
+--------------------
 
 Verifying a receipt consists of the following steps:
 
@@ -109,7 +109,7 @@ Verifying a receipt consists of the following steps:
 Application Claims
 ------------------
 
-CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`set_claims_digest()` API, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
+CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`enclave::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
 
 This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
 For example, a logging application may choose to set the digest of the payload being load as `claims_digest`.
@@ -122,3 +122,6 @@ Multiple claims can be registered by storing them in a collection or object whos
 Revealing `hash(claim_a)` and `claim_b` allows verification without revealing `claim_a` in this case.
 
 Although CCF takes the approach of concatenating leaf components to keep its implementation simple and format-agnostic, an application may choose to encode its claims in a structured way for convenience, for example as JSON, CBOR etc.
+
+Applications may wish to expose dedicated endpoints, besides CCF's built-in :http:GET:`/node/receipt`, in which they can selectively expand claims, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
+If some claims must stay confidential, applications should encrypt them rather than merely digest them. They key can be kept in a private table for example, which like the claim will be available through the historical query API. The application logic can then decide whether to decrypt the claim for the caller depending on its authorisation policy.
