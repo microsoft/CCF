@@ -12,13 +12,13 @@ namespace asynchost
   class RPCConnections
   {
   private:
-    class ClientBehaviour : public TCPBehaviour
+    class RPCClientBehaviour : public TCPBehaviour
     {
     public:
       RPCConnections& parent;
       int64_t id;
 
-      ClientBehaviour(RPCConnections& parent, int64_t id) :
+      RPCClientBehaviour(RPCConnections& parent, int64_t id) :
         parent(parent),
         id(id)
       {}
@@ -79,7 +79,7 @@ namespace asynchost
       {
         auto client_id = parent.get_next_id();
         peer->set_behaviour(
-          std::make_unique<ClientBehaviour>(parent, client_id));
+          std::make_unique<RPCClientBehaviour>(parent, client_id));
 
         parent.sockets.emplace(client_id, peer);
 
@@ -161,7 +161,7 @@ namespace asynchost
       }
 
       auto s = TCP(true, client_connection_timeout);
-      s->set_behaviour(std::make_unique<ClientBehaviour>(*this, id));
+      s->set_behaviour(std::make_unique<RPCClientBehaviour>(*this, id));
 
       if (!s->connect(host, service))
       {

@@ -191,6 +191,13 @@ int main(int argc, char** argv)
   ringbuffer::Offsets to_enclave_offsets;
   ringbuffer::BufferDef to_enclave_def{
     to_enclave_buffer.data(), to_enclave_buffer.size(), &to_enclave_offsets};
+  if (!ringbuffer::Const::find_acceptable_sub_buffer(
+        to_enclave_def.data, to_enclave_def.size))
+  {
+    LOG_FATAL_FMT(
+      "Unable to construct valid inbound buffer of size {}", buffer_size);
+    return static_cast<int>(CLI::ExitCodes::ValidationError);
+  }
 
   std::vector<uint8_t> from_enclave_buffer(buffer_size);
   ringbuffer::Offsets from_enclave_offsets;
@@ -198,6 +205,13 @@ int main(int argc, char** argv)
     from_enclave_buffer.data(),
     from_enclave_buffer.size(),
     &from_enclave_offsets};
+  if (!ringbuffer::Const::find_acceptable_sub_buffer(
+        from_enclave_def.data, from_enclave_def.size))
+  {
+    LOG_FATAL_FMT(
+      "Unable to construct valid outbound buffer of size {}", buffer_size);
+    return static_cast<int>(CLI::ExitCodes::ValidationError);
+  }
 
   ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
   messaging::BufferProcessor bp("Host");
@@ -321,11 +335,11 @@ int main(int argc, char** argv)
     std::vector<uint8_t> service_cert(certificate_size);
 
     EnclaveConfig enclave_config;
-    enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
-    enclave_config.to_enclave_buffer_size = to_enclave_buffer.size();
+    enclave_config.to_enclave_buffer_start = to_enclave_def.data;
+    enclave_config.to_enclave_buffer_size = to_enclave_def.size;
     enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
-    enclave_config.from_enclave_buffer_start = from_enclave_buffer.data();
-    enclave_config.from_enclave_buffer_size = from_enclave_buffer.size();
+    enclave_config.from_enclave_buffer_start = from_enclave_def.data;
+    enclave_config.from_enclave_buffer_size = from_enclave_def.size;
     enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
     enclave_config.writer_config = writer_config;
@@ -410,6 +424,16 @@ int main(int argc, char** argv)
       LOG_INFO_FMT("Creating new node - recover");
       startup_config.initial_service_certificate_validity_days =
         config.command.recover.initial_service_certificate_validity_days;
+      auto idf = config.command.recover.previous_service_identity_file;
+      if (!files::exists(idf))
+      {
+        throw std::logic_error(fmt::format(
+          "Recovery requires a previous service identity certificate; cannot "
+          "open '{}'",
+          idf));
+      }
+      LOG_INFO_FMT("Reading previous service identity from {}", idf);
+      startup_config.recover.previous_service_identity = files::slurp(idf);
     }
     else
     {

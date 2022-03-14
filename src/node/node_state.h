@@ -19,6 +19,7 @@
 #include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/attestation_types.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
@@ -62,6 +63,64 @@ namespace ccf
     data.shrink_to_fit();
   }
 
+#ifdef GET_QUOTE
+  static QuoteInfo generate_quote(
+    const std::vector<uint8_t>& node_public_key_der)
+  {
+    QuoteInfo node_quote_info;
+    node_quote_info.format = QuoteFormat::oe_sgx_v1;
+
+    crypto::Sha256Hash h{node_public_key_der};
+
+    Evidence evidence;
+    Endorsements endorsements;
+    SerialisedClaims serialised_custom_claims;
+
+    // Serialise hash of node's public key as a custom claim
+    const size_t custom_claim_length = 1;
+    oe_claim_t custom_claim;
+    custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
+    custom_claim.value = h.h.data();
+    custom_claim.value_size = h.SIZE;
+
+    auto rc = oe_serialize_custom_claims(
+      &custom_claim,
+      custom_claim_length,
+      &serialised_custom_claims.buffer,
+      &serialised_custom_claims.size);
+    if (rc != OE_OK)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not serialise node's public key as quote custom claim: {}",
+        oe_result_str(rc)));
+    }
+
+    rc = oe_get_evidence(
+      &oe_quote_format,
+      0,
+      serialised_custom_claims.buffer,
+      serialised_custom_claims.size,
+      nullptr,
+      0,
+      &evidence.buffer,
+      &evidence.size,
+      &endorsements.buffer,
+      &endorsements.size);
+    if (rc != OE_OK)
+    {
+      throw std::logic_error(
+        fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
+    }
+
+    node_quote_info.quote.assign(
+      evidence.buffer, evidence.buffer + evidence.size);
+    node_quote_info.endorsements.assign(
+      endorsements.buffer, endorsements.buffer + endorsements.size);
+
+    return node_quote_info;
+  }
+#endif
+
   class NodeState : public ccf::AbstractNodeState
   {
   private:
@@ -82,9 +141,6 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
-#ifdef GET_QUOTE
-    EnclaveAttestationProvider enclave_attestation_provider;
-#endif
 
     //
     // kv store, replication, and I/O
@@ -175,7 +231,8 @@ namespace ccf
         hooks,
         &view_history,
         true,
-        config.startup_snapshot_evidence_seqno_for_1_x);
+        config.startup_snapshot_evidence_seqno_for_1_x,
+        config.recover.previous_service_identity);
 
       startup_seqno = startup_snapshot_info->seqno;
       ledger_idx = startup_seqno.value();
@@ -210,7 +267,7 @@ namespace ccf
       CodeDigest& code_digest) override
     {
 #ifdef GET_QUOTE
-      return enclave_attestation_provider.verify_quote_against_store(
+      return EnclaveAttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
 #else
       (void)tx;
@@ -279,9 +336,8 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      quote_info = enclave_attestation_provider.generate_quote(
-        node_sign_kp->public_key_der());
-      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      quote_info = generate_quote(node_sign_kp->public_key_der());
+      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
         node_code_id = code_id.value();
@@ -361,6 +417,13 @@ namespace ccf
         }
         case StartType::Recover:
         {
+          if (!config.recover.previous_service_identity)
+          {
+            throw std::logic_error(
+              "Recovery requires the certificate of the previous service "
+              "identity");
+          }
+
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             curve_id,
             config.startup_host_time,
@@ -533,7 +596,8 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info->public_only,
-                startup_snapshot_info->evidence_seqno);
+                startup_snapshot_info->evidence_seqno,
+                config.recover.previous_service_identity);
 
               for (auto& hook : hooks)
               {
@@ -1187,7 +1251,8 @@ namespace ccf
           hooks,
           &view_history,
           false,
-          startup_snapshot_info->evidence_seqno);
+          startup_snapshot_info->evidence_seqno,
+          config.recover.previous_service_identity);
         startup_snapshot_info.reset();
       }
 
@@ -1233,7 +1298,9 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(AppMessage::launch_host_process, to_host, json);
     }
 
-    void transition_service_to_open(kv::Tx& tx) override
+    void transition_service_to_open(
+      kv::Tx& tx,
+      AbstractGovernanceEffects::ServiceIdentities identities) override
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -1254,6 +1321,31 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Service in state {} is already open", service_info->status);
         return;
+      }
+
+      if (
+        service_info->status == ServiceStatus::RECOVERING &&
+        (!config.recover.previous_service_identity ||
+         !identities.previous.has_value()))
+      {
+        throw std::logic_error(
+          "Recovery with service certificates requires both, a previous "
+          "service identity certificate during node startup and a "
+          "transition_service_to_open proposal that contains previous and next "
+          "service certificates");
+      }
+
+      if (identities.next != service_info->cert)
+      {
+        throw std::logic_error(
+          "Service identity mismatch: the next service identity in the "
+          "transition_service_to_open proposal does not match the current "
+          "service identity");
+      }
+
+      if (identities.previous)
+      {
+        service_info->previous_service_identity = *identities.previous;
       }
 
       if (is_part_of_public_network())

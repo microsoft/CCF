@@ -226,7 +226,7 @@ def run_code_upgrade_from(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
                 network.trust_node(new_node, args)
-                # For 2.x nodes joining a 1.x service before the constitution is update,
+                # For 2.x nodes joining a 1.x service before the constitution is updated,
                 # the node certificate validity period is set by the joining node itself
                 # as [node startup time, node startup time + 365 days]
                 new_node.verify_certificate_validity_period(
@@ -416,6 +416,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
             else:
                 version = args.ccf_version
                 install_path = LOCAL_CHECKOUT_DIRECTORY
+                get_new_constitution_for_install(args, install_path)
 
             binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
                 install_path
@@ -487,8 +488,9 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
-                ledger_dir, committed_ledger_dirs = primary.get_ledger()
                 network.stop_all_nodes(skip_verification=True)
+                ledger_dir, committed_ledger_dirs = primary.get_ledger()
+                network.save_service_identity(args)
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()

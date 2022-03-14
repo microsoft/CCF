@@ -1,20 +1,6 @@
 steps:
   - script: |
       set -ex
-      cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
-      cpack -V -G DEB
-      INITIAL_PKG=`ls *.deb`
-      GITHUB_PKG=${INITIAL_PKG//\~/_}
-      if [[ "$INITIAL_PKG" != "$GITHUB_PKG" ]]; then
-        mv $INITIAL_PKG $GITHUB_PKG
-      fi
-      cp $GITHUB_PKG $(Build.ArtifactStagingDirectory)
-      echo "##vso[task.setvariable variable=pkgname]$GITHUB_PKG"
-    workingDirectory: build
-    displayName: "Make .deb package"
-
-  - script: |
-      set -ex
       python3.8 -m venv env
       source ./env/bin/activate
       pip install -r requirements.txt
@@ -51,12 +37,6 @@ steps:
       set -ex
       ./tests/test_install_build.sh
     displayName: Test building a sample against installed CCF
-
-  - task: PublishPipelineArtifact@1
-    inputs:
-      path: $(Build.ArtifactStagingDirectory)/$(pkgname)
-      artifact: $(pkgname)
-      displayName: "Publish CCF Debian Package"
 
   - task: PublishPipelineArtifact@1
     inputs:

@@ -23,7 +23,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "nodes": {
-            "$ref": "#/components/schemas/EntityId_to_Configuration__NodeInfo"
+            "$ref": "#/components/schemas/NodeId_to_Configuration__NodeInfo"
           },
           "rid": {
             "$ref": "#/components/schemas/uint64"
@@ -67,7 +67,7 @@
       "ConsensusDetails": {
         "properties": {
           "acks": {
-            "$ref": "#/components/schemas/EntityId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_uint64"
           },
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
@@ -76,7 +76,7 @@
             "$ref": "#/components/schemas/LeadershipState"
           },
           "learners": {
-            "$ref": "#/components/schemas/EntityId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_uint64"
           },
           "membership_state": {
             "$ref": "#/components/schemas/MembershipState"
@@ -172,23 +172,6 @@
         },
         "type": "array"
       },
-      "EntityId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
-      "EntityId_to_Configuration__NodeInfo": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Configuration__NodeInfo"
-        },
-        "type": "object"
-      },
-      "EntityId_to_uint64": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/uint64"
-        },
-        "type": "object"
-      },
       "GetCode__Out": {
         "properties": {
           "versions": {
@@ -238,7 +221,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "service_certificate": {
             "$ref": "#/components/schemas/Pem"
@@ -258,7 +241,7 @@
       "GetNode__NodeInfo": {
         "properties": {
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "primary": {
             "$ref": "#/components/schemas/boolean"
@@ -315,7 +298,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/uint64"
@@ -431,6 +414,23 @@
         ],
         "type": "object"
       },
+      "NodeId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "NodeId_to_Configuration__NodeInfo": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Configuration__NodeInfo"
+        },
+        "type": "object"
+      },
+      "NodeId_to_uint64": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/uint64"
+        },
+        "type": "object"
+      },
       "NodeInfoNetwork_v2__NetInterface": {
         "properties": {
           "bind_address": {
@@ -490,7 +490,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "raw": {
             "$ref": "#/components/schemas/base64string"
@@ -528,7 +528,7 @@
             "$ref": "#/components/schemas/Receipt__LeafComponents"
           },
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "proof": {
             "$ref": "#/components/schemas/Receipt__Element_array"
@@ -622,7 +622,7 @@
           "Opening",
           "Open",
           "WaitingForRecoveryShares",
-          "Closed"
+          "Recovering"
         ],
         "type": "string"
       },
@@ -738,7 +738,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.13.0"
+    "version": "2.14.1"
   },
   "openapi": "3.0.0",
   "paths": {

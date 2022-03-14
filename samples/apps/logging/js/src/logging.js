@@ -15,6 +15,16 @@ function get_id_from_query(parsedQuery) {
   return ccf.strToBuf(parsedQuery.id);
 }
 
+function public_records(store, scope) {
+  if (scope === undefined) return store["public:records"];
+  return store["public:records-" + scope];
+}
+
+function private_records(store, scope) {
+  if (scope === undefined) return store["records"];
+  return store["records-" + scope];
+}
+
 function get_record(map, id) {
   const msg = map.get(id);
   if (msg === undefined) {
@@ -30,22 +40,24 @@ function delete_record(map, id) {
   return { body: true };
 }
 
-function update_first_write(id, is_private = false) {
+function update_first_write(id, is_private = false, scope) {
   const first_writes =
     ccf.kv[is_private ? "first_write_version" : "public:first_write_version"];
   if (!first_writes.has(id)) {
-    const private_records = ccf.kv[is_private ? "records" : "public:records"];
-    const prev_version = private_records.getVersionOfPreviousWrite(id);
+    const records = is_private
+      ? private_records(ccf.kv, scope)
+      : public_records(ccf.kv, scope);
+    const prev_version = records.getVersionOfPreviousWrite(id);
     if (prev_version) {
       first_writes.set(id, ccf.jsonCompatibleToBuf(prev_version));
     }
   }
 }
 
-export function get_private(request) {
+export function get_private(request, scope) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
-  return get_record(ccf.kv["records"], id);
+  return get_record(private_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function get_historical(request) {
@@ -53,7 +65,7 @@ export function get_historical(request) {
   const id = get_id_from_query(parsedQuery);
   // Forward-compatibility with 2.x
   const kv = ccf.historicalState.kv || ccf.kv;
-  return get_record(kv["records"], id);
+  return get_record(private_records(kv, parsedQuery.scope), id);
 }
 
 export function get_historical_with_receipt(request) {
@@ -67,7 +79,7 @@ export function get_historical_public(request) {
   const id = get_id_from_query(parsedQuery);
   // Forward-compatibility with 2.x
   const kv = ccf.historicalState.kv || ccf.kv;
-  return get_record(kv["public:records"], id);
+  return get_record(public_records(kv, parsedQuery.scope), id);
 }
 
 export function get_historical_public_with_receipt(request) {
@@ -90,12 +102,11 @@ function get_first_write_version(id, is_private = true) {
   return version;
 }
 
-function get_last_write_version(id, is_private = true) {
-  const version =
-    ccf.kv[is_private ? "records" : "public:records"].getVersionOfPreviousWrite(
-      id
-    );
-  return version;
+function get_last_write_version(id, is_private = true, scope) {
+  const records = is_private
+    ? private_records(ccf.kv, scope)
+    : public_records(ccf.kv, scope);
+  return records.getVersionOfPreviousWrite(id);
 }
 
 function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
@@ -200,8 +211,12 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
 
   // Process the fetched states
   const entries = [];
+  const scope = parsedQuery.scope;
   for (const state of states) {
-    const msg = state.kv[isPrivate ? "records" : "public:records"].get(id);
+    const records = isPrivate
+      ? private_records(state.kv, scope)
+      : public_records(state.kv, scope);
+    const msg = records.get(id);
     if (msg !== undefined) {
       entries.push({
         seqno: parseInt(state.transactionId.split(".")[1]),
@@ -272,21 +287,23 @@ export function get_historical_range_public(request) {
 export function get_public(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
-  return get_record(ccf.kv["public:records"], id);
+  return get_record(public_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function post_private(request) {
+  const parsedQuery = parse_request_query(request);
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
-  ccf.kv["records"].set(id, ccf.strToBuf(params.msg));
+  private_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
   update_first_write(id);
   return { body: true };
 }
 
 export function post_public(request) {
+  const parsedQuery = parse_request_query(request);
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
-  ccf.kv["public:records"].set(id, ccf.strToBuf(params.msg));
+  public_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
   update_first_write(id, false);
   if (params.record_claim) {
     const claims_digest = ccf.digest("SHA-256", ccf.strToBuf(params.msg));
@@ -299,38 +316,46 @@ export function delete_private(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
   update_first_write(id);
-  return delete_record(ccf.kv["records"], id);
+  return delete_record(private_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function delete_public(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
   update_first_write(id, false);
-  return delete_record(ccf.kv["public:records"], id);
+  return delete_record(public_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function clear_private(request) {
-  ccf.kv["records"].forEach((_, id) => {
+  const parsedQuery = parse_request_query(request);
+  const records = private_records(ccf.kv, parsedQuery.scope);
+  records.forEach((_, id) => {
     update_first_write(id);
   });
-  ccf.kv["records"].clear();
+  records.clear();
   return { body: true };
 }
 
 export function clear_public(request) {
-  ccf.kv["public:records"].forEach((_, id) => {
+  const parsedQuery = parse_request_query(request);
+  const records = public_records(ccf.kv, parsedQuery.scope);
+  records.forEach((_, id) => {
     update_first_write(id, false);
   });
-  ccf.kv["public:records"].clear();
+  records.clear();
   return { body: true };
 }
 
 export function count_private(request) {
-  const count = ccf.kv["records"].size;
+  const parsedQuery = parse_request_query(request);
+  const records = private_records(ccf.kv, parsedQuery.scope);
+  const count = records.size;
   return { body: count };
 }
 
 export function count_public(request) {
-  const count = ccf.kv["public:records"].size;
+  const parsedQuery = parse_request_query(request);
+  const records = public_records(ccf.kv, parsedQuery.scope);
+  const count = records.size;
   return { body: count };
 }
