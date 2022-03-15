@@ -247,6 +247,10 @@
       },
       "description": "This section includes configuration for the node x509 identity certificate"
     },
+    "node_data_json_file": {
+      "type": "string",
+      "description": "Path to file (JSON) containing initial node data"
+    },
     "ledger": {
       "type": "object",
       "properties": {
