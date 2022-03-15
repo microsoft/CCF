@@ -32,6 +32,7 @@ from infra.runner import ConcurrentRunner
 from hashlib import sha256
 import e2e_common_endpoints
 from types import MappingProxyType
+import infra.health_watcher
 
 from loguru import logger as LOG
 
@@ -294,7 +295,7 @@ def test_large_messages(network, args):
     # pass but not others, and finding where does it fail).
     log_id = 7
     for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-        long_msg = "X" * (2**p)
+        long_msg = "X" * (2 ** p)
         network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
         check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
         log_id += 1
@@ -1404,17 +1405,17 @@ def test_rekey(network, args):
 
 def run(args):
     # Listen on two additional RPC interfaces for each node
-    def additional_interfaces(local_node_id):
-        return {
-            "first_interface": f"127.{local_node_id}.0.1",
-            "second_interface": f"127.{local_node_id}.0.2",
-        }
+    # def additional_interfaces(local_node_id):
+    #     return {
+    #         "first_interface": f"127.{local_node_id}.0.1",
+    #         "second_interface": f"127.{local_node_id}.0.2",
+    #     }
 
-    for local_node_id, node_host in enumerate(args.nodes):
-        for interface_name, host in additional_interfaces(local_node_id).items():
-            node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
-                host=host
-            )
+    # for local_node_id, node_host in enumerate(args.nodes):
+    #     for interface_name, host in additional_interfaces(local_node_id).items():
+    #         node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
+    #             host=host
+    #         )
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -1427,36 +1428,38 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test(network, args)
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_clear(network, args)
-        network = test_record_count(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_signed_escapes(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_metrics(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "CFT":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-            network = test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            network = test_receipts(network, args)
-            network = test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            network = test_historical_receipts(network, args)
-            network = test_historical_receipts_with_claims(network, args)
+        infra.health_watcher.watch_network_health(network)
+
+        # network = test(network, args)
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_clear(network, args)
+        # network = test_record_count(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_signed_escapes(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_multi_auth(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_custom_auth_safety(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
+        # network = test_historical_query_range(network, args)
+        # network = test_view_history(network, args)
+        # network = test_metrics(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "CFT":
+        #     network = test_liveness(network, args)
+        #     network = test_rekey(network, args)
+        #     network = test_liveness(network, args)
+        #     network = test_random_receipts(network, args, False)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     network = test_receipts(network, args)
+        #     network = test_historical_query_sparse(network, args)
+        # if "v8" not in args.package:
+        #     network = test_historical_receipts(network, args)
+        #     network = test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1479,58 +1482,58 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    # Is there a better way to do this?
-    if os.path.exists(
-        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-        cr.add(
-            "js_v8",
-            run,
-            package="libjs_v8",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-        )
+    # # Is there a better way to do this?
+    # if os.path.exists(
+    #     os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
+    # ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
+    #     cr.add(
+    #         "js_v8",
+    #         run,
+    #         package="libjs_v8",
+    #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #         initial_user_count=4,
+    #         initial_member_count=2,
+    #     )
 
     cr.add(
         "cpp",
         run,
         package="samples/apps/logging/liblogging",
         js_app_bundle=None,
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         initial_user_count=4,
         initial_member_count=2,
     )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
+    # cr.add(
+    #     "js_illegal",
+    #     run_parsing_errors,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()
