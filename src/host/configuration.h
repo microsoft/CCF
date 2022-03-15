@@ -60,8 +60,6 @@ namespace host
     ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
     ds::TimeString client_connection_timeout = {"2000ms"};
-    // TODO: This is a path to a file, for consistency with member data. But
-    // those should probably both be inlined now that we have JSON configs
     std::optional<std::string> node_data_json_file = std::nullopt;
 
     struct OutputFiles
