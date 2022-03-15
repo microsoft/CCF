@@ -106,6 +106,8 @@ Verifying a receipt consists of the following steps:
   4. Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id`` and ``cert``. See :py:func:`ccf.receipt.verify` for a reference implementation.
   5. Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsement` for a reference implementation.
 
+Note that since a receipt is a committment by a service to a transaction, a verifier must know the service identity, and provide it as an input to step 5.
+
 Application Claims
 ------------------
 
