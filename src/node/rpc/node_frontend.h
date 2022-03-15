@@ -842,7 +842,7 @@ namespace ccf
         GetNodes::Out out;
 
         auto nodes = args.tx.ro(this->network.nodes);
-        nodes->foreach([this, host, port, status, &out](
+        nodes->foreach([this, host, port, status, &out, nodes](
                          const NodeId& nid, const NodeInfo& ni) {
           if (status.has_value() && status.value() != ni.status)
           {
@@ -877,7 +877,12 @@ namespace ccf
           }
 
           out.nodes.push_back(
-            {nid, ni.status, is_primary, ni.rpc_interfaces, ni.node_data});
+            {nid,
+             ni.status,
+             is_primary,
+             ni.rpc_interfaces,
+             ni.node_data,
+             nodes->get_version_of_previous_write(nid).value_or(0)});
           return true;
         });
 
@@ -934,7 +939,12 @@ namespace ccf
         }
         auto& ni = info.value();
         return make_success(GetNode::Out{
-          node_id, ni.status, is_primary, ni.rpc_interfaces, ni.node_data});
+          node_id,
+          ni.status,
+          is_primary,
+          ni.rpc_interfaces,
+          ni.node_data,
+          nodes->get_version_of_previous_write(node_id).value_or(0)});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",

@@ -88,10 +88,15 @@ namespace ccf
     current_view,
     primary_id)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNode::NodeInfo)
+  DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNode::NodeInfo, node_id, status, primary, rpc_interfaces)
-  DECLARE_JSON_OPTIONAL_FIELDS(GetNode::NodeInfo, node_data)
+    GetNode::NodeInfo,
+    node_id,
+    status,
+    primary,
+    rpc_interfaces,
+    node_data,
+    last_written)
 
   DECLARE_JSON_TYPE(GetNodes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)
