@@ -125,3 +125,14 @@ Although CCF takes the approach of concatenating leaf components to keep its imp
 
 Applications may wish to expose dedicated endpoints, besides CCF's built-in :http:GET:`/node/receipt`, in which they can selectively expand claims, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
 If some claims must stay confidential, applications should encrypt them rather than merely digest them. They key can be kept in a private table for example, which like the claim will be available through the historical query API. The application logic can then decide whether to decrypt the claim for the caller depending on its authorisation policy.
+
+Commit Evidence
+---------------
+
+The `commit_evidence` field in receipts fulfills two purposes:
+
+1. It exposes the full transaction ID in a format that's easy for a user to extract, and does not require parsing the ledger entry.
+2. Because it cannot be extracted from the ledger without access to the ledger secrets, it guarantees the transaction is committed.
+
+Entries are written out to the ledger as early as possible, to relieve memory pressure inside the enclave. If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
+By including a committment to the digest of `commit_evidence` as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.
