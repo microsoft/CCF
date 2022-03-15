@@ -79,6 +79,8 @@ This means that the request may return ``202 Accepted`` at first, with a suggest
               {'left': 'c1c206c4670bd2adee821013695d593f5983ca0994ae74630528da5fb6642205'}],
     'signature': 'MGQCMHrnwS123oHqUKuQRPsQ+gk6WVutixeOvxcXX79InBgPOxJCoScCOlBnK4UYyLzangIwW9k7IZkMgG076qVv5zcx7OuKb7bKyii1yP1rcakeGVvVMwISeE+Fr3BnFfPD66Df'}
 
+`cert` contains the certificate of the signing node, endorsed by the service identity. `node_id` is the node's ID inside CCF, a digest of its public key.
+
 Note that receipts over signature transactions are a special case, for example:
 
 .. code-block:: bash
