@@ -496,6 +496,38 @@ def test_actions(network, args):
     network.consortium.remove_member(node, new_member)
     network.consortium.remove_member(node, new_member)
 
+    # Set node data
+    with node.client(new_user.local_id) as c:
+        r = c.get("/node/network/nodes")
+        assert r.status_code == 200, (r.status_code, r.body.text())
+        original_nodes = {
+            node_info["node_id"]: node_info for node_info in r.body.json()["nodes"]
+        }
+        for _, node_info in original_nodes.items():
+            assert node_info["node_data"] == None, node_info
+        new_node_data = {"container_id": "foo", "age": 42}
+        target_node_id = node.node_id
+        network.consortium.set_node_data(node, target_node_id, new_node_data)
+        r = c.get("/node/network/nodes")
+        assert r.status_code == 200, (r.status_code, r.body.text())
+        new_nodes = {
+            node_info["node_id"]: node_info for node_info in r.body.json()["nodes"]
+        }
+        assert new_nodes.keys() == original_nodes.keys(), (
+            new_nodes.keys(),
+            original_nodes.keys(),
+        )
+        for node_id, node_info in new_nodes.items():
+            if node_id == target_node_id:
+                assert node_info["node_data"] == new_node_data, node_info
+                original_info = original_nodes[target_node_id]
+                assert node_info["last_written"] > original_info["last_written"], (
+                    node_info,
+                    original_info,
+                )
+            else:
+                assert node_info["node_data"] == None, node_info
+
     return network
 
 
