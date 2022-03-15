@@ -876,7 +876,8 @@ namespace ccf
             is_primary = consensus->primary() == nid;
           }
 
-          out.nodes.push_back({nid, ni.status, is_primary, ni.rpc_interfaces});
+          out.nodes.push_back(
+            {nid, ni.status, is_primary, ni.rpc_interfaces, ni.node_data});
           return true;
         });
 
@@ -932,8 +933,8 @@ namespace ccf
           }
         }
         auto& ni = info.value();
-        return make_success(
-          GetNode::Out{node_id, ni.status, is_primary, ni.rpc_interfaces});
+        return make_success(GetNode::Out{
+          node_id, ni.status, is_primary, ni.rpc_interfaces, ni.node_data});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",

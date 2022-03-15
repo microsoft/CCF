@@ -907,7 +907,26 @@ const actions = new Map([
       }
     ),
   ],
-
+  [
+    "set_node_data",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+        checkType(args.node_data, "object?", "node_data");
+      },
+      function (args) {
+        let node_id = ccf.strToBuf(args.node_id);
+        let nodes_info = ccf.kv["public:ccf.gov.nodes.info"];
+        let node_info = nodes_info.get(node_id);
+        if (node_info === undefined) {
+          throw new Error(`Node ${node_id} does not exist`);
+        }
+        let ni = ccf.bufToJsonCompatible(node_info);
+        ni.node_data = args.node_data;
+        nodes_info.set(node_id, ccf.jsonCompatibleToBuf(ni));
+      }
+    ),
+  ],
   [
     "transition_node_to_trusted",
     new Action(

@@ -69,6 +69,7 @@ namespace ccf
       NodeStatus status;
       bool primary;
       ccf::NodeInfoNetwork::RpcInterfaces rpc_interfaces;
+      nlohmann::json node_data = nullptr;
     };
 
     using Out = NodeInfo;
