@@ -41,7 +41,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "msg": "A sample public log message"
         }
 
-- :http:GET:`/app/log/public`, which retrieves a public public log from a given index written by a previous :http:POST:`/app/log/public` call.
+- :http:GET:`/app/log/public`, which retrieves a public log from a given index written by a previous :http:POST:`/app/log/public` call.
 
     Get a public message:
 
