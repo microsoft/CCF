@@ -28,7 +28,7 @@ namespace ccf
     consensus_type,
     startup_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::In, certificate_signing_request)
+    JoinNetworkNodeToNode::In, certificate_signing_request, node_data)
 
   DECLARE_JSON_ENUM(
     ccf::IdentityType,
@@ -72,7 +72,8 @@ namespace ccf
     public_encryption_key,
     code_digest,
     node_info_network)
-  DECLARE_JSON_OPTIONAL_FIELDS(CreateNetworkNodeToNode::In, genesis_info)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CreateNetworkNodeToNode::In, genesis_info, node_data);
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)

@@ -103,6 +103,7 @@ class Node:
         perf=False,
         node_port=0,
         version=None,
+        node_data_json_file=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -127,6 +128,7 @@ class Node:
         self.consensus = None
         self.certificate_valid_from = None
         self.certificate_validity_days = None
+        self.initial_node_data_json_file = node_data_json_file
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -273,6 +275,7 @@ class Node:
             members_info=members_info,
             version=self.version,
             major_version=self.major_version,
+            node_data_json_file=self.initial_node_data_json_file,
             **kwargs,
         )
         self.remote.setup()

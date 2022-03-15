@@ -281,7 +281,8 @@ namespace ccf
         ledger_secret_seqno,
         ds::to_hex(code_digest.data),
         in.certificate_signing_request,
-        client_public_key_pem};
+        client_public_key_pem,
+        in.node_data};
 
       // Because the certificate signature scheme is non-deterministic, only
       // self-signed node certificate is recorded in the node info table

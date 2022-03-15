@@ -670,6 +670,7 @@ namespace ccf
       join_params.startup_seqno = startup_seqno;
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
+      join_params.node_data = config.node_data;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
@@ -1741,6 +1742,7 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.network;
+      create_params.node_data = config.node_data;
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 

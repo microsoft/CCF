@@ -912,7 +912,6 @@ const actions = new Map([
     new Action(
       function (args) {
         checkEntityId(args.node_id, "node_id");
-        checkType(args.node_data, "object?", "node_data");
       },
       function (args) {
         let node_id = ccf.strToBuf(args.node_id);
