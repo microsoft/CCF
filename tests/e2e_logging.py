@@ -32,7 +32,7 @@ from infra.runner import ConcurrentRunner
 from hashlib import sha256
 import e2e_common_endpoints
 from types import MappingProxyType
-
+import pprint
 from loguru import logger as LOG
 
 
@@ -42,6 +42,7 @@ def verify_receipt(
     """
     Raises an exception on failure
     """
+
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, service_cert)
@@ -773,6 +774,7 @@ def test_historical_receipts_with_claims(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"], domain="public"
             )
             r = first_receipt.json()["receipt"]
+            pprint.pprint(first_receipt.json())
             verify_receipt(r, network.cert, True, first_receipt.json()["msg"].encode())
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
@@ -1427,36 +1429,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test(network, args)
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_clear(network, args)
-        network = test_record_count(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_signed_escapes(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_metrics(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "CFT":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-            network = test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            network = test_receipts(network, args)
-            network = test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            network = test_historical_receipts(network, args)
-            network = test_historical_receipts_with_claims(network, args)
+        network = test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1480,28 +1453,6 @@ if __name__ == "__main__":
     cr = ConcurrentRunner()
 
     cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
-
-    # Is there a better way to do this?
-    if os.path.exists(
-        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-        cr.add(
-            "js_v8",
-            run,
-            package="libjs_v8",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-        )
-
-    cr.add(
         "cpp",
         run,
         package="samples/apps/logging/liblogging",
@@ -1509,28 +1460,6 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
-    )
-
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
-
-    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
-
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
     cr.run()

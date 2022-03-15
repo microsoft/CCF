@@ -232,3 +232,44 @@ therefore establishes the authenticity of the claims.
 
 A client consuming the output of this endpoint must digest the claims themselves, combine the digest with the other leaf component
 (``write_set_digest`` and ``hash(commit_evidence)``) to obtain the equivalent ``leaf``. See :ref:`use_apps/verify_tx:Receipt Verification` for the full set of steps.
+
+As an example, a logging application may register the contents being logged as a claim:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: record_public
+    :end-before: SNIPPET_END: record_public
+    :dedent:
+
+And expose an endpoint returning receipts, with that claim expanded:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: get_historical_with_receipt
+    :end-before: SNIPPET_END: get_historical_with_receipt
+    :dedent:
+
+Receipts will then look like:
+
+.. code-block:: json
+
+    {'msg': 'Public message at idx 5 [0]',
+     'receipt': {'cert': '-----BEGIN CERTIFICATE-----\n'
+                         'MIIBzzCCAVWgAwIBAgIRANKoegKBViucMxSPzftnDB4wCgYIKoZIzj0EAwMwFjEU\n'
+                         'MBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwMzE1MjExODIwWhcNMjIwMzE2MjEx\n'
+                         'ODE5WjATMREwDwYDVQQDDAhDQ0YgTm9kZTB2MBAGByqGSM49AgEGBSuBBAAiA2IA\n'
+                         'BG+RJ5qNPOga8shCF3w64yija/ShW46JxrE0n9kDybyRf+L3810GjCvjxSpzTQhX\n'
+                         '5WEF2dou1dG2ppI/KSNQsSfk081lbaB50NADWw+jDCtrq/fKuZ+w9wQSaoSvE5+0\n'
+                         '1qNqMGgwCQYDVR0TBAIwADAdBgNVHQ4EFgQU7tFQR91U1EDhup1XPS3u0w5+R2Yw\n'
+                         'HwYDVR0jBBgwFoAU3aI0vfJMBdWckvv9dKK2UzNCLU0wGwYDVR0RBBQwEocEfwAA\n'
+                         'AYcEfxoNCocEfwAAAjAKBggqhkjOPQQDAwNoADBlAjAiOmvGpatg4Uq8phQkwj/p\n'
+                         'Wj33fih6SUtRHOpdsIKvbV8TDNHRdSo1RKPArDd1w1wCMQDnw9zziS5G8qwvucP3\n'
+                         'gn3htz+2ZPBJRr98AqmRNmgflhgqLQp+jAVPrJaWtD3fDpw=\n'
+                         '-----END CERTIFICATE-----\n',
+                 'leaf_components': {'commit_evidence': 'ce:2.25:54571ec6d0540b364d8343b74dff055932981fd72a24c1399c39ca9c74d2f713',
+                                     'write_set_digest': '08b044fc5b0e9cd03c68d77c949bb815e3d70bd24ad339519df48758430ac0f7'},
+                 'node_id': '95baf92969b4c9e52b4f8fcde830dea9fa0286a8c3a92cda4cffcf8251c06b39',
+                 'proof': [{'left': '50a1a35a50bd2c5a4725907e77f3b1f96f1f9f37482aa18f8e7292e0542d9d23'},
+                           {'left': 'e2184154ac72b304639b923b3c7a0bc04cecbd305de4f103a174a90210cae0dc'},
+                           {'left': 'abc9bcbeff670930c34ebdab0f2d57b56e9d393e4dccdccf2db59b5e34507422'}],
+                 'signature': 'MGUCMHYBgZ3gySdkJ+STUL13EURVBd8354ULC11l/kjx20IwpXrg/aDYLWYf7tsGwqUxPwIxAMH2wJDd9wpwbQrULpaAx5XEifpUfOriKtYo7XiFr05J+BV10U39xa9GBS49OK47QA=='}}
