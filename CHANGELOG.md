@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Nodes now have a free-form `node_data` field, to match users and members. This can be set when the node is launched, or modified by governance, and is intended to store metadata about a node's deployment (eg - IDs of the pod/cluster it is running on).
+
 ## [2.0.0-rc4]
 
 ### Added
