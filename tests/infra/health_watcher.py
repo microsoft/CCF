@@ -1,6 +1,7 @@
 from enum import Enum, auto
 from collections import Counter
 import time
+import threading
 
 from loguru import logger as LOG
 
@@ -39,7 +40,6 @@ def watch_network_health(
     poll_interval_s=1,
     client_node_timeout_s=3,
 ):
-    primaries = {}
     election_start_time = None
 
     while True:
@@ -61,7 +61,9 @@ def watch_network_health(
                 return
 
         time.sleep(poll_interval_s)
-    # TODO:
-    # 1. If quorum of nodes return same primary (that is part of them) in same term, healthy
-    # 2. Otherwise, if some nodes are candidates, start election process
-    # 3. Otherwise, unknown
+
+
+def start_watch_network_health(network):
+    t = threading.Thread(watch_network_health, args=None)
+    t.start()
+    t.join()
