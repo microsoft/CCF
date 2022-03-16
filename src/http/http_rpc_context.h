@@ -10,7 +10,7 @@
 namespace http
 {
   inline static std::optional<std::string> extract_actor(
-    enclave::RpcContext& ctx)
+    ccf::RpcContext& ctx)
   {
     const auto path = ctx.get_method();
 
@@ -56,7 +56,7 @@ namespace http
     return error({status, code, std::move(msg)});
   }
 
-  class HttpRpcContext : public enclave::RpcContext
+  class HttpRpcContext : public ccf::RpcContext
   {
   private:
     size_t request_index;
@@ -72,7 +72,7 @@ namespace http
     http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
-    enclave::PathParams path_params = {};
+    ccf::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
 
@@ -116,7 +116,7 @@ namespace http
   public:
     HttpRpcContext(
       size_t request_index_,
-      std::shared_ptr<enclave::SessionContext> s,
+      std::shared_ptr<ccf::SessionContext> s,
       llhttp_method verb_,
       const std::string_view& url_,
       const http::HeaderMap& headers_,
@@ -168,7 +168,7 @@ namespace http
       return query;
     }
 
-    virtual enclave::PathParams& get_request_path_params() override
+    virtual ccf::PathParams& get_request_path_params() override
     {
       return path_params;
     }
@@ -291,10 +291,10 @@ namespace http
   };
 }
 
-namespace enclave
+namespace ccf
 {
-  inline std::shared_ptr<RpcContext> make_rpc_context(
-    std::shared_ptr<enclave::SessionContext> s,
+  inline std::shared_ptr<ccf::RpcContext> make_rpc_context(
+    std::shared_ptr<ccf::SessionContext> s,
     const std::vector<uint8_t>& packed,
     const std::vector<uint8_t>& raw_bft = {})
   {
@@ -317,8 +317,8 @@ namespace enclave
       0, s, msg.method, msg.url, msg.headers, msg.body, packed, raw_bft);
   }
 
-  inline std::shared_ptr<enclave::RpcContext> make_fwd_rpc_context(
-    std::shared_ptr<enclave::SessionContext> s,
+  inline std::shared_ptr<ccf::RpcContext> make_fwd_rpc_context(
+    std::shared_ptr<ccf::SessionContext> s,
     const std::vector<uint8_t>& packed,
     ccf::FrameFormat frame_format,
     const std::vector<uint8_t>& raw_bft = {})

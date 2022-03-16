@@ -154,11 +154,11 @@ namespace ccf
     NetworkState& network;
 
     std::shared_ptr<kv::Consensus> consensus;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
-    std::shared_ptr<enclave::RPCSessions> rpcsessions;
+    std::shared_ptr<ccf::RPCSessions> rpcsessions;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
@@ -245,7 +245,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      std::shared_ptr<enclave::RPCSessions> rpcsessions,
+      std::shared_ptr<ccf::RPCSessions> rpcsessions,
       ShareManager& share_manager,
       crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
@@ -283,8 +283,8 @@ namespace ccf
     //
     void initialize(
       const consensus::Configuration& consensus_config_,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
-      std::shared_ptr<enclave::AbstractRPCResponder> rpc_sessions_,
+      std::shared_ptr<ccf::RPCMap> rpc_map_,
+      std::shared_ptr<ccf::AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<ccf::indexing::Indexer> indexer_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
@@ -1781,9 +1781,9 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
-      auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, self_signed_node_cert.raw());
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      auto node_session = std::make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, self_signed_node_cert.raw());
+      auto ctx = ccf::make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
 

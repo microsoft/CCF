@@ -7,7 +7,8 @@
 #include <functional>
 #include <memory>
 
-namespace enclave
+// TODO: include?
+namespace ccf
 {
   class RpcContext;
 }
@@ -23,13 +24,13 @@ namespace ccf::endpoints
   struct CommandEndpointContext
   {
     CommandEndpointContext(
-      const std::shared_ptr<enclave::RpcContext>& r,
+      const std::shared_ptr<ccf::RpcContext>& r,
       std::unique_ptr<AuthnIdentity>&& c) :
       rpc_ctx(r),
       caller(std::move(c))
     {}
 
-    std::shared_ptr<enclave::RpcContext> rpc_ctx;
+    std::shared_ptr<ccf::RpcContext> rpc_ctx;
     std::unique_ptr<AuthnIdentity> caller;
 
     template <typename T>
@@ -55,7 +56,7 @@ namespace ccf::endpoints
   struct EndpointContext : public CommandEndpointContext
   {
     EndpointContext(
-      const std::shared_ptr<enclave::RpcContext>& r,
+      const std::shared_ptr<ccf::RpcContext>& r,
       std::unique_ptr<AuthnIdentity>&& c,
       kv::Tx& t) :
       CommandEndpointContext(r, std::move(c)),
@@ -70,7 +71,7 @@ namespace ccf::endpoints
   struct ReadOnlyEndpointContext : public CommandEndpointContext
   {
     ReadOnlyEndpointContext(
-      const std::shared_ptr<enclave::RpcContext>& r,
+      const std::shared_ptr<ccf::RpcContext>& r,
       std::unique_ptr<AuthnIdentity>&& c,
       kv::ReadOnlyTx& t) :
       CommandEndpointContext(r, std::move(c)),

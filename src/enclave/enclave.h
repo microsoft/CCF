@@ -27,7 +27,7 @@
 
 #include <openssl/engine.h>
 
-namespace enclave
+namespace ccf
 {
   class Enclave
   {
@@ -257,7 +257,7 @@ namespace enclave
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
-        last_tick_time = enclave::get_enclave_time();
+        last_tick_time = ccf::get_enclave_time();
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
@@ -268,7 +268,7 @@ namespace enclave
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::work_stats, to_host, j.dump());
 
-            const auto time_now = enclave::get_enclave_time();
+            const auto time_now = ccf::get_enclave_time();
             ringbuffer_logger->set_time(time_now);
 
             const auto elapsed_ms =
@@ -435,7 +435,7 @@ namespace enclave
           // messages were executed, idle
           if (read == 0 && thread_msg == 0)
           {
-            const auto time_now = enclave::get_enclave_time();
+            const auto time_now = ccf::get_enclave_time();
             static std::chrono::microseconds idling_start_time;
 
             if (consecutive_idles == 0)

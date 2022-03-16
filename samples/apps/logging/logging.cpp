@@ -52,7 +52,7 @@ namespace loggingapp
   public:
     std::unique_ptr<ccf::AuthnIdentity> authenticate(
       kv::ReadOnlyTx&,
-      const std::shared_ptr<enclave::RpcContext>& ctx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override
     {
       const auto& headers = ctx->get_request_headers();

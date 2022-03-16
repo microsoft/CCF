@@ -12,7 +12,7 @@ namespace ccf
 {
   std::unique_ptr<AuthnIdentity> UserCertAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
-    const std::shared_ptr<enclave::RpcContext>& ctx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     const auto& caller_cert = ctx->session->caller_cert;
@@ -32,7 +32,7 @@ namespace ccf
 
   std::unique_ptr<AuthnIdentity> MemberCertAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
-    const std::shared_ptr<enclave::RpcContext>& ctx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     const auto& caller_cert = ctx->session->caller_cert;
@@ -52,7 +52,7 @@ namespace ccf
 
   std::unique_ptr<AuthnIdentity> NodeCertAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
-    const std::shared_ptr<enclave::RpcContext>& ctx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     auto node_caller_id =
