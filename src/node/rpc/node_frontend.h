@@ -281,7 +281,8 @@ namespace ccf
         ledger_secret_seqno,
         ds::to_hex(code_digest.data),
         in.certificate_signing_request,
-        client_public_key_pem};
+        client_public_key_pem,
+        in.node_data};
 
       // Because the certificate signature scheme is non-deterministic, only
       // self-signed node certificate is recorded in the node info table
@@ -347,7 +348,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.14.1";
+      openapi_info.document_version = "2.15.0";
     }
 
     void init_handlers() override
@@ -842,7 +843,7 @@ namespace ccf
         GetNodes::Out out;
 
         auto nodes = args.tx.ro(this->network.nodes);
-        nodes->foreach([this, host, port, status, &out](
+        nodes->foreach([this, host, port, status, &out, nodes](
                          const NodeId& nid, const NodeInfo& ni) {
           if (status.has_value() && status.value() != ni.status)
           {
@@ -876,7 +877,13 @@ namespace ccf
             is_primary = consensus->primary() == nid;
           }
 
-          out.nodes.push_back({nid, ni.status, is_primary, ni.rpc_interfaces});
+          out.nodes.push_back(
+            {nid,
+             ni.status,
+             is_primary,
+             ni.rpc_interfaces,
+             ni.node_data,
+             nodes->get_version_of_previous_write(nid).value_or(0)});
           return true;
         });
 
@@ -932,8 +939,13 @@ namespace ccf
           }
         }
         auto& ni = info.value();
-        return make_success(
-          GetNode::Out{node_id, ni.status, is_primary, ni.rpc_interfaces});
+        return make_success(GetNode::Out{
+          node_id,
+          ni.status,
+          is_primary,
+          ni.rpc_interfaces,
+          ni.node_data,
+          nodes->get_version_of_previous_write(node_id).value_or(0)});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",

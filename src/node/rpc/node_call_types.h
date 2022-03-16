@@ -60,6 +60,7 @@ namespace ccf
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
+      nlohmann::json node_data;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;
@@ -76,6 +77,7 @@ namespace ccf
       ConsensusType consensus_type = ConsensusType::CFT;
       std::optional<kv::Version> startup_seqno = std::nullopt;
       std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
+      nlohmann::json node_data = nullptr;
     };
 
     struct Out
