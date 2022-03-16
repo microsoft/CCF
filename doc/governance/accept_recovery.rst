@@ -53,6 +53,8 @@ Once the proposal to recover the network has passed under the rules of the :term
 
 Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next service identity. This is to ensure that the correct network is recovered and to facilitate auditing, as well as to avoid forks. The previous service identity is used to validate the snapshot the recovery node is started from; CCF will refuse to start from a snapshot where the signing node certificate is not endorsed by the previous service identity. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
 
+.. note:: The ``previous_service_identity`` argument to the ``transition_service_to_open`` proposal is required for recovery, but must not be provided when opening a new service as there is no previous identity.
+
 Submitting Recovery Shares
 --------------------------
 
