@@ -211,7 +211,7 @@
                   "previous_service_identity_file": {
                     "type": "string",
                     "description": "Path to the file that contains the previous network certificate (PEM)"
-                  }                  
+                  }
                 },
                 "required": ["previous_service_identity_file"]
               }
