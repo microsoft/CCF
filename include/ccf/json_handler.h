@@ -66,8 +66,7 @@ namespace ccf
 
     char const* pack_to_content_type(serdes::Pack p);
 
-    serdes::Pack detect_json_pack(
-      const std::shared_ptr<ccf::RpcContext>& ctx);
+    serdes::Pack detect_json_pack(const std::shared_ptr<ccf::RpcContext>& ctx);
 
     serdes::Pack get_response_pack(
       const std::shared_ptr<ccf::RpcContext>& ctx,

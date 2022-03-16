@@ -8,7 +8,6 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-// TODO: include?
 namespace ccf
 {
   class RpcContext;

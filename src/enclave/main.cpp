@@ -147,8 +147,7 @@ extern "C"
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      ccf::host_time =
-        static_cast<decltype(ccf::host_time)>(time_location);
+      ccf::host_time = static_cast<decltype(ccf::host_time)>(time_location);
 
       // Check that ringbuffer memory ranges are entirely outside of the enclave
       if (!oe_is_outside_enclave(

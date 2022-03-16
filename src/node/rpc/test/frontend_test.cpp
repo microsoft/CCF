@@ -473,12 +473,12 @@ auto user_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
 auto backup_user_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
-auto invalid_session = make_shared<ccf::SessionContext>(
-  ccf::InvalidSessionId, invalid_caller_der);
-auto member_session = make_shared<ccf::SessionContext>(
-  ccf::InvalidSessionId, member_caller_der);
-auto anonymous_session = make_shared<ccf::SessionContext>(
-  ccf::InvalidSessionId, anonymous_caller_der);
+auto invalid_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, invalid_caller_der);
+auto member_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, member_caller_der);
+auto anonymous_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, anonymous_caller_der);
 
 UserId user_id;
 

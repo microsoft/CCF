@@ -33,8 +33,7 @@ namespace ccf
       }
     }
 
-    serdes::Pack detect_json_pack(
-      const std::shared_ptr<ccf::RpcContext>& ctx)
+    serdes::Pack detect_json_pack(const std::shared_ptr<ccf::RpcContext>& ctx)
     {
       std::optional<serdes::Pack> packing = std::nullopt;
 
@@ -73,8 +72,7 @@ namespace ccf
     }
 
     serdes::Pack get_response_pack(
-      const std::shared_ptr<ccf::RpcContext>& ctx,
-      serdes::Pack request_pack)
+      const std::shared_ptr<ccf::RpcContext>& ctx, serdes::Pack request_pack)
     {
       const auto accept_it = ctx->get_request_header(http::headers::ACCEPT);
       if (accept_it.has_value())

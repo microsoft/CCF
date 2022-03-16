@@ -55,8 +55,8 @@ TResponse frontend_process(
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
-  auto session = std::make_shared<ccf::SessionContext>(
-    ccf::InvalidSessionId, caller.raw());
+  auto session =
+    std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, caller.raw());
   auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 

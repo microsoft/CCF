@@ -9,8 +9,7 @@
 
 namespace http
 {
-  inline static std::optional<std::string> extract_actor(
-    ccf::RpcContext& ctx)
+  inline static std::optional<std::string> extract_actor(ccf::RpcContext& ctx)
   {
     const auto path = ctx.get_method();
 

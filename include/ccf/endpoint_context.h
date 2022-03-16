@@ -7,7 +7,6 @@
 #include <functional>
 #include <memory>
 
-// TODO: include?
 namespace ccf
 {
   class RpcContext;
