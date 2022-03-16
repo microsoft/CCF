@@ -217,7 +217,7 @@ A user wanting to tie transaction-specific values to a receipt can do so by atta
 CCF will then record the digest of the transaction as the combined digest of the write set, plus this `claims_digest`, as well the commit evidence.
 
 This ``claims_digest`` will be exposed in receipts under ``leaf_components``. It can then be revealed externally,
-or by the endpoint directly if has been stored in the ledger. The receipt object deliberately makes the ``claims_digest`` optional,
+or by the endpoint directly if it has been stored in the ledger. The receipt object deliberately makes the ``claims_digest`` optional,
 to allow the endpoint to remove it when the claims themselves are revealed.
 
 Receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
