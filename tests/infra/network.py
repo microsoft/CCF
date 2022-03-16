@@ -542,6 +542,8 @@ class Network:
         prev_service_identity = None
         if args.previous_service_identity_file:
             prev_service_identity = slurp_file(args.previous_service_identity_file)
+            # Trailing null byte not required, but tolerated.
+            prev_service_identity = prev_service_identity.rstrip("\x00")
 
         self.consortium.transition_service_to_open(
             self.find_random_node(),
