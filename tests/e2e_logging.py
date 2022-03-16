@@ -1428,7 +1428,15 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        infra.health_watcher.watch_network_health(network)
+        watcher = infra.health_watcher.NetworkHealthWatcher(network)
+        watcher.start()
+        # watcher.run(network)
+
+        LOG.error("here")
+        import time
+
+        time.sleep(10)
+        watcher.stop()
 
         # network = test(network, args)
         # network = test_large_messages(network, args)
