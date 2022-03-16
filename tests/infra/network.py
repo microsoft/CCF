@@ -190,9 +190,7 @@ class Network:
         self.next_node_id += 1
         return next_node_id
 
-    def create_node(
-        self, host, binary_dir=None, library_dir=None, node_port=0, version=None
-    ):
+    def create_node(self, host, binary_dir=None, library_dir=None, **kwargs):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -207,8 +205,7 @@ class Network:
             library_dir or self.library_dir,
             debug,
             perf,
-            node_port=node_port,
-            version=version,
+            **kwargs,
         )
         self.nodes.append(node)
         return node

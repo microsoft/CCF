@@ -588,6 +588,7 @@ class CCFRemote(object):
         sig_ms_interval=None,
         jwt_key_refresh_interval_s=None,
         election_timeout_ms=None,
+        node_data_json_file=None,
         **kwargs,
     ):
         """
@@ -677,6 +678,7 @@ class CCFRemote(object):
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
                 election_timeout=f"{election_timeout_ms}ms",
+                node_data_json_file=node_data_json_file,
                 **kwargs,
             )
 
