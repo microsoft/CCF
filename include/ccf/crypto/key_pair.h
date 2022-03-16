@@ -48,7 +48,8 @@ namespace crypto
 
     virtual Pem create_csr(
       const std::string& subject_name,
-      const std::vector<SubjectAltName>& subject_alt_names) const = 0;
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key = std::nullopt) const = 0;
 
     Pem create_csr(const std::string& subject_name) const
     {
@@ -60,7 +61,8 @@ namespace crypto
       const Pem& signing_request,
       const std::string& valid_from,
       const std::string& valid_to,
-      bool ca = false) const = 0;
+      bool ca = false,
+      bool signed_by_issuer = false) const = 0;
 
     Pem self_sign(
       const std::string& name,

@@ -12,6 +12,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
 #include "ccf/service/tables/service.h"
+#include "ccf/service/tables/service_endorsements.h"
 #include "ccf/service/tables/users.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
@@ -87,6 +88,7 @@ namespace ccf
     Service service;
     Secrets secrets;
     SnapshotEvidence snapshot_evidence;
+    ServiceEndorsements service_endorsements;
 
     // The signatures and serialised_tree tables should always be written to at
     // the same time so that the root of the tree in the signatures table
@@ -128,6 +130,7 @@ namespace ccf
       service(Tables::SERVICE),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
+      service_endorsements(Tables::SERVICE_ENDORSEMENTS),
       signatures(Tables::SIGNATURES),
       serialise_tree(Tables::SERIALISED_MERKLE_TREE),
       resharings(Tables::RESHARINGS),
