@@ -14,8 +14,65 @@ from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
+from e2e_logging import verify_receipt
 
 from loguru import logger as LOG
+
+
+def split_all_ledger_files_in_dir(input_dir, output_dir):
+    # A ledger file can only be split at a seqno that contains a signature
+    # (so that all files end on a signature that verifies their integrity).
+    # We first detect all signature transactions in a ledger file and truncate
+    # at any one (but not the last one, which would have no effect) at random.
+    for ledger_file in os.listdir(input_dir):
+        sig_seqnos = []
+
+        if ledger_file.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX):
+            # Ignore recovery files
+            continue
+
+        ledger_file_path = os.path.join(input_dir, ledger_file)
+        ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
+        for transaction in ledger_chunk:
+            public_domain = transaction.get_public_domain()
+            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
+                sig_seqnos.append(public_domain.get_seqno())
+
+        if len(sig_seqnos) <= 1:
+            # A chunk may not contain enough signatures to be worth truncating
+            continue
+
+        # Ignore last signature, which would result in a no-op split
+        split_seqno = random.choice(sig_seqnos[:-1])
+
+        assert ccf.split_ledger.run(
+            [ledger_file_path, str(split_seqno), f"--output-dir={output_dir}"]
+        ), f"Ledger file {ledger_file_path} was not split at {split_seqno}"
+        LOG.info(
+            f"Ledger file {ledger_file_path} was successfully split at {split_seqno}"
+        )
+        LOG.debug(f"Deleting input ledger file {ledger_file_path}")
+        os.remove(ledger_file_path)
+
+
+def get_and_verify_historical_receipt(network, ref_msg):
+    primary, _ = network.find_primary()
+    if not ref_msg:
+        if not network.txs.priv:
+            network.txs.issue(network, number_txs=1)
+        idx, _ = network.txs.get_last_tx()
+        LOG.info(f"IDX: {network.txs.priv[idx]}")
+        ref_msg = network.txs.priv[idx][-1]
+        ref_msg["idx"] = idx
+    r = network.txs.get_receipt(
+        primary,
+        ref_msg["idx"],
+        ref_msg["seqno"],
+        ref_msg["view"],
+    )
+    LOG.info(f"Receipt: {r}")
+    verify_receipt(r.json()["receipt"], network.cert)
+    return ref_msg
 
 
 @reqs.description("Recover a service")
@@ -435,7 +492,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service_with_wrong_identity(network, args)
+        ref_msg = get_and_verify_historical_receipt(network, None)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
@@ -459,6 +516,8 @@ def run(args):
                 node.verify_certificate_validity_period()
 
             primary, _ = network.find_primary()
+
+            ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
             LOG.success("Recovery complete on all nodes")
 
