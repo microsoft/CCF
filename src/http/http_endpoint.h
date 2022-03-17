@@ -14,7 +14,7 @@
 
 namespace http
 {
-  class HTTPEndpoint : public enclave::TLSEndpoint
+  class HTTPEndpoint : public ccf::TLSEndpoint
   {
   protected:
     http::Parser& p;
@@ -104,18 +104,18 @@ namespace http
   private:
     http::RequestParser request_parser;
 
-    std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::shared_ptr<enclave::RpcHandler> handler;
-    std::shared_ptr<enclave::SessionContext> session_ctx;
+    std::shared_ptr<ccf::RPCMap> rpc_map;
+    std::shared_ptr<ccf::RpcHandler> handler;
+    std::shared_ptr<ccf::SessionContext> session_ctx;
     int64_t session_id;
-    enclave::ListenInterfaceID interface_id;
+    ccf::ListenInterfaceID interface_id;
     size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       int64_t session_id,
-      const enclave::ListenInterfaceID& interface_id,
+      const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
@@ -146,11 +146,11 @@ namespace http
       {
         if (session_ctx == nullptr)
         {
-          session_ctx = std::make_shared<enclave::SessionContext>(
+          session_ctx = std::make_shared<ccf::SessionContext>(
             session_id, peer_cert(), interface_id);
         }
 
-        std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;
+        std::shared_ptr<ccf::RpcContext> rpc_ctx = nullptr;
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
@@ -227,7 +227,7 @@ namespace http
   };
 
   class HTTPClientEndpoint : public HTTPEndpoint,
-                             public enclave::ClientEndpoint,
+                             public ccf::ClientEndpoint,
                              public http::ResponseProcessor
   {
   private:

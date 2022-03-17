@@ -56,9 +56,9 @@ namespace ccf::v8_tmpl
       get_internal_field(obj, InternalField::StateCache));
   }
 
-  static enclave::RpcContext* unwrap_rpc_context(v8::Local<v8::Object> obj)
+  static ccf::RpcContext* unwrap_rpc_context(v8::Local<v8::Object> obj)
   {
-    return static_cast<enclave::RpcContext*>(
+    return static_cast<ccf::RpcContext*>(
       get_internal_field(obj, InternalField::RpcContext));
   }
 
@@ -649,7 +649,7 @@ namespace ccf::v8_tmpl
   static void get_rpc(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    enclave::RpcContext* rpc_ctx = unwrap_rpc_context(info.Holder());
+    ccf::RpcContext* rpc_ctx = unwrap_rpc_context(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> value = Rpc::wrap(context, rpc_ctx);
@@ -726,7 +726,7 @@ namespace ccf::v8_tmpl
     ccf::historical::StatePtr* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
     ccf::historical::AbstractStateCache* state_cache,
-    enclave::RpcContext* rpc_ctx)
+    ccf::RpcContext* rpc_ctx)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);

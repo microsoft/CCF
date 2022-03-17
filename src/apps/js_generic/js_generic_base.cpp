@@ -489,7 +489,7 @@ namespace ccfapp
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
@@ -577,7 +577,7 @@ namespace ccfapp
     }
 
     std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx& tx, const enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
 
