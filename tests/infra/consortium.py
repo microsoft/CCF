@@ -393,7 +393,7 @@ class Consortium:
 
         args = {}
         if remote_node.version_after("ccf-2.0.0-rc3"):
-            args = {"args": {"next_service_identity": self.get_service_identity()}}
+            args = {"args": {"service_identity": self.get_service_identity()}}
         proposal["actions"].append({"name": "transition_service_to_open", **args})
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
@@ -592,7 +592,7 @@ class Consortium:
         if remote_node.version_after("ccf-2.0.0-rc3"):
             args = {
                 "previous_service_identity": previous_service_identity,
-                "next_service_identity": self.get_service_identity(),
+                "service_identity": self.get_service_identity(),
             }
 
         proposal_body, careful_vote = self.make_proposal(
