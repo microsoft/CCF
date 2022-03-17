@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Nodes now have a free-form `node_data` field, to match users and members. This can be set when the node is launched, or modified by governance. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier.
+- Nodes now have a free-form `node_data` field, to match users and members. This can be set when the node is launched, or modified by governance. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier (#3662).
+- The `enclave::` namespace has been removed, and all types which were under it are now under `ccf::`. This will affect any apps using `enclave::RpcContext`, which should be replaced with `ccf::RpcContext` (#3664).
 
 ## [2.0.0-rc4]
 
