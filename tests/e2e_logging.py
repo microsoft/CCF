@@ -295,7 +295,7 @@ def test_large_messages(network, args):
     # pass but not others, and finding where does it fail).
     log_id = 7
     for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-        long_msg = "X" * (2 ** p)
+        long_msg = "X" * (2**p)
         network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
         check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
         log_id += 1
@@ -1428,14 +1428,20 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        watcher = infra.health_watcher.NetworkHealthWatcher(network)
+        watcher = infra.health_watcher.NetworkHealthWatcher(
+            network, args, verbose=False
+        )
         watcher.start()
         # watcher.run(network)
 
         LOG.error("here")
         import time
 
-        time.sleep(10)
+        for _ in range(20):
+            network.find_primary()
+            LOG.info(network)
+            LOG.info(id(network))
+            time.sleep(1)
         watcher.stop()
 
         # network = test(network, args)
