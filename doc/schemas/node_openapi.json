@@ -64,9 +64,6 @@
           "current_view": {
             "$ref": "#/components/schemas/uint64"
           },
-          "leader_id": {
-            "$ref": "#/components/schemas/NodeId"
-          },
           "leadership_state": {
             "$ref": "#/components/schemas/LeadershipState"
           },
@@ -75,6 +72,9 @@
           },
           "membership_state": {
             "$ref": "#/components/schemas/MembershipState"
+          },
+          "primary_id": {
+            "$ref": "#/components/schemas/NodeId"
           },
           "reconfiguration_type": {
             "$ref": "#/components/schemas/ReconfigurationType"
@@ -90,7 +90,7 @@
           "configs",
           "acks",
           "membership_state",
-          "leader_id",
+          "primary_id",
           "current_view",
           "ticking"
         ],

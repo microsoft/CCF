@@ -201,7 +201,7 @@ namespace kv
     std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
       std::nullopt;
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
-    std::optional<ccf::NodeId> leader_id = std::nullopt;
+    std::optional<ccf::NodeId> primary_id = std::nullopt;
     ccf::View current_view = 0;
     bool ticking = false;
   };
@@ -212,7 +212,7 @@ namespace kv
     configs,
     acks,
     membership_state,
-    leader_id,
+    primary_id,
     current_view,
     ticking);
   DECLARE_JSON_OPTIONAL_FIELDS(

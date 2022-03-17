@@ -683,7 +683,7 @@ namespace aft
     {
       kv::ConsensusDetails details;
       std::lock_guard<std::mutex> guard(state->lock);
-      details.leader_id = leader_id;
+      details.primary_id = leader_id;
       details.current_view = state->current_view;
       details.ticking = ticking;
       details.leadership_state = leadership_state;
