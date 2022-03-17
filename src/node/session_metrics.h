@@ -17,6 +17,7 @@ namespace ccf
       size_t peak;
       size_t soft_cap;
       size_t hard_cap;
+      size_t parsing_errors;
     };
 
     size_t active;
@@ -26,7 +27,12 @@ namespace ccf
 
   DECLARE_JSON_TYPE(SessionMetrics::PerInterface)
   DECLARE_JSON_REQUIRED_FIELDS(
-    SessionMetrics::PerInterface, active, peak, soft_cap, hard_cap)
+    SessionMetrics::PerInterface,
+    active,
+    peak,
+    soft_cap,
+    hard_cap,
+    parsing_errors)
   DECLARE_JSON_TYPE(SessionMetrics)
   DECLARE_JSON_REQUIRED_FIELDS(SessionMetrics, active, peak, interfaces)
 }

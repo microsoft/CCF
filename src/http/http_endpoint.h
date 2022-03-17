@@ -5,6 +5,7 @@
 #include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
+#include "enclave/rpc_sessions.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
 
@@ -14,18 +15,29 @@
 
 namespace http
 {
+  class ParsingErrorReporter
+  {
+  public:
+    virtual ~ParsingErrorReporter() {}
+    virtual void report_parsing_error(tls::ConnID) = 0;
+  };
+
   class HTTPEndpoint : public enclave::TLSEndpoint
   {
   protected:
     http::Parser& p;
+    std::shared_ptr<http::ParsingErrorReporter> error_reporter;
 
     HTTPEndpoint(
       http::Parser& p_,
-      int64_t session_id,
+      tls::ConnID session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
+      std::unique_ptr<tls::Context> ctx,
+      const std::shared_ptr<http::ParsingErrorReporter>& error_reporter =
+        nullptr) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_)
+      p(p_),
+      error_reporter(error_reporter)
     {}
 
   public:
@@ -74,10 +86,10 @@ namespace http
         }
         catch (const std::exception& e)
         {
-          LOG_FAIL_FMT("Error parsing HTTP request");
-          LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
-
-          // TODO: Report HTTP parsing error to session
+          if (error_reporter)
+          {
+            error_reporter->report_parsing_error(session_id);
+          }
 
           auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
           response.set_header(
@@ -86,7 +98,7 @@ namespace http
           // bytes. Instead insert it at the end of this message, verbatim
           auto body_s = fmt::format(
             "Unable to parse data as a HTTP request. Error message is: {}\n"
-            "Error occured while parsing fragment:\n",
+            "Error occurred while parsing fragment:\n",
             e.what());
           std::vector<uint8_t> response_body(
             std::begin(body_s), std::end(body_s));
@@ -109,18 +121,25 @@ namespace http
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
     std::shared_ptr<enclave::SessionContext> session_ctx;
-    int64_t session_id;
+    tls::ConnID session_id;
     enclave::ListenInterfaceID interface_id;
     size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
       std::shared_ptr<enclave::RPCMap> rpc_map,
-      int64_t session_id,
+      tls::ConnID session_id,
       const enclave::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
+      std::unique_ptr<tls::Context> ctx,
+      const std::shared_ptr<http::ParsingErrorReporter>& error_reporter =
+        nullptr) :
+      HTTPEndpoint(
+        request_parser,
+        session_id,
+        writer_factory,
+        std::move(ctx),
+        error_reporter),
       request_parser(*this),
       rpc_map(rpc_map),
       session_id(session_id),
@@ -237,7 +256,7 @@ namespace http
 
   public:
     HTTPClientEndpoint(
-      int64_t session_id,
+      tls::ConnID session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
