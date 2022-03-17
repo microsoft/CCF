@@ -275,7 +275,7 @@ def test_learner_does_not_take_part(network, args):
             r = c.get("/node/network/nodes/self")
             assert r.body.json()["status"] == "Learner"
             r = c.get("/node/consensus")
-            assert new_node.node_id in r.body.json()["details"]["learners"]
+            assert new_node.node_id in r.body.json()["learners"]
 
     LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
     # Note: Because trusting the new node failed, the new node is not considered

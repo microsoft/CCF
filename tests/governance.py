@@ -39,7 +39,7 @@ def test_consensus_status(network, args):
     with primary.client() as c:
         r = c.get("/node/consensus")
         assert r.status_code == http.HTTPStatus.OK.value
-        assert r.body.json()["details"]["leadership_state"] == "Leader"
+        assert r.body.json()["leadership_state"] == "Leader"
     return network
 
 
