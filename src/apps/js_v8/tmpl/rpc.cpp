@@ -13,9 +13,9 @@ namespace ccf::v8_tmpl
     END
   };
 
-  static enclave::RpcContext* unwrap_rpc_context(v8::Local<v8::Object> obj)
+  static ccf::RpcContext* unwrap_rpc_context(v8::Local<v8::Object> obj)
   {
-    return static_cast<enclave::RpcContext*>(
+    return static_cast<ccf::RpcContext*>(
       get_internal_field(obj, InternalField::RpcContext));
   }
 
@@ -23,7 +23,7 @@ namespace ccf::v8_tmpl
   {
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
-    enclave::RpcContext* rpc_ctx = unwrap_rpc_context(info.Holder());
+    ccf::RpcContext* rpc_ctx = unwrap_rpc_context(info.Holder());
 
     if (info.Length() != 1)
     {
@@ -62,7 +62,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> Rpc::wrap(
-    v8::Local<v8::Context> context, enclave::RpcContext* rpc_ctx)
+    v8::Local<v8::Context> context, ccf::RpcContext* rpc_ctx)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);

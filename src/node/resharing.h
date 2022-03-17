@@ -70,7 +70,7 @@ namespace ccf
 
     SplitIdentityResharingTracker(
       std::shared_ptr<aft::State> shared_state_,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::shared_ptr<ccf::RPCMap> rpc_map_,
       crypto::KeyPairPtr node_sign_kp_,
       const crypto::Pem& self_signed_node_cert_,
       const std::optional<crypto::Pem>& endorsed_node_cert_) :
@@ -196,7 +196,7 @@ namespace ccf
     {
       UpdateResharingTaskMsg(
         kv::ReconfigurationId rid_,
-        std::shared_ptr<enclave::RPCMap> rpc_map_,
+        std::shared_ptr<ccf::RPCMap> rpc_map_,
         crypto::KeyPairPtr node_sign_kp_,
         const crypto::Pem& node_cert_,
         size_t retries_ = 10) :
@@ -208,7 +208,7 @@ namespace ccf
       {}
 
       kv::ReconfigurationId rid;
-      std::shared_ptr<enclave::RPCMap> rpc_map;
+      std::shared_ptr<ccf::RPCMap> rpc_map;
       crypto::KeyPairPtr node_sign_kp;
       const crypto::Pem& node_cert;
       size_t retries;
@@ -216,7 +216,7 @@ namespace ccf
 
   protected:
     std::shared_ptr<aft::State> shared_state;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<ccf::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
     const crypto::Pem& self_signed_node_cert;
     const std::optional<crypto::Pem>& endorsed_node_cert;
@@ -226,7 +226,7 @@ namespace ccf
 
     static inline bool make_request(
       http::Request& request,
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert)
     {
@@ -235,9 +235,9 @@ namespace ccf
 
       http::sign_request(request, node_sign_kp, key_id);
       std::vector<uint8_t> packed = request.build_request();
-      auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      auto node_session = std::make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, node_cert.raw());
+      auto ctx = ccf::make_rpc_context(node_session, packed);
 
       const auto actor_opt = http::extract_actor(*ctx);
       if (!actor_opt.has_value())
@@ -270,7 +270,7 @@ namespace ccf
 
     static inline bool request_update_resharing(
       kv::ReconfigurationId rid,
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert)
     {

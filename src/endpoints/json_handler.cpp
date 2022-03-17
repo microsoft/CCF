@@ -33,8 +33,7 @@ namespace ccf
       }
     }
 
-    serdes::Pack detect_json_pack(
-      const std::shared_ptr<enclave::RpcContext>& ctx)
+    serdes::Pack detect_json_pack(const std::shared_ptr<ccf::RpcContext>& ctx)
     {
       std::optional<serdes::Pack> packing = std::nullopt;
 
@@ -73,8 +72,7 @@ namespace ccf
     }
 
     serdes::Pack get_response_pack(
-      const std::shared_ptr<enclave::RpcContext>& ctx,
-      serdes::Pack request_pack)
+      const std::shared_ptr<ccf::RpcContext>& ctx, serdes::Pack request_pack)
     {
       const auto accept_it = ctx->get_request_header(http::headers::ACCEPT);
       if (accept_it.has_value())
@@ -108,13 +106,13 @@ namespace ccf
     }
 
     nlohmann::json get_params_from_body(
-      const std::shared_ptr<enclave::RpcContext>& ctx, serdes::Pack pack)
+      const std::shared_ptr<ccf::RpcContext>& ctx, serdes::Pack pack)
     {
       return serdes::unpack(ctx->get_request_body(), pack);
     }
 
     std::pair<serdes::Pack, nlohmann::json> get_json_params(
-      const std::shared_ptr<enclave::RpcContext>& ctx)
+      const std::shared_ptr<ccf::RpcContext>& ctx)
     {
       const auto pack = detect_json_pack(ctx);
 
@@ -136,7 +134,7 @@ namespace ccf
 
     void set_response(
       JsonAdapterResponse&& res,
-      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::shared_ptr<ccf::RpcContext>& ctx,
       serdes::Pack request_packing)
     {
       auto error = std::get_if<ErrorDetails>(&res);

@@ -548,7 +548,7 @@ int main(int argc, char** argv)
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
+        LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
 
         // This exception should be rethrown, probably aborting the process, but
         // we sleep briefly to allow more outbound messages to be processed. If

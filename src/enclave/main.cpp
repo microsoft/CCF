@@ -15,7 +15,7 @@
 
 // the central enclave object
 static std::mutex create_lock;
-static std::atomic<enclave::Enclave*> e;
+static std::atomic<ccf::Enclave*> e;
 
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
@@ -106,7 +106,7 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
-    auto new_logger = std::make_unique<enclave::RingbufferLogger>(
+    auto new_logger = std::make_unique<ccf::RingbufferLogger>(
       writer_factory->create_writer_to_outside());
     auto ringbuffer_logger = new_logger.get();
     logger::config::loggers().push_back(std::move(new_logger));
@@ -141,14 +141,13 @@ extern "C"
 
       // Check that where we expect arguments to be in host-memory, they really
       // are. lfence after these checks to prevent speculative execution
-      if (!oe_is_outside_enclave(time_location, sizeof(enclave::host_time)))
+      if (!oe_is_outside_enclave(time_location, sizeof(ccf::host_time)))
       {
         LOG_FAIL_FMT("Memory outside enclave: time_location");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      enclave::host_time =
-        static_cast<decltype(enclave::host_time)>(time_location);
+      ccf::host_time = static_cast<decltype(ccf::host_time)>(time_location);
 
       // Check that ringbuffer memory ranges are entirely outside of the enclave
       if (!oe_is_outside_enclave(
@@ -217,11 +216,11 @@ extern "C"
     }
 #endif
 
-    enclave::Enclave* enclave = nullptr;
+    ccf::Enclave* enclave = nullptr;
 
     try
     {
-      enclave = new enclave::Enclave(
+      enclave = new ccf::Enclave(
         ec,
         std::move(circuit),
         std::move(basic_writer_factory),

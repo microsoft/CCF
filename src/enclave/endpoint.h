@@ -4,7 +4,7 @@
 
 #include <vector>
 
-namespace enclave
+namespace ccf
 {
   class Endpoint : public std::enable_shared_from_this<Endpoint>
   {

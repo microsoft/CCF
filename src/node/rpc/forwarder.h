@@ -16,16 +16,16 @@ namespace ccf
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      std::shared_ptr<enclave::RpcContext> fwd_ctx) = 0;
+      std::shared_ptr<ccf::RpcContext> fwd_ctx) = 0;
   };
 
   template <typename ChannelProxy>
-  class Forwarder : public enclave::AbstractForwarder
+  class Forwarder : public AbstractForwarder
   {
   private:
-    std::weak_ptr<enclave::AbstractRPCResponder> rpcresponder;
+    std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
-    std::weak_ptr<enclave::RPCMap> rpc_map;
+    std::weak_ptr<ccf::RPCMap> rpc_map;
     ConsensusType consensus_type;
     NodeId self;
 
@@ -33,9 +33,9 @@ namespace ccf
 
   public:
     Forwarder(
-      std::weak_ptr<enclave::AbstractRPCResponder> rpcresponder,
+      std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder,
       std::shared_ptr<ChannelProxy> n2n_channels,
-      std::weak_ptr<enclave::RPCMap> rpc_map_,
+      std::weak_ptr<ccf::RPCMap> rpc_map_,
       ConsensusType consensus_type_) :
       rpcresponder(rpcresponder),
       n2n_channels(n2n_channels),
@@ -49,7 +49,7 @@ namespace ccf
     }
 
     bool forward_command(
-      std::shared_ptr<enclave::RpcContext> rpc_ctx,
+      std::shared_ptr<ccf::RpcContext> rpc_ctx,
       const NodeId& to,
       const std::vector<uint8_t>& caller_cert) override
     {
@@ -83,7 +83,7 @@ namespace ccf
         to, NodeMsgType::forwarded_msg, plain, msg);
     }
 
-    std::shared_ptr<enclave::RpcContext> recv_forwarded_command(
+    std::shared_ptr<ccf::RpcContext> recv_forwarded_command(
       const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
@@ -116,13 +116,13 @@ namespace ccf
       }
       std::vector<uint8_t> raw_request = serialized::read(data_, size_, size_);
 
-      auto session = std::make_shared<enclave::SessionContext>(
-        client_session_id, caller_cert);
+      auto session =
+        std::make_shared<ccf::SessionContext>(client_session_id, caller_cert);
       session->is_forwarded = true;
 
       try
       {
-        return enclave::make_fwd_rpc_context(
+        return ccf::make_fwd_rpc_context(
           session, raw_request, r.first.frame_format);
       }
       catch (const std::exception& err)
@@ -196,7 +196,7 @@ namespace ccf
         {
           case ForwardedMsg::forwarded_cmd:
           {
-            std::shared_ptr<enclave::RPCMap> rpc_map_shared = rpc_map.lock();
+            std::shared_ptr<ccf::RPCMap> rpc_map_shared = rpc_map.lock();
             if (rpc_map_shared)
             {
               auto ctx = recv_forwarded_command(from, data, size);
