@@ -52,9 +52,6 @@ namespace ccf
 
     virtual ccf::FrameFormat frame_format() const = 0;
 
-    // raw bft Request
-    std::vector<uint8_t> bft_raw = {};
-
     bool is_create_request = false;
     bool execute_on_node = false;
 
@@ -63,9 +60,8 @@ namespace ccf
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
     RpcContext(
-      std::shared_ptr<SessionContext> s, const std::vector<uint8_t>& bft_raw_) :
-      session(s),
-      bft_raw(bft_raw_)
+      std::shared_ptr<SessionContext> s) :
+      session(s)
     {}
 
     virtual ~RpcContext() {}
