@@ -116,6 +116,7 @@ class NetworkHealthWatcher(StoppableThread):
                     LOG.error(
                         f"Network has been in unstable state for more than {election_timeout_factor * election_timeout_s}s"
                     )
+
                     old_primary, _ = self.network.find_primary()
                     self.network.stop_all_nodes()
                     self.network.save_service_identity(self.args)
