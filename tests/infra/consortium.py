@@ -382,8 +382,7 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def get_service_identity(self):
-        r = slurp_file(os.path.join(self.common_dir, "service_cert.pem"))
-        return r.rstrip("\x00")  # Trailing null byte not required, but tolerated.
+        return slurp_file(os.path.join(self.common_dir, "service_cert.pem"))
 
     def add_users_and_transition_service_to_open(self, remote_node, users):
         proposal = {"actions": []}

@@ -440,11 +440,6 @@ int main(int argc, char** argv)
       }
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
-      while (startup_config.recover.previous_service_identity->back() == 0x00)
-      {
-        // Trailing null byte not required, but tolerated.
-        startup_config.recover.previous_service_identity->pop_back();
-      }
     }
     else
     {
