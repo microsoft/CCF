@@ -703,6 +703,9 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
     for node in network.nodes:
         with node.client() as c:
             rj = c.get("/node/consensus").body.json()
+            # 2.x: "details" nesting was removed in 2.0.0-rc5
+            if not node.version_after("ccf-2.0.0-rc4"):
+                rj = rj["details"]
             assert "reconfiguration_type" in rj
             assert rj["reconfiguration_type"] == "TwoTransaction"
             assert len(rj["learners"]) == 0
@@ -714,6 +717,9 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
     # Check that the new node has the right consensus parameter
     with new_node.client() as c:
         rj = c.get("/node/consensus").body.json()
+        # 2.x: "details" nesting was removed in 2.0.0-rc5
+        if not node.version_after("ccf-2.0.0-rc4"):
+            rj = rj["details"]
         assert "reconfiguration_type" in rj
         assert "learners" in rj
         assert rj["reconfiguration_type"] == "TwoTransaction"
