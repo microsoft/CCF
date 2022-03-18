@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/historical_queries_adapter.h"
-
 #include "ccf/crypto/base64.h"
+#include "ccf/historical_queries_adapter.h"
 #include "ccf/rpc_context.h"
+#include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
+#include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt.h"
 
 namespace ccf
@@ -61,6 +62,8 @@ namespace ccf
       out.leaf_components = Receipt::LeafComponents{
         write_set_digest_str, receipt.commit_evidence, claims_digest_str};
     }
+
+    out.service_endorsements = receipt.service_endorsements;
 
     return out;
   }
@@ -189,13 +192,69 @@ namespace ccf::historical
     return HistoricalTxStatus::Valid;
   }
 
+  std::map<crypto::Pem, crypto::Pem> service_endorsement_cache;
+
+  bool get_service_endorsements(
+    auto& ctx,
+    ccf::historical::StatePtr& state,
+    NetworkIdentitySubsystemInterface& niss)
+  {
+    const auto& network_identity = niss.get();
+
+    if (state->receipt->cert)
+    {
+      LOG_DEBUG_FMT("receipt cert: {}", state->receipt->cert->str());
+
+      auto v = crypto::make_unique_verifier(*state->receipt->cert);
+      if (!v->verify_certificate(
+            {&network_identity->cert}, {}, /* ignore_time */ true))
+      {
+        auto htx = state->store->create_read_only_tx();
+        auto hservice = htx.ro<Service>(Tables::SERVICE);
+        auto hservice_info = hservice->get();
+        if (!hservice_info)
+        {
+          throw std::runtime_error("historical service info not found");
+        }
+        auto hcert = hservice_info->cert;
+        LOG_DEBUG_FMT("historical identity: {}", hcert.str());
+        auto pubkey =
+          crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(hcert));
+
+        auto eit = service_endorsement_cache.find(pubkey);
+        if (eit != service_endorsement_cache.end())
+        {
+          state->receipt->service_endorsements = {eit->second};
+        }
+        else
+        {
+          auto valid_from = crypto::OpenSSL::to_x509_time_string(
+            crypto::OpenSSL::to_time_t(NULL));
+          auto endorsement = create_endorsed_cert(
+            pubkey,
+            ReplicatedNetworkIdentity::subject_name,
+            {},
+            valid_from,
+            1 /* days valid */,
+            network_identity->priv_key,
+            network_identity->cert);
+          service_endorsement_cache[pubkey] = endorsement;
+          state->receipt->service_endorsements = {endorsement};
+        }
+      }
+    }
+
+    return true;
+  }
+
   ccf::endpoints::EndpointFunction adapter_v2(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
+    NetworkIdentitySubsystemInterface& network_identity_subsystem,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {
-    return [f, &state_cache, available, extractor](
+    return [f, &state_cache, &network_identity_subsystem, available, extractor](
              endpoints::EndpointContext& args) {
       // Extract the requested transaction ID
       ccf::TxID target_tx_id;
@@ -262,6 +321,21 @@ namespace ccf::historical
       auto historical_state =
         state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
       if (historical_state == nullptr)
+      {
+        args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+        constexpr size_t retry_after_seconds = 3;
+        args.rpc_ctx->set_response_header(
+          http::headers::RETRY_AFTER, retry_after_seconds);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        args.rpc_ctx->set_response_body(fmt::format(
+          "Historical transaction {} is not currently available.",
+          target_tx_id.to_str()));
+        return;
+      }
+
+      if (!get_service_endorsements(
+            args, historical_state, network_identity_subsystem))
       {
         args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
         constexpr size_t retry_after_seconds = 3;

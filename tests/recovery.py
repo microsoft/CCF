@@ -70,7 +70,6 @@ def get_and_verify_historical_receipt(network, ref_msg):
         ref_msg["seqno"],
         ref_msg["view"],
     )
-    LOG.info(f"Receipt: {r}")
     verify_receipt(r.json()["receipt"], network.cert)
     return ref_msg
 

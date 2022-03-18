@@ -12,6 +12,7 @@
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/json_handler.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
 #include "kv/store.h"
 
@@ -843,7 +844,11 @@ namespace loggingapp
         "/log/private/historical",
         HTTP_GET,
         ccf::historical::adapter_v2(
-          get_historical, context.get_historical_state(), is_tx_committed),
+          get_historical,
+          context.get_historical_state(),
+          *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>()
+             .get(),
+          is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
@@ -899,6 +904,8 @@ namespace loggingapp
         ccf::historical::adapter_v2(
           get_historical_with_receipt,
           context.get_historical_state(),
+          *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>()
+             .get(),
           is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
@@ -959,6 +966,8 @@ namespace loggingapp
         ccf::historical::adapter_v2(
           get_historical_with_receipt_and_claims,
           context.get_historical_state(),
+          *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>()
+             .get(),
           is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()

@@ -4,6 +4,7 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
@@ -256,6 +257,7 @@ namespace ccfapp
             do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
           },
           context.get_historical_state(),
+          *context.get_subsystem<NetworkIdentitySubsystemInterface>().get(),
           is_tx_committed)(endpoint_ctx);
       }
       else

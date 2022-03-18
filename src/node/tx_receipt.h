@@ -17,6 +17,7 @@ namespace ccf
     std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
     std::optional<std::string> commit_evidence = std::nullopt;
     ccf::ClaimsDigest claims_digest = {};
+    std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
@@ -26,7 +27,9 @@ namespace ccf
       const std::optional<crypto::Pem>& c_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
       const std::optional<std::string>& commit_evidence_ = std::nullopt,
-      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
+      const std::optional<std::vector<crypto::Pem>>& service_endorsements_ =
+        std::nullopt) :
       signature(s_),
       root(r_),
       path(p_),
@@ -34,7 +37,8 @@ namespace ccf
       cert(c_),
       write_set_digest(write_set_digest_),
       commit_evidence(commit_evidence_),
-      claims_digest(claims_digest_)
+      claims_digest(claims_digest_),
+      service_endorsements(service_endorsements_)
     {}
   };
 

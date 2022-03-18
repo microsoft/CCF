@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/common_endpoint_registry.h"
-
 #include "ccf/common_auth_policies.h"
+#include "ccf/common_endpoint_registry.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_consts.h"
@@ -247,6 +246,7 @@ namespace ccf
       ccf::historical::adapter_v2(
         get_receipt,
         context.get_historical_state(),
+        *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>().get(),
         is_tx_committed,
         txid_from_query_string),
       no_auth_required)

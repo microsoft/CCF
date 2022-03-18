@@ -5,6 +5,7 @@
 #include "ccf/ccf_deprecated.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/historical_queries_interface.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 
@@ -52,6 +53,7 @@ namespace ccf::historical
   ccf::endpoints::EndpointFunction adapter_v2(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
+    NetworkIdentitySubsystemInterface& network_identity_subsystem,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
 
