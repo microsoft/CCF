@@ -484,7 +484,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # network = test_recover_service_with_wrong_identity(network, args)
+        network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(1):
             # Issue transactions which will required historical ledger queries recovery
@@ -494,17 +494,17 @@ def run(args):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            # if i % recoveries_count == 0:
-            #     if args.consensus != "BFT":
-            #         network = test_share_resilience(network, args, from_snapshot=True)
-            # elif i % recoveries_count == 1:
-            #     network = test_recover_service_aborted(
-            #         network, args, from_snapshot=False
-            #     )
-            # else:
-            network = test_recover_service(
-                network, args, from_snapshot=False, split_ledger=True
-            )
+            if i % recoveries_count == 0:
+                if args.consensus != "BFT":
+                    network = test_share_resilience(network, args, from_snapshot=True)
+            elif i % recoveries_count == 1:
+                network = test_recover_service_aborted(
+                    network, args, from_snapshot=False
+                )
+            else:
+                network = test_recover_service(
+                    network, args, from_snapshot=False, split_ledger=True
+                )
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()

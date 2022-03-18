@@ -29,8 +29,8 @@ class HealthState(Enum):
 
 def get_primary(node, client_node_timeout_s=3, verbose=True):
     """
-    Returns the primary reported by a given node.
-    Returns None if the given node is unreachable.
+    Returns the primary reported by a given node, and in which view or
+    None if the given node is unreachable.
     """
     try:
         with node.client() as c:
@@ -58,8 +58,9 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
         )
     assert len(primaries) == len(nodes)
 
-    # Count how many primary nodes are reported. If a majority of nodes report
-    # the same primary node in the same term, the service is stable.
+    # Count how many primary nodes are reported by all nodes in the network.
+    # If a majority of nodes report the same primary node in the same term,
+    # the service is stable.
     primaries_count = Counter(primaries.values())
 
     if not primaries_count:
@@ -154,50 +155,3 @@ class NetworkHealthWatcher(StoppableThread):
                     return
 
             time.sleep(self.poll_interval_s)
-
-
-if __name__ == "__main__":
-    # Run this for unit tests
-    class N:
-        def __init__(self, node_id, primary_id, view):
-            self.node_id = node_id
-            self.primary = (primary_id, view)
-
-        def update_primary(self, primary_id, view):
-            self.primary = (primary_id, view)
-
-    def test_get_primary(node, *args, **kwargs):
-        return node.primary
-
-    class TestNetwork:
-        def __init__(self, nodes):
-            self.nodes = nodes
-
-    def test_get_network_health(*args):
-        return get_network_health(TestNetwork([*args]), test_get_primary)
-
-    # Stable primary-ship
-    assert (
-        test_get_network_health(N(0, 0, 2), N(1, 0, 2), N(2, 0, 2))
-        == HealthState.stable
-    )
-    # One node becomes candidate
-    assert (
-        test_get_network_health(N(0, 0, 2), N(1, None, 3), N(2, 0, 2))
-        == HealthState.stable
-    )
-    # Majority of nodes are now candidates, in different terms
-    assert (
-        test_get_network_health(N(0, 0, 2), N(1, None, 4), N(2, None, 3))
-        == HealthState.election
-    )
-    # Election converges on candidates, old primary still isolated
-    assert (
-        test_get_network_health(N(0, 0, 2), N(1, 1, 4), N(2, 1, 4))
-        == HealthState.stable
-    )
-    # Old primary becomes follower
-    assert (
-        test_get_network_health(N(0, 1, 4), N(1, 1, 4), N(2, 1, 4))
-        == HealthState.stable
-    )
