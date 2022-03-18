@@ -89,6 +89,7 @@ namespace http
           {
             error_reporter->report_parsing_error(session_id);
           }
+          LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
           auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
           response.set_header(
