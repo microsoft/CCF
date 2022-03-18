@@ -56,6 +56,8 @@ namespace ccfapp
             do_execute_request(endpoint_def, endpoint_ctx, state);
           },
           context.get_historical_state(),
+          *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>()
+             .get(),
           is_tx_committed)(endpoint_ctx);
       }
       else
