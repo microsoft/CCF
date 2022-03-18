@@ -142,17 +142,16 @@ def test_illegal(network, args):
         response.begin()
         return response
 
+    additional_parsing_errors = 0
+
     def send_bad_raw_content(content):
-        initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
+        nonlocal additional_parsing_errors
         response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
         # If request parsing error, the interface metrics should report it
-        if response_body.startswith("Unable to parse data as a HTTP request.".encode()):
-            assert (
-                get_main_interface_metrics()["errors"]["parsing"]
-                == initial_parsing_errors + 1
-            )
+        if response_body.startswith(b"Unable to parse data as a HTTP request."):
+            additional_parsing_errors += 1
         if response.status == http.HTTPStatus.BAD_REQUEST:
             assert content in response_body, response_body
         else:
@@ -161,6 +160,7 @@ def test_illegal(network, args):
                 response_body,
             )
 
+    initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
     send_bad_raw_content(b"NOTAVERB ")
@@ -187,6 +187,11 @@ def test_illegal(network, args):
             for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
                 corrupt_content = content[:i] + replacement + content[i + 1 :]
                 send_bad_raw_content(corrupt_content)
+
+    assert (
+        get_main_interface_metrics()["errors"]["parsing"]
+        == initial_parsing_errors + additional_parsing_errors
+    )
 
     good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
     response = send_raw_content(good_content)
