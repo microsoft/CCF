@@ -60,6 +60,7 @@ namespace host
     ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
     ds::TimeString client_connection_timeout = {"2000ms"};
+    std::optional<std::string> node_data_json_file = std::nullopt;
 
     struct OutputFiles
     {
@@ -210,6 +211,7 @@ namespace host
     slow_io_logging_threshold,
     node_client_interface,
     client_connection_timeout,
+    node_data_json_file,
     output_files,
     ledger,
     snapshots,

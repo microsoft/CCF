@@ -5,12 +5,12 @@
 #include "ccf/actors.h"
 #include "rpc_handler.h"
 
-namespace enclave
+namespace ccf
 {
   class RPCMap
   {
   private:
-    std::unordered_map<ccf::ActorsType, std::shared_ptr<RpcHandler>> map;
+    std::unordered_map<ccf::ActorsType, std::shared_ptr<ccf::RpcHandler>> map;
     std::map<std::string, ccf::ActorsType> actors_map;
 
   public:

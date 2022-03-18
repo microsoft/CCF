@@ -229,7 +229,7 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
 
       if (
-        !ledger_secrets.empty() &&
+        !ledger_secrets.empty() && !restored_ledger_secrets.empty() &&
         restored_ledger_secrets.rbegin()->first >=
           ledger_secrets.begin()->first)
       {
