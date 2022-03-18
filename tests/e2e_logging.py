@@ -307,7 +307,7 @@ def test_large_messages(network, args):
     # pass but not others, and finding where does it fail).
     log_id = 7
     for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-        long_msg = "X" * (2 ** p)
+        long_msg = "X" * (2**p)
         network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
         check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
         log_id += 1
