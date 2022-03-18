@@ -157,14 +157,14 @@ namespace enclave
       std::lock_guard<std::mutex> guard(lock);
 
       auto search = sessions.find(id);
-      if (search == sessions.end())
+      if (search != sessions.end())
       {
-        LOG_FAIL_FMT("Cannot log parsing error for unknown session {}", id);
-        return;
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          it->second.parsing_errors++;
+        }
       }
-
-      auto& interface = listening_interfaces[search->second.first];
-      interface.parsing_errors++;
     }
 
     void update_listening_interface_options(

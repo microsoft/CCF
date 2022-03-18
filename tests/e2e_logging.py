@@ -142,11 +142,17 @@ def test_illegal(network, args):
         response.begin()
         return response
 
-    def send_bad_raw_content(content, expect_parsing_error=True):
+    def send_bad_raw_content(content):
         initial_parsing_errors = get_main_interface_metrics()["parsing_errors"]
         response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
+        # If request parsing error, the interface metrics should report it
+        if response_body.startswith("Unable to parse data as a HTTP request.".encode()):
+             assert (
+                get_main_interface_metrics()["parsing_errors"]
+                == initial_parsing_errors + 1
+            )
         if response.status == http.HTTPStatus.BAD_REQUEST:
             assert content in response_body, response_body
         else:
@@ -154,11 +160,7 @@ def test_illegal(network, args):
                 response.status,
                 response_body,
             )
-        if expect_parsing_error:
-            assert (
-                get_main_interface_metrics()["parsing_errors"]
-                == initial_parsing_errors + 1
-            )
+           
 
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
@@ -166,7 +168,7 @@ def test_illegal(network, args):
     send_bad_raw_content(b"POST / HTTP/42.42")
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
     # Tests non-UTF8 encoding in OData
-    send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n", False)
+    send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
 
     for _ in range(40):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
@@ -185,7 +187,7 @@ def test_illegal(network, args):
         for i in range(len(content) - 1):
             for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
                 corrupt_content = content[:i] + replacement + content[i + 1 :]
-                send_bad_raw_content(corrupt_content, False)
+                send_bad_raw_content(corrupt_content)
 
     good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
     response = send_raw_content(good_content)
