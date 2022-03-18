@@ -53,7 +53,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
                 try:
                     r = c.get("/node/consensus")
                     rj = r.body.json()
-                    cfgs = rj["configs"]
+                    cfgs = rj["details"]["configs"]
                     num_configs = len(cfgs)
                     max_num_configs = max(max_num_configs, num_configs)
                     if num_configs == 1 and cfgs[0]["rid"] != max_rid:
@@ -482,8 +482,8 @@ def test_learner_catches_up(network, args):
         s = c.get("/node/consensus")
         rj = s.body.json()
         # At this point, there should be exactly one configuration
-        assert len(rj["configs"]) == 1
-        c0 = rj["configs"][0]["nodes"]
+        assert len(rj["details"]["configs"]) == 1
+        c0 = rj["details"]["configs"][0]["nodes"]
         num_nodes_before = len(c0)
 
     new_node = network.create_node("local://localhost")
@@ -505,11 +505,11 @@ def test_learner_catches_up(network, args):
     with primary.client() as c:
         s = c.get("/node/consensus")
         rj = s.body.json()
-        assert len(rj["learners"]) == 0
+        assert len(rj["details"]["learners"]) == 0
 
         # At this point, there should be exactly one configuration, which includes the new node.
-        assert len(rj["configs"]) == 1
-        c0 = rj["configs"][0]["nodes"]
+        assert len(rj["details"]["configs"]) == 1
+        c0 = rj["details"]["configs"][0]["nodes"]
         assert len(c0) == num_nodes_before + 1
         assert new_node.node_id in c0
 
@@ -703,12 +703,9 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
     for node in network.nodes:
         with node.client() as c:
             rj = c.get("/node/consensus").body.json()
-            # 2.x: "details" nesting was removed in 2.0.0-rc5
-            if not node.version_after("ccf-2.0.0-rc4"):
-                rj = rj["details"]
-            assert "reconfiguration_type" in rj
-            assert rj["reconfiguration_type"] == "TwoTransaction"
-            assert len(rj["learners"]) == 0
+            assert "reconfiguration_type" in rj["details"]
+            assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+            assert len(rj["details"]["learners"]) == 0
 
     new_node = network.create_node("local://localhost", **kwargs)
     network.join_node(new_node, args.package, args)
@@ -717,13 +714,10 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
     # Check that the new node has the right consensus parameter
     with new_node.client() as c:
         rj = c.get("/node/consensus").body.json()
-        # 2.x: "details" nesting was removed in 2.0.0-rc5
-        if not node.version_after("ccf-2.0.0-rc4"):
-            rj = rj["details"]
-        assert "reconfiguration_type" in rj
+        assert "reconfiguration_type" in rj["details"]
         assert "learners" in rj
-        assert rj["reconfiguration_type"] == "TwoTransaction"
-        assert len(rj["learners"]) == 0
+        assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+        assert len(rj["details"]["learners"]) == 0
 
 
 def run_migration_tests(args):

@@ -96,6 +96,14 @@ namespace ccf
 
   using ConsensusConfig = std::map<std::string, ConsensusNodeConfig>;
 
+  struct ConsensusConfigDetails
+  {
+    kv::ConsensusDetails details;
+  };
+
+  DECLARE_JSON_TYPE(ConsensusConfigDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusConfigDetails, details);
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -1128,7 +1136,7 @@ namespace ccf
       auto consensus_state = [this](auto& args, nlohmann::json&&) {
         if (consensus != nullptr)
         {
-          return make_success(consensus->get_details());
+          return make_success(ConsensusConfigDetails{consensus->get_details()});
         }
         else
         {
@@ -1145,7 +1153,7 @@ namespace ccf
         json_command_adapter(consensus_state),
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_auto_schema<void, kv::ConsensusDetails>()
+        .set_auto_schema<void, ConsensusConfigDetails>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
