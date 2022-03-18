@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/base64.h"
 #include "ccf/historical_queries_adapter.h"
+
+#include "ccf/crypto/base64.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
