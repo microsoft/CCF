@@ -370,4 +370,4 @@ if __name__ == "__main__":
 
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)
-    # run_2tx_reconfig_tests(args)
+    run_2tx_reconfig_tests(args)
