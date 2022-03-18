@@ -87,8 +87,10 @@ def test_partition_majority(network, args):
 
 
 @reqs.description("Isolate primary from one backup")
+@reqs.exactly_n_nodes(3)
 def test_isolate_primary_from_one_backup(network, args):
-    primary, backups = network.find_nodes()
+    p, backups = network.find_nodes()
+    b_0, b_1 = backups
 
     # Issue one transaction, waiting for all nodes to be have reached
     # the same level of commit, so that nodes outside of partition can
@@ -100,23 +102,42 @@ def test_isolate_primary_from_one_backup(network, args):
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
     # Note: Managed manually
-    rules = network.partitioner.isolate_node(primary, backups[0])
+    rules = network.partitioner.isolate_node(p, b_0)
 
-    new_primary, new_view = network.wait_for_new_primary(
-        primary, nodes=backups, timeout_multiplier=6
-    )
+    # Now wait for several elections to occur. We expect:
+    # - b_0 to call and win an election with b_1's help
+    # - b_0 to produce a new signature, and commit it with b_1's help
+    # - p to call its own election, and lose because it doesn't have this signature
+    # - In the resulting election race:
+    #   - If p calls first, it loses and we're in the same situation
+    #   - If b_0 calls first, it wins, but then p calls its election and we've returned to the same situation
+    #   - If b_1 calls first, it can win and then bring _both_ nodes up-to-date, becoming a _stable_ primary
+    # So we repeat elections until b_1 is primary
 
+    old_primary = p
+    for election_count in range(10):
+        new_primary, new_view = network.wait_for_new_primary(
+            old_primary, nodes=backups, timeout_multiplier=6
+        )
+        if new_primary == b_1:
+            break
+        else:
+            old_primary = new_primary
+
+    assert new_primary == b_1
+
+    # The partition is now between 2 backups, but both can talk to the new primary
     # Explicitly drop rules before continuing
     rules.drop()
 
-    # Old primary should now report of the new primary
-    new_primary_, new_view_ = network.wait_for_new_primary(primary, nodes=[primary])
+    # Original primary should now, or very soon, report the new primary
+    new_primary_, new_view_ = network.wait_for_new_primary(p, nodes=[p])
     assert (
         new_primary == new_primary_
     ), f"New primary {new_primary_.local_node_id} after partition is dropped is different than before {new_primary.local_node_id}"
     assert (
         new_view == new_view_
-    ), f"Consensus view {new_view} should not changed after partition is dropped: no {new_view_}"
+    ), f"Consensus view {new_view} should not have changed after partition is dropped: now {new_view_}"
 
     return network
 
@@ -349,4 +370,4 @@ if __name__ == "__main__":
 
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)
-    run_2tx_reconfig_tests(args)
+    # run_2tx_reconfig_tests(args)
