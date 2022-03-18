@@ -1432,7 +1432,6 @@ def run(args):
             network, args, verbose=False
         )
         watcher.start()
-        # watcher.run(network)
 
         LOG.error("here")
         import time

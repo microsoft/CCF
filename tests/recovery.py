@@ -14,6 +14,8 @@ import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
+import infra.health_watcher
+import time
 
 from loguru import logger as LOG
 
@@ -64,6 +66,17 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
+    # Start health watcher and stop nodes one by one until a recovery has to be staged
+    watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+    watcher.start()
+
+    for node in network.get_joined_nodes():
+        time.sleep(args.election_timeout_ms / 1000)
+        node.stop()
+
+    watcher.wait_for_recovery()
+
+    # Stop remaining nodes
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
@@ -471,9 +484,9 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service_with_wrong_identity(network, args)
+        # network = test_recover_service_with_wrong_identity(network, args)
 
-        for i in range(recoveries_count):
+        for i in range(1):
             # Issue transactions which will required historical ledger queries recovery
             # when the network is shutdown
             network.txs.issue(network, number_txs=1)
@@ -481,17 +494,17 @@ def run(args):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            if i % recoveries_count == 0:
-                if args.consensus != "BFT":
-                    network = test_share_resilience(network, args, from_snapshot=True)
-            elif i % recoveries_count == 1:
-                network = test_recover_service_aborted(
-                    network, args, from_snapshot=False
-                )
-            else:
-                network = test_recover_service(
-                    network, args, from_snapshot=False, split_ledger=True
-                )
+            # if i % recoveries_count == 0:
+            #     if args.consensus != "BFT":
+            #         network = test_share_resilience(network, args, from_snapshot=True)
+            # elif i % recoveries_count == 1:
+            #     network = test_recover_service_aborted(
+            #         network, args, from_snapshot=False
+            #     )
+            # else:
+            network = test_recover_service(
+                network, args, from_snapshot=False, split_ledger=True
+            )
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
@@ -556,16 +569,17 @@ checked. Note that the key for each logging message is unique (per table).
 
     # Note: `run_corrupted_ledger` runs with very a specific node configuration
     # so that the contents of recovered (and tampered) ledger chunks
-    # can be dictated by the test. In particular, the signature interval is large # enough to create in-progress ledger files that do not end on a signature. The
+    # can be dictated by the test. In particular, the signature interval is large
+    # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snasphot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snasphot_tx_interval=1000000,
+    # )
 
     cr.run()
