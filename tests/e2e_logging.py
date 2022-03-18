@@ -34,7 +34,8 @@ import e2e_common_endpoints
 from types import MappingProxyType
 
 from loguru import logger as LOG
-from OpenSSL.crypto import dump_certificate, FILETYPE_TEXT
+
+# from OpenSSL.crypto import dump_certificate, FILETYPE_TEXT
 
 
 def verify_receipt(
@@ -48,17 +49,17 @@ def verify_receipt(
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         cert_i = node_cert
-        dc = dump_certificate(FILETYPE_TEXT, cert_i).decode("unicode_escape")
-        LOG.info(f"Node cert: {dc}")
+        # dc = dump_certificate(FILETYPE_TEXT, cert_i).decode("unicode_escape")
+        # LOG.info(f"Node cert: {dc}")
         if "service_endorsements" in receipt:
             for endo in receipt["service_endorsements"]:
                 endo_cert = load_pem_x509_certificate(endo.encode(), default_backend())
-                dc = dump_certificate(FILETYPE_TEXT, endo_cert).decode("unicode_escape")
-                LOG.info(f"Endorsement cert: {dc}")
+                # dc = dump_certificate(FILETYPE_TEXT, endo_cert).decode("unicode_escape")
+                # LOG.info(f"Endorsement cert: {dc}")
                 ccf.receipt.check_endorsement(endo_cert, cert_i)
                 cert_i = endo_cert
-        dc = dump_certificate(FILETYPE_TEXT, service_cert).decode("unicode_escape")
-        LOG.info(f"Service cert: {dc}")
+        # dc = dump_certificate(FILETYPE_TEXT, service_cert).decode("unicode_escape")
+        # LOG.info(f"Service cert: {dc}")
         ccf.receipt.check_endorsement(cert_i, service_cert)
     if claims is not None:
         assert "leaf_components" in receipt
