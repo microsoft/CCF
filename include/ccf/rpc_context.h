@@ -13,7 +13,7 @@
 
 #include <vector>
 
-namespace enclave
+namespace ccf
 {
   static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();
   using ListenInterfaceID = std::string;

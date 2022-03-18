@@ -464,7 +464,7 @@ namespace ccf
     }
 
     bool get_proposal_id_from_path(
-      const enclave::PathParams& params,
+      const ccf::PathParams& params,
       ProposalId& proposal_id,
       std::string& error)
     {
@@ -472,9 +472,7 @@ namespace ccf
     }
 
     bool get_member_id_from_path(
-      const enclave::PathParams& params,
-      MemberId& member_id,
-      std::string& error)
+      const ccf::PathParams& params, MemberId& member_id, std::string& error)
     {
       return get_path_param(params, "member_id", member_id.value(), error);
     }
