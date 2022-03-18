@@ -115,7 +115,7 @@ def test_isolate_primary_from_one_backup(network, args):
     # So we repeat elections until b_1 is primary
 
     old_primary = p
-    for election_count in range(10):
+    for _ in range(10):
         new_primary, new_view = network.wait_for_new_primary(
             old_primary, nodes=backups, timeout_multiplier=6
         )
