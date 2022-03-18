@@ -715,7 +715,7 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
     with new_node.client() as c:
         rj = c.get("/node/consensus").body.json()
         assert "reconfiguration_type" in rj["details"]
-        assert "learners" in rj
+        assert "learners" in rj["details"]
         assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
         assert len(rj["details"]["learners"]) == 0
 
