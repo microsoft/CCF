@@ -1,0 +1,3 @@
+[merge "keeplocal"]
+	name = Always keep local find during merge
+	driver = true
