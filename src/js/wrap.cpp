@@ -765,7 +765,7 @@ namespace ccf::js
     }
 
     auto rpc_ctx =
-      static_cast<enclave::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
+      static_cast<ccf::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
 
     if (rpc_ctx == nullptr)
     {
@@ -792,7 +792,7 @@ namespace ccf::js
     }
 
     auto rpc_ctx =
-      static_cast<enclave::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
+      static_cast<ccf::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
 
     if (rpc_ctx == nullptr)
     {
@@ -1456,7 +1456,7 @@ namespace ccf::js
   JSValue create_ccf_obj(
     TxContext* txctx,
     TxContext* historical_txctx,
-    enclave::RpcContext* rpc_ctx,
+    ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
@@ -1749,7 +1749,7 @@ namespace ccf::js
   void populate_global_ccf(
     TxContext* txctx,
     TxContext* historical_txctx,
-    enclave::RpcContext* rpc_ctx,
+    ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
@@ -1782,7 +1782,7 @@ namespace ccf::js
   void populate_global(
     TxContext* txctx,
     TxContext* historical_txctx,
-    enclave::RpcContext* rpc_ctx,
+    ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,

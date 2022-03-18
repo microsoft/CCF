@@ -110,7 +110,7 @@ namespace ccf::endpoints
 
     template <typename T>
     bool get_path_param(
-      const enclave::PathParams& params,
+      const ccf::PathParams& params,
       const std::string& param_name,
       T& value,
       std::string& error)
@@ -137,7 +137,7 @@ namespace ccf::endpoints
 
     template <>
     bool get_path_param(
-      const enclave::PathParams& params,
+      const ccf::PathParams& params,
       const std::string& param_name,
       std::string& value,
       std::string& error)
@@ -245,13 +245,13 @@ namespace ccf::endpoints
     virtual void init_handlers();
 
     virtual EndpointDefinitionPtr find_endpoint(
-      kv::Tx&, enclave::RpcContext& rpc_ctx);
+      kv::Tx&, ccf::RpcContext& rpc_ctx);
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args);
 
     virtual std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx&, const enclave::RpcContext& rpc_ctx);
+      kv::Tx&, const ccf::RpcContext& rpc_ctx);
 
     virtual void report_ambiguous_templated_path(
       const std::string& path,

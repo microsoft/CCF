@@ -648,6 +648,15 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def set_node_data(self, remote_node, node_service_id, node_data):
+        proposal, careful_vote = self.make_proposal(
+            "set_node_data",
+            node_id=node_service_id,
+            node_data=node_data,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def set_node_certificate_validity(
         self, remote_node, node_to_renew, valid_from, validity_period_days
     ):

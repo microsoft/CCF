@@ -18,6 +18,7 @@ from datetime import datetime
 import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
+import tempfile
 
 from loguru import logger as LOG
 
@@ -187,6 +188,71 @@ def test_no_quote(network, args):
     ) as uc:
         r = uc.get("/node/quotes/self")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
+    return network
+
+
+@reqs.description("Test node data set at node construction, and updated by governance")
+def test_node_data(network, args):
+    with tempfile.NamedTemporaryFile(mode="w+") as ntf:
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+
+            def get_nodes():
+                r = c.get("/node/network/nodes")
+                assert r.status_code == 200, (r.status_code, r.body.text())
+                return {
+                    node_info["node_id"]: node_info
+                    for node_info in r.body.json()["nodes"]
+                }
+
+            new_node_data = {"my_id": "0xdeadbeef", "location": "The Moon"}
+            json.dump(new_node_data, ntf)
+            ntf.flush()
+            untrusted_node = network.create_node(
+                infra.interfaces.HostSpec(
+                    rpc_interfaces={
+                        infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                            endorsement=infra.interfaces.Endorsement(authority="Node")
+                        )
+                    }
+                ),
+                node_data_json_file=ntf.name,
+            )
+
+            # NB: This new node joins but is never trusted
+            network.join_node(untrusted_node, args.package, args)
+
+            nodes = get_nodes()
+            assert untrusted_node.node_id in nodes, nodes
+            new_node_info = nodes[untrusted_node.node_id]
+            assert new_node_info["node_data"] == new_node_data, new_node_info
+
+            # Set modified node data
+            new_node_data["previous_locations"] = [new_node_data["location"]]
+            new_node_data["location"] = "Secret Base"
+
+            network.consortium.set_node_data(
+                primary, untrusted_node.node_id, new_node_data
+            )
+
+            nodes = get_nodes()
+            assert untrusted_node.node_id in nodes, nodes
+            new_node_info = nodes[untrusted_node.node_id]
+            assert new_node_info["node_data"] == new_node_data, new_node_info
+
+            # Set modified node data on trusted primary
+            primary_node_data = "Some plain JSON string"
+            network.consortium.set_node_data(
+                primary, primary.node_id, primary_node_data
+            )
+
+            nodes = get_nodes()
+            assert primary.node_id in nodes, nodes
+            primary_node_info = nodes[primary.node_id]
+            assert (
+                primary_node_info["node_data"] == primary_node_data
+            ), primary_node_info
+
     return network
 
 
@@ -462,6 +528,7 @@ def gov(args):
         test_user(network, args)
         test_jinja_templates(network, args)
         test_no_quote(network, args)
+        test_node_data(network, args)
         test_ack_state_digest_update(network, args)
         test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
@@ -484,7 +551,6 @@ def js_gov(args):
         governance_js.test_vote_failure_reporting(network, args)
         governance_js.test_operator_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
-        governance_js.test_actions(network, args)
         governance_js.test_set_constitution(network, args)
 
 

@@ -15,7 +15,7 @@ namespace kv
   class CommittableTx;
 }
 
-namespace enclave
+namespace ccf
 {
   class RpcHandler
   {
