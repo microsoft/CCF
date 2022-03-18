@@ -207,8 +207,13 @@
                     "default": 1,
                     "description": "Initial validity period (days) for service certificate",
                     "minimum": 1
+                  },
+                  "previous_service_identity_file": {
+                    "type": "string",
+                    "description": "Path to the previous service certificate (PEM) file"
                   }
-                }
+                },
+                "required": ["previous_service_identity_file"]
               }
             }
           }

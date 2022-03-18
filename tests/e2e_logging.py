@@ -123,6 +123,12 @@ def test_illegal(network, args):
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
     )
 
+    def get_main_interface_metrics():
+        with primary.client() as c:
+            return c.get("/node/metrics").body.json()["sessions"]["interfaces"][
+                infra.interfaces.PRIMARY_RPC_INTERFACE
+            ]
+
     def send_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -137,9 +143,16 @@ def test_illegal(network, args):
         return response
 
     def send_bad_raw_content(content):
+        initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
         response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
+        # If request parsing error, the interface metrics should report it
+        if response_body.startswith("Unable to parse data as a HTTP request.".encode()):
+            assert (
+                get_main_interface_metrics()["errors"]["parsing"]
+                == initial_parsing_errors + 1
+            )
         if response.status == http.HTTPStatus.BAD_REQUEST:
             assert content in response_body, response_body
         else:
@@ -1457,21 +1470,6 @@ def run(args):
         if "v8" not in args.package:
             network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
-
-
-def run_parsing_errors(args):
-    txs = app.LoggingTxs("user0")
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-        txs=txs,
-    ) as network:
-        network.start_and_open(args)
-
-        network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
         network = test_illegal(network, args)
         network = test_protocols(network, args)
 
@@ -1514,21 +1512,6 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
-
-    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
-
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
