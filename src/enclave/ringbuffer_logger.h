@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 
-namespace enclave
+namespace ccf
 {
   class RingbufferLogger : public logger::AbstractLogger
   {

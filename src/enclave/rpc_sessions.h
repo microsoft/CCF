@@ -17,7 +17,7 @@
 #include <limits>
 #include <unordered_map>
 
-namespace enclave
+namespace ccf
 {
   using ServerEndpointImpl = http::HTTPServerEndpoint;
   using ClientEndpointImpl = http::HTTPClientEndpoint;
@@ -56,14 +56,14 @@ namespace enclave
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
-    class NoMoreSessionsEndpointImpl : public enclave::TLSEndpoint
+    class NoMoreSessionsEndpointImpl : public ccf::TLSEndpoint
     {
     public:
       NoMoreSessionsEndpointImpl(
         tls::ConnID session_id,
         ringbuffer::AbstractWriterFactory& writer_factory,
         std::unique_ptr<tls::Context> ctx) :
-        enclave::TLSEndpoint(session_id, writer_factory, std::move(ctx))
+        ccf::TLSEndpoint(session_id, writer_factory, std::move(ctx))
       {}
 
       static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)

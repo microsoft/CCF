@@ -354,6 +354,12 @@ int main(int argc, char** argv)
     startup_config.worker_threads = config.worker_threads;
     startup_config.node_certificate = config.node_certificate;
 
+    if (config.node_data_json_file.has_value())
+    {
+      startup_config.node_data =
+        files::slurp_json(config.node_data_json_file.value());
+    }
+
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
@@ -542,7 +548,7 @@ int main(int argc, char** argv)
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
+        LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
 
         // This exception should be rethrown, probably aborting the process, but
         // we sleep briefly to allow more outbound messages to be processed. If

@@ -13,7 +13,7 @@
 
 #include <exception>
 
-namespace enclave
+namespace ccf
 {
   class TLSEndpoint : public Endpoint
   {

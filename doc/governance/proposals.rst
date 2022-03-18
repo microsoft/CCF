@@ -99,7 +99,10 @@ Some examples of proposals which could be sent to the default sample constitutio
           }
         },
         {
-          "name": "transition_service_to_open"
+          "name": "transition_service_to_open",
+          "args": {
+              "next_service_identity": "-----BEGIN CERTIFICATE-----\nMIIBuDCCAT2gAwIBAgIQLvCv036OU/z8myGLWx0vtTAKBggqhkjOPQQDAzAWMRQw\nEgYDVQQDDAtDQ0YgTmV0d29yazAeFw0yMjAzMTUxNjM2MzVaFw0yMjAzMTYxNjM2\nMzRaMBYxFDASBgNVBAMMC0NDRiBOZXR3b3JrMHYwEAYHKoZIzj0CAQYFK4EEACID\nYgAEKP9wIDb6ROuLKBYkvqB3zDo3xIvF8KVaEGUaB5/k8RBCKMZuYN77+ZkchJ1W\nIx/k+/qHfilcmYGPtU0HfClhhmRVVz7HmGH/BNC2WD7xv7/4XKAKRyBaPrgKV1kM\nVUYmo1AwTjAMBgNVHRMEBTADAQH/MB0GA1UdDgQWBBSrcP9JAIud2nXS7JeIqmmy\ncJMT4TAfBgNVHSMEGDAWgBSrcP9JAIud2nXS7JeIqmmycJMT4TAKBggqhkjOPQQD\nAwNpADBmAjEA3LvcHZtTrJ1r1FvodfU1ExO5mjLZbNs3SQA2ztoR9/ZSq9kzxInn\nHD25MYYpZx8WAjEAvxuxS33yJ3e8f08hZbMb687mnPOiPl3bw5/GDCMvsTRAmIn9\nX+bORxJ2HnYGd3Jj\n-----END CERTIFICATE-----\n"
+          }
         }
       ]
     }

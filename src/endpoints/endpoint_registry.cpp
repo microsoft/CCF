@@ -210,7 +210,7 @@ namespace ccf::endpoints
   void EndpointRegistry::init_handlers() {}
 
   EndpointDefinitionPtr EndpointRegistry::find_endpoint(
-    kv::Tx&, enclave::RpcContext& rpc_ctx)
+    kv::Tx&, ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
 
@@ -296,7 +296,7 @@ namespace ccf::endpoints
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
-    kv::Tx& tx, const enclave::RpcContext& rpc_ctx)
+    kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
 

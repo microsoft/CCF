@@ -130,7 +130,9 @@ Once users are added to the opening network, members should create a proposal to
         "actions": [
             {
                 "name": "transition_service_to_open",
-                "args": null
+                "args": {                 
+                    "next_service_identity": "-----BEGIN CERTIFICATE-----\nMIIBezCCASGgAwIBAgIRAOVHYf9qhvjzdoIw3fPHp5YwCgYIKoZIzj0EAwIwFjEU\nMBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwMzExMTcwNTQzWhcNMjIwMzEyMTcw\nNTQyWjAWMRQwEgYDVQQDDAtDQ0YgTmV0d29yazBZMBMGByqGSM49AgEGCCqGSM49\nAwEHA0IABBZXMHCrjfBeO+FHqDG8Szjzc4lQC8KmvTX8Il0ZERXH/mjLZ7Dc52rX\nnilD1ghdRDWXiKMQWT9RPvm4tefWHD6jUDBOMAwGA1UdEwQFMAMBAf8wHQYDVR0O\nBBYEFCUmm9u05D0/IFupggFW5VgVlUSyMB8GA1UdIwQYMBaAFCUmm9u05D0/IFup\nggFW5VgVlUSyMAoGCCqGSM49BAMCA0gAMEUCIQCy6WoeLtTUD8GRIOM+oRNe/lTj\nRrrry+0AxZgxBU1oSwIgJmyrTfT90re+rzAkF9uiqoL44TVWkQf1t3cZrgVFYK8=\n-----END CERTIFICATE-----\n"
+                }
             }
         ]
     }

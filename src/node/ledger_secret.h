@@ -81,7 +81,7 @@ namespace ccf
 
   inline std::vector<uint8_t> decrypt_previous_ledger_secret_raw(
     const LedgerSecretPtr& ledger_secret,
-    std::vector<uint8_t>&& encrypted_previous_secret_raw)
+    const std::vector<uint8_t>& encrypted_previous_secret_raw)
   {
     crypto::GcmCipher encrypted_ls;
     encrypted_ls.deserialise(encrypted_previous_secret_raw);

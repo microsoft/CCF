@@ -60,7 +60,7 @@ namespace ccf
     GovernanceHistory governance_history;
     RecoveryShares shares;
     EncryptedLedgerSecretsInfo encrypted_ledger_secrets;
-    SubmittedShares submitted_shares;
+    EncryptedSubmittedShares encrypted_submitted_shares;
     Configuration config;
 
     CACertBundlePEMs ca_cert_bundles;
@@ -115,7 +115,7 @@ namespace ccf
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),
       encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
-      submitted_shares(Tables::SUBMITTED_SHARES),
+      encrypted_submitted_shares(Tables::ENCRYPTED_SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
       ca_cert_bundles(Tables::CA_CERT_BUNDLE_PEMS),
       jwt_issuers(Tables::JWT_ISSUERS),
