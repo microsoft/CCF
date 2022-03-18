@@ -53,6 +53,17 @@
         },
         "type": "array"
       },
+      "ConsensusConfigDetails": {
+        "properties": {
+          "details": {
+            "$ref": "#/components/schemas/ConsensusDetails"
+          }
+        },
+        "required": [
+          "details"
+        ],
+        "type": "object"
+      },
       "ConsensusDetails": {
         "properties": {
           "acks": {
@@ -838,7 +849,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConsensusDetails"
+                  "$ref": "#/components/schemas/ConsensusConfigDetails"
                 }
               }
             },
