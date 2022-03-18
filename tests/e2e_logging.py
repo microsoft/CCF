@@ -1470,78 +1470,48 @@ def run(args):
         if "v8" not in args.package:
             network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
-
-
-def run_parsing_errors(args):
-    txs = app.LoggingTxs("user0")
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-        txs=txs,
-    ) as network:
-        network.start_and_open(args)
-
-        # network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
         network = test_illegal(network, args)
-        # network = test_protocols(network, args)
+        network = test_protocols(network, args)
 
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "js",
-    #     run,
-    #     package="libjs_generic",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
-    # # Is there a better way to do this?
-    # if os.path.exists(
-    #     os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    # ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-    #     cr.add(
-    #         "js_v8",
-    #         run,
-    #         package="libjs_v8",
-    #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #         initial_user_count=4,
-    #         initial_member_count=2,
-    #     )
-
-    # cr.add(
-    #     "cpp",
-    #     run,
-    #     package="samples/apps/logging/liblogging",
-    #     js_app_bundle=None,
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
-
-    # cr.add(
-    #     "common",
-    #     e2e_common_endpoints.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
-
-    # # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
-    # cr.add(
-    #     "js_illegal",
-    #     run_parsing_errors,
-    #     package="libjs_generic",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    # Is there a better way to do this?
+    if os.path.exists(
+        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
+    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
+        cr.add(
+            "js_v8",
+            run,
+            package="libjs_v8",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+            initial_user_count=4,
+            initial_member_count=2,
+        )
 
     cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
+        "cpp",
+        run,
+        package="samples/apps/logging/liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
+
+    cr.add(
+        "common",
+        e2e_common_endpoints.run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
