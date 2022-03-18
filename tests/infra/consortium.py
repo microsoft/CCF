@@ -391,9 +391,7 @@ class Consortium:
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
 
         args = {}
-        if remote_node.version_after("ccf-2.0.0-rc4"):
-            args = {"args": {"service_identity": self.get_service_identity()}}
-        elif remote_node.version_after("ccf-2.0.0-rc3"):
+        if remote_node.version_after("ccf-2.0.0-rc3"):
             args = {"args": {"next_service_identity": self.get_service_identity()}}
         proposal["actions"].append({"name": "transition_service_to_open", **args})
 
@@ -594,7 +592,7 @@ class Consortium:
         if remote_node.version_after("ccf-2.0.0-rc4"):
             args = {
                 "previous_service_identity": previous_service_identity,
-                "service_identity": self.get_service_identity(),
+                "next_service_identity": self.get_service_identity(),
             }
         elif remote_node.version_after("ccf-2.0.0-rc3"):
             args = {

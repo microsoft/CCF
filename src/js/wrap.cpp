@@ -605,11 +605,12 @@ namespace ccf::js
       if (!next_bytes)
       {
         return JS_ThrowTypeError(
-          ctx, "Service identity argument is not an array buffer");
+          ctx, "Next service identity argument is not an array buffer");
       }
 
       identities.next =
         std::vector<uint8_t>{next_bytes, next_bytes + next_bytes_sz};
+      LOG_DEBUG_FMT("next service identity: {}", ds::to_hex(identities.next));
 
       gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
     }

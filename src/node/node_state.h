@@ -1339,7 +1339,7 @@ namespace ccf
       if (identities.next != service_info->cert)
       {
         throw std::logic_error(
-          "Service identity mismatch: the service identity in the "
+          "Service identity mismatch: the next service identity in the "
           "transition_service_to_open proposal does not match the current "
           "service identity");
       }

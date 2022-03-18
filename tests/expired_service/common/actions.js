@@ -575,11 +575,11 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(
-          args.service_identity,
+          args.next_service_identity,
           "string",
-          "service identity (PEM certificate)"
+          "next service identity (PEM certificate)"
         );
-        checkX509CertBundle(args.service_identity, "cert");
+        checkX509CertBundle(args.next_service_identity, "cert");
 
         checkType(
           args.previous_service_identity,
@@ -603,10 +603,10 @@ const actions = new Map([
         if (
           service.status === "Recovering" &&
           (args.previous_service_identity === undefined ||
-            args.service_identity === undefined)
+            args.next_service_identity === undefined)
         ) {
           throw new Error(
-            `Opening a recovering network requires both, the previous and the (next) service identity`
+            `Opening a recovering network requires both, the previous and the next service identity`
           );
         }
 
@@ -614,8 +614,8 @@ const actions = new Map([
           args.previous_service_identity !== undefined
             ? ccf.strToBuf(args.previous_service_identity)
             : undefined;
-        const service_identity = ccf.strToBuf(args.service_identity);
-        ccf.node.transitionServiceToOpen(previous_identity, service_identity);
+        const next_identity = ccf.strToBuf(args.next_service_identity);
+        ccf.node.transitionServiceToOpen(previous_identity, next_identity);
       }
     ),
   ],
