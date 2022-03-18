@@ -15,10 +15,10 @@
 
 namespace http
 {
-  class ParsingErrorReporter
+  class ErrorReporter
   {
   public:
-    virtual ~ParsingErrorReporter() {}
+    virtual ~ErrorReporter() {}
     virtual void report_parsing_error(tls::ConnID) = 0;
   };
 
@@ -26,15 +26,14 @@ namespace http
   {
   protected:
     http::Parser& p;
-    std::shared_ptr<http::ParsingErrorReporter> error_reporter;
+    std::shared_ptr<http::ErrorReporter> error_reporter;
 
     HTTPEndpoint(
       http::Parser& p_,
       tls::ConnID session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
-      const std::shared_ptr<http::ParsingErrorReporter>& error_reporter =
-        nullptr) :
+      const std::shared_ptr<http::ErrorReporter>& error_reporter = nullptr) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
       p(p_),
       error_reporter(error_reporter)
@@ -132,8 +131,7 @@ namespace http
       const enclave::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
-      const std::shared_ptr<http::ParsingErrorReporter>& error_reporter =
-        nullptr) :
+      const std::shared_ptr<http::ErrorReporter>& error_reporter = nullptr) :
       HTTPEndpoint(
         request_parser,
         session_id,

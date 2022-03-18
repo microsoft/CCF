@@ -29,7 +29,7 @@ namespace enclave
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
-                      public http::ParsingErrorReporter
+                      public http::ErrorReporter
   {
   private:
     struct ListenInterface
@@ -39,7 +39,7 @@ namespace enclave
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
-      size_t parsing_errors;
+      ccf::SessionMetrics::Errors errors;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
@@ -153,7 +153,6 @@ namespace enclave
 
     void report_parsing_error(tls::ConnID id) override
     {
-      LOG_FAIL_FMT("Reporting parsing error on {}", id);
       std::lock_guard<std::mutex> guard(lock);
 
       auto search = sessions.find(id);
@@ -162,7 +161,7 @@ namespace enclave
         auto it = listening_interfaces.find(search->second.first);
         if (it != listening_interfaces.end())
         {
-          it->second.parsing_errors++;
+          it->second.errors.parsing++;
         }
       }
     }
@@ -210,7 +209,7 @@ namespace enclave
           interface.peak_sessions,
           interface.max_open_sessions_soft,
           interface.max_open_sessions_hard,
-          interface.parsing_errors};
+          interface.errors};
       }
 
       return sm;
