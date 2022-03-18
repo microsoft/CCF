@@ -1,16 +1,14 @@
-from asyncore import poll
 from enum import Enum, auto
 from collections import Counter
 import time
 import threading
-import infra.network
 
 from loguru import logger as LOG
 
 # How often each node in the network is polled
 DEFAULT_POLLING_INTERVAL_S = 1
 
-# Maximum duration after established connections consider
+# Maximum duration after which unestablished connections consider
 # the node as unreachable
 DEFAULT_CLIENT_NODE_TIMEOUT_S = 3
 
@@ -23,7 +21,7 @@ DEFAULT_ELECTION_FACTOR = 1
 
 class HealthState(Enum):
     stable = auto()  # Network can commit new transactions
-    unavailable = auto()  # A majority of nodes are unreachable
+    unavailable = auto()  # The primary or majority of nodes are unreachable
     election = auto()  # An election is in progress
 
 

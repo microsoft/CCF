@@ -1404,17 +1404,17 @@ def test_rekey(network, args):
 
 def run(args):
     # Listen on two additional RPC interfaces for each node
-    # def additional_interfaces(local_node_id):
-    #     return {
-    #         "first_interface": f"127.{local_node_id}.0.1",
-    #         "second_interface": f"127.{local_node_id}.0.2",
-    #     }
+    def additional_interfaces(local_node_id):
+        return {
+            "first_interface": f"127.{local_node_id}.0.1",
+            "second_interface": f"127.{local_node_id}.0.2",
+        }
 
-    # for local_node_id, node_host in enumerate(args.nodes):
-    #     for interface_name, host in additional_interfaces(local_node_id).items():
-    #         node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
-    #             host=host
-    #         )
+    for local_node_id, node_host in enumerate(args.nodes):
+        for interface_name, host in additional_interfaces(local_node_id).items():
+            node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
+                host=host
+            )
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -1506,7 +1506,7 @@ if __name__ == "__main__":
         run,
         package="samples/apps/logging/liblogging",
         js_app_bundle=None,
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        nodes=infra.e2e_args.max_nodes(cr.args, f=1),
         initial_user_count=4,
         initial_member_count=2,
     )
