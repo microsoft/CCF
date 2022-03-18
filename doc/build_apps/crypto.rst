@@ -48,7 +48,7 @@ keys when constructed via :cpp:func:`KeyPairPtr crypto::make_key_pair(CurveID)` 
 .. doxygenfunction:: crypto::make_key_pair(CurveID)
   :project: CCF
 
-.. doxygenfunction:: crypto::make_key_pair(const Pem&, std::span<const uint8_t>)
+.. doxygenfunction:: crypto::make_key_pair(const Pem&)
   :project: CCF
 
 .. doxygenfunction:: crypto::make_rsa_key_pair(size_t, size_t)
