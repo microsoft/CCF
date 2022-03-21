@@ -142,17 +142,16 @@ def test_illegal(network, args):
         response.begin()
         return response
 
+    additional_parsing_errors = 0
+
     def send_bad_raw_content(content):
-        initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
+        nonlocal additional_parsing_errors
         response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
         # If request parsing error, the interface metrics should report it
-        if response_body.startswith("Unable to parse data as a HTTP request.".encode()):
-            assert (
-                get_main_interface_metrics()["errors"]["parsing"]
-                == initial_parsing_errors + 1
-            )
+        if response_body.startswith(b"Unable to parse data as a HTTP request."):
+            additional_parsing_errors += 1
         if response.status == http.HTTPStatus.BAD_REQUEST:
             assert content in response_body, response_body
         else:
@@ -161,6 +160,7 @@ def test_illegal(network, args):
                 response_body,
             )
 
+    initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
     send_bad_raw_content(b"NOTAVERB ")
@@ -187,6 +187,11 @@ def test_illegal(network, args):
             for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
                 corrupt_content = content[:i] + replacement + content[i + 1 :]
                 send_bad_raw_content(corrupt_content)
+
+    assert (
+        get_main_interface_metrics()["errors"]["parsing"]
+        == initial_parsing_errors + additional_parsing_errors
+    )
 
     good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
     response = send_raw_content(good_content)
@@ -1470,6 +1475,20 @@ def run(args):
         if "v8" not in args.package:
             network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
+
+
+def run_parsing_errors(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
         network = test_illegal(network, args)
         network = test_protocols(network, args)
 
@@ -1512,6 +1531,21 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    cr.add(
+        "js_illegal",
+        run_parsing_errors,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "cpp_illegal",
+        run_parsing_errors,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
