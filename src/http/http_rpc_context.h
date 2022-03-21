@@ -6,6 +6,7 @@
 #include "ccf/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/rpc_context_impl.h"
 
 namespace http
 {
@@ -34,8 +35,6 @@ namespace http
   class HttpRpcContext : public ccf::RpcContextImpl
   {
   private:
-    size_t request_index;
-
     ccf::RESTVerb verb;
     std::string url = {};
 
@@ -90,7 +89,6 @@ namespace http
 
   public:
     HttpRpcContext(
-      size_t request_index_,
       std::shared_ptr<ccf::SessionContext> s,
       llhttp_method verb_,
       const std::string_view& url_,
@@ -98,7 +96,6 @@ namespace http
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {}) :
       RpcContextImpl(s),
-      request_index(request_index_),
       verb(verb_),
       url(url_),
       request_headers(headers_),
@@ -120,11 +117,6 @@ namespace http
     virtual ccf::FrameFormat frame_format() const override
     {
       return ccf::FrameFormat::http;
-    }
-
-    virtual size_t get_request_index() const override
-    {
-      return request_index;
     }
 
     virtual void set_tx_id(const ccf::TxID& tx_id) override
@@ -310,7 +302,7 @@ namespace ccf
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
-      0, s, msg.method, msg.url, msg.headers, msg.body, packed);
+      s, msg.method, msg.url, msg.headers, msg.body, packed);
   }
 
   inline std::shared_ptr<http::HttpRpcContext> make_fwd_rpc_context(

@@ -123,7 +123,6 @@ namespace http
     std::shared_ptr<ccf::SessionContext> session_ctx;
     tls::ConnID session_id;
     ccf::ListenInterfaceID interface_id;
-    size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
@@ -174,7 +173,6 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            request_index++,
             session_ctx,
             verb,
             url,

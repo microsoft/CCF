@@ -54,8 +54,6 @@ namespace ccf
     virtual std::shared_ptr<SessionContext> get_session_context() const = 0;
 
     /// Request details
-    virtual size_t get_request_index() const = 0;
-
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
     virtual const std::string& get_request_query() const = 0;
     virtual PathParams& get_request_path_params() = 0;
@@ -80,8 +78,6 @@ namespace ccf
 
     virtual void set_response_status(int status) = 0;
     virtual int get_response_status() const = 0;
-
-    virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
 
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) = 0;
@@ -110,36 +106,9 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     }
 
+    /// Framework details
     virtual void set_apply_writes(bool apply) = 0;
 
     virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) = 0;
-  };
-
-  // TODO: Should live elsewhere, and have a better name
-  class RpcContextImpl : public RpcContext
-  {
-  public:
-    std::shared_ptr<SessionContext> session;
-
-    bool is_create_request = false;
-    bool execute_on_node = false; // TODO: Remove?
-
-    ccf::ClaimsDigest claims;
-
-    RpcContextImpl(const std::shared_ptr<SessionContext>& s) : session(s) {}
-
-    std::shared_ptr<SessionContext> get_session_context() const override
-    {
-      return session;
-    }
-
-    void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
-    {
-      claims.set(std::move(digest));
-    }
-
-    virtual bool should_apply_writes() const = 0;
-    virtual void reset_response() = 0;
-    virtual std::vector<uint8_t> serialise_response() const = 0;
   };
 }
