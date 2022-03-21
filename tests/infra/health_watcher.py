@@ -149,6 +149,7 @@ class NetworkHealthWatcher(StoppableThread):
                 if election_start_time is None:
                     election_start_time = time.time()
                 if time.time() - election_start_time > self.unstable_threshold_s:
+                    LOG.error(
                         f"Network has been unstable for more than {self.unstable_threshold_s}s. Exiting"
                     )
                     return
