@@ -36,5 +36,6 @@ namespace ccf
     virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
     virtual std::vector<uint8_t> serialise_response() const = 0;
+    virtual const std::vector<uint8_t>& get_serialised_request() = 0;
   };
 }
