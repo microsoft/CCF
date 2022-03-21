@@ -14,7 +14,6 @@ namespace ccf
   {
   protected:
     std::shared_ptr<SessionContext> session;
-    ccf::ClaimsDigest claims;
 
   public:
     RpcContextImpl(const std::shared_ptr<SessionContext>& s) : session(s) {}
@@ -24,6 +23,7 @@ namespace ccf
       return session;
     }
 
+    ccf::ClaimsDigest claims;
     void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {
       claims.set(std::move(digest));
