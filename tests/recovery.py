@@ -14,6 +14,7 @@ import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
+import infra.service_load
 
 from loguru import logger as LOG
 
@@ -471,55 +472,61 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service_with_wrong_identity(network, args)
+        LOG.error("here")
 
-        for i in range(recoveries_count):
-            # Issue transactions which will required historical ledger queries recovery
-            # when the network is shutdown
-            network.txs.issue(network, number_txs=1)
-            network.txs.issue(network, number_txs=1, repeat=True)
+        loader = infra.service_load.ServiceLoad(network)
+        loader.start()
+        loader.join()
 
-            # Alternate between recovery with primary change and stable primary-ship,
-            # with and without snapshots
-            if i % recoveries_count == 0:
-                if args.consensus != "BFT":
-                    network = test_share_resilience(network, args, from_snapshot=True)
-            elif i % recoveries_count == 1:
-                network = test_recover_service_aborted(
-                    network, args, from_snapshot=False
-                )
-            else:
-                network = test_recover_service(
-                    network, args, from_snapshot=False, split_ledger=True
-                )
+        # network = test_recover_service_with_wrong_identity(network, args)
 
-            for node in network.get_joined_nodes():
-                node.verify_certificate_validity_period()
+        # for i in range(recoveries_count):
+        #     # Issue transactions which will required historical ledger queries recovery
+        #     # when the network is shutdown
+        #     network.txs.issue(network, number_txs=1)
+        #     network.txs.issue(network, number_txs=1, repeat=True)
 
-            primary, _ = network.find_primary()
+        #     # Alternate between recovery with primary change and stable primary-ship,
+        #     # with and without snapshots
+        #     if i % recoveries_count == 0:
+        #         if args.consensus != "BFT":
+        #             network = test_share_resilience(network, args, from_snapshot=True)
+        #     elif i % recoveries_count == 1:
+        #         network = test_recover_service_aborted(
+        #             network, args, from_snapshot=False
+        #         )
+        #     else:
+        #         network = test_recover_service(
+        #             network, args, from_snapshot=False, split_ledger=True
+        #         )
 
-            LOG.success("Recovery complete on all nodes")
+        #     for node in network.get_joined_nodes():
+        #         node.verify_certificate_validity_period()
+
+        #     primary, _ = network.find_primary()
+
+        #     LOG.success("Recovery complete on all nodes")
 
     # Verify that a new ledger chunk was created at the start of each recovery
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
-    for chunk in ledger:
-        chunk_start_seqno, _ = chunk.get_seqnos()
-        for tx in chunk:
-            tables = tx.get_public_domain().get_tables()
-            seqno = tx.get_public_domain().get_seqno()
-            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
-                service_status = json.loads(
-                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
-                    ]
-                )["status"]
-                if service_status == "Opening":
-                    LOG.info(f"New ledger chunk found for service opening at {seqno}")
-                    assert (
-                        chunk_start_seqno == seqno
-                    ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
+    # ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
+    # for chunk in ledger:
+    #     chunk_start_seqno, _ = chunk.get_seqnos()
+    #     for tx in chunk:
+    #         tables = tx.get_public_domain().get_tables()
+    #         seqno = tx.get_public_domain().get_seqno()
+    #         if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
+    #             service_status = json.loads(
+    #                 tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+    #                     ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+    #                 ]
+    #             )["status"]
+    #             if service_status == "Opening":
+    #                 LOG.info(f"New ledger chunk found for service opening at {seqno}")
+    #                 assert (
+    #                     chunk_start_seqno == seqno
+    #                 ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    test_recover_service_with_expired_cert(args)
+    # test_recover_service_with_expired_cert(args)
 
 
 if __name__ == "__main__":
@@ -559,14 +566,14 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snasphot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snasphot_tx_interval=1000000,
+    # )
 
     cr.run()
