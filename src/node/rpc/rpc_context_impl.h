@@ -29,6 +29,12 @@ namespace ccf
       claims.set(std::move(digest));
     }
 
+    ccf::PathParams path_params = {};
+    virtual const ccf::PathParams& get_request_path_params() override
+    {
+      return path_params;
+    }
+
     bool is_create_request = false;
     bool execute_on_node = false;
 

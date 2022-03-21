@@ -51,7 +51,7 @@ namespace ccf
     }
 
     bool forward_command(
-      std::shared_ptr<ccf::RpcContext> rpc_ctx,
+      std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,
       const NodeId& to,
       const std::vector<uint8_t>& caller_cert) override
     {
