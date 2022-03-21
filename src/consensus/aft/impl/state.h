@@ -141,7 +141,6 @@ namespace aft
     State(const ccf::NodeId& my_node_id_) : my_node_id(my_node_id_) {}
 
     std::mutex lock;
-    std::map<ccf::NodeId, std::shared_ptr<Replica>> configuration;
 
     ccf::NodeId my_node_id;
     ccf::View current_view = 0;
