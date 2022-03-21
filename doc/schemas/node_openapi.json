@@ -653,10 +653,24 @@
         ],
         "type": "object"
       },
+      "SessionMetrics__Errors": {
+        "properties": {
+          "parsing": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "parsing"
+        ],
+        "type": "object"
+      },
       "SessionMetrics__PerInterface": {
         "properties": {
           "active": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "errors": {
+            "$ref": "#/components/schemas/SessionMetrics__Errors"
           },
           "hard_cap": {
             "$ref": "#/components/schemas/uint64"
@@ -672,7 +686,8 @@
           "active",
           "peak",
           "soft_cap",
-          "hard_cap"
+          "hard_cap",
+          "errors"
         ],
         "type": "object"
       },
