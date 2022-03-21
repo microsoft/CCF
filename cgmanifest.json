@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "4bfeb625ce4961bd539c95593529936503be7db4"
+          "commitHash": "4f8fba14066156b73f1189a2b8bd568bde5284c5"
         }
       }
     },
