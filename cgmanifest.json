@@ -14,7 +14,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "4d8716f1efc1d14aa736ef52ee727bd4204f4c40"
+          "commitHash": "7b9885133108ae301ddd16e2651320f54cafeba7"
         }
       }
     },
