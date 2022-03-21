@@ -36,9 +36,9 @@ def get_primary(node, client_node_timeout_s=3, verbose=True):
         with node.client() as c:
             logs = None if verbose else []
             r = c.get(
-                "/node/network", timeout=client_node_timeout_s, log_capture=logs
+                "/node/consensus", timeout=client_node_timeout_s, log_capture=logs
             ).body.json()
-            return (r["primary_id"], r["current_view"])
+            return (r["details"]["primary_id"], r["details"]["current_view"])
     except Exception as e:
         LOG.warning(f"Could not connect to node {node.local_node_id}: {e}")
         return None
@@ -149,7 +149,6 @@ class NetworkHealthWatcher(StoppableThread):
                 if election_start_time is None:
                     election_start_time = time.time()
                 if time.time() - election_start_time > self.unstable_threshold_s:
-                    LOG.error(
                         f"Network has been unstable for more than {self.unstable_threshold_s}s. Exiting"
                     )
                     return
