@@ -1475,6 +1475,20 @@ def run(args):
         if "v8" not in args.package:
             network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
+
+
+def run_parsing_errors(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
         network = test_illegal(network, args)
         network = test_protocols(network, args)
 
@@ -1517,6 +1531,21 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    cr.add(
+        "js_illegal",
+        run_parsing_errors,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "cpp_illegal",
+        run_parsing_errors,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
