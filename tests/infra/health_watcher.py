@@ -125,7 +125,7 @@ class NetworkHealthWatcher(StoppableThread):
                 f"Health watcher did not detect recovery after {timeout}s"
             )
 
-    def run(self, get_primary_fn=get_primary):
+    def run(self):
         """
         Monitor the health of the network. If the network is not stable for more than
         a specific period (election_timeout * election_timeout_factor), the health
@@ -138,7 +138,7 @@ class NetworkHealthWatcher(StoppableThread):
                 LOG.info("Polling network health...")
             health_state = get_network_health(
                 self.network,
-                get_primary_fn,
+                get_primary,
                 self.client_node_timeout_s,
                 verbose=self.verbose,
             )
