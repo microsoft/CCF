@@ -41,7 +41,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/msgpack/msgpack-c.git",
-          "commitHash": "6e7deb809120881634b3ca895e66b2a946084f34"
+          "commitHash": "63511f29dbac8a1200a7653e561055e82e43d391"
         }
       }
     },

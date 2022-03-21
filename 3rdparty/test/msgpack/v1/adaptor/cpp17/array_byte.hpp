@@ -1,14 +1,14 @@
 //
 // MessagePack for C++ static resolution routine
 //
-// Copyright (C) 2018 KONDO Takatoshi
+// Copyright (C) 2021 KONDO Takatoshi
 //
 //    Distributed under the Boost Software License, Version 1.0.
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //    http://www.boost.org/LICENSE_1_0.txt)
 //
-#ifndef MSGPACK_V1_TYPE_VECTOR_BYTE_HPP
-#define MSGPACK_V1_TYPE_VECTOR_BYTE_HPP
+#ifndef MSGPACK_V1_TYPE_ARRAY_BYTE_HPP
+#define MSGPACK_V1_TYPE_ARRAY_BYTE_HPP
 
 #include "msgpack/cpp_version.hpp"
 
@@ -18,7 +18,7 @@
 #include "msgpack/adaptor/adaptor_base.hpp"
 #include "msgpack/adaptor/check_container_size.hpp"
 
-#include <vector>
+#include <array>
 #include <cstring>
 #include <cstddef>
 
@@ -30,13 +30,14 @@ MSGPACK_API_VERSION_NAMESPACE(v1) {
 
 namespace adaptor {
 
-template <typename Alloc>
-struct convert<std::vector<std::byte, Alloc> > {
-    msgpack::object const& operator()(msgpack::object const& o, std::vector<std::byte, Alloc>& v) const {
+template <std::size_t N>
+struct convert<std::array<std::byte, N> > {
+    msgpack::object const& operator()(msgpack::object const& o, std::array<std::byte, N>& v) const {
         switch (o.type) {
         case msgpack::type::BIN:
-            v.resize(o.via.bin.size);
-            if (o.via.bin.size != 0) {
+            if (o.via.bin.size != N)
+                throw msgpack::type_error();
+            if (N != 0) {
 #if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -48,8 +49,9 @@ struct convert<std::vector<std::byte, Alloc> > {
             }
             break;
         case msgpack::type::STR:
-            v.resize(o.via.str.size);
-            if (o.via.str.size != 0) {
+            if (o.via.bin.size != N)
+                throw msgpack::type_error();
+            if (N != 0) {
 #if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -68,10 +70,10 @@ struct convert<std::vector<std::byte, Alloc> > {
     }
 };
 
-template <typename Alloc>
-struct pack<std::vector<std::byte, Alloc> > {
+template <std::size_t N>
+struct pack<std::array<std::byte, N> > {
     template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const std::vector<std::byte, Alloc>& v) const {
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const std::array<std::byte, N>& v) const {
         uint32_t size = checked_get_container_size(v.size());
         o.pack_bin(size);
         if (size != 0) {
@@ -82,9 +84,9 @@ struct pack<std::vector<std::byte, Alloc> > {
     }
 };
 
-template <typename Alloc>
-struct object<std::vector<std::byte, Alloc> > {
-    void operator()(msgpack::object& o, const std::vector<std::byte, Alloc>& v) const {
+template <std::size_t N>
+struct object<std::array<std::byte, N> > {
+    void operator()(msgpack::object& o, const std::array<std::byte, N>& v) const {
         uint32_t size = checked_get_container_size(v.size());
         o.type = msgpack::type::BIN;
         if (size != 0) {
@@ -94,9 +96,9 @@ struct object<std::vector<std::byte, Alloc> > {
     }
 };
 
-template <typename Alloc>
-struct object_with_zone<std::vector<std::byte, Alloc> > {
-    void operator()(msgpack::object::with_zone& o, const std::vector<std::byte, Alloc>& v) const {
+template <std::size_t N>
+struct object_with_zone<std::array<std::byte, N> > {
+    void operator()(msgpack::object::with_zone& o, const std::array<std::byte, N>& v) const {
         uint32_t size = checked_get_container_size(v.size());
         o.type = msgpack::type::BIN;
         o.via.bin.size = size;
@@ -118,4 +120,4 @@ struct object_with_zone<std::vector<std::byte, Alloc> > {
 
 #endif // MSGPACK_CPP_VERSION >= 201703
 
-#endif // MSGPACK_V1_TYPE_VECTOR_BYTE_HPP
+#endif // MSGPACK_V1_TYPE_ARRAY_BYTE_HPP

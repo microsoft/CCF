@@ -1,18 +1,16 @@
 //
 // MessagePack for C++ static resolution routine
 //
-// Copyright (C) 2015-2016 MIZUKI Hirata
+// Copyright (C) 2021 KONDO Takatoshi
 //
 //    Distributed under the Boost Software License, Version 1.0.
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //    http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef MSGPACK_ITERATOR_HPP
-#define MSGPACK_ITERATOR_HPP
+#ifndef MSGPACK_TYPE_CPP17_ARRAY_BYTE_HPP
+#define MSGPACK_TYPE_CPP17_ARRAY_BYTE_HPP
 
-#include "msgpack/iterator_decl.hpp"
+#include "msgpack/v1/adaptor/cpp17/array_byte.hpp"
 
-#include "msgpack/v1/iterator.hpp"
-
-#endif // MSGPACK_ITERATOR_HPP
+#endif // MSGPACK_TYPE_CPP17_ARRAY_BYTE_HPP
