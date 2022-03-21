@@ -123,6 +123,12 @@ def test_illegal(network, args):
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
     )
 
+    def get_main_interface_metrics():
+        with primary.client() as c:
+            return c.get("/node/metrics").body.json()["sessions"]["interfaces"][
+                infra.interfaces.PRIMARY_RPC_INTERFACE
+            ]
+
     def send_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -136,10 +142,16 @@ def test_illegal(network, args):
         response.begin()
         return response
 
+    additional_parsing_errors = 0
+
     def send_bad_raw_content(content):
+        nonlocal additional_parsing_errors
         response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
+        # If request parsing error, the interface metrics should report it
+        if response_body.startswith(b"Unable to parse data as a HTTP request."):
+            additional_parsing_errors += 1
         if response.status == http.HTTPStatus.BAD_REQUEST:
             assert content in response_body, response_body
         else:
@@ -148,6 +160,7 @@ def test_illegal(network, args):
                 response_body,
             )
 
+    initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
     send_bad_raw_content(b"NOTAVERB ")
@@ -174,6 +187,11 @@ def test_illegal(network, args):
             for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
                 corrupt_content = content[:i] + replacement + content[i + 1 :]
                 send_bad_raw_content(corrupt_content)
+
+    assert (
+        get_main_interface_metrics()["errors"]["parsing"]
+        == initial_parsing_errors + additional_parsing_errors
+    )
 
     good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
     response = send_raw_content(good_content)
@@ -1471,7 +1489,6 @@ def run_parsing_errors(args):
     ) as network:
         network.start_and_open(args)
 
-        network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
         network = test_illegal(network, args)
         network = test_protocols(network, args)
 
@@ -1518,7 +1535,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
+    # Run illegal traffic tests in separate runners, to reduce total serial runtime
     cr.add(
         "js_illegal",
         run_parsing_errors,
