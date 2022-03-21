@@ -56,13 +56,12 @@ namespace aft
       {}
     };
 
+    // Persistent
     ConsensusType consensus_type;
     std::unique_ptr<Store> store;
 
-    // Persistent
-    std::optional<ccf::NodeId> voted_for = std::nullopt;
-
     // Volatile
+    std::optional<ccf::NodeId> voted_for = std::nullopt;
     std::optional<ccf::NodeId> leader_id = std::nullopt;
     std::unordered_set<ccf::NodeId> votes_for_me;
 
@@ -684,6 +683,9 @@ namespace aft
     {
       kv::ConsensusDetails details;
       std::lock_guard<std::mutex> guard(state->lock);
+      details.primary_id = leader_id;
+      details.current_view = state->current_view;
+      details.ticking = ticking;
       details.leadership_state = leadership_state;
       details.membership_state = membership_state;
       if (is_retired())
