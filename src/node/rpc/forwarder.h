@@ -10,13 +10,15 @@
 
 namespace ccf
 {
+  class RpcContextImpl;
+
   class ForwardedRpcHandler
   {
   public:
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      std::shared_ptr<ccf::RpcContext> fwd_ctx) = 0;
+      std::shared_ptr<ccf::RpcContextImpl> fwd_ctx) = 0;
   };
 
   template <typename ChannelProxy>
@@ -56,7 +58,7 @@ namespace ccf
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
       const auto& raw_request = rpc_ctx->get_serialised_request();
-      size_t size = sizeof(rpc_ctx->session->client_session_id) +
+      size_t size = sizeof(rpc_ctx->get_session_context()->client_session_id) +
         sizeof(IsCallerCertForwarded) + raw_request.size();
       if (!caller_cert.empty())
       {
@@ -67,7 +69,8 @@ namespace ccf
       std::vector<uint8_t> plain(size);
       auto data_ = plain.data();
       auto size_ = plain.size();
-      serialized::write(data_, size_, rpc_ctx->session->client_session_id);
+      serialized::write(
+        data_, size_, rpc_ctx->get_session_context()->client_session_id);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
@@ -83,7 +86,7 @@ namespace ccf
         to, NodeMsgType::forwarded_msg, plain, msg);
     }
 
-    std::shared_ptr<ccf::RpcContext> recv_forwarded_command(
+    std::shared_ptr<http::HttpRpcContext> recv_forwarded_command(
       const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
@@ -241,7 +244,7 @@ namespace ccf
 
               // Ignore return value - false only means it is pending
               send_forwarded_response(
-                ctx->session->client_session_id,
+                ctx->get_session_context()->client_session_id,
                 from,
                 fwd_handler->process_forwarded(ctx));
               LOG_DEBUG_FMT("Sending forwarded response to {}", from);

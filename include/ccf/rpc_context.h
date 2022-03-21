@@ -48,23 +48,10 @@ namespace ccf
   class RpcContext
   {
   public:
-    std::shared_ptr<SessionContext> session;
+    virtual ~RpcContext() = default;
 
-    virtual ccf::FrameFormat frame_format() const = 0;
-
-    bool is_create_request = false;
-    bool execute_on_node = false;
-
-    ccf::ClaimsDigest claims;
-
-    RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
-
-    RpcContext(
-      std::shared_ptr<SessionContext> s) :
-      session(s)
-    {}
-
-    virtual ~RpcContext() {}
+    /// Session details
+    virtual std::shared_ptr<SessionContext> get_session_context() const = 0;
 
     /// Request details
     virtual size_t get_request_index() const = 0;
@@ -76,7 +63,6 @@ namespace ccf
     virtual std::string get_request_path() const = 0;
 
     virtual std::string get_method() const = 0;
-    virtual void set_method(const std::string_view& method) = 0;
 
     virtual const http::HeaderMap& get_request_headers() const = 0;
     virtual std::optional<std::string> get_request_header(
@@ -84,6 +70,8 @@ namespace ccf
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
     virtual const std::string& get_request_url() const = 0;
+
+    virtual ccf::FrameFormat frame_format() const = 0;
 
     /// Response details
     virtual void set_response_body(const std::vector<uint8_t>& body) = 0;
@@ -99,13 +87,13 @@ namespace ccf
       const std::string_view& name, const std::string_view& value) = 0;
     virtual void set_response_header(const std::string_view& name, size_t n)
     {
-      set_response_header(name, fmt::format("{}", n));
+      set_response_header(name, std::to_string(n));
     }
 
     virtual void set_error(
       http_status status, const std::string& code, std::string&& msg)
     {
-      set_error({status, code, std::move(msg)});
+      set_error(ccf::ErrorDetails{status, code, std::move(msg)});
     }
 
     virtual void set_error(ccf::ErrorDetails&& error)
@@ -123,15 +111,35 @@ namespace ccf
     }
 
     virtual void set_apply_writes(bool apply) = 0;
-    virtual bool should_apply_writes() const = 0;
 
-    virtual void reset_response() = 0;
+    virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) = 0;
+  };
 
-    virtual std::vector<uint8_t> serialise_response() const = 0;
+  // TODO: Should live elsewhere, and have a better name
+  class RpcContextImpl : public RpcContext
+  {
+  public:
+    std::shared_ptr<SessionContext> session;
 
-    virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest)
+    bool is_create_request = false;
+    bool execute_on_node = false; // TODO: Remove?
+
+    ccf::ClaimsDigest claims;
+
+    RpcContextImpl(const std::shared_ptr<SessionContext>& s) : session(s) {}
+
+    std::shared_ptr<SessionContext> get_session_context() const override
+    {
+      return session;
+    }
+
+    void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {
       claims.set(std::move(digest));
     }
+
+    virtual bool should_apply_writes() const = 0;
+    virtual void reset_response() = 0;
+    virtual std::vector<uint8_t> serialise_response() const = 0;
   };
 }

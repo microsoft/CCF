@@ -150,7 +150,7 @@ namespace http
             session_id, peer_cert(), interface_id);
         }
 
-        std::shared_ptr<ccf::RpcContext> rpc_ctx = nullptr;
+        std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(

@@ -9,30 +9,6 @@
 
 namespace http
 {
-  inline static std::optional<std::string> extract_actor(ccf::RpcContext& ctx)
-  {
-    const auto path = ctx.get_method();
-
-    const auto first_slash = path.find_first_of('/');
-    const auto second_slash = path.find_first_of('/', first_slash + 1);
-
-    if (first_slash != 0 || second_slash == std::string::npos)
-    {
-      return std::nullopt;
-    }
-
-    const auto actor = path.substr(first_slash + 1, second_slash - 1);
-    const auto remaining_path = path.substr(second_slash);
-
-    if (actor.empty() || remaining_path.empty())
-    {
-      return std::nullopt;
-    }
-
-    ctx.set_method(remaining_path);
-    return actor;
-  }
-
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
@@ -55,7 +31,7 @@ namespace http
     return error({status, code, std::move(msg)});
   }
 
-  class HttpRpcContext : public ccf::RpcContext
+  class HttpRpcContext : public ccf::RpcContextImpl
   {
   private:
     size_t request_index;
@@ -120,9 +96,8 @@ namespace http
       const std::string_view& url_,
       const http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
-      const std::vector<uint8_t>& raw_request_ = {},
-      const std::vector<uint8_t>& raw_bft_ = {}) :
-      RpcContext(s, raw_bft_),
+      const std::vector<uint8_t>& raw_request_ = {}) :
+      RpcContextImpl(s),
       request_index(request_index_),
       verb(verb_),
       url(url_),
@@ -193,7 +168,7 @@ namespace http
       return path;
     }
 
-    virtual void set_method(const std::string_view& p) override
+    void set_method(const std::string_view& p)
     {
       path = p;
     }
@@ -288,14 +263,36 @@ namespace http
       return http_response.build_response();
     }
   };
+
+  inline static std::optional<std::string> extract_actor(HttpRpcContext& ctx)
+  {
+    const auto path = ctx.get_method();
+
+    const auto first_slash = path.find_first_of('/');
+    const auto second_slash = path.find_first_of('/', first_slash + 1);
+
+    if (first_slash != 0 || second_slash == std::string::npos)
+    {
+      return std::nullopt;
+    }
+
+    const auto actor = path.substr(first_slash + 1, second_slash - 1);
+    const auto remaining_path = path.substr(second_slash);
+
+    if (actor.empty() || remaining_path.empty())
+    {
+      return std::nullopt;
+    }
+
+    ctx.set_method(remaining_path);
+    return actor;
+  }
 }
 
 namespace ccf
 {
-  inline std::shared_ptr<ccf::RpcContext> make_rpc_context(
-    std::shared_ptr<ccf::SessionContext> s,
-    const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_bft = {})
+  inline std::shared_ptr<http::HttpRpcContext> make_rpc_context(
+    std::shared_ptr<ccf::SessionContext> s, const std::vector<uint8_t>& packed)
   {
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
@@ -313,20 +310,19 @@ namespace ccf
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
-      0, s, msg.method, msg.url, msg.headers, msg.body, packed, raw_bft);
+      0, s, msg.method, msg.url, msg.headers, msg.body, packed);
   }
 
-  inline std::shared_ptr<ccf::RpcContext> make_fwd_rpc_context(
+  inline std::shared_ptr<http::HttpRpcContext> make_fwd_rpc_context(
     std::shared_ptr<ccf::SessionContext> s,
     const std::vector<uint8_t>& packed,
-    ccf::FrameFormat frame_format,
-    const std::vector<uint8_t>& raw_bft = {})
+    ccf::FrameFormat frame_format)
   {
     switch (frame_format)
     {
       case ccf::FrameFormat::http:
       {
-        return make_rpc_context(s, packed, raw_bft);
+        return make_rpc_context(s, packed);
       }
       default:
         throw std::logic_error("Unknown Frame Format");
