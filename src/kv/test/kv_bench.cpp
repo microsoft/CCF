@@ -6,7 +6,6 @@
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 
-#include <msgpack/msgpack.hpp>
 #include <picobench/picobench.hpp>
 #include <string>
 
@@ -22,19 +21,13 @@ inline void clobber_memory()
 KeyType gen_key(size_t i, const std::string& suf = "")
 {
   const auto s = "key" + std::to_string(i) + suf;
-  msgpack::sbuffer buf;
-  msgpack::pack(buf, s);
-  const auto raw = reinterpret_cast<const uint8_t*>(buf.data());
-  return KeyType(raw, raw + buf.size());
+  return {s.begin(), s.end()};
 }
 
 ValueType gen_value(size_t i)
 {
   const auto s = "value" + std::to_string(i);
-  msgpack::sbuffer buf;
-  msgpack::pack(buf, s);
-  const auto raw = reinterpret_cast<const uint8_t*>(buf.data());
-  return ValueType(raw, raw + buf.size());
+  return {s.begin(), s.end()};
 }
 
 // Helper functions to use a dummy encryption key
