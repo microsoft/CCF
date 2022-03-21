@@ -45,7 +45,33 @@ Since it implements both server (listen, peer, read) and client (connect, write)
 
 The complete state machine diagram is:
 
-TODO Complete state diagram
+.. mermaid::
+
+    stateDiagram-v2
+        FRESH --> CONNECTING_FAILED
+        FRESH --> BINDING
+        FRESH --> LISTENING_RESOLVING
+
+        LISTENING_RESOLVING --> LISTENING
+        LISTENING_RESOLVING --> LISTENING_FAILED
+
+        BINDING --> CONNECTING_RESOLVING
+        BINDING --> BINDING_FAILED
+
+        FRESH --> CONNECTING_RESOLVING
+
+        CONNECTING_RESOLVING --> CONNECTING
+        CONNECTING_RESOLVING --> CONNECTING_FAILED
+
+        CONNECTING --> CONNECTING_RESOLVING
+        CONNECTING --> CONNECTED
+        CONNECTING --> CONNECTING_FAILED
+
+        FRESH --> CONNECTED
+
+        CONNECTED --> DISCONNECTED
+        DISCONNECTED --> RECONNECTING
+        RECONNECTING --> FRESH
 
 Server logic
 ~~~~~~~~~~~~
