@@ -69,35 +69,37 @@ The `TCPImpl` has an internal state machine where states change as reactions to 
 
 Since it implements both server (listen, peer, read) and client (connect, write) logic, the state helps common functions to know where to continue to on completion.
 
-The complete state machine diagram is:
+The complete state machine diagram, without failed states, is:
 
 .. mermaid::
 
     stateDiagram-v2
-        FRESH --> CONNECTING_FAILED
-        FRESH --> BINDING
-        FRESH --> LISTENING_RESOLVING
+        %% Server side
+        FRESH --> LISTENING_RESOLVING : server
+        LISTENING_RESOLVING --> LISTENING : uv_listen
 
-        LISTENING_RESOLVING --> LISTENING
-        LISTENING_RESOLVING --> LISTENING_FAILED
+        %% Client side
+        state client_host <<choice>>
+        FRESH --> client_host : client
+        client_host --> BINDING : client_host != null
 
-        BINDING --> CONNECTING_RESOLVING
-        BINDING --> BINDING_FAILED
+        BINDING --> CONNECTING_RESOLVING : client_host resolved
 
-        FRESH --> CONNECTING_RESOLVING
+        client_host --> CONNECTING_RESOLVING : client_host == null
+        CONNECTING_RESOLVING --> CONNECTING : host resolved
 
-        CONNECTING_RESOLVING --> CONNECTING
-        CONNECTING_RESOLVING --> CONNECTING_FAILED
+        CONNECTING --> CONNECTING_RESOLVING : retry
+        CONNECTING --> CONNECTED : uv_tcp_connect
 
-        CONNECTING --> CONNECTING_RESOLVING
-        CONNECTING --> CONNECTED
-        CONNECTING --> CONNECTING_FAILED
+        %% Peer side
+        FRESH --> CONNECTED : peer
 
-        FRESH --> CONNECTED
+        %% Disconnect / reconnect
+        CONNECTED --> DISCONNECTED : error<br>close
+        DISCONNECTED --> RECONNECTING : retry
+        RECONNECTING --> FRESH : init
 
-        CONNECTED --> DISCONNECTED
-        DISCONNECTED --> RECONNECTING
-        RECONNECTING --> FRESH
+Some failed states give transition to retries / reconnects, others are terminal and close the connection.
 
 Server logic
 ~~~~~~~~~~~~
