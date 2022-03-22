@@ -9,6 +9,7 @@
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "node/rpc/host_processes_interface.h"
+#include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
 #include <memory>
@@ -489,7 +490,7 @@ namespace ccfapp
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
@@ -535,10 +536,15 @@ namespace ccfapp
                 {
                   if (matches.empty())
                   {
+                    auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+                    if (ctx_impl == nullptr)
+                    {
+                      throw std::logic_error("Unexpected type of RpcContext");
+                    }
                     // Populate the request_path_params while we have the match,
                     // though this will be discarded on error if we later find
                     // multiple matches
-                    auto& path_params = rpc_ctx.get_request_path_params();
+                    auto& path_params = ctx_impl->path_params;
                     for (size_t i = 0;
                          i < template_spec.template_component_names.size();
                          ++i)
@@ -577,7 +583,7 @@ namespace ccfapp
     }
 
     std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx& tx, const enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
 

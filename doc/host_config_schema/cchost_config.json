@@ -207,8 +207,13 @@
                     "default": 1,
                     "description": "Initial validity period (days) for service certificate",
                     "minimum": 1
+                  },
+                  "previous_service_identity_file": {
+                    "type": "string",
+                    "description": "Path to the previous service certificate (PEM) file"
                   }
-                }
+                },
+                "required": ["previous_service_identity_file"]
               }
             }
           }
@@ -246,6 +251,10 @@
         }
       },
       "description": "This section includes configuration for the node x509 identity certificate"
+    },
+    "node_data_json_file": {
+      "type": "string",
+      "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier."
     },
     "ledger": {
       "type": "object",

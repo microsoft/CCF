@@ -41,6 +41,14 @@ Application Endpoint Registration
    :project: CCF
    :members:
 
+RPC Context
+-----------
+
+.. doxygenclass:: ccf::RpcContext
+   :project: CCF
+   :members:
+   :undoc-members:
+
 Authentication
 --------------
 

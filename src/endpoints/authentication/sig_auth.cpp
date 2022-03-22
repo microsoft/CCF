@@ -13,7 +13,7 @@
 namespace ccf
 {
   static std::optional<SignedReq> parse_signed_request(
-    const std::shared_ptr<enclave::RpcContext>& ctx)
+    const std::shared_ptr<ccf::RpcContext>& ctx)
   {
     return http::HttpSignatureVerifier::parse(
       ctx->get_request_verb().c_str(),
@@ -57,7 +57,7 @@ namespace ccf
 
   std::unique_ptr<AuthnIdentity> UserSignatureAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
-    const std::shared_ptr<enclave::RpcContext>& ctx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     std::optional<SignedReq> signed_request = std::nullopt;
@@ -108,7 +108,7 @@ namespace ccf
   }
 
   void UserSignatureAuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<enclave::RpcContext>& ctx, std::string&& error_reason)
+    std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
   {
     ctx->set_error(
       HTTP_STATUS_UNAUTHORIZED,
@@ -140,7 +140,7 @@ namespace ccf
 
   std::unique_ptr<AuthnIdentity> MemberSignatureAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
-    const std::shared_ptr<enclave::RpcContext>& ctx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     std::optional<SignedReq> signed_request = std::nullopt;
@@ -196,7 +196,7 @@ namespace ccf
   }
 
   void MemberSignatureAuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<enclave::RpcContext>& ctx, std::string&& error_reason)
+    std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
   {
     ctx->set_error(
       HTTP_STATUS_UNAUTHORIZED,

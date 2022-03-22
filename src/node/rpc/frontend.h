@@ -23,7 +23,7 @@
 
 namespace ccf
 {
-  class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
+  class RpcFrontend : public RpcHandler, public ForwardedRpcHandler
   {
   protected:
     kv::Store& tables;
@@ -34,7 +34,7 @@ namespace ccf
     bool is_open_ = false;
 
     kv::Consensus* consensus;
-    std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
+    std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
 
     size_t sig_tx_interval = 5000;
@@ -43,7 +43,7 @@ namespace ccf
     crypto::Pem* service_identity = nullptr;
 
     using PreExec =
-      std::function<void(kv::CommittableTx& tx, enclave::RpcContext& ctx)>;
+      std::function<void(kv::CommittableTx& tx, ccf::RpcContextImpl& ctx)>;
 
     void update_consensus()
     {
@@ -63,7 +63,7 @@ namespace ccf
     }
 
     void update_metrics(
-      const std::shared_ptr<enclave::RpcContext>& ctx,
+      const std::shared_ptr<ccf::RpcContextImpl>& ctx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       int cat = ctx->get_response_status() / 100;
@@ -79,7 +79,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> forward(
-      std::shared_ptr<enclave::RpcContext> ctx,
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
@@ -93,7 +93,7 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      if (ctx->session->is_forwarded)
+      if (ctx->get_session_context()->is_forwarded)
       {
         // If the request was already forwarded, return an error to prevent
         // daisy chains.
@@ -118,7 +118,7 @@ namespace ccf
 
       // Ignore return value - false only means it is pending
       cmd_forwarder->forward_command(
-        ctx, primary_id.value(), ctx->session->caller_cert);
+        ctx, primary_id.value(), ctx->get_session_context()->caller_cert);
 
       LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
 
@@ -127,7 +127,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> process_command(
-      std::shared_ptr<enclave::RpcContext> ctx,
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::CommittableTx& tx,
       const PreExec& pre_exec = {},
       kv::Version prescribed_commit_version = kv::NoVersion,
@@ -227,7 +227,7 @@ namespace ccf
           case endpoints::ForwardingRequired::Sometimes:
           {
             if (
-              (ctx->session->is_forwarding &&
+              (ctx->get_session_context()->is_forwarding &&
                consensus->type() == ConsensusType::CFT) ||
               (consensus->type() != ConsensusType::CFT &&
                !ctx->execute_on_node &&
@@ -236,7 +236,7 @@ namespace ccf
                  endpoint->properties.execute_outside_consensus !=
                    endpoints::ExecuteOutsideConsensus::Locally))))
             {
-              ctx->session->is_forwarding = true;
+              ctx->get_session_context()->is_forwarding = true;
               return forward(ctx, tx, endpoint);
             }
             break;
@@ -244,7 +244,7 @@ namespace ccf
 
           case endpoints::ForwardingRequired::Always:
           {
-            ctx->session->is_forwarding = true;
+            ctx->get_session_context()->is_forwarding = true;
             return forward(ctx, tx, endpoint);
           }
         }
@@ -423,7 +423,7 @@ namespace ccf
     }
 
     void set_cmd_forwarder(
-      std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
+      std::shared_ptr<AbstractForwarder> cmd_forwarder_) override
     {
       cmd_forwarder = cmd_forwarder_;
     }
@@ -470,7 +470,7 @@ namespace ccf
     }
 
     void set_root_on_proposals(
-      const enclave::RpcContext& ctx, kv::CommittableTx& tx)
+      const ccf::RpcContextImpl& ctx, kv::CommittableTx& tx)
     {
       if (
         ctx.get_request_path() == "/gov/proposals" &&
@@ -501,7 +501,7 @@ namespace ccf
      * to-be-executed by consensus), else the response (may contain error)
      */
     std::optional<std::vector<uint8_t>> process(
-      std::shared_ptr<enclave::RpcContext> ctx) override
+      std::shared_ptr<ccf::RpcContextImpl> ctx) override
     {
       update_consensus();
 
@@ -529,9 +529,9 @@ namespace ccf
      * @return Serialised reply to send back to forwarder node
      */
     std::vector<uint8_t> process_forwarded(
-      std::shared_ptr<enclave::RpcContext> ctx) override
+      std::shared_ptr<ccf::RpcContextImpl> ctx) override
     {
-      if (!ctx->session->is_forwarded)
+      if (!ctx->get_session_context()->is_forwarded)
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");

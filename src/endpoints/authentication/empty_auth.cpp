@@ -6,13 +6,13 @@
 namespace ccf
 {
   std::unique_ptr<AuthnIdentity> EmptyAuthnPolicy::authenticate(
-    kv::ReadOnlyTx&, const std::shared_ptr<enclave::RpcContext>&, std::string&)
+    kv::ReadOnlyTx&, const std::shared_ptr<ccf::RpcContext>&, std::string&)
   {
     return std::make_unique<EmptyAuthnIdentity>();
   }
 
   void EmptyAuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<enclave::RpcContext>&, std::string&&)
+    std::shared_ptr<ccf::RpcContext>, std::string&&)
   {
     throw std::logic_error("Should not happen");
   }
