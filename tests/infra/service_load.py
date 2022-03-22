@@ -90,7 +90,8 @@ class LoadClient:
         self._render_results()
 
     def _render_results(self):
-        csv = pd.read_csv(
+        # {"attack":"","seq":1,"code":200,"timestamp":"2022-03-22T12:17:51.942008217Z","latency":117952597,"bytes_out":38,"bytes_in":4,"error":"","body":"dHJ1ZQ==","method":"POST","url":"https://127.82.156.156:32923/app/log/private","headers":{"Content-Type":["application/json"],"X-Ms-Ccf-Transaction-Id":["2.20"],"Content-Length":["4"]}}
+        df = pd.read_csv(
             RESULTS_CSV_FILE_NAME,
             header=None,
             names=[
@@ -100,25 +101,32 @@ class LoadClient:
                 "bytesout",
                 "bytesin",
                 "error",
-                "rate",
+                "response_body",
+                "attack_name",
+                "seqno",
                 "method",
                 "url",
                 "response_headers",
             ],
         ).set_index("timestamp")
-        csv.index = pd.to_datetime(csv.index, unit="ns")
-        csv["latency"] = csv.latency.apply(lambda x: x / 1e9)
+        df.index = pd.to_datetime(df.index, unit="ns")
+        df["latency"] = df.latency.apply(lambda x: x / 1e6)
 
-        LOG.info(type(csv))
-        LOG.error(csv)
+        x = df.index
+        y = df["latency"]
+        plt.plot(x, y)
+        plt.savefig("output.png")
+        # df["latency"] = csv.latency  # .resample("1S").agg(lambda x: x.quantile(0.90))
+        # # df["rate"] = csv.rate  # .resample("1S").max()
+        # ax = df[["latency"]].plot(title="lala")
+        # # ax.set_xticks(df["timestamp"])
+        # ax.set_xlabel("time")
+        # fig = ax.get_figure()
 
-        df = pd.DataFrame()
-        df["latency"] = csv.latency  # .resample("1S").agg(lambda x: x.quantile(0.90))
-        df["rate"] = csv.rate  # .resample("1S").max()
-        plot = df.rate.plot()
-        plot = df.latency.plot(secondary_y=True)
-        fig = plot.get_figure()
-        fig.savefig("output.png")
+        # # plot = df.rate.plot()
+        # # plot = df.latency.plot(secondary_y=True)
+        # # fig = plot.get_figure()
+        # fig.savefig("output.png")
 
 
 class StoppableThread(threading.Thread):
