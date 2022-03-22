@@ -241,8 +241,8 @@ Here's the diagram of the client control flow:
         tsw -. via: uv_write .-> tow
         tow --> tfw
 
-Note that some clients have a `client_host` parameter separate from `host` is used for testing, and uses the state `BINDING`.
+Note that some clients have a `client_host` parameter separate from `host` that is used for testing, and uses the state `BINDING`.
 
-The `client_host` is resolved separately, bound to the handle (via `uv_tcp_bind`) but the call to `uv_tcp_connect` (which also binds the address) is done on the `host` address.
+The `client_host` is resolved separately, bound to the client handle (via `uv_tcp_bind`) but the call to `uv_tcp_connect` is done on the `host` address.
 
-This allows us to bind separate addresses to the same connection, listen on the `host` address but allow external packet filters (like `iptables`) to restrict traffic to them.
+This allows us to bind separate addresses to the client side while connecting to the `host`, to allow external packet filters (like `iptables`) to restrict traffic.
