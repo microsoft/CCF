@@ -20,7 +20,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
 
     {"status":"COMMITTED"}
 
-This example queries the status of transaction ID ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests and changed view (``x-ms-ccf-transaction-id: 5.42``).
+This example queries the status of :term:`Transaction ID` ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests and changed view (``x-ms-ccf-transaction-id: 5.42``).
 
 The possible statuses returned by :http:GET:`/app/tx` are:
 
@@ -43,14 +43,14 @@ It is possible that intermediate states are not visible (e.g. a transition from 
 
 Note that transaction IDs are uniquely assigned by the service - once a request has been assigned an ID, this ID will never be associated with a different write transaction. In normal operation, the next requests will be given versions 2.19, then 2.20, and so on, and after a short delay ``2.18`` will be committed. If requests are submitted in parallel, they will be applied in a consistent order indicated by their assigned versions.
 
-If the network is unable to reach consensus, it will trigger a leadership election which increments the view. In this case the user's next request may be given a version ``3.16``, followed by ``3.17``, then ``3.18``. The sequence number is reused, but in a different view; the service knows that ``2.18`` can never be assigned, so it can report this as an invalid ID. Read-only transactions are an exception - they do not get a unique transaction ID but instead return the ID of the last write transaction whose state they may have read.
+If the network is unable to reach consensus, it will trigger a leadership election which increments the view. In this case the user's next request may be given a version ``3.16``, followed by ``3.17``, then ``3.18``. The sequence number is reused, but in a different view; the service knows that ``2.18`` can never be assigned, so it can report this as an invalid ID. Read-only transactions are an exception - they do not get a unique :term:`Transaction ID` but instead return the ID of the last write transaction whose state they may have read.
 
 Write Receipts
 --------------
 
 Once a transaction has been committed, it is possible to get a cryptographic receipt over the entry produced in the ledger. That receipt can be verified offline.
 
-To obtain a receipt, a user needs to call a :http:GET:`/node/receipt` for a particular transaction ID. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
+To obtain a receipt, a user needs to call a :http:GET:`/app/receipt` for a particular :term:`Transaction ID`. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
 This means that the request may return ``202 Accepted`` at first, with a suggested ``Retry-After`` header. A subsequent call will return the actual receipt, for example:
 
 .. code-block:: bash
@@ -135,7 +135,7 @@ Commit Evidence
 
 The `commit_evidence` field in receipts fulfills two purposes:
 
-1. It exposes the full transaction ID in a format that is easy for a user to extract, and does not require parsing the ledger entry.
+1. It exposes the full :term:`Transaction ID` in a format that is easy for a user to extract, and does not require parsing the ledger entry.
 2. Because it cannot be extracted from the ledger without access to the ledger secrets, it guarantees the transaction is committed.
 
 Entries are written out to the ledger as early as possible, to relieve memory pressure inside the enclave. If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.

@@ -7,7 +7,7 @@ Check for transaction inclusion
 -------------------------------
 
 A user having executed a transaction, fetched a receipt for it, can check for its inclusion in the ledger.
-All the need to do is scan to the corresponding transaction ID, digest the transaction, and compare it with `write_set_digest` in their receipt.
+All they need to do is scan to the corresponding :term:`Transaction ID`, digest the transaction, and compare it with `write_set_digest` in their receipt.
 
 Denounce an invalid recovery
 ----------------------------
@@ -17,5 +17,5 @@ This may occur if the consortium votes a catastrophic recovery from a truncated 
 
 This user can either:
 
-1. Query the new service for receipts at the same transaction IDs.  If those transactions come back as `INVALID`, because they were truncated, the signature over the old receipts is proof of truncation. If they come back as `COMMITTED` with a different root, the existence of two signatures over different roots at the same TxID is proof a fork happened.
-2. Scan the ledger, for example using the :doc:`/audit/python_library`, and find the transactions for which they have receipts. The `write_set_digest` in the receipt should match the digest of the transactions on disk. If it doesn't, the signature over the receipt is proof of fork.
+1. Query the new service for receipts at the same :term:`Transaction ID` values.  If those transactions come back as `INVALID`, because they were truncated, the signature over the old receipts is proof of truncation. If they come back as `COMMITTED` with a different root, the existence of two signatures over different roots at the same TxID is proof that a fork happened.
+2. Scan the ledger, for example using the :doc:`/audit/python_library`, and find the transactions for which they have receipts. The `write_set_digest` in the receipt should match the digest of the transactions on disk. If it doesn't, the signature over the receipt is proof of a fork.
