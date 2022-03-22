@@ -22,7 +22,7 @@ namespace ccf
       std::string&) override;
 
     void set_unauthenticated_error(
-      std::shared_ptr<ccf::RpcContext>&, std::string&&) override;
+      std::shared_ptr<ccf::RpcContext>, std::string&&) override;
 
     std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const override

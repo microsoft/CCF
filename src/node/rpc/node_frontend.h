@@ -427,7 +427,9 @@ namespace ccf
 
           // If the node is already trusted, return network secrets
           auto existing_node_info = check_node_exists(
-            args.tx, args.rpc_ctx->session->caller_cert, joining_node_status);
+            args.tx,
+            args.rpc_ctx->get_session_context()->caller_cert,
+            joining_node_status);
           if (existing_node_info.has_value())
           {
             JoinNetworkNodeToNode::Out rep;
@@ -457,7 +459,8 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                auto& interface_id = args.rpc_ctx->session->interface_id;
+                auto& interface_id =
+                  args.rpc_ctx->get_session_context()->interface_id;
                 if (!interface_id.has_value())
                 {
                   return make_error(
@@ -486,7 +489,7 @@ namespace ccf
 
           return add_node(
             args.tx,
-            args.rpc_ctx->session->caller_cert,
+            args.rpc_ctx->get_session_context()->caller_cert,
             in,
             joining_node_status,
             active_service->status,
@@ -498,8 +501,8 @@ namespace ccf
         // node polls the network to retrieve the network secrets until it is
         // trusted
 
-        auto existing_node_info =
-          check_node_exists(args.tx, args.rpc_ctx->session->caller_cert);
+        auto existing_node_info = check_node_exists(
+          args.tx, args.rpc_ctx->get_session_context()->caller_cert);
         if (existing_node_info.has_value())
         {
           JoinNetworkNodeToNode::Out rep;
@@ -551,7 +554,8 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                auto& interface_id = args.rpc_ctx->session->interface_id;
+                auto& interface_id =
+                  args.rpc_ctx->get_session_context()->interface_id;
                 if (!interface_id.has_value())
                 {
                   return make_error(
@@ -581,7 +585,7 @@ namespace ccf
           // If the node does not exist, add it to the KV in state pending
           return add_node(
             args.tx,
-            args.rpc_ctx->session->caller_cert,
+            args.rpc_ctx->get_session_context()->caller_cert,
             in,
             NodeStatus::PENDING,
             active_service->status,
@@ -963,7 +967,8 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
-          auto& interface_id = args.rpc_ctx->session->interface_id;
+          auto& interface_id =
+            args.rpc_ctx->get_session_context()->interface_id;
           if (!interface_id.has_value())
           {
             args.rpc_ctx->set_error(
@@ -1014,7 +1019,8 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
-            auto& interface_id = args.rpc_ctx->session->interface_id;
+            auto& interface_id =
+              args.rpc_ctx->get_session_context()->interface_id;
             if (!interface_id.has_value())
             {
               args.rpc_ctx->set_error(
@@ -1073,7 +1079,8 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
-              auto& interface_id = args.rpc_ctx->session->interface_id;
+              auto& interface_id =
+                args.rpc_ctx->get_session_context()->interface_id;
               if (!interface_id.has_value())
               {
                 args.rpc_ctx->set_error(
