@@ -93,7 +93,7 @@ namespace ccf
     /// Methods to set sections of response, which will be serialised and
     /// transmitted to client.
     ///@{
-  
+
     /// Sets the main body or payload of the response.
     virtual void set_response_body(const std::vector<uint8_t>& body) = 0;
     /// Sets the main body or payload of the response.
