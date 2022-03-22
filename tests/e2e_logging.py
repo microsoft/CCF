@@ -35,7 +35,28 @@ from types import MappingProxyType
 
 from loguru import logger as LOG
 
-# from OpenSSL.crypto import dump_certificate, FILETYPE_TEXT
+from OpenSSL.crypto import (
+    # dump_certificate,
+    load_certificate,
+    # FILETYPE_TEXT,
+    FILETYPE_PEM,
+    X509,
+    X509Store,
+    X509StoreContext,
+)
+
+
+def verify_endorsements_openssl(service_cert, receipt):
+    node_cert_pem = receipt["cert"].encode()
+    store = X509Store()
+    store.add_cert(X509.from_cryptography(service_cert))
+    chain = None
+    if "service_endorsements" in receipt:
+        chain = []
+        for endo in receipt["service_endorsements"]:
+            chain.append(load_certificate(FILETYPE_PEM, endo.encode()))
+    ctx = X509StoreContext(store, load_certificate(FILETYPE_PEM, node_cert_pem), chain)
+    ctx.verify_certificate()  # throws on error
 
 
 def verify_receipt(
@@ -56,7 +77,7 @@ def verify_receipt(
                 endo_cert = load_pem_x509_certificate(endo.encode(), default_backend())
                 # dc = dump_certificate(FILETYPE_TEXT, endo_cert).decode("unicode_escape")
                 # LOG.info(f"Endorsement cert: {dc}")
-                ccf.receipt.check_endorsement(endo_cert, cert_i)
+                ccf.receipt.check_endorsement(cert_i, endo_cert)
                 cert_i = endo_cert
         # dc = dump_certificate(FILETYPE_TEXT, service_cert).decode("unicode_escape")
         # LOG.info(f"Service cert: {dc}")

@@ -61,7 +61,6 @@ def get_and_verify_historical_receipt(network, ref_msg):
         if not network.txs.priv:
             network.txs.issue(network, number_txs=1)
         idx, _ = network.txs.get_last_tx()
-        LOG.info(f"IDX: {network.txs.priv[idx]}")
         ref_msg = network.txs.priv[idx][-1]
         ref_msg["idx"] = idx
     r = network.txs.get_receipt(
@@ -492,6 +491,8 @@ def run(args):
         network.start_and_open(args)
 
         ref_msg = get_and_verify_historical_receipt(network, None)
+
+        network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery

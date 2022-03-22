@@ -271,8 +271,9 @@ namespace crypto
       // Verify issuer-signed CSR
       if (signed_by_issuer)
       {
-        req_pubkey = X509_get0_pubkey(icrt);
-        OpenSSL::CHECK1(X509_REQ_verify(csr, req_pubkey));
+        req_pubkey = X509_REQ_get0_pubkey(csr);
+        auto issuer_pubkey = X509_get0_pubkey(icrt);
+        OpenSSL::CHECK1(X509_REQ_verify(csr, issuer_pubkey));
       }
     }
     else

@@ -13,32 +13,30 @@ namespace ccf
     HistoryTree::Hash root = {};
     std::shared_ptr<ccf::HistoryTree::Path> path = {};
     ccf::NodeId node_id = {};
-    std::optional<crypto::Pem> cert = std::nullopt;
+    std::optional<crypto::Pem> node_cert = std::nullopt;
     std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
     std::optional<std::string> commit_evidence = std::nullopt;
     ccf::ClaimsDigest claims_digest = {};
-    std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
 
     TxReceipt(
-      const std::vector<uint8_t>& s_,
-      const HistoryTree::Hash& r_,
-      std::shared_ptr<ccf::HistoryTree::Path> p_,
-      const NodeId& n_,
-      const std::optional<crypto::Pem>& c_,
+      const std::vector<uint8_t>& signature_,
+      const HistoryTree::Hash& root_,
+      std::shared_ptr<ccf::HistoryTree::Path> path_,
+      const NodeId& node_id_,
+      const std::optional<crypto::Pem>& node_cert_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
       const std::optional<std::string>& commit_evidence_ = std::nullopt,
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       const std::optional<std::vector<crypto::Pem>>& service_endorsements_ =
         std::nullopt) :
-      signature(s_),
-      root(r_),
-      path(p_),
-      node_id(n_),
-      cert(c_),
+      signature(signature_),
+      root(root_),
+      path(path_),
+      node_id(node_id_),
+      node_cert(node_cert_),
       write_set_digest(write_set_digest_),
       commit_evidence(commit_evidence_),
-      claims_digest(claims_digest_),
-      service_endorsements(service_endorsements_)
+      claims_digest(claims_digest_)
     {}
   };
 

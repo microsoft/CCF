@@ -12,6 +12,8 @@
 
 namespace ccf
 {
+  static std::map<crypto::Pem, crypto::Pem> service_endorsement_cache;
+
   ccf::Receipt describe_receipt(const TxReceipt& receipt, bool include_root)
   {
     ccf::Receipt out;
@@ -38,9 +40,9 @@ namespace ccf
     }
     out.node_id = receipt.node_id;
 
-    if (receipt.cert.has_value())
+    if (receipt.node_cert.has_value())
     {
-      out.cert = receipt.cert->str();
+      out.cert = receipt.node_cert->str();
     }
 
     if (receipt.path == nullptr)
@@ -64,7 +66,7 @@ namespace ccf
         write_set_digest_str, receipt.commit_evidence, claims_digest_str};
     }
 
-    out.service_endorsements = receipt.service_endorsements;
+    // out.service_endorsements = receipt.service_endorsements;
 
     return out;
   }
@@ -193,54 +195,104 @@ namespace ccf::historical
     return HistoricalTxStatus::Valid;
   }
 
-  std::map<crypto::Pem, crypto::Pem> service_endorsement_cache;
+  std::optional<ServiceInfo> find_previous_service_identity(
+    auto& ctx,
+    ccf::historical::StatePtr& state,
+    AbstractStateCache& state_cache)
+  {
+    SeqNo target_seqno = state->transaction_id.seqno;
+    LOG_DEBUG_FMT("target seqno: {}", target_seqno);
+
+    // We start at the previous write to the latest (current) service info.
+    auto service = ctx.tx.template ro<Service>(Tables::SERVICE);
+    LOG_DEBUG_FMT("current identity: {}", service->get()->cert.str());
+
+    // Iterate until we find the most recent write to the service info that
+    // precedes the target seqno.
+    std::optional<ServiceInfo> hservice_info = service->get();
+    SeqNo i = -1;
+    do
+    {
+      if (!hservice_info->previous_service_identity_version)
+      {
+        throw std::runtime_error(
+          fmt::format("no previous service info version available at {}", i));
+      }
+      i = *hservice_info->previous_service_identity_version;
+      LOG_DEBUG_FMT("previous write: {}", i);
+      auto hstate = state_cache.get_state_at(i, i);
+      if (!hstate)
+      {
+        LOG_DEBUG_FMT("Historical state at {} not available yet", i);
+        return std::nullopt;
+      }
+      auto htx = hstate->store->create_read_only_tx();
+      auto hservice = htx.ro<Service>(Tables::SERVICE);
+      hservice_info = hservice->get();
+      if (!hservice_info)
+      {
+        throw std::runtime_error(
+          fmt::format("Missing historical service info at {}", i));
+      }
+    } while (i > target_seqno);
+
+    assert(i <= target_seqno);
+
+    return hservice_info;
+  }
 
   bool get_service_endorsements(
     auto& ctx,
     ccf::historical::StatePtr& state,
+    AbstractStateCache& state_cache,
     NetworkIdentitySubsystemInterface& niss)
   {
     const auto& network_identity = niss.get();
 
-    if (state->receipt->cert)
+    if (state && state->receipt && state->receipt->node_cert)
     {
-      LOG_DEBUG_FMT("receipt cert: {}", state->receipt->cert->str());
+      auto& receipt = *state->receipt;
+      LOG_DEBUG_FMT("receipt cert: {}", receipt.node_cert->str());
 
-      auto v = crypto::make_unique_verifier(*state->receipt->cert);
+      auto v = crypto::make_unique_verifier(*receipt.node_cert);
       if (!v->verify_certificate(
             {&network_identity->cert}, {}, /* ignore_time */ true))
       {
-        auto htx = state->store->create_read_only_tx();
-        auto hservice = htx.ro<Service>(Tables::SERVICE);
-        auto hservice_info = hservice->get();
-        if (!hservice_info)
-        {
-          throw std::runtime_error("historical service info not found");
-        }
-        auto hcert = hservice_info->cert;
-        LOG_DEBUG_FMT("historical identity: {}", hcert.str());
-        auto pubkey =
-          crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(hcert));
+        // The current service identity does not endorse the node certificate in
+        // the receipt, so we search for the the most recent write to the
+        // service info table before the historical transaction ID to get the
+        // historical service identity.
 
-        auto eit = service_endorsement_cache.find(pubkey);
+        // auto opt_psi = find_previous_service_identity(ctx, state,
+        // state_cache);
+        // if (!opt_psi)
+        // {
+        //   return false;
+        // }
+
+        auto hpubkey = crypto::public_key_pem_from_cert(
+          crypto::cert_pem_to_der(*receipt.node_cert));
+
+        auto eit = service_endorsement_cache.find(hpubkey);
         if (eit != service_endorsement_cache.end())
         {
-          state->receipt->service_endorsements = {eit->second};
+          LOG_DEBUG_FMT("Found cached endorsement");
+          receipt.node_cert = eit->second;
         }
         else
         {
+          LOG_DEBUG_FMT("New endorsement");
           auto valid_from = crypto::OpenSSL::to_x509_time_string(
             crypto::OpenSSL::to_time_t(NULL));
           auto endorsement = create_endorsed_cert(
-            pubkey,
-            ReplicatedNetworkIdentity::subject_name,
+            hpubkey,
+            "CN=CCF Node",
             {},
             valid_from,
             1 /* days valid */,
             network_identity->priv_key,
             network_identity->cert);
-          service_endorsement_cache[pubkey] = endorsement;
-          state->receipt->service_endorsements = {endorsement};
+          receipt.node_cert = endorsement;
         }
       }
     }
@@ -336,7 +388,7 @@ namespace ccf::historical
       }
 
       if (!get_service_endorsements(
-            args, historical_state, network_identity_subsystem))
+            args, historical_state, state_cache, network_identity_subsystem))
       {
         args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
         constexpr size_t retry_after_seconds = 3;
