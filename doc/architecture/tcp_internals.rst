@@ -240,3 +240,9 @@ Here's the diagram of the client control flow:
         tw -- DISCONNECTED<br>no data --> tfw
         tsw -. via: uv_write .-> tow
         tow --> tfw
+
+Note that some clients have a `client_host` parameter separate from `host` is used for testing, and uses the state `BINDING`.
+
+The `client_host` is resolved separately, bound to the handle (via `uv_tcp_bind`) but the call to `uv_tcp_connect` (which also binds the address) is done on the `host` address.
+
+This allows us to bind separate addresses to the same connection, listen on the `host` address but allow external packet filters (like `iptables`) to restrict traffic to them.
