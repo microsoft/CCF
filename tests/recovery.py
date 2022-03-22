@@ -474,8 +474,6 @@ def run(args):
 
         LOG.error("here")
 
-        input()
-
         loader = infra.service_load.ServiceLoad(network)
         loader.start()
         loader.join()

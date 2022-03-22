@@ -5,9 +5,15 @@ import time
 import subprocess
 import generate_vegeta_targets as TargetGenerator
 
+import matplotlib.pyplot as plt
+import matplotlib.cbook as cbook
+
+import pandas as pd
+
 from loguru import logger as LOG
 
 VEGETA_BIN = "/opt/vegeta/vegeta"
+RESULTS_CSV_FILE_NAME = "vegeta_results.csv"
 
 
 class LoadClient:
@@ -30,23 +36,23 @@ class LoadClient:
                     body={"id": i, "msg": f"Private message: {i}"},
                 )
 
-            for i in range(10):
-                TargetGenerator.write_vegeta_target_line(
-                    f, primary_hostname, f"/app/log/private?id={i}", method="GET"
-                )
+            # for i in range(10):
+            #     TargetGenerator.write_vegeta_target_line(
+            #         f, primary_hostname, f"/app/log/private?id={i}", method="GET"
+            #     )
 
-            for i in range(10):
-                TargetGenerator.write_vegeta_target_line(
-                    f,
-                    primary_hostname,
-                    "/app/log/public",
-                    body={"id": i, "msg": f"Public message: {i}"},
-                )
+            # for i in range(10):
+            #     TargetGenerator.write_vegeta_target_line(
+            #         f,
+            #         primary_hostname,
+            #         "/app/log/public",
+            #         body={"id": i, "msg": f"Public message: {i}"},
+            #     )
 
-            for i in range(10):
-                TargetGenerator.write_vegeta_target_line(
-                    f, primary_hostname, f"/app/log/public?id={i}", method="GET"
-                )
+            # for i in range(10):
+            #     TargetGenerator.write_vegeta_target_line(
+            #         f, primary_hostname, f"/app/log/public?id={i}", method="GET"
+            #     )
 
         attack_cmd = [VEGETA_BIN, "attack"]
         attack_cmd += ["--targets", vegeta_targets]
@@ -68,12 +74,51 @@ class LoadClient:
             stdout=subprocess.PIPE,
         )
 
-        report_cmd = [VEGETA_BIN, "report", "--every", "5s"]
-        self.report = subprocess.Popen(report_cmd, stdin=tee_split.stdout)
+        encode_cmd = [
+            VEGETA_BIN,
+            "encode",
+            "--to",
+            "csv",
+            "--output",
+            RESULTS_CSV_FILE_NAME,
+        ]
+        self.report = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
         LOG.start("running")
 
     def wait_for_completion(self):
         self.report.communicate()
+        self._render_results()
+
+    def _render_results(self):
+        csv = pd.read_csv(
+            RESULTS_CSV_FILE_NAME,
+            header=None,
+            names=[
+                "timestamp",
+                "code",
+                "latency",
+                "bytesout",
+                "bytesin",
+                "error",
+                "rate",
+                "method",
+                "url",
+                "response_headers",
+            ],
+        ).set_index("timestamp")
+        csv.index = pd.to_datetime(csv.index, unit="ns")
+        csv["latency"] = csv.latency.apply(lambda x: x / 1e9)
+
+        LOG.info(type(csv))
+        LOG.error(csv)
+
+        df = pd.DataFrame()
+        df["latency"] = csv.latency  # .resample("1S").agg(lambda x: x.quantile(0.90))
+        df["rate"] = csv.rate  # .resample("1S").max()
+        plot = df.rate.plot()
+        plot = df.latency.plot(secondary_y=True)
+        fig = plot.get_figure()
+        fig.savefig("output.png")
 
 
 class StoppableThread(threading.Thread):
@@ -95,6 +140,8 @@ class StoppableThread(threading.Thread):
     # 3. Distribute load on multiple nodes
     # 4. Cope with node removal + addition
 
+
+class ServiceLoad(StoppableThread):
     def __init__(self, network, *args, **kwargs):
         super().__init__(name="load", *args, **kwargs)
         self.network = network
