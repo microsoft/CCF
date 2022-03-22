@@ -694,12 +694,7 @@ if(BUILD_TESTS)
       # transactions
       # are emitted while partitions are up. To be removed when
       # https://github.com/microsoft/CCF/issues/2577 is implemented
-      --snapshot-tx-interval
-      10000
-      # Partitions test waits for a lot of elections, so reduce the timeout to
-      # complete faster
-      --election-timeout-ms
-      2000
+      --snapshot-tx-interval 10000
   )
   if(ENABLE_2TX_RECONFIG)
     list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
