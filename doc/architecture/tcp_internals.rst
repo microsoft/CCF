@@ -113,11 +113,48 @@ There could be several `peer` sockets open communicating with different clients 
 
 Here's a diagram of the control flow for a server connection:
 
-TODO Server CFG
+.. mermaid::
 
-And here's a diagram for the `peer` control flow:
+    graph TD
+        subgraph RPCConnections
+            rl(listen)
+            subgraph RPCServerBehaviour
+                rsboa(on_accept)
+            end
+        end
 
-TODO Peer CFG
+        subgraph TCPImpl
+            tl(listen)
+            tr(resolve)
+            tor(on_resolved)
+            tlr(listen_resolved)
+            toa(on_accept)
+            tp[TCP peer]
+        end
+
+        subgraph NodeConnections
+            nctor(NodeConnections)
+            subgraph NodeServerBehaviour
+                nsboa(on_accept)
+            end
+        end
+
+        %% Entry Points
+        rl --> tl
+        nctor --> tl
+
+        %% Listen path
+        tl --> tr
+        tr -.-> tor
+        tor --> tlr
+        tlr -.-> toa
+        toa --> rsboa
+        toa --> nsboa
+        toa ==> tp
+
+The control flow of the `peer` connection is similar to the client (below), but the order is reverse.
+
+The client first writes the request and then waits for the response, while the peer first waits for the request and then writes the response back.
 
 Client logic
 ~~~~~~~~~~~~
