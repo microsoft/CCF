@@ -169,4 +169,71 @@ RPC clients are used for REST service callbacks from other services, ex. metrics
 
 Here's the diagram of the client control flow:
 
-TODO Client CFG
+.. mermaid::
+
+    graph TD
+        subgraph RPCConnections
+            rc(connect)
+            rw(write)
+            subgraph RPCClientBehaviour
+                rsbor(on_read)
+            end
+        end
+
+        subgraph TCPImpl
+            tc(connect)
+            tocr(on_client_resolved)
+            tcb(client_bind)
+            tr(resolve)
+            tor(on_resolved)
+            tcr(connect_resolved)
+            toc(on_connect)
+
+            trs(read_start)
+            toa(on_alloc)
+            tore(on_read)
+            tof(on_free)
+
+            tw(write)
+            tow(on_write)
+            tfw(free_write)
+            tsw(send_write)
+        end
+
+        subgraph NodeConnections
+            ncc(create_connection)
+            nw(ccf::node_outbound)
+            subgraph NodeConnectionBehaviour
+                nsbor(on_read)
+            end
+        end
+
+        %% Entry Points
+        rc --> tc
+        ncc --> tc
+        rw --> tw
+        nw --> tw
+
+        %% Connect path
+        tc --> tr
+        tc -.-> tocr
+        tocr --> tcb
+        tcb --> tr
+        tr -.-> tor
+        tor --> tcr
+        tcr -.-> toc
+        toc --> tcr
+        toc --pending writes--> tw
+        toc --> trs
+
+        %% Read path
+        trs -.-> toa
+        trs -.-> tore
+        tore --> tof
+        tore --> rsbor
+        tore --> nsbor
+
+        %% Write path
+        tw --> tsw
+        tsw -.-> tow
+        tow --> tfw
