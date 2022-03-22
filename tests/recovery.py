@@ -458,7 +458,7 @@ def run_corrupted_ledger(args):
 
 
 def run(args):
-    recoveries_count = 3
+    recoveries_count = 10
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -471,7 +471,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service_with_wrong_identity(network, args)
+        # This one may be special?
+        # network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
