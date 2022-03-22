@@ -74,6 +74,13 @@ Architecture
 
     ---
 
+    :fa:`address-book` :doc:`tcp_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of the TCP host layer.
+
+    ---
+
     :fa:`address-book` :doc:`quic_internals`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -93,4 +100,5 @@ Architecture
     indexing
     receipts
     tls_internals
+    tcp_internals
     quic_internals
