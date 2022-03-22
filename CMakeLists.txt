@@ -689,11 +689,13 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     CONSENSUS cft
   )
-
-  # Higher snapshot interval as the test currently assumes that no transactions
-  # are emitted while partitions are up. To be removed when
-  # https://github.com/microsoft/CCF/issues/2577 is implemented
-  set(PARTITIONS_TEST_ARGS --snapshot-tx-interval 10000)
+  set(PARTITIONS_TEST_ARGS
+      # Higher snapshot interval as the test currently assumes that no
+      # transactions
+      # are emitted while partitions are up. To be removed when
+      # https://github.com/microsoft/CCF/issues/2577 is implemented
+      --snapshot-tx-interval 10000
+  )
   if(ENABLE_2TX_RECONFIG)
     list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
   endif()
