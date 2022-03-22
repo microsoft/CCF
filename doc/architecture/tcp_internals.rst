@@ -144,10 +144,10 @@ Here's a diagram of the control flow for a server connection:
         nctor --> tl
 
         %% Listen path
-        tl --> tr
-        tr -.-> tor
+        tl -- LISTENING_RESOLVING --> tr
+        tr -. via: DNS::resolve .-> tor
         tor --> tlr
-        tlr -.-> toa
+        tlr -. LISTENING<br>via: uv_listen .-> toa
         toa --> rsboa
         toa --> nsboa
         toa ==> tp
