@@ -88,8 +88,13 @@ class StoppableThread(threading.Thread):
     def is_stopped(self):
         return self._stop_event.is_set()
 
+    # TODO:
+    # 1. Basic setup (DONE)
+    # 2. Print vegeta results:
+    # $ /opt/vegeta/vegeta attack -duration=10s -rate=50 -format json -targets vegeta_targets | tee results.bin | /opt/vegeta/vegeta encode -to csv -output report.csv
+    # 3. Distribute load on multiple nodes
+    # 4. Cope with node removal + addition
 
-class ServiceLoad(StoppableThread):
     def __init__(self, network, *args, **kwargs):
         super().__init__(name="load", *args, **kwargs)
         self.network = network
