@@ -4,6 +4,7 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "node/rpc/rpc_context_impl.h"
 
 namespace ccf::endpoints
 {
@@ -246,7 +247,12 @@ namespace ccf::endpoints
             // error-reporting
             if (matches.size() == 0)
             {
-              auto& path_params = rpc_ctx.get_request_path_params();
+              auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+              if (ctx_impl == nullptr)
+              {
+                throw std::logic_error("Unexpected type of RpcContext");
+              }
+              auto& path_params = ctx_impl->path_params;
               for (size_t i = 0;
                    i < endpoint->spec.template_component_names.size();
                    ++i)

@@ -31,7 +31,7 @@ namespace ccf
       std::string& error_reason) override;
 
     void set_unauthenticated_error(
-      std::shared_ptr<ccf::RpcContext>& ctx,
+      std::shared_ptr<ccf::RpcContext> ctx,
       std::string&& error_reason) override;
 
     std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
