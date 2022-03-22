@@ -187,7 +187,7 @@ Here's the diagram of the client control flow:
             tr(resolve)
             tor(on_resolved)
             tcr(connect_resolved)
-            toc(on_connect)
+            toc(on_connect<br>CONNECTED)
 
             trs(read_start)
             toa(on_alloc)
@@ -215,25 +215,26 @@ Here's the diagram of the client control flow:
         nw --> tw
 
         %% Connect path
-        tc --> tr
-        tc -.-> tocr
+        tc -- CONNECTING_RESOLVING --> tr
+        tc -. BINDING<br>via: DNS::resolve .-> tocr
         tocr --> tcb
-        tcb --> tr
-        tr -.-> tor
+        tcb -- uv_tcp_bind<br>CONNECTING_RESOLVING --> tr
+        tr -. via: DNS::resolve .-> tor
         tor --> tcr
-        tcr -.-> toc
-        toc --> tcr
-        toc --pending writes--> tw
+        tcr -. CONNECTING<br>via: uv_tcp_connect .-> toc
+        toc -- retry<br>CONNECTING_RESOLVING --> tcr
+        toc -- pending writes --> tw
         toc --> trs
 
         %% Read path
-        trs -.-> toa
-        trs -.-> tore
-        tore --> tof
+        trs -. via: uv_read_start .-> toa
+        trs -. via: uv_read_start .-> tore
+        tore -- DISCONNECTED<br>uv_read_stop --> tof
         tore --> rsbor
         tore --> nsbor
 
         %% Write path
-        tw --> tsw
-        tsw -.-> tow
+        tw -- CONNECTED --> tsw
+        tw -- DISCONNECTED<br>no data --> tfw
+        tsw -. via: uv_write .-> tow
         tow --> tfw
