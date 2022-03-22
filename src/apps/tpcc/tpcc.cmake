@@ -29,7 +29,7 @@ if(BUILD_TESTS)
     if("BFT" STREQUAL CONSENSUS)
       set(TPCC_ITERATIONS 50000)
     else()
-      set(TPCC_ITERATIONS 100000)
+      set(TPCC_ITERATIONS 50000)
     endif()
 
     add_perf_test(
