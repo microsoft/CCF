@@ -34,7 +34,33 @@ For RPC connections, the behaviours are:
 
 Here's a diagram with the types of behaviours and their relationships:
 
-TODO: Insert diagram
+.. mermaid::
+
+  graph BT
+      subgraph TCP
+          TCPBehaviour
+          TCPServerBehaviour
+      end
+
+      subgraph RPCConnections
+          RPCClientBehaviour
+          RCPServerBehaviour
+      end
+
+      subgraph NodeConnections
+          NodeConnectionBehaviour
+          NodeIncomingBehaviour
+          NodeOutgoingBehaviour
+          NodeServerBehaviour
+      end
+
+          RPCClientBehaviour --> TCPBehaviour
+          NodeConnectionBehaviour --> TCPBehaviour
+          NodeIncomingBehaviour --> NodeConnectionBehaviour
+          NodeOutgoingBehaviour --> NodeConnectionBehaviour
+          NodeServerBehaviour --> TCPServerBehaviour
+          RCPServerBehaviour --> TCPServerBehaviour
+
 
 State machine
 ~~~~~~~~~~~~~
