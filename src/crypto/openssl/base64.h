@@ -87,9 +87,8 @@ namespace crypto
 
       // Encode Main Block (if size > 48)
       int chunk_len = 0;
-      EVP_EncodeUpdate(ctx, output, &chunk_len, data, size);
-      auto err = ERR_get_error();
-      if (err != 0)
+      int rc = EVP_EncodeUpdate(ctx, output, &chunk_len, data, size);
+      if (rc < 0)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
         throw std::logic_error(fmt::format(
@@ -99,10 +98,10 @@ namespace crypto
 
       // Encode Final Line (after previous lines, if any)
       EVP_EncodeFinal(ctx, output + chunk_len, &chunk_len);
-      err = ERR_get_error();
+      auto err = ERR_get_error();
       if (err != 0)
       {
-        auto err_str = OpenSSL::error_string(ERR_get_error());
+        auto err_str = OpenSSL::error_string(err);
         throw std::logic_error(fmt::format(
           "OSSL: Could not encode final to base64 string: {}", err_str));
       }
