@@ -59,7 +59,19 @@ namespace crypto
     /// Returns the error string from an error code
     inline std::string error_string(int ec)
     {
-      return ERR_error_string((unsigned long)ec, NULL);
+      // ERR_error_string doesn't really expect the code could actually be zero
+      // and uses the `static char buf[256]` which is NOT cleaned nor checked
+      // if it has changed. So we use ERR_error_string_n directly.
+      if (ec)
+      {
+        std::string err(256, '\0');
+        ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        return err;
+      }
+      else
+      {
+        return "unknown error";
+      }
     }
 
     /*
