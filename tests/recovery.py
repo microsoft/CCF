@@ -6,7 +6,6 @@ import infra.node
 import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
-import ccf.split_ledger
 import ccf.ledger
 import os
 import json
@@ -493,8 +492,6 @@ checked. Note that the key for each logging message is unique (per table).
 
     cr = ConcurrentRunner()
 
-    # Test-specific values so that it is likely that ledger files contain
-    # at least two signatures, so that they can be split at the first one
     cr.add(
         "recovery",
         run,
