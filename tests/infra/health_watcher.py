@@ -27,7 +27,9 @@ class HealthState(Enum):
     election = auto()  # An election is in progress
 
 
-def get_primary(node, client_node_timeout_s=3, verbose=True):
+def get_primary(
+    node, client_node_timeout_s=DEFAULT_CLIENT_NODE_TIMEOUT_S, verbose=True
+):
     """
     Returns the primary reported by a given node, and in which view or
     None if the given node is unreachable.
@@ -58,9 +60,9 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
         )
     assert len(primaries) == len(nodes)
 
-    # Count how many primary nodes are reported by all nodes in the network.
-    # If a majority of nodes report the same primary node in the same term,
-    # the service is stable.
+    # Count how many (primary nodes, views) are reported by all nodes in
+    # the network. If a majority of nodes report the same primary node in
+    # the same term, the service is stable.
     primaries_count = Counter(primaries.values())
 
     if not primaries_count:
@@ -132,6 +134,9 @@ class NetworkHealthWatcher(StoppableThread):
         watcher automatically stops and a disaster recovery procedure should be staged.
         """
         election_start_time = None
+
+        # Note: this currently does not detect one-way partitions backups -> primary
+        # See https://github.com/microsoft/CCF/issues/3688 for fix.
 
         while not self.is_stopped():
             if self.verbose:
