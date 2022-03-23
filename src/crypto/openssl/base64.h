@@ -26,6 +26,10 @@ namespace crypto
       if (size == 0)
         return {};
 
+      // Make sure the error queue is clean before we start
+      // Trying to ameliorate #3677 and #3368
+      ERR_clear_error();
+
       // Initialise the encode context
       OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_DecodeInit(ctx);
@@ -66,6 +70,10 @@ namespace crypto
     {
       if (size == 0)
         return "";
+
+      // Make sure the error queue is clean before we start
+      // Trying to ameliorate #3677 and #3368
+      ERR_clear_error();
 
       // Initialise the encode context
       OpenSSL::Unique_EVP_ENCODE_CTX ctx;
