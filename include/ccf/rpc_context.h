@@ -151,6 +151,7 @@ namespace ccf
     /// transaction. This allows a transaction to make specific,
     /// separately-revealable claims in each transaction, without being bound to
     /// the transaction serialisation format or what is stored in the KV.
+    /// The digest will be included in receipts issued for that transaction.
     virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) = 0;
     ///@}
   };

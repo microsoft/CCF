@@ -59,6 +59,14 @@ Architecture
 
     ---
 
+    :fa:`scroll` :doc:`receipts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Receipts can be used with the ledger for audit purposes.
+
+
+    ---
+
     :fa:`address-book` :doc:`tls_internals`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -90,6 +98,7 @@ Architecture
     raft_tla
     node_to_node
     indexing
+    receipts
     tls_internals
     tcp_internals
     quic_internals

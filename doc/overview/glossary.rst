@@ -80,5 +80,8 @@ Glossary
   TLS
     `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.
 
+  Transaction ID
+    Unique transaction identifier in CCF, composed of a View and a Sequence Number. Sequence Numbers start from 1, and are contiguous. Views are monotonic.
+
   Users
     Directly interact with the application running in CCF. Their public identity should be voted in by members before they are allowed to issue requests.
