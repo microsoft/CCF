@@ -93,7 +93,7 @@ Note that receipts over signature transactions are a special case, for example:
      'signature': 'MGQCMACklXqd0ge+gBS8WzewrwtwzRzSKy+bfrLZVx0YHmQvtsqs7dExYESsqrUrB8ZcKwIwS3NPKaGq0w2QlPlCqUC3vQoQvhcZgPHPu2GkFYa7JEOdSKLknNPHaCRv80zx2RGF',
      'cert': '<PEM string>'}
 
-The proof is empty, and the 'leaf' field is set to the value being signed, which is the root of the Merkle Tree covering all transactions until the signature.
+The proof is empty, and the ``leaf`` field is set to the value being signed, which is the root of the Merkle Tree covering all transactions until the signature.
 This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is _not_
 the digest of the signature transaction itself.
 
@@ -116,8 +116,8 @@ Application Claims
 CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`enclave::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
 
 This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
-For example, a logging application may choose to set the digest of the payload being load as `claims_digest`.
-A user who logs a payload can then present the receipt and the payload to a third party, who can confirm that they match, having verified the receipt. They can perform this verification without access to the network.
+For example, a logging application may choose to set the digest of the payload being logged as `claims_digest`.
+A user who logs a payload can then present the receipt and the payload to a third party, who can confirm that they match, having verified the receipt. They can perform this verification without access to the service.
 
 Multiple claims can be registered by storing them in a collection or object whose digest is set as `claims_digest`. It is possible to reveal them selectively, by capturing their digest in turn, rather than their raw value directly, eg:
 

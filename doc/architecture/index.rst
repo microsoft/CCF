@@ -55,7 +55,7 @@ Architecture
     :fa:`address-book` :doc:`indexing`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Transaction receipts in CCF.
+    Indexing system used to speed up historical queries.
 
     ---
 

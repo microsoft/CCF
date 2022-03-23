@@ -214,7 +214,7 @@ A user wanting to tie transaction-specific values to a receipt can do so by atta
     :end-before: SNIPPET_END: set_claims_digest
     :dedent:
 
-CCF will then record the digest of the transaction as the combined digest of the write set, plus this ``claims_digest``, as well the commit evidence.
+CCF will then record this transaction as a leaf in the Merkle tree constructed from the combined digest of the write set, this ``claims_digest``, and the commit evidence.
 
 This ``claims_digest`` will be exposed in receipts under ``leaf_components``. It can then be revealed externally,
 or by the endpoint directly if it has been stored in the ledger. The receipt object deliberately makes the ``claims_digest`` optional,
@@ -230,7 +230,7 @@ therefore establishes the authenticity of the claims.
     :end-before: SNIPPET_END: claims_digest_in_receipt
     :dedent:
 
-A client consuming the output of this endpoint must digest the claims themselves, combine the digest with the other leaf component
+A client consuming the output of this endpoint must digest the claims themselves, combine the digest with the other leaf components
 (``write_set_digest`` and ``hash(commit_evidence)``) to obtain the equivalent ``leaf``. See :ref:`use_apps/verify_tx:Receipt Verification` for the full set of steps.
 
 As an example, a logging application may register the contents being logged as a claim:
@@ -249,7 +249,7 @@ And expose an endpoint returning receipts, with that claim expanded:
     :end-before: SNIPPET_END: get_historical_with_receipt
     :dedent:
 
-Receipts will then look like:
+Receipts from this endpoint will then look like:
 
 .. code-block:: json
 
@@ -273,3 +273,5 @@ Receipts will then look like:
                            {'left': 'e2184154ac72b304639b923b3c7a0bc04cecbd305de4f103a174a90210cae0dc'},
                            {'left': 'abc9bcbeff670930c34ebdab0f2d57b56e9d393e4dccdccf2db59b5e34507422'}],
                  'signature': 'MGUCMHYBgZ3gySdkJ+STUL13EURVBd8354ULC11l/kjx20IwpXrg/aDYLWYf7tsGwqUxPwIxAMH2wJDd9wpwbQrULpaAx5XEifpUfOriKtYo7XiFr05J+BV10U39xa9GBS49OK47QA=='}}
+                 
+Note that the ``claims_digest`` is not present in the ``leaf_components``, and must be re-computed by digesting the ``msg``.

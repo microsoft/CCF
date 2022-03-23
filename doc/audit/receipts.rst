@@ -13,7 +13,7 @@ Denounce an invalid recovery
 ----------------------------
 
 A user having executed a number of transactions, and fetched receipts for them, can denounce a recovery that removes one or more of these transactions.
-This may occur if the consortium votes a catastrophic recovery from a truncated ledger.
+This may occur if the consortium approves a catastrophic recovery from a truncated ledger.
 
 This user can either:
 
