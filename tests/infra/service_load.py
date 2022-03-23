@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import threading
 import time
+import os
 import subprocess
 import generate_vegeta_targets as TargetGenerator
 
@@ -13,7 +14,9 @@ import pandas as pd
 from loguru import logger as LOG
 
 VEGETA_BIN = "/opt/vegeta/vegeta"
+VEGETA_TARGET_FILE_NAME = "vegeta_targets"
 RESULTS_CSV_FILE_NAME = "vegeta_results.csv"
+RESULTS_IMG_FILE_NAME = "vegeta_results.png"
 
 
 class LoadClient:
@@ -22,40 +25,29 @@ class LoadClient:
 
     def start(self):
         primary, _ = self.network.find_primary()
-        primary_hostname = (
-            f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}"
-        )
 
-        vegeta_targets = "vegeta_targets"
-        with open(vegeta_targets, "w", encoding="utf-8") as f:
+        nodes = self.network.get_joined_nodes()
+
+        with open(
+            os.path.join(self.network.common_dir, VEGETA_TARGET_FILE_NAME),
+            "w",
+            encoding="utf-8",
+        ) as f:
             for i in range(10):
+                # node = nodes[i % len(nodes)]
+                node = primary
                 TargetGenerator.write_vegeta_target_line(
                     f,
-                    primary_hostname,
+                    f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
                     "/app/log/private",
                     body={"id": i, "msg": f"Private message: {i}"},
                 )
 
-            # for i in range(10):
-            #     TargetGenerator.write_vegeta_target_line(
-            #         f, primary_hostname, f"/app/log/private?id={i}", method="GET"
-            #     )
-
-            # for i in range(10):
-            #     TargetGenerator.write_vegeta_target_line(
-            #         f,
-            #         primary_hostname,
-            #         "/app/log/public",
-            #         body={"id": i, "msg": f"Public message: {i}"},
-            #     )
-
-            # for i in range(10):
-            #     TargetGenerator.write_vegeta_target_line(
-            #         f, primary_hostname, f"/app/log/public?id={i}", method="GET"
-            #     )
-
         attack_cmd = [VEGETA_BIN, "attack"]
-        attack_cmd += ["--targets", vegeta_targets]
+        attack_cmd += [
+            "--targets",
+            os.path.join(self.network.common_dir, VEGETA_TARGET_FILE_NAME),
+        ]
         attack_cmd += ["--format", "json"]
         attack_cmd += ["--duration", "10s"]
         attack_cmd += ["--rate", "50"]
@@ -66,7 +58,9 @@ class LoadClient:
 
         attack_cmd_s = " ".join(attack_cmd)
         LOG.info(f"Starting: {attack_cmd_s}")
-        self.proc = subprocess.Popen(attack_cmd, stdout=subprocess.PIPE)
+        self.proc = subprocess.Popen(
+            attack_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        )
 
         tee_split = subprocess.Popen(
             ["tee", "vegeta_results.bin"],
@@ -80,19 +74,22 @@ class LoadClient:
             "--to",
             "csv",
             "--output",
-            RESULTS_CSV_FILE_NAME,
+            os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
         ]
         self.report = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
         LOG.start("running")
 
-    def wait_for_completion(self):
-        self.report.communicate()
+    def wait_for_completion(self, timeout=15):
+        try:
+            self.report.communicate()
+        except TimeoutError:
+            self.report.kill()
+
         self._render_results()
 
     def _render_results(self):
-        # {"attack":"","seq":1,"code":200,"timestamp":"2022-03-22T12:17:51.942008217Z","latency":117952597,"bytes_out":38,"bytes_in":4,"error":"","body":"dHJ1ZQ==","method":"POST","url":"https://127.82.156.156:32923/app/log/private","headers":{"Content-Type":["application/json"],"X-Ms-Ccf-Transaction-Id":["2.20"],"Content-Length":["4"]}}
         df = pd.read_csv(
-            RESULTS_CSV_FILE_NAME,
+            os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
             header=None,
             keep_default_na=False,
             names=[
@@ -126,7 +123,7 @@ class LoadClient:
         ax2.tick_params(axis="y", labelcolor=color)
         ax2.plot(df.index, df["error"], color=color)
 
-        fig.savefig("output.png")
+        fig.savefig(os.path.join(self.network.common_dir, RESULTS_IMG_FILE_NAME))
 
 
 class StoppableThread(threading.Thread):
@@ -143,8 +140,7 @@ class StoppableThread(threading.Thread):
 
     # TODO:
     # 1. Basic setup (DONE)
-    # 2. Print vegeta results:
-    # $ /opt/vegeta/vegeta attack -duration=10s -rate=50 -format json -targets vegeta_targets | tee results.bin | /opt/vegeta/vegeta encode -to csv -output report.csv
+    # 2. Print vegeta results (DONE)
     # 3. Distribute load on multiple nodes
     # 4. Cope with node removal + addition
 
