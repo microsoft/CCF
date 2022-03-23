@@ -25,37 +25,6 @@ namespace crypto
      * Generic OpenSSL error handling
      */
 
-    /// Throws if rc is 1 and has error
-    inline void CHECK1(int rc)
-    {
-      unsigned long ec = ERR_get_error();
-      if (rc != 1 && ec != 0)
-      {
-        throw std::runtime_error(
-          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
-      }
-    }
-
-    /// Throws if rc is 0 and has error
-    inline void CHECK0(int rc)
-    {
-      unsigned long ec = ERR_get_error();
-      if (rc == 0 && ec != 0)
-      {
-        throw std::runtime_error(
-          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
-      }
-    }
-
-    /// Throws if ptr is null
-    inline void CHECKNULL(void* ptr)
-    {
-      if (ptr == NULL)
-      {
-        throw std::runtime_error("OpenSSL error: missing object");
-      }
-    }
-
     /// Returns the error string from an error code
     inline std::string error_string(int ec)
     {
@@ -71,6 +40,37 @@ namespace crypto
       else
       {
         return "unknown error";
+      }
+    }
+
+    /// Throws if rc is 1 and has error
+    inline void CHECK1(int rc)
+    {
+      unsigned long ec = ERR_get_error();
+      if (rc != 1 && ec != 0)
+      {
+        throw std::runtime_error(
+          fmt::format("OpenSSL error: {}", error_string(ec)));
+      }
+    }
+
+    /// Throws if rc is 0 and has error
+    inline void CHECK0(int rc)
+    {
+      unsigned long ec = ERR_get_error();
+      if (rc == 0 && ec != 0)
+      {
+        throw std::runtime_error(
+          fmt::format("OpenSSL error: {}", error_string(ec)));
+      }
+    }
+
+    /// Throws if ptr is null
+    inline void CHECKNULL(void* ptr)
+    {
+      if (ptr == NULL)
+      {
+        throw std::runtime_error("OpenSSL error: missing object");
       }
     }
 

@@ -91,8 +91,7 @@ namespace crypto
       auto err = ERR_get_error();
       if (err != 0)
       {
-        char err_str[256];
-        ERR_error_string(err, err_str);
+        auto err_str = OpenSSL::error_string(ERR_get_error());
         throw std::logic_error(fmt::format(
           "OSSL: Could not encode update to base64 string: {}", err_str));
       }
@@ -103,8 +102,7 @@ namespace crypto
       err = ERR_get_error();
       if (err != 0)
       {
-        char err_str[256];
-        ERR_error_string(err, err_str);
+        auto err_str = OpenSSL::error_string(ERR_get_error());
         throw std::logic_error(fmt::format(
           "OSSL: Could not encode final to base64 string: {}", err_str));
       }
