@@ -313,7 +313,7 @@ public:
   void record_ctx(ccf::endpoints::EndpointContext& ctx)
   {
     last_caller_cert =
-      crypto::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
+      crypto::cert_der_to_pem(ctx.rpc_ctx->get_session_context()->caller_cert);
     if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
     {
       last_caller_id = uci->user_id;
@@ -1168,7 +1168,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  backup_ctx->session->is_forwarding = false;
+  backup_ctx->get_session_context()->is_forwarding = false;
 
   {
     INFO("Read command is not forwarded to primary");
@@ -1272,7 +1272,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   // On a session that was previously forwarded, and is now primary,
   // commands should still succeed
-  ctx->session->is_forwarding = true;
+  ctx->get_session_context()->is_forwarding = true;
   {
     INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());

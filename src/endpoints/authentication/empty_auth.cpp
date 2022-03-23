@@ -12,7 +12,7 @@ namespace ccf
   }
 
   void EmptyAuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<ccf::RpcContext>&, std::string&&)
+    std::shared_ptr<ccf::RpcContext>, std::string&&)
   {
     throw std::logic_error("Should not happen");
   }

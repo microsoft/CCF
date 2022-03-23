@@ -123,7 +123,6 @@ namespace http
     std::shared_ptr<ccf::SessionContext> session_ctx;
     tls::ConnID session_id;
     ccf::ListenInterfaceID interface_id;
-    size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
@@ -170,16 +169,11 @@ namespace http
             session_id, peer_cert(), interface_id);
         }
 
-        std::shared_ptr<ccf::RpcContext> rpc_ctx = nullptr;
+        std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            request_index++,
-            session_ctx,
-            verb,
-            url,
-            std::move(headers),
-            std::move(body));
+            session_ctx, verb, url, std::move(headers), std::move(body));
         }
         catch (std::exception& e)
         {
