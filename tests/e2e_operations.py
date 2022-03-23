@@ -199,7 +199,9 @@ def test_split_ledger_on_stopped_network(primary, args):
         )
 
     # Check that the split ledger can be read successfully
-    ccf.ledger.Ledger([current_ledger_dir] + committed_ledger_dirs, committed_only=False)
+    ccf.ledger.Ledger(
+        [current_ledger_dir] + committed_ledger_dirs, committed_only=False
+    )
 
 
 def run_file_operations(args):
