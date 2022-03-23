@@ -219,6 +219,9 @@ def test_recover_service_with_expired_cert(args):
     primary, _ = network.find_primary()
     infra.checker.check_can_progress(primary)
 
+    r = primary.get_receipt(2, 3)
+    verify_receipt(r.json(), network.cert)
+
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
 def test_recover_service_aborted(network, args, from_snapshot=False):

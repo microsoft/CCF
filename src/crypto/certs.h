@@ -86,7 +86,8 @@ namespace crypto
     const std::string& valid_from,
     size_t validity_period_days,
     const Pem& issuer_private_key,
-    const Pem& issuer_cert)
+    const Pem& issuer_cert,
+    bool ca = false)
   {
     auto issuer_key_pair = make_key_pair(issuer_private_key);
     auto csr =
@@ -94,11 +95,6 @@ namespace crypto
     auto valid_to =
       compute_cert_valid_to_string(valid_from, validity_period_days);
     return issuer_key_pair->sign_csr(
-      issuer_cert,
-      csr,
-      valid_from,
-      valid_to,
-      false /* Not CA */,
-      true /* signed by issuer */);
+      issuer_cert, csr, valid_from, valid_to, ca, true /* signed by issuer */);
   }
 }

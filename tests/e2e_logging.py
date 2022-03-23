@@ -35,28 +35,40 @@ from types import MappingProxyType
 
 from loguru import logger as LOG
 
-# from OpenSSL.crypto import (
-#     # dump_certificate,
-#     load_certificate,
-#     # FILETYPE_TEXT,
-#     FILETYPE_PEM,
-#     X509,
-#     X509Store,
-#     X509StoreContext,
-# )
+
+# def show_cert(name, cert):
+#     from OpenSSL.crypto import dump_certificate, FILETYPE_TEXT
+
+#     dc = dump_certificate(FILETYPE_TEXT, cert).decode("unicode_escape")
+#     LOG.info(f"{name} cert: {dc}")
 
 
 # def verify_endorsements_openssl(service_cert, receipt):
-#     node_cert_pem = receipt["cert"].encode()
+#     from OpenSSL.crypto import (
+#         load_certificate,
+#         FILETYPE_PEM,
+#         X509,
+#         X509Store,
+#         X509StoreContext,
+#     )
+
 #     store = X509Store()
+
+#     # pyopenssl does not support X509_V_FLAG_NO_CHECK_TIME. For recovery of expired
+#     # services and historical receipt, we want to ignore the validity time. 0x200000
+#     # is the bitmask for this option in more recent versions of OpenSSL.
+#     X509_V_FLAG_NO_CHECK_TIME = 0x200000
+#     store.set_flags(X509_V_FLAG_NO_CHECK_TIME)
+
 #     store.add_cert(X509.from_cryptography(service_cert))
 #     chain = None
 #     if "service_endorsements" in receipt:
 #         chain = []
 #         for endo in receipt["service_endorsements"]:
 #             chain.append(load_certificate(FILETYPE_PEM, endo.encode()))
+#     node_cert_pem = receipt["cert"].encode()
 #     ctx = X509StoreContext(store, load_certificate(FILETYPE_PEM, node_cert_pem), chain)
-#     ctx.verify_certificate()  # throws on error
+#     ctx.verify_certificate()  # (throws on error)
 
 
 def verify_receipt(
@@ -70,18 +82,17 @@ def verify_receipt(
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         cert_i = node_cert
-        # dc = dump_certificate(FILETYPE_TEXT, cert_i).decode("unicode_escape")
-        # LOG.info(f"Node cert: {dc}")
+        # show_cert("Node", node_cert)
         if "service_endorsements" in receipt:
             for endo in receipt["service_endorsements"]:
                 endo_cert = load_pem_x509_certificate(endo.encode(), default_backend())
-                # dc = dump_certificate(FILETYPE_TEXT, endo_cert).decode("unicode_escape")
-                # LOG.info(f"Endorsement cert: {dc}")
+                # show_cert("Endorsement", endo_cert)
                 ccf.receipt.check_endorsement(cert_i, endo_cert)
                 cert_i = endo_cert
-        # dc = dump_certificate(FILETYPE_TEXT, service_cert).decode("unicode_escape")
-        # LOG.info(f"Service cert: {dc}")
+        # show_cert("Service", service_cert)
         ccf.receipt.check_endorsement(cert_i, service_cert)
+        # verify_endorsements_openssl(service_cert, receipt)
+
     if claims is not None:
         assert "leaf_components" in receipt
         assert "commit_evidence" in receipt["leaf_components"]

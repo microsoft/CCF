@@ -8,7 +8,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/service/tables/service_endorsements.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -1347,36 +1346,6 @@ namespace ccf
 
       service_info->previous_service_identity_version =
         service->get_version_of_previous_write();
-
-      // if (identities.previous)
-      // {
-      //   // service_info->previous_service_identity_version =
-      //   // *identities.previous;
-
-      //   // Record an endorsement certificate of the previous service identity
-      //   by
-      //   // the current service identity.
-
-      //   crypto::Pem ppem(*identities.previous);
-      //   auto pubk_pem =
-      //     crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(ppem));
-      //   auto endo_cert = create_endorsed_cert(
-      //     pubk_pem,
-      //     ReplicatedNetworkIdentity::subject_name,
-      //     {},
-      //     config.startup_host_time,
-      //     1 /* days valid */,
-      //     network.identity->priv_key,
-      //     network.identity->cert);
-
-      //   LOG_DEBUG_FMT("previous: {}", ppem.str());
-      //   LOG_DEBUG_FMT("current: {}", service_info->cert.str());
-      //   LOG_DEBUG_FMT("endorsement: {}", endo_cert.str());
-
-      //   auto endos =
-      //   tx.rw<ServiceEndorsements>(Tables::SERVICE_ENDORSEMENTS);
-      //   endos->put(endos->size(), endo_cert);
-      // }
 
       if (is_part_of_public_network())
       {
