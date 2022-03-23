@@ -476,6 +476,14 @@ def run(args):
 
         loader = infra.service_load.ServiceLoad(network)
         loader.start()
+
+        import election
+
+        import time
+
+        time.sleep(5)
+        election.test_kill_primary(network, args)
+
         loader.join()
 
         # network = test_recover_service_with_wrong_identity(network, args)

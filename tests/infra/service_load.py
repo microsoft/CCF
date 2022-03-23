@@ -6,7 +6,7 @@ import subprocess
 import generate_vegeta_targets as TargetGenerator
 
 import matplotlib.pyplot as plt
-import matplotlib.cbook as cbook
+import matplotlib.ticker as ticker
 
 import pandas as pd
 
@@ -94,6 +94,7 @@ class LoadClient:
         df = pd.read_csv(
             RESULTS_CSV_FILE_NAME,
             header=None,
+            keep_default_na=False,
             names=[
                 "timestamp",
                 "code",
@@ -112,21 +113,20 @@ class LoadClient:
         df.index = pd.to_datetime(df.index, unit="ns")
         df["latency"] = df.latency.apply(lambda x: x / 1e6)
 
-        x = df.index
-        y = df["latency"]
-        plt.plot(x, y)
-        plt.savefig("output.png")
-        # df["latency"] = csv.latency  # .resample("1S").agg(lambda x: x.quantile(0.90))
-        # # df["rate"] = csv.rate  # .resample("1S").max()
-        # ax = df[["latency"]].plot(title="lala")
-        # # ax.set_xticks(df["timestamp"])
-        # ax.set_xlabel("time")
-        # fig = ax.get_figure()
+        fig, ax1 = plt.subplots()
+        color = "tab:blue"
+        ax1.set_xlabel("time")
+        ax1.set_ylabel("latency (ms)", color=color)
+        ax1.tick_params(axis="y", labelcolor=color)
+        ax1.plot(df.index, df["latency"], color=color)
 
-        # # plot = df.rate.plot()
-        # # plot = df.latency.plot(secondary_y=True)
-        # # fig = plot.get_figure()
-        # fig.savefig("output.png")
+        ax2 = ax1.twinx()
+        color = "tab:red"
+        ax2.set_ylabel("errors", color=color)
+        ax2.tick_params(axis="y", labelcolor=color)
+        ax2.plot(df.index, df["error"], color=color)
+
+        fig.savefig("output.png")
 
 
 class StoppableThread(threading.Thread):
