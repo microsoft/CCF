@@ -423,8 +423,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # This one may be special?
-        # network = test_recover_service_with_wrong_identity(network, args)
+        network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
