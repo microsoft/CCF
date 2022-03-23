@@ -114,7 +114,9 @@ def test_isolate_primary_from_one_backup(network, args):
     #   - If b_1 calls first, it can win and then bring _both_ nodes up-to-date, becoming a _stable_ primary
     # So we repeat elections until b_1 is primary
 
-    new_primary = network.wait_for_primary_unanimity(min_view=initial_txid.view, timeout_multiplier=30)
+    new_primary = network.wait_for_primary_unanimity(
+        min_view=initial_txid.view, timeout_multiplier=30
+    )
     assert new_primary == b_1
 
     new_view = network.txs.issue(network).view
