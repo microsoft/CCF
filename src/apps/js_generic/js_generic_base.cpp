@@ -246,7 +246,7 @@ namespace ccfapp
               consensus, view, seqno, error_reason);
           };
 
-        ccf::historical::adapter_v2(
+        ccf::historical::adapter_v3(
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
@@ -256,8 +256,7 @@ namespace ccfapp
             assert(receipt);
             do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
           },
-          context.get_historical_state(),
-          context.get_network_identity(),
+          context,
           is_tx_committed)(endpoint_ctx);
       }
       else

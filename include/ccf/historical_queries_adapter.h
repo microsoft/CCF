@@ -5,7 +5,7 @@
 #include "ccf/ccf_deprecated.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/historical_queries_interface.h"
-#include "ccf/network_identity_interface.h"
+#include "ccf/node_context.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 
@@ -50,10 +50,25 @@ namespace ccf::historical
     ccf::SeqNo seqno,
     std::string& error_reason);
 
+  ccf::endpoints::EndpointFunction adapter_v3(
+    const HandleHistoricalQuery& f,
+    ccfapp::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor = txid_from_header);
+
+  /// @cond
+  // Doxygen cannot parse these declarations; some combination of a macro,
+  // attribute syntax, and namespaced types results in the following warning
+  // (treated as error):
+  //   Found ';' while parsing initializer list! (doxygen could be confused by a
+  //   macro call without semicolon)
+  // Use label-less cond to unconditionally exclude this block from parsing
+  // until the declarations are removed are removed.
+  CCF_DEPRECATED(
+    "Will be removed in 3.0, switch to ccf::historical::adapter_v3")
   ccf::endpoints::EndpointFunction adapter_v2(
     const HandleHistoricalQuery& f,
-    AbstractStateCache& state_cache,
-    NetworkIdentitySubsystemInterface& network_identity_subsystem,
+    ccfapp::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
 

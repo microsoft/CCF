@@ -843,11 +843,7 @@ namespace loggingapp
       make_endpoint(
         "/log/private/historical",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical,
-          context.get_historical_state(),
-          context.get_network_identity(),
-          is_tx_committed),
+        ccf::historical::adapter_v3(get_historical, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
@@ -900,11 +896,8 @@ namespace loggingapp
       make_endpoint(
         "/log/private/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical_with_receipt,
-          context.get_historical_state(),
-          context.get_network_identity(),
-          is_tx_committed),
+        ccf::historical::adapter_v3(
+          get_historical_with_receipt, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
@@ -961,11 +954,8 @@ namespace loggingapp
       make_endpoint(
         "/log/public/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical_with_receipt_and_claims,
-          context.get_historical_state(),
-          context.get_network_identity(),
-          is_tx_committed),
+        ccf::historical::adapter_v3(
+          get_historical_with_receipt_and_claims, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
