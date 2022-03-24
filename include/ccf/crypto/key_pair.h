@@ -56,6 +56,16 @@ namespace crypto
       return create_csr(subject_name, {});
     }
 
+    // Note about the signed_by_issuer parameter to sign_csr: when issuing a new
+    // certificate for an old subject, which does not exist anymore, we cannot
+    // sign the CSR with that old subject's private key. Instead, the issuer
+    // signs the CSR itself, which is slightly unusal. Instead, we could also
+    // ask the subject to produce a CSR right after it becomes alive and keep it
+    // around until we need it, but those complications are not stricly
+    // necessary. In our case, we use this to re-endorse previous service
+    // identities, which are self-signed, and replace them with new endorsements
+    // by the current service identity (which doesn't have the private key of
+    // previous ones).
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
