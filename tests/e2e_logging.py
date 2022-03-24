@@ -71,27 +71,25 @@ def verify_endorsements_openssl(service_cert, receipt):
     ctx.verify_certificate()  # (throws on error)
 
 
-def verify_receipt(
-    receipt, service_cert, check_endorsement=True, claims=None, generic=True
-):
+def verify_receipt(receipt, service_cert, claims=None, generic=True):
     """
     Raises an exception on failure
-    """
-    LOG.info(f"Receipt: {receipt}")
+    """    
 
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
-    if check_endorsement:
-        cert_i = node_cert
-        # show_cert("Node", node_cert)
-        if "service_endorsements" in receipt:
-            for endo in receipt["service_endorsements"]:
-                endo_cert = load_pem_x509_certificate(endo.encode(), default_backend())
-                # show_cert("Endorsement", endo_cert)
-                ccf.receipt.check_endorsement(cert_i, endo_cert)
-                cert_i = endo_cert
-        # show_cert("Service", service_cert)
-        ccf.receipt.check_endorsement(cert_i, service_cert)
-        verify_endorsements_openssl(service_cert, receipt)
+    service_endorsements = None
+    if "service_endorsements" in receipt:
+        service_endorsements = [
+            load_pem_x509_certificate(endo.encode(), default_backend())
+            for endo in receipt["service_endorsements"]
+        ]
+    ccf.receipt.check_endorsements(
+        node_cert,
+        service_cert,
+        service_endorsements
+    )
+
+    verify_endorsements_openssl(service_cert, receipt)
 
     if claims is not None:
         assert "leaf_components" in receipt
@@ -839,7 +837,7 @@ def test_historical_receipts_with_claims(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"], domain="public"
             )
             r = first_receipt.json()["receipt"]
-            verify_receipt(r, network.cert, True, first_receipt.json()["msg"].encode())
+            verify_receipt(r, network.cert, first_receipt.json()["msg"].encode())
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
