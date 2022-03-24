@@ -57,7 +57,9 @@ TEST_CASE(
 
     DISPATCHER_SET_MESSAGE_HANDLER(
       bp, large_block_message, [&](const uint8_t* data, size_t size) {
-        auto [body] = ringbuffer::read_message<large_block_message>(data, size);
+        std::vector<uint8_t> body;
+        std::tie(body) =
+          ringbuffer::read_message<large_block_message>(data, size);
         REQUIRE(body == sent);
 
         REQUIRE(!message_seen);
@@ -80,7 +82,9 @@ TEST_CASE(
 
     DISPATCHER_SET_MESSAGE_HANDLER(
       bp, large_compound_message, [&](const uint8_t* data, size_t size) {
-        auto [n, body] =
+        size_t n = 0;
+        std::vector<uint8_t> body;
+        std::tie(n, body) =
           ringbuffer::read_message<large_compound_message>(data, size);
 
         REQUIRE(n == sent_n);
@@ -112,7 +116,13 @@ TEST_CASE(
 
     DISPATCHER_SET_MESSAGE_HANDLER(
       bp, large_complex_message, [&](const uint8_t* data, size_t size) {
-        auto [aa, bb, cc, dd, ee, ff, gg, hh] =
+        uint16_t aa, ff;
+        bool bb, ee;
+        uint32_t cc;
+        std::string dd;
+        uint64_t gg;
+        std::vector<uint8_t> hh;
+        std::tie(aa, bb, cc, dd, ee, ff, gg, hh) =
           ringbuffer::read_message<large_complex_message>(data, size);
 
         REQUIRE(a == aa);

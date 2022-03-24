@@ -570,12 +570,14 @@ TEST_CASE("Multiple threads can wait" * doctest::test_suite("ringbuffer"))
   constexpr size_t size = 32u;
   auto pairify = std::make_pair<size_t, size_t>;
 
-  for (auto [max_n, thread_count] : {
+  for (auto [max_n_, thread_count_] : {
          pairify(2, 2), // Slight contention
          pairify(size * 3, 4), // Large workloads
          pairify(4, size * 3) // Many workers
        })
   {
+    auto& max_n = max_n_;
+    auto& thread_count = thread_count_;
     auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
     Reader r(buffer->bd);
     std::vector<std::thread> writer_threads;

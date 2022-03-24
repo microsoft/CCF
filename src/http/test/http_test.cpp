@@ -268,7 +268,8 @@ DOCTEST_TEST_CASE("URL parsing")
   const auto& m = sp.received.front();
   DOCTEST_CHECK(m.method == HTTP_POST);
   DOCTEST_CHECK(m.body == body);
-  const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+  std::string path_, query_, fragment_;
+  std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
   DOCTEST_CHECK(path_ == path);
   DOCTEST_CHECK(query_.find("balance=42") != std::string::npos);
   DOCTEST_CHECK(query_.find("id=100") != std::string::npos);
@@ -363,7 +364,8 @@ DOCTEST_TEST_CASE("Escaping")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
-    const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+    std::string path_, query_, fragment_;
+    std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
     DOCTEST_CHECK(path_ == "/foo/bar");
     DOCTEST_CHECK(
       http::url_decode(query_) ==
@@ -386,7 +388,8 @@ DOCTEST_TEST_CASE("Escaping")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
-    const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+    std::string path_, query_, fragment_;
+    std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
     DOCTEST_CHECK(path_ == "/hello%20world");
     DOCTEST_CHECK(
       http::url_decode(query_) ==

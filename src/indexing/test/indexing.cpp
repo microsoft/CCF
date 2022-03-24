@@ -343,8 +343,9 @@ TEST_CASE_TEMPLATE(
         const uint8_t* data = write.contents.data();
         size_t size = write.contents.size();
         REQUIRE(write.m == consensus::ledger_get_range);
-        auto [from_seqno, to_seqno, purpose] =
+        auto [from_seqno, to_seqno, purpose_] =
           ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+        auto& purpose = purpose_;
         REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
 
         std::vector<uint8_t> combined;
