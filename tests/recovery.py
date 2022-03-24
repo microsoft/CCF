@@ -9,6 +9,7 @@ import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
+import random
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
