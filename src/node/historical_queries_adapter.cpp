@@ -202,11 +202,9 @@ namespace ccf::historical
     AbstractStateCache& state_cache)
   {
     SeqNo target_seqno = state->transaction_id.seqno;
-    LOG_DEBUG_FMT("target seqno: {}", target_seqno);
 
     // We start at the previous write to the latest (current) service info.
     auto service = ctx.tx.template ro<Service>(Tables::SERVICE);
-    LOG_DEBUG_FMT("current identity: {}", service->get()->cert.str());
 
     // Iterate until we find the most recent write to the service info that
     // precedes the target seqno.
@@ -214,15 +212,18 @@ namespace ccf::historical
     SeqNo i = -1;
     do
     {
-      // If no previous service info version available, e.g. after recovery of
-      // a 1.x service, we scan linearly.
+      if (!hservice_info->previous_service_identity_version)
+      {
+        throw std::runtime_error(
+          "The requested receipt cannot be found because it is in a pre-2.x "
+          "part of the ledger");
+      }
       i = hservice_info->previous_service_identity_version.value_or(i - 1);
-      LOG_DEBUG_FMT("previous write: {}", i);
+      LOG_TRACE_FMT("historical service identity search at: {}", i);
       auto hstate = state_cache.get_state_at(i, i);
       if (!hstate)
       {
-        LOG_DEBUG_FMT("Historical state at {} not available yet", i);
-        return std::nullopt;
+        return std::nullopt; // Not available yet - retry later.
       }
       auto htx = hstate->store->create_read_only_tx();
       auto hservice = htx.ro<Service>(Tables::SERVICE);
