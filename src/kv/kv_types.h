@@ -72,7 +72,7 @@ namespace kv
       return {term, version};
     }
 
-    bool operator==(const TxID& other)
+    bool operator==(const TxID& other) const
     {
       return term == other.term && version == other.version;
     }
