@@ -150,7 +150,8 @@ namespace ccf::v8_tmpl
 
     set_internal_field_count<InternalField>(tmpl);
 
-    tmpl->SetHandler(v8::NamedPropertyHandlerConfiguration(js_read_only_kv_lookup));
+    tmpl->SetHandler(
+      v8::NamedPropertyHandlerConfiguration(js_read_only_kv_lookup));
 
     return handle_scope.Escape(tmpl);
   }
