@@ -23,7 +23,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   endif()
 
   if(UNSAFE_VERSION)
-    set(CCF_VERSION "${CCF_VERSION}_unsafe")
+    set(CCF_VERSION "${CCF_VERSION}+unsafe")
   endif()
 
   # Convert git description into cmake list, separated at '-'
@@ -47,7 +47,7 @@ else()
   )
 
   if(UNSAFE_VERSION)
-    set(CCF_VERSION "${CCF_VERSION}_unsafe")
+    set(CCF_VERSION "${CCF_VERSION}+unsafe")
   endif()
 
   # Convert directory name into cmake list, separated at '-'
