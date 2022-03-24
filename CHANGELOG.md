@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Nodes now have a free-form `node_data` field, to match users and members. This can be set when the node is launched, or modified by governance. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier (#3662).
+- New `GET /node/consensus` endpoint now also returns primary node ID and current view (#3666).
+- The `enclave::` namespace has been removed, and all types which were under it are now under `ccf::`. This will affect any apps using `enclave::RpcContext`, which should be replaced with `ccf::RpcContext` (#3664).
+- HTTP parsing errors are now recorded per-interface and returned by `GET /node/metrics` (#3671).
+
 ## [2.0.0-rc4]
 
 ### Added

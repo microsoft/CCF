@@ -56,6 +56,10 @@ namespace ccf
     /// Public key
     std::optional<crypto::Pem> public_key = std::nullopt;
 
+    /// Free-form user data, can be used to store operator correlation
+    /// IDs/labels for the node for example
+    nlohmann::json node_data = nullptr;
+
     /**
      * Fields below are deprecated
      */
@@ -75,7 +79,8 @@ namespace ccf
     ledger_secret_seqno,
     code_digest,
     certificate_signing_request,
-    public_key);
+    public_key,
+    node_data);
 }
 
 FMT_BEGIN_NAMESPACE

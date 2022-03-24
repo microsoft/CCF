@@ -7,7 +7,6 @@
 #include "kv/test/stub_consensus.h"
 
 #include <doctest/doctest.h>
-#include <msgpack/msgpack.hpp>
 #undef FAIL
 #include <string>
 #include <vector>
@@ -316,9 +315,6 @@ struct CustomClass
 {
   std::string s;
   size_t n;
-
-  // This macro allows custom msgpack serialisation (optional)
-  MSGPACK_DEFINE(s, n);
 };
 
 // These macros allow the default nlohmann JSON serialiser to be used
@@ -432,37 +428,6 @@ struct CustomJsonSerialiser
   }
 };
 
-struct CustomMsgPackSerialiser
-{
-  using Bytes = kv::serialisers::SerialisedEntry;
-
-  struct SerialisedEntryWriter
-  {
-    Bytes& b;
-
-    void write(const char* d, size_t n)
-    {
-      b.insert(b.end(), d, d + n);
-    }
-  };
-
-  static Bytes to_serialised(const CustomClass& c)
-  {
-    Bytes b;
-    SerialisedEntryWriter w{b};
-    msgpack::pack(w, c);
-    return b;
-  }
-
-  static CustomClass from_serialised(const Bytes& b)
-  {
-    msgpack::object_handle oh =
-      msgpack::unpack(reinterpret_cast<const char*>(b.data()), b.size());
-    auto object = oh.get();
-    return object.as<CustomClass>();
-  }
-};
-
 struct KPrefix
 {
   static constexpr auto prefix = "This is a key:";
@@ -510,21 +475,11 @@ struct CustomVerboseDumbSerialiser
 
 using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
 using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
-using MixSerialisedMapA = kv::TypedMap<
-  CustomClass,
-  CustomClass,
-  CustomMsgPackSerialiser,
-  kv::serialisers::JsonSerialiser<CustomClass>>;
 using MixSerialisedMapB = kv::TypedMap<
   CustomClass,
   CustomClass,
   kv::serialisers::JsonSerialiser<CustomClass>,
   kv::serialisers::BlitSerialiser<CustomClass>>;
-using MixSerialisedMapC = kv::TypedMap<
-  CustomClass,
-  CustomClass,
-  kv::serialisers::BlitSerialiser<CustomClass>,
-  CustomMsgPackSerialiser>;
 
 // SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
@@ -547,9 +502,7 @@ TEST_CASE_TEMPLATE(
   MapType,
   JsonSerialisedMap,
   RawCopySerialisedMap,
-  MixSerialisedMapA,
   MixSerialisedMapB,
-  MixSerialisedMapC,
   CustomSerialisedMap,
   CustomJsonMap,
   VerboseSerialisedMap)
@@ -578,8 +531,10 @@ TEST_CASE_TEMPLATE(
     handle->put(k1, v1);
     handle->put(k2, v2);
 
-    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
@@ -691,8 +646,10 @@ TEST_CASE(
     data_handle_d->put(46, 46);
     data_handle_d_p->put(47, 47);
 
-    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
     REQUIRE(
       store.deserialize(data, ConsensusType::CFT)->apply() ==

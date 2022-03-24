@@ -8,7 +8,7 @@
 namespace ccf
 {
   void AuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<enclave::RpcContext>& ctx, std::string&& error_reason)
+    std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
   {
     ctx->set_error(
       HTTP_STATUS_UNAUTHORIZED,

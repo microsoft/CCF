@@ -5,7 +5,7 @@
 #include <atomic>
 #include <chrono>
 
-namespace enclave
+namespace ccf
 {
   extern std::atomic<std::chrono::microseconds>* host_time;
   extern std::chrono::microseconds last_value;

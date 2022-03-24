@@ -175,7 +175,7 @@ namespace ccf::js
   void populate_global(
     TxContext* txctx,
     ReadOnlyTxContext* historical_txctx,
-    enclave::RpcContext* rpc_ctx,
+    ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,

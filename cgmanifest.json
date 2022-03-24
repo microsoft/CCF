@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "4bfeb625ce4961bd539c95593529936503be7db4"
+          "commitHash": "4f8fba14066156b73f1189a2b8bd568bde5284c5"
         }
       }
     },
@@ -14,7 +14,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "4d8716f1efc1d14aa736ef52ee727bd4204f4c40"
+          "commitHash": "7b9885133108ae301ddd16e2651320f54cafeba7"
         }
       }
     },
@@ -33,15 +33,6 @@
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
           "commitHash": "70f8072f9dd2292fd0b9f9e5f58e279f60483ed3"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/msgpack/msgpack-c.git",
-          "commitHash": "6e7deb809120881634b3ca895e66b2a946084f34"
         }
       }
     },
@@ -122,7 +113,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nghttp2/nghttp2",
-          "commitHash": "7af0c508be9cbec407268e2f546f597d268c104e"
+          "commitHash": "d9f580c3cb419e77474da507eef20f1c81ecff32"
         }
       }
     },

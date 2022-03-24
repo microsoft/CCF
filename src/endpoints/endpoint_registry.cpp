@@ -4,6 +4,7 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "node/rpc/rpc_context_impl.h"
 
 namespace ccf::endpoints
 {
@@ -210,7 +211,7 @@ namespace ccf::endpoints
   void EndpointRegistry::init_handlers() {}
 
   EndpointDefinitionPtr EndpointRegistry::find_endpoint(
-    kv::Tx&, enclave::RpcContext& rpc_ctx)
+    kv::Tx&, ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
 
@@ -246,7 +247,12 @@ namespace ccf::endpoints
             // error-reporting
             if (matches.size() == 0)
             {
-              auto& path_params = rpc_ctx.get_request_path_params();
+              auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+              if (ctx_impl == nullptr)
+              {
+                throw std::logic_error("Unexpected type of RpcContext");
+              }
+              auto& path_params = ctx_impl->path_params;
               for (size_t i = 0;
                    i < endpoint->spec.template_component_names.size();
                    ++i)
@@ -296,7 +302,7 @@ namespace ccf::endpoints
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
-    kv::Tx& tx, const enclave::RpcContext& rpc_ctx)
+    kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
 

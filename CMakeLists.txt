@@ -465,13 +465,16 @@ if(BUILD_TESTS)
       PROPERTY LABELS unit_test
     )
 
-    add_test(NAME versionifier_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
-    )
+    if(NOT UNSAFE_VERSION)
+      # Unsafe builds do not follow normal version conventions
+      add_test(NAME versionifier_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+      )
 
-    add_test(NAME github_version_lts_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
-    )
+      add_test(NAME github_version_lts_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
+      )
+    endif()
   endif()
 
   # Picobench benchmarks
@@ -686,11 +689,13 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     CONSENSUS cft
   )
-
-  # Higher snapshot interval as the test currently assumes that no transactions
-  # are emitted while partitions are up. To be removed when
-  # https://github.com/microsoft/CCF/issues/2577 is implemented
-  set(PARTITIONS_TEST_ARGS --snapshot-tx-interval 10000)
+  set(PARTITIONS_TEST_ARGS
+      # Higher snapshot interval as the test currently assumes that no
+      # transactions
+      # are emitted while partitions are up. To be removed when
+      # https://github.com/microsoft/CCF/issues/2577 is implemented
+      --snapshot-tx-interval 10000
+  )
   if(ENABLE_2TX_RECONFIG)
     list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
   endif()
@@ -743,13 +748,16 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_e2e_test(
-    NAME lts_compatibility
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-    CONSENSUS cft
-    LABEL e2e
-    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-  )
+  if(NOT UNSAFE_VERSION)
+    # Unsafe builds do not follow normal version conventions
+    add_e2e_test(
+      NAME lts_compatibility
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      CONSENSUS cft
+      LABEL e2e
+      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+    )
+  endif()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)

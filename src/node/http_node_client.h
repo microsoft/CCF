@@ -12,7 +12,7 @@ namespace ccf
   {
   public:
     HTTPNodeClient(
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& self_signed_node_cert_,
       const std::optional<crypto::Pem>& endorsed_node_cert_) :
@@ -34,9 +34,9 @@ namespace ccf
 
       std::vector<uint8_t> packed = request.build_request();
 
-      auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      auto node_session = std::make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, node_cert.raw());
+      auto ctx = ccf::make_rpc_context(node_session, packed);
       ctx->execute_on_node = false;
 
       const auto actor_opt = http::extract_actor(*ctx);

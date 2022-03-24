@@ -72,7 +72,7 @@ namespace kv
       return {term, version};
     }
 
-    bool operator==(const TxID& other)
+    bool operator==(const TxID& other) const
     {
       return term == other.term && version == other.version;
     }
@@ -196,15 +196,25 @@ namespace kv
     std::vector<Configuration> configs = {};
     std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
     MembershipState membership_state;
-    std::optional<LeadershipState> leadership_state;
-    std::optional<RetirementPhase> retirement_phase;
-    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
-    std::optional<ReconfigurationType> reconfiguration_type;
+    std::optional<LeadershipState> leadership_state = std::nullopt;
+    std::optional<RetirementPhase> retirement_phase = std::nullopt;
+    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
+      std::nullopt;
+    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
+    std::optional<ccf::NodeId> primary_id = std::nullopt;
+    ccf::View current_view = 0;
+    bool ticking = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
-    ConsensusDetails, configs, acks, membership_state);
+    ConsensusDetails,
+    configs,
+    acks,
+    membership_state,
+    primary_id,
+    current_view,
+    ticking);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ConsensusDetails,
     reconfiguration_type,

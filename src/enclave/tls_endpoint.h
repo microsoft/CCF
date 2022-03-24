@@ -13,13 +13,13 @@
 
 #include <exception>
 
-namespace enclave
+namespace ccf
 {
   class TLSEndpoint : public Endpoint
   {
   protected:
     ringbuffer::WriterPtr to_host;
-    int64_t session_id;
+    tls::ConnID session_id;
     size_t execution_thread;
 
     enum Status
