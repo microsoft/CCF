@@ -15,7 +15,7 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    const auto& caller_cert = ctx->session->caller_cert;
+    const auto& caller_cert = ctx->get_session_context()->caller_cert;
     auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
     auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
@@ -35,7 +35,7 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    const auto& caller_cert = ctx->session->caller_cert;
+    const auto& caller_cert = ctx->get_session_context()->caller_cert;
     auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
     auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
@@ -56,7 +56,7 @@ namespace ccf
     std::string& error_reason)
   {
     auto node_caller_id =
-      compute_node_id_from_cert_der(ctx->session->caller_cert);
+      compute_node_id_from_cert_der(ctx->get_session_context()->caller_cert);
 
     auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
     auto node = nodes->get(node_caller_id);

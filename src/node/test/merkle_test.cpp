@@ -103,15 +103,17 @@ TEST_CASE("Retrieving leaves")
 
   for (const auto& [i, hash] : hashes)
   {
+    auto& hash_ = hash;
     const auto h = history.get_leaf(i);
-    REQUIRE(h == hash);
+    REQUIRE(h == hash_);
   }
 
   for (const auto& [i, hash] : hashes)
   {
+    auto& hash_ = hash;
     history.flush(i);
     const auto h = history.get_leaf(i);
-    REQUIRE(h == hash);
+    REQUIRE(h == hash_);
   }
 }
 

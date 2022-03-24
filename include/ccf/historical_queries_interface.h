@@ -44,7 +44,7 @@ namespace ccf::historical
       transaction_id(transaction_id_)
     {}
 
-    bool operator==(const State& other)
+    bool operator==(const State& other) const
     {
       return store == other.store && receipt == other.receipt &&
         transaction_id == other.transaction_id;
