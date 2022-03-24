@@ -28,9 +28,7 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 # We need two versions of libquickjs, because it depends on libc
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library_c(
-    quickjs.enclave ${QUICKJS_SRC} ${CCF_DIR}/src/enclave/stub_time.c
-  )
+  add_enclave_library_c(quickjs.enclave ${QUICKJS_SRC})
   target_compile_options(
     quickjs.enclave
     PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DEMSCRIPTEN
