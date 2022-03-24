@@ -9,7 +9,6 @@ import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
-import random
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
@@ -18,42 +17,6 @@ import time
 from e2e_logging import verify_receipt
 
 from loguru import logger as LOG
-
-
-def split_all_ledger_files_in_dir(input_dir, output_dir):
-    # A ledger file can only be split at a seqno that contains a signature
-    # (so that all files end on a signature that verifies their integrity).
-    # We first detect all signature transactions in a ledger file and truncate
-    # at any one (but not the last one, which would have no effect) at random.
-    for ledger_file in os.listdir(input_dir):
-        sig_seqnos = []
-
-        if ledger_file.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX):
-            # Ignore recovery files
-            continue
-
-        ledger_file_path = os.path.join(input_dir, ledger_file)
-        ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
-        for transaction in ledger_chunk:
-            public_domain = transaction.get_public_domain()
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
-                sig_seqnos.append(public_domain.get_seqno())
-
-        if len(sig_seqnos) <= 1:
-            # A chunk may not contain enough signatures to be worth truncating
-            continue
-
-        # Ignore last signature, which would result in a no-op split
-        split_seqno = random.choice(sig_seqnos[:-1])
-
-        assert ccf.split_ledger.run(
-            [ledger_file_path, str(split_seqno), f"--output-dir={output_dir}"]
-        ), f"Ledger file {ledger_file_path} was not split at {split_seqno}"
-        LOG.info(
-            f"Ledger file {ledger_file_path} was successfully split at {split_seqno}"
-        )
-        LOG.debug(f"Deleting input ledger file {ledger_file_path}")
-        os.remove(ledger_file_path)
 
 
 def get_and_verify_historical_receipt(network, ref_msg):
