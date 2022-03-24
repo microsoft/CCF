@@ -20,7 +20,10 @@ from loguru import logger as LOG
 
 # Interval (s) at which the network is polled to find out
 # when the load client should be restarted
-NETWORK_POLL_INTERVAL_S = 5
+NETWORK_POLL_INTERVAL_S = 1
+
+# Number of requests sent to the service per sec
+DEFAULT_LOAD_RATE_PER_S = 50
 
 # Load client configuration
 VEGETA_BIN = "/opt/vegeta/vegeta"
@@ -30,8 +33,9 @@ RESULTS_IMG_FILE_NAME = "vegeta_results.png"
 
 
 class LoadClient:
-    def __init__(self, network):
+    def __init__(self, network, rate=DEFAULT_LOAD_RATE_PER_S):
         self.network = network
+        self.rate = rate
 
     def _start_client(self, nodes):
         with open(
@@ -55,23 +59,20 @@ class LoadClient:
             os.path.join(self.network.common_dir, VEGETA_TARGET_FILE_NAME),
         ]
         attack_cmd += ["--format", "json"]
-        attack_cmd += ["--duration", "10s"]
-        attack_cmd += ["--rate", "50"]
+        attack_cmd += ["--rate", f"{self.rate}"]
         sa = nodes[0].session_auth("user0")
         attack_cmd += ["--cert", sa["session_auth"].cert]
         attack_cmd += ["--key", sa["session_auth"].key]
         attack_cmd += ["--root-certs", nodes[0].session_ca(False)["ca"]]
 
         attack_cmd_s = " ".join(attack_cmd)
-        LOG.info(f"Starting: {attack_cmd_s}")
-        self.proc = subprocess.Popen(attack_cmd, stdout=subprocess.PIPE)
-
+        LOG.debug(f"Starting: {attack_cmd_s}")
+        attack = subprocess.Popen(attack_cmd, stdout=subprocess.PIPE)
         tee_split = subprocess.Popen(
             ["tee", "vegeta_results.bin"],
-            stdin=self.proc.stdout,
+            stdin=attack.stdout,
             stdout=subprocess.PIPE,
         )
-
         encode_cmd = [
             VEGETA_BIN,
             "encode",
@@ -80,14 +81,12 @@ class LoadClient:
             "--output",
             os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
         ]
-        self.report = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
+        self.proc = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
         LOG.success("running")
 
     def _stop_client(self, timeout=15):
-        try:
-            self.report.communicate()
-        except TimeoutError:
-            self.report.kill()
+        self.proc.terminate()
+        self.proc.wait()
         LOG.success("Process killed")
 
         self._render_results()
@@ -156,10 +155,10 @@ class StoppableThread(threading.Thread):
 
 
 class ServiceLoad(StoppableThread):
-    def __init__(self, network, *args, **kwargs):
-        super().__init__(name="load", *args, **kwargs)
+    def __init__(self, network, rate=DEFAULT_LOAD_RATE_PER_S):
+        super().__init__(name="load")
         self.network = network
-        self.client = LoadClient(self.network)
+        self.client = LoadClient(self.network, rate)
 
     def start(self):
         self.client.start(nodes=self.network.get_joined_nodes())
