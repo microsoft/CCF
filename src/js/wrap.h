@@ -21,6 +21,7 @@
 namespace ccf::js
 {
   extern JSClassID kv_class_id;
+  extern JSClassID kv_read_only_class_id;
   extern JSClassID kv_map_handle_class_id;
   extern JSClassID body_class_id;
   extern JSClassID node_class_id;
@@ -31,6 +32,8 @@ namespace ccf::js
 
   extern JSClassDef kv_class_def;
   extern JSClassExoticMethods kv_exotic_methods;
+  extern JSClassDef kv_read_only_class_def;
+  extern JSClassExoticMethods kv_read_only_exotic_methods;
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef body_class_def;
   extern JSClassDef node_class_def;
