@@ -4,6 +4,7 @@
 
 #include "ccf/historical_queries_interface.h"
 #include "ccf/indexing/indexer_interface.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/node_subsystem_interface.h"
 
 namespace ccfapp
@@ -87,6 +88,18 @@ namespace ccfapp
           "Calling get_indexing_strategies before subsystem is installed");
       }
       return *indexer;
+    }
+
+    ccf::NetworkIdentitySubsystemInterface& get_network_identity()
+    {
+      auto identity_subsystem =
+        get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+      if (identity_subsystem == nullptr)
+      {
+        throw std::logic_error(
+          "Calling get_network_identity before subsystem is installed");
+      }
+      return *identity_subsystem;
     }
   };
 }

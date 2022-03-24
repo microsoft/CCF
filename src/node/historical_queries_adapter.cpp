@@ -241,9 +241,9 @@ namespace ccf::historical
     auto& ctx,
     ccf::historical::StatePtr& state,
     AbstractStateCache& state_cache,
-    NetworkIdentitySubsystemInterface& niss)
+    NetworkIdentitySubsystemInterface& network_identity_subsystem)
   {
-    const auto& network_identity = niss.get();
+    const auto& network_identity = network_identity_subsystem.get();
 
     if (state && state->receipt && state->receipt->node_cert)
     {

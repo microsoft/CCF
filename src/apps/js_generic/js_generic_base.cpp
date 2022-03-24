@@ -257,7 +257,7 @@ namespace ccfapp
             do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
           },
           context.get_historical_state(),
-          *context.get_subsystem<NetworkIdentitySubsystemInterface>().get(),
+          context.get_network_identity(),
           is_tx_committed)(endpoint_ctx);
       }
       else

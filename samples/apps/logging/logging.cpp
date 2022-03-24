@@ -846,8 +846,7 @@ namespace loggingapp
         ccf::historical::adapter_v2(
           get_historical,
           context.get_historical_state(),
-          *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>()
-             .get(),
+          context.get_network_identity(),
           is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
@@ -904,8 +903,7 @@ namespace loggingapp
         ccf::historical::adapter_v2(
           get_historical_with_receipt,
           context.get_historical_state(),
-          *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>()
-             .get(),
+          context.get_network_identity(),
           is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
@@ -966,8 +964,7 @@ namespace loggingapp
         ccf::historical::adapter_v2(
           get_historical_with_receipt_and_claims,
           context.get_historical_state(),
-          *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>()
-             .get(),
+          context.get_network_identity(),
           is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()

@@ -247,7 +247,7 @@ namespace ccf
       ccf::historical::adapter_v2(
         get_receipt,
         context.get_historical_state(),
-        *context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>().get(),
+        context.get_network_identity(),
         is_tx_committed,
         txid_from_query_string),
       no_auth_required)
