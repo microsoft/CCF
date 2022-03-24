@@ -17,6 +17,8 @@ namespace kv
 
 namespace ccf
 {
+  class RpcContextImpl;
+
   class RpcHandler
   {
   public:
@@ -33,6 +35,6 @@ namespace ccf
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(
-      std::shared_ptr<RpcContext> ctx) = 0;
+      std::shared_ptr<RpcContextImpl> ctx) = 0;
   };
 }

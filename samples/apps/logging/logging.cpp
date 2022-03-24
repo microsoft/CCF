@@ -512,7 +512,8 @@ namespace loggingapp
         std::shared_ptr<crypto::Verifier> verifier;
         try
         {
-          const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
+          const auto& cert_data =
+            ctx.rpc_ctx->get_session_context()->caller_cert;
           verifier = crypto::make_verifier(cert_data);
         }
         catch (const std::exception& ex)

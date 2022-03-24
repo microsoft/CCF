@@ -2,10 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "serialise_msgpack.h"
-
 #include <cstring>
-#include <msgpack/msgpack.hpp>
 #include <nlohmann/json.hpp>
 #include <stdint.h>
 #include <unordered_map>
@@ -39,7 +36,6 @@ namespace tpcc
     struct Key
     {
       int32_t id;
-      MSGPACK_DEFINE(id);
     };
 
     Key get_key()
@@ -52,8 +48,6 @@ namespace tpcc
     float price;
     std::array<char, MAX_NAME + 1> name = {0};
     std::array<char, MAX_DATA + 1> data = {0};
-
-    MSGPACK_DEFINE(id, im_id, price, name, data);
   };
   DECLARE_JSON_TYPE(Item::Key);
   DECLARE_JSON_REQUIRED_FIELDS(Item::Key, id);
@@ -73,7 +67,6 @@ namespace tpcc
     struct Key
     {
       int32_t id;
-      MSGPACK_DEFINE(id);
     };
 
     Key get_key()
@@ -90,8 +83,6 @@ namespace tpcc
     std::array<char, Address::MAX_STREET + 1> city = {0};
     std::array<char, Address::STATE + 1> state = {0};
     std::array<char, Address::ZIP + 1> zip = {0};
-
-    MSGPACK_DEFINE(id, tax, ytd, name, street_1, street_2, city, state, zip);
   };
   DECLARE_JSON_TYPE(Warehouse::Key);
   DECLARE_JSON_REQUIRED_FIELDS(Warehouse::Key, id);
@@ -113,7 +104,6 @@ namespace tpcc
     {
       int32_t id;
       int32_t w_id;
-      MSGPACK_DEFINE(id, w_id);
     };
 
     int32_t id;
@@ -132,20 +122,8 @@ namespace tpcc
     {
       return {id, w_id};
     }
-
-    MSGPACK_DEFINE(
-      id,
-      w_id,
-      tax,
-      ytd,
-      next_o_id,
-      name,
-      street_1,
-      street_2,
-      city,
-      state,
-      zip);
   };
+
   DECLARE_JSON_TYPE(District::Key);
   DECLARE_JSON_REQUIRED_FIELDS(District::Key, id, w_id);
   DECLARE_JSON_TYPE(District);
@@ -193,16 +171,12 @@ namespace tpcc
     {
       int32_t i_id;
       int32_t w_id;
-      MSGPACK_DEFINE(i_id, w_id);
     };
 
     Key get_key()
     {
       return {i_id, w_id};
     }
-
-    MSGPACK_DEFINE(
-      i_id, w_id, quantity, ytd, order_cnt, remote_cnt, dist, data);
   };
   DECLARE_JSON_TYPE(Stock::Key);
   DECLARE_JSON_REQUIRED_FIELDS(Stock::Key, i_id, w_id);
@@ -234,7 +208,6 @@ namespace tpcc
     struct Key
     {
       int32_t id;
-      MSGPACK_DEFINE(id);
     };
 
     Key get_key()
@@ -263,30 +236,8 @@ namespace tpcc
     std::array<char, DATETIME_SIZE + 1> since = {0};
     std::array<char, CREDIT + 1> credit = {0};
     std::array<char, MAX_DATA + 1> data = {0};
-
-    MSGPACK_DEFINE(
-      id,
-      d_id,
-      w_id,
-      credit_lim,
-      discount,
-      balance,
-      ytd_payment,
-      payment_cnt,
-      delivery_cnt,
-      first,
-      middle,
-      last,
-      street_1,
-      street_2,
-      city,
-      state,
-      zip,
-      phone,
-      since,
-      credit,
-      data);
   };
+
   DECLARE_JSON_TYPE(Customer::Key);
   DECLARE_JSON_REQUIRED_FIELDS(Customer::Key, id);
   DECLARE_JSON_TYPE(Customer);
@@ -330,7 +281,6 @@ namespace tpcc
     struct Key
     {
       int32_t id;
-      MSGPACK_DEFINE(id);
     };
 
     Key get_key()
@@ -346,9 +296,6 @@ namespace tpcc
     int32_t ol_cnt;
     int32_t all_local;
     std::array<char, DATETIME_SIZE + 1> entry_d = {0};
-
-    MSGPACK_DEFINE(
-      id, c_id, d_id, w_id, carrier_id, ol_cnt, all_local, entry_d);
   };
   DECLARE_JSON_TYPE(Order::Key);
   DECLARE_JSON_REQUIRED_FIELDS(Order::Key, id);
@@ -371,7 +318,6 @@ namespace tpcc
       int32_t d_id;
       int32_t w_id;
       int32_t number;
-      MSGPACK_DEFINE(o_id, d_id, w_id, number);
     };
 
     Key get_key()
@@ -389,19 +335,8 @@ namespace tpcc
     float amount;
     std::array<char, DATETIME_SIZE + 1> delivery_d = {0};
     std::array<char, Stock::DIST + 1> dist_info = {0};
-
-    MSGPACK_DEFINE(
-      o_id,
-      d_id,
-      w_id,
-      number,
-      i_id,
-      supply_w_id,
-      quantity,
-      amount,
-      delivery_d,
-      dist_info);
   };
+
   DECLARE_JSON_TYPE(OrderLine::Key);
   DECLARE_JSON_REQUIRED_FIELDS(OrderLine::Key, o_id, d_id, w_id, number);
   DECLARE_JSON_TYPE(OrderLine);
@@ -427,7 +362,6 @@ namespace tpcc
       int32_t w_id;
       int32_t d_id;
       int32_t o_id;
-      MSGPACK_DEFINE(w_id, d_id, o_id);
     };
 
     Key get_key()
@@ -438,8 +372,6 @@ namespace tpcc
     int32_t w_id;
     int32_t d_id;
     int32_t o_id;
-
-    MSGPACK_DEFINE(w_id, d_id, o_id);
   };
   DECLARE_JSON_TYPE(NewOrder::Key);
   DECLARE_JSON_REQUIRED_FIELDS(NewOrder::Key, w_id, d_id, o_id);
@@ -459,7 +391,6 @@ namespace tpcc
       int32_t c_w_id;
       int32_t d_id;
       int32_t w_id;
-      MSGPACK_DEFINE(c_id, c_d_id, c_w_id, d_id, w_id);
     };
 
     Key get_key()
@@ -475,8 +406,6 @@ namespace tpcc
     float amount;
     std::array<char, DATETIME_SIZE + 1> date = {0};
     std::array<char, MAX_DATA + 1> data = {0};
-
-    MSGPACK_DEFINE(c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
   };
   DECLARE_JSON_TYPE(History::Key);
   DECLARE_JSON_REQUIRED_FIELDS(History::Key, c_id, c_d_id, c_w_id, d_id, w_id);
@@ -484,10 +413,8 @@ namespace tpcc
   DECLARE_JSON_REQUIRED_FIELDS(
     History, c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
 
-  // TPCC KV tables use msgpack as key and value serialisation format.
-  // See serialise_msgpack.h for serialiser definition.
   template <typename K, typename V>
-  using TpccMap = kv::MapSerialisedWith<K, V, MsgPackSerialiser>;
+  using TpccMap = kv::Map<K, V>;
 
   struct TpccTables
   {

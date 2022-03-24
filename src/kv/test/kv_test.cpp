@@ -1960,8 +1960,10 @@ TEST_CASE("Deserialising from other Store")
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
-  auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+  auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
     tx1.commit_reserved();
+  auto& success = success_;
+  auto& data = data_;
   REQUIRE(success == kv::CommitResult::SUCCESS);
 
   kv::Store clone;
@@ -1996,8 +1998,10 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_txid());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
-    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -2012,8 +2016,10 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     tree_handle->put({});
-    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -2029,8 +2035,10 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     data_handle->put(43, 43);
-    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -2545,8 +2553,8 @@ TEST_CASE("Reported TxID after commit")
     }
 
     REQUIRE(kv_store.current_version() == store_last_seqno);
-    REQUIRE(
-      kv_store.current_txid() == kv::TxID(store_read_term, store_last_seqno));
+    REQUIRE_EQ(
+      kv_store.current_txid(), kv::TxID(store_read_term, store_last_seqno));
   }
 
   INFO("Empty committed tx");
@@ -2582,7 +2590,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.has_value());
     REQUIRE(tx_id->term == store_read_term);
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("Rollback while read-only tx is in progress");
@@ -2602,7 +2610,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id->term == store_read_term); // Read in term in which
                                              // last entry was committed
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("Read-only tx after rollback");
@@ -2620,7 +2628,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id->term == store_read_term); // Read in term in which
                                              // last entry was committed
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("More rollbacks");
@@ -2636,7 +2644,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.has_value());
     REQUIRE(tx_id->term == store_read_term);
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("Commit tx in new term and no-op rollback");
@@ -2667,7 +2675,7 @@ TEST_CASE("Reported TxID after commit")
       REQUIRE(tx_id.has_value());
       REQUIRE(tx_id->term == store_read_term);
       REQUIRE(tx_id->version == store_last_seqno);
-      REQUIRE(tx_id.value() == kv_store.current_txid());
+      REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
     }
 
     {
@@ -2681,7 +2689,7 @@ TEST_CASE("Reported TxID after commit")
       REQUIRE(tx_id.has_value());
       REQUIRE(tx_id->term == store_read_term);
       REQUIRE(tx_id->version == store_last_seqno);
-      REQUIRE(tx_id.value() == kv_store.current_txid());
+      REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
     }
   }
 
@@ -2700,7 +2708,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.has_value());
     REQUIRE(tx_id->term == store_read_term);
     REQUIRE(tx_id->version == store_last_seqno - 1);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 }
 
@@ -2963,8 +2971,10 @@ TEST_CASE("Ledger entry chunk request")
       ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
       sig_handle->put(sigv);
       tree_handle->put({});
-      auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
         tx.commit_reserved();
+      auto& success = success_;
+      auto& data = data_;
       REQUIRE(success == kv::CommitResult::SUCCESS);
 
       REQUIRE(

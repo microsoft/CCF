@@ -6,57 +6,21 @@ import infra.node
 import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
-import ccf.split_ledger
 import ccf.ledger
 import os
-import random
 import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
+import infra.health_watcher
+import time
 
 from loguru import logger as LOG
 
 
-def split_all_ledger_files_in_dir(input_dir, output_dir):
-    # A ledger file can only be split at a seqno that contains a signature
-    # (so that all files end on a signature that verifies their integrity).
-    # We first detect all signature transactions in a ledger file and truncate
-    # at any one (but not the last one, which would have no effect) at random.
-    for ledger_file in os.listdir(input_dir):
-        sig_seqnos = []
-
-        if ledger_file.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX):
-            # Ignore recovery files
-            continue
-
-        ledger_file_path = os.path.join(input_dir, ledger_file)
-        ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
-        for transaction in ledger_chunk:
-            public_domain = transaction.get_public_domain()
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
-                sig_seqnos.append(public_domain.get_seqno())
-
-        if len(sig_seqnos) <= 1:
-            # A chunk may not contain enough signatures to be worth truncating
-            continue
-
-        # Ignore last signature, which would result in a no-op split
-        split_seqno = random.choice(sig_seqnos[:-1])
-
-        assert ccf.split_ledger.run(
-            [ledger_file_path, str(split_seqno), f"--output-dir={output_dir}"]
-        ), f"Ledger file {ledger_file_path} was not split at {split_seqno}"
-        LOG.info(
-            f"Ledger file {ledger_file_path} was successfully split at {split_seqno}"
-        )
-        LOG.debug(f"Deleting input ledger file {ledger_file_path}")
-        os.remove(ledger_file_path)
-
-
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=False, split_ledger=False):
+def test_recover_service(network, args, from_snapshot=False):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -64,20 +28,20 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
+    # Start health watcher and stop nodes one by one until a recovery has to be staged
+    watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+    watcher.start()
+
+    for node in network.get_joined_nodes():
+        time.sleep(args.election_timeout_ms / 1000)
+        node.stop()
+
+    watcher.wait_for_recovery()
+
+    # Stop remaining nodes
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
-
-    if split_ledger:
-        # Test that ledger files can be arbitrarily split and that recovery
-        # and historical queries work as expected.
-        # Note: For real operations, it would be best practice to use a separate
-        # output directory
-        split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
-        if committed_ledger_dirs:
-            split_all_ledger_files_in_dir(
-                committed_ledger_dirs[0], committed_ledger_dirs[0]
-            )
 
     recovered_network = infra.network.Network(
         args.nodes,
@@ -458,7 +422,7 @@ def run_corrupted_ledger(args):
 
 
 def run(args):
-    recoveries_count = 3
+    recoveries_count = 5
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -489,9 +453,7 @@ def run(args):
                     network, args, from_snapshot=False
                 )
             else:
-                network = test_recover_service(
-                    network, args, from_snapshot=False, split_ledger=True
-                )
+                network = test_recover_service(network, args, from_snapshot=False)
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
@@ -543,8 +505,6 @@ checked. Note that the key for each logging message is unique (per table).
 
     cr = ConcurrentRunner()
 
-    # Test-specific values so that it is likely that ledger files contain
-    # at least two signatures, so that they can be split at the first one
     cr.add(
         "recovery",
         run,

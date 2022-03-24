@@ -26,6 +26,9 @@ Glossary
     Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
     a given limit. CFT however does not account for any nodes behaving maliciously (in contrast to :term:`BFT`). Read more on CFT :ref:`here <architecture/consensus/index:CFT Consensus Protocol>`.
 
+  Enclave
+    `Trusted Execution Environments <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_, allowing fully encrypted and auditable execution without direct access from the host machine.
+
   FLC
     `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.
 
@@ -59,14 +62,26 @@ Glossary
   Ring Buffer
     The ring buffer is a data structure that allows communication between the (unprotected) host and the enclave. Data that is written to one side can be read on the other. Only specific types of messages are supported to make sure each package that goes across is read by the right process in the right way.
 
+  REST
+    `Representational state transfer <Representational state transfer>`_ is a set of constraints on web APIs, usually implemented over HTTP using JSON as request and response objects exchanged between a requesting client and an implementation server.
+
+  RPC
+    `Remote Procedure Call <https://en.wikipedia.org/wiki/Remote_procedure_call>`_ is a way to execute functions in remote machines. CCF uses :term:`REST` host services to allow clients to execute programs inside the :term:`enclave` via the :term:`ring buffer`.
+
   SGX
     `Intel Software Guard Extensions <https://software.intel.com/en-us/sgx>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
+
+  TCP
+    `Transmission Control Protocol <https://en.wikipedia.org/wiki/Transmission_Control_Protocol>`_ is a network protocol over IP that provides sessions and ordered streams, which we use to connect between nodes and external clients.
 
   TEE
     `Trusted Execution Environment <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_ is a secure area of a main processor. It guarantees code and data loaded inside to be protected with respect to confidentiality and integrity. Often referred to as "enclave".
 
   TLS
     `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.
+
+  Transaction ID
+    Unique transaction identifier in CCF, composed of a View and a Sequence Number. Sequence Numbers start from 1, and are contiguous. Views are monotonic.
 
   Users
     Directly interact with the application running in CCF. Their public identity should be voted in by members before they are allowed to issue requests.
