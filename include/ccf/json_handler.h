@@ -66,22 +66,21 @@ namespace ccf
 
     char const* pack_to_content_type(serdes::Pack p);
 
-    serdes::Pack detect_json_pack(
-      const std::shared_ptr<enclave::RpcContext>& ctx);
+    serdes::Pack detect_json_pack(const std::shared_ptr<ccf::RpcContext>& ctx);
 
     serdes::Pack get_response_pack(
-      const std::shared_ptr<enclave::RpcContext>& ctx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
       serdes::Pack request_pack = serdes::Pack::Text);
 
     nlohmann::json get_params_from_body(
-      const std::shared_ptr<enclave::RpcContext>& ctx, serdes::Pack pack);
+      const std::shared_ptr<ccf::RpcContext>& ctx, serdes::Pack pack);
 
     std::pair<serdes::Pack, nlohmann::json> get_json_params(
-      const std::shared_ptr<enclave::RpcContext>& ctx);
+      const std::shared_ptr<ccf::RpcContext>& ctx);
 
     void set_response(
       JsonAdapterResponse&& res,
-      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::shared_ptr<ccf::RpcContext>& ctx,
       serdes::Pack request_packing);
   }
 

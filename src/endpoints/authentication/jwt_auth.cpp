@@ -11,7 +11,7 @@ namespace ccf
 {
   std::unique_ptr<AuthnIdentity> JwtAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
-    const std::shared_ptr<enclave::RpcContext>& ctx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     const auto& headers = ctx->get_request_headers();
@@ -49,7 +49,7 @@ namespace ccf
   }
 
   void JwtAuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<enclave::RpcContext>& ctx, std::string&& error_reason)
+    std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
   {
     ctx->set_error(
       HTTP_STATUS_UNAUTHORIZED,

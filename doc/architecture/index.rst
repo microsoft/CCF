@@ -57,6 +57,35 @@ Architecture
 
     Indexing system used to speed up historical queries.
 
+    ---
+
+    :fa:`scroll` :doc:`receipts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Receipts can be used with the ledger for audit purposes.
+
+
+    ---
+
+    :fa:`address-book` :doc:`tls_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of TLS communication.
+
+    ---
+
+    :fa:`address-book` :doc:`tcp_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of the TCP host layer.
+
+    ---
+
+    :fa:`address-book` :doc:`quic_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of QUIC communication (in progress).
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -69,3 +98,7 @@ Architecture
     raft_tla
     node_to_node
     indexing
+    receipts
+    tls_internals
+    tcp_internals
+    quic_internals

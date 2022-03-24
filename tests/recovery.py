@@ -6,55 +6,20 @@ import infra.node
 import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
-import ccf.split_ledger
 import ccf.ledger
 import os
-import random
 import json
 from infra.runner import ConcurrentRunner
+from distutils.dir_util import copy_tree
+from infra.consortium import slurp_file
 
 from loguru import logger as LOG
 
 
-def split_all_ledger_files_in_dir(input_dir, output_dir):
-    # A ledger file can only be split at a seqno that contains a signature
-    # (so that all files end on a signature that verifies their integrity).
-    # We first detect all signature transactions in a ledger file and truncate
-    # at any one (but not the last one, which would have no effect) at random.
-    for ledger_file in os.listdir(input_dir):
-        sig_seqnos = []
-
-        if ledger_file.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX):
-            # Ignore recovery files
-            continue
-
-        ledger_file_path = os.path.join(input_dir, ledger_file)
-        ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
-        for transaction in ledger_chunk:
-            public_domain = transaction.get_public_domain()
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
-                sig_seqnos.append(public_domain.get_seqno())
-
-        if len(sig_seqnos) <= 1:
-            # A chunk may not contain enough signatures to be worth truncating
-            continue
-
-        # Ignore last signature, which would result in a no-op split
-        split_seqno = random.choice(sig_seqnos[:-1])
-
-        assert ccf.split_ledger.run(
-            [ledger_file_path, str(split_seqno), f"--output-dir={output_dir}"]
-        ), f"Ledger file {ledger_file_path} was not split at {split_seqno}"
-        LOG.info(
-            f"Ledger file {ledger_file_path} was successfully split at {split_seqno}"
-        )
-        LOG.debug(f"Deleting input ledger file {ledger_file_path}")
-        os.remove(ledger_file_path)
-
-
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=False, split_ledger=False):
+def test_recover_service(network, args, from_snapshot=False):
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -64,17 +29,6 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
-
-    if split_ledger:
-        # Test that ledger files can be arbitrarily split and that recovery
-        # and historical queries work as expected.
-        # Note: For real operations, it would be best practice to use a separate
-        # output directory
-        split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
-        if committed_ledger_dirs:
-            split_all_ledger_files_in_dir(
-                committed_ledger_dirs[0], committed_ledger_dirs[0]
-            )
 
     recovered_network = infra.network.Network(
         args.nodes,
@@ -95,8 +49,112 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
     return recovered_network
 
 
+@reqs.description("Recover a service with wrong service identity")
+@reqs.recover(number_txs=2)
+def test_recover_service_with_wrong_identity(network, args):
+    old_primary, _ = network.find_primary()
+
+    snapshots_dir = network.get_committed_snapshots(old_primary)
+
+    network.stop_all_nodes()
+
+    network.save_service_identity(args)
+    first_service_identity_file = args.previous_service_identity_file
+
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    # Attempt a recovery with the wrong previous service certificate
+
+    args.previous_service_identity_file = network.consortium.user_cert_path("user0")
+
+    broken_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+
+    exception = None
+    try:
+        # The first remote.get() will fail because the node aborts before it
+        # writes its node cert, so we want a short file_timeout.
+        broken_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+            file_timeout=3,
+        )
+    except Exception as ex:
+        exception = ex
+
+    broken_network.ignoring_shutdown_errors = True
+    broken_network.stop_all_nodes(skip_verification=True)
+
+    if exception is None:
+        raise ValueError("Recovery should have failed")
+    if not broken_network.nodes[0].check_log_for_error_message(
+        "Error starting node: Previous service identity does not endorse the node identity that signed the snapshot"
+    ):
+        raise ValueError("Node log does not contain the expect error message")
+
+    # Recover, now with the right service identity
+
+    args.previous_service_identity_file = first_service_identity_file
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
+    )
+
+    recovered_network.recover(args)
+
+    return recovered_network
+
+
+@reqs.description("Recover a service with expired service identity")
+def test_recover_service_with_expired_cert(args):
+    expired_service_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "expired_service"
+    )
+
+    new_common = infra.network.get_common_folder_name(args.workspace, args.label)
+    copy_tree(os.path.join(expired_service_dir, "common"), new_common)
+
+    network = infra.network.Network(args.nodes, args.binary_dir)
+
+    args.previous_service_identity_file = os.path.join(
+        expired_service_dir, "common", "service_cert.pem"
+    )
+
+    network.start_in_recovery(
+        args,
+        ledger_dir=os.path.join(expired_service_dir, "0.ledger"),
+        committed_ledger_dirs=[os.path.join(expired_service_dir, "0.ledger")],
+        snapshots_dir=os.path.join(expired_service_dir, "0.snapshots"),
+        common_dir=new_common,
+    )
+
+    network.recover(args)
+
+    primary, _ = network.find_primary()
+    infra.checker.check_can_progress(primary)
+
+
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
 def test_recover_service_aborted(network, args, from_snapshot=False):
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -167,6 +225,7 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
 @reqs.description("Recovering a service, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
 def test_share_resilience(network, args, from_snapshot=False):
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
@@ -187,15 +246,18 @@ def test_share_resilience(network, args, from_snapshot=False):
         snapshots_dir=snapshots_dir,
     )
     primary, _ = recovered_network.find_primary()
-    recovered_network.consortium.transition_service_to_open(primary)
+    recovered_network.consortium.transition_service_to_open(
+        primary,
+        previous_service_identity=slurp_file(args.previous_service_identity_file),
+    )
 
     # Submit all required recovery shares minus one. Last recovery share is
     # submitted after a new primary is found.
-    submitted_shares_count = 0
+    encrypted_submitted_shares_count = 0
     for m in recovered_network.consortium.get_active_members():
         with primary.client() as nc:
             if (
-                submitted_shares_count
+                encrypted_submitted_shares_count
                 >= recovered_network.consortium.recovery_threshold - 1
             ):
                 last_member_to_submit = m
@@ -203,7 +265,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
             check_commit = infra.checker.Checker(nc)
             check_commit(m.get_and_submit_recovery_share(primary))
-            submitted_shares_count += 1
+            encrypted_submitted_shares_count += 1
 
     LOG.info(
         f"Shutting down node {primary.node_id} before submitting last recovery share"
@@ -236,6 +298,7 @@ def test_recover_service_truncated_ledger(
     corrupt_last_tx=False,
     corrupt_first_sig=False,
 ):
+    network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
     LOG.info("Force new ledger chunk for app txs to be in committed chunks")
@@ -334,6 +397,8 @@ def run_corrupted_ledger(args):
             network, args, corrupt_first_sig=True
         )
 
+    network.stop_all_nodes()
+
     # Make sure ledger can be read once recovered (i.e. ledger corruption does not affect recovered ledger)
     for node in network.nodes:
         ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
@@ -344,7 +409,7 @@ def run_corrupted_ledger(args):
 
 
 def run(args):
-    recoveries_count = 3
+    recoveries_count = 5
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -356,6 +421,8 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
+
+        network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
@@ -373,9 +440,7 @@ def run(args):
                     network, args, from_snapshot=False
                 )
             else:
-                network = test_recover_service(
-                    network, args, from_snapshot=False, split_ledger=True
-                )
+                network = test_recover_service(network, args, from_snapshot=False)
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
@@ -403,6 +468,8 @@ def run(args):
                         chunk_start_seqno == seqno
                     ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
+    test_recover_service_with_expired_cert(args)
+
 
 if __name__ == "__main__":
 
@@ -425,8 +492,6 @@ checked. Note that the key for each logging message is unique (per table).
 
     cr = ConcurrentRunner()
 
-    # Test-specific values so that it is likely that ledger files contain
-    # at least two signatures, so that they can be split at the first one
     cr.add(
         "recovery",
         run,
@@ -438,7 +503,8 @@ checked. Note that the key for each logging message is unique (per table).
 
     # Note: `run_corrupted_ledger` runs with very a specific node configuration
     # so that the contents of recovered (and tampered) ledger chunks
-    # can be dictated by the test. In particular, the signature interval is large # enough to create in-progress ledger files that do not end on a signature. The
+    # can be dictated by the test. In particular, the signature interval is large
+    # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
     cr.add(
         "recovery_corrupt_ledger",

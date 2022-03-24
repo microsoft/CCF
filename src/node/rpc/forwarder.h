@@ -10,22 +10,24 @@
 
 namespace ccf
 {
+  class RpcContextImpl;
+
   class ForwardedRpcHandler
   {
   public:
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      std::shared_ptr<enclave::RpcContext> fwd_ctx) = 0;
+      std::shared_ptr<ccf::RpcContextImpl> fwd_ctx) = 0;
   };
 
   template <typename ChannelProxy>
-  class Forwarder : public enclave::AbstractForwarder
+  class Forwarder : public AbstractForwarder
   {
   private:
-    std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder;
+    std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::weak_ptr<ccf::RPCMap> rpc_map;
     ConsensusType consensus_type;
     NodeId self;
 
@@ -33,9 +35,9 @@ namespace ccf
 
   public:
     Forwarder(
-      std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder,
+      std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder,
       std::shared_ptr<ChannelProxy> n2n_channels,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::weak_ptr<ccf::RPCMap> rpc_map_,
       ConsensusType consensus_type_) :
       rpcresponder(rpcresponder),
       n2n_channels(n2n_channels),
@@ -49,14 +51,14 @@ namespace ccf
     }
 
     bool forward_command(
-      std::shared_ptr<enclave::RpcContext> rpc_ctx,
+      std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,
       const NodeId& to,
       const std::vector<uint8_t>& caller_cert) override
     {
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
       const auto& raw_request = rpc_ctx->get_serialised_request();
-      size_t size = sizeof(rpc_ctx->session->client_session_id) +
+      size_t size = sizeof(rpc_ctx->get_session_context()->client_session_id) +
         sizeof(IsCallerCertForwarded) + raw_request.size();
       if (!caller_cert.empty())
       {
@@ -67,7 +69,8 @@ namespace ccf
       std::vector<uint8_t> plain(size);
       auto data_ = plain.data();
       auto size_ = plain.size();
-      serialized::write(data_, size_, rpc_ctx->session->client_session_id);
+      serialized::write(
+        data_, size_, rpc_ctx->get_session_context()->client_session_id);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
@@ -83,7 +86,7 @@ namespace ccf
         to, NodeMsgType::forwarded_msg, plain, msg);
     }
 
-    std::shared_ptr<enclave::RpcContext> recv_forwarded_command(
+    std::shared_ptr<http::HttpRpcContext> recv_forwarded_command(
       const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
@@ -116,13 +119,13 @@ namespace ccf
       }
       std::vector<uint8_t> raw_request = serialized::read(data_, size_, size_);
 
-      auto session = std::make_shared<enclave::SessionContext>(
-        client_session_id, caller_cert);
+      auto session =
+        std::make_shared<ccf::SessionContext>(client_session_id, caller_cert);
       session->is_forwarded = true;
 
       try
       {
-        return enclave::make_fwd_rpc_context(
+        return ccf::make_fwd_rpc_context(
           session, raw_request, r.first.frame_format);
       }
       catch (const std::exception& err)
@@ -196,7 +199,8 @@ namespace ccf
         {
           case ForwardedMsg::forwarded_cmd:
           {
-            if (rpc_map)
+            std::shared_ptr<ccf::RPCMap> rpc_map_shared = rpc_map.lock();
+            if (rpc_map_shared)
             {
               auto ctx = recv_forwarded_command(from, data, size);
               if (ctx == nullptr)
@@ -216,8 +220,8 @@ namespace ccf
               }
 
               const auto& actor_s = actor_opt.value();
-              auto actor = rpc_map->resolve(actor_s);
-              auto handler = rpc_map->find(actor);
+              auto actor = rpc_map_shared->resolve(actor_s);
+              auto handler = rpc_map_shared->find(actor);
               if (actor == ccf::ActorsType::unknown || !handler.has_value())
               {
                 LOG_FAIL_FMT(
@@ -240,7 +244,7 @@ namespace ccf
 
               // Ignore return value - false only means it is pending
               send_forwarded_response(
-                ctx->session->client_session_id,
+                ctx->get_session_context()->client_session_id,
                 from,
                 fwd_handler->process_forwarded(ctx));
               LOG_DEBUG_FMT("Sending forwarded response to {}", from);
@@ -259,7 +263,11 @@ namespace ccf
             LOG_DEBUG_FMT(
               "Sending forwarded response to RPC endpoint {}", rep->first);
 
-            if (!rpcresponder->reply_async(rep->first, std::move(rep->second)))
+            auto rpc_responder_shared = rpcresponder.lock();
+            if (
+              rpc_responder_shared &&
+              !rpc_responder_shared->reply_async(
+                rep->first, std::move(rep->second)))
             {
               return;
             }

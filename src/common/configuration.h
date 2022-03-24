@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/logger.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/members.h"
@@ -132,6 +133,8 @@ struct StartupConfig : CCFConfig
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;
 
+  nlohmann::json node_data = nullptr;
+
   struct Start
   {
     std::vector<ccf::NewMember> members;
@@ -149,6 +152,13 @@ struct StartupConfig : CCFConfig
     std::vector<uint8_t> service_cert = {};
   };
   Join join = {};
+
+  struct Recover
+  {
+    std::optional<std::vector<uint8_t>> previous_service_identity =
+      std::nullopt;
+  };
+  Recover recover = {};
 };
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
@@ -159,6 +169,9 @@ DECLARE_JSON_TYPE(StartupConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig::Join, target_rpc_address, retry_timeout, service_cert);
 
+DECLARE_JSON_TYPE(StartupConfig::Recover);
+DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);
+
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig,
@@ -166,7 +179,9 @@ DECLARE_JSON_REQUIRED_FIELDS(
   startup_host_time,
   snapshot_tx_interval,
   initial_service_certificate_validity_days,
+  node_data,
   start,
-  join);
+  join,
+  recover);
 DECLARE_JSON_OPTIONAL_FIELDS(
   StartupConfig, startup_snapshot_evidence_seqno_for_1_x);

@@ -573,10 +573,49 @@ const actions = new Map([
   [
     "transition_service_to_open",
     new Action(
-      function (args) {},
+      function (args) {
+        checkType(
+          args.next_service_identity,
+          "string",
+          "next service identity (PEM certificate)"
+        );
+        checkX509CertBundle(args.next_service_identity, "cert");
+
+        checkType(
+          args.previous_service_identity,
+          "string?",
+          "previous service identity (PEM certificate)"
+        );
+        if (args.previous_service_identity !== undefined) {
+          checkX509CertBundle(args.previous_service_identity, "cert");
+        }
+      },
 
       function (args) {
-        ccf.node.transitionServiceToOpen();
+        const service_info = "public:ccf.gov.service.info";
+        const rawService = ccf.kv[service_info].get(getSingletonKvKey());
+        if (rawService === undefined) {
+          throw new Error("Service information could not be found");
+        }
+
+        const service = ccf.bufToJsonCompatible(rawService);
+
+        if (
+          service.status === "Recovering" &&
+          (args.previous_service_identity === undefined ||
+            args.next_service_identity === undefined)
+        ) {
+          throw new Error(
+            `Opening a recovering network requires both, the previous and the next service identity`
+          );
+        }
+
+        const previous_identity =
+          args.previous_service_identity !== undefined
+            ? ccf.strToBuf(args.previous_service_identity)
+            : undefined;
+        const next_identity = ccf.strToBuf(args.next_service_identity);
+        ccf.node.transitionServiceToOpen(previous_identity, next_identity);
       }
     ),
   ],
@@ -868,7 +907,25 @@ const actions = new Map([
       }
     ),
   ],
-
+  [
+    "set_node_data",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+      },
+      function (args) {
+        let node_id = ccf.strToBuf(args.node_id);
+        let nodes_info = ccf.kv["public:ccf.gov.nodes.info"];
+        let node_info = nodes_info.get(node_id);
+        if (node_info === undefined) {
+          throw new Error(`Node ${node_id} does not exist`);
+        }
+        let ni = ccf.bufToJsonCompatible(node_info);
+        ni.node_data = args.node_data;
+        nodes_info.set(node_id, ccf.jsonCompatibleToBuf(ni));
+      }
+    ),
+  ],
   [
     "transition_node_to_trusted",
     new Action(

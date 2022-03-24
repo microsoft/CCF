@@ -19,7 +19,9 @@ from math import ceil
 import http
 import pprint
 import functools
+import shutil
 from datetime import datetime, timedelta
+from infra.consortium import slurp_file
 
 from loguru import logger as LOG
 
@@ -46,6 +48,7 @@ class NodeRole(Enum):
 class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
+    RECOVERING = "Recovering"
     CLOSED = "Closed"
 
 
@@ -113,6 +116,7 @@ class Network:
         "reconfiguration_type",
         "config_file",
         "ubsan_options",
+        "previous_service_identity_file",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -147,6 +151,7 @@ class Network:
             self.hosts = [node.host for node in existing_network.nodes]
 
         self.ignoring_shutdown_errors = False
+        self.ignore_error_patterns = []
         self.nodes = []
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
@@ -185,9 +190,7 @@ class Network:
         self.next_node_id += 1
         return next_node_id
 
-    def create_node(
-        self, host, binary_dir=None, library_dir=None, node_port=0, version=None
-    ):
+    def create_node(self, host, binary_dir=None, library_dir=None, **kwargs):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -202,8 +205,7 @@ class Network:
             library_dir or self.library_dir,
             debug,
             perf,
-            node_port=node_port,
-            version=version,
+            **kwargs,
         )
         self.nodes.append(node)
         return node
@@ -266,8 +268,11 @@ class Network:
             **kwargs,
         )
 
-        # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING:
+        # If the network is opening or recovering, nodes are trusted without consortium approval
+        if (
+            self.status == ServiceStatus.OPENING
+            or self.status == ServiceStatus.RECOVERING
+        ):
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
@@ -289,7 +294,9 @@ class Network:
         if not args.package:
             raise ValueError("A package name must be specified.")
 
-        self.status = ServiceStatus.OPENING
+        self.status = (
+            ServiceStatus.OPENING if not recovery else ServiceStatus.RECOVERING
+        )
         LOG.debug(f"Opening CCF service on {hosts}")
 
         forwarded_args = {
@@ -464,6 +471,7 @@ class Network:
         committed_ledger_dirs=None,
         snapshots_dir=None,
         common_dir=None,
+        **kwargs,
     ):
         """
         Starts a CCF network in recovery mode.
@@ -484,6 +492,7 @@ class Network:
             ledger_dir=ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
+            **kwargs,
         )
 
         # If a common directory was passed in, initialise the consortium from it
@@ -514,12 +523,30 @@ class Network:
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         """
-        self.consortium.activate(self.find_random_node())
+        random_node = self.find_random_node()
+        self.consortium.activate(random_node)
+        expected_status = (
+            ServiceStatus.RECOVERING
+            if random_node.version_after("ccf-2.0.0-rc3")
+            else ServiceStatus.OPENING
+        )
         self.consortium.check_for_service(
-            self.find_random_node(), status=ServiceStatus.OPENING
+            self.find_random_node(), status=expected_status
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
-        self.consortium.transition_service_to_open(self.find_random_node())
+
+        # The new service may be running a newer version of the constitution,
+        # so we make sure that we're running the right one.
+        self.consortium.set_constitution(random_node, args.constitution)
+
+        prev_service_identity = None
+        if args.previous_service_identity_file:
+            prev_service_identity = slurp_file(args.previous_service_identity_file)
+
+        self.consortium.transition_service_to_open(
+            self.find_random_node(),
+            previous_service_identity=prev_service_identity,
+        )
         self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
@@ -538,6 +565,9 @@ class Network:
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
+
+    def ignore_error_pattern_on_shutdown(self, pattern):
+        self.ignore_error_patterns.append(pattern)
 
     def check_ledger_files_identical(self, read_recovery_ledger_files=False):
         # Note: Should be called on stopped service
@@ -568,6 +598,10 @@ class Network:
                 raise RuntimeError(
                     f"Node {node.node_id} should be stopped before verifying ledger consistency"
                 )
+
+            if node.remote is None:
+                continue
+
             ledger_paths = node.remote.ledger_paths()
 
             ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
@@ -593,9 +627,10 @@ class Network:
                         f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
                     )
 
-        LOG.info(
-            f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
-        )
+        if longest_ledger_files:
+            LOG.info(
+                f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
+            )
 
     def stop_all_nodes(
         self, skip_verification=False, verbose_verification=False, **kwargs
@@ -610,8 +645,15 @@ class Network:
 
         fatal_error_found = False
 
+        if len(self.ignore_error_patterns) > 0:
+            LOG.warning("Ignoring error patterns on shutdown:")
+            for pattern in self.ignore_error_patterns:
+                LOG.warning(f"  {pattern}")
+
         for node in self.nodes:
-            _, fatal_errors = node.stop()
+            _, fatal_errors = node.stop(
+                ignore_error_patterns=self.ignore_error_patterns
+            )
             if fatal_errors:
                 fatal_error_found = True
 
@@ -1238,6 +1280,13 @@ class Network:
         LOG.info(
             f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
+
+    def save_service_identity(self, args):
+        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
+        shutil.copy(current_identity, previous_identity)
+        args.previous_service_identity_file = previous_identity
+        return args
 
 
 @contextmanager

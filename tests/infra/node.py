@@ -75,8 +75,18 @@ def get_snapshot_seqnos(file_name):
 
 
 def strip_version(full_version):
+    if full_version is None:
+        return None
     dash_offset = 1 if full_version.startswith("ccf-") else 0
     return full_version.split("-")[dash_offset]
+
+
+def version_rc(full_version):
+    if full_version is None:
+        return (None, 0)
+    tokens = full_version.split("-")
+    rc_tkn = tokens[2] if len(tokens) > 2 else None
+    return (int(rc_tkn[2:]), len(tokens)) if rc_tkn else (None, 0)
 
 
 class Node:
@@ -93,6 +103,7 @@ class Node:
         perf=False,
         node_port=0,
         version=None,
+        node_data_json_file=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -117,6 +128,7 @@ class Node:
         self.consensus = None
         self.certificate_valid_from = None
         self.certificate_validity_days = None
+        self.initial_node_data_json_file = node_data_json_file
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -263,6 +275,7 @@ class Node:
             members_info=members_info,
             version=self.version,
             major_version=self.major_version,
+            node_data_json_file=self.initial_node_data_json_file,
             **kwargs,
         )
         self.remote.setup()
@@ -290,7 +303,10 @@ class Node:
             self.remote.start()
 
         try:
-            self.remote.get_startup_files(self.common_dir)
+            file_timeout = kwargs.get("file_timeout")
+            self.remote.get_startup_files(
+                self.common_dir, timeout=file_timeout or infra.remote.FILE_TIMEOUT
+            )
         except Exception as e:
             LOG.exception(e)
             self.remote.get_logs(tail_lines_len=None)
@@ -387,13 +403,13 @@ class Node:
                     # In the infra, public RPC port is always the same as local RPC port
                     rpc_interface.public_port = rpc_interface.port
 
-    def stop(self):
+    def stop(self, *args, **kwargs):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
             LOG.info(f"Stopping node {self.local_node_id}")
-            return self.remote.stop()
+            return self.remote.stop(*args, **kwargs)
         return [], []
 
     def is_stopped(self):
@@ -607,6 +623,28 @@ class Node:
         validity_period = valid_to - valid_from + timedelta(seconds=1)
         LOG.info(
             f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {validity_period})"
+        )
+
+    def check_log_for_error_message(self, msg):
+        if self.remote is not None:
+            with open(self.remote.remote.out, encoding="utf-8") as f:
+                for line in f:
+                    if msg in line:
+                        return True
+        return False
+
+    def version_after(self, version):
+        rc, _ = version_rc(version)
+        if rc is None or self.version is None:
+            return True
+        self_rc, self_num_rc_tkns = version_rc(self.version)
+        ver = Version(strip_version(version))
+        self_ver = Version(strip_version(self.version))
+        return self_ver > ver or (
+            self_ver == ver
+            and (
+                not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3)
+            )
         )
 
 

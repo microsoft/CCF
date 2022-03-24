@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "common/configuration.h"
 #include "ds/unit_strings.h"
 
@@ -59,6 +60,7 @@ namespace host
     ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
     ds::TimeString client_connection_timeout = {"2000ms"};
+    std::optional<std::string> node_data_json_file = std::nullopt;
 
     struct OutputFiles
     {
@@ -139,6 +141,7 @@ namespace host
       struct Recover
       {
         size_t initial_service_certificate_validity_days = 1;
+        std::string previous_service_identity_file;
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
@@ -191,7 +194,9 @@ namespace host
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::Recover, initial_service_certificate_validity_days);
+    CCHostConfig::Command::Recover,
+    initial_service_certificate_validity_days,
+    previous_service_identity_file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
@@ -206,6 +211,7 @@ namespace host
     slow_io_logging_threshold,
     node_client_interface,
     client_connection_timeout,
+    node_data_json_file,
     output_files,
     ledger,
     snapshots,

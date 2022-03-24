@@ -18,6 +18,7 @@ from datetime import datetime
 import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
+import tempfile
 
 from loguru import logger as LOG
 
@@ -190,6 +191,71 @@ def test_no_quote(network, args):
     return network
 
 
+@reqs.description("Test node data set at node construction, and updated by governance")
+def test_node_data(network, args):
+    with tempfile.NamedTemporaryFile(mode="w+") as ntf:
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+
+            def get_nodes():
+                r = c.get("/node/network/nodes")
+                assert r.status_code == 200, (r.status_code, r.body.text())
+                return {
+                    node_info["node_id"]: node_info
+                    for node_info in r.body.json()["nodes"]
+                }
+
+            new_node_data = {"my_id": "0xdeadbeef", "location": "The Moon"}
+            json.dump(new_node_data, ntf)
+            ntf.flush()
+            untrusted_node = network.create_node(
+                infra.interfaces.HostSpec(
+                    rpc_interfaces={
+                        infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                            endorsement=infra.interfaces.Endorsement(authority="Node")
+                        )
+                    }
+                ),
+                node_data_json_file=ntf.name,
+            )
+
+            # NB: This new node joins but is never trusted
+            network.join_node(untrusted_node, args.package, args)
+
+            nodes = get_nodes()
+            assert untrusted_node.node_id in nodes, nodes
+            new_node_info = nodes[untrusted_node.node_id]
+            assert new_node_info["node_data"] == new_node_data, new_node_info
+
+            # Set modified node data
+            new_node_data["previous_locations"] = [new_node_data["location"]]
+            new_node_data["location"] = "Secret Base"
+
+            network.consortium.set_node_data(
+                primary, untrusted_node.node_id, new_node_data
+            )
+
+            nodes = get_nodes()
+            assert untrusted_node.node_id in nodes, nodes
+            new_node_info = nodes[untrusted_node.node_id]
+            assert new_node_info["node_data"] == new_node_data, new_node_info
+
+            # Set modified node data on trusted primary
+            primary_node_data = "Some plain JSON string"
+            network.consortium.set_node_data(
+                primary, primary.node_id, primary_node_data
+            )
+
+            nodes = get_nodes()
+            assert primary.node_id in nodes, nodes
+            primary_node_info = nodes[primary.node_id]
+            assert (
+                primary_node_info["node_data"] == primary_node_data
+            ), primary_node_info
+
+    return network
+
+
 @reqs.description("Check member data")
 def test_member_data(network, args):
     assert args.initial_operator_count > 0
@@ -210,6 +276,64 @@ def test_member_data(network, args):
     assert md_count == args.initial_operator_count
 
     return network
+
+
+@reqs.description("Check /gov/members endpoint")
+def test_all_members(network, args):
+    def run_test_all_members(network):
+        primary, _ = network.find_primary()
+
+        with primary.client() as c:
+            r = c.get("/gov/members")
+            assert r.status_code == http.HTTPStatus.OK.value
+            response_members = r.body.json()
+
+        network_members = network.get_members()
+        assert len(network_members) == len(response_members)
+
+        for member in network_members:
+            assert member.service_id in response_members
+            response_details = response_members[member.service_id]
+            assert response_details["cert"] == member.cert
+            assert (
+                infra.member.MemberStatus(response_details["status"])
+                == member.status_code
+            )
+            assert response_details["member_data"] == member.member_data
+            if member.is_recovery_member:
+                recovery_enc_key = open(
+                    member.member_info["encryption_public_key_file"], encoding="utf-8"
+                ).read()
+                assert response_details["public_encryption_key"] == recovery_enc_key
+            else:
+                assert response_details["public_encryption_key"] is None
+
+    # Test on current network
+    run_test_all_members(network)
+
+    # Test on mid-recovery network
+    network.save_service_identity(args)
+    primary, _ = network.find_primary()
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    # NB: Don't try to get snapshots, since there may not be any committed,
+    # and we cannot wait for commit now that the node is stopped
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    run_test_all_members(recovered_network)
+    recovered_network.recover(args)
+
+    return recovered_network
 
 
 @reqs.description("Test ack state digest updates")
@@ -399,10 +523,12 @@ def gov(args):
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
         test_member_data(network, args)
+        network = test_all_members(network, args)
         test_quote(network, args)
         test_user(network, args)
         test_jinja_templates(network, args)
         test_no_quote(network, args)
+        test_node_data(network, args)
         test_ack_state_digest_update(network, args)
         test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
@@ -425,7 +551,6 @@ def js_gov(args):
         governance_js.test_vote_failure_reporting(network, args)
         governance_js.test_operator_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
-        governance_js.test_actions(network, args)
         governance_js.test_set_constitution(network, args)
 
 

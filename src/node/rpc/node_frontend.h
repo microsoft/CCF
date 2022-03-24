@@ -6,6 +6,7 @@
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
@@ -15,7 +16,6 @@
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
 #include "node/network_state.h"
-#include "node/quote.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
@@ -109,6 +109,29 @@ namespace ccf
   private:
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
+
+    static std::pair<http_status, std::string> quote_verification_error(
+      QuoteVerificationResult result)
+    {
+      switch (result)
+      {
+        case QuoteVerificationResult::Failed:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
+        case QuoteVerificationResult::FailedCodeIdNotFound:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote does not contain known enclave measurement");
+        case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Quote report data does not contain node's public key hash");
+        default:
+          return std::make_pair(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Unknown quote verification error");
+      }
+    }
 
     struct ExistingNodeInfo
     {
@@ -258,7 +281,8 @@ namespace ccf
         ledger_secret_seqno,
         ds::to_hex(code_digest.data),
         in.certificate_signing_request,
-        client_public_key_pem};
+        client_public_key_pem,
+        in.node_data};
 
       // Because the certificate signature scheme is non-deterministic, only
       // self-signed node certificate is recorded in the node info table
@@ -324,7 +348,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.13.0";
+      openapi_info.document_version = "2.16.0";
     }
 
     void init_handlers() override
@@ -394,14 +418,18 @@ namespace ccf
           service_config->reconfiguration_type.value_or(
             ReconfigurationType::ONE_TRANSACTION);
 
-        if (active_service->status == ServiceStatus::OPENING)
+        if (
+          active_service->status == ServiceStatus::OPENING ||
+          active_service->status == ServiceStatus::RECOVERING)
         {
           // If the service is opening, new nodes are trusted straight away
           NodeStatus joining_node_status = NodeStatus::TRUSTED;
 
           // If the node is already trusted, return network secrets
           auto existing_node_info = check_node_exists(
-            args.tx, args.rpc_ctx->session->caller_cert, joining_node_status);
+            args.tx,
+            args.rpc_ctx->get_session_context()->caller_cert,
+            joining_node_status);
           if (existing_node_info.has_value())
           {
             JoinNetworkNodeToNode::Out rep;
@@ -431,7 +459,8 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                auto& interface_id = args.rpc_ctx->session->interface_id;
+                auto& interface_id =
+                  args.rpc_ctx->get_session_context()->interface_id;
                 if (!interface_id.has_value())
                 {
                   return make_error(
@@ -460,7 +489,7 @@ namespace ccf
 
           return add_node(
             args.tx,
-            args.rpc_ctx->session->caller_cert,
+            args.rpc_ctx->get_session_context()->caller_cert,
             in,
             joining_node_status,
             active_service->status,
@@ -472,8 +501,8 @@ namespace ccf
         // node polls the network to retrieve the network secrets until it is
         // trusted
 
-        auto existing_node_info =
-          check_node_exists(args.tx, args.rpc_ctx->session->caller_cert);
+        auto existing_node_info = check_node_exists(
+          args.tx, args.rpc_ctx->get_session_context()->caller_cert);
         if (existing_node_info.has_value())
         {
           JoinNetworkNodeToNode::Out rep;
@@ -525,7 +554,8 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                auto& interface_id = args.rpc_ctx->session->interface_id;
+                auto& interface_id =
+                  args.rpc_ctx->get_session_context()->interface_id;
                 if (!interface_id.has_value())
                 {
                   return make_error(
@@ -555,7 +585,7 @@ namespace ccf
           // If the node does not exist, add it to the KV in state pending
           return add_node(
             args.tx,
-            args.rpc_ctx->session->caller_cert,
+            args.rpc_ctx->get_session_context()->caller_cert,
             in,
             NodeStatus::PENDING,
             active_service->status,
@@ -817,7 +847,7 @@ namespace ccf
         GetNodes::Out out;
 
         auto nodes = args.tx.ro(this->network.nodes);
-        nodes->foreach([this, host, port, status, &out](
+        nodes->foreach([this, host, port, status, &out, nodes](
                          const NodeId& nid, const NodeInfo& ni) {
           if (status.has_value() && status.value() != ni.status)
           {
@@ -851,7 +881,13 @@ namespace ccf
             is_primary = consensus->primary() == nid;
           }
 
-          out.nodes.push_back({nid, ni.status, is_primary, ni.rpc_interfaces});
+          out.nodes.push_back(
+            {nid,
+             ni.status,
+             is_primary,
+             ni.rpc_interfaces,
+             ni.node_data,
+             nodes->get_version_of_previous_write(nid).value_or(0)});
           return true;
         });
 
@@ -907,8 +943,13 @@ namespace ccf
           }
         }
         auto& ni = info.value();
-        return make_success(
-          GetNode::Out{node_id, ni.status, is_primary, ni.rpc_interfaces});
+        return make_success(GetNode::Out{
+          node_id,
+          ni.status,
+          is_primary,
+          ni.rpc_interfaces,
+          ni.node_data,
+          nodes->get_version_of_previous_write(node_id).value_or(0)});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",
@@ -926,7 +967,8 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
-          auto& interface_id = args.rpc_ctx->session->interface_id;
+          auto& interface_id =
+            args.rpc_ctx->get_session_context()->interface_id;
           if (!interface_id.has_value())
           {
             args.rpc_ctx->set_error(
@@ -977,7 +1019,8 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
-            auto& interface_id = args.rpc_ctx->session->interface_id;
+            auto& interface_id =
+              args.rpc_ctx->get_session_context()->interface_id;
             if (!interface_id.has_value())
             {
               args.rpc_ctx->set_error(
@@ -1036,7 +1079,8 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
-              auto& interface_id = args.rpc_ctx->session->interface_id;
+              auto& interface_id =
+                args.rpc_ctx->get_session_context()->interface_id;
               if (!interface_id.has_value())
               {
                 args.rpc_ctx->set_error(
@@ -1235,13 +1279,14 @@ namespace ccf
       auto create = [this](auto& ctx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
 
+        bool recovering = node_operation.is_reading_public_ledger();
+
         // This endpoint can only be called once, directly from the starting
         // node for the genesis or end of public recovery transaction to
         // initialise the service
         if (
           network.consensus_type == ConsensusType::CFT &&
-          !node_operation.is_in_initialised_state() &&
-          !node_operation.is_reading_public_ledger())
+          !node_operation.is_in_initialised_state() && !recovering)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1259,7 +1304,7 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.service_cert);
+        g.create_service(in.service_cert, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
