@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/historical_queries_adapter.h"
-
-#include "ccf/crypto/base64.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
@@ -249,7 +247,6 @@ namespace ccf::historical
     if (state && state->receipt && state->receipt->node_cert)
     {
       auto& receipt = *state->receipt;
-      LOG_DEBUG_FMT("receipt cert: {}", receipt.node_cert->str());
 
       auto v = crypto::make_unique_verifier(*receipt.node_cert);
       if (!v->verify_certificate(
