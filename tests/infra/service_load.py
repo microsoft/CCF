@@ -5,6 +5,7 @@ import time
 import os
 import subprocess
 import generate_vegeta_targets as TargetGenerator
+import json
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -13,6 +14,15 @@ import pandas as pd
 
 from loguru import logger as LOG
 
+# Note: while vegeta is great, it does not allow for updating the targets
+# after the "attack" has been started. Instead, ServiceLoad polls the network
+# at regular intervals and restart the attack if the network configuration has changed.
+
+# Interval (s) at which the network is polled to find out
+# when the load client should be restarted
+NETWORK_POLL_INTERVAL_S = 5
+
+# Load client configuration
 VEGETA_BIN = "/opt/vegeta/vegeta"
 VEGETA_TARGET_FILE_NAME = "vegeta_targets"
 RESULTS_CSV_FILE_NAME = "vegeta_results.csv"
@@ -23,11 +33,7 @@ class LoadClient:
     def __init__(self, network):
         self.network = network
 
-    def start(self):
-        primary, _ = self.network.find_primary()
-
-        nodes = self.network.get_joined_nodes()
-
+    def _start_client(self, nodes):
         with open(
             os.path.join(self.network.common_dir, VEGETA_TARGET_FILE_NAME),
             "w",
@@ -35,7 +41,7 @@ class LoadClient:
         ) as f:
             for i in range(10):
                 # node = nodes[i % len(nodes)]
-                node = primary
+                node = nodes[0]
                 TargetGenerator.write_vegeta_target_line(
                     f,
                     f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
@@ -51,16 +57,14 @@ class LoadClient:
         attack_cmd += ["--format", "json"]
         attack_cmd += ["--duration", "10s"]
         attack_cmd += ["--rate", "50"]
-        sa = primary.session_auth("user0")
+        sa = nodes[0].session_auth("user0")
         attack_cmd += ["--cert", sa["session_auth"].cert]
         attack_cmd += ["--key", sa["session_auth"].key]
-        attack_cmd += ["--root-certs", primary.session_ca(False)["ca"]]
+        attack_cmd += ["--root-certs", nodes[0].session_ca(False)["ca"]]
 
         attack_cmd_s = " ".join(attack_cmd)
         LOG.info(f"Starting: {attack_cmd_s}")
-        self.proc = subprocess.Popen(
-            attack_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE
-        )
+        self.proc = subprocess.Popen(attack_cmd, stdout=subprocess.PIPE)
 
         tee_split = subprocess.Popen(
             ["tee", "vegeta_results.bin"],
@@ -77,15 +81,26 @@ class LoadClient:
             os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
         ]
         self.report = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
-        LOG.start("running")
+        LOG.success("running")
 
-    def wait_for_completion(self, timeout=15):
+    def _stop_client(self, timeout=15):
         try:
             self.report.communicate()
         except TimeoutError:
             self.report.kill()
+        LOG.success("Process killed")
 
         self._render_results()
+
+    def start(self, nodes):
+        self._start_client(nodes)
+
+    def stop(self):
+        self._stop_client()
+
+    def restart(self, nodes):
+        self._stop_client()
+        self._start_client(nodes)
 
     def _render_results(self):
         df = pd.read_csv(
@@ -124,6 +139,7 @@ class LoadClient:
         ax2.plot(df.index, df["error"], color=color)
 
         fig.savefig(os.path.join(self.network.common_dir, RESULTS_IMG_FILE_NAME))
+        LOG.info(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
 
 class StoppableThread(threading.Thread):
@@ -138,12 +154,6 @@ class StoppableThread(threading.Thread):
     def is_stopped(self):
         return self._stop_event.is_set()
 
-    # TODO:
-    # 1. Basic setup (DONE)
-    # 2. Print vegeta results (DONE)
-    # 3. Distribute load on multiple nodes
-    # 4. Cope with node removal + addition
-
 
 class ServiceLoad(StoppableThread):
     def __init__(self, network, *args, **kwargs):
@@ -152,11 +162,23 @@ class ServiceLoad(StoppableThread):
         self.client = LoadClient(self.network)
 
     def start(self):
-        LOG.error("start")
-        self.client.start()
+        self.client.start(nodes=self.network.get_joined_nodes())
         super().start()
+        LOG.info("Load client started")
+
+    def stop(self):
+        self.client.stop()
+        super().stop()
+        LOG.info(f"Load client stopped")
 
     def run(self):
-        LOG.warning("Waiting for process to end")
-        self.client.wait_for_completion()
+        known_nodes = self.network.get_joined_nodes()
+        while not self.is_stopped():
+            LOG.info("Polling network...")  # TODO: Delete
+            nodes = self.network.get_joined_nodes()
+            if nodes != known_nodes:
+                LOG.warning("Network configuration has changed, restarting load client")
+                self.client.restart(nodes)
+            known_nodes = nodes
+            time.sleep(NETWORK_POLL_INTERVAL_S)
         return

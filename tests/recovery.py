@@ -484,7 +484,7 @@ def run(args):
         time.sleep(5)
         election.test_kill_primary(network, args)
 
-        loader.join()
+        loader.stop()
 
         # network = test_recover_service_with_wrong_identity(network, args)
 
