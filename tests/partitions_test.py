@@ -97,7 +97,7 @@ def test_isolate_primary_from_one_backup(network, args):
     # become primary after this one is dropped
     # Note: Because of https://github.com/microsoft/CCF/issues/2224, we need to
     # issue a write transaction instead of just reading the TxID of the latest entry
-    network.txs.issue(network)
+    initial_txid = network.txs.issue(network)
 
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
@@ -114,17 +114,12 @@ def test_isolate_primary_from_one_backup(network, args):
     #   - If b_1 calls first, it can win and then bring _both_ nodes up-to-date, becoming a _stable_ primary
     # So we repeat elections until b_1 is primary
 
-    old_primary = p
-    for _ in range(10):
-        new_primary, new_view = network.wait_for_new_primary(
-            old_primary, nodes=backups, timeout_multiplier=6
-        )
-        if new_primary == b_1:
-            break
-        else:
-            old_primary = new_primary
-
+    new_primary = network.wait_for_primary_unanimity(
+        min_view=initial_txid.view, timeout_multiplier=30
+    )
     assert new_primary == b_1
+
+    new_view = network.txs.issue(network).view
 
     # The partition is now between 2 backups, but both can talk to the new primary
     # Explicitly drop rules before continuing
