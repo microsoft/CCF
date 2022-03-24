@@ -77,8 +77,6 @@ namespace crypto
       issuer_cert);
   }
 
-  // An endorsement of a public key, but the CSR is signed by the issuer instead
-  // of the subject.
   static Pem create_endorsed_cert(
     const Pem& public_key,
     const std::string& subject_name,
@@ -95,6 +93,6 @@ namespace crypto
     auto valid_to =
       compute_cert_valid_to_string(valid_from, validity_period_days);
     return issuer_key_pair->sign_csr(
-      issuer_cert, csr, valid_from, valid_to, ca, true /* signed by issuer */);
+      issuer_cert, csr, valid_from, valid_to, ca, KeyPair::Signer::ISSUER);
   }
 }

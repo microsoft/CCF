@@ -66,13 +66,20 @@ namespace crypto
     // identities, which are self-signed, and replace them with new endorsements
     // by the current service identity (which doesn't have the private key of
     // previous ones).
+
+    enum class Signer
+    {
+      SUBJECT = 0,
+      ISSUER = 1
+    };
+
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
-      bool signed_by_issuer = false) const = 0;
+      Signer signer = Signer::SUBJECT) const = 0;
 
     Pem self_sign(
       const std::string& name,

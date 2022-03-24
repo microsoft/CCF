@@ -231,7 +231,7 @@ namespace crypto
     const std::string& valid_from,
     const std::string& valid_to,
     bool ca,
-    bool signed_by_issuer) const
+    Signer signer) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -240,7 +240,7 @@ namespace crypto
     EVP_PKEY* req_pubkey = NULL;
 
     // First, verify self-signed CSR
-    if (!signed_by_issuer)
+    if (signer == Signer::SUBJECT)
     {
       req_pubkey = X509_REQ_get0_pubkey(csr);
       OpenSSL::CHECK1(X509_REQ_verify(csr, req_pubkey));
@@ -268,9 +268,9 @@ namespace crypto
       OpenSSL::CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
       OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
 
-      // Verify issuer-signed CSR
-      if (signed_by_issuer)
+      if (signer == Signer::ISSUER)
       {
+        // Verify issuer-signed CSR
         req_pubkey = X509_REQ_get0_pubkey(csr);
         auto issuer_pubkey = X509_get0_pubkey(icrt);
         OpenSSL::CHECK1(X509_REQ_verify(csr, issuer_pubkey));
