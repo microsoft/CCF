@@ -3,7 +3,7 @@
 #include <sys/time.h>
 #include <time.h>
 
-int gettimeofday(struct timeval* tv, void* tz)
+int clock_gettime(clockid_t clk_id, struct timespec* tp)
 {
   return 0;
 }
