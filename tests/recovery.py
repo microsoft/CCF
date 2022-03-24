@@ -12,6 +12,8 @@ import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
+import infra.health_watcher
+import time
 
 from loguru import logger as LOG
 
@@ -26,6 +28,17 @@ def test_recover_service(network, args, from_snapshot=False):
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
+    # Start health watcher and stop nodes one by one until a recovery has to be staged
+    watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+    watcher.start()
+
+    for node in network.get_joined_nodes():
+        time.sleep(args.election_timeout_ms / 1000)
+        node.stop()
+
+    watcher.wait_for_recovery()
+
+    # Stop remaining nodes
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
