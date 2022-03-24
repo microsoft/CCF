@@ -105,9 +105,10 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     // produced by the current format
     for (const auto& [k, v] : j2.items())
     {
+      auto& v_ = v;
       const auto it = j.find(k);
       REQUIRE(it != j.end());
-      REQUIRE(it.value() == v);
+      REQUIRE(it.value() == v_);
     }
   }
 }
