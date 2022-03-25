@@ -157,7 +157,10 @@ class Network:
             self.service_load = None
             if existing_network.service_load:
                 existing_network.service_load.stop()
-                self.service_load = infra.service_load.ServiceLoad(self)
+                self.service_load = infra.service_load.ServiceLoad(
+                    network=self,
+                    existing_events=existing_network.service_load.get_existing_events(),
+                )
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []

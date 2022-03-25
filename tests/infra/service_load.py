@@ -78,7 +78,6 @@ class LoadClient:
                 else:
                     assert self.target_node, "A target node should have been specified"
                     node = self.target_node
-                # TODO: Use more endpoints
                 TargetGenerator.write_vegeta_target_line(
                     f,
                     f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
@@ -86,7 +85,7 @@ class LoadClient:
                     body={"id": i, "msg": f"Private message: {i}"},
                 )
 
-    def _start_client(self, nodes):
+    def _start_client(self, nodes, event):
         self._create_targets(nodes, self.strategy)
         attack_cmd = [VEGETA_BIN, "attack"]
         attack_cmd += [
@@ -117,7 +116,7 @@ class LoadClient:
             in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME),
         ]
         self.proc = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
-        self.events.append(("start", time.time()))
+        self.events.append((event, time.time()))
         LOG.debug("Load client started")
 
     def _aggregate_results(self):
@@ -139,7 +138,7 @@ class LoadClient:
         self.proc.wait()
 
     def start(self, nodes):
-        self._start_client(nodes)
+        self._start_client(nodes, event="start")
 
     def stop(self):
         self._stop_client()
@@ -147,7 +146,7 @@ class LoadClient:
 
     def restart(self, nodes, event="node change"):
         self._stop_client()
-        self._start_client(nodes)
+        self._start_client(nodes, event)
 
     def _render_results(self):
         df = pd.read_csv(
@@ -208,6 +207,7 @@ class LoadClient:
         secx = ax1.secondary_xaxis("top")
         secx.set_xticks(extra_ticks)
         secx.set_xticklabels(extra_ticks_labels)
+        secx.tick_params(rotation=45)
 
         fig.savefig(
             in_common_dir(self.network, RESULTS_IMG_FILE_NAME),
@@ -234,11 +234,13 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         super().stop()
         LOG.info(f"Load client stopped")
 
+    def get_existing_events(self):
+        return self.client.events
+
     def run(self):
         log_capture = None if self.verbose else []
         primary, backups = self.network.find_nodes(timeout=10, log_capture=log_capture)
         known_nodes = [primary] + backups
-        # TODO: Record event on graph
         while not self.is_stopped():
             try:
                 new_primary, new_backups = self.network.find_nodes(
@@ -249,7 +251,13 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                     LOG.warning(
                         "Network configuration has changed, restarting load client"
                     )
-                    self.client.restart(new_nodes)
+                    # TODO: Cleanup
+                    event = "unknown"
+                    if primary not in new_nodes:
+                        event = f"p{primary.local_node_id} retired"
+                    elif new_primary != primary:
+                        event = f"election p{primary.local_node_id} -> p{new_primary.local_node_id}"
+                    self.client.restart(new_nodes, event=event)
                 known_nodes = new_nodes
             except Exception as e:
                 LOG.warning("Error finding nodes")

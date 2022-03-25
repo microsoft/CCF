@@ -33,10 +33,8 @@ def test_recover_service(network, args, from_snapshot=False):
     # watcher.start()
 
     for node in network.get_joined_nodes():
-        time.sleep(args.election_timeout_ms / 1000)
         node.stop()
         time.sleep(args.election_timeout_ms / 1000)
-        return network
 
     # watcher.wait_for_recovery()
 
@@ -60,6 +58,15 @@ def test_recover_service(network, args, from_snapshot=False):
     )
 
     recovered_network.recover(args)
+
+    import election
+    import reconfiguration
+
+    election.test_kill_primary(recovered_network, args)
+
+    time.sleep(5)
+
+    reconfiguration.test_add_node(recovered_network, args)
 
     time.sleep(5)
 
