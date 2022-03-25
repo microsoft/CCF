@@ -222,7 +222,16 @@ namespace asynchost
     static void on_client_resolved(
       uv_getaddrinfo_t* req, int rc, struct addrinfo*)
     {
-      static_cast<TCPImpl*>(req->data)->on_client_resolved(req, rc);
+      if (req->data)
+      {
+        static_cast<TCPImpl*>(req->data)->on_client_resolved(req, rc);
+      }
+      else
+      {
+        // The TCPImpl that submitted the request has been destroyed, but we
+        // need to clean up the request object.
+        delete req;
+      }
     }
 
     void on_client_resolved(uv_getaddrinfo_t* req, int rc)
