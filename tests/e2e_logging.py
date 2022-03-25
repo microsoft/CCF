@@ -1424,7 +1424,6 @@ def test_random_receipts(
                     verify_receipt(
                         receipt,
                         network.cert,
-                        not lts,
                         claims=additional_seqnos.get(s),
                         generic=True,
                     )
