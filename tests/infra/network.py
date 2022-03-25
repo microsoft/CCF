@@ -22,6 +22,7 @@ import functools
 import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
+import infra.service_load
 
 from loguru import logger as LOG
 
@@ -134,6 +135,7 @@ class Network:
         library_dir=".",
         init_partitioner=False,
         version=None,
+        with_load=False,
     ):
         if existing_network is None:
             self.consortium = None
@@ -171,6 +173,7 @@ class Network:
         self.args = None
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
+        self.service_load = infra.service_load.ServiceLoad(self) if with_load else None
 
         # Requires admin privileges
         self.partitioner = (
@@ -459,6 +462,8 @@ class Network:
             args.initial_service_cert_validity_days
         )
         LOG.success("***** Network is now open *****")
+        if self.service_load:
+            self.service_load.start()
 
     def start_and_open(self, args, **kwargs):
         self.start(args, **kwargs)
@@ -635,6 +640,9 @@ class Network:
     def stop_all_nodes(
         self, skip_verification=False, verbose_verification=False, **kwargs
     ):
+        if self.service_load:
+            self.service_load.stop()
+
         if not skip_verification:
             if self.txs is not None:
                 LOG.info("Verifying that all committed txs can be read before shutdown")
@@ -1301,6 +1309,7 @@ def network(
     library_directory=".",
     init_partitioner=False,
     version=None,
+    with_load=False,
 ):
     """
     Context manager for Network class.
@@ -1329,6 +1338,7 @@ def network(
         jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,
         version=version,
+        with_load=with_load,
     )
     try:
         yield net

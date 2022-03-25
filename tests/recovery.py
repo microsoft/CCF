@@ -12,7 +12,6 @@ import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
-import infra.service_load
 import infra.health_watcher
 import time
 
@@ -433,11 +432,9 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
+        with_load=False,
     ) as network:
         network.start_and_open(args)
-
-        loader = infra.service_load.ServiceLoad(network)
-        loader.start()
 
         import election
 
@@ -447,8 +444,6 @@ def run(args):
         election.test_kill_primary(network, args)
 
         time.sleep(1)
-
-        loader.stop()
 
         return
 
