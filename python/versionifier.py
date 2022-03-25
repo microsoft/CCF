@@ -26,6 +26,7 @@ def to_python_version(original):
     # Keep expanding this suffix until you get a valid version, or run out of attempts.
     next_attempt = unprefixed
     next_replace = len(next_attempt)
+    plus_remover = str.maketrans({ord("+"): ""})
     while True:
         try:
             version = Version(next_attempt)
@@ -34,7 +35,10 @@ def to_python_version(original):
             next_replace = unprefixed.rfind("-", 0, next_replace)
             if next_replace == -1:
                 break
-            next_attempt = replace_char(unprefixed, next_replace, "+")
+            # Remove any existing +s, and convert one - to a +
+            next_attempt = replace_char(
+                unprefixed.translate(plus_remover), next_replace, "+"
+            )
 
     raise ValueError(f"Cannot convert '{original}' to a Version")
 
@@ -71,3 +75,9 @@ if __name__ == "__main__":
     assert v.release == (1, 2, 3)
     assert v.post == 42
     assert v.local == "deadbeef"
+
+    v = to_python_version("ccf-2.0.0-rc4-26-g49d7b7941+unsafe")
+    assert v.release == (2, 0, 0)
+    assert v.pre == ("rc", 4)
+    assert v.post == 26
+    assert v.local == "g49d7b7941unsafe"
