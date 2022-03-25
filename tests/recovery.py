@@ -443,10 +443,10 @@ def run(args):
 
         import time
 
-        time.sleep(5)
+        time.sleep(1)
         election.test_kill_primary(network, args)
 
-        time.sleep(5)
+        time.sleep(1)
 
         loader.stop()
 

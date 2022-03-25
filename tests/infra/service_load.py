@@ -6,9 +6,11 @@ import os
 import subprocess
 import generate_vegeta_targets as TargetGenerator
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pandas as pd
 from shutil import copyfileobj
 from enum import Enum, auto
+import datetime
 
 from loguru import logger as LOG
 
@@ -51,7 +53,7 @@ class LoadClient:
         self.rate = rate
         self.strategy = strategy
         self.target_node = target_node
-        self.last_event = "service start"
+        self.events = []
 
     def _create_targets(self, nodes, strategy):
         with open(
@@ -109,6 +111,7 @@ class LoadClient:
             in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME),
         ]
         self.proc = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
+        self.events.append(("start", time.time()))
         LOG.debug("Load client started")
 
     def _aggregate_results(self):
@@ -157,9 +160,11 @@ class LoadClient:
             ],
         ).set_index("timestamp")
         df.index = pd.to_datetime(df.index, unit="ns")
-        # Smooth latency ouput
+        # Smooth latency output
         df["latency"] = df.latency.rolling(self.rate // 10).mean()
         df["latency"] = df.latency.apply(lambda x: x / 1e6)
+
+        LOG.error(df.index)
 
         fig, ax1 = plt.subplots()
         color = "tab:blue"
@@ -167,7 +172,20 @@ class LoadClient:
         ax1.set_ylabel("latency (ms)", color=color)
         ax1.set_yscale("log")
         ax1.tick_params(axis="y", labelcolor=color)
+        extra_ticks = []
+        extra_ticks_labels = []
+        for name, t in self.events:
+            extra_ticks.append(t / 3600 / 24)
+            extra_ticks_labels.append(name)
+
         ax1.plot(df.index, df["latency"], color=color, linewidth=1)
+
+        # xt.append(xt, )
+
+        LOG.warning(list(ax1.get_xticks()) + extra_ticks)
+        LOG.success(list(ax1.get_xticklabels()) + extra_ticks_labels)
+        # ax1.set_xticks(list(ax1.get_xticks()) + extra_ticks)
+        # ax1.set_xticklabels(list(ax1.get_xticklabels()) + extra_ticks_labels)
 
         ax2 = ax1.twinx()
         color = "tab:red"
