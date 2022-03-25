@@ -33,9 +33,9 @@ add_unit_test(
 if(BUILD_TESTS)
   foreach(CONSENSUS ${CONSENSUSES})
     if("BFT" STREQUAL CONSENSUS)
-      set(TPCC_ITERATIONS 5000)
+      set(TPCC_ITERATIONS 50000)
     else()
-      set(TPCC_ITERATIONS 5000)
+      set(TPCC_ITERATIONS 50000)
     endif()
 
     add_perf_test(
