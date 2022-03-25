@@ -4,7 +4,6 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"

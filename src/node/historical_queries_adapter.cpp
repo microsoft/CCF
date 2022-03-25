@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/historical_queries_adapter.h"
-
-#include "ccf/network_identity_interface.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
@@ -215,8 +213,8 @@ namespace ccf::historical
       if (!hservice_info->previous_service_identity_version)
       {
         throw std::runtime_error(
-          "The requested receipt cannot be found because it is in a pre-2.x "
-          "part of the ledger");
+          "The service identity that signed the receipt cannot be found "
+          "because it is in a pre-2.x part of the ledger.");
       }
       i = hservice_info->previous_service_identity_version.value_or(i - 1);
       LOG_TRACE_FMT("historical service identity search at: {}", i);
@@ -242,9 +240,16 @@ namespace ccf::historical
     auto& ctx,
     ccf::historical::StatePtr& state,
     AbstractStateCache& state_cache,
-    NetworkIdentitySubsystemInterface& network_identity_subsystem)
+    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem)
   {
-    const auto& network_identity = network_identity_subsystem.get();
+    if (!network_identity_subsystem)
+    {
+      throw std::runtime_error(
+        "The service identity endorsement for this receipt cannot be created "
+        "because the current network identity is not available.");
+    }
+
+    const auto& network_identity = network_identity_subsystem->get();
 
     if (state && state->receipt && state->receipt->node_cert)
     {
@@ -301,12 +306,10 @@ namespace ccf::historical
     const TxIDExtractor& extractor)
   {
     auto& state_cache = node_context.get_historical_state();
-    std::shared_ptr<NetworkIdentitySubsystemInterface>
-      network_identity_subsystem =
-        node_context.get_subsystem<NetworkIdentitySubsystemInterface>(
-          "NetworkIdentity");
+    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem =
+      node_context.get_subsystem<NetworkIdentitySubsystem>();
 
-    return [f, &state_cache, &network_identity_subsystem, available, extractor](
+    return [f, &state_cache, network_identity_subsystem, available, extractor](
              endpoints::EndpointContext& args) {
       // Extract the requested transaction ID
       ccf::TxID target_tx_id;
@@ -374,9 +377,8 @@ namespace ccf::historical
         state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
       if (
         historical_state == nullptr ||
-        (network_identity_subsystem &&
-         !get_service_endorsements(
-           args, historical_state, state_cache, *network_identity_subsystem)))
+        (!get_service_endorsements(
+          args, historical_state, state_cache, network_identity_subsystem)))
       {
         args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
         constexpr size_t retry_after_seconds = 3;

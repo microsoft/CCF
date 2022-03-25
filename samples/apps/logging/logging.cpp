@@ -12,7 +12,6 @@
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/json_handler.h"
-#include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
 #include "kv/store.h"
 
