@@ -22,6 +22,10 @@ NETWORK_POLL_INTERVAL_S = 1
 # Number of requests sent to the service per sec
 DEFAULT_LOAD_RATE_PER_S = 500
 
+# Scope for logging txs so that they do not conflict
+# with the txs recorded by the actual tests
+LOGGING_TXS_SCOPE = "load"
+
 # Load client configuration
 VEGETA_BIN = "/opt/vegeta/vegeta"
 VEGETA_TARGET_FILE_NAME = "vegeta_targets"
@@ -79,7 +83,7 @@ class LoadClient:
                 TargetGenerator.write_vegeta_target_line(
                     f,
                     f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                    "/app/log/private",
+                    f"/app/log/private?scope={LOGGING_TXS_SCOPE}",
                     body={"id": i, "msg": f"Private message: {i}"},
                 )
 
