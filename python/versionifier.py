@@ -26,7 +26,7 @@ def to_python_version(original):
     # Keep expanding this suffix until you get a valid version, or run out of attempts.
     next_attempt = unprefixed
     next_replace = len(next_attempt)
-    plus_remover = str.maketrans({ord('+'): ''})
+    plus_remover = str.maketrans({ord("+"): ""})
     while True:
         try:
             version = Version(next_attempt)
@@ -36,7 +36,9 @@ def to_python_version(original):
             if next_replace == -1:
                 break
             # Remove any existing +s, and convert one - to a +
-            next_attempt = replace_char(unprefixed.translate(plus_remover), next_replace, "+")
+            next_attempt = replace_char(
+                unprefixed.translate(plus_remover), next_replace, "+"
+            )
 
     raise ValueError(f"Cannot convert '{original}' to a Version")
 
