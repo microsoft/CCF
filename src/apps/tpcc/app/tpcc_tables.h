@@ -2,6 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
+#include "ccf/ds/nonstd.h"
+#include "ccf/kv/map.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
+#include "ds/serialized.h"
+#include "tpcc_common.h"
+
 #include <cstring>
 #include <nlohmann/json.hpp>
 #include <stdint.h>
@@ -11,6 +18,132 @@
 
 namespace tpcc
 {
+  template <typename T>
+  kv::serialisers::SerialisedEntry tpcc_serialise(const T& t);
+
+  template <typename T>
+  T tpcc_deserialise(const kv::serialisers::SerialisedEntry& rep);
+
+  template <typename T>
+  constexpr size_t serialised_size()
+  {
+    if constexpr (nonstd::is_std_array<T>::value)
+    {
+      return std::tuple_size_v<T> * serialised_size<typename T::value_type>();
+    }
+    else
+    {
+      return sizeof(T);
+    }
+  }
+
+  template <typename T>
+  void write_value(const T& v, uint8_t*& data, size_t& size)
+  {
+    if constexpr (nonstd::is_std_array<T>::value)
+    {
+      if constexpr (std::is_integral_v<typename T::value_type>)
+      {
+        serialized::write(
+          data, size, (const uint8_t*)v.data(), serialised_size<T>());
+      }
+      else
+      {
+        for (const auto& e : v)
+        {
+          write_value(e, data, size);
+        }
+      }
+    }
+    else
+    {
+      serialized::write(data, size, v);
+    }
+  }
+
+  template <typename T>
+  void read_value(T& v, const uint8_t*& data, size_t& size)
+  {
+    if constexpr (nonstd::is_std_array<T>::value)
+    {
+      if constexpr (std::is_integral_v<typename T::value_type>)
+      {
+        constexpr auto n = serialised_size<T>();
+        memcpy(v.data(), data, n);
+        serialized::skip(data, size, n);
+      }
+      else
+      {
+        for (auto& e : v)
+        {
+          read_value(e, data, size);
+        }
+      }
+    }
+    else
+    {
+      v = serialized::read<T>(data, size);
+    }
+  }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#define ADD_SERIALIZED_SIZE_FOR_JSON_NEXT(TYPE, FIELD) \
+  +serialised_size<decltype(TYPE::FIELD)>()
+#define ADD_SERIALIZED_SIZE_FOR_JSON_FINAL(TYPE, FIELD) \
+  ADD_SERIALIZED_SIZE_FOR_JSON_NEXT(TYPE, FIELD)
+
+#define WRITE_VALUE_FOR_JSON_NEXT(TYPE, FIELD) write_value(t.FIELD, data, size);
+#define WRITE_VALUE_FOR_JSON_FINAL(TYPE, FIELD) \
+  WRITE_VALUE_FOR_JSON_NEXT(TYPE, FIELD)
+
+#define READ_VALUE_FOR_JSON_NEXT(TYPE, FIELD) read_value(t.FIELD, data, size);
+#define READ_VALUE_FOR_JSON_FINAL(TYPE, FIELD) \
+  READ_VALUE_FOR_JSON_NEXT(TYPE, FIELD)
+
+#define DECLARE_TPCC_TYPE(TYPE) DECLARE_JSON_TYPE(TYPE)
+#define DECLARE_TPCC_REQUIRED_FIELDS(TYPE, ...) \
+  DECLARE_JSON_REQUIRED_FIELDS(TYPE, __VA_ARGS__) \
+  _Pragma("clang diagnostic push"); \
+  _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\""); \
+  template <> \
+  kv::serialisers::SerialisedEntry tpcc_serialise(const TYPE& t) \
+  { \
+    kv::serialisers::SerialisedEntry rep; \
+    constexpr size_t required_size = 0 _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
+      ADD_SERIALIZED_SIZE, TYPE, ##__VA_ARGS__); \
+    rep.resize(required_size); \
+    auto data = rep.data(); \
+    auto size = rep.size(); \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(WRITE_VALUE, TYPE, ##__VA_ARGS__); \
+    return rep; \
+  } \
+  template <> \
+  TYPE tpcc_deserialise(const kv::serialisers::SerialisedEntry& rep) \
+  { \
+    auto data = rep.data(); \
+    auto size = rep.size(); \
+    TYPE t; \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_VALUE, TYPE, ##__VA_ARGS__); \
+    return t; \
+  } \
+  _Pragma("clang diagnostic pop");
+#pragma clang diagnostic pop
+
+  template <typename T>
+  struct TpccSerialiser
+  {
+    static kv::serialisers::SerialisedEntry to_serialised(const T& t)
+    {
+      return tpcc_serialise(t);
+    }
+
+    static T from_serialised(const kv::serialisers::SerialisedEntry& rep)
+    {
+      return tpcc_deserialise<T>(rep);
+    }
+  };
+
   namespace Address
   {
     static const int MIN_STREET = 10;
@@ -49,10 +182,10 @@ namespace tpcc
     std::array<char, MAX_NAME + 1> name = {0};
     std::array<char, MAX_DATA + 1> data = {0};
   };
-  DECLARE_JSON_TYPE(Item::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(Item::Key, id);
-  DECLARE_JSON_TYPE(Item);
-  DECLARE_JSON_REQUIRED_FIELDS(Item, id, im_id, price, name, data);
+  DECLARE_TPCC_TYPE(Item::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(Item::Key, id);
+  DECLARE_TPCC_TYPE(Item);
+  DECLARE_TPCC_REQUIRED_FIELDS(Item, id, im_id, price, name, data);
 
   struct Warehouse
   {
@@ -84,10 +217,10 @@ namespace tpcc
     std::array<char, Address::STATE + 1> state = {0};
     std::array<char, Address::ZIP + 1> zip = {0};
   };
-  DECLARE_JSON_TYPE(Warehouse::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(Warehouse::Key, id);
-  DECLARE_JSON_TYPE(Warehouse);
-  DECLARE_JSON_REQUIRED_FIELDS(
+  DECLARE_TPCC_TYPE(Warehouse::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(Warehouse::Key, id);
+  DECLARE_TPCC_TYPE(Warehouse);
+  DECLARE_TPCC_REQUIRED_FIELDS(
     Warehouse, id, tax, ytd, name, street_1, street_2, city, state, zip);
 
   struct District
@@ -124,10 +257,10 @@ namespace tpcc
     }
   };
 
-  DECLARE_JSON_TYPE(District::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(District::Key, id, w_id);
-  DECLARE_JSON_TYPE(District);
-  DECLARE_JSON_REQUIRED_FIELDS(
+  DECLARE_TPCC_TYPE(District::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(District::Key, id, w_id);
+  DECLARE_TPCC_TYPE(District);
+  DECLARE_TPCC_REQUIRED_FIELDS(
     District,
     id,
     w_id,
@@ -156,16 +289,9 @@ namespace tpcc
     int32_t ytd;
     int32_t order_cnt;
     int32_t remote_cnt;
-    std::array<std::array<char, DIST + 1>, District::NUM_PER_WAREHOUSE> dist;
+    std::array<std::array<char, DIST + 1>, District::NUM_PER_WAREHOUSE> dist =
+      {};
     std::array<char, MAX_DATA + 1> data = {0};
-
-    Stock()
-    {
-      for (auto& d : dist)
-      {
-        d.fill(0);
-      }
-    }
 
     struct Key
     {
@@ -178,10 +304,10 @@ namespace tpcc
       return {i_id, w_id};
     }
   };
-  DECLARE_JSON_TYPE(Stock::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(Stock::Key, i_id, w_id);
-  DECLARE_JSON_TYPE(Stock);
-  DECLARE_JSON_REQUIRED_FIELDS(
+  DECLARE_TPCC_TYPE(Stock::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(Stock::Key, i_id, w_id);
+  DECLARE_TPCC_TYPE(Stock);
+  DECLARE_TPCC_REQUIRED_FIELDS(
     Stock, i_id, w_id, quantity, ytd, order_cnt, remote_cnt, dist, data);
 
   struct Customer
@@ -238,10 +364,10 @@ namespace tpcc
     std::array<char, MAX_DATA + 1> data = {0};
   };
 
-  DECLARE_JSON_TYPE(Customer::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(Customer::Key, id);
-  DECLARE_JSON_TYPE(Customer);
-  DECLARE_JSON_REQUIRED_FIELDS(
+  DECLARE_TPCC_TYPE(Customer::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(Customer::Key, id);
+  DECLARE_TPCC_TYPE(Customer);
+  DECLARE_TPCC_REQUIRED_FIELDS(
     Customer,
     id,
     d_id,
@@ -297,10 +423,10 @@ namespace tpcc
     int32_t all_local;
     std::array<char, DATETIME_SIZE + 1> entry_d = {0};
   };
-  DECLARE_JSON_TYPE(Order::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(Order::Key, id);
-  DECLARE_JSON_TYPE(Order);
-  DECLARE_JSON_REQUIRED_FIELDS(
+  DECLARE_TPCC_TYPE(Order::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(Order::Key, id);
+  DECLARE_TPCC_TYPE(Order);
+  DECLARE_TPCC_REQUIRED_FIELDS(
     Order, id, c_id, d_id, w_id, carrier_id, ol_cnt, all_local, entry_d);
 
   struct OrderLine
@@ -337,10 +463,10 @@ namespace tpcc
     std::array<char, Stock::DIST + 1> dist_info = {0};
   };
 
-  DECLARE_JSON_TYPE(OrderLine::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(OrderLine::Key, o_id, d_id, w_id, number);
-  DECLARE_JSON_TYPE(OrderLine);
-  DECLARE_JSON_REQUIRED_FIELDS(
+  DECLARE_TPCC_TYPE(OrderLine::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(OrderLine::Key, o_id, d_id, w_id, number);
+  DECLARE_TPCC_TYPE(OrderLine);
+  DECLARE_TPCC_REQUIRED_FIELDS(
     OrderLine,
     o_id,
     d_id,
@@ -373,10 +499,10 @@ namespace tpcc
     int32_t d_id;
     int32_t o_id;
   };
-  DECLARE_JSON_TYPE(NewOrder::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(NewOrder::Key, w_id, d_id, o_id);
-  DECLARE_JSON_TYPE(NewOrder);
-  DECLARE_JSON_REQUIRED_FIELDS(NewOrder, w_id, d_id, o_id);
+  DECLARE_TPCC_TYPE(NewOrder::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(NewOrder::Key, w_id, d_id, o_id);
+  DECLARE_TPCC_TYPE(NewOrder);
+  DECLARE_TPCC_REQUIRED_FIELDS(NewOrder, w_id, d_id, o_id);
 
   struct History
   {
@@ -407,14 +533,14 @@ namespace tpcc
     std::array<char, DATETIME_SIZE + 1> date = {0};
     std::array<char, MAX_DATA + 1> data = {0};
   };
-  DECLARE_JSON_TYPE(History::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(History::Key, c_id, c_d_id, c_w_id, d_id, w_id);
-  DECLARE_JSON_TYPE(History);
-  DECLARE_JSON_REQUIRED_FIELDS(
+  DECLARE_TPCC_TYPE(History::Key);
+  DECLARE_TPCC_REQUIRED_FIELDS(History::Key, c_id, c_d_id, c_w_id, d_id, w_id);
+  DECLARE_TPCC_TYPE(History);
+  DECLARE_TPCC_REQUIRED_FIELDS(
     History, c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
 
   template <typename K, typename V>
-  using TpccMap = kv::Map<K, V>;
+  using TpccMap = kv::MapSerialisedWith<K, V, TpccSerialiser>;
 
   struct TpccTables
   {

@@ -24,6 +24,12 @@ sign_app_library(
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
+# tpcc unit tests
+add_unit_test(
+  tpcc_test
+  ${CMAKE_CURRENT_LIST_DIR}/app/test/tpcc.cpp
+)
+
 if(BUILD_TESTS)
   foreach(CONSENSUS ${CONSENSUSES})
     if("BFT" STREQUAL CONSENSUS)
