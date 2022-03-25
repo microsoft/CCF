@@ -157,12 +157,15 @@ class LoadClient:
             ],
         ).set_index("timestamp")
         df.index = pd.to_datetime(df.index, unit="ns")
+        # Smooth latency ouput
+        df["latency"] = df.latency.rolling(self.rate // 10).mean()
         df["latency"] = df.latency.apply(lambda x: x / 1e6)
 
         fig, ax1 = plt.subplots()
         color = "tab:blue"
         ax1.set_xlabel("time")
         ax1.set_ylabel("latency (ms)", color=color)
+        ax1.set_yscale("log")
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.plot(df.index, df["latency"], color=color, linewidth=1)
 
@@ -173,7 +176,9 @@ class LoadClient:
         ax2.scatter(df.index, df["error"], color=color, s=10)
 
         fig.savefig(
-            in_common_dir(self.network, RESULTS_IMG_FILE_NAME), bbox_inches="tight"
+            in_common_dir(self.network, RESULTS_IMG_FILE_NAME),
+            bbox_inches="tight",
+            dpi=1000,
         )
         LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
