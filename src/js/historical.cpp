@@ -169,7 +169,7 @@ namespace ccf::js
       auto js_receipt = ccf_receipt_to_js(ctx, state->receipt);
       JS_SetPropertyStr(ctx, js_state, "receipt", js_receipt);
 
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
       JS_SetOpaque(kv, &state_ctx->tx_ctx);
       JS_SetPropertyStr(ctx, js_state, "kv", kv);
 
