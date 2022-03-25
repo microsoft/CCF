@@ -888,9 +888,11 @@ class Network:
     def find_random_node(self):
         return random.choice(self.get_joined_nodes())
 
-    def find_nodes(self, timeout=3):
-        primary, _ = self.find_primary(timeout=timeout)
-        backups = self.find_backups(primary=primary, timeout=timeout)
+    def find_nodes(self, timeout=3, log_capture=None):
+        primary, _ = self.find_primary(timeout=timeout, log_capture=log_capture)
+        backups = self.find_backups(
+            primary=primary, timeout=timeout, log_capture=log_capture
+        )
         return primary, backups
 
     def find_primary_and_any_backup(self, timeout=3):

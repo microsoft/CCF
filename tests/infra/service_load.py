@@ -202,9 +202,10 @@ class LoadClient:
 
 
 class ServiceLoad(infra.concurrency.StoppableThread):
-    def __init__(self, network, *args, **kwargs):
+    def __init__(self, network, verbose=False, *args, **kwargs):
         super().__init__(name="load")
         self.network = network
+        self.verbose = verbose
         self.client = LoadClient(self.network, *args, **kwargs)
 
     def start(self):
@@ -218,11 +219,14 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         LOG.info(f"Load client stopped")
 
     def run(self):
-        primary, backups = self.network.find_nodes(timeout=10)
+        log_capture = None if self.verbose else []
+        primary, backups = self.network.find_nodes(timeout=10, log_capture=log_capture)
         known_nodes = [primary] + backups
         # TODO: Record event on graph
         while not self.is_stopped():
-            new_primary, new_backups = self.network.find_nodes(timeout=10)
+            new_primary, new_backups = self.network.find_nodes(
+                timeout=10, log_capture=log_capture
+            )
             new_nodes = [new_primary] + new_backups
             if new_nodes != known_nodes:
                 LOG.warning("Network configuration has changed, restarting load client")
