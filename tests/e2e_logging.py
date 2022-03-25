@@ -71,21 +71,26 @@ def verify_endorsements_openssl(service_cert, receipt):
     ctx.verify_certificate()  # (throws on error)
 
 
-def verify_receipt(receipt, service_cert, claims=None, generic=True):
+def verify_receipt(
+    receipt, service_cert, claims=None, generic=True, skip_endorsement_check=False
+):
     """
     Raises an exception on failure
     """
 
-    node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
-    service_endorsements = None
-    if "service_endorsements" in receipt:
-        service_endorsements = [
-            load_pem_x509_certificate(endo.encode(), default_backend())
-            for endo in receipt["service_endorsements"]
-        ]
-    ccf.receipt.check_endorsements(node_cert, service_cert, service_endorsements)
+    if not skip_endorsement_check:
+        node_cert = load_pem_x509_certificate(
+            receipt["cert"].encode(), default_backend()
+        )
+        service_endorsements = None
+        if "service_endorsements" in receipt:
+            service_endorsements = [
+                load_pem_x509_certificate(endo.encode(), default_backend())
+                for endo in receipt["service_endorsements"]
+            ]
+        ccf.receipt.check_endorsements(node_cert, service_cert, service_endorsements)
 
-    verify_endorsements_openssl(service_cert, receipt)
+        verify_endorsements_openssl(service_cert, receipt)
 
     if claims is not None:
         assert "leaf_components" in receipt
@@ -1426,6 +1431,7 @@ def test_random_receipts(
                         network.cert,
                         claims=additional_seqnos.get(s),
                         generic=True,
+                        skip_endorsement_check=lts,
                     )
                     if s == max_seqno:
                         # Always a signature receipt
