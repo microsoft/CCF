@@ -74,7 +74,7 @@ def verify_endorsements_openssl(service_cert, receipt):
 def verify_receipt(receipt, service_cert, claims=None, generic=True):
     """
     Raises an exception on failure
-    """    
+    """
 
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     service_endorsements = None
@@ -83,11 +83,7 @@ def verify_receipt(receipt, service_cert, claims=None, generic=True):
             load_pem_x509_certificate(endo.encode(), default_backend())
             for endo in receipt["service_endorsements"]
         ]
-    ccf.receipt.check_endorsements(
-        node_cert,
-        service_cert,
-        service_endorsements
-    )
+    ccf.receipt.check_endorsements(node_cert, service_cert, service_endorsements)
 
     verify_endorsements_openssl(service_cert, receipt)
 
