@@ -78,10 +78,9 @@ def verify_receipt(
     Raises an exception on failure
     """
 
+    node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
+
     if not skip_endorsement_check:
-        node_cert = load_pem_x509_certificate(
-            receipt["cert"].encode(), default_backend()
-        )
         service_endorsements = None
         if "service_endorsements" in receipt:
             service_endorsements = [
