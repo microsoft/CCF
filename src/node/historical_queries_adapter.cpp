@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/historical_queries_adapter.h"
+
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
