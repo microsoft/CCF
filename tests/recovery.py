@@ -446,6 +446,8 @@ def run(args):
         time.sleep(5)
         election.test_kill_primary(network, args)
 
+        time.sleep(5)
+
         loader.stop()
 
         return

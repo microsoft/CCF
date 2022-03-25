@@ -5,47 +5,73 @@ import time
 import os
 import subprocess
 import generate_vegeta_targets as TargetGenerator
-import json
-
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-
 import pandas as pd
+from shutil import copyfileobj
+from enum import Enum, auto
 
 from loguru import logger as LOG
 
-# Note: while vegeta is great, it does not allow for updating the targets
-# after the "attack" has been started. Instead, ServiceLoad polls the network
-# at regular intervals and restart the attack if the network configuration has changed.
 
 # Interval (s) at which the network is polled to find out
 # when the load client should be restarted
 NETWORK_POLL_INTERVAL_S = 1
 
 # Number of requests sent to the service per sec
-DEFAULT_LOAD_RATE_PER_S = 50
+DEFAULT_LOAD_RATE_PER_S = 500
 
 # Load client configuration
 VEGETA_BIN = "/opt/vegeta/vegeta"
 VEGETA_TARGET_FILE_NAME = "vegeta_targets"
+TMP_RESULTS_CSV_FILE_NAME = "vegeta_results.tmp"
 RESULTS_CSV_FILE_NAME = "vegeta_results.csv"
 RESULTS_IMG_FILE_NAME = "vegeta_results.png"
 
 
+def in_common_dir(network, file):
+    return os.path.join(network.common_dir, file)
+
+
+class LoadStrategy(Enum):
+    PRIMARY = auto()
+    ALL = auto()
+    ANY_BACKUP = auto()
+    SINGLE = auto()
+
+
 class LoadClient:
-    def __init__(self, network, rate=DEFAULT_LOAD_RATE_PER_S):
+    def __init__(
+        self,
+        network,
+        strategy=LoadStrategy.PRIMARY,
+        rate=DEFAULT_LOAD_RATE_PER_S,
+        target_node=None,
+    ):
         self.network = network
         self.rate = rate
+        self.strategy = strategy
+        self.target_node = target_node
+        self.last_event = "service start"
 
-    def _start_client(self, nodes):
+    def _create_targets(self, nodes, strategy):
         with open(
-            os.path.join(self.network.common_dir, VEGETA_TARGET_FILE_NAME),
+            in_common_dir(self.network, VEGETA_TARGET_FILE_NAME),
             "w",
             encoding="utf-8",
         ) as f:
+            primary, backup = self.network.find_primary_and_any_backup()
+            # Note: Iteration count does not matter as vegeta plays requests in a loop
             for i in range(10):
-                # node = nodes[i % len(nodes)]
-                node = nodes[0]
+                if strategy == LoadStrategy.PRIMARY:
+                    node = primary
+                elif strategy == LoadStrategy.ALL:
+                    node = nodes[i % len(nodes)]
+                elif strategy == LoadStrategy.ANY_BACKUP:
+                    node = backup
+                else:
+                    assert self.target_node, "A target node should have been specified"
+                    node = self.target_node
+                # TODO: Use more endpoints
                 TargetGenerator.write_vegeta_target_line(
                     f,
                     f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
@@ -53,20 +79,21 @@ class LoadClient:
                     body={"id": i, "msg": f"Private message: {i}"},
                 )
 
+    def _start_client(self, nodes):
+        self._create_targets(nodes, self.strategy)
         attack_cmd = [VEGETA_BIN, "attack"]
         attack_cmd += [
             "--targets",
-            os.path.join(self.network.common_dir, VEGETA_TARGET_FILE_NAME),
+            in_common_dir(self.network, VEGETA_TARGET_FILE_NAME),
         ]
         attack_cmd += ["--format", "json"]
         attack_cmd += ["--rate", f"{self.rate}"]
+        attack_cmd += ["--max-workers", "10"]  # TODO: Find sensible default, 10?
         sa = nodes[0].session_auth("user0")
         attack_cmd += ["--cert", sa["session_auth"].cert]
         attack_cmd += ["--key", sa["session_auth"].key]
         attack_cmd += ["--root-certs", nodes[0].session_ca(False)["ca"]]
 
-        attack_cmd_s = " ".join(attack_cmd)
-        LOG.debug(f"Starting: {attack_cmd_s}")
         attack = subprocess.Popen(attack_cmd, stdout=subprocess.PIPE)
         tee_split = subprocess.Popen(
             ["tee", "vegeta_results.bin"],
@@ -79,25 +106,33 @@ class LoadClient:
             "--to",
             "csv",
             "--output",
-            os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
+            in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME),
         ]
         self.proc = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
-        LOG.success("running")
+        LOG.debug("Load client started")
 
-    def _stop_client(self, timeout=15):
+    def _aggregate_results(self):
+        # Aggregate the results from the last run into all results so far
+        with open(
+            in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME), "rb"
+        ) as input, open(
+            in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
+        ) as output:
+            copyfileobj(input, output)
+
+    def _stop_client(self):
+        self._aggregate_results()
         self.proc.terminate()
         self.proc.wait()
-        LOG.success("Process killed")
-
-        self._render_results()
 
     def start(self, nodes):
         self._start_client(nodes)
 
     def stop(self):
         self._stop_client()
+        self._render_results()
 
-    def restart(self, nodes):
+    def restart(self, nodes, event="node change"):
         self._stop_client()
         self._start_client(nodes)
 
@@ -129,16 +164,18 @@ class LoadClient:
         ax1.set_xlabel("time")
         ax1.set_ylabel("latency (ms)", color=color)
         ax1.tick_params(axis="y", labelcolor=color)
-        ax1.plot(df.index, df["latency"], color=color)
+        ax1.plot(df.index, df["latency"], color=color, linewidth=1)
 
         ax2 = ax1.twinx()
         color = "tab:red"
         ax2.set_ylabel("errors", color=color)
         ax2.tick_params(axis="y", labelcolor=color)
-        ax2.plot(df.index, df["error"], color=color)
+        ax2.scatter(df.index, df["error"], color=color, s=10)
 
-        fig.savefig(os.path.join(self.network.common_dir, RESULTS_IMG_FILE_NAME))
-        LOG.info(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
+        fig.savefig(
+            in_common_dir(self.network, RESULTS_IMG_FILE_NAME), bbox_inches="tight"
+        )
+        LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
 
 class StoppableThread(threading.Thread):
@@ -155,10 +192,10 @@ class StoppableThread(threading.Thread):
 
 
 class ServiceLoad(StoppableThread):
-    def __init__(self, network, rate=DEFAULT_LOAD_RATE_PER_S):
+    def __init__(self, network, *args, **kwargs):
         super().__init__(name="load")
         self.network = network
-        self.client = LoadClient(self.network, rate)
+        self.client = LoadClient(self.network, *args, **kwargs)
 
     def start(self):
         self.client.start(nodes=self.network.get_joined_nodes())
@@ -171,13 +208,15 @@ class ServiceLoad(StoppableThread):
         LOG.info(f"Load client stopped")
 
     def run(self):
-        known_nodes = self.network.get_joined_nodes()
+        primary, backups = self.network.find_nodes(timeout=10)
+        known_nodes = [primary] + backups
+        # TODO: Record event on graph
         while not self.is_stopped():
-            LOG.info("Polling network...")  # TODO: Delete
-            nodes = self.network.get_joined_nodes()
-            if nodes != known_nodes:
+            new_primary, new_backups = self.network.find_nodes(timeout=10)
+            new_nodes = [new_primary] + new_backups
+            if new_nodes != known_nodes:
                 LOG.warning("Network configuration has changed, restarting load client")
-                self.client.restart(nodes)
-            known_nodes = nodes
+                self.client.restart(new_nodes)
+            known_nodes = new_nodes
             time.sleep(NETWORK_POLL_INTERVAL_S)
         return
