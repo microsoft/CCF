@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 from enum import Enum, auto
+import infra.concurrency
 from collections import Counter
 import time
-import threading
 
 from loguru import logger as LOG
 
@@ -86,20 +86,7 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
     return HealthState.stable if most_common_count >= majority else HealthState.election
 
 
-class StoppableThread(threading.Thread):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.daemon = True
-        self._stop_event = threading.Event()
-
-    def stop(self):
-        self._stop_event.set()
-
-    def is_stopped(self):
-        return self._stop_event.is_set()
-
-
-class NetworkHealthWatcher(StoppableThread):
+class NetworkHealthWatcher(infra.concurrency.StoppableThread):
     def __init__(
         self,
         network,

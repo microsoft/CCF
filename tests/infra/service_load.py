@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import threading
 import time
 import os
 import subprocess
@@ -11,6 +10,7 @@ import pandas as pd
 from shutil import copyfileobj
 from enum import Enum, auto
 import datetime
+import infra.concurrency
 
 from loguru import logger as LOG
 
@@ -201,20 +201,7 @@ class LoadClient:
         LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
 
-class StoppableThread(threading.Thread):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.daemon = True
-        self._stop_event = threading.Event()
-
-    def stop(self):
-        self._stop_event.set()
-
-    def is_stopped(self):
-        return self._stop_event.is_set()
-
-
-class ServiceLoad(StoppableThread):
+class ServiceLoad(infra.concurrency.StoppableThread):
     def __init__(self, network, *args, **kwargs):
         super().__init__(name="load")
         self.network = network

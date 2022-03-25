@@ -432,7 +432,7 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        with_load=False,
+        with_load=True,
     ) as network:
         network.start_and_open(args)
 
