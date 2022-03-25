@@ -48,12 +48,13 @@ class LoadClient:
         strategy=LoadStrategy.PRIMARY,
         rate=DEFAULT_LOAD_RATE_PER_S,
         target_node=None,
+        existing_events=None,
     ):
         self.network = network
         self.rate = rate
         self.strategy = strategy
         self.target_node = target_node
-        self.events = []
+        self.events = existing_events or []
 
     def _create_targets(self, nodes, strategy):
         with open(
@@ -74,6 +75,7 @@ class LoadClient:
                     assert self.target_node, "A target node should have been specified"
                     node = self.target_node
                 # TODO: Use more endpoints
+                # TODO: Scope transactions
                 TargetGenerator.write_vegeta_target_line(
                     f,
                     f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
@@ -90,6 +92,7 @@ class LoadClient:
         ]
         attack_cmd += ["--format", "json"]
         attack_cmd += ["--rate", f"{self.rate}"]
+        attack_cmd += ["--duration", "0"]  # runs until the process is terminated
         attack_cmd += ["--max-workers", "10"]  # TODO: Find sensible default, 10?
         sa = nodes[0].session_auth("user0")
         attack_cmd += ["--cert", sa["session_auth"].cert]
@@ -115,7 +118,11 @@ class LoadClient:
         LOG.debug("Load client started")
 
     def _aggregate_results(self):
-        # Aggregate the results from the last run into all results so far
+        # Aggregate the results from the last run into all results so far.
+        # Note: for a single test run, multiple instances of the LoadClient
+        # can be started one after the other and since the results csv file
+        # is the same for all instances (within the same test/common dir),
+        # the latest instance of the LoadClient will render all results.
         with open(
             in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME), "rb"
         ) as input, open(
@@ -224,13 +231,18 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         known_nodes = [primary] + backups
         # TODO: Record event on graph
         while not self.is_stopped():
-            new_primary, new_backups = self.network.find_nodes(
-                timeout=10, log_capture=log_capture
-            )
-            new_nodes = [new_primary] + new_backups
-            if new_nodes != known_nodes:
-                LOG.warning("Network configuration has changed, restarting load client")
-                self.client.restart(new_nodes)
-            known_nodes = new_nodes
+            try:
+                new_primary, new_backups = self.network.find_nodes(
+                    timeout=10, log_capture=log_capture
+                )
+                new_nodes = [new_primary] + new_backups
+                if new_nodes != known_nodes:
+                    LOG.warning(
+                        "Network configuration has changed, restarting load client"
+                    )
+                    self.client.restart(new_nodes)
+                known_nodes = new_nodes
+            except Exception as e:
+                pass  # TODO: What do we do if something went wrong?
             time.sleep(NETWORK_POLL_INTERVAL_S)
         return

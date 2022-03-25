@@ -144,6 +144,9 @@ class Network:
             self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
+            self.service_load = (
+                infra.service_load.ServiceLoad(self) if with_load else None
+            )
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -151,6 +154,10 @@ class Network:
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
             self.hosts = [node.host for node in existing_network.nodes]
+            self.service_load = None
+            if existing_network.service_load:
+                existing_network.service_load.stop()
+                self.service_load = infra.service_load.ServiceLoad(self)
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -173,7 +180,6 @@ class Network:
         self.args = None
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
-        self.service_load = infra.service_load.ServiceLoad(self) if with_load else None
 
         # Requires admin privileges
         self.partitioner = (
@@ -567,6 +573,8 @@ class Network:
             args.initial_service_cert_validity_days
         )
         LOG.success("***** Recovered network is now open *****")
+        if self.service_load:
+            self.service_load.start()
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True

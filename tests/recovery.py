@@ -19,7 +19,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Recover a service")
-@reqs.recover(number_txs=2)
+# @reqs.recover(number_txs=2)
 def test_recover_service(network, args, from_snapshot=False):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
@@ -436,14 +436,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        import election
-
-        import time
-
-        time.sleep(1)
-        election.test_kill_primary(network, args)
-
-        time.sleep(1)
+        network = test_recover_service(network, args, from_snapshot=False)
 
         return
 
