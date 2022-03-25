@@ -25,10 +25,7 @@ sign_app_library(
 )
 
 # tpcc unit tests
-add_unit_test(
-  tpcc_test
-  ${CMAKE_CURRENT_LIST_DIR}/app/test/tpcc.cpp
-)
+add_unit_test(tpcc_test ${CMAKE_CURRENT_LIST_DIR}/app/test/tpcc.cpp)
 
 if(BUILD_TESTS)
   foreach(CONSENSUS ${CONSENSUSES})

@@ -101,7 +101,7 @@ namespace tpcc
 #define READ_VALUE_FOR_JSON_FINAL(TYPE, FIELD) \
   READ_VALUE_FOR_JSON_NEXT(TYPE, FIELD)
 
-#define DECLARE_TPCC_TYPE(TYPE) 
+#define DECLARE_TPCC_TYPE(TYPE)
 #define DECLARE_TPCC_REQUIRED_FIELDS(TYPE, ...) \
   _Pragma("clang diagnostic push"); \
   _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\""); \
