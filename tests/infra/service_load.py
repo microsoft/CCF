@@ -20,7 +20,7 @@ from loguru import logger as LOG
 NETWORK_POLL_INTERVAL_S = 1
 
 # Number of requests sent to the service per sec
-DEFAULT_LOAD_RATE_PER_S = 500
+DEFAULT_LOAD_RATE_PER_S = 10  # TODO: Change back
 
 # Scope for logging txs so that they do not conflict
 # with the txs recorded by the actual tests
@@ -79,7 +79,6 @@ class LoadClient:
                     assert self.target_node, "A target node should have been specified"
                     node = self.target_node
                 # TODO: Use more endpoints
-                # TODO: Scope transactions
                 TargetGenerator.write_vegeta_target_line(
                     f,
                     f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
@@ -171,43 +170,49 @@ class LoadClient:
             ],
         ).set_index("timestamp")
         df.index = pd.to_datetime(df.index, unit="ns")
-        # Smooth latency output
-        df["latency"] = df.latency.rolling(self.rate // 10).mean()
         df["latency"] = df.latency.apply(lambda x: x / 1e6)
+        # Truncate error message for more compact rendering
+        def truncate_error_msg(msg, max_=25):
+            if msg is None:
+                return None
+            else:
+                return msg[-max_:] if len(msg) > max_ else msg
 
-        LOG.error(df.index)
+        df["error"] = df.error.apply(truncate_error_msg)
 
         fig, ax1 = plt.subplots()
+
+        # Latency
         color = "tab:blue"
         ax1.set_xlabel("time")
         ax1.set_ylabel("latency (ms)", color=color)
         ax1.set_yscale("log")
         ax1.tick_params(axis="y", labelcolor=color)
-        extra_ticks = []
-        extra_ticks_labels = []
-        for name, t in self.events:
-            extra_ticks.append(t / 3600 / 24)
-            extra_ticks_labels.append(name)
+        ax1.tick_params(axis="x", rotation=90)
+        ax1.scatter(df.index, df["latency"], color=color)
 
-        ax1.plot(df.index, df["latency"], color=color, linewidth=1)
-
-        # xt.append(xt, )
-
-        LOG.warning(list(ax1.get_xticks()) + extra_ticks)
-        LOG.success(list(ax1.get_xticklabels()) + extra_ticks_labels)
-        # ax1.set_xticks(list(ax1.get_xticks()) + extra_ticks)
-        # ax1.set_xticklabels(list(ax1.get_xticklabels()) + extra_ticks_labels)
-
+        # Errors
         ax2 = ax1.twinx()
         color = "tab:red"
         ax2.set_ylabel("errors", color=color)
         ax2.tick_params(axis="y", labelcolor=color)
         ax2.scatter(df.index, df["error"], color=color, s=10)
 
+        # Network events
+        extra_ticks = []
+        extra_ticks_labels = []
+        for name, t in self.events:
+            extra_ticks.append(t / 3600 / 24)
+            extra_ticks_labels.append(name)
+
+        secx = ax1.secondary_xaxis("top")
+        secx.set_xticks(extra_ticks)
+        secx.set_xticklabels(extra_ticks_labels)
+
         fig.savefig(
             in_common_dir(self.network, RESULTS_IMG_FILE_NAME),
             bbox_inches="tight",
-            dpi=1000,
+            dpi=500,
         )
         LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
@@ -247,6 +252,6 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                     self.client.restart(new_nodes)
                 known_nodes = new_nodes
             except Exception as e:
-                pass  # TODO: What do we do if something went wrong?
+                LOG.warning("Error finding nodes")
             time.sleep(NETWORK_POLL_INTERVAL_S)
         return

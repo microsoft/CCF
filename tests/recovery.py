@@ -29,14 +29,16 @@ def test_recover_service(network, args, from_snapshot=False):
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
     # Start health watcher and stop nodes one by one until a recovery has to be staged
-    watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
-    watcher.start()
+    # watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+    # watcher.start()
 
     for node in network.get_joined_nodes():
         time.sleep(args.election_timeout_ms / 1000)
         node.stop()
+        time.sleep(args.election_timeout_ms / 1000)
+        return network
 
-    watcher.wait_for_recovery()
+    # watcher.wait_for_recovery()
 
     # Stop remaining nodes
     network.stop_all_nodes()
@@ -58,6 +60,8 @@ def test_recover_service(network, args, from_snapshot=False):
     )
 
     recovered_network.recover(args)
+
+    time.sleep(5)
 
     return recovered_network
 
