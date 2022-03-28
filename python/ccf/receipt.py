@@ -57,7 +57,7 @@ def check_endorsements(
     node_cert: Certificate, service_cert: Certificate, endorsements: List[Certificate]
 ):
     cert_i = node_cert
-    for endorsement in endorsements or []:
+    for endorsement in endorsements:
         check_endorsement(cert_i, endorsement)
         cert_i = endorsement
     check_endorsement(cert_i, service_cert)

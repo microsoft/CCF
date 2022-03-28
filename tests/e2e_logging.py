@@ -1438,13 +1438,6 @@ def test_random_receipts(
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
                     time.sleep(0.5)
-                elif (
-                    lts
-                    and rc.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
-                    and "is in a pre-2.0 part of the ledger"
-                    in rc.body.json()["error"]["message"]
-                ):
-                    break  # OK, LTS pre-2.0
                 else:
                     view += 1
                     if view > max_view:

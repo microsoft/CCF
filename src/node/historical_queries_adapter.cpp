@@ -245,66 +245,77 @@ namespace ccf::historical
     AbstractStateCache& state_cache,
     std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem)
   {
-    if (!network_identity_subsystem)
+    try
     {
-      throw std::runtime_error(
-        "The service identity endorsement for this receipt cannot be created "
-        "because the current network identity is not available.");
-    }
-
-    const auto& network_identity = network_identity_subsystem->get();
-
-    if (state && state->receipt && state->receipt->node_cert)
-    {
-      auto& receipt = *state->receipt;
-
-      if (receipt.node_cert->empty())
+      if (!network_identity_subsystem)
       {
-        // Pre 2.0 receipts did not contain node certs.
         throw std::runtime_error(
-          "Node certificate in receipt is empty, likely because the "
-          "transaction is in a pre-2.0 part of the ledger.");
+          "The service identity endorsement for this receipt cannot be created "
+          "because the current network identity is not available.");
       }
 
-      auto v = crypto::make_unique_verifier(*receipt.node_cert);
-      if (!v->verify_certificate(
-            {&network_identity->cert}, {}, /* ignore_time */ true))
+      const auto& network_identity = network_identity_subsystem->get();
+
+      if (state && state->receipt && state->receipt->node_cert)
       {
-        // The current service identity does not endorse the node certificate in
-        // the receipt, so we search for the the most recent write to the
-        // service info table before the historical transaction ID to get the
-        // historical service identity.
+        auto& receipt = *state->receipt;
 
-        auto opt_psi = find_previous_service_identity(ctx, state, state_cache);
-        if (!opt_psi)
+        if (receipt.node_cert->empty())
         {
-          return false;
+          // Pre 2.0 receipts did not contain node certs.
+          throw std::runtime_error(
+            "Node certificate in receipt is empty, likely because the "
+            "transaction is in a pre-2.0 part of the ledger.");
         }
 
-        auto hpubkey = crypto::public_key_pem_from_cert(
-          crypto::cert_pem_to_der(opt_psi->cert));
+        auto v = crypto::make_unique_verifier(*receipt.node_cert);
+        if (!v->verify_certificate(
+              {&network_identity->cert}, {}, /* ignore_time */ true))
+        {
+          // The current service identity does not endorse the node certificate
+          // in the receipt, so we search for the the most recent write to the
+          // service info table before the historical transaction ID to get the
+          // historical service identity.
 
-        auto eit = service_endorsement_cache.find(hpubkey);
-        if (eit != service_endorsement_cache.end())
-        {
-          receipt.service_endorsements = eit->second;
-        }
-        else
-        {
-          auto endorsement = create_endorsed_cert(
-            hpubkey,
-            ReplicatedNetworkIdentity::subject_name,
-            {},
-            crypto::OpenSSL::to_x509_time_string(
-              crypto::OpenSSL::to_time_t(NULL)),
-            1 /* days valid */,
-            network_identity->priv_key,
-            network_identity->cert,
-            true);
-          service_endorsement_cache[hpubkey] = {endorsement};
-          receipt.service_endorsements = {endorsement};
+          auto opt_psi =
+            find_previous_service_identity(ctx, state, state_cache);
+          if (!opt_psi)
+          {
+            return false;
+          }
+
+          auto hpubkey = crypto::public_key_pem_from_cert(
+            crypto::cert_pem_to_der(opt_psi->cert));
+
+          auto eit = service_endorsement_cache.find(hpubkey);
+          if (eit != service_endorsement_cache.end())
+          {
+            receipt.service_endorsements = eit->second;
+          }
+          else
+          {
+            auto endorsement = create_endorsed_cert(
+              hpubkey,
+              ReplicatedNetworkIdentity::subject_name,
+              {},
+              crypto::OpenSSL::to_x509_time_string(
+                crypto::OpenSSL::to_time_t(NULL)),
+              1 /* days valid */,
+              network_identity->priv_key,
+              network_identity->cert,
+              true);
+            service_endorsement_cache[hpubkey] = {endorsement};
+            receipt.service_endorsements = {endorsement};
+          }
         }
       }
+    }
+    catch (std::exception& ex)
+    {
+      LOG_DEBUG_FMT(
+        "Exception while extracting previous service identities: {}",
+        ex.what());
+      // (We keep the incomplete receipt, no further error reporting)
     }
 
     return true;
