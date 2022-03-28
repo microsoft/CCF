@@ -256,6 +256,11 @@ namespace ccf::historical
     {
       auto& receipt = *state->receipt;
 
+      if (receipt.node_cert->empty())
+      {
+        throw std::runtime_error("Node certificate in receipt is empty");
+      }
+
       auto v = crypto::make_unique_verifier(*receipt.node_cert);
       if (!v->verify_certificate(
             {&network_identity->cert}, {}, /* ignore_time */ true))
