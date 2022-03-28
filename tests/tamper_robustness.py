@@ -8,6 +8,7 @@ import infra.commit
 import suite.test_requirements as reqs
 from e2e_logging import get_all_entries
 import os
+import shutil
 import re
 import random
 import contextlib
@@ -92,10 +93,51 @@ def produce_tamperable_files(network, args):
 def hide_file(src_path):
     with tempfile.TemporaryDirectory(dir=os.path.dirname(src_path)) as tmp_dir_name:
         dst_path = os.path.join(tmp_dir_name, os.path.basename(src_path))
-        LOG.warning(f"Temporarily hiding file {src_path} => {dst_path}")
-        os.rename(src_path, dst_path)
+        LOG.warning(f"Temporarily hiding file {src_path} (backed up at {dst_path})")
+        shutil.move(src_path, dst_path)
         yield
-        os.rename(dst_path, src_path)
+        shutil.move(dst_path, src_path)
+
+
+@contextlib.contextmanager
+def truncate_file(src_path):
+    with tempfile.TemporaryDirectory(dir=os.path.dirname(src_path)) as tmp_dir_name:
+        dst_path = os.path.join(tmp_dir_name, os.path.basename(src_path))
+        LOG.warning(f"Temporarily truncating file {src_path} (backed up at {dst_path})")
+        shutil.copy(src_path, dst_path)
+        src_len = os.path.getsize(src_path)
+        with open(src_path, "rb+") as f:
+            f.truncate(random.randrange(src_len // 2, src_len - 1))
+        yield
+        shutil.move(dst_path, src_path)
+
+
+@contextlib.contextmanager
+def modify_file(src_path):
+    with tempfile.TemporaryDirectory(dir=os.path.dirname(src_path)) as tmp_dir_name:
+        dst_path = os.path.join(tmp_dir_name, os.path.basename(src_path))
+        LOG.warning(f"Temporarily modifying file {src_path} (backed up at {dst_path})")
+        shutil.copy(src_path, dst_path)
+        with open(src_path, "rb+") as f:
+            content = list(f.read())
+            size = len(content)
+            for idx in (size // 3, size // 2, int(size // 1.5)):
+                content[idx] //= 2
+            f.seek(0)
+            f.write(bytes(content))
+            f.truncate()
+        yield
+        shutil.move(dst_path, src_path)
+
+
+def expect_failed_audit(c):
+    try:
+        get_all_entries(c, TARGET_ID, flush_on_timeout=False)
+        raise RuntimeError(
+            "Historical audit unexpectedly succeeded despite missing file"
+        )
+    except TimeoutError:
+        pass
 
 
 @reqs.description("Temporarily remove chunks from ledger")
@@ -105,23 +147,18 @@ def test_ledger_chunk_removal(network, args):
     primary_dir = get_node_root_dir(primary)
     ledger_dir = get_ledger_dir(primary_dir)
 
+    committed_files = sorted_committed_files(ledger_dir)
+
     with primary.client("user0") as c:
         LOG.info("All entries can be retrieved initially")
         all_entries_before, _ = get_all_entries(c, TARGET_ID)
 
-        committed_files = sorted_committed_files(ledger_dir)
         target_file = committed_files[-1]
         LOG.info(
             f"Historical audit times out while final committed ledger chunk {os.path.basename(target_file)} is unavailable"
         )
         with hide_file(target_file):
-            try:
-                get_all_entries(c, TARGET_ID, flush_on_timeout=False)
-                raise RuntimeError(
-                    "Historical audit unexpectedly succeeded despite missing file"
-                )
-            except TimeoutError:
-                pass
+            expect_failed_audit(c)
 
         LOG.info("All entries can be retrieved once file is restored")
         all_entries_after, _ = get_all_entries(c, TARGET_ID)
@@ -133,16 +170,85 @@ def test_ledger_chunk_removal(network, args):
                 f"Historical audit times out while {os.path.basename(target_file)} is unavailable"
             )
             with hide_file(target_file):
-                try:
-                    get_all_entries(c, TARGET_ID, flush_on_timeout=False)
-                    raise RuntimeError(
-                        "Historical audit unexpectedly succeeded despite missing file"
-                    )
-                except TimeoutError:
-                    pass
-            LOG.info("All entries can be retrieved once file is restored")
-            all_entries_after, _ = get_all_entries(c, TARGET_ID)
-            assert all_entries_before == all_entries_after
+                expect_failed_audit(c)
+
+        LOG.info("All entries can be retrieved once file is restored")
+        all_entries_after, _ = get_all_entries(c, TARGET_ID)
+        assert all_entries_before == all_entries_after
+
+
+@reqs.description("Temporarily truncate chunks in ledger")
+def test_ledger_chunk_truncation(network, args):
+    primary, _ = network.find_primary()
+
+    primary_dir = get_node_root_dir(primary)
+    ledger_dir = get_ledger_dir(primary_dir)
+
+    committed_files = sorted_committed_files(ledger_dir)
+
+    with primary.client("user0") as c:
+        LOG.info("All entries can be retrieved initially")
+        all_entries_before, _ = get_all_entries(c, TARGET_ID)
+
+        target_file = committed_files[-1]
+        LOG.info(
+            f"Historical audit times out while final committed ledger chunk {os.path.basename(target_file)} is truncated"
+        )
+        with truncate_file(target_file):
+            expect_failed_audit(c)
+
+        LOG.info("All entries can be retrieved once file is restored")
+        all_entries_after, _ = get_all_entries(c, TARGET_ID)
+        assert all_entries_before == all_entries_after
+
+        for _ in range(5):
+            target_file = random.choice(committed_files)
+            LOG.info(
+                f"Historical audit times out while {os.path.basename(target_file)} is truncated"
+            )
+            with truncate_file(target_file):
+                expect_failed_audit(c)
+
+        LOG.info("All entries can be retrieved once file is restored")
+        all_entries_after, _ = get_all_entries(c, TARGET_ID)
+        assert all_entries_before == all_entries_after
+
+
+@reqs.description("Temporarily corrupt chunks in ledger")
+def test_ledger_chunk_tampering(network, args):
+    primary, _ = network.find_primary()
+
+    primary_dir = get_node_root_dir(primary)
+    ledger_dir = get_ledger_dir(primary_dir)
+
+    committed_files = sorted_committed_files(ledger_dir)
+
+    with primary.client("user0") as c:
+        LOG.info("All entries can be retrieved initially")
+        all_entries_before, _ = get_all_entries(c, TARGET_ID)
+
+        target_file = committed_files[-1]
+        LOG.info(
+            f"Historical audit times out while final committed ledger chunk {os.path.basename(target_file)} is tampered with"
+        )
+        with modify_file(target_file):
+            expect_failed_audit(c)
+
+        LOG.info("All entries can be retrieved once file is restored")
+        all_entries_after, _ = get_all_entries(c, TARGET_ID)
+        assert all_entries_before == all_entries_after
+
+        for _ in range(5):
+            target_file = random.choice(committed_files)
+            LOG.info(
+                f"Historical audit times out while {os.path.basename(target_file)} is tampered with"
+            )
+            with modify_file(target_file):
+                expect_failed_audit(c)
+
+        LOG.info("All entries can be retrieved once file is restored")
+        all_entries_after, _ = get_all_entries(c, TARGET_ID)
+        assert all_entries_before == all_entries_after
 
 
 def run(args):
@@ -153,7 +259,9 @@ def run(args):
 
         produce_tamperable_files(network, args)
 
-        test_ledger_truncation(network, args)
+        test_ledger_chunk_removal(network, args)
+        test_ledger_chunk_truncation(network, args)
+        # test_ledger_chunk_tampering(network, args)
 
 
 if __name__ == "__main__":
