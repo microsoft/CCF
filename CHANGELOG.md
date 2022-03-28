@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Private headers are now under `ccf/include/ccf/_private`, so they cannot be accidentally included from existing paths. Any applications relying on private headers should remove this dependence, or raise an issue to request this dependency is moved to the public API. In a future release, private headers will be removed entirely from the installed package.
+- Private headers have been moved to `ccf/include/ccf/_private` so they cannot be accidentally included from existing paths. Any applications relying on private headers should remove this dependence, or raise an issue to request the dependency be moved to the public API. In a future release private headers will be removed entirely from the installed package.
 
 ## [2.0.0-rc5]
 
