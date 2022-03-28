@@ -165,6 +165,10 @@ namespace crypto
       : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_PKEY(BIO* mem) :
+        Unique_SSL_OBJECT(
+          PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
+      {}
     };
 
     struct Unique_EVP_PKEY_CTX

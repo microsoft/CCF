@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `enclave::` namespace has been removed, and all types which were under it are now under `ccf::`. This will affect any apps using `enclave::RpcContext`, which should be replaced with `ccf::RpcContext` (#3664).
 - HTTP parsing errors are now recorded per-interface and returned by `GET /node/metrics` (#3671).
 - The `kv::Store` type is no longer visible to application code, and is replaced by a simpler `kv::ReadOnlyStore`. This is the interface given to historical queries to access historical state and enforces read-only access, without exposing internal implementation details of the store. This should have no impact on JS apps, but C++ apps will need to replace calls to `store->current_txid()` with calls to `store->get_txid()`, and `store->create_tx()` to `store->create_read_only_tx()`.
+- Receipts now come with service endorsements of previous service identities after recoveries (#3679). See `verify_receipt` in `e2e_logging.py` for an example of how to verify the resulting certificate chain. This functionality is introduced in `ccf::historical::adapter_v3`.
 
 ## [2.0.0-rc4]
 

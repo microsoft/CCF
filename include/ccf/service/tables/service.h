@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/service/map.h"
 
@@ -27,13 +28,13 @@ namespace ccf
     /// x.509 Service Certificate, as a PEM string
     crypto::Pem cert;
     /// Status of the service
-    ServiceStatus status;
-    /// Previous service identity, before the last recovery
-    std::optional<crypto::Pem> previous_service_identity = std::nullopt;
+    ServiceStatus status = ServiceStatus::OPENING;
+    /// Version of previous service identity (before the last recovery)
+    std::optional<kv::Version> previous_service_identity_version = std::nullopt;
   };
-  DECLARE_JSON_TYPE(ServiceInfo);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
-  DECLARE_JSON_OPTIONAL_FIELDS(ServiceInfo, previous_service_identity);
+  DECLARE_JSON_OPTIONAL_FIELDS(ServiceInfo, previous_service_identity_version);
 
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV
