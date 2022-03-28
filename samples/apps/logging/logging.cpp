@@ -1200,7 +1200,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().version;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
@@ -1407,7 +1407,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().version;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
