@@ -225,7 +225,7 @@ namespace loggingapp
       openapi_info.document_version = "1.9.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS, context, 10000, 20);
+        PUBLIC_RECORDS, context, 1000, 200);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {

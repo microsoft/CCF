@@ -739,6 +739,12 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
+  add_e2e_test(
+    NAME tamper_robustness_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tamper_robustness.py
+    CONSENSUS cft
+  )
+
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
        ${CCF_VERSION}
   )

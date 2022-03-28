@@ -807,7 +807,7 @@ def test_historical_receipts_with_claims(network, args):
 
 
 def get_all_entries(
-    client, target_id, from_seqno=None, to_seqno=None, timeout=5, log_on_success=False
+    client, target_id, from_seqno=None, to_seqno=None, timeout=5, log_on_success=False, flush_on_timeout=True
 ):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
@@ -846,8 +846,9 @@ def get_all_entries(
                 f"Unexpected status code from historical range query: {r.status_code}"
             )
 
-    LOG.error("Printing historical/range logs on timeout")
-    flush_info(logs, None)
+    if flush_on_timeout:
+        LOG.error("Printing historical/range logs on timeout")
+        flush_info(logs, None)
     raise TimeoutError(f"Historical range not available after {timeout}s")
 
 
