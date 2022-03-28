@@ -213,9 +213,11 @@ namespace ccf::historical
     {
       if (!hservice_info->previous_service_identity_version)
       {
+        // Pre 2.0 we did not record the versions of previous identities in the
+        // service table.
         throw std::runtime_error(
           "The service identity that signed the receipt cannot be found "
-          "because it is in a pre-2.x part of the ledger.");
+          "because it is in a pre-2.0 part of the ledger.");
       }
       i = hservice_info->previous_service_identity_version.value_or(i - 1);
       LOG_TRACE_FMT("historical service identity search at: {}", i);
@@ -258,8 +260,10 @@ namespace ccf::historical
 
       if (receipt.node_cert->empty())
       {
-        LOG_INFO_FMT("Node certificate in receipt is empty");
-        return true;
+        // Pre 2.0 receipts did not contain node certs.
+        throw std::runtime_error(
+          "Node certificate in receipt is empty, likely because the "
+          "transaction is in a pre-2.0 part of the ledger.");
       }
 
       auto v = crypto::make_unique_verifier(*receipt.node_cert);
