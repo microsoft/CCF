@@ -77,6 +77,19 @@ This means that the request may return ``202 Accepted`` at first, with a suggest
               {'right': '8e238d95767e6ffe4b20e1a5e93dd7b926cbd86caa83698584a16ad2dd7d60b8'},
               {'left': 'd4717996ae906cdce0ac47257a4a9445c58474c2f40811e575f804506e5fee9f'},
               {'left': 'c1c206c4670bd2adee821013695d593f5983ca0994ae74630528da5fb6642205'}],
+    'service_endorsements': [ '-----BEGIN CERTIFICATE-----'
+                            'MIIBtTCCATugAwIBAgIRAN37fxGnWYNVLZn8nM8iBP8wCgYIKoZIzj0EAwMwFjEU\n'
+                            'MBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwMzIzMTMxMDA2WhcNMjIwMzI0MTMx\n'
+                            'MDA1WjAWMRQwEgYDVQQDDAtDQ0YgTmV0d29yazB2MBAGByqGSM49AgEGBSuBBAAi\n'
+                            'A2IABBErIfAEVg2Uw+iBPV9kEcpQw8NcoZWHmj4boHf7VVd6yCwRl+X/wOaOudca\n'
+                            'CqMMcwrt4Bb7n11RbsRwU04B7fG907MelICFHiPZjU/XMK5HEsSEZWowVtNwOLDo\n'
+                            'l5cN6aNNMEswCQYDVR0TBAIwADAdBgNVHQ4EFgQU4n5gHhHFnYZc3nwxKRggl8YB\n'
+                            'qdgwHwYDVR0jBBgwFoAUcAvR3F5YSUvPPGcAxrvh2Z5ump8wCgYIKoZIzj0EAwMD\n'
+                            'aAAwZQIxAMeRoXo9FDzr51qkiD4Ws0Y+KZT06MFHcCg47TMDSGvnGrwL3DcIjGs7\n'
+                            'TTwJJQjbWAIwS9AqOJP24sN6jzXOTd6RokeF/MTGJbQAihzgTbZia7EKM8s/0yDB\n'
+                            '0QYtrfMjtPOx\n'
+                            '-----END CERTIFICATE-----\n'
+    ],
     'signature': 'MGQCMHrnwS123oHqUKuQRPsQ+gk6WVutixeOvxcXX79InBgPOxJCoScCOlBnK4UYyLzangIwW9k7IZkMgG076qVv5zcx7OuKb7bKyii1yP1rcakeGVvVMwISeE+Fr3BnFfPD66Df'}
 
 `cert` contains the certificate of the signing node, endorsed by the service identity. `node_id` is the node's ID inside CCF, a digest of its public key.
@@ -97,6 +110,8 @@ The proof is empty, and the ``leaf`` field is set to the value being signed, whi
 This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is _not_
 the digest of the signature transaction itself.
 
+From version 2.0, CCF also includes endorsement certificates for previous service identities, by the current service identity, in `service_endorsements`. Thus, after at least one recovery, the endorsement check now takes the form of a certificate chain verification instead of a single endorsement check.
+
 Receipt Verification
 --------------------
 
@@ -106,7 +121,7 @@ Verifying a receipt consists of the following steps:
   2. If the receipt contains ``leaf_components``, digest the concatenation ``write_set_digest + commit_evidence_digest + claims_digest`` to produce ``leaf``.
   3. Combine ``leaf`` with the successive elements in ``proof`` to calculate the value of ``root``. See :py:func:`ccf.receipt.root` for a reference implementation.
   4. Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id`` and ``cert``. See :py:func:`ccf.receipt.verify` for a reference implementation.
-  5. Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsement` for a reference implementation.
+  5. Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsements` for a reference implementation.
 
 Note that since a receipt is a committment by a service to a transaction, a verifier must know the service identity, and provide it as an input to step 5.
 

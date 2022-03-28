@@ -3,13 +3,17 @@
 
 #include "ccf/historical_queries_adapter.h"
 
-#include "ccf/crypto/base64.h"
 #include "ccf/rpc_context.h"
+#include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
+#include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt.h"
 
 namespace ccf
 {
+  static std::map<crypto::Pem, std::vector<crypto::Pem>>
+    service_endorsement_cache;
+
   ccf::Receipt describe_receipt(const TxReceipt& receipt, bool include_root)
   {
     ccf::Receipt out;
@@ -36,9 +40,9 @@ namespace ccf
     }
     out.node_id = receipt.node_id;
 
-    if (receipt.cert.has_value())
+    if (receipt.node_cert.has_value())
     {
-      out.cert = receipt.cert->str();
+      out.cert = receipt.node_cert->str();
     }
 
     if (receipt.path == nullptr)
@@ -61,6 +65,8 @@ namespace ccf
       out.leaf_components = Receipt::LeafComponents{
         write_set_digest_str, receipt.commit_evidence, claims_digest_str};
     }
+
+    out.service_endorsements = receipt.service_endorsements;
 
     return out;
   }
@@ -187,6 +193,230 @@ namespace ccf::historical
     }
 
     return HistoricalTxStatus::Valid;
+  }
+
+  std::optional<ServiceInfo> find_previous_service_identity(
+    auto& ctx,
+    ccf::historical::StatePtr& state,
+    AbstractStateCache& state_cache)
+  {
+    SeqNo target_seqno = state->transaction_id.seqno;
+
+    // We start at the previous write to the latest (current) service info.
+    auto service = ctx.tx.template ro<Service>(Tables::SERVICE);
+
+    // Iterate until we find the most recent write to the service info that
+    // precedes the target seqno.
+    std::optional<ServiceInfo> hservice_info = service->get();
+    SeqNo i = -1;
+    do
+    {
+      if (!hservice_info->previous_service_identity_version)
+      {
+        // Pre 2.0 we did not record the versions of previous identities in the
+        // service table.
+        throw std::runtime_error(
+          "The service identity that signed the receipt cannot be found "
+          "because it is in a pre-2.0 part of the ledger.");
+      }
+      i = hservice_info->previous_service_identity_version.value_or(i - 1);
+      LOG_TRACE_FMT("historical service identity search at: {}", i);
+      auto hstate = state_cache.get_state_at(i, i);
+      if (!hstate)
+      {
+        return std::nullopt; // Not available yet - retry later.
+      }
+      auto htx = hstate->store->create_read_only_tx();
+      auto hservice = htx.ro<Service>(Tables::SERVICE);
+      hservice_info = hservice->get();
+    } while (i > target_seqno || (i > 1 && !hservice_info));
+
+    if (!hservice_info)
+    {
+      throw std::runtime_error("Failed to locate previous service identity");
+    }
+
+    return hservice_info;
+  }
+
+  bool get_service_endorsements(
+    auto& ctx,
+    ccf::historical::StatePtr& state,
+    AbstractStateCache& state_cache,
+    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem)
+  {
+    try
+    {
+      if (!network_identity_subsystem)
+      {
+        throw std::runtime_error(
+          "The service identity endorsement for this receipt cannot be created "
+          "because the current network identity is not available.");
+      }
+
+      const auto& network_identity = network_identity_subsystem->get();
+
+      if (state && state->receipt && state->receipt->node_cert)
+      {
+        auto& receipt = *state->receipt;
+
+        if (receipt.node_cert->empty())
+        {
+          // Pre 2.0 receipts did not contain node certs.
+          throw std::runtime_error(
+            "Node certificate in receipt is empty, likely because the "
+            "transaction is in a pre-2.0 part of the ledger.");
+        }
+
+        auto v = crypto::make_unique_verifier(*receipt.node_cert);
+        if (!v->verify_certificate(
+              {&network_identity->cert}, {}, /* ignore_time */ true))
+        {
+          // The current service identity does not endorse the node certificate
+          // in the receipt, so we search for the the most recent write to the
+          // service info table before the historical transaction ID to get the
+          // historical service identity.
+
+          auto opt_psi =
+            find_previous_service_identity(ctx, state, state_cache);
+          if (!opt_psi)
+          {
+            return false;
+          }
+
+          auto hpubkey = crypto::public_key_pem_from_cert(
+            crypto::cert_pem_to_der(opt_psi->cert));
+
+          auto eit = service_endorsement_cache.find(hpubkey);
+          if (eit != service_endorsement_cache.end())
+          {
+            receipt.service_endorsements = eit->second;
+          }
+          else
+          {
+            auto endorsement = create_endorsed_cert(
+              hpubkey,
+              ReplicatedNetworkIdentity::subject_name,
+              {},
+              crypto::OpenSSL::to_x509_time_string(
+                crypto::OpenSSL::to_time_t(NULL)),
+              1 /* days valid */,
+              network_identity->priv_key,
+              network_identity->cert,
+              true);
+            service_endorsement_cache[hpubkey] = {endorsement};
+            receipt.service_endorsements = {endorsement};
+          }
+        }
+      }
+    }
+    catch (std::exception& ex)
+    {
+      LOG_DEBUG_FMT(
+        "Exception while extracting previous service identities: {}",
+        ex.what());
+      // (We keep the incomplete receipt, no further error reporting)
+    }
+
+    return true;
+  }
+
+  ccf::endpoints::EndpointFunction adapter_v3(
+    const HandleHistoricalQuery& f,
+    ccfapp::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor)
+  {
+    auto& state_cache = node_context.get_historical_state();
+    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem =
+      node_context.get_subsystem<NetworkIdentitySubsystem>();
+
+    return [f, &state_cache, network_identity_subsystem, available, extractor](
+             endpoints::EndpointContext& args) {
+      // Extract the requested transaction ID
+      ccf::TxID target_tx_id;
+      {
+        const auto tx_id_opt = extractor(args);
+        if (tx_id_opt.has_value())
+        {
+          target_tx_id = tx_id_opt.value();
+        }
+        else
+        {
+          return;
+        }
+      }
+
+      // Check that the requested transaction ID is available
+      {
+        auto error_reason = fmt::format(
+          "Transaction {} is not available.", target_tx_id.to_str());
+        auto is_available =
+          available(target_tx_id.view, target_tx_id.seqno, error_reason);
+        switch (is_available)
+        {
+          case HistoricalTxStatus::Error:
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::TransactionPendingOrUnknown,
+              std::move(error_reason));
+            return;
+          }
+          case HistoricalTxStatus::PendingOrUnknown:
+          {
+            // Set header No-Cache
+            args.rpc_ctx->set_response_header(
+              http::headers::CACHE_CONTROL, "no-cache");
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::TransactionPendingOrUnknown,
+              std::move(error_reason));
+            return;
+          }
+          case HistoricalTxStatus::Invalid:
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::TransactionInvalid,
+              std::move(error_reason));
+            return;
+          }
+          case HistoricalTxStatus::Valid:
+          {
+          }
+        }
+      }
+
+      // We need a handle to determine whether this request is the 'same' as a
+      // previous one. For simplicity we use target_tx_id.seqno. This means we
+      // keep a lot of state around for old requests! It should be cleaned up
+      // manually
+      const auto historic_request_handle = target_tx_id.seqno;
+
+      // Get a state at the target version from the cache, if it is present
+      auto historical_state =
+        state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
+      if (
+        historical_state == nullptr ||
+        (!get_service_endorsements(
+          args, historical_state, state_cache, network_identity_subsystem)))
+      {
+        args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+        constexpr size_t retry_after_seconds = 3;
+        args.rpc_ctx->set_response_header(
+          http::headers::RETRY_AFTER, retry_after_seconds);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        args.rpc_ctx->set_response_body(fmt::format(
+          "Historical transaction {} is not currently available.",
+          target_tx_id.to_str()));
+        return;
+      }
+
+      // Call the provided handler
+      f(args, historical_state);
+    };
   }
 
   ccf::endpoints::EndpointFunction adapter_v2(

@@ -48,19 +48,38 @@ namespace crypto
 
     virtual Pem create_csr(
       const std::string& subject_name,
-      const std::vector<SubjectAltName>& subject_alt_names) const = 0;
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key = std::nullopt) const = 0;
 
     Pem create_csr(const std::string& subject_name) const
     {
       return create_csr(subject_name, {});
     }
 
+    // Note about the signed_by_issuer parameter to sign_csr: when issuing a new
+    // certificate for an old subject, which does not exist anymore, we cannot
+    // sign the CSR with that old subject's private key. Instead, the issuer
+    // signs the CSR itself, which is slightly unusal. Instead, we could also
+    // ask the subject to produce a CSR right after it becomes alive and keep it
+    // around until we need it, but those complications are not stricly
+    // necessary. In our case, we use this to re-endorse previous service
+    // identities, which are self-signed, and replace them with new endorsements
+    // by the current service identity (which doesn't have the private key of
+    // previous ones).
+
+    enum class Signer
+    {
+      SUBJECT = 0,
+      ISSUER = 1
+    };
+
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
       const std::string& valid_to,
-      bool ca = false) const = 0;
+      bool ca = false,
+      Signer signer = Signer::SUBJECT) const = 0;
 
     Pem self_sign(
       const std::string& name,
