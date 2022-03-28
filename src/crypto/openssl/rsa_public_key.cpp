@@ -38,7 +38,7 @@ namespace crypto
        NULL)) // PKCS#1 structure format
     {
       unsigned long ec = ERR_get_error();
-      const char* msg = ERR_error_string(ec, NULL);
+      auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
 
