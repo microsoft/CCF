@@ -258,7 +258,8 @@ namespace ccf::historical
 
       if (receipt.node_cert->empty())
       {
-        throw std::runtime_error("Node certificate in receipt is empty");
+        LOG_INFO_FMT("Node certificate in receipt is empty");
+        return true;
       }
 
       auto v = crypto::make_unique_verifier(*receipt.node_cert);
