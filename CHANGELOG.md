@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New `GET /node/consensus` endpoint now also returns primary node ID and current view (#3666).
 - The `enclave::` namespace has been removed, and all types which were under it are now under `ccf::`. This will affect any apps using `enclave::RpcContext`, which should be replaced with `ccf::RpcContext` (#3664).
 - HTTP parsing errors are now recorded per-interface and returned by `GET /node/metrics` (#3671).
+- The `kv::Store` type is no longer visible to application code, and is replaced by a simpler `kv::ReadOnlyStore`. This is the interface given to historical queries to access historical state and enforces read-only access, without exposing internal implementation details of the store. This should have no impact on JS apps, but C++ apps will need to replace calls to `store->current_txid()` with calls to `store->get_txid()`, and `store->create_tx()` to `store->create_read_only_tx()`.
 
 ## [2.0.0-rc4]
 
