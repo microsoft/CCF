@@ -486,6 +486,9 @@
           "max_open_sessions_soft": {
             "$ref": "#/components/schemas/uint64"
           },
+          "protocol": {
+            "$ref": "#/components/schemas/string"
+          },
           "published_address": {
             "$ref": "#/components/schemas/string"
           }

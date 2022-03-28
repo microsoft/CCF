@@ -343,17 +343,22 @@ class Node:
             addresses = json.load(f)
 
         for interface_name, resolved_address in addresses.items():
-            host, port = infra.interfaces.split_address(resolved_address)
-            interface = interfaces[interface_name]
-            if self.remote_shim != infra.remote_shim.DockerShim:
-                assert (
-                    host == interface.host
-                ), f"Unexpected change in address from {interface.host} to {host} in {address_file_path}"
-            if interface.port != 0:
-                assert (
-                    port == interface.port
-                ), f"Unexpected change in node port from {interface.port} to {port} in {address_file_path}"
-            interface.port = port
+            try:
+                host, port = infra.interfaces.split_address(resolved_address)
+                interface = interfaces[interface_name]
+                if self.remote_shim != infra.remote_shim.DockerShim:
+                    assert (
+                        host == interface.host
+                    ), f"Unexpected change in address from {interface.host} to {host} in {address_file_path}"
+                if interface.port != 0:
+                    assert (
+                        port == interface.port
+                    ), f"Unexpected change in node port from {interface.port} to {port} in {address_file_path}"
+                interface.port = port
+            except KeyError:
+                # FIXME: This is to work around the fact that UDP names we add in main.cpp
+                # don't exist in the configuration file
+                continue
 
     def _read_ports(self):
         if self.major_version is None or self.major_version > 1:

@@ -11,7 +11,8 @@
         "endorsement": { "authority": "Service" },
         "max_open_sessions_hard": 1010,
         "max_open_sessions_soft": 1000,
-        "published_address": "127.107.22.23:0"
+        "published_address": "127.107.22.23:0",
+        "protocol": "tcp"
       }
     }
   },

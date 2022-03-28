@@ -1467,6 +1467,54 @@ def test_rekey(network, args):
     return network
 
 
+@reqs.description("Test UDP echo endpoint")
+@reqs.at_least_n_nodes(1)
+def test_udp_echo(network, args):
+    primary, _ = network.find_primary()
+    udp_interface = primary.host.rpc_interfaces["secondary_rpc_interface"]
+    host = udp_interface.public_host
+    port = udp_interface.public_port
+    LOG.info(f"Testing UDP echo server at {host}:{port}")
+
+    server_address = (host, port)
+    buffer_size = 1024
+    test_string = b"Some random text"
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.sendto(test_string, server_address)
+        recv = s.recvfrom(buffer_size)
+
+    text = recv[0]
+    LOG.info(f"Testing UDP echo server received {text}")
+    assert text == test_string
+
+
+def run_udp_tests(args):
+    # Register secondary interface as an UDP socket on first node
+    primary = args.nodes[0].rpc_interfaces["primary_rpc_interface"]
+    udp_interface = infra.interfaces.make_secondary_interface()
+    for interface in udp_interface.values():
+        interface.host = primary.host
+        interface.port = primary.port
+        interface.public_host = primary.public_host
+        interface.public_port = primary.public_port
+        interface.transport = "udp"
+    args.nodes[0].rpc_interfaces.update(udp_interface)
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start(args)
+
+        test_udp_echo(network, args)
+
+
 def run(args):
     # Listen on two additional RPC interfaces for each node
     def additional_interfaces(local_node_id):
@@ -1593,6 +1641,17 @@ if __name__ == "__main__":
     cr.add(
         "cpp_illegal",
         run_parsing_errors,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # We need one TCP node as the primary and a second UDP one that is not
+    # part of the network, but uses the same infrastructure. The test will
+    # separate them later as a hack to make UDP tests work before we have
+    # a full stack implementation of services using UDP channels.
+    cr.add(
+        "udp",
+        run_udp_tests,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
