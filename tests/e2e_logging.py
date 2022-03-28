@@ -81,7 +81,7 @@ def verify_receipt(
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
 
     if not skip_endorsement_check:
-        service_endorsements = None
+        service_endorsements = []
         if "service_endorsements" in receipt:
             service_endorsements = [
                 load_pem_x509_certificate(endo.encode(), default_backend())
