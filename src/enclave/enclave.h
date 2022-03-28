@@ -17,6 +17,7 @@
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/host_processes.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
@@ -135,6 +136,10 @@ namespace ccf
       context->install_subsystem(std::make_shared<ccf::NodeOperation>(*node));
       context->install_subsystem(
         std::make_shared<ccf::GovernanceEffects>(*node));
+
+      context->install_subsystem(
+        std::make_shared<ccf::NetworkIdentitySubsystem>(
+          *node, network.identity));
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(

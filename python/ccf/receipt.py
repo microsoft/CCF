@@ -51,3 +51,13 @@ def check_endorsement(endorsee: Certificate, endorser: Certificate):
     endorser_pk.verify(
         endorsee.signature, digest, ec.ECDSA(utils.Prehashed(digest_algo))
     )
+
+
+def check_endorsements(
+    node_cert: Certificate, service_cert: Certificate, endorsements: List[Certificate]
+):
+    cert_i = node_cert
+    for endorsement in endorsements:
+        check_endorsement(cert_i, endorsement)
+        cert_i = endorsement
+    check_endorsement(cert_i, service_cert)

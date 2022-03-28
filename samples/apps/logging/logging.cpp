@@ -222,7 +222,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.9.0";
+      openapi_info.document_version = "1.9.1";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -842,8 +842,7 @@ namespace loggingapp
       make_endpoint(
         "/log/private/historical",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical, context.get_historical_state(), is_tx_committed),
+        ccf::historical::adapter_v3(get_historical, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
@@ -896,10 +895,8 @@ namespace loggingapp
       make_endpoint(
         "/log/private/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical_with_receipt,
-          context.get_historical_state(),
-          is_tx_committed),
+        ccf::historical::adapter_v3(
+          get_historical_with_receipt, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
@@ -956,10 +953,8 @@ namespace loggingapp
       make_endpoint(
         "/log/public/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical_with_receipt_and_claims,
-          context.get_historical_state(),
-          is_tx_committed),
+        ccf::historical::adapter_v3(
+          get_historical_with_receipt_and_claims, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
@@ -1200,7 +1195,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().version;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
@@ -1407,7 +1402,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().version;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
