@@ -36,14 +36,18 @@ def get_ledger_dir(node_root):
     raise RuntimeError(f"No ledger directory found within {node_root}")
 
 
-def sorted_committed_files(ledger_dir):
+def sorted_committed_files(args):
     regex = re.compile("ledger_(\d+)-(\d+).committed")
     committed = []
-    for file in os.listdir(ledger_dir):
+    for file in os.listdir(args.ledger_dir):
         if m := regex.match(file):
             committed.append((int(m[1]), int(m[2]), file))
-    committed.sort()
-    return [os.path.join(ledger_dir, file) for _, _, file in committed]
+    ret = []
+    for _, _, file in sorted(committed):
+        p = os.path.join(args.ledger_dir, file)
+        if p not in args.initial_ledger_files:
+            ret.append(p)
+    return ret
 
 
 def produce_tamperable_files(network, args):
@@ -142,14 +146,9 @@ def expect_failed_audit(c):
 
 @reqs.description("Temporarily remove chunks from ledger")
 def test_ledger_chunk_removal(network, args):
-    primary, _ = network.find_primary()
+    committed_files = sorted_committed_files(args)
 
-    primary_dir = get_node_root_dir(primary)
-    ledger_dir = get_ledger_dir(primary_dir)
-
-    committed_files = sorted_committed_files(ledger_dir)
-
-    with primary.client("user0") as c:
+    with args.target_node.client("user0") as c:
         LOG.info("All entries can be retrieved initially")
         all_entries_before, _ = get_all_entries(c, TARGET_ID)
 
@@ -179,14 +178,10 @@ def test_ledger_chunk_removal(network, args):
 
 @reqs.description("Temporarily truncate chunks in ledger")
 def test_ledger_chunk_truncation(network, args):
-    primary, _ = network.find_primary()
 
-    primary_dir = get_node_root_dir(primary)
-    ledger_dir = get_ledger_dir(primary_dir)
+    committed_files = sorted_committed_files(args)
 
-    committed_files = sorted_committed_files(ledger_dir)
-
-    with primary.client("user0") as c:
+    with args.target_node.client("user0") as c:
         LOG.info("All entries can be retrieved initially")
         all_entries_before, _ = get_all_entries(c, TARGET_ID)
 
@@ -216,14 +211,10 @@ def test_ledger_chunk_truncation(network, args):
 
 @reqs.description("Temporarily corrupt chunks in ledger")
 def test_ledger_chunk_tampering(network, args):
-    primary, _ = network.find_primary()
 
-    primary_dir = get_node_root_dir(primary)
-    ledger_dir = get_ledger_dir(primary_dir)
+    committed_files = sorted_committed_files(args)
 
-    committed_files = sorted_committed_files(ledger_dir)
-
-    with primary.client("user0") as c:
+    with args.target_node.client("user0") as c:
         LOG.info("All entries can be retrieved initially")
         all_entries_before, _ = get_all_entries(c, TARGET_ID)
 
@@ -257,7 +248,16 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        # Check what files are already present. Modifying these may have no impact on historical queries, so they are ignored later
+        args.target_node, _ = network.find_primary()
+        primary_dir = get_node_root_dir(args.target_node)
+        args.ledger_dir = get_ledger_dir(primary_dir)
+        args.initial_ledger_files = []
+        args.initial_ledger_files = sorted_committed_files(args)
+
         produce_tamperable_files(network, args)
+
+        network.ignore_error_pattern_on_shutdown("Could not open ledger file")
 
         test_ledger_chunk_removal(network, args)
         test_ledger_chunk_truncation(network, args)
