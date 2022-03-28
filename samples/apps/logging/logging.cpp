@@ -8,12 +8,12 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/hash.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
-#include "kv/store.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -1155,12 +1155,10 @@ namespace loggingapp
         // requests from different users will collide, and overwrite each
         // other's progress!
         auto make_handle = [](size_t begin, size_t end, size_t id) {
-          auto size = sizeof(begin) + sizeof(end) + sizeof(id);
+          size_t raw[] = {begin, end, id};
+          auto size = sizeof(raw);
           std::vector<uint8_t> v(size);
-          auto data = v.data();
-          serialized::write(data, size, begin);
-          serialized::write(data, size, end);
-          serialized::write(data, size, id);
+          memcpy(v.data(), (const uint8_t*)raw, size);
           return std::hash<decltype(v)>()(v);
         };
 
@@ -1357,12 +1355,10 @@ namespace loggingapp
         // requests from different users will collide, and overwrite each
         // other's progress!
         auto make_handle = [](size_t begin, size_t end, size_t id) {
-          auto size = sizeof(begin) + sizeof(end) + sizeof(id);
+          size_t raw[] = {begin, end, id};
+          auto size = sizeof(raw);
           std::vector<uint8_t> v(size);
-          auto data = v.data();
-          serialized::write(data, size, begin);
-          serialized::write(data, size, end);
-          serialized::write(data, size, id);
+          memcpy(v.data(), (const uint8_t*)raw, size);
           return std::hash<decltype(v)>()(v);
         };
 
