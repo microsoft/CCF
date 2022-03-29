@@ -60,6 +60,7 @@ class LoadClient:
         self.target_node = target_node
         self.events = existing_events or []
         self.proc = None
+        self.title = None
 
     def _create_targets(self, nodes, strategy):
         with open(
@@ -68,6 +69,7 @@ class LoadClient:
             encoding="utf-8",
         ) as f:
             primary, backup = self.network.find_primary_and_any_backup()
+            self.title = primary.label
             # Note: Iteration count does not matter as vegeta plays requests in a loop
             for i in range(10):
                 if strategy == LoadStrategy.PRIMARY:
@@ -96,7 +98,10 @@ class LoadClient:
         attack_cmd += ["--format", "json"]
         attack_cmd += ["--rate", f"{self.rate}"]
         attack_cmd += ["--duration", "0"]  # runs until the process is terminated
-        attack_cmd += ["--max-workers", "10"]  # TODO: Find sensible default, 10?
+        attack_cmd += [
+            "--max-workers",
+            "10",
+        ]  # limit workers not to overwhelm TCP host node memory
         sa = nodes[0].session_auth("user0")
         attack_cmd += ["--cert", sa["session_auth"].cert]
         attack_cmd += ["--key", sa["session_auth"].key]
@@ -182,6 +187,7 @@ class LoadClient:
         df["error"] = df.error.apply(truncate_error_msg)
 
         fig, ax1 = plt.subplots()
+        plt.title(f"Load for {self.title}")
 
         # Latency
         color = "tab:blue"
