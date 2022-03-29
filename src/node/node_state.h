@@ -1157,6 +1157,11 @@ namespace ccf
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
         }
+
+        // Trigger a snapshot (at next signature) to ensure we have a working
+        // snapshot signed by the current (now new) service identity, in case we
+        // need to recover soon again.
+        trigger_snapshot(tx);
       }
       recovered_encrypted_ledger_secrets.clear();
       reset_data(quote_info.quote);
@@ -1372,6 +1377,7 @@ namespace ccf
 
         GenesisGenerator g(network, tx);
         g.open_service();
+        trigger_snapshot(tx);
         return;
       }
       else
