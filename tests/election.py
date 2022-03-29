@@ -45,7 +45,12 @@ def test_kill_primary(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        with_load=True,
     ) as network:
         check = infra.checker.Checker()
 

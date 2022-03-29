@@ -123,7 +123,6 @@ class LoadClient:
         ]
         self.proc = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
         self.events.append((event, time.time()))
-        LOG.debug("Load client started")
 
     def _aggregate_results(self):
         # Aggregate the results from the last run into all results so far.
@@ -210,7 +209,7 @@ class LoadClient:
         color = "tab:red"
         ax3.set_ylabel("errors", color=color)
         ax3.tick_params(axis="y", labelcolor=color)
-        ax3.scatter(df.index, df["error"], color=color, s=10)
+        ax3.scatter(df.index, df["error"], marker=".", color=color, s=10)
 
         # Network events
         extra_ticks = []
@@ -265,24 +264,26 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                 new_nodes = [new_primary] + new_backups
                 if new_nodes != known_nodes:
                     LOG.warning(
-                        "Network configuration has changed, restarting load client"
+                        "Network configuration has changed, restarting service load client"
                     )
-                    # TODO: Cleanup
+                    event = "unknown"
                     if primary not in new_nodes:
-                        event = f"p{primary.local_node_id} retired"
+                        event = f"stop p{primary.local_node_id}"
                     elif new_primary != primary:
-                        event = f"election p{primary.local_node_id} -> p{new_primary.local_node_id}"
-                    elif len(new_nodes) > len(known_nodes):
-                        event = "node added"
-                    elif len(new_nodes) < len(known_nodes):
-                        event = "node removed"
+                        event = f"elect p{primary.local_node_id} -> p{new_primary.local_node_id}"
                     else:
-                        event = "unknwon"
+                        added = list(set(new_nodes) - set(known_nodes))
+                        removed = list(set(known_nodes) - set(new_nodes))
+                        event = ""
+                        if added:
+                            event += f"add n{[n.local_node_id for n in added]}"
+                        if removed:
+                            event += f"- rm n{[n.local_node_id for n in removed]}"
                     primary = new_primary
                     backups = new_backups
                     self.client.restart(new_nodes, event=event)
                 known_nodes = new_nodes
             except Exception as e:
-                LOG.warning("Error finding nodes")
+                LOG.warning(f"Error finding nodes: {e}")
             time.sleep(NETWORK_POLL_INTERVAL_S)
         return
