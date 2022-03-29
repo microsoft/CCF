@@ -849,7 +849,7 @@ class Ledger:
 
     _filenames: list
     _insecure_skip_verification: bool = False
-    _latest_iterator: LedgerIterator = None
+    _latest_iterator: Optional[LedgerIterator] = None
 
     def __init__(
         self,
@@ -990,7 +990,7 @@ class Ledger:
 
         :return int: Number of verified signature transactions.
         """
-        return self._latest_iterator.signature_count()
+        return self._latest_iterator.signature_count() if self._latest_iterator else 0
 
     def last_verified_txid(self) -> Optional[TxID]:
         """
@@ -1000,7 +1000,11 @@ class Ledger:
 
         :return: :py:class:`ccf.tx_id.TxID`
         """
-        return self._latest_iterator.last_verified_txid()
+        return (
+            self._latest_iterator.last_verified_txid()
+            if self._latest_iterator
+            else None
+        )
 
 
 class InvalidRootException(Exception):
