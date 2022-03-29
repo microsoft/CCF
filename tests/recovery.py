@@ -360,9 +360,7 @@ def test_recover_service_truncated_ledger(
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     # Corrupt _uncommitted_ ledger before starting new service
-    ledger = ccf.ledger.Ledger(
-        [current_ledger_dir], committed_only=False, insecure_skip_verification=True
-    )
+    ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
 
     def get_middle_tx_offset(tx):
         offset, next_offset = tx.get_offsets()
