@@ -28,10 +28,10 @@ LOGGING_TXS_SCOPE = "load"
 
 # Load client configuration
 VEGETA_BIN = "/opt/vegeta/vegeta"
-VEGETA_TARGET_FILE_NAME = "vegeta_targets"
-TMP_RESULTS_CSV_FILE_NAME = "vegeta_results.tmp"
-RESULTS_CSV_FILE_NAME = "vegeta_results.csv"
-RESULTS_IMG_FILE_NAME = "vegeta_results.png"
+TARGET_FILE_NAME = "load_targets"
+TMP_RESULTS_CSV_FILE_NAME = "load_results.tmp"
+RESULTS_CSV_FILE_NAME = "load_results.csv"
+RESULTS_IMG_FILE_NAME = "load_results.png"
 
 
 def in_common_dir(network, file):
@@ -62,7 +62,7 @@ class LoadClient:
 
     def _create_targets(self, nodes, strategy):
         with open(
-            in_common_dir(self.network, VEGETA_TARGET_FILE_NAME),
+            in_common_dir(self.network, TARGET_FILE_NAME),
             "w",
             encoding="utf-8",
         ) as f:
@@ -90,7 +90,7 @@ class LoadClient:
         attack_cmd = [VEGETA_BIN, "attack"]
         attack_cmd += [
             "--targets",
-            in_common_dir(self.network, VEGETA_TARGET_FILE_NAME),
+            in_common_dir(self.network, TARGET_FILE_NAME),
         ]
         attack_cmd += ["--format", "json"]
         attack_cmd += ["--rate", f"{self.rate}"]
@@ -190,12 +190,19 @@ class LoadClient:
         ax1.tick_params(axis="x", rotation=90)
         ax1.scatter(df.index, df["latency"], color=color)
 
-        # Errors
+        # Error code
         ax2 = ax1.twinx()
-        color = "tab:red"
-        ax2.set_ylabel("errors", color=color)
+        color = "tab:green"
+        ax2.set_ylabel("http code", color=color)
         ax2.tick_params(axis="y", labelcolor=color)
-        ax2.scatter(df.index, df["error"], color=color, s=10)
+        ax2.scatter(df.index, df["code"], color=color, s=10)
+
+        # Errors
+        ax3 = ax1.twinx()
+        color = "tab:red"
+        ax3.set_ylabel("errors", color=color)
+        ax3.tick_params(axis="y", labelcolor=color)
+        ax3.scatter(df.index, df["error"], color=color, s=10)
 
         # Network events
         extra_ticks = []
@@ -246,17 +253,25 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                 new_primary, new_backups = self.network.find_nodes(
                     timeout=10, log_capture=log_capture
                 )
+                LOG.error(new_primary)
                 new_nodes = [new_primary] + new_backups
                 if new_nodes != known_nodes:
                     LOG.warning(
                         "Network configuration has changed, restarting load client"
                     )
                     # TODO: Cleanup
-                    event = "unknown"
                     if primary not in new_nodes:
                         event = f"p{primary.local_node_id} retired"
                     elif new_primary != primary:
                         event = f"election p{primary.local_node_id} -> p{new_primary.local_node_id}"
+                    elif len(new_nodes) > len(known_nodes):
+                        event = "node added"
+                    elif len(new_nodes) < len(known_nodes):
+                        event = "node removed"
+                    else:
+                        event = "unknwon"
+                    primary = new_primary
+                    backups = new_backups
                     self.client.restart(new_nodes, event=event)
                 known_nodes = new_nodes
             except Exception as e:
