@@ -59,6 +59,7 @@ class LoadClient:
         self.strategy = strategy
         self.target_node = target_node
         self.events = existing_events or []
+        self.proc = None
 
     def _create_targets(self, nodes, strategy):
         with open(
@@ -134,8 +135,9 @@ class LoadClient:
 
     def _stop_client(self):
         self._aggregate_results()
-        self.proc.terminate()
-        self.proc.wait()
+        if self.proc:
+            self.proc.terminate()
+            self.proc.wait()
 
     def start(self, nodes):
         self._start_client(nodes, event="start")
@@ -221,6 +223,7 @@ class LoadClient:
             bbox_inches="tight",
             dpi=500,
         )
+        plt.close(fig)
         LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
 
@@ -253,7 +256,6 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                 new_primary, new_backups = self.network.find_nodes(
                     timeout=10, log_capture=log_capture
                 )
-                LOG.error(new_primary)
                 new_nodes = [new_primary] + new_backups
                 if new_nodes != known_nodes:
                     LOG.warning(

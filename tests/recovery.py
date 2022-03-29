@@ -59,16 +59,16 @@ def test_recover_service(network, args, from_snapshot=False):
 
     recovered_network.recover(args)
 
-    import election
-    import reconfiguration
+    # import election
+    # import reconfiguration
 
-    election.test_kill_primary(recovered_network, args)
+    # election.test_kill_primary(recovered_network, args)
 
-    time.sleep(5)
+    # time.sleep(5)
 
-    reconfiguration.test_add_node(recovered_network, args)
+    # reconfiguration.test_add_node(recovered_network, args)
 
-    time.sleep(5)
+    # time.sleep(5)
 
     return recovered_network
 
@@ -447,10 +447,6 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service(network, args, from_snapshot=False)
-
-        return
-
         network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
@@ -471,53 +467,33 @@ def run(args):
             else:
                 network = test_recover_service(network, args, from_snapshot=False)
 
-        # for i in range(recoveries_count):
-        #     # Issue transactions which will required historical ledger queries recovery
-        #     # when the network is shutdown
-        #     network.txs.issue(network, number_txs=1)
-        #     network.txs.issue(network, number_txs=1, repeat=True)
+            for node in network.get_joined_nodes():
+                node.verify_certificate_validity_period()
 
-        #     # Alternate between recovery with primary change and stable primary-ship,
-        #     # with and without snapshots
-        #     if i % recoveries_count == 0:
-        #         if args.consensus != "BFT":
-        #             network = test_share_resilience(network, args, from_snapshot=True)
-        #     elif i % recoveries_count == 1:
-        #         network = test_recover_service_aborted(
-        #             network, args, from_snapshot=False
-        #         )
-        #     else:
-        #         network = test_recover_service(
-        #             network, args, from_snapshot=False, split_ledger=True
-        #         )
+            primary, _ = network.find_primary()
 
-        #     for node in network.get_joined_nodes():
-        #         node.verify_certificate_validity_period()
-
-        #     primary, _ = network.find_primary()
-
-        #     LOG.success("Recovery complete on all nodes")
+            LOG.success("Recovery complete on all nodes")
 
     # Verify that a new ledger chunk was created at the start of each recovery
-    # ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
-    # for chunk in ledger:
-    #     chunk_start_seqno, _ = chunk.get_seqnos()
-    #     for tx in chunk:
-    #         tables = tx.get_public_domain().get_tables()
-    #         seqno = tx.get_public_domain().get_seqno()
-    #         if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
-    #             service_status = json.loads(
-    #                 tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-    #                     ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
-    #                 ]
-    #             )["status"]
-    #             if service_status == "Opening":
-    #                 LOG.info(f"New ledger chunk found for service opening at {seqno}")
-    #                 assert (
-    #                     chunk_start_seqno == seqno
-    #                 ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
+    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
+    for chunk in ledger:
+        chunk_start_seqno, _ = chunk.get_seqnos()
+        for tx in chunk:
+            tables = tx.get_public_domain().get_tables()
+            seqno = tx.get_public_domain().get_seqno()
+            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
+                service_status = json.loads(
+                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                    ]
+                )["status"]
+                if service_status == "Opening":
+                    LOG.info(f"New ledger chunk found for service opening at {seqno}")
+                    assert (
+                        chunk_start_seqno == seqno
+                    ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    # test_recover_service_with_expired_cert(args)
+    test_recover_service_with_expired_cert(args)
 
 
 if __name__ == "__main__":

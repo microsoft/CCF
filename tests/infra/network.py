@@ -1201,7 +1201,7 @@ class Network:
     def get_committed_snapshots(self, node):
         # Wait for all available snapshot files to be committed before
         # copying snapshot directory, so that we always use the latest snapshot
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
             end_time = time.time() + timeout
             committed = True
             uncommitted_snapshots = []
