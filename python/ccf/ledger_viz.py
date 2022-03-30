@@ -140,7 +140,9 @@ def main():
     ledger = ccf.ledger.Ledger(
         ledger_paths,
         committed_only=not args.uncommitted,
-        insecure_skip_verification=args.insecure_skip_verification,
+        validator=ccf.ledger.LedgerValidator()
+        if args.insecure_skip_verification
+        else None,
     )
 
     l = DefaultLiner(args.write_views, args.split_views, args.split_services)
