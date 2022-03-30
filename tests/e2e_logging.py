@@ -36,15 +36,61 @@ from types import MappingProxyType
 from loguru import logger as LOG
 
 
+def show_cert(name, cert):
+    from OpenSSL.crypto import dump_certificate, FILETYPE_TEXT
+
+    dc = dump_certificate(FILETYPE_TEXT, cert).decode("unicode_escape")
+    LOG.info(f"{name} cert: {dc}")
+
+
+def verify_endorsements_openssl(service_cert, receipt):
+    from OpenSSL.crypto import (
+        load_certificate,
+        FILETYPE_PEM,
+        X509,
+        X509Store,
+        X509StoreContext,
+    )
+
+    store = X509Store()
+
+    # pyopenssl does not support X509_V_FLAG_NO_CHECK_TIME. For recovery of expired
+    # services and historical receipt, we want to ignore the validity time. 0x200000
+    # is the bitmask for this option in more recent versions of OpenSSL.
+    X509_V_FLAG_NO_CHECK_TIME = 0x200000
+    store.set_flags(X509_V_FLAG_NO_CHECK_TIME)
+
+    store.add_cert(X509.from_cryptography(service_cert))
+    chain = None
+    if "service_endorsements" in receipt:
+        chain = []
+        for endo in receipt["service_endorsements"]:
+            chain.append(load_certificate(FILETYPE_PEM, endo.encode()))
+    node_cert_pem = receipt["cert"].encode()
+    ctx = X509StoreContext(store, load_certificate(FILETYPE_PEM, node_cert_pem), chain)
+    ctx.verify_certificate()  # (throws on error)
+
+
 def verify_receipt(
-    receipt, service_cert, check_endorsement=True, claims=None, generic=True
+    receipt, service_cert, claims=None, generic=True, skip_endorsement_check=False
 ):
     """
     Raises an exception on failure
     """
+
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
-    if check_endorsement:
-        ccf.receipt.check_endorsement(node_cert, service_cert)
+
+    if not skip_endorsement_check:
+        service_endorsements = []
+        if "service_endorsements" in receipt:
+            service_endorsements = [
+                load_pem_x509_certificate(endo.encode(), default_backend())
+                for endo in receipt["service_endorsements"]
+            ]
+        ccf.receipt.check_endorsements(node_cert, service_cert, service_endorsements)
+
+        verify_endorsements_openssl(service_cert, receipt)
+
     if claims is not None:
         assert "leaf_components" in receipt
         assert "commit_evidence" in receipt["leaf_components"]
@@ -791,7 +837,7 @@ def test_historical_receipts_with_claims(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"], domain="public"
             )
             r = first_receipt.json()["receipt"]
-            verify_receipt(r, network.cert, True, first_receipt.json()["msg"].encode())
+            verify_receipt(r, network.cert, first_receipt.json()["msg"].encode())
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
@@ -1382,9 +1428,9 @@ def test_random_receipts(
                     verify_receipt(
                         receipt,
                         network.cert,
-                        not lts,
                         claims=additional_seqnos.get(s),
                         generic=True,
+                        skip_endorsement_check=lts,
                     )
                     if s == max_seqno:
                         # Always a signature receipt

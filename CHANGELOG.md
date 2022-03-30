@@ -9,10 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Private headers have been moved to `ccf/include/ccf/_private` so they cannot be accidentally included from existing paths. Any applications relying on private headers should remove this dependence, or raise an issue to request the dependency be moved to the public API. In a future release private headers will be removed entirely from the installed package.
+
+## [2.0.0-rc5]
+
+### Changed
+
 - Nodes now have a free-form `node_data` field, to match users and members. This can be set when the node is launched, or modified by governance. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier (#3662).
 - New `GET /node/consensus` endpoint now also returns primary node ID and current view (#3666).
 - The `enclave::` namespace has been removed, and all types which were under it are now under `ccf::`. This will affect any apps using `enclave::RpcContext`, which should be replaced with `ccf::RpcContext` (#3664).
 - HTTP parsing errors are now recorded per-interface and returned by `GET /node/metrics` (#3671).
+- The `kv::Store` type is no longer visible to application code, and is replaced by a simpler `kv::ReadOnlyStore`. This is the interface given to historical queries to access historical state and enforces read-only access, without exposing internal implementation details of the store. This should have no impact on JS apps, but C++ apps will need to replace calls to `store->current_txid()` with calls to `store->get_txid()`, and `store->create_tx()` to `store->create_read_only_tx()`.
+- Receipts now come with service endorsements of previous service identities after recoveries (#3679). See `verify_receipt` in `e2e_logging.py` for an example of how to verify the resulting certificate chain. This functionality is introduced in `ccf::historical::adapter_v3`.
 
 ## [2.0.0-rc4]
 
@@ -1261,6 +1269,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc5
 [2.0.0-rc4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc4
 [2.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc3
 [2.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc2

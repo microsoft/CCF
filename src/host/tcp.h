@@ -599,7 +599,7 @@ namespace asynchost
       return true;
     }
 
-    static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo*)
+    static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
     {
       std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
       pending_resolve_requests.erase(req);
@@ -612,6 +612,7 @@ namespace asynchost
       {
         // The TCPImpl that submitted the request has been destroyed, but we
         // need to clean up the request object.
+        uv_freeaddrinfo(res);
         delete req;
       }
     }

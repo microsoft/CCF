@@ -23,9 +23,9 @@ public:
     std::make_shared<kv::NullTxEncryptor>();
 
   ccf::SeqNoCollection requested;
-  std::unordered_map<ccf::SeqNo, kv::StorePtr> fetched_stores;
+  std::unordered_map<ccf::SeqNo, kv::ReadOnlyStorePtr> fetched_stores;
 
-  kv::StorePtr deserialise_transaction(
+  kv::ReadOnlyStorePtr deserialise_transaction(
     ccf::SeqNo seqno, const uint8_t* data, size_t size)
   {
     auto store = std::make_shared<kv::Store>(
@@ -51,10 +51,10 @@ public:
     return store;
   }
 
-  std::vector<kv::StorePtr> fetch_transactions(
+  std::vector<kv::ReadOnlyStorePtr> fetch_transactions(
     const ccf::SeqNoCollection& seqnos)
   {
-    std::vector<kv::StorePtr> stores;
+    std::vector<kv::ReadOnlyStorePtr> stores;
 
     for (auto seqno : seqnos)
     {

@@ -252,6 +252,12 @@
       "Pem": {
         "type": "string"
       },
+      "Pem_array": {
+        "items": {
+          "$ref": "#/components/schemas/Pem"
+        },
+        "type": "array"
+      },
       "Proposal": {
         "properties": {
           "actions": {
@@ -353,6 +359,9 @@
           },
           "root": {
             "$ref": "#/components/schemas/string"
+          },
+          "service_endorsements": {
+            "$ref": "#/components/schemas/Pem_array"
           },
           "signature": {
             "$ref": "#/components/schemas/string"
@@ -472,7 +481,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.7.0"
+    "version": "2.7.1"
   },
   "openapi": "3.0.0",
   "paths": {
