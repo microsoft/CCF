@@ -248,7 +248,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # Check what files are already present. Modifying these may have no impact on historical queries, so they are ignored later
+        # Check what files are already present.
+        # Modifying these may have no impact on historical queries, so they are not considered as candidates for modification.
         args.target_node, _ = network.find_primary()
         primary_dir = get_node_root_dir(args.target_node)
         args.ledger_dir = get_ledger_dir(primary_dir)
