@@ -165,7 +165,7 @@ def run(
             LOG.success("Ledger verification complete")
             has_error = False
         finally:
-            if insecure_skip_verification:
+            if not validator:
                 LOG.warning("Skipped ledger integrity verification")
             else:
                 LOG.info(
