@@ -1537,8 +1537,9 @@ namespace aft
       // Update next and match for the responding node.
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        node->second.match_idx =
-          find_highest_possible_match({r.term, r.last_log_idx});
+        node->second.match_idx = std::min(
+          node->second.match_idx,
+          find_highest_possible_match({r.term, r.last_log_idx}));
       }
       else
       {
