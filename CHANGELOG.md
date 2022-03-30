@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `host_processes_interface.h` is now a public header, accessible under `ccf/node/host_processes_interface.h`.
 
 
 ## [2.0.0-rc5]
