@@ -487,7 +487,11 @@ def run(args):
             LOG.success("Recovery complete on all nodes")
 
     # Verify that a new ledger chunk was created at the start of each recovery
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
+    ledger = ccf.ledger.Ledger(
+        primary.remote.ledger_paths(),
+        committed_only=False,
+        validator=ccf.ledger.LedgerValidator(),
+    )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()
         for tx in chunk:
@@ -499,7 +503,7 @@ def run(args):
                         ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
-                if service_status == "Opening":
+                if service_status == "Opening" or service_status == "Recovering":
                     LOG.info(f"New ledger chunk found for service opening at {seqno}")
                     assert (
                         chunk_start_seqno == seqno
