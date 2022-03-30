@@ -1,0 +1,112 @@
+nodes,0,1,2
+connect,0,1
+connect,1,2
+connect,0,2
+
+# Node 0 starts first, and begins sending messages first
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+replicate,1,hello world
+periodic_all,10
+dispatch_all
+
+replicate,1,saluton mondo
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+# Node 0 is partitioned, and replicates more items
+disconnect,0,1
+disconnect,0,2
+
+replicate,1,drop me 1
+replicate,1,drop me 2
+replicate,1,drop me 3
+periodic_all,10
+dispatch_all
+
+state_all
+
+# Node 1 calls an election, and wins
+periodic_one,1,110
+dispatch_all
+
+periodic_all,10
+dispatch_all  #< This AppendEntries starts at a point that Node 1 would accept, but is dropped
+
+state_all
+
+# Node 1 replicates new entries
+replicate,2,keep me 1
+periodic_all,10
+dispatch_all
+
+replicate,2,keep me 2
+periodic_all,10
+dispatch_all
+
+state_all
+
+# Nodes 1 and 2 advance multiple terms and new entries
+periodic_one,2,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+replicate,3,keep me term 3
+
+periodic_all,10
+dispatch_all
+
+periodic_one,1,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+replicate,4,keep me term 4
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+# Network heals
+connect,0,1
+connect,0,2
+
+# Node 0 hears they were deposed
+periodic_all,10
+dispatch_all
+state_all
+
+# Node 1 tries to bring node 0 back in line
+# But we get unlucky with timing, and node 1 continually follows up with a heartbeat before hearing the response
+# This means it processes a useful NACK and then an unhelpful NACK
+periodic_all,10
+periodic_one,1,10
+dispatch_all
+
+periodic_all,10
+periodic_one,1,10
+dispatch_all
+
+periodic_all,10
+periodic_one,1,10
+dispatch_all
+state_all
+assert_state_sync
