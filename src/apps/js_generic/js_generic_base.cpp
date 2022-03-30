@@ -4,11 +4,11 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
-#include "node/rpc/host_processes_interface.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
