@@ -155,7 +155,9 @@ namespace ccf::js
       // Note: The state_ctx object is deleted by js_historical_state_finalizer
       // which is registered as the finalizer for historical_state_class_id.
       auto state_ctx = new HistoricalStateContext{
-        state, state->store->create_tx(), TxContext{nullptr, TxAccess::APP}};
+        state,
+        state->store->create_read_only_tx(),
+        ReadOnlyTxContext{nullptr, TxAccess::APP}};
       state_ctx->tx_ctx.tx = &state_ctx->tx;
       JS_SetOpaque(js_state, state_ctx);
 
@@ -167,7 +169,7 @@ namespace ccf::js
       auto js_receipt = ccf_receipt_to_js(ctx, state->receipt);
       JS_SetPropertyStr(ctx, js_state, "receipt", js_receipt);
 
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
       JS_SetOpaque(kv, &state_ctx->tx_ctx);
       JS_SetPropertyStr(ctx, js_state, "kv", kv);
 

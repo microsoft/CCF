@@ -14,7 +14,7 @@ namespace ccf::indexing::strategies
   {}
 
   void VisitEachEntryInMap::handle_committed_transaction(
-    const ccf::TxID& tx_id, const kv::StorePtr& store)
+    const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
   {
     // NB: Get an untyped view over the map with the same name. This saves
     // deserialisation here, where we hand on the raw key and value.

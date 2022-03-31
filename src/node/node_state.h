@@ -1344,10 +1344,8 @@ namespace ccf
           "service identity");
       }
 
-      if (identities.previous)
-      {
-        service_info->previous_service_identity = *identities.previous;
-      }
+      service_info->previous_service_identity_version =
+        service->get_version_of_previous_write();
 
       if (is_part_of_public_network())
       {

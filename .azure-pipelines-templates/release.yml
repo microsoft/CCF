@@ -17,6 +17,12 @@ jobs:
           python3.8 ./scripts/extract-release-notes.py --target-git-version | tee $(Build.BinariesDirectory)/rel-notes.md
         displayName: Extract release notes
 
+      - script: |
+          set -ex
+          cd $(Build.ArtifactStagingDirectory)
+          for f in *+*.deb; do mv -- "$f" "${f//+/_}"; done
+        displayName: Remove characters that break GitHubRelease
+
       - task: GitHubRelease@0
         inputs:
           gitHubConnection: ccf_release

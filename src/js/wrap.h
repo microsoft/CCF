@@ -6,12 +6,12 @@
 #include "ccf/ds/logger.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/js_plugin.h"
+#include "ccf/node/host_processes_interface.h"
 #include "ccf/rpc_context.h"
 #include "ccf/tx.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/rpc/gov_effects_interface.h"
-#include "node/rpc/host_processes_interface.h"
 #include "node/rpc/node_interface.h"
 
 #include <memory>
@@ -21,6 +21,7 @@
 namespace ccf::js
 {
   extern JSClassID kv_class_id;
+  extern JSClassID kv_read_only_class_id;
   extern JSClassID kv_map_handle_class_id;
   extern JSClassID body_class_id;
   extern JSClassID node_class_id;
@@ -31,6 +32,8 @@ namespace ccf::js
 
   extern JSClassDef kv_class_def;
   extern JSClassExoticMethods kv_exotic_methods;
+  extern JSClassDef kv_read_only_class_def;
+  extern JSClassExoticMethods kv_read_only_exotic_methods;
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef body_class_def;
   extern JSClassDef node_class_def;
@@ -49,11 +52,17 @@ namespace ccf::js
     TxAccess access = js::TxAccess::APP;
   };
 
+  struct ReadOnlyTxContext
+  {
+    kv::ReadOnlyTx* tx = nullptr;
+    TxAccess access = js::TxAccess::APP;
+  };
+
   struct HistoricalStateContext
   {
     ccf::historical::StatePtr state;
-    kv::CommittableTx tx;
-    TxContext tx_ctx;
+    kv::ReadOnlyTx tx;
+    ReadOnlyTxContext tx_ctx;
   };
 
 #pragma clang diagnostic push
@@ -168,7 +177,7 @@ namespace ccf::js
   void register_request_body_class(JSContext* ctx);
   void populate_global(
     TxContext* txctx,
-    TxContext* historical_txctx,
+    ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
