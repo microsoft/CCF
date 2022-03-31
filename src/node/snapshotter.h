@@ -76,6 +76,7 @@ namespace ccf
     {
       consensus::Index idx;
       bool forced;
+      bool done;
     };
 
     std::deque<SnapshotEntry> next_snapshot_indices;
@@ -222,7 +223,7 @@ namespace ccf
       store(store_),
       snapshot_tx_interval(snapshot_tx_interval_)
     {
-      next_snapshot_indices.push_back({initial_snapshot_idx, false});
+      next_snapshot_indices.push_back({initial_snapshot_idx, false, false});
     }
 
     void init_after_public_recovery()
@@ -256,7 +257,7 @@ namespace ccf
       last_snapshot_idx = idx;
 
       next_snapshot_indices.clear();
-      next_snapshot_indices.push_back({last_snapshot_idx, false});
+      next_snapshot_indices.push_back({last_snapshot_idx, false, false});
     }
 
     bool record_committable(consensus::Index idx)
@@ -289,7 +290,7 @@ namespace ccf
       auto due = (idx - last_unforced_idx) >= snapshot_tx_interval;
       if (due || forced)
       {
-        next_snapshot_indices.push_back({idx, !due});
+        next_snapshot_indices.push_back({idx, !due, false});
         LOG_TRACE_FMT(
           "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
         store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
@@ -375,12 +376,12 @@ namespace ccf
 
       auto& next = next_snapshot_indices.front();
       auto due = next.idx - last_snapshot_idx >= snapshot_tx_interval;
-      if (due || next.forced)
+      if (due || (next.forced && !next.done))
       {
         if (snapshot_generation_enabled && generate_snapshot && next.idx)
         {
           schedule_snapshot(next.idx);
-          next.forced = false; // Avoid forcing the same snapshot multiple times
+          next.done = true;
         }
 
         if (due && !next.forced)
@@ -407,7 +408,7 @@ namespace ccf
 
       if (next_snapshot_indices.empty())
       {
-        next_snapshot_indices.push_back({last_snapshot_idx, false});
+        next_snapshot_indices.push_back({last_snapshot_idx, false, true});
       }
 
       LOG_TRACE_FMT(
