@@ -369,12 +369,15 @@ class LedgerValidator:
         self.last_verified_seqno = 0
         self.last_verified_view = 0
 
+        self.service_status = None
+
     def add_transaction(self, transaction):
         """
         To validate the ledger, ledger transactions need to be added via this method.
         Depending on the tables that were part of the transaction, it does different things.
         When transaction contains signature table, it starts the verification process and verifies that the root of merkle tree was signed by a node which was part of the network.
         It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.
+        Further, it validates all service status transitions.
         If any of the above checks fail, this method throws.
         """
         transaction_public_domain = transaction.get_public_domain()
@@ -455,6 +458,26 @@ class LedgerValidator:
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
+
+        # Check service status transitions
+        if SERVICE_INFO_TABLE_NAME in tables:
+            service_table = tables[SERVICE_INFO_TABLE_NAME]
+            updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+            updated_service_json = json.loads(updated_service)
+            updated_status = updated_service_json["status"]
+            if self.service_status == updated_status:
+                pass
+            elif self.service_status == "Opening":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Recovering":
+                assert updated_status in ["WaitingForRecoveryShares"]
+            elif self.service_status == "WaitingForRecoveryShares":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Open":
+                assert updated_status in ["Recovering"]
+            else:
+                assert self.service_status == None
+            self.service_status = updated_status
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_tx_digest(), False)
