@@ -504,10 +504,12 @@ def run(args):
                     ]
                 )["status"]
                 if service_status == "Opening" or service_status == "Recovering":
-                    LOG.info(f"New ledger chunk found for service opening at {seqno}")
+                    LOG.info(
+                        f"New ledger chunk found for service {service_status.lower()} at {seqno}"
+                    )
                     assert (
                         chunk_start_seqno == seqno
-                    ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
+                    ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_with_expired_cert(args)
 
