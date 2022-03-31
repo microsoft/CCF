@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/receipt.h"
+#include "ccf/tx_receipt_path.h"
 #include "node/history.h"
 
 namespace ccf
@@ -10,8 +11,8 @@ namespace ccf
   struct TxReceipt
   {
     std::vector<uint8_t> signature = {};
-    HistoryTree::Hash root = {};
-    std::shared_ptr<ccf::HistoryTree::Path> path = {};
+    crypto::Sha256Hash root = {};
+    ccf::TxReceiptPath path = {};
     ccf::NodeId node_id = {};
     std::optional<crypto::Pem> node_cert = std::nullopt;
     std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
@@ -21,8 +22,8 @@ namespace ccf
 
     TxReceipt(
       const std::vector<uint8_t>& signature_,
-      const HistoryTree::Hash& root_,
-      std::shared_ptr<ccf::HistoryTree::Path> path_,
+      const crypto::Sha256Hash& root_,
+      const ccf::TxReceiptPath& path_,
       const NodeId& node_id_,
       const std::optional<crypto::Pem>& node_cert_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,

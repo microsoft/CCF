@@ -22,21 +22,18 @@ namespace ccf
     {
       out.root = receipt.root.to_string();
     }
-    if (receipt.path != nullptr)
+    for (const auto& node : receipt.path)
     {
-      for (const auto& node : *receipt.path)
+      ccf::Receipt::Element n;
+      if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
       {
-        ccf::Receipt::Element n;
-        if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
-        {
-          n.left = node.hash.to_string();
-        }
-        else
-        {
-          n.right = node.hash.to_string();
-        }
-        out.proof.emplace_back(std::move(n));
+        n.left = node.hash.to_string();
       }
+      else
+      {
+        n.right = node.hash.to_string();
+      }
+      out.proof.emplace_back(std::move(n));
     }
     out.node_id = receipt.node_id;
 

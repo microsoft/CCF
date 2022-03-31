@@ -70,7 +70,7 @@ namespace crypto
     return digest;
   }
 
-  Sha256Hash Sha256Hash::from_span(const std::span<uint8_t, SIZE>& sp)
+  Sha256Hash Sha256Hash::from_span(const std::span<const uint8_t, SIZE>& sp)
   {
     Sha256Hash digest;
     std::copy(sp.begin(), sp.end(), digest.h.begin());

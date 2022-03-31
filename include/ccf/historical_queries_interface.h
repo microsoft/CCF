@@ -13,6 +13,7 @@
 
 namespace ccf
 {
+  // TODO: Remove this comment when it's no longer true
   // This is an opaque, incomplete type, but can be summarised to a
   // JSON-serialisable form by the functions below
   struct TxReceipt;

@@ -4,6 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/tx_receipt_path.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
@@ -235,14 +236,14 @@ namespace ccf
       path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
-    const HistoryTree::Hash& get_root() const
+    crypto::Sha256Hash get_root() const
     {
-      return root;
+      return crypto::Sha256Hash::from_span({root.bytes, root.size()});
     }
 
-    std::shared_ptr<HistoryTree::Path> get_path()
+    ccf::TxReceiptPath get_path()
     {
-      return path;
+      return {};
     }
 
     Proof(HistoryTree* tree, uint64_t index)
