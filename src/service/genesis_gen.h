@@ -334,7 +334,9 @@ namespace ccf
         active_service->status != ServiceStatus::OPENING &&
         active_service->status != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
-        LOG_FAIL_FMT("Could not open current service: status is not OPENING");
+        LOG_FAIL_FMT(
+          "Could not open current service: status is not OPENING or "
+          "WAITING_FOR_RECOVERY_SHARES");
         return false;
       }
 
