@@ -42,14 +42,14 @@ namespace aft
       Index sent_idx;
 
       // the highest matching index with the node that was confirmed
-      std::optional<Index> match_idx = std::nullopt;
+      Index match_idx;
 
       NodeState() = default;
 
       NodeState(
         const Configuration::NodeInfo& node_info_,
         Index sent_idx_,
-        Index match_idx_) :
+        Index match_idx_ = 0) :
         node_info(node_info_),
         sent_idx(sent_idx_),
         match_idx(match_idx_)
@@ -698,7 +698,7 @@ namespace aft
       }
       for (auto& [k, v] : nodes)
       {
-        details.acks[k] = v.match_idx.value_or(0);
+        details.acks[k] = v.match_idx;
       }
       details.reconfiguration_type = reconfiguration_type;
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
@@ -1535,24 +1535,15 @@ namespace aft
       }
 
       // Update next and match for the responding node.
-      auto& match_idx = node->second.match_idx;
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        const auto match_for_this_nack =
-          find_highest_possible_match({r.term, r.last_log_idx});
-
-        if (!match_idx.has_value())
-        {
-          match_idx = match_for_this_nack;
-        }
-        else
-        {
-          match_idx = std::min(match_idx.value(), match_for_this_nack);
-        }
+        node->second.match_idx = std::min(
+          node->second.match_idx,
+          find_highest_possible_match({r.term, r.last_log_idx}));
       }
       else
       {
-        match_idx = std::min(r.last_log_idx, state->last_idx);
+        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
       }
 
       if (r.success != AppendEntriesResponseType::OK)
@@ -1562,7 +1553,7 @@ namespace aft
           "Recv append entries response to {} from {}: failed",
           state->my_node_id,
           from);
-        node->second.sent_idx = match_idx.value();
+        node->second.sent_idx = node->second.match_idx;
         return;
       }
 
@@ -1832,7 +1823,7 @@ namespace aft
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
-        it->second.match_idx = std::nullopt;
+        it->second.match_idx = 0;
         it->second.sent_idx = next - 1;
 
         // Send an empty append_entries to all nodes.
@@ -2002,7 +1993,7 @@ namespace aft
           }
           else
           {
-            match.push_back(nodes.at(node.first).match_idx.value_or(0));
+            match.push_back(nodes.at(node.first).match_idx);
           }
         }
 
