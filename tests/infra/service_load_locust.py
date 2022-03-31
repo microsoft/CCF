@@ -1,10 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from nntplib import NNTPDataError
-from pstats import Stats
+
 import time
 import os
 import subprocess
+from wsgiref import headers
 import generate_vegeta_targets as TargetGenerator
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -15,8 +15,9 @@ import datetime
 import infra.concurrency
 import gevent
 from locust.env import Environment
-from locust import FastHttpUser, task, events, between
+from locust import HttpUser, task, tag, between
 import locust.stats
+import json
 
 # from locust.stats import StatsCSVFileWriter
 
@@ -42,49 +43,42 @@ TMP_RESULTS_CSV_FILE_NAME = "load_results.tmp"
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
 
-locust.stats.CSV_STATS_INTERVAL_SEC = 0.1
+locust.stats.CSV_STATS_INTERVAL_SEC = 1
 locust.stats.CSV_STATS_FLUSH_INTERVAL_SEC = 1
 
 
-@events.init.add_listener
-def on_test_start(environment, **kwargs):
-    # if environment.host is None:
-    #     raise RuntimeError("-H must be specified")
-    LOG.warning(environment.host)
+class Submitter(HttpUser):
 
+    user_auth = None
+    server_ca = None
+    msg_id = 0
 
-class Submitter(FastHttpUser):
-    # def __init__(self, environment, network, *args, **kwargs):
-    #     super().__init__(*args, environment, **kwargs)
-    #     self.network = network
-    #     self.primary, _ = self.network.find_primary()
-    #     self.host = self.primary
-    # wait_time = between(1, 3)
-
-    @task
+    @task()
     def submit(self):
-        LOG.success(self.host)
-        r = self.client.get("/node/memory")
-        LOG.success(r.json())
+        headers = {"content-type": "application/json"}
+        body_json = {"id": self.msg_id, "msg": f"Private message: {self.msg_id}"}
+        self.msg_id += 1
+        self.client.post(
+            f"/app/log/private?scope={LOGGING_TXS_SCOPE}",
+            data=json.dumps(body_json).encode(),
+            headers=headers,
+            cert=self.user_auth,
+            verify=self.server_ca,
+        )
 
 
-# class Submitter(FastHttpUser):
-#     fixed_count = 10
+class Auditor(HttpUser):
 
-#     @task
-#     def submit(self):
-#         # assert self.host
-#         LOG.success(self.host)
+    user_auth = None
+    server_ca = None
 
-#         # for _ in retrieve_signed_claimsets(
-#         #     from_seqno=None,
-#         #     to_seqno=None,
-#         #     ccf_url=self.host,
-#         #     development=True,
-#         #     session=self.client,
-#         #     is_locust_session=True,
-#         # ):
-#         #     pass
+    @task()
+    def query(self):
+        self.client.get(
+            f"/app/log/private?scope={LOGGING_TXS_SCOPE}&id={0}",  # TODO: Use different key
+            cert=self.user_auth,
+            verify=self.server_ca,
+        )
 
 
 def in_common_dir(network, file):
@@ -143,22 +137,30 @@ class LoadClient:
     #                 body={"id": i, "msg": f"Private message: {i}"},
     #             )
 
-    def _start_client(self, nodes, event):
-        target_node = nodes[0]
+    def _start_client(self, primary, backups, event):
+        target_node = primary
         target_host = f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
-        LOG.success(f"target: {target_host}")
 
-        self.env = Environment(user_classes=[Submitter], host=target_host)
+        self.env = Environment(user_classes=[Submitter, Auditor], host=target_host)
         self.env.create_local_runner()
+
+        # TODO: Strategy
+        # Allocate users to nodes, depending on strategy
+        sa = primary.session_auth("user0")["session_auth"]
+        if self.strategy == LoadStrategy.PRIMARY:
+            for u in self.env.user_classes_by_name.values():
+                u.user_auth = (sa.cert, sa.key)
+                u.server_ca = primary.session_ca()["ca"]
+
         PERCENTILES_TO_REPORT = [0.50, 0.90, 0.99, 1.0]
         stats_writer = locust.stats.StatsCSVFileWriter(
             self.env,
             PERCENTILES_TO_REPORT,
-            os.path.join(self.network.common_dir, "load"),
+            in_common_dir(self.network, "tmp_load"),
             full_history=True,
         )
         self.stats = gevent.spawn(stats_writer)
-        self.env.runner.start(user_count=1, spawn_rate=20)
+        self.env.runner.start(user_count=2, spawn_rate=100)  # TODO: Configure
 
     def _aggregate_results(self):
         # Aggregate the results from the last run into all results so far.
@@ -166,64 +168,65 @@ class LoadClient:
         # can be started one after the other and since the results csv file
         # is the same for all instances (within the same test/common dir),
         # the latest instance of the LoadClient will render all results.
-        tmp_file = in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME)
-        if tmp_file:
+        tmp_file = in_common_dir(self.network, "tmp_load_stats_history.csv")
+        if os.path.exists(tmp_file):
             with open(tmp_file, "rb") as input, open(
                 in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
             ) as output:
                 copyfileobj(input, output)
 
     def _stop_client(self):
-        # self._aggregate_results()
         LOG.error("Stopping runner")
         gevent.kill(self.stats)
         # LOG.warning(self.env.stats.history)
+
         self.env.runner.stop()
+        self._aggregate_results()
         # if self.proc:
         #     self.proc.terminate()
         #     self.proc.wait()
 
-    def start(self, nodes):
-        self._start_client(nodes, event="start")
+    def start(self, primary, backups):
+        self._start_client(primary, backups, event="start")
 
     def stop(self):
         self._stop_client()
-        # self._render_results()
+        self._render_results()
 
-    def restart(self, nodes, event="node change"):
+    def restart(self, primary, backups, event="node change"):
         self._stop_client()
-        self._start_client(nodes, event)
+        self._start_client(primary, backups, event)
 
     def _render_results(self):
         df = pd.read_csv(
             os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
-            header=None,
+            # header=None,
             keep_default_na=False,
-            names=[
-                "timestamp",
-                "code",
-                "latency",
-                "bytesout",
-                "bytesin",
-                "error",
-                "response_body",
-                "attack_name",
-                "seqno",
-                "method",
-                "url",
-                "response_headers",
-            ],
-        ).set_index("timestamp")
-        df.index = pd.to_datetime(df.index, unit="ns")
-        df["latency"] = df.latency.apply(lambda x: x / 1e6)
+            # names=[
+            #     "timestamp",
+            #     "code",
+            #     "latency",
+            #     "bytesout",
+            #     "bytesin",
+            #     "error",
+            #     "response_body",
+            #     "attack_name",
+            #     "seqno",
+            #     "method",
+            #     "url",
+            #     "response_headers",
+            # ],
+        ).set_index("Timestamp")
+        # df.index = pd.to_datetime(df.index, unit="ns")
+        # df["latency"] = df.latency.apply(lambda x: x / 1e6)
         # Truncate error message for more compact rendering
-        def truncate_error_msg(msg, max_=25):
-            if msg is None:
-                return None
-            else:
-                return msg[-max_:] if len(msg) > max_ else msg
+        # def truncate_error_msg(msg, max_=25):
+        #     if msg is None:
+        #         return None
+        #     else:
+        #         return msg[-max_:] if len(msg) > max_ else msg
 
-        df["error"] = df.error.apply(truncate_error_msg)
+        # df["error"] = df.error.apply(truncate_error_msg)
 
         fig, ax1 = plt.subplots()
         plt.title(f"Load for {self.title}")
@@ -232,24 +235,24 @@ class LoadClient:
         color = "tab:blue"
         ax1.set_xlabel("time")
         ax1.set_ylabel("latency (ms)", color=color)
-        ax1.set_yscale("log")
+        # ax1.set_yscale("log")
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.tick_params(axis="x", rotation=90)
-        ax1.scatter(df.index, df["latency"], color=color)
+        ax1.scatter(df.index, df["Requests/s"], color=color)
 
         # Error code
         ax2 = ax1.twinx()
         color = "tab:green"
         ax2.set_ylabel("http code", color=color)
         ax2.tick_params(axis="y", labelcolor=color)
-        ax2.scatter(df.index, df["code"], color=color, s=10)
+        ax2.scatter(df.index, df["Failures/s"], color=color, s=10)
 
         # Errors
-        ax3 = ax1.twinx()
-        color = "tab:red"
-        ax3.set_ylabel("errors", color=color)
-        ax3.tick_params(axis="y", labelcolor=color)
-        ax3.scatter(df.index, df["error"], marker=".", color=color, s=10)
+        # ax3 = ax1.twinx()
+        # color = "tab:red"
+        # ax3.set_ylabel("errors", color=color)
+        # ax3.tick_params(axis="y", labelcolor=color)
+        # ax3.scatter(df.index, df["error"], marker=".", color=color, s=10)
 
         # Network events
         extra_ticks = []
@@ -280,7 +283,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         self.client = LoadClient(self.network, *args, **kwargs)
 
     def start(self):
-        self.client.start(nodes=self.network.get_joined_nodes())
+        self.client.start(*self.network.find_nodes())
         super().start()
         LOG.info("Load client started")
 
@@ -321,7 +324,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                             event += f"- rm n{[n.local_node_id for n in removed]}"
                     primary = new_primary
                     backups = new_backups
-                    self.client.restart(new_nodes, event=event)
+                    self.client.restart(new_primary, new_backups, event=event)
                 known_nodes = new_nodes
             except Exception as e:
                 LOG.warning(f"Error finding nodes: {e}")

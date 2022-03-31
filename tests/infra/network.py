@@ -2,12 +2,14 @@
 # Licensed under the Apache 2.0 License.
 import os
 import time
+
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
+import infra.service_load_locust
 import infra.node
 import infra.consortium
 import ccf.ledger
@@ -22,7 +24,7 @@ import functools
 import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
-import infra.service_load_locust
+
 
 from loguru import logger as LOG
 

@@ -510,7 +510,7 @@ class Node:
     ):
         return self.host.rpc_interfaces[interface_name].port
 
-    def session_ca(self, self_signed_ok):
+    def session_ca(self, self_signed_ok=False):
         if self_signed_ok:
             return {"ca": ""}
         else:
