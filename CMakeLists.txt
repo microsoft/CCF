@@ -191,10 +191,10 @@ install(
   PATTERN "*.hpp"
 )
 
-# Install all CCF headers
+# Install all private CCF headers, which may still be needed
 install(
   DIRECTORY src/
-  DESTINATION include/ccf
+  DESTINATION include/ccf/_private
   FILES_MATCHING
   PATTERN "*.h"
   PATTERN "*/test*" EXCLUDE

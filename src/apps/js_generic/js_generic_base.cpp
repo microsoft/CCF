@@ -4,11 +4,11 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
-#include "node/rpc/host_processes_interface.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
@@ -245,7 +245,7 @@ namespace ccfapp
               consensus, view, seqno, error_reason);
           };
 
-        ccf::historical::adapter_v2(
+        ccf::historical::adapter_v3(
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
@@ -255,7 +255,7 @@ namespace ccfapp
             assert(receipt);
             do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
           },
-          context.get_historical_state(),
+          context,
           is_tx_committed)(endpoint_ctx);
       }
       else

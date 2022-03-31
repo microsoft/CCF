@@ -3,8 +3,11 @@
 
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/entity_id.h"
+
+#include <optional>
 
 namespace ccf
 {
@@ -51,6 +54,8 @@ namespace ccf
     std::optional<std::string> leaf = std::nullopt;
     /// Leaf components in transactions emitted by 2.x networks.
     std::optional<LeafComponents> leaf_components = std::nullopt;
+
+    std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::Element)
@@ -64,5 +69,6 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id)
-  DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root, cert, leaf, leaf_components)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    Receipt, root, cert, leaf, leaf_components, service_endorsements)
 }

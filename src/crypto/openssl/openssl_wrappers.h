@@ -35,6 +35,8 @@ namespace crypto
       {
         std::string err(256, '\0');
         ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        // Remove any trailing NULs before returning
+        err.resize(std::strlen(err.c_str()));
         return err;
       }
       else
@@ -165,6 +167,10 @@ namespace crypto
       : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_PKEY(BIO* mem) :
+        Unique_SSL_OBJECT(
+          PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
+      {}
     };
 
     struct Unique_EVP_PKEY_CTX
