@@ -37,7 +37,7 @@ def get_ledger_dir(node_root):
 
 
 def sorted_committed_files(args):
-    regex = re.compile("ledger_(\d+)-(\d+).committed")
+    regex = re.compile(r"ledger_(\d+)-(\d+).committed")
     committed = []
     for file in os.listdir(args.ledger_dir):
         if m := regex.match(file):
