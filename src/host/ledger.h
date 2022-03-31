@@ -262,13 +262,13 @@ namespace asynchost
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
-          current_idx++;
 
           LOG_TRACE_FMT(
             "Recovered one entry of size {} at seqno {}",
             entry_size,
             current_idx);
 
+          current_idx++;
           positions.push_back(total_len);
           total_len += (kv::serialised_entry_header_size + entry_size);
         }

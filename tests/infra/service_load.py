@@ -130,12 +130,12 @@ class LoadClient:
         # can be started one after the other and since the results csv file
         # is the same for all instances (within the same test/common dir),
         # the latest instance of the LoadClient will render all results.
-        with open(
-            in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME), "rb"
-        ) as input, open(
-            in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
-        ) as output:
-            copyfileobj(input, output)
+        tmp_file = in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME)
+        if tmp_file:
+            with open(tmp_file, "rb") as input, open(
+                in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
+            ) as output:
+                copyfileobj(input, output)
 
     def _stop_client(self):
         self._aggregate_results()
