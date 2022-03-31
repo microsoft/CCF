@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from nntplib import NNTPDataError
+from pstats import Stats
 import time
 import os
 import subprocess
@@ -11,6 +13,13 @@ from shutil import copyfileobj
 from enum import Enum, auto
 import datetime
 import infra.concurrency
+import gevent
+from locust.env import Environment
+from locust import FastHttpUser, task, events, between
+import locust.stats
+
+# from locust.stats import StatsCSVFileWriter
+
 
 from loguru import logger as LOG
 
@@ -32,6 +41,50 @@ TARGET_FILE_NAME = "load_targets"
 TMP_RESULTS_CSV_FILE_NAME = "load_results.tmp"
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
+
+locust.stats.CSV_STATS_INTERVAL_SEC = 0.1
+locust.stats.CSV_STATS_FLUSH_INTERVAL_SEC = 1
+
+
+@events.init.add_listener
+def on_test_start(environment, **kwargs):
+    # if environment.host is None:
+    #     raise RuntimeError("-H must be specified")
+    LOG.warning(environment.host)
+
+
+class Submitter(FastHttpUser):
+    # def __init__(self, environment, network, *args, **kwargs):
+    #     super().__init__(*args, environment, **kwargs)
+    #     self.network = network
+    #     self.primary, _ = self.network.find_primary()
+    #     self.host = self.primary
+    # wait_time = between(1, 3)
+
+    @task
+    def submit(self):
+        LOG.success(self.host)
+        r = self.client.get("/node/memory")
+        LOG.success(r.json())
+
+
+# class Submitter(FastHttpUser):
+#     fixed_count = 10
+
+#     @task
+#     def submit(self):
+#         # assert self.host
+#         LOG.success(self.host)
+
+#         # for _ in retrieve_signed_claimsets(
+#         #     from_seqno=None,
+#         #     to_seqno=None,
+#         #     ccf_url=self.host,
+#         #     development=True,
+#         #     session=self.client,
+#         #     is_locust_session=True,
+#         # ):
+#         #     pass
 
 
 def in_common_dir(network, file):
@@ -61,68 +114,51 @@ class LoadClient:
         self.events = existing_events or []
         self.proc = None
         self.title = None
+        self.env = None
+        self.stats = None
 
-    def _create_targets(self, nodes, strategy):
-        with open(
-            in_common_dir(self.network, TARGET_FILE_NAME),
-            "w",
-            encoding="utf-8",
-        ) as f:
-            primary, backup = self.network.find_primary_and_any_backup()
-            self.title = primary.label
-            # Note: Iteration count does not matter as vegeta plays requests in a loop
-            for i in range(10):
-                if strategy == LoadStrategy.PRIMARY:
-                    node = primary
-                elif strategy == LoadStrategy.ALL:
-                    node = nodes[i % len(nodes)]
-                elif strategy == LoadStrategy.ANY_BACKUP:
-                    node = backup
-                else:
-                    assert self.target_node, "A target node should have been specified"
-                    node = self.target_node
-                TargetGenerator.write_vegeta_target_line(
-                    f,
-                    f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                    f"/app/log/private?scope={LOGGING_TXS_SCOPE}",
-                    body={"id": i, "msg": f"Private message: {i}"},
-                )
+    # def _create_targets(self, nodes, strategy):
+    #     with open(
+    #         in_common_dir(self.network, TARGET_FILE_NAME),
+    #         "w",
+    #         encoding="utf-8",
+    #     ) as f:
+    #         primary, backup = self.network.find_primary_and_any_backup()
+    #         self.title = primary.label
+    #         # Note: Iteration count does not matter as vegeta plays requests in a loop
+    #         for i in range(10):
+    #             if strategy == LoadStrategy.PRIMARY:
+    #                 node = primary
+    #             elif strategy == LoadStrategy.ALL:
+    #                 node = nodes[i % len(nodes)]
+    #             elif strategy == LoadStrategy.ANY_BACKUP:
+    #                 node = backup
+    #             else:
+    #                 assert self.target_node, "A target node should have been specified"
+    #                 node = self.target_node
+    #             TargetGenerator.write_vegeta_target_line(
+    #                 f,
+    #                 f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
+    #                 f"/app/log/private?scope={LOGGING_TXS_SCOPE}",
+    #                 body={"id": i, "msg": f"Private message: {i}"},
+    #             )
 
     def _start_client(self, nodes, event):
-        self._create_targets(nodes, self.strategy)
-        attack_cmd = [VEGETA_BIN, "attack"]
-        attack_cmd += [
-            "--targets",
-            in_common_dir(self.network, TARGET_FILE_NAME),
-        ]
-        attack_cmd += ["--format", "json"]
-        attack_cmd += ["--rate", f"{self.rate}"]
-        attack_cmd += ["--duration", "0"]  # runs until the process is terminated
-        attack_cmd += [
-            "--max-workers",
-            "10",
-        ]  # limit workers not to overwhelm TCP host node memory
-        sa = nodes[0].session_auth("user0")
-        attack_cmd += ["--cert", sa["session_auth"].cert]
-        attack_cmd += ["--key", sa["session_auth"].key]
-        attack_cmd += ["--root-certs", nodes[0].session_ca(False)["ca"]]
+        target_node = nodes[0]
+        target_host = f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
+        LOG.success(f"target: {target_host}")
 
-        attack = subprocess.Popen(attack_cmd, stdout=subprocess.PIPE)
-        tee_split = subprocess.Popen(
-            ["tee", "vegeta_results.bin"],
-            stdin=attack.stdout,
-            stdout=subprocess.PIPE,
+        self.env = Environment(user_classes=[Submitter], host=target_host)
+        self.env.create_local_runner()
+        PERCENTILES_TO_REPORT = [0.50, 0.90, 0.99, 1.0]
+        stats_writer = locust.stats.StatsCSVFileWriter(
+            self.env,
+            PERCENTILES_TO_REPORT,
+            os.path.join(self.network.common_dir, "load"),
+            full_history=True,
         )
-        encode_cmd = [
-            VEGETA_BIN,
-            "encode",
-            "--to",
-            "csv",
-            "--output",
-            in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME),
-        ]
-        self.proc = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
-        self.events.append((event, time.time()))
+        self.stats = gevent.spawn(stats_writer)
+        self.env.runner.start(user_count=1, spawn_rate=20)
 
     def _aggregate_results(self):
         # Aggregate the results from the last run into all results so far.
@@ -131,17 +167,21 @@ class LoadClient:
         # is the same for all instances (within the same test/common dir),
         # the latest instance of the LoadClient will render all results.
         tmp_file = in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME)
-        if os.path.exists(tmp_file):
+        if tmp_file:
             with open(tmp_file, "rb") as input, open(
                 in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
             ) as output:
                 copyfileobj(input, output)
 
     def _stop_client(self):
-        self._aggregate_results()
-        if self.proc:
-            self.proc.terminate()
-            self.proc.wait()
+        # self._aggregate_results()
+        LOG.error("Stopping runner")
+        gevent.kill(self.stats)
+        # LOG.warning(self.env.stats.history)
+        self.env.runner.stop()
+        # if self.proc:
+        #     self.proc.terminate()
+        #     self.proc.wait()
 
     def start(self, nodes):
         self._start_client(nodes, event="start")

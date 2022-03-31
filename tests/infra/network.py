@@ -22,7 +22,7 @@ import functools
 import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
-import infra.service_load
+import infra.service_load_locust
 
 from loguru import logger as LOG
 
@@ -145,7 +145,7 @@ class Network:
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = (
-                infra.service_load.ServiceLoad(self) if with_load else None
+                infra.service_load_locust.ServiceLoad(self) if with_load else None
             )
         else:
             self.consortium = existing_network.consortium
@@ -157,7 +157,7 @@ class Network:
             self.service_load = None
             if existing_network.service_load:
                 existing_network.service_load.stop()
-                self.service_load = infra.service_load.ServiceLoad(
+                self.service_load = infra.service_load_locust.ServiceLoad(
                     network=self,
                     existing_events=existing_network.service_load.get_existing_events(),
                 )
