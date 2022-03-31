@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/hash.h"
 #include "ccf/ds/nonstd.h"
-#include "ds/hash.h"
 #include "serializer.h"
 
 #include <atomic>

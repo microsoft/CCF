@@ -12,8 +12,29 @@ import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
+import infra.health_watcher
+import time
+from e2e_logging import verify_receipt
 
 from loguru import logger as LOG
+
+
+def get_and_verify_historical_receipt(network, ref_msg):
+    primary, _ = network.find_primary()
+    if not ref_msg:
+        if not network.txs.priv:
+            network.txs.issue(network, number_txs=1)
+        idx, _ = network.txs.get_last_tx()
+        ref_msg = network.txs.priv[idx][-1]
+        ref_msg["idx"] = idx
+    r = network.txs.get_receipt(
+        primary,
+        ref_msg["idx"],
+        ref_msg["seqno"],
+        ref_msg["view"],
+    )
+    verify_receipt(r.json()["receipt"], network.cert)
+    return ref_msg
 
 
 @reqs.description("Recover a service")
@@ -26,6 +47,17 @@ def test_recover_service(network, args, from_snapshot=False):
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
+    # Start health watcher and stop nodes one by one until a recovery has to be staged
+    watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+    watcher.start()
+
+    for node in network.get_joined_nodes():
+        time.sleep(args.election_timeout_ms / 1000)
+        node.stop()
+
+    watcher.wait_for_recovery()
+
+    # Stop remaining nodes
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
@@ -150,6 +182,9 @@ def test_recover_service_with_expired_cert(args):
 
     primary, _ = network.find_primary()
     infra.checker.check_can_progress(primary)
+
+    r = primary.get_receipt(2, 3)
+    verify_receipt(r.json(), network.cert)
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -325,9 +360,7 @@ def test_recover_service_truncated_ledger(
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     # Corrupt _uncommitted_ ledger before starting new service
-    ledger = ccf.ledger.Ledger(
-        [current_ledger_dir], committed_only=False, insecure_skip_verification=True
-    )
+    ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
 
     def get_middle_tx_offset(tx):
         offset, next_offset = tx.get_offsets()
@@ -422,6 +455,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        ref_msg = get_and_verify_historical_receipt(network, None)
+
         network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
@@ -446,6 +481,8 @@ def run(args):
                 node.verify_certificate_validity_period()
 
             primary, _ = network.find_primary()
+
+            ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
             LOG.success("Recovery complete on all nodes")
 

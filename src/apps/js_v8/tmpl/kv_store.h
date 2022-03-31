@@ -24,14 +24,30 @@ namespace ccf::v8_tmpl
     TxAccess access = TxAccess::APP;
   };
 
-  class KVStore
+  class KVStoreReadWrite
   {
   public:
-    static constexpr const char* NAME = "CCFKVStore";
+    static constexpr const char* NAME = "CCFKVStoreReadWrite";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context, TxContext* tx_ctx);
+  };
+
+  struct ReadOnlyTxContext
+  {
+    kv::ReadOnlyTx* tx = nullptr;
+    TxAccess access = TxAccess::APP;
+  };
+
+  class KVStoreReadOnly
+  {
+  public:
+    static constexpr const char* NAME = "CCFKVStoreReadOnly";
+    static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
+
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context, ReadOnlyTxContext* tx_ctx);
   };
 
 } // namespace ccf::v8_tmpl

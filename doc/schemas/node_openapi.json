@@ -498,6 +498,12 @@
       "Pem": {
         "type": "string"
       },
+      "Pem_array": {
+        "items": {
+          "$ref": "#/components/schemas/Pem"
+        },
+        "type": "array"
+      },
       "Quote": {
         "properties": {
           "endorsements": {
@@ -555,6 +561,9 @@
           },
           "root": {
             "$ref": "#/components/schemas/string"
+          },
+          "service_endorsements": {
+            "$ref": "#/components/schemas/Pem_array"
           },
           "signature": {
             "$ref": "#/components/schemas/string"
@@ -773,7 +782,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.16.0"
+    "version": "2.16.1"
   },
   "openapi": "3.0.0",
   "paths": {

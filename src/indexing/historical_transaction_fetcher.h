@@ -19,7 +19,7 @@ namespace ccf::indexing
       historical_cache(sc)
     {}
 
-    kv::StorePtr deserialise_transaction(
+    kv::ReadOnlyStorePtr deserialise_transaction(
       ccf::SeqNo seqno, const uint8_t* data, size_t size) override
     {
       kv::ApplyResult result;
@@ -39,7 +39,7 @@ namespace ccf::indexing
       return nullptr;
     }
 
-    std::vector<kv::StorePtr> fetch_transactions(
+    std::vector<kv::ReadOnlyStorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) override
     {
       const ccf::historical::CompoundHandle handle{

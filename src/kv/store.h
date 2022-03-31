@@ -3,6 +3,7 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/kv/read_only_store.h"
 #include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
@@ -75,7 +76,8 @@ namespace kv
 
   class Store : public AbstractStore,
                 public StoreState,
-                public ExecutionWrapperStore
+                public ExecutionWrapperStore,
+                public ReadOnlyStore
   {
   private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
@@ -846,11 +848,17 @@ namespace kv
       return version;
     }
 
-    TxID current_txid() override
+    kv::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
       return current_txid_unsafe();
+    }
+
+    ccf::TxID get_txid() override
+    {
+      const auto kv_id = current_txid();
+      return {kv_id.term, kv_id.version};
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
@@ -1201,7 +1209,7 @@ namespace kv
       }
     }
 
-    ReadOnlyTx create_read_only_tx()
+    ReadOnlyTx create_read_only_tx() override
     {
       return ReadOnlyTx(this);
     }
@@ -1251,4 +1259,6 @@ namespace kv
       return (flags & static_cast<uint8_t>(f)) != 0;
     }
   };
+
+  using StorePtr = std::shared_ptr<kv::Store>;
 }

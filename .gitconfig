@@ -1,0 +1,3 @@
+[merge "keeplocal"]
+	name = Always keep local file during merge
+	driver = true

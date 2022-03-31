@@ -411,7 +411,8 @@ void run_csr(bool corrupt_csr = false)
   S v(crt.raw());
   REQUIRE(v.verify(content, signature));
 
-  auto [valid_from_, valid_to_] = v.validity_period();
+  std::string valid_from_, valid_to_;
+  std::tie(valid_from_, valid_to_) = v.validity_period();
   REQUIRE(valid_from_.find(valid_from) != std::string::npos);
   REQUIRE(valid_to_.find(valid_to) != std::string::npos);
 }
