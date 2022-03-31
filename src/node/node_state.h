@@ -1152,6 +1152,11 @@ namespace ccf
           throw std::logic_error("Service could not be opened");
         }
 
+        // Trigger a snapshot (at next signature) to ensure we have a working
+        // snapshot signed by the current (now new) service identity, in case we
+        // need to recover soon again.
+        trigger_snapshot(tx);
+
         if (tx.commit() != kv::CommitResult::SUCCESS)
         {
           throw std::logic_error(
@@ -1372,6 +1377,7 @@ namespace ccf
 
         GenesisGenerator g(network, tx);
         g.open_service();
+        trigger_snapshot(tx);
         return;
       }
       else
