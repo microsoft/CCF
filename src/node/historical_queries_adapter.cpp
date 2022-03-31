@@ -20,18 +20,18 @@ namespace ccf
     out.signature = crypto::b64_from_raw(receipt.signature);
     if (include_root)
     {
-      out.root = receipt.root.to_string();
+      out.root = receipt.root.hex_str();
     }
     for (const auto& node : receipt.path)
     {
       ccf::Receipt::Element n;
-      if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+      if (node.direction == ccf::TxReceiptPathStep::Left)
       {
-        n.left = node.hash.to_string();
+        n.left = node.hash.hex_str();
       }
       else
       {
-        n.right = node.hash.to_string();
+        n.right = node.hash.hex_str();
       }
       out.proof.emplace_back(std::move(n));
     }
@@ -42,10 +42,10 @@ namespace ccf
       out.cert = receipt.node_cert->str();
     }
 
-    if (receipt.path == nullptr)
+    if (receipt.path.empty())
     {
       // Signature transaction
-      out.leaf = receipt.root.to_string();
+      out.leaf = receipt.root.hex_str();
     }
     else if (!receipt.commit_evidence.has_value())
     {

@@ -238,12 +238,28 @@ namespace ccf
 
     crypto::Sha256Hash get_root() const
     {
-      return crypto::Sha256Hash::from_span({root.bytes, root.size()});
+      return crypto::Sha256Hash::from_span({root.bytes, sizeof(root.bytes)});
     }
 
     ccf::TxReceiptPath get_path()
     {
-      return {};
+      ccf::TxReceiptPath ret;
+      if (path != nullptr)
+      {
+        ret.reserve(path->size());
+        for (const auto& node : *path)
+        {
+          const auto direction =
+            node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
+            ccf::TxReceiptPathStep::Left :
+            ccf::TxReceiptPathStep::Right;
+          const auto hash = crypto::Sha256Hash::from_span(
+            {node.hash.bytes, sizeof(node.hash.bytes)});
+          ret.push_back({direction, hash});
+        }
+      }
+
+      return ret;
     }
 
     Proof(HistoryTree* tree, uint64_t index)
