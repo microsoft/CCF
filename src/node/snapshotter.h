@@ -373,13 +373,14 @@ namespace ccf
         idx,
         next_snapshot_indices.front().idx);
 
-      auto next = next_snapshot_indices.front();
+      auto& next = next_snapshot_indices.front();
       auto due = next.idx - last_snapshot_idx >= snapshot_tx_interval;
       if (due || next.forced)
       {
         if (snapshot_generation_enabled && generate_snapshot && next.idx)
         {
           schedule_snapshot(next.idx);
+          next.forced = false; // Avoid forcing the same snapshot multiple times
         }
 
         if (due && !next.forced)
