@@ -29,17 +29,14 @@ def test_recover_service(network, args, from_snapshot=False):
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
     # Start health watcher and stop nodes one by one until a recovery has to be staged
-    # watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
-    # watcher.start()
+    watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+    watcher.start()
 
     for node in network.get_joined_nodes():
         node.stop()
         time.sleep(args.election_timeout_ms / 1000)
 
-    # watcher.wait_for_recovery()
-
-    # Stop remaining nodes
-    network.stop_all_nodes()
+    watcher.wait_for_recovery()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
@@ -58,17 +55,6 @@ def test_recover_service(network, args, from_snapshot=False):
     )
 
     recovered_network.recover(args)
-
-    # import election
-    # import reconfiguration
-
-    # election.test_kill_primary(recovered_network, args)
-
-    # time.sleep(5)
-
-    # reconfiguration.test_add_node(recovered_network, args)
-
-    # time.sleep(5)
 
     return recovered_network
 
@@ -531,14 +517,14 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    # cr.add(
-    #     "recovery_corrupt_ledger",
-    #     run_corrupted_ledger,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
-    #     sig_ms_interval=1000,
-    #     ledger_chunk_bytes="1GB",
-    #     snasphot_tx_interval=1000000,
-    # )
+    cr.add(
+        "recovery_corrupt_ledger",
+        run_corrupted_ledger,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
+        sig_ms_interval=1000,
+        ledger_chunk_bytes="1GB",
+        snasphot_tx_interval=1000000,
+    )
 
     cr.run()
