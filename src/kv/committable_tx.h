@@ -126,7 +126,7 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
-      const ccf::ClaimsDigest& claims = ccf::no_claims(),
+      const ccf::ClaimsDigest& claims = ccf::empty_claims(),
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
@@ -439,7 +439,7 @@ namespace kv
 
       committed = true;
       auto data =
-        serialise(commit_evidence_digest, commit_evidence, ccf::no_claims());
+        serialise(commit_evidence_digest, commit_evidence, ccf::empty_claims());
 
       // Reset ledger chunk flag in the store
       pimpl->store->unset_flag_unsafe(
