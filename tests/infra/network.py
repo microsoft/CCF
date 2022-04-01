@@ -455,9 +455,6 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
-        self.verify_service_certificate_validity_period(
-            args.initial_service_cert_validity_days
-        )
         LOG.success("***** Network is now open *****")
 
     def start_and_open(self, args, **kwargs):
@@ -558,9 +555,6 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.verify_service_certificate_validity_period(
-            args.initial_service_cert_validity_days
-        )
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
