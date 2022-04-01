@@ -45,4 +45,9 @@ namespace ccf
       return (is_set == other.is_set) && (digest == other.digest);
     }
   };
+
+  static ClaimsDigest no_claims()
+  {
+    return ClaimsDigest();
+  }
 }

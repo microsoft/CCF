@@ -5,11 +5,11 @@
 #include "ccf/ds/logger.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/tx_receipt.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "node/history.h"
-#include "node/tx_receipt.h"
 
 #include <nlohmann/json.hpp>
 

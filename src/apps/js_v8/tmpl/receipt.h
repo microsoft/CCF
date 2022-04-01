@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/tx_receipt.h"
+#include "ccf/tx_receipt.h"
 
 #include <v8.h>
 

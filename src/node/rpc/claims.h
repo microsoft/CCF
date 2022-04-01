@@ -7,11 +7,6 @@
 
 namespace ccf
 {
-  static ClaimsDigest no_claims()
-  {
-    return ClaimsDigest();
-  }
-
   static crypto::Sha256Hash entry_leaf(
     const std::vector<uint8_t>& write_set,
     const std::optional<crypto::Sha256Hash>& commit_evidence_digest,

@@ -7,18 +7,13 @@
 #include "ccf/receipt.h"
 #include "ccf/seq_no_collection.h"
 #include "ccf/tx_id.h"
+#include "ccf/tx_receipt.h"
 
 #include <chrono>
 #include <memory>
 
 namespace ccf
 {
-  // TODO: Remove this comment when it's no longer true
-  // This is an opaque, incomplete type, but can be summarised to a
-  // JSON-serialisable form by the functions below
-  struct TxReceipt;
-  using TxReceiptPtr = std::shared_ptr<TxReceipt>;
-
   ccf::Receipt describe_receipt(
     const TxReceipt& receipt, bool include_root = false);
   ccf::Receipt describe_receipt(

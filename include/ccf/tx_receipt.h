@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/claims_digest.h"
 #include "ccf/receipt.h"
 #include "ccf/tx_receipt_path.h"
 

@@ -3,11 +3,12 @@
 
 #include "ccf/historical_queries_adapter.h"
 
+#include "ccf/crypto/verifier.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
+#include "ccf/tx_receipt.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
-#include "node/tx_receipt.h"
 
 namespace ccf
 {
