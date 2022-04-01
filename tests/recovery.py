@@ -52,13 +52,10 @@ def test_recover_service(network, args, from_snapshot=False):
     watcher.start()
 
     for node in network.get_joined_nodes():
-        time.sleep(args.election_timeout_ms / 1000)
         node.stop()
+        time.sleep(args.election_timeout_ms / 1000)
 
     watcher.wait_for_recovery()
-
-    # Stop remaining nodes
-    network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
@@ -456,7 +453,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # network = test_recover_service(network, args, from_snapshot=False)
+        network = test_recover_service(network, args, from_snapshot=False)
         time.sleep(20)
 
         # network = test_recover_service_with_wrong_identity(network, args)

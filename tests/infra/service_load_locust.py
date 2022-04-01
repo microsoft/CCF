@@ -4,22 +4,12 @@
 import time
 import os
 import subprocess
-from wsgiref import headers
-import generate_vegeta_targets as TargetGenerator
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pandas as pd
 from shutil import copyfileobj
 from enum import Enum, auto
-import datetime
 import infra.concurrency
-import gevent
-from locust.env import Environment
-from locust import HttpUser, task, tag, between
-import locust.stats
-import json
-
-# from locust.stats import StatsCSVFileWriter
 
 
 from loguru import logger as LOG
@@ -36,49 +26,10 @@ DEFAULT_LOAD_RATE_PER_S = 10  # TODO: Change back
 # with the txs recorded by the actual tests
 LOGGING_TXS_SCOPE = "load"
 
-# Load client configuration
-VEGETA_BIN = "/opt/vegeta/vegeta"
-TARGET_FILE_NAME = "load_targets"
+
 TMP_RESULTS_CSV_FILE_NAME = "load_results.tmp"
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
-
-locust.stats.CSV_STATS_INTERVAL_SEC = 1
-locust.stats.CSV_STATS_FLUSH_INTERVAL_SEC = 1
-
-
-class Submitter(HttpUser):
-
-    user_auth = None
-    server_ca = None
-    msg_id = 0
-
-    @task()
-    def submit(self):
-        headers = {"content-type": "application/json"}
-        body_json = {"id": self.msg_id, "msg": f"Private message: {self.msg_id}"}
-        self.msg_id += 1
-        self.client.post(
-            f"/app/log/private?scope={LOGGING_TXS_SCOPE}",
-            data=json.dumps(body_json).encode(),
-            headers=headers,
-            cert=self.user_auth,
-            verify=self.server_ca,
-        )
-
-
-class Auditor(HttpUser):
-
-    user_auth = None
-    server_ca = None
-
-    @task()
-    def query(self):
-        self.client.get(
-            f"/app/log/private?scope={LOGGING_TXS_SCOPE}&id={0}",  # TODO: Use different key
-            cert=self.user_auth,
-            verify=self.server_ca,
-        )
 
 
 def in_common_dir(network, file):
@@ -111,37 +62,20 @@ class LoadClient:
         self.env = None
         self.stats = None
 
-    # def _create_targets(self, nodes, strategy):
-    #     with open(
-    #         in_common_dir(self.network, TARGET_FILE_NAME),
-    #         "w",
-    #         encoding="utf-8",
-    #     ) as f:
-    #         primary, backup = self.network.find_primary_and_any_backup()
-    #         self.title = primary.label
-    #         # Note: Iteration count does not matter as vegeta plays requests in a loop
-    #         for i in range(10):
-    #             if strategy == LoadStrategy.PRIMARY:
-    #                 node = primary
-    #             elif strategy == LoadStrategy.ALL:
-    #                 node = nodes[i % len(nodes)]
-    #             elif strategy == LoadStrategy.ANY_BACKUP:
-    #                 node = backup
-    #             else:
-    #                 assert self.target_node, "A target node should have been specified"
-    #                 node = self.target_node
-    #             TargetGenerator.write_vegeta_target_line(
-    #                 f,
-    #                 f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-    #                 f"/app/log/private?scope={LOGGING_TXS_SCOPE}",
-    #                 body={"id": i, "msg": f"Private message: {i}"},
-    #             )
-
     def _start_client(self, primary, backups, event):
         target_node = primary
         target_host = f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
 
-        self.env = Environment(user_classes=[Submitter, Auditor], host=target_host)
+        cmd = ["locust"]
+        cmd += [
+            "--locustfile",
+        ]
+        cmd += [
+            "--hosts",
+        ]
+        subprocess.Popen()
+
+        self.env = Environment(user_classes=[Submitter, Reader], host=target_host)
         self.env.create_local_runner()
 
         # TODO: Strategy
@@ -153,14 +87,14 @@ class LoadClient:
                 u.server_ca = primary.session_ca()["ca"]
 
         PERCENTILES_TO_REPORT = [0.50, 0.90, 0.99, 1.0]
-        stats_writer = locust.stats.StatsCSVFileWriter(
-            self.env,
-            PERCENTILES_TO_REPORT,
-            in_common_dir(self.network, "tmp_load"),
-            full_history=True,
-        )
-        self.stats = gevent.spawn(stats_writer)
-        self.env.runner.start(user_count=2, spawn_rate=100)  # TODO: Configure
+        # stats_writer = locust.stats.StatsCSVFileWriter(
+        #     self.env,
+        #     PERCENTILES_TO_REPORT,
+        #     in_common_dir(self.network, "tmp_load"),
+        #     full_history=True,
+        # )
+        # self.stats = gevent.spawn(stats_writer)
+        # self.env.runner.start(user_count=2, spawn_rate=100)  # TODO: Configure
 
     def _aggregate_results(self):
         # Aggregate the results from the last run into all results so far.
@@ -177,10 +111,10 @@ class LoadClient:
 
     def _stop_client(self):
         LOG.error("Stopping runner")
-        gevent.kill(self.stats)
+        # gevent.kill(self.stats)
         # LOG.warning(self.env.stats.history)
 
-        self.env.runner.stop()
+        # self.env.runner.stop()
         self._aggregate_results()
         # if self.proc:
         #     self.proc.terminate()
@@ -191,7 +125,7 @@ class LoadClient:
 
     def stop(self):
         self._stop_client()
-        self._render_results()
+        # self._render_results()
 
     def restart(self, primary, backups, event="node change"):
         self._stop_client()
@@ -283,13 +217,13 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         self.client = LoadClient(self.network, *args, **kwargs)
 
     def start(self):
-        self.client.start(*self.network.find_nodes())
-        super().start()
+        # self.client.start(*self.network.find_nodes())
+        # super().start()
         LOG.info("Load client started")
 
     def stop(self):
-        self.client.stop()
-        super().stop()
+        # self.client.stop()
+        # super().stop()
         LOG.info(f"Load client stopped")
 
     def get_existing_events(self):
