@@ -36,7 +36,8 @@ namespace crypto::OpenSSL
   {
     tm tm_time;
     CHECK1(ASN1_TIME_to_tm(time, &tm_time));
-    return std::mktime(&tm_time);
+    // Adjust for timezone (timezone global defined in time.h)
+    return std::mktime(&tm_time) - timezone;
   }
 
   static inline Unique_X509_TIME adjust_time(
