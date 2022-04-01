@@ -374,7 +374,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> KVMapReadOnly::wrap(
-    v8::Local<v8::Context> context, KVMapHandle* map_handle)
+    v8::Local<v8::Context> context, KVMapReadOnlyHandle* map_handle)
   {
     return wrap_kv_map<KVMapReadOnly>(context, map_handle);
   }

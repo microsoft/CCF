@@ -4,11 +4,11 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
-#include "node/rpc/host_processes_interface.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
@@ -245,17 +245,17 @@ namespace ccfapp
               consensus, view, seqno, error_reason);
           };
 
-        ccf::historical::adapter_v2(
+        ccf::historical::adapter_v3(
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            auto tx = state->store->create_tx();
+            auto tx = state->store->create_read_only_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
             assert(receipt);
             do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
           },
-          context.get_historical_state(),
+          context,
           is_tx_committed)(endpoint_ctx);
       }
       else
@@ -268,7 +268,7 @@ namespace ccfapp
     void do_execute_request(
       const JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      kv::Tx* historical_tx,
+      kv::ReadOnlyTx* historical_tx,
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptPtr receipt)
     {
@@ -280,7 +280,7 @@ namespace ccfapp
 
       js::Context ctx(rt);
       js::TxContext txctx{&endpoint_ctx.tx, js::TxAccess::APP};
-      js::TxContext historical_txctx{historical_tx, js::TxAccess::APP};
+      js::ReadOnlyTxContext historical_txctx{historical_tx, js::TxAccess::APP};
 
       js::register_request_body_class(ctx);
       js::populate_global(

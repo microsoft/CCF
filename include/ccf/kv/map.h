@@ -11,7 +11,7 @@
 
 namespace kv
 {
-  /** Defines the schema of a map within the @c kv::Store, exposing associated
+  /** Defines the schema of a map accessed by a @c ccf::Tx, exposing associated
    * types. This map is an unordered associative container of key-value pairs.
    * Each key, if defined, is associated with a value, and can be used to
    * efficiently lookup that value.

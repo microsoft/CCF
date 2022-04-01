@@ -19,6 +19,8 @@ import ipaddress
 import ssl
 import copy
 import json
+import time
+import http
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -648,6 +650,36 @@ class Node:
                 not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3)
             )
         )
+
+    def get_receipt(self, view, seqno, timeout=3):
+        found = False
+        start_time = time.time()
+        while time.time() < (start_time + timeout):
+            with self.client() as c:
+                rep = c.get(f"/node/receipt?transaction_id={view}.{seqno}")
+                if rep.status_code == http.HTTPStatus.OK:
+                    return rep.body
+                elif rep.status_code == http.HTTPStatus.NOT_FOUND:
+                    LOG.warning("Frontend is not yet open")
+                    continue
+
+                if rep.status_code == http.HTTPStatus.ACCEPTED:
+                    retry_after = rep.headers.get("retry-after")
+                    if retry_after is None:
+                        raise ValueError(
+                            f"Response with status {rep.status_code} is missing 'retry-after' header"
+                        )
+                else:
+                    raise ValueError(
+                        f"Unexpected response status code {rep.status_code}: {rep.body}"
+                    )
+
+                time.sleep(0.1)
+
+        if not found:
+            raise ValueError(
+                f"Unable to retrieve entry at TxID {view}.{seqno} on node {node.local_node_id} after {timeout}s"
+            )
 
 
 @contextmanager
