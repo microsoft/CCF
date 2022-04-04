@@ -30,6 +30,7 @@ LOGGING_TXS_SCOPE = "load"
 TMP_RESULTS_CSV_FILE_NAME = "load_results.tmp"
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
+LOCUST_FILE_NAME = "locust_file.py"
 
 
 def in_common_dir(network, file):
@@ -66,27 +67,34 @@ class LoadClient:
         target_node = primary
         target_host = f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
 
+        this_dir = os.path.dirname(os.path.realpath(__file__))
+        locust_file_path = os.path.join(this_dir, LOCUST_FILE_NAME)
         cmd = ["locust"]
-        cmd += [
-            "--locustfile",
-        ]
-        cmd += [
-            "--hosts",
-        ]
-        subprocess.Popen()
+        cmd += ["--headless"]
+        cmd += ["--loglevel", "ERROR"]
+        sa = primary.session_auth("user0")["session_auth"]
+        cmd += ["--ca", primary.session_ca()["ca"]]
+        cmd += ["--key", sa.key]
+        cmd += ["--cert", sa.cert]
+        cmd += ["--locustfile", locust_file_path]
+        cmd += ["--node-host", target_host]  # TODO: Construct hosts based on strategy
+        cmd += ["--host", "https://0.0.0.0"]  # Dummy host required to start locust
 
-        self.env = Environment(user_classes=[Submitter, Reader], host=target_host)
-        self.env.create_local_runner()
+        LOG.success("Starting locust")
+        self.proc = subprocess.Popen(cmd)
+
+        # self.env = Environment(user_classes=[Submitter, Reader], host=target_host)
+        # self.env.create_local_runner()
 
         # TODO: Strategy
         # Allocate users to nodes, depending on strategy
-        sa = primary.session_auth("user0")["session_auth"]
-        if self.strategy == LoadStrategy.PRIMARY:
-            for u in self.env.user_classes_by_name.values():
-                u.user_auth = (sa.cert, sa.key)
-                u.server_ca = primary.session_ca()["ca"]
+        # sa = primary.session_auth("user0")["session_auth"]
+        # if self.strategy == LoadStrategy.PRIMARY:
+        #     for u in self.env.user_classes_by_name.values():
+        #         u.user_auth = (sa.cert, sa.key)
+        #         u.server_ca = primary.session_ca()["ca"]
 
-        PERCENTILES_TO_REPORT = [0.50, 0.90, 0.99, 1.0]
+        # PERCENTILES_TO_REPORT = [0.50, 0.90, 0.99, 1.0]
         # stats_writer = locust.stats.StatsCSVFileWriter(
         #     self.env,
         #     PERCENTILES_TO_REPORT,
@@ -217,8 +225,8 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         self.client = LoadClient(self.network, *args, **kwargs)
 
     def start(self):
-        # self.client.start(*self.network.find_nodes())
-        # super().start()
+        self.client.start(*self.network.find_nodes())
+        super().start()
         LOG.info("Load client started")
 
     def stop(self):

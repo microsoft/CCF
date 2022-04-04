@@ -140,7 +140,6 @@ class Network:
         version=None,
         with_load=False,
     ):
-        self.service_load = None
         if existing_network is None:
             self.consortium = None
             self.users = []
@@ -148,9 +147,9 @@ class Network:
             self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
-            # self.service_load = (
-            #     infra.service_load_locust.ServiceLoad(self) if with_load else None
-            # )
+            self.service_load = (
+                infra.service_load_locust.ServiceLoad(self) if with_load else None
+            )
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -159,12 +158,12 @@ class Network:
             self.jwt_issuer = existing_network.jwt_issuer
             self.hosts = [node.host for node in existing_network.nodes]
             self.service_load = None
-            # if existing_network.service_load:
-            #     existing_network.service_load.stop()
-            #     self.service_load = infra.service_load_locust.ServiceLoad(
-            #         network=self,
-            #         existing_events=existing_network.service_load.get_existing_events(),
-            #     )
+            if existing_network.service_load:
+                existing_network.service_load.stop()
+                self.service_load = infra.service_load_locust.ServiceLoad(
+                    network=self,
+                    existing_events=existing_network.service_load.get_existing_events(),
+                )
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []

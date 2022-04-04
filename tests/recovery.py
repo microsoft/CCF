@@ -449,11 +449,11 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        # with_load=True,
+        with_load=True,
     ) as network:
         network.start_and_open(args)
 
-        network = test_recover_service(network, args, from_snapshot=False)
+        # network = test_recover_service(network, args, from_snapshot=False)
         time.sleep(20)
 
         # network = test_recover_service_with_wrong_identity(network, args)
