@@ -666,7 +666,7 @@ namespace ccf::historical
             assert(sig.has_value());
             details->transaction_id = {sig->view, sig->seqno};
             details->receipt = std::make_shared<TxReceipt>(
-              sig->sig, sig->root, ccf::TxReceiptPath{}, sig->node, sig->cert);
+              sig->sig, sig->root, TxReceipt::Path{}, sig->node, sig->cert);
           }
 
           if (request.include_receipts)

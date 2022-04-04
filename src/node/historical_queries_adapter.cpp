@@ -26,7 +26,7 @@ namespace ccf
     for (const auto& node : receipt.path)
     {
       ccf::Receipt::Element n;
-      if (node.direction == ccf::TxReceiptPathStep::Left)
+      if (node.direction == ccf::TxReceipt::PathStep::Left)
       {
         n.left = node.hash.hex_str();
       }

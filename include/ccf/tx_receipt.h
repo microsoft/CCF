@@ -4,15 +4,27 @@
 
 #include "ccf/claims_digest.h"
 #include "ccf/receipt.h"
-#include "ccf/tx_receipt_path.h"
 
 namespace ccf
 {
   struct TxReceipt
   {
+    struct PathStep
+    {
+      enum
+      {
+        Left,
+        Right
+      } direction;
+
+      crypto::Sha256Hash hash;
+    };
+
+    using Path = std::vector<PathStep>;
+
     std::vector<uint8_t> signature = {};
     crypto::Sha256Hash root = {};
-    ccf::TxReceiptPath path = {};
+    Path path = {};
     ccf::NodeId node_id = {};
     std::optional<crypto::Pem> node_cert = std::nullopt;
     std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
@@ -23,7 +35,7 @@ namespace ccf
     TxReceipt(
       const std::vector<uint8_t>& signature_,
       const crypto::Sha256Hash& root_,
-      const ccf::TxReceiptPath& path_,
+      const Path& path_,
       const NodeId& node_id_,
       const std::optional<crypto::Pem>& node_cert_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
