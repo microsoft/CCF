@@ -59,7 +59,7 @@ crypto::Pem generate_self_signed_cert(
   constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
   auto valid_from =
-    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+    ds::to_x509_time_string(std::chrono::system_clock::to_time_t(
       std::chrono::system_clock::now() - 24h));
 
   return crypto::create_self_signed_cert(
@@ -603,7 +603,7 @@ TEST_CASE("x509 time")
         crypto::OpenSSL::from_time_t(current_time_t), days_offset);
       auto adjusted_time_t = crypto::OpenSSL::to_time_t(adjusted_time);
 
-      auto x509_str = crypto::OpenSSL::to_x509_time_string(adjusted_time_t);
+      auto x509_str = ds::to_x509_time_string(adjusted_time_t);
       auto asn1_time = crypto::OpenSSL::Unique_X509_TIME(x509_str);
       auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
       REQUIRE(converted_time_t == adjusted_time_t);
