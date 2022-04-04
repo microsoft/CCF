@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/x509_time_fmt.h"
 #include "openssl_wrappers.h"
 
-#include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <time.h>
 
@@ -36,8 +36,7 @@ namespace crypto::OpenSSL
   {
     tm tm_time;
     CHECK1(ASN1_TIME_to_tm(time, &tm_time));
-    // Adjust for timezone (timezone global defined in time.h)
-    return std::mktime(&tm_time) - timezone;
+    return timegm(&tm_time);
   }
 
   static inline Unique_X509_TIME adjust_time(
@@ -47,15 +46,8 @@ namespace crypto::OpenSSL
       ASN1_TIME_adj(nullptr, to_time_t(time), offset_days, offset_secs));
   }
 
-  static inline std::string to_x509_time_string(const time_t& time)
-  {
-    // Returns ASN1 time string (YYYYMMDDHHMMSSZ) from time_t, as per
-    // https://www.openssl.org/docs/man1.1.1/man3/ASN1_UTCTIME_set.html
-    return fmt::format("{:%Y%m%d%H%M%SZ}", fmt::gmtime(time));
-  }
-
   static inline std::string to_x509_time_string(const ASN1_TIME* time)
   {
-    return to_x509_time_string(to_time_t(time));
+    return ds::to_x509_time_string(to_time_t(time));
   }
 }

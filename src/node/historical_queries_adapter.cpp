@@ -298,8 +298,7 @@ namespace ccf::historical
               hpubkey,
               ReplicatedNetworkIdentity::subject_name,
               {},
-              crypto::OpenSSL::to_x509_time_string(
-                crypto::OpenSSL::to_time_t(NULL)),
+              ds::to_x509_time_string(crypto::OpenSSL::to_time_t(NULL)),
               1 /* days valid */,
               network_identity->priv_key,
               network_identity->cert,
