@@ -668,8 +668,7 @@ if(BUILD_TESTS)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
         rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-        --branch v3.0.7 --single-branch
-        https://github.com/drwetter/testssl.sh
+        --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
     )
     add_custom_target(
