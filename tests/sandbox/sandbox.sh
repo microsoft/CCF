@@ -86,5 +86,7 @@ exec python "${START_NETWORK_SCRIPT}" \
     --constitution "${PATH_HERE}"/apply.js \
     --ledger-chunk-bytes 5000000 \
     --snapshot-tx-interval 10000 \
+    --initial-node-cert-validity-days 90 \
+    --initial-service-cert-validity-days 90 \
     --label sandbox \
     "${extra_args[@]}"
