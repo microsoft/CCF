@@ -56,14 +56,17 @@ def produce_tamperable_files(network, args):
     with primary.client("user0") as c:
         node_root = get_node_root_dir(primary)
 
-        desired_non_empty_dirs = [get_index_dir(node_root), get_ledger_dir(node_root)]
+        min_files = {
+            get_index_dir(node_root): 0,
+            get_ledger_dir(node_root): 10,
+        }
 
-        def empty_dir(p):
-            return len(os.listdir(p)) == 0
+        def too_few_files(p):
+            return len(os.listdir(p)) < min_files[p]
 
         loops = 0
         loop_limit = 10
-        while any(empty_dir(p) for p in desired_non_empty_dirs):
+        while any(too_few_files(p) for p in min_files.keys()):
             if loops > loop_limit:
                 raise RuntimeError(
                     f"Failed to produce ledger and index after {loop_limit} loops"
@@ -89,7 +92,7 @@ def produce_tamperable_files(network, args):
             get_all_entries(c, TARGET_ID, from_seqno=r.seqno, to_seqno=r.seqno)
 
         LOG.info("Populated interesting dirs:")
-        for p in desired_non_empty_dirs:
+        for p in min_files.keys():
             LOG.info(f"  {p} contains {len(os.listdir(p))} files")
 
 
@@ -126,7 +129,7 @@ def modify_file(src_path):
             content = list(f.read())
             size = len(content)
             for idx in (size // 3, size // 2, int(size // 1.5)):
-                content[idx] //= 2
+                content[idx] ^= 0b01010101
             f.seek(0)
             f.write(bytes(content))
             f.truncate()
@@ -163,7 +166,7 @@ def test_ledger_chunk_removal(network, args):
         all_entries_after, _ = get_all_entries(c, TARGET_ID)
         assert all_entries_before == all_entries_after
 
-        for _ in range(5):
+        for _ in range(3):
             target_file = random.choice(committed_files)
             LOG.info(
                 f"Historical audit times out while {os.path.basename(target_file)} is unavailable"
@@ -196,7 +199,7 @@ def test_ledger_chunk_truncation(network, args):
         all_entries_after, _ = get_all_entries(c, TARGET_ID)
         assert all_entries_before == all_entries_after
 
-        for _ in range(5):
+        for _ in range(3):
             target_file = random.choice(committed_files)
             LOG.info(
                 f"Historical audit times out while {os.path.basename(target_file)} is truncated"
@@ -229,7 +232,7 @@ def test_ledger_chunk_tampering(network, args):
         all_entries_after, _ = get_all_entries(c, TARGET_ID)
         assert all_entries_before == all_entries_after
 
-        for _ in range(5):
+        for _ in range(3):
             target_file = random.choice(committed_files)
             LOG.info(
                 f"Historical audit times out while {os.path.basename(target_file)} is tampered with"
