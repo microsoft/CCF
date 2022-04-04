@@ -7,8 +7,9 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
+#include "kv/snapshot_serdes.h"
+#include "kv/store.h"
 #include "node/network_state.h"
-#include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
 
 #include <deque>

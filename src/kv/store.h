@@ -8,10 +8,10 @@
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
+#include "kv/snapshot.h"
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "snapshot.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -605,7 +605,7 @@ namespace kv
 
       if (snapshotter)
       {
-        snapshotter->rollback(idx);
+        snapshotter->rollback(tx_id.version);
       }
 
       std::lock_guard<std::mutex> mguard(maps_lock);
@@ -1280,6 +1280,16 @@ namespace kv
     virtual bool flag_enabled_unsafe(Flag f) const override
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
+    }
+
+    bool record_committable(Version idx)
+    {
+      if (!snapshotter)
+      {
+        return false;
+      }
+
+      return snapshotter->record_committable(idx);
     }
   };
 

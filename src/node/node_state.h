@@ -18,6 +18,7 @@
 #include "history.h"
 #include "indexing/indexer.h"
 #include "js/wrap.h"
+#include "kv/snapshotter.h"
 #include "network_state.h"
 #include "node/attestation_types.h"
 #include "node/hooks.h"
@@ -31,7 +32,6 @@
 #include "secret_broadcast.h"
 #include "service/genesis_gen.h"
 #include "share_manager.h"
-#include "snapshotter.h"
 #include "tls/client.h"
 
 #ifdef USE_NULL_ENCRYPTOR
@@ -49,7 +49,7 @@
 
 namespace ccf
 {
-  using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave>;
 
   struct NodeCreateInfo
   {
@@ -635,6 +635,9 @@ namespace ccf
               view,
               view_history,
               last_recovered_signed_idx);
+
+            snapshotter->set_last_snapshot_idx(
+              network.tables->current_version());
 
             if (resp.network_info->public_only)
             {
@@ -2237,7 +2240,6 @@ namespace ccf
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
-        snapshotter,
         shared_state,
         std::move(resharing_tracker),
         node_client,
@@ -2266,20 +2268,30 @@ namespace ccf
             return std::make_unique<ResharingsHook>(version, w);
           }));
 
-      network.tables->set_map_hook(
+      // Note: The Signatures hook and SerialisedMerkleTree hook are separate
+      // because the signature and the Merkle tree are recorded in distinct
+      // tables (for serialisation performance reasons). However here, they are
+      // expected to always be called together and for the same version as they
+      // are always written by each signature transaction.
+
+      network.tables->set_global_hook(
         network.signatures.get_name(),
-        network.signatures.wrap_map_hook(
-          [](kv::Version version, const Signatures::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<SignaturesHook>(version, w);
+        network.signatures.wrap_commit_hook(
+          [s = this->snapshotter](
+            kv::Version version, const Signatures::Write& w) {
+            assert(w.has_value());
+            auto sig = w.value();
+            s->record_signature(version, sig.sig, sig.node, sig.cert);
           }));
 
-      network.tables->set_map_hook(
+      network.tables->set_global_hook(
         network.serialise_tree.get_name(),
-        network.serialise_tree.wrap_map_hook(
-          [](kv::Version version, const SerialisedMerkleTree::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<SerialisedMerkleTreeHook>(version, w);
+        network.serialise_tree.wrap_commit_hook(
+          [s = this->snapshotter](
+            kv::Version version, const SerialisedMerkleTree::Write& w) {
+            assert(w.has_value());
+            auto tree = w.value();
+            s->record_serialised_tree(version, tree);
           }));
 
       network.tables->set_global_hook(

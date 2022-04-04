@@ -215,17 +215,6 @@ namespace kv::test
       return std::nullopt;
     }
 
-    void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const NodeId& node_id,
-      const crypto::Pem& node_cert) override
-    {}
-
-    void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) override
-    {}
-
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       return {};

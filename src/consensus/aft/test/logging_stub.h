@@ -376,6 +376,11 @@ namespace aft
     }
 
     void unset_flag(kv::AbstractStore::Flag) {}
+
+    bool record_committable(Index version)
+    {
+      return false;
+    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore

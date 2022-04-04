@@ -107,7 +107,7 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
 };
 
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid, aft::StubSnapshotter>;
+using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -145,7 +145,6 @@ public:
         std::make_unique<Adaptor>(kv),
         std::make_unique<LedgerStubProxy_Mermaid>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
-        std::make_shared<aft::StubSnapshotter>(),
         std::make_shared<aft::State>(node_id),
         nullptr,
         nullptr);
