@@ -673,6 +673,7 @@ class Network:
                 LOG.warning(f"  {pattern}")
 
         for node in self.nodes:
+            LOG.error(node.local_node_id)
             _, fatal_errors = node.stop(
                 ignore_error_patterns=self.ignore_error_patterns
             )
@@ -1202,31 +1203,29 @@ class Network:
         return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
 
     def get_committed_snapshots(self, node):
-        # Wait for all available snapshot files to be committed before
-        # copying snapshot directory, so that we always use the latest snapshot
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
+        # Wait for the snapshot including target_seqno to be committed before
+        # copying snapshot directory
+        target_seqno = None
+        with node.client() as c:
+            r = c.get("/node/commit").body.json()
+            target_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
             end_time = time.time() + timeout
-            committed = True
-            uncommitted_snapshots = []
             while time.time() < end_time:
-                committed = True
-                uncommitted_snapshots = []
+                has_snapshot_for_target_seqno = False
                 for f in list_src_dir_func(src_dir):
-                    is_committed = infra.node.is_file_committed(f)
-                    if not is_committed:
-                        self.wait_for_commit_proof(
-                            node, infra.node.get_snapshot_seqnos(f)[1]
-                        )
-                        uncommitted_snapshots.append(f)
-                    committed &= is_committed
-                if committed:
-                    break
+                    snapshot_seqno = infra.node.get_snapshot_seqnos(f)[1]
+                    if snapshot_seqno >= target_seqno:
+                        has_snapshot_for_target_seqno = True
+                        if not infra.node.is_file_committed(f):
+                            self.wait_for_commit_proof(node, snapshot_seqno)
+                        else:
+                            return True
+                if not has_snapshot_for_target_seqno:
+                    self.wait_for_commit_proof(node, target_seqno)
                 time.sleep(0.1)
-            if not committed:
-                LOG.error(
-                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
-                )
-            return committed
+            return False
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 

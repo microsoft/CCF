@@ -17,7 +17,7 @@ from loguru import logger as LOG
 
 # Interval (s) at which the network is polled to find out
 # when the load client should be restarted
-NETWORK_POLL_INTERVAL_S = 1
+NETWORK_POLL_INTERVAL_S = 5
 
 # Number of requests sent to the service per sec
 DEFAULT_LOAD_RATE_PER_S = 10  # TODO: Change back
@@ -113,10 +113,14 @@ class LoadClient:
         tmp_file = in_common_dir(
             self.network, f"tmp_{LOGGING_TXS_SCOPE}_{LOCUST_STATS_HISTORY_SUFFIX}"
         )
+        aggregated_file = in_common_dir(self.network, RESULTS_CSV_FILE_NAME)
+        is_new = not os.path.exists(aggregated_file)
         if os.path.exists(tmp_file):
             with open(tmp_file, "rb") as input, open(
                 in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
             ) as output:
+                if not is_new:
+                    input.readline()
                 copyfileobj(input, output)
 
     def _stop_client(self):
@@ -154,15 +158,14 @@ class LoadClient:
         ax1.set_ylabel("req/s", color=color)
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.tick_params(axis="x", rotation=90)
-        ax1.scatter(df.index, df["Requests/s"], color=color)
+        ax1.scatter(df.index, df["Requests/s"], marker=".", color=color)
 
         # Failures
         ax2 = ax1.twinx()
-        ax2.set_ylim(bottom=0.0)
         color = "tab:red"
         ax2.set_ylabel("failures/s", color=color)
         ax2.tick_params(axis="y", labelcolor=color)
-        ax2.scatter(df.index, df["Failures/s"], color=color, s=10)
+        ax2.scatter(df.index, df["Failures/s"], marker=".", color=color)
 
         # Network events
         extra_ticks = []
@@ -219,11 +222,11 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                     LOG.warning(
                         "Network configuration has changed, restarting service load client"
                     )
-                    event = "unknown"
+                    event = ""
                     if primary not in new_nodes:
-                        event = f"stop p{primary.local_node_id}"
+                        event = f"stop p[{primary.local_node_id}]"
                     elif new_primary != primary:
-                        event = f"elect p{primary.local_node_id} -> p{new_primary.local_node_id}"
+                        event = f"elect p[{primary.local_node_id}] -> p[{new_primary.local_node_id}]"
                     else:
                         added = list(set(new_nodes) - set(known_nodes))
                         removed = list(set(known_nodes) - set(new_nodes))
@@ -231,7 +234,9 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                         if added:
                             event += f"add n{[n.local_node_id for n in added]}"
                         if removed:
-                            event += f"- rm n{[n.local_node_id for n in removed]}"
+                            if event:
+                                event += "- "
+                            event += f"stop n{[n.local_node_id for n in removed]}"
                     primary = new_primary
                     backups = new_backups
                     self.client.restart(new_primary, new_backups, event=event)
