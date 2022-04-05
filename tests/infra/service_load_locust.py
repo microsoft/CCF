@@ -26,8 +26,12 @@ DEFAULT_LOAD_RATE_PER_S = 10  # TODO: Change back
 # with the txs recorded by the actual tests
 LOGGING_TXS_SCOPE = "load"
 
+LOCUST_STATS_HISTORY_SUFFIX = "stats_history.csv"
 
-TMP_RESULTS_CSV_FILE_NAME = "load_results.tmp"
+# Number of clients launched by locust
+LOAD_USERS_COUNT = 10
+
+
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
 LOCUST_FILE_NAME = "locust_file.py"
@@ -67,42 +71,38 @@ class LoadClient:
         target_node = primary
         target_host = f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
 
+        self.title = target_node.label
+
         this_dir = os.path.dirname(os.path.realpath(__file__))
         locust_file_path = os.path.join(this_dir, LOCUST_FILE_NAME)
         cmd = ["locust"]
         cmd += ["--headless"]
-        cmd += ["--loglevel", "ERROR"]
+        cmd += ["--loglevel", "CRITICAL"]
+        cmd += ["--locustfile", locust_file_path]
+        cmd += ["--csv-full-history"]  # Record history
+        cmd += ["--csv", in_common_dir(self.network, f"tmp_{LOGGING_TXS_SCOPE}")]
+
+        # Client authentication
         sa = primary.session_auth("user0")["session_auth"]
         cmd += ["--ca", primary.session_ca()["ca"]]
         cmd += ["--key", sa.key]
         cmd += ["--cert", sa.cert]
-        cmd += ["--locustfile", locust_file_path]
+
+        # Users
+        cmd += ["--users", f"{LOAD_USERS_COUNT}"]
+        cmd += [
+            "--spawn-rate",
+            f"{LOAD_USERS_COUNT}",
+        ]  # All users are spawned within 1s
+
+        # Targets
         cmd += ["--node-host", target_host]  # TODO: Construct hosts based on strategy
         cmd += ["--host", "https://0.0.0.0"]  # Dummy host required to start locust
 
-        LOG.success("Starting locust")
-        self.proc = subprocess.Popen(cmd)
+        LOG.info(f'Starting locust: {" ".join(cmd)}')
+        self.proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
 
-        # self.env = Environment(user_classes=[Submitter, Reader], host=target_host)
-        # self.env.create_local_runner()
-
-        # TODO: Strategy
-        # Allocate users to nodes, depending on strategy
-        # sa = primary.session_auth("user0")["session_auth"]
-        # if self.strategy == LoadStrategy.PRIMARY:
-        #     for u in self.env.user_classes_by_name.values():
-        #         u.user_auth = (sa.cert, sa.key)
-        #         u.server_ca = primary.session_ca()["ca"]
-
-        # PERCENTILES_TO_REPORT = [0.50, 0.90, 0.99, 1.0]
-        # stats_writer = locust.stats.StatsCSVFileWriter(
-        #     self.env,
-        #     PERCENTILES_TO_REPORT,
-        #     in_common_dir(self.network, "tmp_load"),
-        #     full_history=True,
-        # )
-        # self.stats = gevent.spawn(stats_writer)
-        # self.env.runner.start(user_count=2, spawn_rate=100)  # TODO: Configure
+        self.events.append((event, time.time()))
 
     def _aggregate_results(self):
         # Aggregate the results from the last run into all results so far.
@@ -110,7 +110,9 @@ class LoadClient:
         # can be started one after the other and since the results csv file
         # is the same for all instances (within the same test/common dir),
         # the latest instance of the LoadClient will render all results.
-        tmp_file = in_common_dir(self.network, "tmp_load_stats_history.csv")
+        tmp_file = in_common_dir(
+            self.network, f"tmp_{LOGGING_TXS_SCOPE}_{LOCUST_STATS_HISTORY_SUFFIX}"
+        )
         if os.path.exists(tmp_file):
             with open(tmp_file, "rb") as input, open(
                 in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
@@ -119,21 +121,18 @@ class LoadClient:
 
     def _stop_client(self):
         LOG.error("Stopping runner")
-        # gevent.kill(self.stats)
-        # LOG.warning(self.env.stats.history)
+        if self.proc:
+            self.proc.terminate()
+            self.proc.wait()
 
-        # self.env.runner.stop()
         self._aggregate_results()
-        # if self.proc:
-        #     self.proc.terminate()
-        #     self.proc.wait()
 
     def start(self, primary, backups):
         self._start_client(primary, backups, event="start")
 
     def stop(self):
         self._stop_client()
-        # self._render_results()
+        self._render_results()
 
     def restart(self, primary, backups, event="node change"):
         self._stop_client()
@@ -142,59 +141,28 @@ class LoadClient:
     def _render_results(self):
         df = pd.read_csv(
             os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
-            # header=None,
             keep_default_na=False,
-            # names=[
-            #     "timestamp",
-            #     "code",
-            #     "latency",
-            #     "bytesout",
-            #     "bytesin",
-            #     "error",
-            #     "response_body",
-            #     "attack_name",
-            #     "seqno",
-            #     "method",
-            #     "url",
-            #     "response_headers",
-            # ],
         ).set_index("Timestamp")
-        # df.index = pd.to_datetime(df.index, unit="ns")
-        # df["latency"] = df.latency.apply(lambda x: x / 1e6)
-        # Truncate error message for more compact rendering
-        # def truncate_error_msg(msg, max_=25):
-        #     if msg is None:
-        #         return None
-        #     else:
-        #         return msg[-max_:] if len(msg) > max_ else msg
-
-        # df["error"] = df.error.apply(truncate_error_msg)
+        df.index = pd.to_datetime(df.index, unit="s")
 
         fig, ax1 = plt.subplots()
         plt.title(f"Load for {self.title}")
 
-        # Latency
+        # Throughput
         color = "tab:blue"
         ax1.set_xlabel("time")
-        ax1.set_ylabel("latency (ms)", color=color)
-        # ax1.set_yscale("log")
+        ax1.set_ylabel("req/s", color=color)
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.tick_params(axis="x", rotation=90)
         ax1.scatter(df.index, df["Requests/s"], color=color)
 
-        # Error code
+        # Failures
         ax2 = ax1.twinx()
-        color = "tab:green"
-        ax2.set_ylabel("http code", color=color)
+        ax2.set_ylim(bottom=0.0)
+        color = "tab:red"
+        ax2.set_ylabel("failures/s", color=color)
         ax2.tick_params(axis="y", labelcolor=color)
         ax2.scatter(df.index, df["Failures/s"], color=color, s=10)
-
-        # Errors
-        # ax3 = ax1.twinx()
-        # color = "tab:red"
-        # ax3.set_ylabel("errors", color=color)
-        # ax3.tick_params(axis="y", labelcolor=color)
-        # ax3.scatter(df.index, df["error"], marker=".", color=color, s=10)
 
         # Network events
         extra_ticks = []
@@ -230,8 +198,8 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         LOG.info("Load client started")
 
     def stop(self):
-        # self.client.stop()
-        # super().stop()
+        self.client.stop()
+        super().stop()
         LOG.info(f"Load client stopped")
 
     def get_existing_events(self):
