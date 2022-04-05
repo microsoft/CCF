@@ -528,7 +528,7 @@ def run(args):
             LOG.success("Recovery complete on all nodes")
 
         primary, _ = network.find_primary()
-        
+
     network.stop_all_nodes()
 
     # Verify that a new ledger chunk was created at the start of each recovery
