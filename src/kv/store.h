@@ -546,12 +546,8 @@ namespace kv
 
       if (snapshotter)
       {
-        bool generate_snapshot = false;
         auto c = get_consensus();
-        if (c && c->is_primary())
-        {
-          generate_snapshot = true;
-        }
+        bool generate_snapshot = c && c->is_primary();
         snapshotter->commit(v, generate_snapshot);
       }
 
@@ -1296,12 +1292,7 @@ namespace kv
 
     bool record_committable(Version idx)
     {
-      if (!snapshotter)
-      {
-        return false;
-      }
-
-      return snapshotter->record_committable(idx);
+      return snapshotter && snapshotter->record_committable(idx);
     }
   };
 
