@@ -20,8 +20,8 @@ using MapT = kv::Map<size_t, size_t>;
 
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
-auto valid_from = ds::to_x509_time_string(
-  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);

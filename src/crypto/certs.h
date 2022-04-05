@@ -4,8 +4,10 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
+#include "ds/x509_time_fmt.h"
 #include "openssl/x509_time.h"
 
+#include <chrono>
 #include <string>
 
 namespace crypto
@@ -13,10 +15,12 @@ namespace crypto
   static std::string compute_cert_valid_to_string(
     const std::string& valid_from, size_t validity_period_days)
   {
+    using namespace std::chrono_literals;
     // Note: As per RFC 5280, the validity period runs until "notAfter"
     // _inclusive_ so substract one second from the validity period.
-    auto valid_to = OpenSSL::adjust_time(valid_from, validity_period_days, -1);
-    return OpenSSL::to_x509_time_string(valid_to);
+    auto valid_to = ds::from_x509_time_string(valid_from) +
+      std::chrono::days(validity_period_days) - 1s;
+    return ds::to_x509_time_string(valid_to);
   }
 
   static Pem create_self_signed_cert(

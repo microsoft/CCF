@@ -5,6 +5,8 @@
 #include "ccf/crypto/pem.h"
 
 #define FMT_HEADER_ONLY
+#include <chrono>
+#include <ds/x509_time_fmt.h>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
@@ -291,6 +293,9 @@ namespace crypto
       }
       Unique_X509_TIME(ASN1_TIME* t) :
         Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
+      {}
+      Unique_X509_TIME(const std::chrono::system_clock::time_point& t) :
+        Unique_X509_TIME(ds::to_x509_time_string(t))
       {}
     };
 

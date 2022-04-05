@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/entropy.h"
@@ -16,6 +17,7 @@
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
 #include "crypto/openssl/x509_time.h"
+#include "ds/x509_time_fmt.h"
 
 #include <chrono>
 #include <cstring>
@@ -59,8 +61,7 @@ crypto::Pem generate_self_signed_cert(
   constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
   auto valid_from =
-    ds::to_x509_time_string(std::chrono::system_clock::to_time_t(
-      std::chrono::system_clock::now() - 24h));
+    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
   return crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -521,20 +522,11 @@ TEST_CASE("AES-GCM convenience functions")
 
 TEST_CASE("x509 time")
 {
-  auto current_time_t =
-    std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-  auto time = *std::gmtime(&current_time_t);
+  auto time = std::chrono::system_clock::now();
 
-  auto next_day_time = time;
-  next_day_time.tm_mday++;
-  auto next_year_time = time;
-  next_year_time.tm_year++;
-  auto next_minute_time = time;
-  next_minute_time.tm_min++;
-
-  auto current_time = crypto::OpenSSL::from_time_t(current_time_t);
-  auto next_day = crypto::OpenSSL::from_time_t(std::mktime(&next_day_time));
-  auto next_year = crypto::OpenSSL::from_time_t(std::mktime(&next_year_time));
+  auto next_minute_time = time + 1min;
+  auto next_day_time = time + 24h;
+  auto next_year_time = time + 24h * 365;
 
   INFO("Chronological time");
   {
@@ -542,8 +534,8 @@ TEST_CASE("x509 time")
     {
       struct Input
       {
-        std::tm from;
-        std::tm to;
+        std::chrono::system_clock::time_point from;
+        std::chrono::system_clock::time_point to;
         std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
       };
       Input input;
@@ -565,12 +557,12 @@ TEST_CASE("x509 time")
 
     for (auto& data : test_vector)
     {
-      auto* from = &data.input.from;
-      auto* to = &data.input.to;
+      const auto& from = data.input.from;
+      const auto& to = data.input.to;
       REQUIRE(
         crypto::OpenSSL::validate_chronological_times(
-          crypto::OpenSSL::from_time_t(std::mktime(from)),
-          crypto::OpenSSL::from_time_t(std::mktime(to)),
+          crypto::OpenSSL::Unique_X509_TIME(from),
+          crypto::OpenSSL::Unique_X509_TIME(to),
           data.input.maximum_validity_period_days) ==
         data.expected_verification_result);
     }
@@ -578,17 +570,27 @@ TEST_CASE("x509 time")
 
   INFO("Adjust time");
   {
-    std::vector<std::tm> times = {time, next_day_time, next_day_time};
+    std::vector<std::chrono::system_clock::time_point> times = {
+      time, next_day_time, next_day_time};
     size_t days_offset = 100;
 
     for (auto& t : times)
     {
-      time_t t_ = std::mktime(&t);
-      auto adjusted_time = crypto::OpenSSL::adjust_time(
-        crypto::OpenSSL::from_time_t(t_), days_offset);
+      auto adjusted_time = t + std::chrono::days(days_offset);
+
+      auto from = crypto::OpenSSL::Unique_X509_TIME(t);
+      auto to = crypto::OpenSSL::Unique_X509_TIME(adjusted_time);
+
+      // Convert to string and back to time_points
+      auto from_conv =
+        ds::from_x509_time_string(crypto::OpenSSL::to_x509_time_string(from));
+      auto to_conv =
+        ds::from_x509_time_string(crypto::OpenSSL::to_x509_time_string(to));
+
+      // Diff is still the same amount of days
       auto days_diff =
-        std::difftime(crypto::OpenSSL::to_time_t(adjusted_time), t_) /
-        (60 * 60 * 24);
+        std::chrono::duration_cast<std::chrono::days>(to_conv - from_conv)
+          .count();
       REQUIRE(days_diff == days_offset);
     }
   }
@@ -599,14 +601,11 @@ TEST_CASE("x509 time")
 
     for (auto const& days_offset : days_offsets)
     {
-      auto adjusted_time = crypto::OpenSSL::adjust_time(
-        crypto::OpenSSL::from_time_t(current_time_t), days_offset);
-      auto adjusted_time_t = crypto::OpenSSL::to_time_t(adjusted_time);
-
-      auto x509_str = ds::to_x509_time_string(adjusted_time_t);
-      auto asn1_time = crypto::OpenSSL::Unique_X509_TIME(x509_str);
-      auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
-      REQUIRE(converted_time_t == adjusted_time_t);
+      auto adjusted_time = time + std::chrono::days(days_offset);
+      auto adjusted_str = ds::to_x509_time_string(adjusted_time);
+      auto asn1_time = crypto::OpenSSL::Unique_X509_TIME(adjusted_str);
+      auto converted_str = crypto::OpenSSL::to_x509_time_string(asn1_time);
+      REQUIRE(converted_str == adjusted_str);
     }
   }
 }
