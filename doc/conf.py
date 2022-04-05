@@ -64,6 +64,7 @@ extensions = [
     "sphinxcontrib.openapi",
     "sphinx_panels",
     "sphinx.ext.extlinks",
+    "sphinx.builders.linkcheck",
 ]
 
 autosectionlabel_prefix_document = True
@@ -94,6 +95,9 @@ exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "zenburn"
+
+linkcheck_exclude_documents = [r"./doc/index.rst"]
+linkcheck_anchors_ignore = ["^!", r".*github.com\/.*"]
 
 
 # -- Options for HTML output -------------------------------------------------
