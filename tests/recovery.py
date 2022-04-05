@@ -75,6 +75,9 @@ def test_recover_service(network, args, from_snapshot=False):
         committed_ledger_dirs=committed_ledger_dirs,
         snapshots_dir=snapshots_dir,
     )
+    recovered_network.verify_service_certificate_validity_period(
+        args.initial_service_cert_validity_days
+    )
 
     recovered_network.recover(args)
 
