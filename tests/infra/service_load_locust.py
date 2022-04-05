@@ -57,7 +57,7 @@ class LoadClient:
     def __init__(
         self,
         network,
-        strategy=LoadStrategy.ALL,
+        strategy=LoadStrategy.PRIMARY,
         rate=DEFAULT_LOAD_RATE_PER_S,
         target_node=None,
         existing_events=None,

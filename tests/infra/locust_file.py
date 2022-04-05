@@ -1,9 +1,10 @@
-from locust.env import Environment
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 import locust.stats
-from locust import HttpUser, task, tag, between, events
+from locust import HttpUser, task, events, constant_pacing
 import json
 
-from loguru import logger as LOG
 
 # Scope for logging txs so that they do not conflict
 # with the txs recorded by the actual tests
@@ -25,9 +26,17 @@ def init_parser(parser):
 
 class Submitter(HttpUser):
 
-    user_auth = None
-    server_ca = None
     last_msg_id = 0
+
+    # Round-robin between all hosts specified at startup
+    hosts = []
+    current_host_idx = 0
+
+    def on_start(self):
+        self.hosts = self.environment.parsed_options.node_host
+
+    # Crudely limit rate manually like this for now.
+    wait_time = constant_pacing(0.1)
 
     @task()
     def submit(self):
@@ -37,14 +46,13 @@ class Submitter(HttpUser):
             "id": self.last_msg_id,
             "msg": f"Private message: {self.last_msg_id}",
         }
-
-        # TODO: Handle multiple nodes
-        # LOG.error(opts.node_host)
+        host = self.hosts[self.current_host_idx]
         self.client.post(
-            f"{opts.node_host[0]}/app/log/private?scope={LOGGING_TXS_SCOPE}",
+            f"{host}/app/log/private?scope={LOGGING_TXS_SCOPE}",
             data=json.dumps(body_json).encode(),
             headers=headers,
             cert=(opts.cert, opts.key),
             verify=opts.ca,
         )
         self.last_msg_id += 1
+        self.current_host_idx = (self.current_host_idx + 1) % len(self.hosts)
