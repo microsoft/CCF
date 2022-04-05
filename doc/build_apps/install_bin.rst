@@ -27,7 +27,7 @@ These dependencies can be conveniently installed using the ``ansible`` playbooks
 Install
 -------
 
-CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases/latest>`_.
+CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases/latest>`_. The documentation you are currently reading describes the `main` branch and behaviour available in the 2.x release candidates.
 
 The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
