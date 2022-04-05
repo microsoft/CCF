@@ -64,7 +64,6 @@ extensions = [
     "sphinxcontrib.openapi",
     "sphinx_panels",
     "sphinx.ext.extlinks",
-    "sphinx.builders.linkcheck",
 ]
 
 autosectionlabel_prefix_document = True
@@ -96,9 +95,13 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "zenburn"
 
-# Ignore main index file that has clickable images and github anchors
+# Ignore main index file that has clickable images, github anchors and JS/Doxygen output
 linkcheck_exclude_documents = [r"^index$"]
-linkcheck_ignore = [r"https://github.com/.*#"]
+linkcheck_ignore = [
+    r"https://github.com/.*#",
+    r"../js/ccf-app.*",
+    r"../doxygen/index.html",
+]
 
 
 # -- Options for HTML output -------------------------------------------------
