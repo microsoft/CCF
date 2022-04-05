@@ -673,7 +673,6 @@ class Network:
                 LOG.warning(f"  {pattern}")
 
         for node in self.nodes:
-            LOG.error(node.local_node_id)
             _, fatal_errors = node.stop(
                 ignore_error_patterns=self.ignore_error_patterns
             )

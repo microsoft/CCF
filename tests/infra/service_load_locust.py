@@ -10,6 +10,7 @@ import pandas as pd
 from shutil import copyfileobj
 from enum import Enum, auto
 import infra.concurrency
+import random
 
 
 from loguru import logger as LOG
@@ -48,11 +49,15 @@ class LoadStrategy(Enum):
     SINGLE = auto()
 
 
+def make_target_host(target_node):
+    return f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
+
+
 class LoadClient:
     def __init__(
         self,
         network,
-        strategy=LoadStrategy.PRIMARY,
+        strategy=LoadStrategy.ALL,
         rate=DEFAULT_LOAD_RATE_PER_S,
         target_node=None,
         existing_events=None,
@@ -68,16 +73,12 @@ class LoadClient:
         self.stats = None
 
     def _start_client(self, primary, backups, event):
-        target_node = primary
-        target_host = f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
-
-        self.title = target_node.label
-
+        self.title = primary.label
         this_dir = os.path.dirname(os.path.realpath(__file__))
         locust_file_path = os.path.join(this_dir, LOCUST_FILE_NAME)
+
         cmd = ["locust"]
         cmd += ["--headless"]
-        cmd += ["--loglevel", "CRITICAL"]
         cmd += ["--locustfile", locust_file_path]
         cmd += ["--csv-full-history"]  # Record history
         cmd += ["--csv", in_common_dir(self.network, f"tmp_{LOGGING_TXS_SCOPE}")]
@@ -96,7 +97,16 @@ class LoadClient:
         ]  # All users are spawned within 1s
 
         # Targets
-        cmd += ["--node-host", target_host]  # TODO: Construct hosts based on strategy
+        if self.strategy == LoadStrategy.PRIMARY:
+            cmd += ["--node-host", make_target_host(primary)]
+        elif self.strategy == LoadStrategy.ALL:
+            for node in [primary] + backups:
+                cmd += ["--node-host", make_target_host(node)]
+        elif self.strategy == LoadStrategy.ANY_BACKUP:
+            cmd += ["--node-host", make_target_host(random.choice(backups))]
+        elif self.strategy == LoadStrategy.SINGLE:
+            cmd += ["--node-host", make_target_host(self.target_node)]
+
         cmd += ["--host", "https://0.0.0.0"]  # Dummy host required to start locust
 
         LOG.info(f'Starting locust: {" ".join(cmd)}')
@@ -116,31 +126,16 @@ class LoadClient:
         aggregated_file = in_common_dir(self.network, RESULTS_CSV_FILE_NAME)
         is_new = not os.path.exists(aggregated_file)
         if os.path.exists(tmp_file):
-            with open(tmp_file, "rb") as input, open(
-                in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
-            ) as output:
+            with open(tmp_file, "rb") as in_, open(aggregated_file, "ab") as out_:
                 if not is_new:
-                    input.readline()
-                copyfileobj(input, output)
+                    in_.readline()
+                copyfileobj(in_, out_)
 
     def _stop_client(self):
-        LOG.error("Stopping runner")
         if self.proc:
             self.proc.terminate()
             self.proc.wait()
-
         self._aggregate_results()
-
-    def start(self, primary, backups):
-        self._start_client(primary, backups, event="start")
-
-    def stop(self):
-        self._stop_client()
-        self._render_results()
-
-    def restart(self, primary, backups, event="node change"):
-        self._stop_client()
-        self._start_client(primary, backups, event)
 
     def _render_results(self):
         df = pd.read_csv(
@@ -187,6 +182,17 @@ class LoadClient:
         plt.close(fig)
         LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
+    def start(self, primary, backups):
+        self._start_client(primary, backups, event="start")
+
+    def stop(self):
+        self._stop_client()
+        self._render_results()
+
+    def restart(self, primary, backups, event="restart"):
+        self._stop_client()
+        self._start_client(primary, backups, event)
+
 
 class ServiceLoad(infra.concurrency.StoppableThread):
     def __init__(self, network, verbose=False, *args, **kwargs):
@@ -201,8 +207,8 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         LOG.info("Load client started")
 
     def stop(self):
-        self.client.stop()
         super().stop()
+        self.client.stop()
         LOG.info(f"Load client stopped")
 
     def get_existing_events(self):

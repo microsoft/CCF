@@ -72,7 +72,6 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
 
     if most_common_primary is None:
         # A majority of nodes are unreachable
-        LOG.error("unavailable")
         return HealthState.unavailable
 
     if most_common_primary[0] not in primaries:
@@ -116,6 +115,7 @@ class NetworkHealthWatcher(infra.concurrency.StoppableThread):
             raise TimeoutError(
                 f"Health watcher did not detect recovery after {timeout}s"
             )
+        LOG.info(f"Recovery successfully detected")
 
     def run(self):
         """

@@ -52,9 +52,10 @@ def test_recover_service(network, args, from_snapshot=False):
     watcher.start()
 
     for node in network.get_joined_nodes():
-        node.stop()
         time.sleep(args.election_timeout_ms / 1000)
+        node.stop()
 
+    # time.sleep(args.election_timeout_ms / 1000)
     watcher.wait_for_recovery()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
