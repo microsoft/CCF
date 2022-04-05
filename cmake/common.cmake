@@ -264,7 +264,6 @@ target_link_libraries(
   cchost
   PRIVATE uv
           ${SNMALLOC_LIB}
-          ${CRYPTO_LIBRARY}
           ${TLS_LIBRARY}
           ${CMAKE_DL_LIBS}
           ${CMAKE_THREAD_LIBS_INIT}

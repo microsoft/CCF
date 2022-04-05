@@ -16,7 +16,7 @@ namespace crypto
     // Note: As per RFC 5280, the validity period runs until "notAfter"
     // _inclusive_ so substract one second from the validity period.
     auto valid_to = OpenSSL::adjust_time(valid_from, validity_period_days, -1);
-    return OpenSSL::to_x509_time_string(OpenSSL::to_time_t(valid_to));
+    return OpenSSL::to_x509_time_string(valid_to);
   }
 
   static Pem create_self_signed_cert(
