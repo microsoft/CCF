@@ -149,35 +149,6 @@ namespace aft
     AppendEntriesResponseType success;
   };
 
-  struct SignaturesReceivedAck : RaftHeader
-  {
-    Term term;
-    Index idx;
-  };
-
-  struct NonceRevealMsg : RaftHeader
-  {
-    Term term;
-    Index idx;
-    Nonce nonce;
-  };
-
-  struct RequestViewChangeMsg : RaftHeader
-  {
-    ccf::View view = 0;
-    ccf::SeqNo seqno = 0;
-  };
-
-  struct ViewChangeEvidenceMsg : RaftHeader
-  {
-    ccf::View view = 0;
-  };
-
-  struct SkipViewMsg : RaftHeader
-  {
-    ccf::View view = 0;
-  };
-
   struct RequestVote : RaftHeader
   {
     Term term;
