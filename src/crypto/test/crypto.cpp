@@ -418,6 +418,14 @@ void run_csr(bool corrupt_csr = false)
   REQUIRE(valid_to_.find(valid_to) != std::string::npos);
 }
 
+TEST_CASE("2-digit years")
+{
+  auto time_str = "220405175422Z";
+  auto tp = ds::time_point_from_string(time_str);
+  auto conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == std::string("20") + time_str);
+}
+
 TEST_CASE("Create sign and verify certificates")
 {
   bool corrupt_csr = false;
@@ -583,9 +591,9 @@ TEST_CASE("x509 time")
 
       // Convert to string and back to time_points
       auto from_conv =
-        ds::from_x509_time_string(crypto::OpenSSL::to_x509_time_string(from));
+        ds::time_point_from_string(crypto::OpenSSL::to_x509_time_string(from));
       auto to_conv =
-        ds::from_x509_time_string(crypto::OpenSSL::to_x509_time_string(to));
+        ds::time_point_from_string(crypto::OpenSSL::to_x509_time_string(to));
 
       // Diff is still the same amount of days
       auto days_diff =

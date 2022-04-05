@@ -25,12 +25,30 @@ namespace ds
     return to_x509_time_string(fmt::gmtime(time));
   }
 
-  static inline std::chrono::system_clock::time_point from_x509_time_string(
+  static inline std::chrono::system_clock::time_point time_point_from_string(
     const std::string& time)
   {
-    std::istringstream ss(time);
-    std::tm t;
-    ss >> std::get_time(&t, "%Y%m%d%H%M%SZ");
-    return std::chrono::system_clock::from_time_t(timegm(&t));
+    auto accepted_formats = {
+      "%y%m%d%H%M%SZ", // ASN.1
+      "%Y%m%d%H%M%SZ", // Generalized ASN.1
+    };
+
+    for (auto afmt : accepted_formats)
+    {
+      // Sadly %y in std::get_time seems to be broken, so strptime it is.
+      // std::tm t;
+      // std::istringstream ss(time);
+      // ss >> std::get_time(&t, afmt);
+      // if (ss) ...
+
+      struct tm t;
+      if (strptime(time.c_str(), afmt, &t) != NULL)
+      {
+        return std::chrono::system_clock::from_time_t(timegm(&t));
+      }
+    }
+
+    throw std::runtime_error(
+      fmt::format("'{}' does not match any accepted time format", time));
   }
 }
