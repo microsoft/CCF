@@ -895,14 +895,14 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "issuer argument is not a string");
     }
 
-    JSValue metadata_val = JS_JSONStringify(ctx, argv[1], JS_NULL, JS_NULL);
+    auto metadata_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[1]));
     if (JS_IsException(metadata_val))
     {
       return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
     }
     auto metadata_json = jsctx.to_str(metadata_val);
 
-    JSValue jwks_val = JS_JSONStringify(ctx, argv[2], JS_NULL, JS_NULL);
+    auto jwks_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[2]));
     if (JS_IsException(jwks_val))
     {
       return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");

@@ -1535,14 +1535,23 @@ namespace aft
       }
 
       // Update next and match for the responding node.
+      auto& match_idx = node->second.match_idx;
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        node->second.match_idx =
+        const auto this_match =
           find_highest_possible_match({r.term, r.last_log_idx});
+        if (match_idx == 0)
+        {
+          match_idx = this_match;
+        }
+        else
+        {
+          match_idx = std::min(match_idx, this_match);
+        }
       }
       else
       {
-        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+        match_idx = std::min(r.last_log_idx, state->last_idx);
       }
 
       if (r.success != AppendEntriesResponseType::OK)

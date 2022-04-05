@@ -469,9 +469,6 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
-        self.verify_service_certificate_validity_period(
-            args.initial_service_cert_validity_days
-        )
         LOG.success("***** Network is now open *****")
         if self.service_load:
             self.service_load.start()
@@ -574,9 +571,6 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.verify_service_certificate_validity_period(
-            args.initial_service_cert_validity_days
-        )
         LOG.success("***** Recovered network is now open *****")
         if self.service_load:
             self.service_load.start()
@@ -1186,7 +1180,7 @@ class Network:
             time.sleep(0.1)
         raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
 
-    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
+    def wait_for_snapshot_committed_for(self, seqno, timeout=3, on_all_nodes=False):
         # Check that snapshot exists for target seqno and if so, wait until
         # snapshot evidence is committed
         snapshot_evidence_seqno = None
@@ -1198,7 +1192,15 @@ class Network:
         if snapshot_evidence_seqno is None:
             return False
 
-        return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
+        if on_all_nodes:
+            for node in self.get_joined_nodes():
+                if not self.wait_for_commit_proof(
+                    node, snapshot_evidence_seqno, timeout
+                ):
+                    return False
+            return True
+        else:
+            return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
 
     def get_committed_snapshots(self, node):
         # Wait for the snapshot including target_seqno to be committed before
@@ -1294,7 +1296,7 @@ class Network:
         )
         if valid_to != expected_valid_to:
             raise ValueError(
-                f'Validity period for service certiticate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+                f'Validity period for service certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
             )
 
         validity_period = valid_to - valid_from + timedelta(seconds=1)
