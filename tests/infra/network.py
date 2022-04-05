@@ -9,8 +9,7 @@ from enum import Enum, IntEnum, auto
 from infra.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
-
-import infra.service_load_locust
+import infra.service_load
 import infra.node
 import infra.consortium
 import ccf.ledger
@@ -148,7 +147,7 @@ class Network:
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = (
-                infra.service_load_locust.ServiceLoad(self) if with_load else None
+                infra.service_load.ServiceLoad(self) if with_load else None
             )
         else:
             self.consortium = existing_network.consortium
@@ -160,7 +159,7 @@ class Network:
             self.service_load = None
             if existing_network.service_load:
                 existing_network.service_load.stop()
-                self.service_load = infra.service_load_locust.ServiceLoad(
+                self.service_load = infra.service_load.ServiceLoad(
                     network=self,
                     existing_events=existing_network.service_load.get_existing_events(),
                 )

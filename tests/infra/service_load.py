@@ -1,23 +1,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+
 import time
 import os
 import subprocess
-import generate_vegeta_targets as TargetGenerator
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pandas as pd
 from shutil import copyfileobj
 from enum import Enum, auto
-import datetime
 import infra.concurrency
+import random
+
 
 from loguru import logger as LOG
 
 
 # Interval (s) at which the network is polled to find out
 # when the load client should be restarted
-NETWORK_POLL_INTERVAL_S = 1
+NETWORK_POLL_INTERVAL_S = 5
 
 # Number of requests sent to the service per sec
 DEFAULT_LOAD_RATE_PER_S = 10  # TODO: Change back
@@ -26,12 +27,15 @@ DEFAULT_LOAD_RATE_PER_S = 10  # TODO: Change back
 # with the txs recorded by the actual tests
 LOGGING_TXS_SCOPE = "load"
 
-# Load client configuration
-VEGETA_BIN = "/opt/vegeta/vegeta"
-TARGET_FILE_NAME = "load_targets"
-TMP_RESULTS_CSV_FILE_NAME = "load_results.tmp"
+LOCUST_STATS_HISTORY_SUFFIX = "stats_history.csv"
+
+# Number of clients launched by locust
+LOAD_USERS_COUNT = 10
+
+
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
+LOCUST_FILE_NAME = "locust_file.py"
 
 
 def in_common_dir(network, file):
@@ -43,6 +47,10 @@ class LoadStrategy(Enum):
     ALL = auto()
     ANY_BACKUP = auto()
     SINGLE = auto()
+
+
+def make_target_host(target_node):
+    return f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
 
 
 class LoadClient:
@@ -61,67 +69,49 @@ class LoadClient:
         self.events = existing_events or []
         self.proc = None
         self.title = None
+        self.env = None
+        self.stats = None
 
-    def _create_targets(self, nodes, strategy):
-        with open(
-            in_common_dir(self.network, TARGET_FILE_NAME),
-            "w",
-            encoding="utf-8",
-        ) as f:
-            primary, backup = self.network.find_primary_and_any_backup()
-            self.title = primary.label
-            # Note: Iteration count does not matter as vegeta plays requests in a loop
-            for i in range(10):
-                if strategy == LoadStrategy.PRIMARY:
-                    node = primary
-                elif strategy == LoadStrategy.ALL:
-                    node = nodes[i % len(nodes)]
-                elif strategy == LoadStrategy.ANY_BACKUP:
-                    node = backup
-                else:
-                    assert self.target_node, "A target node should have been specified"
-                    node = self.target_node
-                TargetGenerator.write_vegeta_target_line(
-                    f,
-                    f"{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                    f"/app/log/private?scope={LOGGING_TXS_SCOPE}",
-                    body={"id": i, "msg": f"Private message: {i}"},
-                )
+    def _start_client(self, primary, backups, event):
+        self.title = primary.label
+        this_dir = os.path.dirname(os.path.realpath(__file__))
+        locust_file_path = os.path.join(this_dir, LOCUST_FILE_NAME)
 
-    def _start_client(self, nodes, event):
-        self._create_targets(nodes, self.strategy)
-        attack_cmd = [VEGETA_BIN, "attack"]
-        attack_cmd += [
-            "--targets",
-            in_common_dir(self.network, TARGET_FILE_NAME),
-        ]
-        attack_cmd += ["--format", "json"]
-        attack_cmd += ["--rate", f"{self.rate}"]
-        attack_cmd += ["--duration", "0"]  # runs until the process is terminated
-        attack_cmd += [
-            "--max-workers",
-            "10",
-        ]  # limit workers not to overwhelm TCP host node memory
-        sa = nodes[0].session_auth("user0")
-        attack_cmd += ["--cert", sa["session_auth"].cert]
-        attack_cmd += ["--key", sa["session_auth"].key]
-        attack_cmd += ["--root-certs", nodes[0].session_ca(False)["ca"]]
+        cmd = ["locust"]
+        cmd += ["--headless"]
+        cmd += ["--locustfile", locust_file_path]
+        cmd += ["--csv-full-history"]  # Record history
+        cmd += ["--csv", in_common_dir(self.network, f"tmp_{LOGGING_TXS_SCOPE}")]
 
-        attack = subprocess.Popen(attack_cmd, stdout=subprocess.PIPE)
-        tee_split = subprocess.Popen(
-            ["tee", "vegeta_results.bin"],
-            stdin=attack.stdout,
-            stdout=subprocess.PIPE,
-        )
-        encode_cmd = [
-            VEGETA_BIN,
-            "encode",
-            "--to",
-            "csv",
-            "--output",
-            in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME),
-        ]
-        self.proc = subprocess.Popen(encode_cmd, stdin=tee_split.stdout)
+        # Client authentication
+        sa = primary.session_auth("user0")["session_auth"]
+        cmd += ["--ca", primary.session_ca()["ca"]]
+        cmd += ["--key", sa.key]
+        cmd += ["--cert", sa.cert]
+
+        # Users
+        cmd += ["--users", f"{LOAD_USERS_COUNT}"]
+        cmd += [
+            "--spawn-rate",
+            f"{LOAD_USERS_COUNT}",
+        ]  # All users are spawned within 1s
+
+        # Targets
+        if self.strategy == LoadStrategy.PRIMARY:
+            cmd += ["--node-host", make_target_host(primary)]
+        elif self.strategy == LoadStrategy.ALL:
+            for node in [primary] + backups:
+                cmd += ["--node-host", make_target_host(node)]
+        elif self.strategy == LoadStrategy.ANY_BACKUP:
+            cmd += ["--node-host", make_target_host(random.choice(backups))]
+        elif self.strategy == LoadStrategy.SINGLE:
+            cmd += ["--node-host", make_target_host(self.target_node)]
+
+        cmd += ["--host", "https://0.0.0.0"]  # Dummy host required to start locust
+
+        LOG.info(f'Starting locust: {" ".join(cmd)}')
+        self.proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+
         self.events.append((event, time.time()))
 
     def _aggregate_results(self):
@@ -130,86 +120,47 @@ class LoadClient:
         # can be started one after the other and since the results csv file
         # is the same for all instances (within the same test/common dir),
         # the latest instance of the LoadClient will render all results.
-        tmp_file = in_common_dir(self.network, TMP_RESULTS_CSV_FILE_NAME)
+        tmp_file = in_common_dir(
+            self.network, f"tmp_{LOGGING_TXS_SCOPE}_{LOCUST_STATS_HISTORY_SUFFIX}"
+        )
+        aggregated_file = in_common_dir(self.network, RESULTS_CSV_FILE_NAME)
+        is_new = not os.path.exists(aggregated_file)
         if os.path.exists(tmp_file):
-            with open(tmp_file, "rb") as input, open(
-                in_common_dir(self.network, RESULTS_CSV_FILE_NAME), "ab"
-            ) as output:
-                copyfileobj(input, output)
+            with open(tmp_file, "rb") as in_, open(aggregated_file, "ab") as out_:
+                if not is_new:
+                    in_.readline()
+                copyfileobj(in_, out_)
 
     def _stop_client(self):
-        self._aggregate_results()
         if self.proc:
             self.proc.terminate()
             self.proc.wait()
-
-    def start(self, nodes):
-        self._start_client(nodes, event="start")
-
-    def stop(self):
-        self._stop_client()
-        # self._render_results()
-
-    def restart(self, nodes, event="node change"):
-        self._stop_client()
-        self._start_client(nodes, event)
+        self._aggregate_results()
 
     def _render_results(self):
         df = pd.read_csv(
             os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
-            header=None,
             keep_default_na=False,
-            names=[
-                "timestamp",
-                "code",
-                "latency",
-                "bytesout",
-                "bytesin",
-                "error",
-                "response_body",
-                "attack_name",
-                "seqno",
-                "method",
-                "url",
-                "response_headers",
-            ],
-        ).set_index("timestamp")
-        df.index = pd.to_datetime(df.index, unit="ns")
-        df["latency"] = df.latency.apply(lambda x: x / 1e6)
-        # Truncate error message for more compact rendering
-        def truncate_error_msg(msg, max_=25):
-            if msg is None:
-                return None
-            else:
-                return msg[-max_:] if len(msg) > max_ else msg
-
-        df["error"] = df.error.apply(truncate_error_msg)
+        ).set_index("Timestamp")
+        df.index = pd.to_datetime(df.index, unit="s")
 
         fig, ax1 = plt.subplots()
         plt.title(f"Load for {self.title}")
 
-        # Latency
+        # Throughput
         color = "tab:blue"
         ax1.set_xlabel("time")
-        ax1.set_ylabel("latency (ms)", color=color)
-        ax1.set_yscale("log")
+        ax1.set_ylabel("req/s", color=color)
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.tick_params(axis="x", rotation=90)
-        ax1.scatter(df.index, df["latency"], color=color)
+        ax1.scatter(df.index, df["Requests/s"], marker=".", color=color)
 
-        # Error code
+        # Failures
         ax2 = ax1.twinx()
-        color = "tab:green"
-        ax2.set_ylabel("http code", color=color)
-        ax2.tick_params(axis="y", labelcolor=color)
-        ax2.scatter(df.index, df["code"], color=color, s=10)
-
-        # Errors
-        ax3 = ax1.twinx()
         color = "tab:red"
-        ax3.set_ylabel("errors", color=color)
-        ax3.tick_params(axis="y", labelcolor=color)
-        ax3.scatter(df.index, df["error"], marker=".", color=color, s=10)
+        ax2.set_ylabel("failures/s", color=color)
+        ax2.tick_params(axis="y", labelcolor=color)
+        ax2.scatter(df.index, df["Failures/s"], marker=".", color=color)
 
         # Network events
         extra_ticks = []
@@ -231,6 +182,17 @@ class LoadClient:
         plt.close(fig)
         LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
+    def start(self, primary, backups):
+        self._start_client(primary, backups, event="start")
+
+    def stop(self):
+        self._stop_client()
+        self._render_results()
+
+    def restart(self, primary, backups, event="restart"):
+        self._stop_client()
+        self._start_client(primary, backups, event)
+
 
 class ServiceLoad(infra.concurrency.StoppableThread):
     def __init__(self, network, verbose=False, *args, **kwargs):
@@ -240,13 +202,13 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         self.client = LoadClient(self.network, *args, **kwargs)
 
     def start(self):
-        self.client.start(nodes=self.network.get_joined_nodes())
+        self.client.start(*self.network.find_nodes())
         super().start()
         LOG.info("Load client started")
 
     def stop(self):
-        self.client.stop()
         super().stop()
+        self.client.stop()
         LOG.info(f"Load client stopped")
 
     def get_existing_events(self):
@@ -266,11 +228,11 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                     LOG.warning(
                         "Network configuration has changed, restarting service load client"
                     )
-                    event = "unknown"
+                    event = ""
                     if primary not in new_nodes:
-                        event = f"stop p{primary.local_node_id}"
+                        event = f"stop p[{primary.local_node_id}]"
                     elif new_primary != primary:
-                        event = f"elect p{primary.local_node_id} -> p{new_primary.local_node_id}"
+                        event = f"elect p[{primary.local_node_id}] -> p[{new_primary.local_node_id}]"
                     else:
                         added = list(set(new_nodes) - set(known_nodes))
                         removed = list(set(known_nodes) - set(new_nodes))
@@ -278,10 +240,12 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                         if added:
                             event += f"add n{[n.local_node_id for n in added]}"
                         if removed:
-                            event += f"- rm n{[n.local_node_id for n in removed]}"
+                            if event:
+                                event += "- "
+                            event += f"stop n{[n.local_node_id for n in removed]}"
                     primary = new_primary
                     backups = new_backups
-                    self.client.restart(new_nodes, event=event)
+                    self.client.restart(new_primary, new_backups, event=event)
                 known_nodes = new_nodes
             except Exception as e:
                 LOG.warning(f"Error finding nodes: {e}")
