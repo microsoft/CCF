@@ -5,7 +5,6 @@ import time
 import os
 import subprocess
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import pandas as pd
 from shutil import copyfileobj
 from enum import Enum, auto
@@ -195,7 +194,7 @@ class LoadClient:
 
 
 class ServiceLoad(infra.concurrency.StoppableThread):
-    def __init__(self, network, verbose=False, *args, **kwargs):
+    def __init__(self, network, *args, verbose=False, **kwargs):
         super().__init__(name="load")
         self.network = network
         self.verbose = verbose
@@ -209,7 +208,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
     def stop(self):
         super().stop()
         self.client.stop()
-        LOG.info(f"Load client stopped")
+        LOG.info("Load client stopped")
 
     def get_existing_events(self):
         return self.client.events

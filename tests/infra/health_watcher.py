@@ -115,7 +115,7 @@ class NetworkHealthWatcher(infra.concurrency.StoppableThread):
             raise TimeoutError(
                 f"Health watcher did not detect recovery after {timeout}s"
             )
-        LOG.info(f"Recovery successfully detected")
+        LOG.info("Recovery successfully detected")
 
     def run(self):
         """

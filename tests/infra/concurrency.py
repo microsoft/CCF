@@ -3,8 +3,6 @@
 
 import threading
 
-from loguru import logger as LOG
-
 
 class StoppableThread(threading.Thread):
     def __init__(self, *args, **kwargs):
