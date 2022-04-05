@@ -713,7 +713,9 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto& [index, data, is_globally_committable, hooks] : entries)
+      for (
+        auto& [index, data, is_globally_committable, force_ledger_chunk, hooks] :
+        entries)
       {
         bool globally_committable = is_globally_committable;
 
@@ -742,7 +744,6 @@ namespace aft
           hook->call(this);
         }
 
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
           LOG_DEBUG_FMT(
@@ -756,11 +757,6 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
-
-          // Only if globally committable, a snapshot requires a new ledger
-          // chunk to be created
-          force_ledger_chunk = store->record_committable(index);
-
           start_ticking_if_necessary();
         }
 

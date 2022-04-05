@@ -251,6 +251,7 @@ namespace kv
     Version,
     std::shared_ptr<std::vector<uint8_t>>,
     bool,
+    bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
   enum CommitResult

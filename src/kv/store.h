@@ -50,8 +50,9 @@ namespace kv
     Version last_committable = 0;
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>>
-      pending_txs;
+    std::
+      unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool, bool>>
+        pending_txs;
 
   public:
     void clear()
@@ -916,6 +917,12 @@ namespace kv
         return CommitResult::SUCCESS;
       }
 
+      bool force_ledger_chunk = false;
+      if (snapshotter && globally_committable)
+      {
+        force_ledger_chunk = snapshotter->record_committable(txid.version);
+      }
+
       std::lock_guard<std::mutex> cguard(commit_lock);
 
       LOG_DEBUG_FMT(
@@ -950,7 +957,8 @@ namespace kv
 
         pending_txs.insert(
           {txid.version,
-           std::make_pair(std::move(pending_tx), globally_committable)});
+           std::make_tuple(
+             std::move(pending_tx), globally_committable, force_ledger_chunk)});
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
@@ -973,7 +981,7 @@ namespace kv
             break;
           }
 
-          auto& [pending_tx_, committable_] = search->second;
+          auto& [pending_tx_, committable_, force_chunk_] = search->second;
           auto
             [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
               pending_tx_->call();
@@ -1005,7 +1013,11 @@ namespace kv
             txid.version);
 
           batch.emplace_back(
-            last_replicated + offset, data_shared, committable_, hooks_shared);
+            last_replicated + offset,
+            data_shared,
+            committable_,
+            force_chunk_,
+            hooks_shared);
           pending_txs.erase(search);
         }
 

@@ -550,7 +550,7 @@ public:
                     << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     // True means all these entries are committable
-    raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, term);
+    raft->replicate(kv::BatchVector{{idx, data, true, false, hooks}}, term);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
