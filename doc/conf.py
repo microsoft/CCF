@@ -96,8 +96,9 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "zenburn"
 
-linkcheck_exclude_documents = [r"./doc/index.rst"]
-linkcheck_anchors_ignore = ["^!", r".*github.com\/.*"]
+# Ignore main index file that has clickable images and github anchors
+linkcheck_exclude_documents = [r"^index$"]
+linkcheck_ignore = [r"https://github.com/.*#"]
 
 
 # -- Options for HTML output -------------------------------------------------
