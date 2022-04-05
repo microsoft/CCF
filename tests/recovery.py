@@ -55,7 +55,6 @@ def test_recover_service(network, args, from_snapshot=False):
         time.sleep(args.election_timeout_ms / 1000)
         node.stop()
 
-    # time.sleep(args.election_timeout_ms / 1000)
     watcher.wait_for_recovery()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
@@ -454,6 +453,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        ref_msg = get_and_verify_historical_receipt(network, None)
+
         network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
@@ -478,6 +479,8 @@ def run(args):
                 node.verify_certificate_validity_period()
 
             primary, _ = network.find_primary()
+
+            ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
             LOG.success("Recovery complete on all nodes")
 
