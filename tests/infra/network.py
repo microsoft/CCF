@@ -1180,7 +1180,7 @@ class Network:
             time.sleep(0.1)
         raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
 
-    def wait_for_snapshot_committed_for(self, seqno, timeout=3, on_all_nodes=False):
+    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
         # Check that snapshot exists for target seqno and if so, wait until
         # snapshot evidence is committed
         snapshot_evidence_seqno = None
@@ -1192,15 +1192,7 @@ class Network:
         if snapshot_evidence_seqno is None:
             return False
 
-        if on_all_nodes:
-            for node in self.get_joined_nodes():
-                if not self.wait_for_commit_proof(
-                    node, snapshot_evidence_seqno, timeout
-                ):
-                    return False
-            return True
-        else:
-            return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
+        return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
 
     def get_committed_snapshots(self, node):
         # Wait for the snapshot including target_seqno to be committed before
@@ -1213,17 +1205,21 @@ class Network:
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
             end_time = time.time() + timeout
             while time.time() < end_time:
-                has_snapshot_for_target_seqno = False
                 for f in list_src_dir_func(src_dir):
                     snapshot_seqno = infra.node.get_snapshot_seqnos(f)[1]
-                    if snapshot_seqno >= target_seqno:
-                        has_snapshot_for_target_seqno = True
-                        if not infra.node.is_file_committed(f):
-                            self.wait_for_commit_proof(node, snapshot_seqno)
-                        else:
-                            return True
-                if not has_snapshot_for_target_seqno:
-                    self.wait_for_commit_proof(node, target_seqno)
+                    if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
+                        f
+                    ):
+                        return True
+
+                with node.client(self.consortium.get_any_active_member().local_id) as c:
+                    logs = []
+                    for _ in range(self.args.snapshot_tx_interval):
+                        r = c.post("/gov/ack/update_state_digest", log_capture=logs)
+                        assert (
+                            r.status_code == http.HTTPStatus.OK.value
+                        ), f"Error ack/update_state_digest: {r}"
+                    c.wait_for_commit(r)
                 time.sleep(0.1)
             return False
 
