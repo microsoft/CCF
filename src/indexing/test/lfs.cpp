@@ -33,7 +33,6 @@ void write_file_corrupted_at(
   f.close();
 }
 
-// TODO: De-dupe?
 static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_hello,
   ExpectedSeqNos& seqnos_saluton,
