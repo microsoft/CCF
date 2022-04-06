@@ -31,7 +31,6 @@ LOCUST_STATS_HISTORY_SUFFIX = "stats_history.csv"
 # Number of clients launched by locust
 LOAD_USERS_COUNT = 10
 
-
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
 LOCUST_FILE_NAME = "locust_file.py"
@@ -148,18 +147,22 @@ class LoadClient:
 
         # Throughput
         color = "tab:blue"
+        request_column_name = "Requests/s"
         ax1.set_xlabel("time")
-        ax1.set_ylabel("req/s", color=color)
+        ax1.set_ylabel(request_column_name, color=color)
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.tick_params(axis="x", rotation=90)
-        ax1.scatter(df.index, df["Requests/s"], marker=".", color=color)
+        ax1.set_ylim(0, df[request_column_name].max())
+        ax1.scatter(df.index, df[request_column_name], marker=".", color=color)
 
         # Failures
         ax2 = ax1.twinx()
         color = "tab:red"
-        ax2.set_ylabel("failures/s", color=color)
+        failure_column_name = "Failures/s"
+        ax2.set_ylabel(failure_column_name, color=color)
         ax2.tick_params(axis="y", labelcolor=color)
-        ax2.scatter(df.index, df["Failures/s"], marker=".", color=color)
+        ax2.set_ylim(0, df[request_column_name].max())
+        ax2.scatter(df.index, df[failure_column_name], marker=".", color=color)
 
         # Network events
         extra_ticks = []
