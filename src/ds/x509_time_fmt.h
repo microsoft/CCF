@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <sstream>
 #include <time.h>
+#include <vector>
 
 namespace ds
 {
@@ -28,23 +29,56 @@ namespace ds
   static inline std::chrono::system_clock::time_point time_point_from_string(
     const std::string& time)
   {
+    const char* ts = time.c_str();
+
     auto accepted_formats = {
       "%y%m%d%H%M%SZ", // ASN.1
       "%Y%m%d%H%M%SZ", // Generalized ASN.1
-    };
+      "%Y-%m-%d %H:%M:%S"};
 
     for (auto afmt : accepted_formats)
     {
       // Sadly %y in std::get_time seems to be broken, so strptime it is.
-      // std::tm t;
-      // std::istringstream ss(time);
-      // ss >> std::get_time(&t, afmt);
-      // if (ss) ...
-
-      struct tm t;
-      if (strptime(time.c_str(), afmt, &t) != NULL)
+      struct tm t = {};
+      auto sres = strptime(ts, afmt, &t);
+      if (sres != NULL && *sres == '\0')
       {
-        return std::chrono::system_clock::from_time_t(timegm(&t));
+        auto r = std::chrono::system_clock::from_time_t(timegm(&t));
+        r -= std::chrono::seconds(t.tm_gmtoff);
+        return r;
+      }
+    }
+
+    // Then there are formats that strptime doesn't support...
+    std::vector<std::pair<const char*, int>> more_formats = {
+      // Note: longest format to match first
+      {"%04u-%02u-%02u %02u:%02u:%f %d:%02u", 8},
+      {"%04u-%02u-%02u %02u:%02u:%f %03d %02u", 8},
+      {"%04u-%02u-%02u %02u:%02u:%f", 6}};
+
+    for (auto [fmt, n] : more_formats)
+    {
+      unsigned y = 0, m = 0, d = 0, h = 0, mn = 0, om = 0;
+      int oh = 0;
+      float s = 0.0;
+
+      if (sscanf(ts, fmt, &y, &m, &d, &h, &mn, &s, &oh, &om) == n)
+      {
+        using namespace std::chrono;
+
+        auto date = year_month_day(year(y), month(m), day(d));
+
+        if (
+          !date.ok() || h > 24 || mn > 60 || s < 0.0 || s > 60.0 || oh < -23 ||
+          oh > 23 || om > 60)
+        {
+          continue;
+        }
+
+        system_clock::time_point r = (sys_days)date;
+        r += hours(h) + minutes(mn) + microseconds((long)(s * 1e6));
+        r -= hours(oh) + minutes(om);
+        return r;
       }
     }
 

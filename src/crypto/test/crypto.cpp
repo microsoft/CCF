@@ -426,6 +426,39 @@ TEST_CASE("2-digit years")
   REQUIRE(conv == std::string("20") + time_str);
 }
 
+TEST_CASE("Non-ASN.1 timepoint formats")
+{
+  auto time_str = "2022-04-05 18:53:27";
+  auto tp = ds::time_point_from_string(time_str);
+  auto conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220405185327Z");
+
+  time_str = "2022-04-05 18:53:27.190380";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220405185327Z");
+
+  time_str = "2022-04-05 18:53:27 +03:00";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220405155327Z");
+
+  time_str = "2022-04-05 18:53:27 +0300";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220405155327Z");
+
+  time_str = "2022-04-05 18:53:27.190380+03:00";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220405155327Z");
+
+  time_str = "2022-04-05 18:53:27 -03:00";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220405215327Z");
+}
+
 TEST_CASE("Create sign and verify certificates")
 {
   bool corrupt_csr = false;
