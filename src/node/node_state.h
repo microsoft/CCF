@@ -178,7 +178,7 @@ namespace ccf
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
     LedgerSecretsMap recovered_ledger_secrets = {};
     consensus::Index last_recovered_idx = 0;
-    static const size_t recovery_batch_size = 1;
+    static const size_t recovery_batch_size = 1000; // TODO: Make configurable
 
     //
     // JWT key auto-refresh
@@ -794,119 +794,139 @@ namespace ccf
       else
       {
         LOG_FAIL_FMT(
-          "Node should be in state {} or {} to recover public ledger entry",
+          "Node should be in state {} or {} to recover public ledger entries",
           NodeStartupState::readingPublicLedger,
           NodeStartupState::verifyingSnapshot);
         return;
       }
 
-      // TODO: Move elsewhere
-      LOG_INFO_FMT("Deserialising public ledger entry [{}]", entries.size());
+      auto data = entries.data();
+      auto size = entries.size();
 
-      kv::ApplyResult result = kv::ApplyResult::FAIL;
-      try
+      if (size == 0)
       {
-        auto r = store->deserialize(entries, ConsensusType::CFT, true);
-        result = r->apply();
-        if (result == kv::ApplyResult::FAIL)
-        {
-          LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", result);
-          recover_public_ledger_end_unsafe();
-          return;
-        }
-        ++last_recovered_idx;
-
-        // Not synchronised because consensus isn't effectively running then
-        for (auto& hook : r->get_hooks())
-        {
-          hook->call(consensus.get());
-        }
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Failed to deserialise public ledger entry: {}", e.what());
         recover_public_ledger_end_unsafe();
         return;
       }
 
-      // If the ledger entry is a signature, it is safe to compact the store
-      if (result == kv::ApplyResult::PASS_SIGNATURE)
+      while (size > 0)
       {
-        // If the ledger entry is a signature, it is safe to compact the store
-        store->compact(last_recovered_idx);
-        auto tx = store->create_tx();
-        GenesisGenerator g(network, tx);
-        auto last_sig = tx.ro(network.signatures)->get();
+        auto entry = consensus::LedgerEnclave::get_entry(data, size);
 
-        if (!last_sig.has_value())
-        {
-          throw std::logic_error("Signature missing");
-        }
+        LOG_INFO_FMT("Deserialising public ledger entry [{}]", entry.size());
 
-        LOG_DEBUG_FMT(
-          "Read signature at {} for view {}",
-          last_recovered_idx,
-          last_sig->view);
-        // Initial transactions, before the first signature, must have
-        // happened in the first signature's view (eg - if the first
-        // signature is at seqno 20 in view 4, then transactions 1->19 must
-        // also have been in view 4). The brief justification is that while
-        // the first node may start in an arbitrarily high view (it does not
-        // necessarily start in view 1), it cannot _change_ view before a
-        // valid signature.
-        const auto view_start_idx =
-          view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-        CCF_ASSERT_FMT(
-          last_sig->view >= 0, "last_sig->view is invalid, {}", last_sig->view);
-        for (auto i = view_history.size();
-             i < static_cast<size_t>(last_sig->view);
-             ++i)
-        {
-          view_history.push_back(view_start_idx);
-        }
-        last_recovered_signed_idx = last_recovered_idx;
+        // When reading the private ledger, deserialise in the recovery store
 
-        if (
-          startup_snapshot_info && startup_snapshot_info->has_evidence &&
-          startup_snapshot_info->evidence_seqno.has_value() &&
-          static_cast<consensus::Index>(last_sig->commit_seqno) >=
-            startup_snapshot_info->evidence_seqno.value())
+        kv::ApplyResult result = kv::ApplyResult::FAIL;
+        try
         {
-          startup_snapshot_info->is_evidence_committed = true;
-        }
-
-        if (sm.check(NodeStartupState::readingPublicLedger))
-        {
-          // Inform snapshotter of all signature entries so that this node can
-          // continue generating snapshots at the correct interval once the
-          // recovery is complete
-          snapshotter->record_committable(last_recovered_idx);
-          snapshotter->commit(last_recovered_idx, false);
-        }
-      }
-      else if (
-        result == kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE &&
-        startup_snapshot_info)
-      {
-        auto tx = store->create_read_only_tx();
-        auto snapshot_evidence = tx.ro(network.snapshot_evidence);
-
-        if (
-          startup_snapshot_info->evidence_seqno.has_value() &&
-          last_recovered_idx == startup_snapshot_info->evidence_seqno.value())
-        {
-          auto evidence = snapshot_evidence->get();
-          if (!evidence.has_value())
+          auto r = store->deserialize(entry, ConsensusType::CFT, true);
+          result = r->apply();
+          if (result == kv::ApplyResult::FAIL)
           {
-            throw std::logic_error("Invalid snapshot evidence");
+            LOG_FAIL_FMT(
+              "Failed to deserialise public ledger entry: {}", result);
+            recover_public_ledger_end_unsafe();
+            return;
+          }
+          ++last_recovered_idx;
+
+          // Not synchronised because consensus isn't effectively running then
+          for (auto& hook : r->get_hooks())
+          {
+            hook->call(consensus.get());
+          }
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Failed to deserialise public ledger entry: {}", e.what());
+          recover_public_ledger_end_unsafe();
+          return;
+        }
+
+        // If the ledger entry is a signature, it is safe to compact the store
+        if (result == kv::ApplyResult::PASS_SIGNATURE)
+        {
+          // If the ledger entry is a signature, it is safe to compact the store
+          store->compact(last_recovered_idx);
+          auto tx = store->create_tx();
+          GenesisGenerator g(network, tx);
+          auto last_sig = tx.ro(network.signatures)->get();
+
+          if (!last_sig.has_value())
+          {
+            throw std::logic_error("Signature missing");
           }
 
-          if (evidence->hash == crypto::Sha256Hash(startup_snapshot_info->raw))
+          LOG_DEBUG_FMT(
+            "Read signature at {} for view {}",
+            last_recovered_idx,
+            last_sig->view);
+          // Initial transactions, before the first signature, must have
+          // happened in the first signature's view (eg - if the first
+          // signature is at seqno 20 in view 4, then transactions 1->19 must
+          // also have been in view 4). The brief justification is that while
+          // the first node may start in an arbitrarily high view (it does not
+          // necessarily start in view 1), it cannot _change_ view before a
+          // valid signature.
+          const auto view_start_idx =
+            view_history.empty() ? 1 : last_recovered_signed_idx + 1;
+          CCF_ASSERT_FMT(
+            last_sig->view >= 0,
+            "last_sig->view is invalid, {}",
+            last_sig->view);
+          for (auto i = view_history.size();
+               i < static_cast<size_t>(last_sig->view);
+               ++i)
           {
-            LOG_DEBUG_FMT(
-              "Snapshot evidence for snapshot found at {}",
-              startup_snapshot_info->evidence_seqno.value());
-            startup_snapshot_info->has_evidence = true;
+            view_history.push_back(view_start_idx);
+          }
+          last_recovered_signed_idx = last_recovered_idx;
+
+          if (
+            startup_snapshot_info && startup_snapshot_info->has_evidence &&
+            startup_snapshot_info->evidence_seqno.has_value() &&
+            static_cast<consensus::Index>(last_sig->commit_seqno) >=
+              startup_snapshot_info->evidence_seqno.value())
+          {
+            startup_snapshot_info->is_evidence_committed = true;
+          }
+
+          if (sm.check(NodeStartupState::readingPublicLedger))
+          {
+            // Inform snapshotter of all signature entries so that this node can
+            // continue generating snapshots at the correct interval once the
+            // recovery is complete
+            snapshotter->record_committable(last_recovered_idx);
+            snapshotter->commit(last_recovered_idx, false);
+          }
+        }
+        else if (
+          result == kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE &&
+          startup_snapshot_info)
+        {
+          auto tx = store->create_read_only_tx();
+          auto snapshot_evidence = tx.ro(network.snapshot_evidence);
+
+          if (
+            startup_snapshot_info->evidence_seqno.has_value() &&
+            last_recovered_idx == startup_snapshot_info->evidence_seqno.value())
+          {
+            auto evidence = snapshot_evidence->get();
+            if (!evidence.has_value())
+            {
+              throw std::logic_error("Invalid snapshot evidence");
+            }
+
+            if (
+              evidence->hash == crypto::Sha256Hash(startup_snapshot_info->raw))
+            {
+              LOG_DEBUG_FMT(
+                "Snapshot evidence for snapshot found at {}",
+                startup_snapshot_info->evidence_seqno.value());
+              startup_snapshot_info->has_evidence = true;
+            }
           }
         }
       }
@@ -1058,42 +1078,55 @@ namespace ccf
       if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
-          "Node is state {} cannot recover private ledger entry", sm.value());
+          "Node is state {} cannot recover private ledger entries", sm.value());
         return;
       }
 
-      // TODO: Move in loop
-      LOG_INFO_FMT("Deserialising private ledger entry [{}]", entries.size());
+      auto data = entries.data();
+      auto size = entries.size();
 
-      // When reading the private ledger, deserialise in the recovery store
-      kv::ApplyResult result = kv::ApplyResult::FAIL;
-      try
+      if (size == 0)
       {
-        result =
-          recovery_store->deserialize(entries, ConsensusType::CFT)->apply();
-        if (result == kv::ApplyResult::FAIL)
-        {
-          LOG_FAIL_FMT(
-            "Failed to deserialise private ledger entry: {}", result);
-          // Note: rollback terms do not matter here as recovery store is about
-          // to be discarded
-          recovery_store->rollback({0, last_recovered_idx}, 0);
-          recover_private_ledger_end_unsafe();
-          return;
-        }
-        ++last_recovered_idx;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT(
-          "Failed to deserialise private ledger entry: {}", e.what());
         recover_private_ledger_end_unsafe();
         return;
       }
 
-      if (result == kv::ApplyResult::PASS_SIGNATURE)
+      while (size > 0)
       {
-        recovery_store->compact(last_recovered_idx);
+        auto entry = consensus::LedgerEnclave::get_entry(data, size);
+
+        LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
+
+        // When reading the private ledger, deserialise in the recovery store
+        kv::ApplyResult result = kv::ApplyResult::FAIL;
+        try
+        {
+          result =
+            recovery_store->deserialize(entry, ConsensusType::CFT)->apply();
+          if (result == kv::ApplyResult::FAIL)
+          {
+            LOG_FAIL_FMT(
+              "Failed to deserialise private ledger entry: {}", result);
+            // Note: rollback terms do not matter here as recovery store is
+            // about to be discarded
+            recovery_store->rollback({0, last_recovered_idx}, 0);
+            recover_private_ledger_end_unsafe();
+            return;
+          }
+          ++last_recovered_idx;
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Failed to deserialise private ledger entry: {}", e.what());
+          recover_private_ledger_end_unsafe();
+          return;
+        }
+
+        if (result == kv::ApplyResult::PASS_SIGNATURE)
+        {
+          recovery_store->compact(last_recovered_idx);
+        }
       }
 
       if (recovery_store->current_version() == recovery_v)
@@ -1103,7 +1136,6 @@ namespace ccf
       }
       else
       {
-        // last_recovered_idx++;
         read_ledger_entries(
           last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
       }
@@ -1163,8 +1195,8 @@ namespace ccf
         }
 
         // Trigger a snapshot (at next signature) to ensure we have a working
-        // snapshot signed by the current (now new) service identity, in case we
-        // need to recover soon again.
+        // snapshot signed by the current (now new) service identity, in case
+        // we need to recover soon again.
         trigger_snapshot(tx);
 
         if (tx.commit() != kv::CommitResult::SUCCESS)
@@ -1182,9 +1214,9 @@ namespace ccf
     void setup_one_off_secret_hook()
     {
       // This hook is necessary to adjust the version at which the last ledger
-      // secret before recovery is recorded in the store. This can only be fired
-      // once, after the recovery shares for the post-recovery ledger secret are
-      // issued.
+      // secret before recovery is recorded in the store. This can only be
+      // fired once, after the recovery shares for the post-recovery ledger
+      // secret are issued.
       network.tables->set_map_hook(
         network.encrypted_ledger_secrets.get_name(),
         network.encrypted_ledger_secrets.wrap_map_hook(
@@ -1325,7 +1357,8 @@ namespace ccf
       if (!service_info.has_value())
       {
         throw std::logic_error(
-          "Service information cannot be found to transition service to open");
+          "Service information cannot be found to transition service to "
+          "open");
       }
 
       // Idempotence: if the service is already open or waiting for recovery
@@ -1347,7 +1380,8 @@ namespace ccf
         throw std::logic_error(
           "Recovery with service certificates requires both, a previous "
           "service identity certificate during node startup and a "
-          "transition_service_to_open proposal that contains previous and next "
+          "transition_service_to_open proposal that contains previous and "
+          "next "
           "service certificates");
       }
 
@@ -1374,7 +1408,8 @@ namespace ccf
       else if (is_part_of_network())
       {
         // Otherwise, if the node is part of the network. Open the network
-        // straight away. Recovery shares are allocated to each recovery member.
+        // straight away. Recovery shares are allocated to each recovery
+        // member.
         try
         {
           share_manager.issue_recovery_shares(tx);
@@ -1405,8 +1440,8 @@ namespace ccf
       recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
         tx, recovered_encrypted_ledger_secrets);
 
-      // Broadcast decrypted ledger secrets to other nodes for them to initiate
-      // private recovery too
+      // Broadcast decrypted ledger secrets to other nodes for them to
+      // initiate private recovery too
       LedgerSecretsBroadcast::broadcast_some(
         network, self, tx, recovered_ledger_secrets);
     }
@@ -1566,7 +1601,8 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
       sm.expect(NodeStartupState::partOfNetwork);
 
-      // The ledger should not be re-keyed when the service is not open because:
+      // The ledger should not be re-keyed when the service is not open
+      // because:
       // - While waiting for recovery shares, the submitted shares are stored
       // in a public table, encrypted with the ledger secret generated at
       // startup of the first recovery node
@@ -1660,8 +1696,8 @@ namespace ccf
 
     crypto::Pem create_endorsed_node_cert(size_t validity_period_days)
     {
-      // Only used by a 2.x node joining an existing 1.x service which will not
-      // endorsed the identity of the new joiner.
+      // Only used by a 2.x node joining an existing 1.x service which will
+      // not endorsed the identity of the new joiner.
       return create_endorsed_cert(
         node_sign_kp,
         config.node_certificate.subject_name,
@@ -1687,7 +1723,8 @@ namespace ccf
       // certificate
       CCF_ASSERT_FMT(
         endorsed_node_cert.has_value(),
-        "Node certificate should be endorsed before accepting endorsed client "
+        "Node certificate should be endorsed before accepting endorsed "
+        "client "
         "connections");
       rpcsessions->set_network_cert(
         endorsed_node_cert.value(), node_sign_kp->private_key_pem());
@@ -1935,8 +1972,8 @@ namespace ccf
             for (const auto& encrypted_ledger_secret : encrypted_ledger_secrets)
             {
               // On rekey, the version is inferred from the version at which
-              // the hook is executed. Otherwise, on recovery, use the version
-              // read from the write set.
+              // the hook is executed. Otherwise, on recovery, use the
+              // version read from the write set.
               if (!encrypted_ledger_secret.version.has_value())
               {
                 throw std::logic_error(fmt::format(
@@ -1975,7 +2012,8 @@ namespace ccf
             kv::Version hook_version,
             const EncryptedSubmittedShares::Write& w) {
             // Initiate recovery procedure from global hook, once all recovery
-            // shares have been submitted (i.e. recovered_ledger_secrets is set)
+            // shares have been submitted (i.e. recovered_ledger_secrets is
+            // set)
             if (!recovered_ledger_secrets.empty())
             {
               network.ledger_secrets->restore_historical(
@@ -1988,7 +2026,6 @@ namespace ccf
 
               // Start reading private security domain of ledger
               last_recovered_idx = recovery_store->current_version();
-              // last_recovered_idx++;
               read_ledger_entries(
                 last_recovered_idx + 1,
                 last_recovered_idx + recovery_batch_size);
