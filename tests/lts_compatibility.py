@@ -7,12 +7,14 @@ import infra.logging_app as app
 import infra.utils
 import infra.github
 import infra.jwt_issuer
+import infra.crypto
 import cimetrics.env
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
 import time
+import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from reconfiguration import test_migration_2tx_reconfiguration
@@ -225,7 +227,13 @@ def run_code_upgrade_from(
                 network.join_node(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
-                network.trust_node(new_node, args)
+                network.trust_node(
+                    new_node,
+                    args,
+                    valid_from=str(  # Pre-2.0 nodes require X509 time format
+                        infra.crypto.datetime_to_X509time(datetime.datetime.now())
+                    ),
+                )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,
                 # the node certificate validity period is set by the joining node itself
                 # as [node startup time, node startup time + 365 days]
