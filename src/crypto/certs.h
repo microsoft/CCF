@@ -5,7 +5,6 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ds/x509_time_fmt.h"
-#include "openssl/x509_time.h"
 
 #include <chrono>
 #include <string>

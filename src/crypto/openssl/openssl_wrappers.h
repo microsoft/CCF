@@ -288,7 +288,8 @@ namespace crypto
       Unique_X509_TIME(const std::string& s) :
         Unique_SSL_OBJECT(ASN1_TIME_new(), ASN1_TIME_free, /*check_null=*/false)
       {
-        CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
+        auto t = ds::to_x509_time_string(s);
+        CHECK1(ASN1_TIME_set_string(*this, t.c_str()));
         CHECK1(ASN1_TIME_normalize(*this));
       }
       Unique_X509_TIME(ASN1_TIME* t) :

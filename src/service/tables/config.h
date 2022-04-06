@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "crypto/openssl/x509_time.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 

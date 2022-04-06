@@ -53,6 +53,7 @@ namespace ds
     std::vector<std::pair<const char*, int>> more_formats = {
       // Note: longest format to match first
       {"%04u-%02u-%02u %02u:%02u:%f %d:%02u", 8},
+      {"%04u-%02u-%02uT%02u:%02u:%f %d:%02u", 8},
       {"%04u-%02u-%02u %02u:%02u:%f %03d %02u", 8},
       {"%04u-%02u-%02u %02u:%02u:%f", 6}};
 
@@ -84,5 +85,10 @@ namespace ds
 
     throw std::runtime_error(
       fmt::format("'{}' does not match any accepted time format", time));
+  }
+
+  static inline std::string to_x509_time_string(const std::string& time)
+  {
+    return to_x509_time_string(time_point_from_string(time));
   }
 }
