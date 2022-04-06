@@ -164,7 +164,7 @@ A note on CommonJS modules
 --------------------------
 
 The sample project uses the
-`@rollup/plugin-commonjs <https://github.com/rollup/plugins/tree/main/packages/commonjs>`_
+`@rollup/plugin-commonjs <https://github.com/rollup/plugins/tree/master/packages/commonjs>`_
 package to automatically convert npm packages with CommonJS modules to native JavaScript modules
 so that they can be used in CCF.
 
