@@ -150,9 +150,11 @@ class LoadClient:
         request_column_name = "Requests/s"
         ax1.set_xlabel("time")
         ax1.set_ylabel(request_column_name, color=color)
+        request_column_max = df[request_column_name].max()
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.tick_params(axis="x", rotation=90)
-        ax1.set_ylim(0, df[request_column_name].max())
+        if request_column_max > 0:
+            ax1.set_ylim(0, request_column_max)
         ax1.scatter(df.index, df[request_column_name], marker=".", color=color)
 
         # Failures
@@ -161,7 +163,8 @@ class LoadClient:
         failure_column_name = "Failures/s"
         ax2.set_ylabel(failure_column_name, color=color)
         ax2.tick_params(axis="y", labelcolor=color)
-        ax2.set_ylim(0, df[request_column_name].max())
+        if request_column_max > 0:
+            ax2.set_ylim(0, request_column_max)
         ax2.scatter(df.index, df[failure_column_name], marker=".", color=color)
 
         # Network events
