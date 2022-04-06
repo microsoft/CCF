@@ -178,7 +178,7 @@ namespace ccf
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
     LedgerSecretsMap recovered_ledger_secrets = {};
     consensus::Index last_recovered_idx = 0;
-    static const size_t recovery_batch_size = 1000; // TODO: Make configurable
+    static const size_t recovery_batch_size = 1000;
 
     //
     // JWT key auto-refresh
