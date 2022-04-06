@@ -95,7 +95,8 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "zenburn"
 
-# Ignore main index file that has clickable images, github anchors and JS/Doxygen output
+# Ignore main index file that has clickable images, JS/Doxygen output and
+# github anchors https://github.com/sphinx-doc/sphinx/issues/9016)
 linkcheck_exclude_documents = [r"^index$"]
 linkcheck_ignore = [
     r"https://github.com/.*#",
