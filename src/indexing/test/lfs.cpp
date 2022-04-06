@@ -376,4 +376,63 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       identify_error_and_reindex();
     }
   }
+
+  {
+    INFO("Indexes can be built for Sets and Values");
+
+    ExpectedSeqNos seqnos_set, seqnos_value;
+    const auto set_key = "some key";
+
+    for (size_t i = 0; i < ccf::indexing::Indexer::MAX_REQUESTABLE; ++i)
+    {
+      const auto write_set = i % 3 != 0;
+      const auto write_value = i % 4 != 0;
+
+      auto tx = kv_store.create_tx();
+      tx.wo(map_a)->put("hello", "value doesn't matter");
+      if (write_set)
+      {
+        tx.wo(set_a)->insert(set_key);
+      }
+      if (write_value)
+      {
+        tx.wo(value_a)->put("value doesn't matter");
+      }
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+      const auto seqno = tx.get_txid()->version;
+      seqnos_hello.insert(seqno);
+      if (write_set)
+      {
+        seqnos_set.insert(seqno);
+      }
+      if (write_value)
+      {
+        seqnos_value.insert(seqno);
+      }
+    }
+
+    using StratSet =
+      ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(set_a)>;
+    auto index_set = std::make_shared<StratSet>(set_a, node_context, 100, 4);
+    REQUIRE(indexer.install_strategy(index_set));
+
+    using StratValue =
+      ccf::indexing::strategies::SeqnosForValue_Bucketed<decltype(value_a)>;
+    auto index_value =
+      std::make_shared<StratValue>(value_a, node_context, 100, 4);
+    REQUIRE(indexer.install_strategy(index_value));
+
+    tick_until_caught_up();
+    current_ = kv_store.current_txid();
+    current = {current_.term, current_.version};
+    current_seqno = current.seqno;
+
+    REQUIRE(index_set->get_indexed_watermark() == current);
+    REQUIRE(index_value->get_indexed_watermark() == current);
+
+    fetch_all(index_set, set_key, seqnos_set);
+    // fetch_all(index_a, "saluton", seqnos_saluton);
+  }
 }

@@ -14,6 +14,12 @@ static MapA map_a("public:map_a");
 using MapB = kv::Map<size_t, size_t>;
 static MapB map_b("public:map_b");
 
+using ValueA = kv::Value<std::string>;
+static ValueA value_a("public:value_a");
+
+using SetA = kv::Set<std::string>;
+static SetA set_a("public:set_a");
+
 static const std::chrono::milliseconds step_time(10);
 
 class TestTransactionFetcher : public ccf::indexing::TransactionFetcher
