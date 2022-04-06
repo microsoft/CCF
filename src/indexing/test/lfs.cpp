@@ -330,6 +330,55 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     }
   };
 
+  auto fetch_all_value = [&](
+                           auto& strat,
+                           const auto& expected,
+                           bool should_fail = false) {
+    auto range_start = 0;
+    auto range_end = request_range;
+
+    while (true)
+    {
+      LOG_TRACE_FMT(
+        "Fetching {} from {} to {}", strat->get_name(), range_start, range_end);
+
+      auto results = strat->get_write_txs_in_range(range_start, range_end);
+
+      if (!results.has_value())
+      {
+        // This required an async load from disk
+        REQUIRE(flush_ringbuffers() > 0);
+
+        results = strat->get_write_txs_in_range(range_start, range_end);
+
+        if (should_fail && !results.has_value())
+        {
+          // Ringbuffer flush was insufficient to fill the requested range.
+          // Likely a corrupted or missing file, which needs a full re-index to
+          // resolve
+          return;
+        }
+        else
+        {
+          REQUIRE(results.has_value());
+        }
+      }
+
+      REQUIRE(check_seqnos(expected, results, false));
+
+      if (range_end == current_seqno)
+      {
+        REQUIRE(!should_fail);
+        break;
+      }
+      else
+      {
+        range_start = range_end + 1;
+        range_end = std::min(range_start + request_range, current_seqno);
+      }
+    }
+  };
+
   {
     INFO("Old entries must be fetched asynchronously");
 
@@ -379,7 +428,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     fetch_all(index_b, 2, seqnos_2);
 
     fetch_all(index_set, "set key", seqnos_set);
-    // TODO fetch_all(index_value, seqnos_value);
+    fetch_all_value(index_value, seqnos_value);
   }
 
   {
@@ -394,7 +443,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
       fetch_all(index_b, 1, seqnos_1, true);
       fetch_all(index_set, "set key", seqnos_set, true);
-      // TODO fetch_all(index_value, seqnos_value, true);
+      fetch_all_value(index_value, seqnos_value, true);
 
       // Now index_b has also seen a missing file
       REQUIRE(index_b->get_indexed_watermark() != current);
@@ -411,7 +460,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       fetch_all(index_b, 2, seqnos_2);
 
       fetch_all(index_set, "set key", seqnos_set);
-      // TODO fetch_all(index_value, seqnos_value);
+      fetch_all_value(index_value, seqnos_value);
     };
 
     // Note: We delete/corrupt every file, since we don't know which files apply
