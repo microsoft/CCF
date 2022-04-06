@@ -177,7 +177,8 @@ namespace ccf
     consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
     LedgerSecretsMap recovered_ledger_secrets = {};
-    consensus::Index ledger_idx = 0;
+    consensus::Index last_recovered_idx = 0;
+    static const size_t recovery_batch_size = 1;
 
     //
     // JWT key auto-refresh
@@ -235,8 +236,8 @@ namespace ccf
         config.recover.previous_service_identity);
 
       startup_seqno = startup_snapshot_info->seqno;
-      ledger_idx = startup_seqno.value();
-      last_recovered_signed_idx = ledger_idx;
+      last_recovered_idx = startup_seqno.value();
+      last_recovered_signed_idx = last_recovered_idx;
 
       return !startup_snapshot_info->requires_ledger_verification();
     }
@@ -435,7 +436,7 @@ namespace ccf
           if (from_snapshot)
           {
             initialise_startup_snapshot(true);
-            snapshotter->set_last_snapshot_idx(ledger_idx);
+            snapshotter->set_last_snapshot_idx(last_recovered_idx);
           }
 
           sm.advance(NodeStartupState::readingPublicLedger);
@@ -771,10 +772,12 @@ namespace ccf
       }
 
       LOG_INFO_FMT("Starting to read public ledger");
-      read_ledger_idx(++ledger_idx);
+
+      read_ledger_entries(
+        last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
-    void recover_public_ledger_entry(const std::vector<uint8_t>& ledger_entry)
+    void recover_public_ledger_entries(const std::vector<uint8_t>& entries)
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -797,13 +800,13 @@ namespace ccf
         return;
       }
 
-      LOG_INFO_FMT(
-        "Deserialising public ledger entry [{}]", ledger_entry.size());
+      // TODO: Move elsewhere
+      LOG_INFO_FMT("Deserialising public ledger entry [{}]", entries.size());
 
       kv::ApplyResult result = kv::ApplyResult::FAIL;
       try
       {
-        auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+        auto r = store->deserialize(entries, ConsensusType::CFT, true);
         result = r->apply();
         if (result == kv::ApplyResult::FAIL)
         {
@@ -811,6 +814,7 @@ namespace ccf
           recover_public_ledger_end_unsafe();
           return;
         }
+        ++last_recovered_idx;
 
         // Not synchronised because consensus isn't effectively running then
         for (auto& hook : r->get_hooks())
@@ -829,7 +833,7 @@ namespace ccf
       if (result == kv::ApplyResult::PASS_SIGNATURE)
       {
         // If the ledger entry is a signature, it is safe to compact the store
-        store->compact(ledger_idx);
+        store->compact(last_recovered_idx);
         auto tx = store->create_tx();
         GenesisGenerator g(network, tx);
         auto last_sig = tx.ro(network.signatures)->get();
@@ -840,7 +844,9 @@ namespace ccf
         }
 
         LOG_DEBUG_FMT(
-          "Read signature at {} for view {}", ledger_idx, last_sig->view);
+          "Read signature at {} for view {}",
+          last_recovered_idx,
+          last_sig->view);
         // Initial transactions, before the first signature, must have
         // happened in the first signature's view (eg - if the first
         // signature is at seqno 20 in view 4, then transactions 1->19 must
@@ -858,7 +864,7 @@ namespace ccf
         {
           view_history.push_back(view_start_idx);
         }
-        last_recovered_signed_idx = ledger_idx;
+        last_recovered_signed_idx = last_recovered_idx;
 
         if (
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
@@ -874,8 +880,8 @@ namespace ccf
           // Inform snapshotter of all signature entries so that this node can
           // continue generating snapshots at the correct interval once the
           // recovery is complete
-          snapshotter->record_committable(ledger_idx);
-          snapshotter->commit(ledger_idx, false);
+          snapshotter->record_committable(last_recovered_idx);
+          snapshotter->commit(last_recovered_idx, false);
         }
       }
       else if (
@@ -887,7 +893,7 @@ namespace ccf
 
         if (
           startup_snapshot_info->evidence_seqno.has_value() &&
-          ledger_idx == startup_snapshot_info->evidence_seqno.value())
+          last_recovered_idx == startup_snapshot_info->evidence_seqno.value())
         {
           auto evidence = snapshot_evidence->get();
           if (!evidence.has_value())
@@ -905,7 +911,8 @@ namespace ccf
         }
       }
 
-      read_ledger_idx(++ledger_idx);
+      read_ledger_entries(
+        last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
     void verify_snapshot_end()
@@ -932,7 +939,7 @@ namespace ccf
           "Snapshot evidence at {} was not committed in ledger ending at {}. "
           "Node should be shutdown by operator.",
           startup_snapshot_info->evidence_seqno.value(),
-          ledger_idx);
+          last_recovered_idx);
         return;
       }
 
@@ -1045,7 +1052,7 @@ namespace ccf
     //
     // funcs in state "readingPrivateLedger"
     //
-    void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
+    void recover_private_ledger_entries(const std::vector<uint8_t>& entries)
     {
       std::lock_guard<std::mutex> guard(lock);
       if (!sm.check(NodeStartupState::readingPrivateLedger))
@@ -1055,25 +1062,26 @@ namespace ccf
         return;
       }
 
-      LOG_INFO_FMT(
-        "Deserialising private ledger entry [{}]", ledger_entry.size());
+      // TODO: Move in loop
+      LOG_INFO_FMT("Deserialising private ledger entry [{}]", entries.size());
 
       // When reading the private ledger, deserialise in the recovery store
       kv::ApplyResult result = kv::ApplyResult::FAIL;
       try
       {
-        result = recovery_store->deserialize(ledger_entry, ConsensusType::CFT)
-                   ->apply();
+        result =
+          recovery_store->deserialize(entries, ConsensusType::CFT)->apply();
         if (result == kv::ApplyResult::FAIL)
         {
           LOG_FAIL_FMT(
             "Failed to deserialise private ledger entry: {}", result);
           // Note: rollback terms do not matter here as recovery store is about
           // to be discarded
-          recovery_store->rollback({0, ledger_idx - 1}, 0);
+          recovery_store->rollback({0, last_recovered_idx}, 0);
           recover_private_ledger_end_unsafe();
           return;
         }
+        ++last_recovered_idx;
       }
       catch (const std::exception& e)
       {
@@ -1085,7 +1093,7 @@ namespace ccf
 
       if (result == kv::ApplyResult::PASS_SIGNATURE)
       {
-        recovery_store->compact(ledger_idx);
+        recovery_store->compact(last_recovered_idx);
       }
 
       if (recovery_store->current_version() == recovery_v)
@@ -1095,7 +1103,9 @@ namespace ccf
       }
       else
       {
-        read_ledger_idx(++ledger_idx);
+        // last_recovered_idx++;
+        read_ledger_entries(
+          last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
       }
     }
 
@@ -1837,8 +1847,9 @@ namespace ccf
       setup_one_off_secret_hook();
 
       // Start reading private security domain of ledger
-      ledger_idx = recovery_store->current_version();
-      read_ledger_idx(++ledger_idx);
+      last_recovered_idx = recovery_store->current_version();
+      read_ledger_entries(
+        last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
 
       sm.advance(NodeStartupState::readingPrivateLedger);
     }
@@ -1976,8 +1987,11 @@ namespace ccf
               reset_recovery_hook();
 
               // Start reading private security domain of ledger
-              ledger_idx = recovery_store->current_version();
-              read_ledger_idx(++ledger_idx);
+              last_recovered_idx = recovery_store->current_version();
+              // last_recovered_idx++;
+              read_ledger_entries(
+                last_recovered_idx + 1,
+                last_recovered_idx + recovery_batch_size);
 
               sm.advance(NodeStartupState::readingPrivateLedger);
             }
@@ -2250,13 +2264,13 @@ namespace ccf
         writer_factory, network.tables, config.snapshot_tx_interval);
     }
 
-    void read_ledger_idx(consensus::Index idx)
+    void read_ledger_entries(consensus::Index from, consensus::Index to)
     {
       RINGBUFFER_WRITE_MESSAGE(
         consensus::ledger_get_range,
         to_host,
-        idx,
-        idx,
+        from,
+        to,
         consensus::LedgerRequestPurpose::Recovery);
     }
 

@@ -1248,14 +1248,14 @@ namespace aft
         {
           // If the current entry has already been deserialised, skip the
           // payload for that entry
-          ledger->skip_entry(data, size);
+          LedgerProxy::skip_entry(data, size);
           continue;
         }
 
         std::vector<uint8_t> entry;
         try
         {
-          entry = ledger->get_entry(data, size);
+          entry = LedgerProxy::get_entry(data, size);
         }
         catch (const std::logic_error& e)
         {
