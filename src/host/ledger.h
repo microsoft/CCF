@@ -708,11 +708,26 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_entries_range(
-      size_t from, size_t to, bool read_cache_only = false)
+      size_t from, size_t to, bool read_cache_only = false, bool strict = true)
     {
-      if ((from <= 0) || (to > last_idx) || (to < from))
+      if ((from <= 0) || (to < from))
       {
         return std::nullopt;
+      }
+
+      // If non-strict, return as many entries as possible
+      if (to > last_idx)
+      {
+        if (strict)
+        {
+          return std::nullopt;
+        }
+        else
+        {
+          // TODO: Delete
+          LOG_FAIL_FMT("strict: {} / {}, last {}", from, to, last_idx);
+          to = last_idx;
+        }
       }
 
       std::vector<uint8_t> entries;
@@ -1015,12 +1030,13 @@ namespace asynchost
       return read_entries_range(idx, idx);
     }
 
-    std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
+    std::optional<std::vector<uint8_t>> read_entries(
+      size_t from, size_t to, bool strict = true)
     {
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entries from {} to {}", from, to));
 
-      return read_entries_range(from, to);
+      return read_entries_range(from, to, false, strict);
     }
 
     size_t write_entry(
@@ -1299,6 +1315,11 @@ namespace asynchost
           auto [from_idx, to_idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get_range>(data, size);
 
+          // Recovery reads ledger in fixed-size chunks until it reaches the
+          // end of the ledger. When the end of the ledger is reached, we return
+          // as many entries as possible including the very last one.
+          bool strict = purpose != consensus::LedgerRequestPurpose::Recovery;
+
           if (is_in_committed_file(to_idx))
           {
             // Start an asynchronous job to do this, since it is committed and
@@ -1313,11 +1334,15 @@ namespace asynchost
               job->result_cb = [this,
                                 from_idx = from_idx,
                                 to_idx = to_idx,
-                                purpose = purpose](auto&& entry, int status) {
+                                purpose = purpose,
+                                strict = strict](auto&& entry, int status) {
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
                 write_ledger_get_range_response(
-                  from_idx, to_idx, read_entries(from_idx, to_idx), purpose);
+                  from_idx,
+                  to_idx,
+                  read_entries(from_idx, to_idx, strict),
+                  purpose);
               };
 
               work_handle->data = job;
@@ -1334,7 +1359,10 @@ namespace asynchost
             // Read synchronously, since this accesses uncommitted state and
             // must accurately reflect changing files
             write_ledger_get_range_response(
-              from_idx, to_idx, read_entries(from_idx, to_idx), purpose);
+              from_idx,
+              to_idx,
+              read_entries(from_idx, to_idx, strict),
+              purpose);
           }
         });
     }
