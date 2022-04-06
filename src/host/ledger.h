@@ -724,8 +724,6 @@ namespace asynchost
         }
         else
         {
-          // TODO: Delete
-          LOG_FAIL_FMT("strict: {} / {}, last {}", from, to, last_idx);
           to = last_idx;
         }
       }
@@ -1315,7 +1313,7 @@ namespace asynchost
           auto [from_idx, to_idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get_range>(data, size);
 
-          // Recovery reads ledger in fixed-size chunks until it reaches the
+          // Recovery reads ledger in fixed-size batches until it reaches the
           // end of the ledger. When the end of the ledger is reached, we return
           // as many entries as possible including the very last one.
           bool strict = purpose != consensus::LedgerRequestPurpose::Recovery;
