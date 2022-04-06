@@ -371,6 +371,9 @@ class LedgerValidator:
 
         self.service_status = None
 
+    def last_verified_txid(self) -> TxID:
+        return TxID(self.last_verified_view, self.last_verified_seqno)
+
     def add_transaction(self, transaction):
         """
         To validate the ledger, ledger transactions need to be added via this method.
@@ -850,14 +853,7 @@ class LedgerIterator:
         return self._validator.signature_count if self._validator else 0
 
     def last_verified_txid(self) -> Optional[TxID]:
-        return (
-            TxID(
-                self._validator.last_verified_view,
-                self._validator.last_verified_seqno,
-            )
-            if self._validator
-            else None
-        )
+        return self._validator.last_verified_txid() if self._validator else None
 
 
 class Ledger:
