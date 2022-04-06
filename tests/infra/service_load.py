@@ -185,13 +185,13 @@ class LoadClient:
         LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
 
     def start(self, primary, backups):
-        self._start_client(primary, backups, event="start")
+        self._start_client(primary, backups, event="run")
 
     def stop(self):
         self._stop_client()
         self._render_results()
 
-    def restart(self, primary, backups, event="restart"):
+    def restart(self, primary, backups, event="run"):
         self._stop_client()
         self._start_client(primary, backups, event)
 
