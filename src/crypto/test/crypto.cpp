@@ -467,6 +467,11 @@ TEST_CASE("Non-ASN.1 timepoint formats")
   tp = ds::time_point_from_string(time_str);
   conv = ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220407073749Z");
+
+  time_str = "2022-04-07T10:37:49.567612Z";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220407103749Z");
 }
 
 TEST_CASE("Create sign and verify certificates")
