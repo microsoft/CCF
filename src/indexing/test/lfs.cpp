@@ -482,6 +482,30 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
   // Final bucket contains writes to key_always and key_late
   write_to_map_b(BUCKET_SIZE, {key_always, key_late});
 
+  auto tick_until_caught_up = [&]() {
+    while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
+           !fetcher->requested.empty())
+    {
+      // Do the fetch, simulating an asynchronous fetch by the historical query
+      // system
+      for (auto seqno : fetcher->requested)
+      {
+        REQUIRE(consensus->replica.size() >= seqno);
+        const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+        fetcher->fetched_stores[seqno] =
+          fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
+      }
+      fetcher->requested.clear();
+
+      flush_ringbuffers();
+    }
+  };
+
+  tick_until_caught_up();
+  REQUIRE(flush_ringbuffers() == 0);
+
+  logger::config::default_init();
+
   auto fetch_write_seqnos = [&](size_t key) {
     const auto max_range = index->max_requestable_range();
     const auto end_seqno = kv_store.get_txid().seqno;
@@ -497,7 +521,7 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
     std::vector<ccf::SeqNo> writes;
     while (true)
     {
-      LOG_TRACE_FMT("Fetching {} from {} to {}", key, range_start, range_end);
+      LOG_INFO_FMT("Fetching {} from {} to {}", key, range_start, range_end);
 
       auto results = index->get_write_txs_in_range(key, range_start, range_end);
 

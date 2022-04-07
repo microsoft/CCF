@@ -124,6 +124,16 @@ namespace ccf::indexing::strategies
         "{}: {} -> {} for {}", name, range.first, range.second, hex_key);
     }
 
+    void store_empty_buckets(
+      const ccf::ByteVector& k, Range begin, const Range& end)
+    {
+      while (begin != end)
+      {
+        store_to_disk(k, begin, {});
+        begin = get_range_for(begin.second + 1);
+      }
+    }
+
     void store_to_disk(
       const ccf::ByteVector& k, const Range& range, SeqNoCollection&& seqnos)
     {
@@ -147,7 +157,7 @@ namespace ccf::indexing::strategies
 
       // Check that once the entire requested range is fetched, it will fit
       // into the LRU at the same time
-      if ((to - from) > max_requestable_range())
+      if ((to_range.second - from_range.first) > max_requestable_range())
       {
         const auto num_buckets_required =
           1 + (to_range.first - from_range.first) / seqnos_per_bucket;
@@ -304,9 +314,13 @@ namespace ccf::indexing::strategies
       return std::nullopt;
     }
 
+    // This returns the max range which may be requested. This accounts for the
+    // case where the range is not aligned with a bucket start, in which case we
+    // will have unrequested entries sharing a bucket with the requested entries
+    // at the beginning and end, essentially wasting some space.
     size_t max_requestable_range() const
     {
-      return (old_results.get_max_size() * seqnos_per_bucket) - 1;
+      return ((old_results.get_max_size() - 1) * seqnos_per_bucket) - 1;
     }
   };
 
@@ -324,6 +338,7 @@ namespace ccf::indexing::strategies
       const auto current_range = current_result.first;
       if (range != current_range)
       {
+        impl->store_empty_buckets(k, current_range, range);
         impl->store_to_disk(k, current_range, std::move(current_result.second));
         current_result.first = range;
         current_result.second.clear();
@@ -332,6 +347,7 @@ namespace ccf::indexing::strategies
     else
     {
       // This key has never been seen before. Insert a new bucket for it
+      impl->store_empty_buckets(k, impl->get_range_for(0), range);
       it = impl->current_results
              .emplace(k, std::make_pair(range, SeqNoCollection()))
              .first;
