@@ -1078,7 +1078,7 @@ namespace ccf
       if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
-          "Node is state {} cannot recover private ledger entries", sm.value());
+          "Node in state {} cannot recover private ledger entries", sm.value());
         return;
       }
 
