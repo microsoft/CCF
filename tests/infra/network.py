@@ -1185,9 +1185,6 @@ class Network:
         # Wait for all available snapshot files to be committed before
         # copying snapshot directory, so that we always use the latest snapshot
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
-            LOG.info(
-                f"Waiting for a snapshot to be committed including seqno {target_seqno}"
-            )
             end_time = time.time() + timeout
             committed = True
             uncommitted_snapshots = []
