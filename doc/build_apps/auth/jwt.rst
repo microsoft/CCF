@@ -132,8 +132,7 @@ If an issuer should not be used anymore, then a ``remove_jwt_issuer`` proposal c
 Validating tokens
 -----------------
 
-Validating a token means checking its format, signature, and IdP- and app-specific claims.
-See `tests/js-authentication/src/endpoints.ts <https://github.com/microsoft/CCF/blob/main/tests/js-authentication/src/endpoints.ts>`_ for an example on how to do this in TypeScript.
+Validating a token means checking its format, signature, and IdP- and app-specific claims. See :ccf_repo:`tests/js-authentication/src/endpoints.js` for an example on how to do this in TypeScript.
 
 Token signing keys are stored in the ``public:ccf.gov.jwt.public_signing_keys`` kv map where the key is the key ID and the value the DER-encoded X.509 certificate. The key ID matches the ``kid`` field in the token header and can be used to retrieve the matching certificate for validation.
 
