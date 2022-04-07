@@ -251,7 +251,7 @@ And expose an endpoint returning receipts, with that claim expanded:
 
 Receipts from this endpoint will then look like:
 
-.. code-block:: json
+.. code-block:: python
 
     {'msg': 'Public message at idx 5 [0]',
      'receipt': {'cert': '-----BEGIN CERTIFICATE-----\n'

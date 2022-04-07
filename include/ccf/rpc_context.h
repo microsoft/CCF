@@ -50,7 +50,7 @@ namespace ccf
   public:
     virtual ~RpcContext() = default;
 
-    /// @name Access request
+    /// \defgroup Access request
     /// Methods to access fields of the received request. Describes fields
     /// parsed from HTTP, but aims to generalise across other request protocols.
     ///@{
@@ -89,7 +89,7 @@ namespace ccf
     virtual ccf::FrameFormat frame_format() const = 0;
     ///@}
 
-    /// @name Construct response
+    /// \defgroup Construct response
     /// Methods to set sections of response, which will be serialised and
     /// transmitted to client.
     ///@{
@@ -135,7 +135,7 @@ namespace ccf
     }
     ///@}
 
-    /// @name Framework metadata
+    /// \defgroup Framework metadata
     /// Methods which affect how the framework processes this transaction.
     ///@{
 
