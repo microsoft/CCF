@@ -527,8 +527,7 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
       if (!results.has_value())
       {
         // This required an async load from disk
-        // REQUIRE(flush_ringbuffers() > 0); // TODO
-        flush_ringbuffers();
+        REQUIRE(flush_ringbuffers() > 0);
 
         results = index->get_write_txs_in_range(key, range_start, range_end);
         REQUIRE(results.has_value());
@@ -553,10 +552,9 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
 
   for (const auto& [k, v] : all_writes)
   {
-    std::cout << fmt::format("{}: {}", k, fmt::join(v, ", ")) << std::endl;
+    const auto& expected = v;
+    const auto actual = fetch_write_seqnos(k);
+    REQUIRE(expected.size() == actual.size());
+    REQUIRE(expected == actual);
   }
-
-  const auto writes_all = fetch_write_seqnos(key_always);
-  const auto& expected = all_writes[key_always];
-  REQUIRE(expected.size() == writes_all.size());
 }
