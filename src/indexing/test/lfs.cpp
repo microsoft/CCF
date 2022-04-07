@@ -550,10 +550,9 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
     }
   };
 
-  for (auto it = all_writes.begin(); it != all_writes.end(); ++it)
+  for (const auto& k : {key_always, key_never, key_early, key_mid, key_late})
   {
-    const auto& k = it->first;
-    const auto& expected = it->second;
+    const auto& expected = all_writes[k];
     INFO("Checking key: " << k);
     const auto actual = fetch_write_seqnos(k);
     REQUIRE(expected.size() == actual.size());
