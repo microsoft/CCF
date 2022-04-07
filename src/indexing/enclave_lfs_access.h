@@ -16,8 +16,7 @@
 
 // Uncomment to disable encryption and obfuscation, writing cache content
 // directly unencrypted to host disk
-// TODO: No checkin
-#define PLAINTEXT_CACHE
+// #define PLAINTEXT_CACHE
 
 #if defined(INSIDE_ENCLAVE) && defined(PLAINTEXT_CACHE)
 #  error \

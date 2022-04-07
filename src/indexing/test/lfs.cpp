@@ -378,7 +378,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   }
 }
 
-TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
+void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
 {
   kv::Store kv_store;
 
@@ -418,11 +418,9 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
 
   using Strat =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_b)>;
-  constexpr auto BUCKET_SIZE = 5;
-  constexpr auto NUM_BUCKETS = 3;
-  constexpr auto MANY_BUCKETS = BUCKET_SIZE * (NUM_BUCKETS + 1);
+  const auto many_buckets = bucket_size * (num_buckets + 1);
   auto index =
-    std::make_shared<Strat>(map_b, node_context, BUCKET_SIZE, NUM_BUCKETS);
+    std::make_shared<Strat>(map_b, node_context, bucket_size, num_buckets);
   REQUIRE(indexer.install_strategy(index));
 
   constexpr auto key_always = 0;
@@ -462,25 +460,25 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
   };
 
   // First bucket contains writes to key_always and key_early
-  write_to_map_b(BUCKET_SIZE, {key_always, key_early});
+  write_to_map_b(bucket_size, {key_always, key_early});
 
   // Several buckets contains writes to only key_always
-  write_to_map_b(MANY_BUCKETS, {key_always});
+  write_to_map_b(many_buckets, {key_always});
 
   // Several buckets contain writes to other maps entirely
-  write_to_map_a(MANY_BUCKETS);
+  write_to_map_a(many_buckets);
 
   // Middle bucket contains writes to key_always and key_mid
-  write_to_map_b(BUCKET_SIZE, {key_always, key_mid});
+  write_to_map_b(bucket_size, {key_always, key_mid});
 
   // Several buckets contain writes to other maps entirely
-  write_to_map_a(MANY_BUCKETS);
+  write_to_map_a(many_buckets);
 
   // Several buckets contains writes to only key_always
-  write_to_map_b(MANY_BUCKETS, {key_always});
+  write_to_map_b(many_buckets, {key_always});
 
   // Final bucket contains writes to key_always and key_late
-  write_to_map_b(BUCKET_SIZE, {key_always, key_late});
+  write_to_map_b(bucket_size, {key_always, key_late});
 
   auto tick_until_caught_up = [&]() {
     while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
@@ -533,6 +531,8 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
         REQUIRE(results.has_value());
       }
 
+      LOG_INFO_FMT("Found {} more entries", results->size());
+
       for (auto seqno : *results)
       {
         writes.push_back(seqno);
@@ -550,11 +550,20 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
     }
   };
 
-  for (const auto& [k, v] : all_writes)
+  for (auto it = all_writes.begin(); it != all_writes.end(); ++it)
   {
-    const auto& expected = v;
+    const auto& k = it->first;
+    const auto& expected = it->second;
+    INFO("Checking key: " << k);
     const auto actual = fetch_write_seqnos(k);
     REQUIRE(expected.size() == actual.size());
     REQUIRE(expected == actual);
   }
+}
+
+TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
+{
+  run_sparse_index_test(5, 3);
+  run_sparse_index_test(8, 6);
+  run_sparse_index_test(500, 10);
 }
