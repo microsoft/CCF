@@ -177,6 +177,7 @@ void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
     throw std::logic_error(
       fmt::format("Failed to read ledger entries from {} to {}", from, to));
   }
+
   verify_framed_entries_range(entries.value(), from, to);
 }
 
@@ -422,6 +423,18 @@ TEST_CASE("Regular chunking")
       ledger, end_of_first_chunk_idx + 1, last_idx);
     read_entries_range_from_ledger(
       ledger, end_of_first_chunk_idx + 1, last_idx - 1);
+
+    // Non strict
+    bool strict = false;
+    auto entries = ledger.read_entries(1, last_idx, strict);
+    verify_framed_entries_range(entries.value(), 1, last_idx);
+
+    entries = ledger.read_entries(1, last_idx + 1, strict);
+    verify_framed_entries_range(entries.value(), 1, last_idx);
+
+    entries = ledger.read_entries(end_of_first_chunk_idx, 2 * last_idx, strict);
+    verify_framed_entries_range(
+      entries.value(), end_of_first_chunk_idx, last_idx);
   }
 }
 

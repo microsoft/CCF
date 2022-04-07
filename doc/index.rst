@@ -4,29 +4,29 @@ CCF Documentation
 .. panels::
 
     :fa:`info-circle` :doc:`overview/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     .. image:: img/ccf.svg
       :width: 75
       :align: left
-      :target: what_is_ccf.html
+      :target: ./overview/what_is_ccf.html
 
     Get started with the Confidential Consortium Framework and its core concepts.
 
     ---
 
     :fa:`tools` :doc:`build_apps/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     .. image:: img/ts.svg
       :width: 32
-      :target: build_apps/js_app.html
+      :target: ./build_apps/js_app.html
       :alt: TypeScript
       :align: left
 
     .. image:: img/cpp.svg
       :width: 32
-      :target: build_apps/example.html
+      :target: ./build_apps/example.html
       :alt: C++
       :align: left
 
@@ -42,21 +42,21 @@ CCF Documentation
     ---
 
     :fa:`tachometer-alt` :doc:`operations/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Provision and operate a network of CCF nodes hosting an application.
 
     ---
 
     :fa:`users` :doc:`governance/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Propose and vote changes to a CCF network, the rules that define it and the application it runs.
 
     ---
 
     :fa:`eye` :doc:`audit/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Audit a running CCF network and its complete history.
 
@@ -77,7 +77,7 @@ CCF Documentation
     ---
 
     :fa:`flask` :doc:`research/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     CCF-related research papers and technical reports.
 

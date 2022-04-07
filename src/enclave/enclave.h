@@ -315,24 +315,15 @@ namespace ccf
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                if (from_seqno != to_seqno)
-                {
-                  LOG_FAIL_FMT(
-                    "Unexpected range for Recovery response "
-                    "ledger_entry_range: {}->{} "
-                    "(expected single ledger entry)",
-                    from_seqno,
-                    to_seqno);
-                }
                 if (
                   node->is_reading_public_ledger() ||
                   node->is_verifying_snapshot())
                 {
-                  node->recover_public_ledger_entry(body);
+                  node->recover_public_ledger_entries(body);
                 }
                 else if (node->is_reading_private_ledger())
                 {
-                  node->recover_private_ledger_entry(body);
+                  node->recover_private_ledger_entries(body);
                 }
                 else
                 {
