@@ -110,7 +110,7 @@ size_t number_of_committed_files_in_ledger_dir(bool allow_recovery = false)
     if (
       (allow_recovery && is_ledger_file_name_recovery(file_name) &&
        file_name.find(ledger_committed_suffix) != std::string::npos) ||
-      is_ledger_file_committed(file_name))
+      is_ledger_file_name_committed(file_name))
     {
       committed_file_count++;
     }
@@ -871,7 +871,7 @@ TEST_CASE("Multiple ledger paths")
     fs::create_directory(ledger_dir_2);
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!is_ledger_file_committed(f.path().filename()))
+      if (!is_ledger_file_name_committed(f.path().filename()))
       {
         fs::copy(f.path(), ledger_dir_2);
       }
@@ -1057,7 +1057,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(f.path(), false, true /* corrupt_first_hdr */);
       }
@@ -1081,7 +1081,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(
           f.path(), false, false, true /* corrupt_last_entry */);

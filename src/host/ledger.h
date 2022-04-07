@@ -33,6 +33,7 @@ namespace asynchost
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
   static constexpr auto ledger_recovery_file_suffix = "recovery";
+  static constexpr auto ledger_ignored_file_suffix = "ignored";
 
   static inline size_t get_start_idx_from_file_name(
     const std::string& file_name)
@@ -60,7 +61,7 @@ namespace asynchost
     return std::stol(file_name.substr(pos + 1));
   }
 
-  static inline bool is_ledger_file_committed(const std::string& file_name)
+  static inline bool is_ledger_file_name_committed(const std::string& file_name)
   {
     return nonstd::ends_with(file_name, ledger_committed_suffix);
   }
@@ -68,6 +69,11 @@ namespace asynchost
   static inline bool is_ledger_file_name_recovery(const std::string& file_name)
   {
     return nonstd::ends_with(file_name, ledger_recovery_file_suffix);
+  }
+
+  static inline bool is_ledger_file_name_ignored(const std::string& file_name)
+  {
+    return nonstd::ends_with(file_name, ledger_ignored_file_suffix);
   }
 
   static inline fs::path remove_recovery_suffix(const std::string& file_name)
@@ -85,7 +91,9 @@ namespace asynchost
       // If any file, based on its name, contains idx. Only committed
       // (i.e. those with a last idx) are considered here.
       auto f_name = f.path().filename();
-      if (!allow_recovery_files && is_ledger_file_name_recovery(f_name))
+      if (
+        is_ledger_file_name_ignored(f_name) ||
+        (!allow_recovery_files && is_ledger_file_name_recovery(f_name)))
       {
         continue;
       }
@@ -177,7 +185,7 @@ namespace asynchost
           "Unable to open ledger file {}: {}", file_path, strerror(errno)));
       }
 
-      committed = is_ledger_file_committed(file_name);
+      committed = is_ledger_file_name_committed(file_name);
       start_idx = get_start_idx_from_file_name(file_name);
 
       // First, get full size of file
@@ -754,6 +762,18 @@ namespace asynchost
       return entries;
     }
 
+    void ignore_ledger_file(const std::string& file_name)
+    {
+      if (is_ledger_file_name_ignored(file_name))
+      {
+        return;
+      }
+
+      auto ignored_file_name =
+        fmt::format("{}.{}", file_name, ledger_ignored_file_suffix);
+      files::rename(ledger_dir / file_name, ledger_dir / ignored_file_name);
+    }
+
   public:
     Ledger(
       const fs::path& ledger_dir,
@@ -789,7 +809,10 @@ namespace asynchost
         {
           auto file_name = f.path().filename();
           auto last_idx_ = get_last_idx_from_file_name(file_name);
-          if (!last_idx_.has_value() || !is_ledger_file_committed(file_name))
+          if (
+            !last_idx_.has_value() ||
+            !is_ledger_file_name_committed(file_name) ||
+            is_ledger_file_name_ignored(file_name))
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
@@ -827,12 +850,15 @@ namespace asynchost
         {
           auto file_name = f.path().filename();
 
-          if (is_ledger_file_name_recovery(file_name))
+          if (
+            is_ledger_file_name_recovery(file_name) ||
+            is_ledger_file_name_ignored(file_name))
           {
             LOG_INFO_FMT(
-              "Deleting recovery ledger file {} in main ledger directory",
-              file_name);
-            fs::remove(f);
+              "Ignoring ledger file {} in main ledger directory", file_name);
+
+            ignore_ledger_file(file_name);
+
             continue;
           }
 
@@ -942,20 +968,19 @@ namespace asynchost
       // non-empty state, i.e. snapshot. It is assumed that idx is included in a
       // committed ledger file.
 
-      // As it is possible that some ledger files containing indices later
-      // than snapshot index already exist (e.g. to verify the snapshot
-      // evidence), delete those so that ledger can restart neatly.
+      // Ignore all uncommitted files in main ledger directory as some may be
+      // later than init idx. Other uncommitted files are also ignored.
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
-        // TODO: Do not delete files, simply mark them as .ignored
         auto file_name = f.path().filename();
-        if (get_start_idx_from_file_name(file_name) > idx)
+        if (!is_ledger_file_name_committed(file_name))
         {
           LOG_INFO_FMT(
-            "Deleting ledger file {} it is later than init seqno {}",
+            "Ignoring uncommitted ledger file {} after init at {}",
             file_name,
             idx);
-          fs::remove(f);
+
+          ignore_ledger_file(file_name);
         }
       }
 
