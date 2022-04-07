@@ -248,11 +248,8 @@ class Network:
         committed_ledger_dirs = read_only_ledger_dirs or []
         current_ledger_dir = ledger_dir
 
-        # By default, only copy historical ledger if node is started from snapshot
-        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
-            LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
-            current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
-
+        # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
+        # to produce more ledger entries
         if from_snapshot:
             # Only retrieve snapshot from target node if the snapshot directory is not
             # specified
@@ -267,6 +264,11 @@ class Network:
             LOG.info(
                 "Joining without snapshot: complete transaction history will be replayed"
             )
+
+        # By default, only copy historical ledger if node is started from snapshot
+        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
+            LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
+            current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
         node.join(
             lib_name=lib_name,
@@ -1203,6 +1205,9 @@ class Network:
             target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
+            LOG.info(
+                f"Waiting for a snapshot to be committed including seqno {target_seqno}"
+            )
             end_time = time.time() + timeout
             while time.time() < end_time:
                 for f in list_src_dir_func(src_dir):
