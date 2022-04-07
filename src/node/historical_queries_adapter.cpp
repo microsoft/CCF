@@ -4,9 +4,9 @@
 #include "ccf/historical_queries_adapter.h"
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/receipt.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/tx_receipt.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
 
@@ -15,7 +15,7 @@ namespace ccf
   static std::map<crypto::Pem, std::vector<crypto::Pem>>
     service_endorsement_cache;
 
-  ccf::B64Receipt describe_receipt(const TxReceipt& receipt, bool include_root)
+  ccf::B64Receipt describe_receipt(const Receipt& receipt, bool include_root)
   {
     ccf::B64Receipt out;
     out.signature = crypto::b64_from_raw(receipt.signature);
@@ -26,7 +26,7 @@ namespace ccf
     for (const auto& node : receipt.path)
     {
       ccf::B64Receipt::Element n;
-      if (node.direction == ccf::TxReceipt::PathStep::Left)
+      if (node.direction == ccf::Receipt::PathStep::Left)
       {
         n.left = node.hash.hex_str();
       }
@@ -70,7 +70,7 @@ namespace ccf
   }
 
   ccf::B64Receipt describe_receipt(
-    const TxReceiptPtr& receipt_ptr, bool include_root)
+    const ReceiptPtr& receipt_ptr, bool include_root)
   {
     if (receipt_ptr == nullptr)
     {

@@ -5,9 +5,9 @@
 #include "ccf/b64_receipt.h"
 #include "ccf/kv/read_only_store.h"
 #include "ccf/node_subsystem_interface.h"
+#include "ccf/receipt.h"
 #include "ccf/seq_no_collection.h"
 #include "ccf/tx_id.h"
-#include "ccf/tx_receipt.h"
 
 #include <chrono>
 #include <memory>
@@ -15,9 +15,9 @@
 namespace ccf
 {
   ccf::B64Receipt describe_receipt(
-    const TxReceipt& receipt, bool include_root = false);
+    const Receipt& receipt, bool include_root = false);
   ccf::B64Receipt describe_receipt(
-    const TxReceiptPtr& receipt_ptr, bool include_root = false);
+    const ReceiptPtr& receipt_ptr, bool include_root = false);
 }
 
 namespace ccf::historical
@@ -27,13 +27,13 @@ namespace ccf::historical
     /// Read-only historical store at transaction_id
     kv::ReadOnlyStorePtr store = nullptr;
     /// Receipt for ledger entry at transaction_id
-    TxReceiptPtr receipt = nullptr;
+    ccf::ReceiptPtr receipt = nullptr;
     /// View and Sequence Number for the State
     ccf::TxID transaction_id;
 
     State(
       const kv::ReadOnlyStorePtr& store_,
-      const TxReceiptPtr& receipt_,
+      const ccf::ReceiptPtr& receipt_,
       const ccf::TxID& transaction_id_) :
       store(store_),
       receipt(receipt_),

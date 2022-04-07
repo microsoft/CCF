@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/receipt.h"
 #include "ccf/service/tables/nodes.h"
-#include "ccf/tx_receipt.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
@@ -241,9 +241,9 @@ namespace ccf
       return crypto::Sha256Hash::from_span({root.bytes, sizeof(root.bytes)});
     }
 
-    TxReceipt::Path get_path()
+    Receipt::Path get_path()
     {
-      TxReceipt::Path ret;
+      Receipt::Path ret;
       if (path != nullptr)
       {
         ret.reserve(path->size());
@@ -251,8 +251,8 @@ namespace ccf
         {
           const auto direction =
             node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
-            ccf::TxReceipt::PathStep::Left :
-            ccf::TxReceipt::PathStep::Right;
+            ccf::Receipt::PathStep::Left :
+            ccf::Receipt::PathStep::Right;
           const auto hash = crypto::Sha256Hash::from_span(
             {node.hash.bytes, sizeof(node.hash.bytes)});
           ret.push_back({direction, hash});

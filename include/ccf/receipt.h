@@ -7,7 +7,7 @@
 
 namespace ccf
 {
-  struct TxReceipt
+  struct Receipt
   {
     struct PathStep
     {
@@ -32,7 +32,7 @@ namespace ccf
     ccf::ClaimsDigest claims_digest = {};
     std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
 
-    TxReceipt(
+    Receipt(
       const std::vector<uint8_t>& signature_,
       const crypto::Sha256Hash& root_,
       const Path& path_,
@@ -55,5 +55,5 @@ namespace ccf
     {}
   };
 
-  using TxReceiptPtr = std::shared_ptr<TxReceipt>;
+  using ReceiptPtr = std::shared_ptr<Receipt>;
 }

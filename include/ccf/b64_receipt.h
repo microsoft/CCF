@@ -11,7 +11,7 @@
 
 namespace ccf
 {
-  // Contains base64 encodings of the hash fields of a ccf::TxReceipt. Can be
+  // Contains base64 encodings of the digest fields of a ccf::Receipt. Can be
   // converted to and from JSON.
   struct B64Receipt
   {

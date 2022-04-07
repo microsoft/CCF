@@ -4,7 +4,7 @@
 
 #include "ccf/ccf_assert.h"
 #include "ccf/historical_queries_interface.h"
-#include "ccf/tx_receipt.h"
+#include "ccf/receipt.h"
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
@@ -132,7 +132,7 @@ namespace ccf::historical
       ccf::ClaimsDigest claims_digest = {};
       kv::StorePtr store = nullptr;
       bool is_signature = false;
-      TxReceiptPtr receipt = nullptr;
+      ccf::ReceiptPtr receipt = nullptr;
       ccf::TxID transaction_id;
       bool has_commit_evidence = false;
 
@@ -332,7 +332,7 @@ namespace ccf::historical
                 {
                   auto proof = tree.get_proof(seqno);
                   details->transaction_id = {sig->view, seqno};
-                  details->receipt = std::make_shared<TxReceipt>(
+                  details->receipt = std::make_shared<Receipt>(
                     sig->sig,
                     proof.get_root(),
                     proof.get_path(),
@@ -419,7 +419,7 @@ namespace ccf::historical
                       {
                         auto proof = tree.get_proof(new_seqno);
                         new_details->transaction_id = {sig->view, new_seqno};
-                        new_details->receipt = std::make_shared<TxReceipt>(
+                        new_details->receipt = std::make_shared<Receipt>(
                           sig->sig,
                           proof.get_root(),
                           proof.get_path(),
@@ -466,7 +466,7 @@ namespace ccf::historical
                     {
                       auto proof = tree.get_proof(new_seqno);
                       new_details->transaction_id = {sig->view, new_seqno};
-                      new_details->receipt = std::make_shared<TxReceipt>(
+                      new_details->receipt = std::make_shared<Receipt>(
                         sig->sig,
                         proof.get_root(),
                         proof.get_path(),
@@ -665,8 +665,8 @@ namespace ccf::historical
             const auto sig = get_signature(details->store);
             assert(sig.has_value());
             details->transaction_id = {sig->view, sig->seqno};
-            details->receipt = std::make_shared<TxReceipt>(
-              sig->sig, sig->root, TxReceipt::Path{}, sig->node, sig->cert);
+            details->receipt = std::make_shared<Receipt>(
+              sig->sig, sig->root, Receipt::Path{}, sig->node, sig->cert);
           }
 
           if (request.include_receipts)

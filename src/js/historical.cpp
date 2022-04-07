@@ -7,7 +7,7 @@ namespace ccf::js
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptPtr receipt)
+  static JSValue ccf_receipt_to_js(JSContext* ctx, ReceiptPtr receipt)
   {
     const auto receipt_out = ccf::describe_receipt(receipt);
     auto js_receipt = JS_NewObject(ctx);

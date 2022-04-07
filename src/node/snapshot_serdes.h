@@ -4,8 +4,8 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/receipt.h"
 #include "ccf/service/tables/nodes.h"
-#include "ccf/tx_receipt.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
@@ -239,7 +239,7 @@ namespace ccf
     auto proof = history.get_proof(seqno);
     ccf::ClaimsDigest cd;
     cd.set(std::move(claims_digest));
-    auto tx_receipt = std::make_shared<ccf::TxReceipt>(
+    auto tx_receipt = std::make_shared<ccf::Receipt>(
       sig,
       proof.get_root(),
       proof.get_path(),
