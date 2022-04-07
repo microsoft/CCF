@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed issue with incorrect node and service certificate validity period when starting node in non-GMT timezone (#3732).
 
+### Changed
+
+- The binary-efficient `ccf::TxReceipt` type has been restored to the public interface, and is now called `ccf::Receipt`. The old `ccf::Receipt` type, suitable for JSON serialization, has been renamed to `ccf::B64Receipt` (available in `ccf/b64_receipt.h`) (#3731).
+
 ## [2.0.0-rc6]
 
 ### Changed
