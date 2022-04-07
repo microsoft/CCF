@@ -1248,7 +1248,7 @@ namespace aft
         {
           // If the current entry has already been deserialised, skip the
           // payload for that entry
-          LedgerProxy::skip_entry(data, size);
+          ledger->skip_entry(data, size);
           continue;
         }
 

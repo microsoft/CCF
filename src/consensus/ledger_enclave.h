@@ -32,20 +32,6 @@ namespace consensus
       return entry;
     }
 
-    /**
-     * Skip a single entry, when backup.
-     *
-     * Does not write any entry to the legder.
-     *
-     * @param data Serialised entries
-     * @param size Size of overall serialised entries
-     */
-    static void skip_entry(const uint8_t*& data, size_t& size)
-    {
-      auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
-      serialized::skip(data, size, header.size);
-    }
-
   private:
     ringbuffer::WriterPtr to_host;
 
@@ -112,6 +98,20 @@ namespace consensus
         globally_committable,
         force_chunk,
         byte_range);
+    }
+
+    /**
+     * Skip a single entry, when backup.
+     *
+     * Does not write any entry to the legder.
+     *
+     * @param data Serialised entries
+     * @param size Size of overall serialised entries
+     */
+    static void skip_entry(const uint8_t*& data, size_t& size)
+    {
+      auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+      serialized::skip(data, size, header.size);
     }
 
     /**
