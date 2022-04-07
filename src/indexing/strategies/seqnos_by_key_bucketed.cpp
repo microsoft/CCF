@@ -282,10 +282,14 @@ namespace ccf::indexing::strategies
           // Another possibility is that the requested range is _after_ the
           // current_results for this key. That means, assuming we have
           // constructed a complete index up to to_range, that there are no
-          // later buckets to fetch - we have constructed a complete result
+          // later buckets to fetch - we have constructed a complete result.
+          // Similarly, if we have _no_ current_results for this key, then
+          // (assuming we have a complete index), there are no writes to this
+          // key, and we have constructed a complete result.
           else if (
-            current_it != current_results.end() &&
-            current_it->second.first.first < from_range.first)
+            (current_it != current_results.end() &&
+             current_it->second.first.first < from_range.first) ||
+            current_it == current_results.end())
           {
             break;
           }
