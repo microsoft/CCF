@@ -603,9 +603,12 @@ class Node:
                     f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
                 )
         else:
+            # Does this check provide any more precision than the check for valid+from + timedelta below?
             normalized_from = infra.crypto.datetime_to_X509time(valid_from)
-            normalized_expected = infra.crypto.datetime_to_X509time(
+            normalized_expected = (
                 self.certificate_valid_from
+                if isinstance(self.certificate_valid_from, str)
+                else infra.crypto.datetime_to_X509time(self.certificate_valid_from)
             )
 
             if normalized_from != normalized_expected:

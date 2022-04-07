@@ -463,11 +463,11 @@ def renew_service_certificate(network, args, valid_from, validity_period_days):
 
 
 @reqs.description("Renew service certificate")
-def test_service_cert_renewal(network, args):
+def test_service_cert_renewal(network, args, valid_from=None):
     return renew_service_certificate(
         network,
         args,
-        valid_from=datetime.now(),
+        valid_from=valid_from or datetime.now(),
         validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
@@ -497,10 +497,10 @@ def test_service_cert_renewal_extended(network, args):
 
 
 @reqs.description("Update certificates of all nodes, one by one")
-def test_all_nodes_cert_renewal(network, args):
+def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
-    valid_from = datetime.now()
+    valid_from = valid_from or datetime.now()
     validity_period_days = args.maximum_node_certificate_validity_days
 
     network.consortium.set_all_nodes_certificate_validity(
