@@ -377,3 +377,163 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     }
   }
 }
+
+TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
+{
+  kv::Store kv_store;
+
+  auto consensus = std::make_shared<AllCommittableConsensus>();
+  kv_store.set_consensus(consensus);
+
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  ccf::indexing::Indexer indexer(fetcher);
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  messaging::BufferProcessor host_bp("lfs_host");
+  messaging::BufferProcessor enclave_bp("lfs_enclave");
+
+  constexpr size_t buf_size = 1 << 16;
+  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
+  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+
+  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
+  asynchost::LFSFileHandler host_files(
+    std::make_shared<ringbuffer::Writer>(inbound_reader));
+  host_files.register_message_handlers(host_bp.get_dispatcher());
+
+  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
+    std::make_shared<ringbuffer::Writer>(outbound_reader));
+  enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+
+  ccfapp::AbstractNodeContext node_context;
+  node_context.install_subsystem(enclave_lfs);
+
+  auto flush_ringbuffers = [&]() {
+    return host_bp.read_all(outbound_reader) +
+      enclave_bp.read_all(inbound_reader);
+  };
+
+  using Strat =
+    ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_b)>;
+  constexpr auto BUCKET_SIZE = 5;
+  constexpr auto NUM_BUCKETS = 3;
+  constexpr auto MANY_BUCKETS = BUCKET_SIZE * (NUM_BUCKETS + 1);
+  auto index =
+    std::make_shared<Strat>(map_b, node_context, BUCKET_SIZE, NUM_BUCKETS);
+  REQUIRE(indexer.install_strategy(index));
+
+  constexpr auto key_always = 0;
+  constexpr auto key_never = 1;
+  constexpr auto key_early = 2;
+  constexpr auto key_mid = 3;
+  constexpr auto key_late = 4;
+
+  std::map<size_t, std::vector<ccf::SeqNo>> all_writes;
+
+  auto write_to_map_b = [&](size_t count, const std::vector<size_t>& keys) {
+    for (size_t i = 0; i < count; ++i)
+    {
+      auto tx = kv_store.create_tx();
+      auto handle_b = tx.wo(map_b);
+      for (const auto& k : keys)
+      {
+        handle_b->put(k, k);
+      }
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      const auto seqno = tx.get_txid()->version;
+      for (const auto& k : keys)
+      {
+        all_writes[k].push_back(seqno);
+      }
+    }
+  };
+
+  auto write_to_map_a = [&](size_t count) {
+    for (size_t i = 0; i < count; ++i)
+    {
+      auto tx = kv_store.create_tx();
+      auto handle_a = tx.wo(map_a);
+      handle_a->put("ignore", "ignore");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  };
+
+  // First bucket contains writes to key_always and key_early
+  write_to_map_b(BUCKET_SIZE, {key_always, key_early});
+
+  // Several buckets contains writes to only key_always
+  write_to_map_b(MANY_BUCKETS, {key_always});
+
+  // Several buckets contain writes to other maps entirely
+  write_to_map_a(MANY_BUCKETS);
+
+  // Middle bucket contains writes to key_always and key_mid
+  write_to_map_b(BUCKET_SIZE, {key_always, key_mid});
+
+  // Several buckets contain writes to other maps entirely
+  write_to_map_a(MANY_BUCKETS);
+
+  // Several buckets contains writes to only key_always
+  write_to_map_b(MANY_BUCKETS, {key_always});
+
+  // Final bucket contains writes to key_always and key_late
+  write_to_map_b(BUCKET_SIZE, {key_always, key_late});
+
+  auto fetch_write_seqnos = [&](size_t key) {
+    const auto max_range = index->max_requestable_range();
+    const auto end_seqno = kv_store.get_txid().seqno;
+
+    auto range_start = 0;
+
+    auto next_end = [&]() {
+      return std::min(end_seqno, range_start + (rand() % (max_range - 1)) + 1);
+    };
+
+    auto range_end = next_end();
+
+    std::vector<ccf::SeqNo> writes;
+    while (true)
+    {
+      LOG_TRACE_FMT("Fetching {} from {} to {}", key, range_start, range_end);
+
+      auto results = index->get_write_txs_in_range(key, range_start, range_end);
+
+      if (!results.has_value())
+      {
+        // This required an async load from disk
+        // REQUIRE(flush_ringbuffers() > 0); // TODO
+        flush_ringbuffers();
+
+        results = index->get_write_txs_in_range(key, range_start, range_end);
+        REQUIRE(results.has_value());
+      }
+
+      for (auto seqno : *results)
+      {
+        writes.push_back(seqno);
+      }
+
+      if (range_end == end_seqno)
+      {
+        return writes;
+      }
+      else
+      {
+        range_start = range_end + 1;
+        range_end = next_end();
+      }
+    }
+  };
+
+  for (const auto& [k, v] : all_writes)
+  {
+    std::cout << fmt::format("{}: {}", k, fmt::join(v, ", ")) << std::endl;
+  }
+
+  const auto writes_all = fetch_write_seqnos(key_always);
+  const auto& expected = all_writes[key_always];
+  REQUIRE(expected.size() == writes_all.size());
+}
