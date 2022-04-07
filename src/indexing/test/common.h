@@ -107,7 +107,7 @@ static inline bool check_seqnos(
 {
   // Check that actual is a contiguous subrange of expected. May actually be a
   // perfect match, that is fine too, and required if complete_match is true
-  if (!actual.has_value() || actual->empty())
+  if (!actual.has_value())
   {
     LOG_FAIL_FMT("No actual result");
     return false;
@@ -122,32 +122,35 @@ static inline bool check_seqnos(
     }
   }
 
-  size_t idx = 0;
-  auto actual_it = actual->begin();
-  auto expected_it = expected.find(*actual_it);
-  while (true)
+  if (actual->size() > 0)
   {
-    if (actual_it == actual->end())
+    size_t idx = 0;
+    auto actual_it = actual->begin();
+    auto expected_it = expected.find(*actual_it);
+    while (true)
     {
-      break;
-    }
-    else if (expected_it == expected.end())
-    {
-      LOG_FAIL_FMT(
-        "Too many results. Reached end of expected values at {}", idx);
-      return false;
-    }
+      if (actual_it == actual->end())
+      {
+        break;
+      }
+      else if (expected_it == expected.end())
+      {
+        LOG_FAIL_FMT(
+          "Too many results. Reached end of expected values at {}", idx);
+        return false;
+      }
 
-    if (*actual_it != *expected_it)
-    {
-      LOG_FAIL_FMT(
-        "Mismatch at {}th result, {} != {}", idx, *actual_it, *expected_it);
-      return false;
-    }
+      if (*actual_it != *expected_it)
+      {
+        LOG_FAIL_FMT(
+          "Mismatch at {}th result, {} != {}", idx, *actual_it, *expected_it);
+        return false;
+      }
 
-    ++idx;
-    ++actual_it;
-    ++expected_it;
+      ++idx;
+      ++actual_it;
+      ++expected_it;
+    }
   }
 
   return true;

@@ -221,7 +221,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
     while (true)
     {
-      LOG_TRACE_FMT("Fetching {} from {} to {}", key, range_start, range_end);
+      LOG_INFO_FMT("Fetching {} from {} to {}", key, range_start, range_end);
 
       auto results = strat->get_write_txs_in_range(key, range_start, range_end);
 
@@ -504,8 +504,6 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
   tick_until_caught_up();
   REQUIRE(flush_ringbuffers() == 0);
 
-  logger::config::default_init();
-
   auto fetch_write_seqnos = [&](size_t key) {
     const auto max_range = index->max_requestable_range();
     const auto end_seqno = kv_store.get_txid().seqno;
@@ -513,7 +511,8 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
     auto range_start = 0;
 
     auto next_end = [&]() {
-      return std::min(end_seqno, range_start + (rand() % (max_range - 1)) + 1);
+      const auto r = rand();
+      return std::min(end_seqno, range_start + 1 + (r % (max_range - 2)));
     };
 
     auto range_end = next_end();

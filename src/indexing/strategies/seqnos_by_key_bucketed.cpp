@@ -157,20 +157,19 @@ namespace ccf::indexing::strategies
 
       // Check that once the entire requested range is fetched, it will fit
       // into the LRU at the same time
-      if ((to_range.second - from_range.first) > max_requestable_range())
+      const auto range_len = to - from;
+      if (range_len > max_requestable_range())
       {
-        const auto num_buckets_required =
-          1 + (to_range.first - from_range.first) / seqnos_per_bucket;
-        if (num_buckets_required > old_results.get_max_size())
-        {
-          throw std::logic_error(fmt::format(
-            "Fetching {} to {} would require {} buckets, but we can only store "
-            "{} in-memory at once",
-            from,
-            to,
-            num_buckets_required,
-            old_results.get_max_size()));
-        }
+        throw std::logic_error(fmt::format(
+          "Requesting transactions from {} to {} requires buckets covering "
+          "[{}, {}). These {} transactions are larger than the maximum "
+          "requestable {}",
+          from,
+          to,
+          from_range.first,
+          to_range.second,
+          range_len,
+          max_requestable_range()));
       }
 
       SeqNoCollection result;
@@ -320,7 +319,7 @@ namespace ccf::indexing::strategies
     // at the beginning and end, essentially wasting some space.
     size_t max_requestable_range() const
     {
-      return ((old_results.get_max_size() - 1) * seqnos_per_bucket) - 1;
+      return ((old_results.get_max_size() - 1) * seqnos_per_bucket);
     }
   };
 
