@@ -129,8 +129,13 @@ namespace ccf::indexing::strategies
     {
       while (begin != end)
       {
+        LOG_TRACE_FMT(
+          "Storing empty bucket for range [{}, {}) for key {:02x}",
+          begin.first,
+          begin.second,
+          fmt::join(k, ""));
         store_to_disk(k, begin, {});
-        begin = get_range_for(begin.second + 1);
+        begin = get_range_for(begin.second);
       }
     }
 
@@ -280,7 +285,7 @@ namespace ccf::indexing::strategies
           // later buckets to fetch - we have constructed a complete result
           else if (
             current_it != current_results.end() &&
-            current_it->second.first.first < to_range.first)
+            current_it->second.first.first < from_range.first)
           {
             break;
           }
@@ -337,8 +342,20 @@ namespace ccf::indexing::strategies
       const auto current_range = current_result.first;
       if (range != current_range)
       {
-        impl->store_empty_buckets(k, current_range, range);
+        LOG_TRACE_FMT(
+          "Storing {} entries from real range [{}, {}) for key {:02x}",
+          current_result.second.size(),
+          current_range.first,
+          current_range.second,
+          fmt::join(k, ""));
         impl->store_to_disk(k, current_range, std::move(current_result.second));
+
+        const auto next_range = impl->get_range_for(current_range.second);
+        if (next_range != range)
+        {
+          impl->store_empty_buckets(k, next_range, range);
+        }
+
         current_result.first = range;
         current_result.second.clear();
       }
