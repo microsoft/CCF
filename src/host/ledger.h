@@ -126,7 +126,6 @@ namespace asynchost
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
-  public: // TODO: Remove
     const fs::path dir;
     fs::path file_name;
 
@@ -1076,16 +1075,6 @@ namespace asynchost
         force_chunk_after,
         require_new_file));
 
-      // TODO: Remove
-      LOG_FAIL_FMT(
-        "Writing ledger entry - {} bytes, committable={}, "
-        "force_chunk_after={}, "
-        "require_new_file={}",
-        size,
-        committable,
-        force_chunk_after,
-        require_new_file);
-
       auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
 
       if (header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
@@ -1129,9 +1118,7 @@ namespace asynchost
         require_new_file = false;
       }
 
-      // TODO: This returns the wrong file here
       auto f = get_latest_file();
-      LOG_FAIL_FMT("Latest file: {}", f->file_name);
       last_idx = f->write_entry(data, size, committable);
 
       LOG_TRACE_FMT(
