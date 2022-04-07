@@ -575,6 +575,12 @@ TEST_CASE("Commit")
     read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 
+  INFO("Commit past last idx");
+  {
+    ledger.commit(last_idx + 1); // No effect
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 4);
+  }
+
   INFO("Ledger cannot be truncated earlier than commit");
   {
     ledger.truncate(1); // No effect

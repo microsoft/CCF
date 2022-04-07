@@ -118,6 +118,7 @@ namespace asynchost
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
+  public: // TODO: Remove
     const fs::path dir;
     fs::path file_name;
 
@@ -937,16 +938,16 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Initing ledger - seqno={}", idx));
 
-      // Used to initialise the ledger when starting from a non-empty state,
-      // i.e. snapshot. It is assumed that idx is included in a committed
-      // ledger file
+      // Used by backup nodes to initialise the ledger when starting from a
+      // non-empty state, i.e. snapshot. It is assumed that idx is included in a
+      // committed ledger file.
 
       // As it is possible that some ledger files containing indices later
       // than snapshot index already exist (e.g. to verify the snapshot
       // evidence), delete those so that ledger can restart neatly.
-      bool has_deleted = false;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
+        // TODO: Do not delete files, simply mark them as .ignored
         auto file_name = f.path().filename();
         if (get_start_idx_from_file_name(file_name) > idx)
         {
@@ -955,15 +956,13 @@ namespace asynchost
             file_name,
             idx);
           fs::remove(f);
-          has_deleted = true;
         }
       }
 
-      if (has_deleted)
-      {
-        files.clear();
-        require_new_file = true;
-      }
+      // Close all open write files as the the ledger should
+      // restart cleanly, from a new chunk.
+      files.clear();
+      require_new_file = true;
 
       last_idx = idx;
       committed_idx = idx;
@@ -1052,6 +1051,16 @@ namespace asynchost
         force_chunk_after,
         require_new_file));
 
+      // TODO: Remove
+      LOG_FAIL_FMT(
+        "Writing ledger entry - {} bytes, committable={}, "
+        "force_chunk_after={}, "
+        "require_new_file={}",
+        size,
+        committable,
+        force_chunk_after,
+        require_new_file);
+
       auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
 
       if (header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
@@ -1095,7 +1104,9 @@ namespace asynchost
         require_new_file = false;
       }
 
+      // TODO: This returns the wrong file here
       auto f = get_latest_file();
+      LOG_FAIL_FMT("Latest file: {}", f->file_name);
       last_idx = f->write_entry(data, size, committable);
 
       LOG_TRACE_FMT(
@@ -1161,7 +1172,7 @@ namespace asynchost
 
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
 
-      if (idx <= committed_idx)
+      if (idx <= committed_idx || idx > last_idx)
       {
         return;
       }
