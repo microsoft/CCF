@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "receipt.h"
 
+#include "ccf/b64_receipt.h"
 #include "ccf/ds/logger.h"
 #include "ccf/historical_queries_interface.h"
-#include "ccf/receipt.h"
 #include "template.h"
 
 namespace ccf::v8_tmpl
@@ -15,16 +15,16 @@ namespace ccf::v8_tmpl
     END
   };
 
-  static ccf::Receipt* unwrap_receipt(v8::Local<v8::Object> obj)
+  static ccf::B64Receipt* unwrap_receipt(v8::Local<v8::Object> obj)
   {
-    return static_cast<ccf::Receipt*>(
+    return static_cast<ccf::B64Receipt*>(
       get_internal_field(obj, InternalField::Receipt));
   }
 
   static void get_signature(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    ccf::Receipt* receipt = unwrap_receipt(info.Holder());
+    ccf::B64Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::String> value =
       v8_util::to_v8_str(info.GetIsolate(), receipt->signature.c_str());
     info.GetReturnValue().Set(value);
@@ -33,7 +33,7 @@ namespace ccf::v8_tmpl
   static void get_node_cert(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    ccf::Receipt* receipt = unwrap_receipt(info.Holder());
+    ccf::B64Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::Value> value;
     if (receipt->cert.has_value())
       value = v8_util::to_v8_str(info.GetIsolate(), receipt->cert.value());
@@ -45,7 +45,7 @@ namespace ccf::v8_tmpl
   static void get_leaf(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    ccf::Receipt* receipt = unwrap_receipt(info.Holder());
+    ccf::B64Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::Value> value;
     if (receipt->leaf.has_value())
       value = v8_util::to_v8_str(info.GetIsolate(), receipt->leaf.value());
@@ -57,7 +57,7 @@ namespace ccf::v8_tmpl
   static void get_node_id(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    ccf::Receipt* receipt = unwrap_receipt(info.Holder());
+    ccf::B64Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::String> value =
       v8_util::to_v8_str(info.GetIsolate(), receipt->node_id.value());
     info.GetReturnValue().Set(value);
@@ -68,7 +68,7 @@ namespace ccf::v8_tmpl
   {
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
-    ccf::Receipt* receipt = unwrap_receipt(info.Holder());
+    ccf::B64Receipt* receipt = unwrap_receipt(info.Holder());
 
     size_t size = receipt->proof.size();
     std::vector<v8::Local<v8::Value>> elements;
@@ -116,9 +116,9 @@ namespace ccf::v8_tmpl
   v8::Local<v8::Object> Receipt::wrap(
     v8::Local<v8::Context> context, const ccf::TxReceipt& receipt)
   {
-    ccf::Receipt* receipt_out = new ccf::Receipt();
+    ccf::B64Receipt* receipt_out = new ccf::B64Receipt();
     V8Context::from_context(context).register_finalizer(
-      [](void* data) { delete static_cast<ccf::Receipt*>(data); }, receipt_out);
+      [](void* data) { delete static_cast<ccf::B64Receipt*>(data); }, receipt_out);
     *receipt_out = ccf::describe_receipt(receipt);
 
     v8::Isolate* isolate = context->GetIsolate();

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/b64_receipt.h"
 #include "ccf/kv/read_only_store.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/receipt.h"
 #include "ccf/seq_no_collection.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_receipt.h"
@@ -14,9 +14,9 @@
 
 namespace ccf
 {
-  ccf::Receipt describe_receipt(
+  ccf::B64Receipt describe_receipt(
     const TxReceipt& receipt, bool include_root = false);
-  ccf::Receipt describe_receipt(
+  ccf::B64Receipt describe_receipt(
     const TxReceiptPtr& receipt_ptr, bool include_root = false);
 }
 

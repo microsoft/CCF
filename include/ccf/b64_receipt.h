@@ -11,7 +11,9 @@
 
 namespace ccf
 {
-  struct Receipt
+  // Contains base64 encodings of the hash fields of a ccf::TxReceipt. Can be
+  // converted to and from JSON.
+  struct B64Receipt
   {
     struct Element
     {
@@ -58,17 +60,20 @@ namespace ccf
     std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::Element)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt::Element)
-  DECLARE_JSON_OPTIONAL_FIELDS(Receipt::Element, left, right)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(B64Receipt::Element)
+  DECLARE_JSON_REQUIRED_FIELDS(B64Receipt::Element)
+  DECLARE_JSON_OPTIONAL_FIELDS(B64Receipt::Element, left, right)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::LeafComponents)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt::LeafComponents)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(B64Receipt::LeafComponents)
+  DECLARE_JSON_REQUIRED_FIELDS(B64Receipt::LeafComponents)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    Receipt::LeafComponents, write_set_digest, commit_evidence, claims_digest)
+    B64Receipt::LeafComponents,
+    write_set_digest,
+    commit_evidence,
+    claims_digest)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(B64Receipt)
+  DECLARE_JSON_REQUIRED_FIELDS(B64Receipt, signature, proof, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    Receipt, root, cert, leaf, leaf_components, service_endorsements)
+    B64Receipt, root, cert, leaf, leaf_components, service_endorsements)
 }

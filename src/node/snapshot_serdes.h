@@ -21,7 +21,7 @@ namespace ccf
      produced by 2.0.0-dev* releases
   */
   static crypto::Sha256Hash compute_root_from_snapshot_receipt(
-    const Receipt& receipt)
+    const B64Receipt& receipt)
   {
     crypto::Sha256Hash current;
     if (receipt.leaf_components.has_value())
@@ -135,7 +135,7 @@ namespace ccf
       auto receipt_size = size - store_snapshot_size;
 
       auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
-      auto receipt = j.get<Receipt>();
+      auto receipt = j.get<B64Receipt>();
 
       if (
         !receipt.leaf_components.has_value() ||
@@ -249,7 +249,7 @@ namespace ccf
       commit_evidence,
       cd);
 
-    Receipt receipt = ccf::describe_receipt(tx_receipt);
+    const auto receipt = ccf::describe_receipt(tx_receipt);
     const auto receipt_str = nlohmann::json(receipt).dump();
     return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
   }

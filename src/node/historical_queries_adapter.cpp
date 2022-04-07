@@ -15,9 +15,9 @@ namespace ccf
   static std::map<crypto::Pem, std::vector<crypto::Pem>>
     service_endorsement_cache;
 
-  ccf::Receipt describe_receipt(const TxReceipt& receipt, bool include_root)
+  ccf::B64Receipt describe_receipt(const TxReceipt& receipt, bool include_root)
   {
-    ccf::Receipt out;
+    ccf::B64Receipt out;
     out.signature = crypto::b64_from_raw(receipt.signature);
     if (include_root)
     {
@@ -25,7 +25,7 @@ namespace ccf
     }
     for (const auto& node : receipt.path)
     {
-      ccf::Receipt::Element n;
+      ccf::B64Receipt::Element n;
       if (node.direction == ccf::TxReceipt::PathStep::Left)
       {
         n.left = node.hash.hex_str();
@@ -60,7 +60,7 @@ namespace ccf
       std::optional<std::string> claims_digest_str = std::nullopt;
       if (!receipt.claims_digest.empty())
         claims_digest_str = receipt.claims_digest.value().hex_str();
-      out.leaf_components = Receipt::LeafComponents{
+      out.leaf_components = ccf::B64Receipt::LeafComponents{
         write_set_digest_str, receipt.commit_evidence, claims_digest_str};
     }
 
@@ -69,7 +69,7 @@ namespace ccf
     return out;
   }
 
-  ccf::Receipt describe_receipt(
+  ccf::B64Receipt describe_receipt(
     const TxReceiptPtr& receipt_ptr, bool include_root)
   {
     if (receipt_ptr == nullptr)

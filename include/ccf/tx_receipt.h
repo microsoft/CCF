@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ccf/receipt.h"
+#include "ccf/b64_receipt.h" // TODO: Needed?
 
 namespace ccf
 {
