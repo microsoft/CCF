@@ -240,6 +240,9 @@ def run_tls_san_checks(args):
     ) as network:
         args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start_and_open(args)
+        network.verify_service_certificate_validity_period(
+            args.initial_service_cert_validity_days
+        )
 
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"

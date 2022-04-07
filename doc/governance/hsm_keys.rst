@@ -5,7 +5,7 @@ This page explains how members' identity certificates and encryption keys stored
 
 .. note::
 
-    It is assumed that CCF members already have access to an existing Azure Key Vault. See `these instructions <https://docs.microsoft.com/en-us/azure/key-vault/secrets/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
+    It is assumed that CCF members already have access to an existing Azure Key Vault. See `these instructions <https://docs.microsoft.com/en-us/azure/key-vault/general/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
 
     .. code-block:: bash
 
@@ -16,7 +16,7 @@ This page explains how members' identity certificates and encryption keys stored
 Certificate and Key Generation
 ------------------------------
 
-Members' identity certificates should be generated on the `secp384r1` elliptic curve, using the `az keyvault certificate create <https://docs.microsoft.com/en-us/cli/azure/keyvault/certificate?view=azure-cli-latest#az_keyvault_certificate_create>`_ command, with the following ``identity_cert_policy_example.json`` policy:
+Members' identity certificates should be generated on the `secp384r1` elliptic curve, using the `az keyvault certificate create <https://docs.microsoft.com/en-us/cli/azure/keyvault/certificate?view=azure-cli-latest#az-keyvault-certificate-create>`_ command, with the following ``identity_cert_policy_example.json`` policy:
 
 .. include:: akv_identity_cert_policy.json
     :literal:
@@ -31,7 +31,7 @@ Members' identity certificates should be generated on the `secp384r1` elliptic c
     $ az keyvault key show --vault-name $VAULT_NAME --name $IDENTITY_CERT_NAME
     # Outputs key information, including kid url
 
-Members' encryption keys should be RSA 2048 keys, generated with the `az keyvault key create <https://docs.microsoft.com/en-us/cli/azure/keyvault/key?view=azure-cli-latest#az_keyvault_key_create>`_ command:
+Members' encryption keys should be RSA 2048 keys, generated with the `az keyvault key create <https://docs.microsoft.com/en-us/cli/azure/keyvault/key?view=azure-cli-latest#az-keyvault-key-create>`_ command:
 
 .. code-block:: bash
 
@@ -52,7 +52,7 @@ The identity certificate and public encryption key can be downloaded to a PEM fi
 HTTP Request Signature
 ----------------------
 
-As the Azure CLI (``az keyvault ...``) does not currently support signing/verifying, it is required to use the `corresponding REST API <https://docs.microsoft.com/en-us/rest/api/keyvault/sign/sign>`_ instead. To do so, it is necessary to create a service principal that will be used for authentication:
+As the Azure CLI (``az keyvault ...``) does not currently support signing/verifying, it is required to use the `corresponding REST API <https://docs.microsoft.com/en-us/rest/api/keyvault/keys/sign/sign>`_ instead. To do so, it is necessary to create a service principal that will be used for authentication:
 
 .. code-block:: bash
 

@@ -1255,7 +1255,7 @@ namespace aft
         std::vector<uint8_t> entry;
         try
         {
-          entry = ledger->get_entry(data, size);
+          entry = LedgerProxy::get_entry(data, size);
         }
         catch (const std::logic_error& e)
         {
