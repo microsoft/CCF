@@ -118,7 +118,8 @@ namespace ccf::v8_tmpl
   {
     ccf::B64Receipt* receipt_out = new ccf::B64Receipt();
     V8Context::from_context(context).register_finalizer(
-      [](void* data) { delete static_cast<ccf::B64Receipt*>(data); }, receipt_out);
+      [](void* data) { delete static_cast<ccf::B64Receipt*>(data); },
+      receipt_out);
     *receipt_out = ccf::describe_receipt(receipt);
 
     v8::Isolate* isolate = context->GetIsolate();
