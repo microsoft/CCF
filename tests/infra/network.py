@@ -552,7 +552,7 @@ class Network:
                 infra.node.State.PART_OF_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-            self._wait_for_app_open(node)
+            self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
