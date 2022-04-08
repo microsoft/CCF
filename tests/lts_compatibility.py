@@ -7,12 +7,14 @@ import infra.logging_app as app
 import infra.utils
 import infra.github
 import infra.jwt_issuer
+import infra.crypto
 import cimetrics.env
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
 import time
+import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from reconfiguration import test_migration_2tx_reconfiguration
@@ -93,6 +95,9 @@ def test_new_service(
     nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
     nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
 
+    # Pre-2.0 nodes require X509 time format
+    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.now()))
+
     for _ in range(0, nodes_to_add_count):
         new_node = network.create_node(
             "local://localhost",
@@ -101,7 +106,11 @@ def test_new_service(
             version=version,
         )
         network.join_node(new_node, args.package, args)
-        network.trust_node(new_node, args)
+        network.trust_node(
+            new_node,
+            args,
+            valid_from=valid_from,
+        )
         new_node.verify_certificate_validity_period(
             expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
         )
@@ -113,8 +122,8 @@ def test_new_service(
             primary, _ = network.wait_for_new_primary(primary)
         node.stop()
 
-    test_all_nodes_cert_renewal(network, args)
-    test_service_cert_renewal(network, args)
+    test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
+    test_service_cert_renewal(network, args, valid_from=valid_from)
 
     LOG.info("Waiting for retired nodes to be automatically removed")
     for node in all_nodes:
@@ -132,6 +141,7 @@ def test_new_service(
             binary_dir=binary_dir,
             library_dir=library_dir,
             version=version,
+            valid_from=valid_from,
         )
 
     LOG.info("Apply transactions to new nodes only")
@@ -225,7 +235,13 @@ def run_code_upgrade_from(
                 network.join_node(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
-                network.trust_node(new_node, args)
+                network.trust_node(
+                    new_node,
+                    args,
+                    valid_from=str(  # Pre-2.0 nodes require X509 time format
+                        infra.crypto.datetime_to_X509time(datetime.datetime.now())
+                    ),
+                )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,
                 # the node certificate validity period is set by the joining node itself
                 # as [node startup time, node startup time + 365 days]
