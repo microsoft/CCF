@@ -8,7 +8,6 @@
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
-#include "crypto/openssl/x509_time.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
