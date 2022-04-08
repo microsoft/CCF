@@ -193,9 +193,6 @@ namespace ccf
 
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
-        // Should the signature always have arrived before we get here?
-        // Apparently the global hooks are executed at a different time, so
-        // record_signature may not have been called yet.
         if (idx > it->evidence_idx && it->sig.has_value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
