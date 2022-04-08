@@ -363,8 +363,8 @@ int main(int argc, char** argv)
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
-    startup_config.startup_host_time = ds::to_x509_time_string(
-      std::chrono::system_clock::to_time_t(startup_host_time));
+    startup_config.startup_host_time =
+      ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {

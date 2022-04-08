@@ -5,8 +5,7 @@
 #include "ds/x509_time_fmt.h"
 #include "openssl_wrappers.h"
 
-#include <fmt/format.h>
-#include <time.h>
+#include <openssl/asn1.h>
 
 namespace crypto::OpenSSL
 {
@@ -27,27 +26,10 @@ namespace crypto::OpenSSL
        (unsigned int)diff_days <= allowed_diff_days.value());
   }
 
-  static inline Unique_X509_TIME from_time_t(const time_t& t)
-  {
-    return Unique_X509_TIME(ASN1_TIME_set(nullptr, t));
-  }
-
-  static inline time_t to_time_t(const ASN1_TIME* time)
-  {
-    tm tm_time;
-    CHECK1(ASN1_TIME_to_tm(time, &tm_time));
-    return timegm(&tm_time);
-  }
-
-  static inline Unique_X509_TIME adjust_time(
-    const Unique_X509_TIME& time, size_t offset_days, int64_t offset_secs = 0)
-  {
-    return Unique_X509_TIME(
-      ASN1_TIME_adj(nullptr, to_time_t(time), offset_days, offset_secs));
-  }
-
   static inline std::string to_x509_time_string(const ASN1_TIME* time)
   {
-    return ds::to_x509_time_string(to_time_t(time));
+    std::tm t;
+    CHECK1(ASN1_TIME_to_tm(time, &t));
+    return ds::to_x509_time_string(t);
   }
 }
