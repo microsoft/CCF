@@ -409,15 +409,14 @@ def test_each_node_cert_renewal(network, args):
                 )
 
                 try:
-                    valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
                     network.consortium.set_node_certificate_validity(
                         primary,
                         node,
-                        valid_from=valid_from_x509,
+                        valid_from=valid_from,
                         validity_period_days=validity_period_days,
                     )
                     node.set_certificate_validity_period(
-                        valid_from_x509,
+                        valid_from,
                         validity_period_days
                         or args.maximum_node_certificate_validity_days,
                     )
@@ -451,7 +450,7 @@ def test_each_node_cert_renewal(network, args):
 
 def renew_service_certificate(network, args, valid_from, validity_period_days):
     primary, _ = network.find_primary()
-    valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
+    valid_from_x509 = str(valid_from)
     network.consortium.set_service_certificate_validity(
         primary,
         valid_from=valid_from_x509,
@@ -464,11 +463,11 @@ def renew_service_certificate(network, args, valid_from, validity_period_days):
 
 
 @reqs.description("Renew service certificate")
-def test_service_cert_renewal(network, args):
+def test_service_cert_renewal(network, args, valid_from=None):
     return renew_service_certificate(
         network,
         args,
-        valid_from=datetime.now(),
+        valid_from=valid_from or datetime.now(),
         validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
@@ -498,10 +497,10 @@ def test_service_cert_renewal_extended(network, args):
 
 
 @reqs.description("Update certificates of all nodes, one by one")
-def test_all_nodes_cert_renewal(network, args):
+def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
-    valid_from = str(infra.crypto.datetime_to_X509time(datetime.now()))
+    valid_from = valid_from or datetime.now()
     validity_period_days = args.maximum_node_certificate_validity_days
 
     network.consortium.set_all_nodes_certificate_validity(

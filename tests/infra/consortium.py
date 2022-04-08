@@ -17,6 +17,7 @@ from infra.proposal import ProposalState
 import shutil
 import tempfile
 import glob
+import datetime
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
@@ -144,7 +145,10 @@ class Consortium:
             args = {}
             for k, v in kwargs.items():
                 if v is not None:
-                    args[k] = v
+                    if isinstance(v, datetime.datetime):
+                        args[k] = str(v)
+                    else:
+                        args[k] = v
             action["args"] = args
 
         proposal_body = {"actions": [action]}
