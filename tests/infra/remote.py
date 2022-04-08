@@ -893,7 +893,9 @@ class CCFRemote(object):
         try:
             self.remote.get(self.pem, dst_path, timeout=REMOTE_STARTUP_TIMEOUT_S)
         except ValueError:
-            raise RuntimeError(f"Error starting node {self.local_node_id}")
+            raise RuntimeError(
+                f"Error starting node {self.local_node_id}"
+            ) from ValueError
 
         if self.node_address_file is not None:
             self.remote.get(self.node_address_file, dst_path, timeout=timeout)
