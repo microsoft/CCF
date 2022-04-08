@@ -723,9 +723,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or str(
-                    infra.crypto.datetime_to_X509time(datetime.now())
-                )
+                valid_from = valid_from or datetime.now()
                 timeout = ceil(args.join_timer_s * 2)
                 self.consortium.trust_node(
                     primary,

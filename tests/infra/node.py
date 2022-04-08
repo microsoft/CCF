@@ -605,12 +605,17 @@ class Node:
                     f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
                 )
         else:
-            if (
-                infra.crypto.datetime_to_X509time(valid_from)
-                != self.certificate_valid_from
-            ):
+            # Does this check provide any more precision than the check for valid+from + timedelta below?
+            normalized_from = infra.crypto.datetime_to_X509time(valid_from)
+            normalized_expected = (
+                self.certificate_valid_from
+                if isinstance(self.certificate_valid_from, str)
+                else infra.crypto.datetime_to_X509time(self.certificate_valid_from)
+            )
+
+            if normalized_from != normalized_expected:
                 raise ValueError(
-                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{infra.crypto.datetime_to_X509time(valid_from)}", but expected "{self.certificate_valid_from}"'
+                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{normalized_from}", but expected "{normalized_expected}"'
                 )
 
         # Note: CCF substracts one second from validity period since x509 specifies

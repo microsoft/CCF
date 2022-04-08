@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed issue with incorrect node and service certificate validity period when starting node in non-GMT timezone (#3732).
 
+## Changed
+
+- Configurations and proposals now accept more date/time formats, including the Python-default ISO 8601 format (#3739).
+
 ## [2.0.0-rc6]
 
 ### Changed
