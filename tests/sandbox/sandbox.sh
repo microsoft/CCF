@@ -59,8 +59,9 @@ if [ -f "${VERSION_FILE}" ]; then
     if [ -n "${PYTHON_PACKAGE_PATH}" ]; then
         # With an install tree, the python package can be specified, e.g. when testing
         # an install just before it is released
-        echo "Using python package: ${PYTHON_PACKAGE_PATH}"
-        pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
+        # Note: Strip unsafe suffix if it exists
+        sanitised_version=${VERSION%"+unsafe"}
+        pip install -q -U ccf=="${sanitised_version}"
     else
         pip install -q -U ccf=="$VERSION"
     fi
