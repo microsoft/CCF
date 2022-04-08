@@ -305,12 +305,8 @@ class Node:
             self.remote.start()
 
         try:
-            file_timeout = kwargs.get("file_timeout")
-            self.remote.get_startup_files(
-                self.common_dir, timeout=file_timeout or infra.remote.FILE_TIMEOUT
-            )
-        except Exception as e:
-            LOG.exception(e)
+            self.remote.get_startup_files(self.common_dir)
+        except:
             self.remote.get_logs(tail_lines_len=None)
             raise
 

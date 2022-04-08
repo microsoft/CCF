@@ -37,86 +37,96 @@ def run(args):
         LOG.disable("infra")
         LOG.disable("ccf")
 
-    LOG.info(f"Starting {len(hosts)} CCF node{'s' if len(hosts) > 1 else ''}...")
     if args.enclave_type == "virtual":
         LOG.warning("Virtual mode enabled")
+    LOG.info(f"Starting {len(hosts)} CCF node{'s' if len(hosts) > 1 else ''}...")
 
-    with infra.network.network(
-        hosts=hosts,
-        binary_directory=args.binary_dir,
-        library_directory=args.library_dir,
-        dbg_nodes=args.debug_nodes,
-    ) as network:
-        if args.recover:
-            args.label = args.label + "_recover"
-            LOG.info("Recovering network from:")
-            LOG.info(f" - Common directory: {args.common_dir}")
-            LOG.info(f" - Ledger: {args.ledger_dir}")
-            if args.snapshots_dir:
-                LOG.info(f" - Snapshots: {args.snapshots_dir}")
-            else:
-                LOG.warning(
-                    "No available snapshot to recover from. Entire transaction history will be replayed."
-                )
-            args.previous_service_identity_file = os.path.join(
-                args.common_dir, "service_cert.pem"
-            )
-            network.start_in_recovery(
-                args,
-                args.ledger_dir,
-                snapshots_dir=args.snapshots_dir,
-                common_dir=args.common_dir,
-            )
-            network.recover(args)
-        else:
-            network.start_and_open(args)
-
-        nodes = network.get_joined_nodes()
-        max_len = max([len(str(node.local_node_id)) for node in nodes])
-
-        # To be sure, confirm that the app frontend is open on each node
-        for node in nodes:
-            with node.client("user0") as c:
-                if args.verbose:
-                    r = c.get("/app/commit")
+    try:
+        with infra.network.network(
+            hosts=hosts,
+            binary_directory=args.binary_dir,
+            library_directory=args.library_dir,
+            dbg_nodes=args.debug_nodes,
+        ) as network:
+            if args.recover:
+                args.label = args.label + "_recover"
+                LOG.info("Recovering network from:")
+                LOG.info(f" - Common directory: {args.common_dir}")
+                LOG.info(f" - Ledger: {args.ledger_dir}")
+                if args.snapshots_dir:
+                    LOG.info(f" - Snapshots: {args.snapshots_dir}")
                 else:
-                    r = c.get("/app/commit", log_capture=[])
-                assert r.status_code == http.HTTPStatus.OK, r.status_code
-
-        def pad_node_id(nid):
-            return (f"{{:{max_len}d}}").format(nid)
-
-        LOG.info("Started CCF network with the following nodes:")
-        for node in nodes:
-            LOG.info(
-                "  Node [{}] = https://{}:{}".format(
-                    pad_node_id(node.local_node_id),
-                    node.get_public_rpc_host(),
-                    node.get_public_rpc_port(),
+                    LOG.warning(
+                        "No available snapshot to recover from. Entire transaction history will be replayed."
+                    )
+                args.previous_service_identity_file = os.path.join(
+                    args.common_dir, "service_cert.pem"
                 )
+                network.start_in_recovery(
+                    args,
+                    args.ledger_dir,
+                    snapshots_dir=args.snapshots_dir,
+                    common_dir=args.common_dir,
+                )
+                network.recover(args)
+            else:
+                network.start_and_open(args)
+
+            nodes = network.get_joined_nodes()
+            max_len = max([len(str(node.local_node_id)) for node in nodes])
+
+            # To be sure, confirm that the app frontend is open on each node
+            for node in nodes:
+                with node.client("user0") as c:
+                    if args.verbose:
+                        r = c.get("/app/commit")
+                    else:
+                        r = c.get("/app/commit", log_capture=[])
+                    assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+            def pad_node_id(nid):
+                return (f"{{:{max_len}d}}").format(nid)
+
+            LOG.info("Started CCF network with the following nodes:")
+            for node in nodes:
+                LOG.info(
+                    "  Node [{}] = https://{}:{}".format(
+                        pad_node_id(node.local_node_id),
+                        node.get_public_rpc_host(),
+                        node.get_public_rpc_port(),
+                    )
+                )
+
+            LOG.info(
+                f"You can now issue business transactions to the {args.package} application"
             )
+            if args.js_app_bundle is not None:
+                LOG.info(f"Loaded JS application: {args.js_app_bundle}")
+            LOG.info(
+                f"Keys and certificates have been copied to the common folder: {network.common_dir}"
+            )
+            LOG.info(
+                "See https://microsoft.github.io/CCF/main/use_apps/issue_commands.html for more information"
+            )
+            LOG.warning("Press Ctrl+C to shutdown the network")
 
+            try:
+                while True:
+                    time.sleep(60)
+
+            except KeyboardInterrupt:
+                LOG.info("Stopping all CCF nodes...")
+
+        LOG.info("All CCF nodes stopped.")
+    except infra.network.NetworkShutdownError as e:
+        LOG.error("Error! Some nodes ran into issues:")
+        for node_id, errors in e.errors.items():
+            error_msg = "\n".join(errors)
+            LOG.error(f"- Node [{node_id}]:\n{error_msg}")
         LOG.info(
-            f"You can now issue business transactions to the {args.package} application"
+            "Please raise a bug if the issue is unexpected: https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=Unexpected%20error%20when%20running%20sandbox%20script"
         )
-        if args.js_app_bundle is not None:
-            LOG.info(f"Loaded JS application: {args.js_app_bundle}")
-        LOG.info(
-            f"Keys and certificates have been copied to the common folder: {network.common_dir}"
-        )
-        LOG.info(
-            "See https://microsoft.github.io/CCF/main/use_apps/issue_commands.html for more information"
-        )
-        LOG.warning("Press Ctrl+C to shutdown the network")
-
-        try:
-            while True:
-                time.sleep(60)
-
-        except KeyboardInterrupt:
-            LOG.info("Stopping all CCF nodes...")
-
-    LOG.info("All CCF nodes stopped.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

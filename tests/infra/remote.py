@@ -19,7 +19,12 @@ import json
 from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
-FILE_TIMEOUT = 60
+
+# Duration after which unresponsive node is
+# declared as crashed on startup
+REMOTE_STARTUP_TIMEOUT_S = 5
+
+FILE_TIMEOUT_S = 60
 
 _libc = ctypes.CDLL("libc.so.6")
 
@@ -210,7 +215,7 @@ class SSHRemote(CmdMixin):
         self,
         file_name,
         dst_path,
-        timeout=FILE_TIMEOUT,
+        timeout=FILE_TIMEOUT_S,
         target_name=None,
         pre_condition_func=lambda src_dir, _: True,
     ):
@@ -261,7 +266,7 @@ class SSHRemote(CmdMixin):
             else:
                 raise ValueError(file_name)
 
-    def list_files(self, timeout=FILE_TIMEOUT):
+    def list_files(self, timeout=FILE_TIMEOUT_S):
         files = []
         with sftp_session(self.hostname) as session:
             end_time = time.time() + timeout
@@ -451,7 +456,7 @@ class LocalRemote(CmdMixin):
         self,
         src_path,
         dst_path,
-        timeout=FILE_TIMEOUT,
+        timeout=FILE_TIMEOUT_S,
         target_name=None,
         pre_condition_func=lambda src_dir, _: True,
     ):
@@ -884,8 +889,12 @@ class CCFRemote(object):
     def resume(self):
         self.remote.resume()
 
-    def get_startup_files(self, dst_path, timeout=FILE_TIMEOUT):
-        self.remote.get(self.pem, dst_path, timeout=timeout)
+    def get_startup_files(self, dst_path, timeout=FILE_TIMEOUT_S):
+        try:
+            self.remote.get(self.pem, dst_path, timeout=REMOTE_STARTUP_TIMEOUT_S)
+        except ValueError:
+            raise RuntimeError(f"Error starting node {self.local_node_id}")
+
         if self.node_address_file is not None:
             self.remote.get(self.node_address_file, dst_path, timeout=timeout)
         if self.rpc_addresses_file is not None:
