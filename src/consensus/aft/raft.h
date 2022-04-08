@@ -1293,21 +1293,15 @@ namespace aft
 
         bool globally_committable =
           (apply_success == kv::ApplyResult::PASS_SIGNATURE);
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          force_ledger_chunk = store->record_committable(i);
           start_ticking_if_necessary();
         }
 
         const auto& entry = ds->get_entry();
 
         ledger->put_entry(
-          entry,
-          globally_committable,
-          force_ledger_chunk,
-          ds->get_term(),
-          ds->get_index());
+          entry, globally_committable, false, ds->get_term(), ds->get_index());
 
         switch (apply_success)
         {

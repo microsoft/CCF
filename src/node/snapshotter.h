@@ -299,6 +299,12 @@ namespace ccf
         LOG_TRACE_FMT(
           "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
         store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+        // Snapshots trigger a ledger chunk, the backups need to know about that
+        // to keep their chunks in sync, so we set the header flag.
+        store->set_flag(
+          kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+
         return due;
       }
 

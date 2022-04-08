@@ -41,7 +41,6 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) = 0;
-    virtual bool record_committable(Index version) = 0;
   };
 
   template <typename T>
@@ -92,16 +91,6 @@ namespace aft
         return p->deserialize(data, consensus_type, public_only, expected_txid);
       }
       return nullptr;
-    }
-
-    virtual bool record_committable(Index idx) override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        p->record_committable(idx);
-      }
-      return false;
     }
   };
 

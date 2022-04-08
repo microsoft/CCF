@@ -913,11 +913,8 @@ namespace kv
         return CommitResult::SUCCESS;
       }
 
-      bool force_ledger_chunk = false;
-      if (snapshotter && globally_committable)
-      {
-        force_ledger_chunk = snapshotter->record_committable(txid.version);
-      }
+      bool force_ledger_chunk = snapshotter && globally_committable &&
+        snapshotter->record_committable(txid.version);
 
       std::lock_guard<std::mutex> cguard(commit_lock);
 
@@ -1288,11 +1285,6 @@ namespace kv
     virtual bool flag_enabled_unsafe(Flag f) const override
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
-    }
-
-    bool record_committable(Version idx)
-    {
-      return snapshotter && snapshotter->record_committable(idx);
     }
   };
 

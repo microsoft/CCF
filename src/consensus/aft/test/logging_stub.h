@@ -376,11 +376,6 @@ namespace aft
     }
 
     void unset_flag(kv::AbstractStore::Flag) {}
-
-    bool record_committable(Index version)
-    {
-      return false;
-    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore
@@ -412,11 +407,6 @@ namespace aft
     void update(Index, bool) {}
 
     void set_last_snapshot_idx(Index idx) {}
-
-    bool record_committable(Index)
-    {
-      return false;
-    }
 
     void commit(Index, bool) {}
 
