@@ -8,7 +8,12 @@ Below, we give an overview over the nodes state machine in both settings and the
 CFT Consensus Protocol
 ----------------------
 
-The crash fault tolerant implementation in CCF is based on Raft. You can find more information on the Raft implementation of reconfiguration in CCF :doc:`here <1tx-reconfig>`.
+The crash fault tolerant implementation in CCF is based on `Raft <https://raft.github.io/>`_. The key differences between the original Raft protocol (as described in the `Raft paper <https://raft.github.io/raft.pdf>`_), and CCF Raft are as follows:
+
+* Transactions are not considered to be committed until a subsequent signed transaction has been committed. More information can be found :doc:`here </consensus/merkle_tree>`. Transactions in the ledger before the last signed transactions are discarded during leader election.
+* As well as Raft's two-phase reconfiguration protocol, CCF also supports one-phase reconfiguration. You can find more information on the Raft implementation of reconfiguration in CCF :doc:`here <1tx-reconfig>`. Note that CCF Raft does not support node restart. If a node fails and starts again, it must rejoin Raft via reconfiguration.
+* In CCF Raft, clients receive an acknowledgement with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to Raft's ledger. The client can later use this transaction ID to verify that the transaction has been committed by Raft. In CCF Raft, AppendEntries are sent periodically instead of each time a transaction is added to the ledger.
+* CCF Raft uses an additional mechanism so the leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged and thus bring the follower up to date more quickly.
 
 CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
