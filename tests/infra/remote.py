@@ -20,9 +20,9 @@ from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
 
-# Duration after which unresponsive node is
-# declared as crashed on startup
+# Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
+REMOTE_STARTUP_RETRY_COUNT = 5
 
 FILE_TIMEOUT_S = 60
 
@@ -890,12 +890,15 @@ class CCFRemote(object):
         self.remote.resume()
 
     def get_startup_files(self, dst_path, timeout=FILE_TIMEOUT_S):
-        try:
-            self.remote.get(self.pem, dst_path, timeout=REMOTE_STARTUP_TIMEOUT_S)
-        except ValueError:
-            raise RuntimeError(
-                f"Error starting node {self.local_node_id}"
-            ) from ValueError
+        # Check if node started successfully
+        for _ in range(REMOTE_STARTUP_RETRY_COUNT):
+            try:
+                self.remote.get(self.pem, dst_path, timeout=REMOTE_STARTUP_TIMEOUT_S)
+            except ValueError:
+                if self.remote.check_done():
+                    raise RuntimeError(
+                        f"Error starting node {self.local_node_id}"
+                    ) from ValueError
 
         if self.node_address_file is not None:
             self.remote.get(self.node_address_file, dst_path, timeout=timeout)
