@@ -967,17 +967,18 @@ namespace asynchost
       // non-empty state, i.e. snapshot. It is assumed that idx is included in a
       // committed ledger file.
 
-      // Ignore all uncommitted files in main ledger directory as some may be
-      // later than init idx. Other uncommitted files are also ignored.
+      // To restart from a snapshot cleanly, in the main ledger directory,
+      // ignore all uncommitted files and all files (even committed ones) that
+      // are past the init idx.
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
-        if (!is_ledger_file_name_committed(file_name))
+        if (
+          !is_ledger_file_name_committed(file_name) ||
+          (get_start_idx_from_file_name(file_name) > idx))
         {
           LOG_INFO_FMT(
-            "Ignoring uncommitted ledger file {} after init at {}",
-            file_name,
-            idx);
+            "Ignoring ledger file {} after init at {}", file_name, idx);
 
           ignore_ledger_file(file_name);
         }
