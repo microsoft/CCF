@@ -178,7 +178,7 @@ namespace ccf
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
     LedgerSecretsMap recovered_ledger_secrets = {};
     consensus::Index last_recovered_idx = 0;
-    static const size_t recovery_batch_size = 1000;
+    static const size_t recovery_batch_size = 100;
 
     //
     // JWT key auto-refresh
@@ -1137,7 +1137,8 @@ namespace ccf
       else
       {
         read_ledger_entries(
-          last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
+          last_recovered_idx + 1,
+          std::min(last_recovered_idx + recovery_batch_size, recovery_v));
       }
     }
 
