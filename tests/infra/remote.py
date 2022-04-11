@@ -22,7 +22,7 @@ DBG = os.getenv("DBG", "cgdb")
 
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
-REMOTE_STARTUP_RETRY_COUNT = 5
+
 
 FILE_TIMEOUT_S = 60
 
@@ -890,16 +890,7 @@ class CCFRemote(object):
         self.remote.resume()
 
     def get_startup_files(self, dst_path, timeout=FILE_TIMEOUT_S):
-        # Check if node started successfully
-        for _ in range(REMOTE_STARTUP_RETRY_COUNT):
-            try:
-                self.remote.get(self.pem, dst_path, timeout=REMOTE_STARTUP_TIMEOUT_S)
-            except ValueError:
-                if self.remote.check_done():
-                    raise RuntimeError(
-                        f"Error starting node {self.local_node_id}"
-                    ) from ValueError
-
+        self.remote.get(self.pem, dst_path, timeout=0.1)
         if self.node_address_file is not None:
             self.remote.get(self.node_address_file, dst_path, timeout=timeout)
         if self.rpc_addresses_file is not None:

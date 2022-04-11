@@ -210,3 +210,6 @@ class DockerShim(infra.remote.CCFRemote):
 
     def resume(self):
         self.container.unpause()
+
+    def check_done(self):
+        return self.container.attrs["State"]["Status"] != "running"

@@ -29,6 +29,8 @@ from loguru import logger as LOG
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
+NODE_STARTUP_RETRY_COUNT = 5
+
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -304,11 +306,14 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
-        try:
-            self.remote.get_startup_files(self.common_dir)
-        except:
-            self.remote.get_logs(tail_lines_len=None)
-            raise
+        # Detect whether node started up successfully
+        for _ in range(NODE_STARTUP_RETRY_COUNT):
+            try:
+                self.remote.get_startup_files(self.common_dir)
+            except:
+                if self.remote.check_done():
+                    self.remote.get_logs(tail_lines_len=None)
+                    raise RuntimeError(f"Error starting node {self.local_node_id}")
 
         self.consensus = kwargs.get("consensus")
 
