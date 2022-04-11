@@ -19,7 +19,7 @@ The Logging application simply has:
 
 .. note::
 
-    :cpp:class:`kv::Map` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
+    :cpp:type:`kv::Map` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
 
     The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 
@@ -251,7 +251,7 @@ And expose an endpoint returning receipts, with that claim expanded:
 
 Receipts from this endpoint will then look like:
 
-.. code-block:: json
+.. code-block:: python
 
     {'msg': 'Public message at idx 5 [0]',
      'receipt': {'cert': '-----BEGIN CERTIFICATE-----\n'

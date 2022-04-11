@@ -271,7 +271,7 @@ def test_learner_does_not_take_part(network, args):
                 primary,
                 new_node.node_id,
                 timeout=ceil(args.join_timer_s * 2),
-                valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
+                valid_from=datetime.now(),
             )
         except TimeoutError:
             LOG.info("Trust node proposal did not commit as expected")

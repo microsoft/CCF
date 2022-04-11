@@ -229,10 +229,7 @@ namespace ccf::endpoints
             }
 
             ds::openapi::add_request_body_schema<In>(
-              document,
-              endpoint.full_uri_path,
-              http_verb.value(),
-              http::headervalues::contenttype::JSON);
+              document, endpoint.full_uri_path, http_verb.value());
           });
       }
       else
@@ -258,8 +255,7 @@ namespace ccf::endpoints
               document,
               endpoint.full_uri_path,
               http_verb.value(),
-              endpoint.success_status,
-              http::headervalues::contenttype::JSON);
+              endpoint.success_status);
           });
       }
       else

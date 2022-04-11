@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_consts.h"
 #include "ccf/http_status.h"
 
 #include <llhttp/llhttp.h>
@@ -356,6 +357,19 @@ namespace ds
       }
     };
 
+    template <typename T>
+    static inline char const* auto_content_type()
+    {
+      if constexpr (std::is_same_v<T, std::string>)
+      {
+        return http::headervalues::contenttype::TEXT;
+      }
+      else
+      {
+        return http::headervalues::contenttype::JSON;
+      }
+    }
+
     static inline void add_request_body_schema(
       nlohmann::json& document,
       const std::string& uri,
@@ -373,10 +387,7 @@ namespace ds
 
     template <typename T>
     static inline void add_request_body_schema(
-      nlohmann::json& document,
-      const std::string& uri,
-      llhttp_method verb,
-      const std::string& content_type)
+      nlohmann::json& document, const std::string& uri, llhttp_method verb)
     {
       auto& rb = request_body(path_operation(path(document, uri), verb));
       rb["description"] = "Auto-generated request body schema";
@@ -385,7 +396,8 @@ namespace ds
       const auto schema_comp = sh.add_schema_component<T>();
       if (schema_comp != nullptr)
       {
-        schema(media_type(rb, content_type)) = sh.add_schema_component<T>();
+        schema(media_type(rb, auto_content_type<T>())) =
+          sh.add_schema_component<T>();
       }
     }
 
@@ -428,8 +440,7 @@ namespace ds
       nlohmann::json& document,
       const std::string& uri,
       llhttp_method verb,
-      http_status status,
-      const std::string& content_type)
+      http_status status)
     {
       auto& r = response(path_operation(path(document, uri), verb), status);
 
@@ -437,7 +448,8 @@ namespace ds
       const auto schema_comp = sh.add_schema_component<T>();
       if (schema_comp != nullptr)
       {
-        schema(media_type(r, content_type)) = sh.add_schema_component<T>();
+        schema(media_type(r, auto_content_type<T>())) =
+          sh.add_schema_component<T>();
       }
     }
   }
