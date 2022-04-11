@@ -310,10 +310,12 @@ class Node:
         for _ in range(NODE_STARTUP_RETRY_COUNT):
             try:
                 self.remote.get_startup_files(self.common_dir)
-            except:
+            except Exception as e:
                 if self.remote.check_done():
                     self.remote.get_logs(tail_lines_len=None)
-                    raise RuntimeError(f"Error starting node {self.local_node_id}")
+                    raise RuntimeError(
+                        f"Error starting node {self.local_node_id}"
+                    ) from e
 
         self.consensus = kwargs.get("consensus")
 
