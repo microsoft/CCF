@@ -107,6 +107,7 @@ Server logic
 The main cycle of a server is the following:
 - create a main socket and listen for connections
 - on accepting a new connection, creates a new (`peer`) socket to communicate with that client
+
   - read the request, communicate with the enclave, get the response backs
   - send the response to the client
   - close the socket
