@@ -37,6 +37,7 @@ SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
 RECOVERY_FILE_SUFFIX = ".recovery"
+IGNORED_FILE_SUFFIX = ".ignored"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -884,6 +885,9 @@ class Ledger:
                 sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
                 if not read_recovery_files:
                     return
+
+            if path.endswith(IGNORED_FILE_SUFFIX):
+                return
 
             if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
                 return
