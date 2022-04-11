@@ -18,10 +18,8 @@ namespace logger
 {
   enum Level
   {
-#ifdef VERBOSE_LOGGING
     TRACE,
     DEBUG, // events useful for debugging
-#endif
     INFO, // important events that should be logged even in release mode
     FAIL, // important failures that should always be logged
     FATAL, // fatal errors that lead to a termination of the program/enclave
@@ -31,10 +29,8 @@ namespace logger
   static constexpr Level MOST_VERBOSE = static_cast<Level>(0);
 
   static constexpr const char* LevelNames[] = {
-#ifdef VERBOSE_LOGGING
     "trace",
     "debug",
-#endif
     "info",
     "fail",
     "fatal"};

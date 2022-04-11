@@ -23,11 +23,11 @@ else()
   unset(NODES)
 endif()
 
-option(VERBOSE_LOGGING "Enable verbose logging" OFF)
+# TODO: Rename to VERBOSE_ENCLAVE?
+option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
   add_compile_definitions(VERBOSE_LOGGING)
-  set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
@@ -251,6 +251,9 @@ enable_quote_code(cchost)
 
 target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
+
+# Host is always built with verbose logging enabled, regardless of CMake option
+target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_SGX)
