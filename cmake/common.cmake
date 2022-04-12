@@ -370,8 +370,8 @@ set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL} --worker-threads
-                          ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
+                          --worker-threads ${WORKER_THREADS}
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
