@@ -9,6 +9,7 @@ enum : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(large_block_message),
   DEFINE_RINGBUFFER_MSG_TYPE(large_compound_message),
   DEFINE_RINGBUFFER_MSG_TYPE(large_complex_message),
+  DEFINE_RINGBUFFER_MSG_TYPE(multi_variable_size_a),
   DEFINE_RINGBUFFER_MSG_TYPE(finish),
 };
 
@@ -25,6 +26,13 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   uint16_t,
   uint64_t,
   std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  multi_variable_size_a,
+  serializer::ByteRange,
+  std::vector<uint8_t>,
+  serializer::ByteRange,
+  std::vector<uint8_t>,
+  unsigned short int);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(finish);
 
 TEST_CASE(
@@ -143,5 +151,35 @@ TEST_CASE(
     RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
     bp.run(rr);
     REQUIRE(message_seen);
+  }
+
+  SUBCASE("multiple variable sized args")
+  {
+    size_t messages_seen = 0;
+
+    const std::vector<uint8_t> a{1, 2, 3};
+    const std::vector<uint8_t> b{1, 2, 3, 4, 5, 6};
+    const std::vector<uint8_t> c{1, 2, 3, 4, 5, 6, 7, 8, 9};
+    const std::vector<uint8_t> d{
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    const unsigned short int u = 42;
+
+    DISPATCHER_SET_MESSAGE_HANDLER(
+      bp, multi_variable_size_a, [&](const uint8_t* data, size_t size) {
+        auto [aa, bb, cc, dd, uu] =
+          ringbuffer::read_message<multi_variable_size_a>(data, size);
+
+        REQUIRE(a == aa);
+        REQUIRE(b == bb);
+        REQUIRE(c == cc);
+        REQUIRE(d == dd);
+
+        ++messages_seen;
+      });
+
+    RINGBUFFER_WRITE_MESSAGE(multi_variable_size_a, writer_p, a, b, c, d, u);
+    RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
+    bp.run(rr);
+    REQUIRE(messages_seen == 1);
   }
 }
