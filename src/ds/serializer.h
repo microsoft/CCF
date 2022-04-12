@@ -250,7 +250,6 @@ namespace serializer
       return std::tuple_cat(std::make_tuple(cs), std::make_tuple(bfs));
     }
 
-    // TODO: This doesn't look like it works. Must not be used?
     /// Overload for C-arrays of ByteRanges (potentially non-contiguous, no
     /// length-prefix)
     template <size_t N>
@@ -287,6 +286,32 @@ namespace serializer
     {
       auto rs = std::make_shared<RawSection<T>>(t);
       return std::make_tuple(rs);
+    }
+    ///@}
+
+    /// Overloads of serialize_value_final - return a tuple of
+    /// PartialSerializations
+    ///{@
+    /// Overload for ByteRanges, avoid length-prefix (use entire remaining size)
+    static auto serialize_value_final(const ByteRange& br)
+    {
+      auto bfs = std::make_shared<MemoryRegionSection>(br.data, br.size);
+      return std::make_tuple(bfs);
+    }
+
+    /// Overload for std::vectors of bytes, avoid length-prefix (use entire
+    /// remaining size)
+    static auto serialize_value_final(const std::vector<uint8_t>& vec)
+    {
+      auto bfs = std::make_shared<MemoryRegionSection>(vec.data(), vec.size());
+      return std::make_tuple(bfs);
+    }
+
+    /// Generic case - fallback to serialize_value
+    template <typename T>
+    static auto serialize_value_final(const T& t)
+    {
+      return serialize_value(t);
     }
     ///@}
 
@@ -337,20 +362,47 @@ namespace serializer
     }
     ///@}
 
+    /// Overloads of deserialize_value_final
+    ///{@
+    /// Overload for ByteRanges
+    static auto deserialize_value_final(
+      const uint8_t*& data, size_t& size, const Tag<ByteRange>&)
+    {
+      ByteRange br{data, size};
+      serialized::skip(data, size, size);
+      return br;
+    }
+
+    /// Overload for std::vectors of bytes
+    static auto deserialize_value_final(
+      const uint8_t*& data, size_t& size, const Tag<std::vector<uint8_t>>&)
+    {
+      return serialized::read(data, size, size);
+    }
+
+    /// Generic case - fallback to deserialize_value
+    template <typename T>
+    static T deserialize_value_final(
+      const uint8_t*& data, size_t& size, const Tag<T>& tag)
+    {
+      return deserialize_value(data, size, tag);
+    }
+    ///@}
+
     template <typename T, typename... Ts>
     static auto deserialize_impl(const uint8_t* data, size_t size)
     {
       using StrippedT = nonstd::remove_cvref_t<T>;
 
-      const auto next =
-        std::make_tuple(deserialize_value(data, size, Tag<StrippedT>{}));
-
       if constexpr (sizeof...(Ts) == 0)
       {
-        return next;
+        return std::make_tuple(
+          deserialize_value_final(data, size, Tag<StrippedT>{}));
       }
       else
       {
+        const auto next =
+          std::make_tuple(deserialize_value(data, size, Tag<StrippedT>{}));
         return std::tuple_cat(next, deserialize_impl<Ts...>(data, size));
       }
     }
@@ -364,8 +416,15 @@ namespace serializer
     template <typename T, typename... Ts>
     static auto serialize(T&& t, Ts&&... ts)
     {
-      const auto next = serialize_value(std::forward<T>(t));
-      return std::tuple_cat(next, serialize(std::forward<Ts>(ts)...));
+      if constexpr (sizeof...(Ts) == 0)
+      {
+        return serialize_value_final(std::forward<T>(t));
+      }
+      else
+      {
+        const auto next = serialize_value(std::forward<T>(t));
+        return std::tuple_cat(next, serialize(std::forward<Ts>(ts)...));
+      }
     }
 
     template <typename... Ts>
