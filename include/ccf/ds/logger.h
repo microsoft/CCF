@@ -29,11 +29,7 @@ namespace logger
   static constexpr Level MOST_VERBOSE = static_cast<Level>(0);
 
   static constexpr const char* LevelNames[] = {
-    "trace",
-    "debug",
-    "info",
-    "fail",
-    "fatal"};
+    "trace", "debug", "info", "fail", "fatal"};
 
   static const char* to_string(Level l)
   {

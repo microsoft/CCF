@@ -23,7 +23,6 @@ else()
   unset(NODES)
 endif()
 
-# TODO: Rename to VERBOSE_ENCLAVE?
 option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
