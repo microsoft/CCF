@@ -12,6 +12,7 @@
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
+#include "service/tables/signatures.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -112,7 +113,8 @@ namespace kv
       Version v,
       Term term,
       const MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks) override
+      kv::ConsensusHookPtrs& hooks,
+      bool& force_ledger_chunk) override
     {
       auto c = apply_changes(
         changes,
@@ -129,6 +131,11 @@ namespace kv
         version = v;
         last_replicated = version;
         term_of_last_version = term;
+      }
+      if (snapshotter && changes.find(ccf::Tables::SIGNATURES) != changes.end())
+      {
+        force_ledger_chunk = snapshotter->record_committable(v);
+        LOG_TRACE_FMT("Force ledger chunk: {}", force_ledger_chunk);
       }
       return true;
     }
@@ -810,6 +817,7 @@ namespace kv
         LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
         return false;
       }
+
       return true;
     }
 

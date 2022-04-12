@@ -1301,7 +1301,11 @@ namespace aft
         const auto& entry = ds->get_entry();
 
         ledger->put_entry(
-          entry, globally_committable, false, ds->get_term(), ds->get_index());
+          entry,
+          globally_committable,
+          ds->force_ledger_chunk,
+          ds->get_term(),
+          ds->get_index());
 
         switch (apply_success)
         {

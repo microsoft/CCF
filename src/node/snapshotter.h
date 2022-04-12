@@ -225,7 +225,7 @@ namespace ccf
       store(store_),
       snapshot_tx_interval(snapshot_tx_interval_)
     {
-      next_snapshot_indices.push_back({initial_snapshot_idx, false, false});
+      next_snapshot_indices.push_back({initial_snapshot_idx, false, true});
     }
 
     void init_after_public_recovery()
@@ -259,7 +259,7 @@ namespace ccf
       last_snapshot_idx = idx;
 
       next_snapshot_indices.clear();
-      next_snapshot_indices.push_back({last_snapshot_idx, false, false});
+      next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
     bool record_committable(consensus::Index idx) override
@@ -297,10 +297,13 @@ namespace ccf
           "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
         store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-        // Snapshots trigger a ledger chunk, the backups need to know about that
-        // to keep their chunks in sync, so we set the header flag.
-        store->set_flag(
-          kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        if (forced)
+        {
+          // Snapshots trigger a ledger chunk, the backups need to know about
+          // that to keep their chunks in sync, so we set the header flag.
+          store->set_flag(
+            kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        }
 
         return due;
       }

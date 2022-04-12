@@ -684,6 +684,8 @@ namespace kv
     // Thus, a large rollback is one which did not result from the map creating
     // issue. https://github.com/microsoft/CCF/issues/2799
     virtual bool should_rollback_to_last_committed() = 0;
+
+    bool force_ledger_chunk = false;
   };
 
   class AbstractStore
