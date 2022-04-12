@@ -142,6 +142,19 @@ namespace ccf::indexing::strategies
     std::optional<SeqNoCollection> get_write_txs_impl(
       const ccf::ByteVector& serialised_key, ccf::SeqNo from, ccf::SeqNo to)
     {
+      if (to < from)
+      {
+        throw std::logic_error(
+          fmt::format("Range goes backwards: {} -> {}", from, to));
+      }
+
+      if (to > current_txid.seqno)
+      {
+        // If the requested range hasn't been populated yet, indicate
+        // that with nullopt
+        return std::nullopt;
+      }
+
       auto from_range = get_range_for(from);
       const auto to_range = get_range_for(to);
 

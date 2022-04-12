@@ -141,7 +141,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-v",
             "--verbose",
-            help="If set, start up logs are displayed",
+            help="Include more infra logs describing startup process",
             action="store_true",
             default=False,
         )
