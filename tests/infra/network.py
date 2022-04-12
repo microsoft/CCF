@@ -74,8 +74,8 @@ class StartupSnapshotIsOld(Exception):
 
 class NetworkShutdownError(Exception):
     def __init__(self, msg, errors=None):
-        self.errors = errors
         super().__init__(msg)
+        self.errors = errors
 
 
 def get_common_folder_name(workspace, label):
