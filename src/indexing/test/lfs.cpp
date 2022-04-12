@@ -33,6 +33,62 @@ void write_file_corrupted_at(
   f.close();
 }
 
+static std::vector<ActionDesc> create_actions(
+  ExpectedSeqNos& seqnos_hello,
+  ExpectedSeqNos& seqnos_saluton,
+  ExpectedSeqNos& seqnos_1,
+  ExpectedSeqNos& seqnos_2,
+  ExpectedSeqNos& seqnos_set,
+  ExpectedSeqNos& seqnos_value)
+{
+  std::vector<ActionDesc> actions;
+  actions.push_back({seqnos_hello, [](size_t i, kv::Tx& tx) {
+                       tx.wo(map_a)->put("hello", "value doesn't matter");
+                       return true;
+                     }});
+  actions.push_back({seqnos_saluton, [](size_t i, kv::Tx& tx) {
+                       if (i % 2 == 0)
+                       {
+                         tx.wo(map_a)->put("saluton", "value doesn't matter");
+                         return true;
+                       }
+                       return false;
+                     }});
+  actions.push_back({seqnos_1, [](size_t i, kv::Tx& tx) {
+                       if (i % 3 == 0)
+                       {
+                         tx.wo(map_b)->put(1, 42);
+                         return true;
+                       }
+                       return false;
+                     }});
+  actions.push_back({seqnos_2, [](size_t i, kv::Tx& tx) {
+                       if (i % 4 == 0)
+                       {
+                         tx.wo(map_b)->put(2, 42);
+                         return true;
+                       }
+                       return false;
+                     }});
+  actions.push_back({seqnos_set, [](size_t i, kv::Tx& tx) {
+                       if (i % 5 == 0)
+                       {
+                         tx.wo(set_a)->insert("set key");
+                         return true;
+                       }
+                       return false;
+                     }});
+  actions.push_back({seqnos_value, [](size_t i, kv::Tx& tx) {
+                       if (i % 6 == 0)
+                       {
+                         tx.wo(value_a)->put("value doesn't matter");
+                         return true;
+                       }
+                       return false;
+                     }});
+  return actions;
+}
+
 TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 {
   messaging::BufferProcessor host_bp("lfs_host");
@@ -166,11 +222,24 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   auto index_a = std::make_shared<StratA>(map_a, node_context, 100, 4);
   REQUIRE(indexer.install_strategy(index_a));
 
+  using StratSet =
+    ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(set_a)>;
+  auto index_set = std::make_shared<StratSet>(set_a, node_context, 100, 4);
+  REQUIRE(indexer.install_strategy(index_set));
+
+  using StratValue =
+    ccf::indexing::strategies::SeqnosForValue_Bucketed<decltype(value_a)>;
+  auto index_value =
+    std::make_shared<StratValue>(value_a, node_context, 100, 4);
+  REQUIRE(indexer.install_strategy(index_value));
+
   static constexpr auto num_transactions =
     ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
-  ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
-  create_transactions(
-    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
+  ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, seqnos_set,
+    seqnos_value;
+  auto actions = create_actions(
+    seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, seqnos_set, seqnos_value);
+  create_transactions(kv_store, actions);
 
   auto tick_until_caught_up = [&]() {
     while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
@@ -260,6 +329,55 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     }
   };
 
+  auto fetch_all_value = [&](
+                           auto& strat,
+                           const auto& expected,
+                           bool should_fail = false) {
+    auto range_start = 0;
+    auto range_end = request_range;
+
+    while (true)
+    {
+      LOG_TRACE_FMT(
+        "Fetching {} from {} to {}", strat->get_name(), range_start, range_end);
+
+      auto results = strat->get_write_txs_in_range(range_start, range_end);
+
+      if (!results.has_value())
+      {
+        // This required an async load from disk
+        REQUIRE(flush_ringbuffers() > 0);
+
+        results = strat->get_write_txs_in_range(range_start, range_end);
+
+        if (should_fail && !results.has_value())
+        {
+          // Ringbuffer flush was insufficient to fill the requested range.
+          // Likely a corrupted or missing file, which needs a full re-index to
+          // resolve
+          return;
+        }
+        else
+        {
+          REQUIRE(results.has_value());
+        }
+      }
+
+      REQUIRE(check_seqnos(expected, results, false));
+
+      if (range_end == current_seqno)
+      {
+        REQUIRE(!should_fail);
+        break;
+      }
+      else
+      {
+        range_start = range_end + 1;
+        range_end = std::min(range_start + request_range, current_seqno);
+      }
+    }
+  };
+
   {
     INFO("Old entries must be fetched asynchronously");
 
@@ -291,8 +409,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
   {
     INFO("Both indexes continue to be updated with new entries");
-    REQUIRE(create_transactions(
-      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2));
+    REQUIRE(create_transactions(kv_store, actions));
 
     current_ = kv_store.current_txid();
     current = {current_.term, current_.version};
@@ -308,6 +425,9 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
     fetch_all(index_b, 1, seqnos_1);
     fetch_all(index_b, 2, seqnos_2);
+
+    fetch_all(index_set, "set key", seqnos_set);
+    fetch_all_value(index_value, seqnos_value);
   }
 
   {
@@ -321,6 +441,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       REQUIRE(index_b->get_indexed_watermark() == current);
 
       fetch_all(index_b, 1, seqnos_1, true);
+      fetch_all(index_set, "set key", seqnos_set, true);
+      fetch_all_value(index_value, seqnos_value, true);
 
       // Now index_b has also seen a missing file
       REQUIRE(index_b->get_indexed_watermark() != current);
@@ -335,6 +457,9 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
       fetch_all(index_b, 1, seqnos_1);
       fetch_all(index_b, 2, seqnos_2);
+
+      fetch_all(index_set, "set key", seqnos_set);
+      fetch_all_value(index_value, seqnos_value);
     };
 
     // Note: We delete/corrupt every file, since we don't know which files apply
