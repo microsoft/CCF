@@ -19,6 +19,7 @@ DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 DEFAULT_AUTHORITY = "Service"
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
+SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 
 
@@ -82,6 +83,12 @@ class RPCInterface(Interface):
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
         return interface
+
+
+def make_secondary_interface():
+    return {
+        SECONDARY_RPC_INTERFACE: RPCInterface(endorsement=Endorsement(authority="Node"))
+    }
 
 
 @dataclass

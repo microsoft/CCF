@@ -19,6 +19,7 @@ import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
 import tempfile
+import infra.interfaces
 
 from loguru import logger as LOG
 
@@ -388,6 +389,7 @@ def test_each_node_cert_renewal(network, args):
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
+    # TODO: Also test with self-signed interfaces
     test_vectors = [
         (now, validity_period_allowed, None),
         (now, None, None),  # Omit validity period (deduced from service configuration)
@@ -514,26 +516,29 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 
 
 def gov(args):
+    for node in args.nodes:
+        node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        network.consortium.set_authenticate_session(args.authenticate_session)
-        test_create_endpoint(network, args)
-        test_consensus_status(network, args)
-        test_member_data(network, args)
-        network = test_all_members(network, args)
-        test_quote(network, args)
-        test_user(network, args)
-        test_jinja_templates(network, args)
-        test_no_quote(network, args)
-        test_node_data(network, args)
-        test_ack_state_digest_update(network, args)
-        test_invalid_client_signature(network, args)
+        # network.consortium.set_authenticate_session(args.authenticate_session)
+        # test_create_endpoint(network, args)
+        # test_consensus_status(network, args)
+        # test_member_data(network, args)
+        # network = test_all_members(network, args)
+        # test_quote(network, args)
+        # test_user(network, args)
+        # test_jinja_templates(network, args)
+        # test_no_quote(network, args)
+        # test_node_data(network, args)
+        # test_ack_state_digest_update(network, args)
+        # test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
-        test_all_nodes_cert_renewal(network, args)
-        test_service_cert_renewal(network, args)
-        test_service_cert_renewal_extended(network, args)
+        # test_all_nodes_cert_renewal(network, args)
+        # test_service_cert_renewal(network, args)
+        # test_service_cert_renewal_extended(network, args)
 
 
 def js_gov(args):
@@ -573,29 +578,29 @@ if __name__ == "__main__":
         authenticate_session=True,
     )
 
-    cr.add(
-        "session_noauth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=False,
-    )
+    # cr.add(
+    #     "session_noauth",
+    #     gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=False,
+    # )
 
-    cr.add(
-        "js",
-        js_gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
+    # cr.add(
+    #     "js",
+    #     js_gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=True,
+    # )
 
-    cr.add(
-        "history",
-        governance_history.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "history",
+    #     governance_history.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run(2)
