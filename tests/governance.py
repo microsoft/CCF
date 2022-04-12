@@ -389,63 +389,78 @@ def test_each_node_cert_renewal(network, args):
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
+    # Nodes should be started with at least 2 RPC interfaces to
+    # test endorsed and self-signed node certificate refresh
+    assert len(primary.host.rpc_interfaces) > 1
+
     # TODO: Also test with self-signed interfaces
     test_vectors = [
-        (now, validity_period_allowed, None),
-        (now, None, None),  # Omit validity period (deduced from service configuration)
-        (now, -1, infra.proposal.ProposalNotCreated),
-        (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
+        (now, 10, None),
+        # (now, None, None),  # Omit validity period (deduced from service configuration)
+        # (now, -1, infra.proposal.ProposalNotCreated),
+        # (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
     for (valid_from, validity_period_days, expected_exception) in test_vectors:
         for node in network.get_joined_nodes():
-            with node.client() as c:
-                c.get("/node/network/nodes")
+            for interface_name, rpc_interface in node.host.rpc_interfaces.items():
+                LOG.error(rpc_interface)
+                with node.client(interface_name=interface_name) as c:
+                    c.get("/node/network/nodes")
 
-                node_cert_tls_before = node.get_tls_certificate_pem()
-                assert (
-                    infra.crypto.compute_public_key_der_hash_hex_from_pem(
-                        node_cert_tls_before
+                    node_cert_tls_before = node.get_tls_certificate_pem(
+                        interface_name=interface_name
                     )
-                    == node.node_id
-                )
-
-                try:
-                    network.consortium.set_node_certificate_validity(
-                        primary,
-                        node,
-                        valid_from=valid_from,
-                        validity_period_days=validity_period_days,
-                    )
-                    node.set_certificate_validity_period(
-                        valid_from,
-                        validity_period_days
-                        or args.maximum_node_certificate_validity_days,
-                    )
-                except Exception as e:
-                    if expected_exception is None:
-                        raise e
-                    assert isinstance(e, expected_exception)
-                    continue
-                else:
                     assert (
-                        expected_exception is None
-                    ), "Proposal should have not succeeded"
+                        infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                            node_cert_tls_before
+                        )
+                        == node.node_id
+                    )
 
-                # Node certificate is updated on global commit hook
-                network.wait_for_all_nodes_to_commit(primary)
+                    LOG.warning(node_cert_tls_before)
 
-                node_cert_tls_after = node.get_tls_certificate_pem()
-                assert (
-                    node_cert_tls_before != node_cert_tls_after
-                ), f"Node {node.local_node_id} certificate was not renewed"
-                node.verify_certificate_validity_period()
-                LOG.info(
-                    f"Certificate for node {node.local_node_id} has successfully been renewed"
-                )
+                    try:
+                        network.consortium.set_node_certificate_validity(
+                            primary,
+                            node,
+                            valid_from=valid_from,
+                            validity_period_days=validity_period_days,
+                        )
+                        node.set_certificate_validity_period(
+                            valid_from,
+                            validity_period_days
+                            or args.maximum_node_certificate_validity_days,
+                        )
+                    except Exception as e:
+                        if expected_exception is None:
+                            raise e
+                        assert isinstance(e, expected_exception)
+                        continue
+                    else:
+                        assert (
+                            expected_exception is None
+                        ), "Proposal should have not succeeded"
 
-                # Long-connected client is still connected after certificate renewal
-                c.get("/node/network/nodes")
+                    # Node certificate is updated on global commit hook
+                    network.wait_for_all_nodes_to_commit(primary)
+
+                    node_cert_tls_after = node.get_tls_certificate_pem(
+                        interface_name=interface_name
+                    )
+                    LOG.success(node_cert_tls_after)
+                    assert (
+                        node_cert_tls_before != node_cert_tls_after
+                    ), f"Node {node.local_node_id} certificate was not renewed"
+                    node.verify_certificate_validity_period(
+                        interface_name=interface_name
+                    )
+                    LOG.info(
+                        f"Certificate for node {node.local_node_id} has successfully been renewed"
+                    )
+
+                    # Long-connected client is still connected after certificate renewal
+                    c.get("/node/network/nodes")
 
     return network
 

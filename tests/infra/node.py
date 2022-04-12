@@ -502,17 +502,19 @@ class Node:
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
-    def get_public_rpc_host(self):
-        return self.remote.get_host()
+    def get_public_rpc_host(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
+        return self.host.rpc_interfaces[interface_name].public_host
 
     def get_public_rpc_port(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
-        return self.host.rpc_interfaces[interface_name].port
+        return self.host.rpc_interfaces[interface_name].public_port
 
     def session_ca(self, self_signed_ok):
         if self_signed_ok:
-            return {"ca": ""}
+            return {"ca": os.path.join(self.common_dir, f"{self.local_node_id}.pem")}
         else:
             return {"ca": os.path.join(self.common_dir, "service_cert.pem")}
 
@@ -529,6 +531,18 @@ class Node:
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
             )
 
+        try:
+            rpc_interface = self.host.rpc_interfaces[interface_name]
+        except KeyError:
+            LOG.error(
+                f'Cannot create client on interface "{interface_name}" - available interfaces: {self.host.rpc_interfaces.keys()}'
+            )
+            raise
+
+        # TODO: Enum for endorsement type?
+        if rpc_interface.endorsement.authority == "Node":
+            self_signed_ok = True
+
         akwargs = self.session_ca(self_signed_ok)
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
@@ -540,14 +554,6 @@ class Node:
         if self.curl:
             akwargs["curl"] = True
 
-        try:
-            rpc_interface = self.host.rpc_interfaces[interface_name]
-        except KeyError:
-            LOG.error(
-                f'Cannot create client on interface "{interface_name}" - available interfaces: {self.host.rpc_interfaces.keys()}'
-            )
-            raise
-
         return infra.clients.client(
             rpc_interface.public_host, rpc_interface.public_port, **akwargs
         )
@@ -557,7 +563,7 @@ class Node:
     ):
         return ssl.get_server_certificate(
             (
-                self.get_public_rpc_host(),
+                self.get_public_rpc_host(interface_name=interface_name),
                 self.get_public_rpc_port(interface_name=interface_name),
             )
         )
