@@ -890,7 +890,7 @@ class CCFRemote(object):
         self.remote.resume()
 
     def get_startup_files(self, dst_path, timeout=FILE_TIMEOUT_S):
-        self.remote.get(self.pem, dst_path, timeout=0.1)
+        self.remote.get(self.pem, dst_path, timeout=REMOTE_STARTUP_TIMEOUT_S)
         if self.node_address_file is not None:
             self.remote.get(self.node_address_file, dst_path, timeout=timeout)
         if self.rpc_addresses_file is not None:
