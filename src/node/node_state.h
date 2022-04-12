@@ -2069,15 +2069,18 @@ namespace ccf
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
-              // TODO: Only when going through proposal!
-              // Either because the network TLS connections aren't yet open, or
-              // the member frontend is closed
+              // TODO: Can be base this check on the hook_version only??
+              // Does this work for joining nodes too?
               if (is_member_frontend_open())
               {
+                // Also, automatically refresh self-signed node certificate,
+                // using the same validity period as the endorsed certificate.
+                // Note that this is only done when the certificate is renewed
+                // via proposal (i.e. when the member frontend is open), but not
+                // for the very first transaction.
                 auto [valid_from, valid_to] =
                   crypto::make_verifier(endorsed_node_cert.value())
                     ->validity_period();
-                LOG_FAIL_FMT("{} - {}", valid_from, valid_to);
                 self_signed_node_cert = create_self_signed_cert(
                   node_sign_kp,
                   config.node_certificate.subject_name,

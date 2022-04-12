@@ -909,7 +909,42 @@ namespace ccf
           "status", ccf::endpoints::OptionalParameter)
         .install();
 
-      // TODO: Add command to return self-signed node certificate
+      auto get_self_signed_certificate = [this](auto& args, nlohmann::json&&) {
+        // TODO: Retrieve self-signed node certificate from node
+        this->context
+          // Query node for configurations, separate current from pending
+          if (consensus != nullptr)
+        {
+          auto cfg = consensus->get_latest_configuration();
+          ConsensusConfig cc;
+          for (auto& [nid, ninfo] : cfg)
+          {
+            cc.emplace(
+              nid.value(),
+              ConsensusNodeConfig{
+                fmt::format("{}:{}", ninfo.hostname, ninfo.port)});
+          }
+          return make_success(cc);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No configured consensus");
+        }
+      };
+
+      make_command_endpoint(
+        "/self_signed_certificate",
+        HTTP_GET,
+        json_command_adapter(get_self_signed_certificate),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, crypto::Pem>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
         std::string node_id;
