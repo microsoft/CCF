@@ -120,9 +120,10 @@ def run(args):
         LOG.info("All CCF nodes stopped.")
     except infra.network.NetworkShutdownError as e:
         LOG.error("Error! Some nodes ran into issues:")
-        for node_id, errors in e.errors.items():
-            error_msg = "\n".join(errors)
-            LOG.error(f"- Node [{node_id}]:\n{error_msg}")
+        for node_id, (errors, fatal_errors) in e.errors.items():
+            errors = "\n".join(errors)
+            fatal_errors = "\n".join(fatal_errors)
+            LOG.error(f"- Node [{node_id}]:\n{fatal_errors}\n{errors}\n")
         LOG.info(
             "Please raise a bug if the issue is unexpected: https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=Unexpected%20error%20when%20running%20sandbox%20script"
         )

@@ -655,11 +655,11 @@ class Network:
 
         node_errors = {}
         for node in self.nodes:
-            _, fatal_errors = node.stop(
+            errors, fatal_errors = node.stop(
                 ignore_error_patterns=self.ignore_error_patterns
             )
-            node_errors[node.local_node_id] = fatal_errors
-            if fatal_errors:
+            node_errors[node.local_node_id] = (errors, fatal_errors)
+            if fatal_errors or errors:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")

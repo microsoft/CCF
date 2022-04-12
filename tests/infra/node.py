@@ -309,6 +309,8 @@ class Node:
         # Detect whether node started up successfully
         for _ in range(NODE_STARTUP_RETRY_COUNT):
             try:
+                if self.remote.check_done():
+                    raise
                 self.remote.get_startup_files(self.common_dir)
             except Exception as e:
                 if self.remote.check_done():
