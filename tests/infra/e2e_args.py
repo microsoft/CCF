@@ -108,7 +108,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("release", "debug", "virtual"),
     )
     parser.add_argument(
-        "-l",
         "--host-log-level",
         help="Runtime host log level",
         default="info",
