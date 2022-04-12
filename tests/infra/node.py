@@ -310,7 +310,7 @@ class Node:
         for _ in range(NODE_STARTUP_RETRY_COUNT):
             try:
                 if self.remote.check_done():
-                    raise
+                    raise RuntimeError("Node crashed at startup")
                 self.remote.get_startup_files(self.common_dir)
             except Exception as e:
                 if self.remote.check_done():
