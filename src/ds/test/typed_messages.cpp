@@ -30,9 +30,9 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   multi_variable_size_a,
   serializer::ByteRange,
   std::vector<uint8_t>,
+  unsigned short int,
   serializer::ByteRange,
-  std::vector<uint8_t>,
-  unsigned short int);
+  std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(finish);
 
 TEST_CASE(
@@ -166,7 +166,7 @@ TEST_CASE(
 
     DISPATCHER_SET_MESSAGE_HANDLER(
       bp, multi_variable_size_a, [&](const uint8_t* data, size_t size) {
-        auto [aa, bb, cc, dd, uu] =
+        auto [aa, bb, uu, cc, dd] =
           ringbuffer::read_message<multi_variable_size_a>(data, size);
 
         // To avoid "error: reference to local binding 'XX' declared in
@@ -181,6 +181,9 @@ TEST_CASE(
         const auto bb_data = bb.data();
         REQUIRE(memcmp(b.data(), bb_data, b.size()) == 0);
 
+        const auto uu_ = uu;
+        REQUIRE(u == uu_);
+
         const auto cc_size = cc.size;
         REQUIRE(cc_size == c.size());
         const auto cc_data = cc.data;
@@ -191,13 +194,10 @@ TEST_CASE(
         const auto dd_data = dd.data();
         REQUIRE(memcmp(d.data(), dd_data, d.size()) == 0);
 
-        const auto uu_ = uu;
-        REQUIRE(u == uu_);
-
         ++messages_seen;
       });
 
-    RINGBUFFER_WRITE_MESSAGE(multi_variable_size_a, writer_p, a, b, c, d, u);
+    RINGBUFFER_WRITE_MESSAGE(multi_variable_size_a, writer_p, a, b, u, c, d);
     RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
     bp.run(rr);
     REQUIRE(messages_seen == 1);
@@ -206,7 +206,7 @@ TEST_CASE(
     std::swap(a, d);
     std::swap(c, d);
     ++u;
-    RINGBUFFER_WRITE_MESSAGE(multi_variable_size_a, writer_p, a, b, c, d, u);
+    RINGBUFFER_WRITE_MESSAGE(multi_variable_size_a, writer_p, a, b, u, c, d);
     RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
     bp.run(rr);
     REQUIRE(messages_seen == 2);
@@ -215,7 +215,7 @@ TEST_CASE(
     std::swap(a, b);
     std::swap(b, c);
     ++u;
-    RINGBUFFER_WRITE_MESSAGE(multi_variable_size_a, writer_p, a, b, c, d, u);
+    RINGBUFFER_WRITE_MESSAGE(multi_variable_size_a, writer_p, a, b, u, c, d);
     RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
     bp.run(rr);
     REQUIRE(messages_seen == 3);
