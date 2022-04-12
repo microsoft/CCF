@@ -66,6 +66,11 @@ namespace ccfapp
       return {};
     }
 
+    virtual crypto::Pem get_self_signed_certificate() const
+    {
+      return {};
+    }
+
     ccf::historical::AbstractStateCache& get_historical_state()
     {
       auto historical_state_cache =

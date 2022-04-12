@@ -909,6 +909,8 @@ namespace ccf
           "status", ccf::endpoints::OptionalParameter)
         .install();
 
+      // TODO: Add command to return self-signed node certificate
+
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
         std::string node_id;
         std::string error;

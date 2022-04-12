@@ -121,7 +121,7 @@ namespace ccf
   }
 #endif
 
-  class NodeState : public ccf::AbstractNodeState
+  class NodeState : public AbstractNodeState
   {
   private:
     //
@@ -154,11 +154,11 @@ namespace ccf
     NetworkState& network;
 
     std::shared_ptr<kv::Consensus> consensus;
-    std::shared_ptr<ccf::RPCMap> rpc_map;
-    std::shared_ptr<ccf::indexing::Indexer> indexer;
+    std::shared_ptr<RPCMap> rpc_map;
+    std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
-    std::shared_ptr<ccf::RPCSessions> rpcsessions;
+    std::shared_ptr<RPCSessions> rpcsessions;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
@@ -246,7 +246,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      std::shared_ptr<ccf::RPCSessions> rpcsessions,
+      std::shared_ptr<RPCSessions> rpcsessions,
       ShareManager& share_manager,
       crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
@@ -284,9 +284,9 @@ namespace ccf
     //
     void initialize(
       const consensus::Configuration& consensus_config_,
-      std::shared_ptr<ccf::RPCMap> rpc_map_,
-      std::shared_ptr<ccf::AbstractRPCResponder> rpc_sessions_,
-      std::shared_ptr<ccf::indexing::Indexer> indexer_,
+      std::shared_ptr<RPCMap> rpc_map_,
+      std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
+      std::shared_ptr<indexing::Indexer> indexer_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -299,10 +299,9 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels =
-        std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
+      n2n_channels = std::make_shared<NodeToNodeChannelManager>(writer_factory);
 
-      cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
+      cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.type);
 
       sm.advance(NodeStartupState::initialized);
@@ -679,8 +678,8 @@ namespace ccf
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
 
-      http::Request r(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "join"));
+      http::Request r(
+        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
@@ -1485,12 +1484,12 @@ namespace ccf
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
       auto [msg_type, from, payload] =
-        ringbuffer::read_message<ccf::node_inbound>(data, size);
+        ringbuffer::read_message<node_inbound>(data, size);
 
       auto payload_data = payload.data;
       auto payload_size = payload.size;
 
-      if (msg_type == ccf::NodeMsgType::forwarded_msg)
+      if (msg_type == NodeMsgType::forwarded_msg)
       {
         cmd_forwarder->recv_message(from, payload_data, payload_size);
       }
@@ -1732,22 +1731,31 @@ namespace ccf
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
-    void open_frontend(
-      ccf::ActorsType actor,
-      std::optional<crypto::Pem*> identity = std::nullopt)
+    auto find_frontend(ActorsType actor)
     {
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())
       {
         throw std::logic_error(
-          fmt::format("Cannot open {} frontend", (int)actor));
+          fmt::format("Cannot find {} frontend", (int)actor));
       }
-      fe.value()->open(identity);
+      return fe.value();
     }
 
-    void open_user_frontend() override
+    void open_frontend(
+      ActorsType actor, std::optional<crypto::Pem*> identity = std::nullopt)
     {
-      open_frontend(ccf::ActorsType::users, &network.identity->cert);
+      find_frontend(actor)->open(identity);
+    }
+
+    void open_user_frontend()
+    {
+      open_frontend(ActorsType::users, &network.identity->cert);
+    }
+
+    bool is_member_frontend_open()
+    {
+      return find_frontend(ActorsType::members)->is_open();
     }
 
     std::vector<uint8_t> serialize_create_request(bool create_consortium = true)
@@ -1786,8 +1794,8 @@ namespace ccf
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
-      http::Request request(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "create"));
+      http::Request request(
+        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
@@ -1835,9 +1843,9 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
-      auto node_session = std::make_shared<ccf::SessionContext>(
-        ccf::InvalidSessionId, self_signed_node_cert.raw());
-      auto ctx = ccf::make_rpc_context(node_session, packed);
+      auto node_session = std::make_shared<SessionContext>(
+        InvalidSessionId, self_signed_node_cert.raw());
+      auto ctx = make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
 
@@ -2061,6 +2069,24 @@ namespace ccf
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
+              // TODO: Only when going through proposal!
+              // Either because the network TLS connections aren't yet open, or
+              // the member frontend is closed
+              if (is_member_frontend_open())
+              {
+                auto [valid_from, valid_to] =
+                  crypto::make_verifier(endorsed_node_cert.value())
+                    ->validity_period();
+                LOG_FAIL_FMT("{} - {}", valid_from, valid_to);
+                self_signed_node_cert = create_self_signed_cert(
+                  node_sign_kp,
+                  config.node_certificate.subject_name,
+                  subject_alt_names,
+                  valid_from,
+                  valid_to);
+                accept_node_tls_connections();
+              }
+
               open_frontend(ActorsType::members);
             }
           }));
@@ -2215,7 +2241,7 @@ namespace ccf
       auto resharing_tracker = nullptr;
       if (consensus_config.type == ConsensusType::BFT)
       {
-        std::make_shared<ccf::SplitIdentityResharingTracker>(
+        std::make_shared<SplitIdentityResharingTracker>(
           shared_state,
           rpc_map,
           node_sign_kp,

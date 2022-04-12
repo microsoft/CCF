@@ -403,7 +403,10 @@ def test_each_node_cert_renewal(network, args):
 
     for (valid_from, validity_period_days, expected_exception) in test_vectors:
         for node in network.get_joined_nodes():
-            for interface_name, rpc_interface in node.host.rpc_interfaces.items():
+            interface_name = infra.interfaces.SECONDARY_RPC_INTERFACE
+            rpc_interface = node.host.rpc_interfaces[interface_name]
+            if True:
+                # for interface_name, rpc_interface in node.host.rpc_interfaces.items():
                 LOG.error(rpc_interface)
                 with node.client(interface_name=interface_name) as c:
                     c.get("/node/network/nodes")
