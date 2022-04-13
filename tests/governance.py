@@ -553,6 +553,12 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
     valid_from = valid_from or datetime.now()
     validity_period_days = args.maximum_node_certificate_validity_days
 
+    self_signed_node_certs_before = {}
+    for node in network.get_joined_nodes():
+        self_signed_node_certs_before[
+            node.local_node_id
+        ] = node.retrieve_new_self_signed_cert()
+
     network.consortium.set_all_nodes_certificate_validity(
         primary,
         valid_from=valid_from,
@@ -561,6 +567,10 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 
     for node in network.get_joined_nodes():
         node.set_certificate_validity_period(valid_from, validity_period_days)
+        assert (
+            self_signed_node_certs_before[node.local_node_id]
+            != node.retrieve_new_self_signed_cert()
+        ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
 
 
 def gov(args):
@@ -571,22 +581,22 @@ def gov(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        # network.consortium.set_authenticate_session(args.authenticate_session)
-        # test_create_endpoint(network, args)
-        # test_consensus_status(network, args)
-        # test_member_data(network, args)
-        # network = test_all_members(network, args)
-        # test_quote(network, args)
-        # test_user(network, args)
-        # test_jinja_templates(network, args)
-        # test_no_quote(network, args)
-        # test_node_data(network, args)
-        # test_ack_state_digest_update(network, args)
-        # test_invalid_client_signature(network, args)
+        network.consortium.set_authenticate_session(args.authenticate_session)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_member_data(network, args)
+        network = test_all_members(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_jinja_templates(network, args)
+        test_no_quote(network, args)
+        test_node_data(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
-        # test_all_nodes_cert_renewal(network, args)
-        # test_service_cert_renewal(network, args)
-        # test_service_cert_renewal_extended(network, args)
+        test_all_nodes_cert_renewal(network, args)
+        test_service_cert_renewal(network, args)
+        test_service_cert_renewal_extended(network, args)
 
 
 def js_gov(args):
@@ -626,29 +636,29 @@ if __name__ == "__main__":
         authenticate_session=True,
     )
 
-    # cr.add(
-    #     "session_noauth",
-    #     gov,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session=False,
-    # )
+    cr.add(
+        "session_noauth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=False,
+    )
 
-    # cr.add(
-    #     "js",
-    #     js_gov,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session=True,
-    # )
+    cr.add(
+        "js",
+        js_gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=True,
+    )
 
-    # cr.add(
-    #     "history",
-    #     governance_history.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    cr.add(
+        "history",
+        governance_history.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     cr.run(2)
