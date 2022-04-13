@@ -176,7 +176,9 @@ def test_no_quote(network, args):
         infra.interfaces.HostSpec(
             rpc_interfaces={
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    endorsement=infra.interfaces.Endorsement(authority="Node")
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    )
                 )
             }
         )
@@ -213,7 +215,9 @@ def test_node_data(network, args):
                 infra.interfaces.HostSpec(
                     rpc_interfaces={
                         infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                            endorsement=infra.interfaces.Endorsement(authority="Node")
+                            endorsement=infra.interfaces.Endorsement(
+                                authority=infra.interfaces.EndorsementAuthority.Node
+                            )
                         )
                     }
                 ),
@@ -417,7 +421,10 @@ def test_each_node_cert_renewal(network, args):
 
                     # Verify that presented self-signed certificate matches the one returned by
                     # operator endpoint
-                    if rpc_interface.endorsement.authority == "Node":  # TODO: Enum
+                    if (
+                        rpc_interface.endorsement.authority
+                        == infra.interfaces.EndorsementAuthority.Node
+                    ):
                         self_signed_cert = node.retrieve_new_self_signed_cert(
                             interface_name=interface_name
                         )
@@ -463,7 +470,10 @@ def test_each_node_cert_renewal(network, args):
                     ), f"Node {node.local_node_id} certificate was not renewed"
                     LOG.success(node_cert_tls_after)
 
-                    if rpc_interface.endorsement.authority == "Node":  # TODO: Enum
+                    if (
+                        rpc_interface.endorsement.authority
+                        == infra.interfaces.EndorsementAuthority.Node
+                    ):
                         # verify_ca is false since the certificate has been renewed and
                         # it needs to be retrieved from the node
                         self_signed_cert = node.retrieve_new_self_signed_cert(

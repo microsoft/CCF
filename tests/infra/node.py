@@ -557,9 +557,8 @@ class Node:
             )
             raise
 
-        # TODO: Enum for endorsement type?
         akwargs = self.session_ca(
-            self_signed=rpc_interface.endorsement.authority == "Node",
+            self_signed=rpc_interface.endorsement.authority == infra.interfaces.EndorsementAuthority.Node,
             verify_ca=verify_ca,
         )
         akwargs.update(self.session_auth(identity))

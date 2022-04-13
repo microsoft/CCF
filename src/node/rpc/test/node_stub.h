@@ -85,6 +85,11 @@ namespace ccf
     {
       throw std::logic_error("Unimplemented");
     }
+
+    crypto::Pem get_self_signed_certificate() override
+    {
+      return {};
+    }
   };
 
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects
