@@ -2078,14 +2078,14 @@ namespace ccf
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
-              // TODO: Does this work for joining nodes too?
               if (is_member_frontend_open())
               {
                 // Also, automatically refresh self-signed node certificate,
                 // using the same validity period as the endorsed certificate.
                 // Note that this is only done when the certificate is renewed
-                // via proposal (i.e. when the member frontend is open), but not
-                // for the very first transaction.
+                // via proposal (i.e. when the member frontend is open), and not
+                // for the initial addition of the node (the self-signed
+                // certificate is output to disk then).
                 auto [valid_from, valid_to] =
                   crypto::make_verifier(endorsed_node_cert.value())
                     ->validity_period();
