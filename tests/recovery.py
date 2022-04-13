@@ -112,14 +112,11 @@ def test_recover_service_with_wrong_identity(network, args):
 
     exception = None
     try:
-        # The first remote.get() will fail because the node aborts before it
-        # writes its node cert, so we want a short file_timeout.
         broken_network.start_in_recovery(
             args,
             ledger_dir=current_ledger_dir,
             committed_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
-            file_timeout=3,
         )
     except Exception as ex:
         exception = ex
