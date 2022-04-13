@@ -2277,24 +2277,26 @@ namespace ccf
       // expected to always be called together and for the same version as they
       // are always written by each signature transaction.
 
-      network.tables->set_global_hook(
+      network.tables->set_map_hook(
         network.signatures.get_name(),
-        network.signatures.wrap_commit_hook(
+        network.signatures.wrap_map_hook(
           [s = this->snapshotter](
             kv::Version version, const Signatures::Write& w) {
             assert(w.has_value());
             auto sig = w.value();
             s->record_signature(version, sig.sig, sig.node, sig.cert);
+            return kv::ConsensusHookPtr(nullptr);
           }));
 
-      network.tables->set_global_hook(
+      network.tables->set_map_hook(
         network.serialise_tree.get_name(),
-        network.serialise_tree.wrap_commit_hook(
+        network.serialise_tree.wrap_map_hook(
           [s = this->snapshotter](
             kv::Version version, const SerialisedMerkleTree::Write& w) {
             assert(w.has_value());
             auto tree = w.value();
             s->record_serialised_tree(version, tree);
+            return kv::ConsensusHookPtr(nullptr);
           }));
 
       network.tables->set_global_hook(
