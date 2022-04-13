@@ -193,7 +193,7 @@ namespace ccf
 
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
-        if (idx > it->evidence_idx && it->sig.has_value())
+        if (idx > it->evidence_idx)
         {
           auto serialised_receipt = build_and_serialise_receipt(
             it->sig.value(),
