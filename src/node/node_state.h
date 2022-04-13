@@ -853,8 +853,7 @@ namespace ccf
         {
           // If the ledger entry is a signature, it is safe to compact the store
           store->compact(last_recovered_idx);
-          auto tx = store->create_tx();
-          GenesisGenerator g(network, tx);
+          auto tx = store->create_read_only_tx();
           auto last_sig = tx.ro(network.signatures)->get();
 
           if (!last_sig.has_value())
@@ -901,10 +900,7 @@ namespace ccf
             // Inform snapshotter of all signature entries so that this node can
             // continue generating snapshots at the correct interval once the
             // recovery is complete
-            if (snapshotter->record_committable(last_recovered_idx))
-            {
-              trigger_ledger_chunk(tx);
-            }
+            snapshotter->record_committable(last_recovered_idx);
             snapshotter->commit(last_recovered_idx, false);
           }
         }
