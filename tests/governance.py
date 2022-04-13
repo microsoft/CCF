@@ -397,21 +397,18 @@ def test_each_node_cert_renewal(network, args):
     # test endorsed and self-signed node certificate refresh
     assert len(primary.host.rpc_interfaces) > 1
 
-    # TODO: Also test with self-signed interfaces
     test_vectors = [
         (now, 10, None),
-        # (now, None, None),  # Omit validity period (deduced from service configuration)
-        # (now, -1, infra.proposal.ProposalNotCreated),
-        # (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
+        (now, None, None),  # Omit validity period (deduced from service configuration)
+        (now, -1, infra.proposal.ProposalNotCreated),
+        (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
     for (valid_from, validity_period_days, expected_exception) in test_vectors:
         for node in network.get_joined_nodes():
-            interface_name = infra.interfaces.SECONDARY_RPC_INTERFACE
-            rpc_interface = node.host.rpc_interfaces[interface_name]
-            if True:
-                # for interface_name, rpc_interface in node.host.rpc_interfaces.items():
-                LOG.error(rpc_interface)
+            LOG.info(f"Renewing certificate for node {node.local_node_id}")
+            for interface_name, rpc_interface in node.host.rpc_interfaces.items():
+                LOG.debug(f"On interface {interface_name}")
                 with node.client(interface_name=interface_name) as c:
                     c.get("/node/network/nodes")
 
@@ -421,13 +418,13 @@ def test_each_node_cert_renewal(network, args):
 
                     # Verify that presented self-signed certificate matches the one returned by
                     # operator endpoint
+                    self_signed_cert = node.retrieve_new_self_signed_cert(
+                        interface_name=interface_name
+                    )
                     if (
                         rpc_interface.endorsement.authority
                         == infra.interfaces.EndorsementAuthority.Node
                     ):
-                        self_signed_cert = node.retrieve_new_self_signed_cert(
-                            interface_name=interface_name
-                        )
                         assert node_cert_tls_before == self_signed_cert
 
                     assert (
@@ -468,24 +465,25 @@ def test_each_node_cert_renewal(network, args):
                     assert (
                         node_cert_tls_before != node_cert_tls_after
                     ), f"Node {node.local_node_id} certificate was not renewed"
-                    LOG.success(node_cert_tls_after)
 
+                    # verify_ca is false since the certificate has been renewed and
+                    # it needs to be retrieved from the node
+                    self_signed_cert = node.retrieve_new_self_signed_cert(
+                        interface_name=interface_name,
+                        verify_ca=rpc_interface.endorsement.authority
+                        != infra.interfaces.EndorsementAuthority.Node,
+                    )
                     if (
                         rpc_interface.endorsement.authority
                         == infra.interfaces.EndorsementAuthority.Node
                     ):
-                        # verify_ca is false since the certificate has been renewed and
-                        # it needs to be retrieved from the node
-                        self_signed_cert = node.retrieve_new_self_signed_cert(
-                            interface_name=interface_name, verify_ca=False
-                        )
                         assert node_cert_tls_after == self_signed_cert
 
-                        # Once the self-signed certificate has been retrieved and stored
-                        # on disk, it can be used to verify the server identity
-                        self_signed_cert = node.retrieve_new_self_signed_cert(
-                            interface_name=interface_name
-                        )
+                    # Once the self-signed certificate has been retrieved and stored
+                    # on disk, it can be used to verify the server identity
+                    self_signed_cert = node.retrieve_new_self_signed_cert(
+                        interface_name=interface_name
+                    )
 
                     node.verify_certificate_validity_period(
                         interface_name=interface_name

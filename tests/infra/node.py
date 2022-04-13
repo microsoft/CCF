@@ -529,7 +529,6 @@ class Node:
                 os.path.join(self.common_dir, f"{self.local_node_id}.pem"), "w"
             ) as self_signed_cert_file:
                 self_signed_cert_file.write(new_self_signed_cert)
-            LOG.error(new_self_signed_cert)
             return new_self_signed_cert
 
     def session_ca(self, self_signed=False, verify_ca=True):
@@ -563,7 +562,8 @@ class Node:
             raise
 
         akwargs = self.session_ca(
-            self_signed=rpc_interface.endorsement.authority == infra.interfaces.EndorsementAuthority.Node,
+            self_signed=rpc_interface.endorsement.authority
+            == infra.interfaces.EndorsementAuthority.Node,
             verify_ca=verify_ca,
         )
         akwargs.update(self.session_auth(identity))
