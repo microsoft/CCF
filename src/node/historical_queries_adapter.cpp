@@ -7,14 +7,14 @@
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
-#include "node/tx_receipt.h"
+#include "node/tx_receipt_impl.h"
 
 namespace ccf
 {
   static std::map<crypto::Pem, std::vector<crypto::Pem>>
     service_endorsement_cache;
 
-  ccf::Receipt describe_receipt(const TxReceipt& receipt, bool include_root)
+  ccf::Receipt describe_receipt(const TxReceiptImpl& receipt, bool include_root)
   {
     ccf::Receipt out;
     out.signature = crypto::b64_from_raw(receipt.signature);
@@ -72,7 +72,7 @@ namespace ccf
   }
 
   ccf::Receipt describe_receipt(
-    const TxReceiptPtr& receipt_ptr, bool include_root)
+    const TxReceiptImplPtr& receipt_ptr, bool include_root)
   {
     if (receipt_ptr == nullptr)
     {

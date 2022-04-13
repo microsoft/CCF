@@ -9,7 +9,7 @@
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "node/history.h"
-#include "node/tx_receipt.h"
+#include "node/tx_receipt_impl.h"
 
 #include <nlohmann/json.hpp>
 
@@ -239,7 +239,7 @@ namespace ccf
     auto proof = history.get_proof(seqno);
     ccf::ClaimsDigest cd;
     cd.set(std::move(claims_digest));
-    auto tx_receipt = std::make_shared<ccf::TxReceipt>(
+    auto tx_receipt = std::make_shared<ccf::TxReceiptImpl>(
       sig,
       proof.get_root(),
       proof.get_path(),

@@ -3,11 +3,14 @@
 
 #pragma once
 
+#include "ccf/claims_digest.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/json.h"
 #include "ccf/entity_id.h"
 
 #include <optional>
+#include <string>
 
 namespace ccf
 {

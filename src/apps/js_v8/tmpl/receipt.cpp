@@ -114,7 +114,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> Receipt::wrap(
-    v8::Local<v8::Context> context, const ccf::TxReceipt& receipt)
+    v8::Local<v8::Context> context, const ccf::TxReceiptImpl& receipt)
   {
     ccf::Receipt* receipt_out = new ccf::Receipt();
     V8Context::from_context(context).register_finalizer(
