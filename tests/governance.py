@@ -398,7 +398,7 @@ def test_each_node_cert_renewal(network, args):
     assert len(primary.host.rpc_interfaces) > 1
 
     test_vectors = [
-        (now, 10, None),
+        (now, validity_period_allowed, None),
         (now, None, None),  # Omit validity period (deduced from service configuration)
         (now, -1, infra.proposal.ProposalNotCreated),
         (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
