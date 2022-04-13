@@ -22,7 +22,6 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr);
@@ -60,7 +59,6 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr);
@@ -86,7 +84,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
-    r0.replicate(kv::BatchVector{{i, entry, true, hooks}}, 1);
+    r0.replicate(kv::BatchVector{{i, entry, true, false, hooks}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
     DOCTEST_REQUIRE(r0.get_committed_seqno() == i);
   }
@@ -108,7 +106,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr);
@@ -117,7 +114,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr);
@@ -126,7 +122,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr);
@@ -258,7 +253,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr);
@@ -267,7 +261,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr);
@@ -276,7 +269,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr);
@@ -337,10 +329,11 @@ DOCTEST_TEST_CASE(
   auto data = std::make_shared<std::vector<uint8_t>>(entry);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
   DOCTEST_REQUIRE_FALSE(
-    r1.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
+    r1.replicate(kv::BatchVector{{1, data, true, false, hooks}}, 1));
 
   DOCTEST_INFO("Tell the leader to replicate a message");
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
+  DOCTEST_REQUIRE(
+    r0.replicate(kv::BatchVector{{1, data, true, false, hooks}}, 1));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
 
   // The test ledger adds its own header. Confirm that the expected data is
@@ -400,7 +393,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr);
@@ -409,7 +401,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr);
@@ -418,7 +409,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr);
@@ -458,7 +448,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   std::vector<uint8_t> first_entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
+  DOCTEST_REQUIRE(
+    r0.replicate(kv::BatchVector{{1, data, true, false, hooks}}, 1));
   r0.periodic(request_timeout);
 
   DOCTEST_REQUIRE(
@@ -521,7 +512,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<SigAdaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr);
@@ -530,7 +520,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<SigAdaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr);
@@ -572,8 +561,10 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::vector<uint8_t> second_entry = {2, 2, 2};
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
 
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
+    DOCTEST_REQUIRE(
+      r0.replicate(kv::BatchVector{{1, data_1, true, false, hooks}}, 1));
+    DOCTEST_REQUIRE(
+      r0.replicate(kv::BatchVector{{2, data_2, true, false, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
@@ -594,7 +585,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(
+      r0.replicate(kv::BatchVector{{3, data, true, false, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
@@ -626,7 +618,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(
+      r0.replicate(kv::BatchVector{{4, data, true, false, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
@@ -639,7 +632,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(
+      r0.replicate(kv::BatchVector{{5, data, true, false, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
@@ -668,7 +662,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_6 = {6, 6, 6};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_6);
-      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{6, data, true, hooks}}, 1));
+      DOCTEST_REQUIRE(
+        r0.replicate(kv::BatchVector{{6, data, true, false, hooks}}, 1));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 6);
     }
     const auto last_correct_version = r0.ledger->ledger.size();
@@ -677,7 +672,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_7 = {7, 7, 7};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_7);
-      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 1));
+      DOCTEST_REQUIRE(
+        r0.replicate(kv::BatchVector{{7, data, true, false, hooks}}, 1));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
       dead_branch = r0.ledger->ledger.back();
     }
@@ -698,7 +694,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_7b = {7, 7, 'b'};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_7b);
-      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 4));
+      DOCTEST_REQUIRE(
+        r0.replicate(kv::BatchVector{{7, data, true, false, hooks}}, 4));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
       live_branch = r0.ledger->ledger.back();
     }
@@ -706,7 +703,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_8 = {8, 8, 8};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_8);
-      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{8, data, true, hooks}}, 4));
+      DOCTEST_REQUIRE(
+        r0.replicate(kv::BatchVector{{8, data, true, false, hooks}}, 4));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 8);
       DOCTEST_REQUIRE(r0.ledger->ledger.size() > last_correct_version);
     }
@@ -770,7 +768,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr);
@@ -779,7 +776,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr);
@@ -788,7 +784,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr);
@@ -840,7 +835,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(
+      r0.replicate(kv::BatchVector{{i, data, true, false, hooks}}, 1));
     DOCTEST_REQUIRE(
       msg_response ==
       dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
@@ -860,7 +856,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   {
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{i, smaller_data, true, hooks}}, 1));
+      r0.replicate(kv::BatchVector{{i, smaller_data, true, false, hooks}}, 1));
     dispatch_all(nodes, node_id0, r0c->messages);
   }
 
@@ -930,7 +926,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr);
@@ -939,7 +934,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr);

@@ -42,3 +42,8 @@ Cycle 2.x Nodes Once
 Once the service has been upgraded to 2.0, the new nodes should be cycled once. This consists of running the code upgrade procedure from 2.0 to the same 2.0 version (i.e. without registering a new code version or updating the constitution scripts).
 
 This is because new 2.0 nodes should join the service from a 2.0 node for their endorsed node certificate to be recorded in the ledger (:ref:`audit/builtin_maps:``nodes.endorsed_certificates``` table) and ultimately provide more convenient ledger audit.
+
+Constitution Upgrade
+--------------------
+
+The sample constitution scripts in :ccf_repo:`samples/constitutions/` have changed significantly since 1.x, as has the underlying JS API. It is highly recommended to upgrade the constitution after the upgrade to 2.0. Any existing constitution scripts based on the 1.x samples will likely require adjustment prior to that; both to ensure they are safe and secure, and to make use of new features that were added since 1.x.
