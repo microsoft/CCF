@@ -53,20 +53,30 @@ namespace ccf::indexing::strategies
     std::optional<SeqNoCollection> get_write_txs_in_range(
       const typename M::Key& key, ccf::SeqNo from, ccf::SeqNo to)
     {
-      if (to < from)
-      {
-        throw std::logic_error(
-          fmt::format("Range goes backwards: {} -> {}", from, to));
-      }
-
-      if (to > current_txid.seqno)
-      {
-        // If the requested range hasn't been populated yet, indicate
-        // that with nullopt
-        return std::nullopt;
-      }
-
       return get_write_txs_impl(M::KeySerialiser::to_serialised(key), from, to);
+    }
+  };
+
+  template <typename V>
+  class SeqnosForValue_Bucketed : public SeqnosByKey_Bucketed_Untyped
+  {
+  public:
+    using SeqnosByKey_Bucketed_Untyped::SeqnosByKey_Bucketed_Untyped;
+
+    SeqnosForValue_Bucketed(
+      const V& value,
+      ccfapp::AbstractNodeContext& node_context,
+      size_t seqnos_per_bucket_ = 1000,
+      size_t max_buckets_ = 10) :
+      SeqnosByKey_Bucketed_Untyped(
+        value.get_name(), node_context, seqnos_per_bucket_, max_buckets_)
+    {}
+
+    std::optional<SeqNoCollection> get_write_txs_in_range(
+      ccf::SeqNo from, ccf::SeqNo to)
+    {
+      static const auto singleton = V::create_unit();
+      return get_write_txs_impl(singleton, from, to);
     }
   };
 }
