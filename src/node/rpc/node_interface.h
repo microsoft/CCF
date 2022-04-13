@@ -8,6 +8,7 @@
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
+#include "ccf/crypto/pem.h"
 
 namespace ccf
 {
@@ -43,5 +44,6 @@ namespace ccf
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;
+    virtual crypto::Pem get_self_signed_certificate() = 0;
   };
 }

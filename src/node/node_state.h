@@ -1642,6 +1642,12 @@ namespace ccf
       return rpcsessions->get_session_metrics();
     }
 
+    crypto::Pem get_self_signed_certificate() override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      return self_signed_node_cert;
+    }
+
   private:
     bool is_ip(const std::string_view& hostname)
     {

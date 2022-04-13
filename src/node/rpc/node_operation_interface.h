@@ -9,6 +9,7 @@
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
 #include "node/session_metrics.h"
+#include "ccf/crypto/pem.h"
 
 namespace ccf
 {
@@ -50,5 +51,7 @@ namespace ccf
       CodeDigest& code_digest) = 0;
 
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
+
+    virtual crypto::Pem get_self_signed_node_certificate() = 0;
   };
 }

@@ -104,6 +104,14 @@ namespace ccf
   DECLARE_JSON_TYPE(ConsensusConfigDetails);
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusConfigDetails, details);
 
+  struct SelfSignedNodeCertificateInfo
+  {
+    crypto::Pem self_signed_certificate;
+  };
+
+  DECLARE_JSON_TYPE(SelfSignedNodeCertificateInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(SelfSignedNodeCertificateInfo, self_signed_certificate);
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -910,38 +918,16 @@ namespace ccf
         .install();
 
       auto get_self_signed_certificate = [this](auto& args, nlohmann::json&&) {
-        // TODO: Retrieve self-signed node certificate from node
-        this->context
-          // Query node for configurations, separate current from pending
-          if (consensus != nullptr)
-        {
-          auto cfg = consensus->get_latest_configuration();
-          ConsensusConfig cc;
-          for (auto& [nid, ninfo] : cfg)
-          {
-            cc.emplace(
-              nid.value(),
-              ConsensusNodeConfig{
-                fmt::format("{}:{}", ninfo.hostname, ninfo.port)});
-          }
-          return make_success(cc);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No configured consensus");
-        }
+        // return SelfSignedNodeCertificateInfo{this->node_operation.get_self_signed_node_certificate()};
+        return SelfSignedNodeCertificateInfo{};
       };
-
       make_command_endpoint(
         "/self_signed_certificate",
         HTTP_GET,
         json_command_adapter(get_self_signed_certificate),
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_auto_schema<void, crypto::Pem>()
+        .set_auto_schema<void, SelfSignedNodeCertificateInfo>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();

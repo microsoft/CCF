@@ -414,6 +414,12 @@ def test_each_node_cert_renewal(network, args):
                     node_cert_tls_before = node.get_tls_certificate_pem(
                         interface_name=interface_name
                     )
+                    if rpc_interface.endorsement.authority == "Node": # TODO: Enum
+                        with node.client(interface_name=interface_name) as operator_client:
+                            r = operator_client.get("/node/self_signed_certificate").body.json()
+                            LOG.error(r)
+                            assert node_cert_tls_before == r["self_signed_certificate"]
+
                     assert (
                         infra.crypto.compute_public_key_der_hash_hex_from_pem(
                             node_cert_tls_before
@@ -452,6 +458,11 @@ def test_each_node_cert_renewal(network, args):
                         interface_name=interface_name
                     )
                     LOG.success(node_cert_tls_after)
+                    if rpc_interface.endorsement.authority == "Node": # TODO: Enum
+                        with node.client(interface_name=interface_name) as operator_client:
+                            r = operator_client.get("/node/self_signed_certificate").body.json()
+                            LOG.error(r)
+                            assert node_cert_tls_after == r["self_signed_certificate"]
                     assert (
                         node_cert_tls_before != node_cert_tls_after
                     ), f"Node {node.local_node_id} certificate was not renewed"
