@@ -291,7 +291,7 @@ namespace serializer
 
     /// Overloads of serialize_value_final - return a tuple of
     /// PartialSerializations
-    ///{@
+    ///@{
     /// Overload for ByteRanges, avoid length-prefix (use entire remaining size)
     static auto serialize_value_final(const ByteRange& br)
     {
@@ -363,7 +363,7 @@ namespace serializer
     ///@}
 
     /// Overloads of deserialize_value_final
-    ///{@
+    ///@{
     /// Overload for ByteRanges
     static auto deserialize_value_final(
       const uint8_t*& data, size_t& size, const Tag<ByteRange>&)
