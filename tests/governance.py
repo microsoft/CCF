@@ -414,11 +414,14 @@ def test_each_node_cert_renewal(network, args):
                     node_cert_tls_before = node.get_tls_certificate_pem(
                         interface_name=interface_name
                     )
-                    if rpc_interface.endorsement.authority == "Node": # TODO: Enum
-                        with node.client(interface_name=interface_name) as operator_client:
-                            r = operator_client.get("/node/self_signed_certificate").body.json()
-                            LOG.error(r)
-                            assert node_cert_tls_before == r["self_signed_certificate"]
+
+                    # Verify that presented self-signed certificate matches the one returned by
+                    # operator endpoint
+                    if rpc_interface.endorsement.authority == "Node":  # TODO: Enum
+                        self_signed_cert = node.retrieve_new_self_signed_cert(
+                            interface_name=interface_name
+                        )
+                        assert node_cert_tls_before == self_signed_cert
 
                     assert (
                         infra.crypto.compute_public_key_der_hash_hex_from_pem(
@@ -426,8 +429,6 @@ def test_each_node_cert_renewal(network, args):
                         )
                         == node.node_id
                     )
-
-                    LOG.warning(node_cert_tls_before)
 
                     try:
                         network.consortium.set_node_certificate_validity(
@@ -457,15 +458,25 @@ def test_each_node_cert_renewal(network, args):
                     node_cert_tls_after = node.get_tls_certificate_pem(
                         interface_name=interface_name
                     )
-                    LOG.success(node_cert_tls_after)
-                    if rpc_interface.endorsement.authority == "Node": # TODO: Enum
-                        with node.client(interface_name=interface_name) as operator_client:
-                            r = operator_client.get("/node/self_signed_certificate").body.json()
-                            LOG.error(r)
-                            assert node_cert_tls_after == r["self_signed_certificate"]
                     assert (
                         node_cert_tls_before != node_cert_tls_after
                     ), f"Node {node.local_node_id} certificate was not renewed"
+                    LOG.success(node_cert_tls_after)
+
+                    if rpc_interface.endorsement.authority == "Node":  # TODO: Enum
+                        # verify_ca is false since the certificate has been renewed and
+                        # it needs to be retrieved from the node
+                        self_signed_cert = node.retrieve_new_self_signed_cert(
+                            interface_name=interface_name, verify_ca=False
+                        )
+                        assert node_cert_tls_after == self_signed_cert
+
+                        # Once the self-signed certificate has been retrieved and stored
+                        # on disk, it can be used to verify the server identity
+                        self_signed_cert = node.retrieve_new_self_signed_cert(
+                            interface_name=interface_name
+                        )
+
                     node.verify_certificate_validity_period(
                         interface_name=interface_name
                     )

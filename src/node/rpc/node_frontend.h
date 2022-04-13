@@ -110,7 +110,8 @@ namespace ccf
   };
 
   DECLARE_JSON_TYPE(SelfSignedNodeCertificateInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(SelfSignedNodeCertificateInfo, self_signed_certificate);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    SelfSignedNodeCertificateInfo, self_signed_certificate);
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -918,8 +919,8 @@ namespace ccf
         .install();
 
       auto get_self_signed_certificate = [this](auto& args, nlohmann::json&&) {
-        // return SelfSignedNodeCertificateInfo{this->node_operation.get_self_signed_node_certificate()};
-        return SelfSignedNodeCertificateInfo{};
+        return SelfSignedNodeCertificateInfo{
+          this->node_operation.get_self_signed_node_certificate()};
       };
       make_command_endpoint(
         "/self_signed_certificate",

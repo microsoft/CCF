@@ -49,7 +49,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         max_num_configs = 0
         all_same_rid = True
         for node in network.get_joined_nodes():
-            with node.client(self_signed_ok=True) as c:
+            with node.client(verify_ca=False) as c:
                 try:
                     r = c.get("/node/consensus")
                     rj = r.body.json()

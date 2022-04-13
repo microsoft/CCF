@@ -456,6 +456,9 @@ namespace ccf
     //
     void initiate_join()
     {
+      std::lock_guard<std::mutex> guard(lock);
+      sm.expect(NodeStartupState::pending);
+
       auto network_ca = std::make_shared<tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
       auto join_client_cert = std::make_unique<tls::Cert>(
@@ -717,8 +720,6 @@ namespace ccf
 
     void join()
     {
-      std::lock_guard<std::mutex> guard(lock);
-      sm.expect(NodeStartupState::pending);
       start_join_timer();
     }
 
@@ -2070,13 +2071,14 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
+              std::lock_guard<std::mutex> guard(lock);
+
               endorsed_node_cert = endorsed_certificate.value();
               history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
-              // TODO: Can be base this check on the hook_version only??
-              // Does this work for joining nodes too?
+              // TODO: Does this work for joining nodes too?
               if (is_member_frontend_open())
               {
                 // Also, automatically refresh self-signed node certificate,

@@ -512,8 +512,26 @@ class Node:
     ):
         return self.host.rpc_interfaces[interface_name].public_port
 
-    def session_ca(self, self_signed_ok):
-        if self_signed_ok:
+    def retrieve_new_self_signed_cert(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE, *args, **kwargs
+    ):
+        # Retrieve and override node self-signed certificate in common directory
+        with self.client(interface_name=interface_name, *args, **kwargs) as c:
+            new_self_signed_cert = c.get("/node/self_signed_certificate").body.json()[
+                "self_signed_certificate"
+            ]
+            with open(
+                os.path.join(self.common_dir, f"{self.local_node_id}.pem"), "w"
+            ) as self_signed_cert_file:
+                self_signed_cert_file.write(new_self_signed_cert)
+            LOG.error(new_self_signed_cert)
+            return new_self_signed_cert
+
+    def session_ca(self, self_signed=False, verify_ca=True):
+        if not verify_ca:
+            return {"ca": None}
+
+        if self_signed:
             return {"ca": os.path.join(self.common_dir, f"{self.local_node_id}.pem")}
         else:
             return {"ca": os.path.join(self.common_dir, "service_cert.pem")}
@@ -523,7 +541,7 @@ class Node:
         identity=None,
         signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
-        self_signed_ok=False,
+        verify_ca=True,
         **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
@@ -540,10 +558,10 @@ class Node:
             raise
 
         # TODO: Enum for endorsement type?
-        if rpc_interface.endorsement.authority == "Node":
-            self_signed_ok = True
-
-        akwargs = self.session_ca(self_signed_ok)
+        akwargs = self.session_ca(
+            self_signed=rpc_interface.endorsement.authority == "Node",
+            verify_ca=verify_ca,
+        )
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
