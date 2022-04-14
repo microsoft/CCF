@@ -244,11 +244,8 @@ namespace ccf
     make_endpoint(
       "/receipt",
       HTTP_GET,
-      ccf::historical::adapter_v2(
-        get_receipt,
-        context.get_historical_state(),
-        is_tx_committed,
-        txid_from_query_string),
+      ccf::historical::adapter_v3(
+        get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)

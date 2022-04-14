@@ -28,6 +28,7 @@ class Liner:
 class DefaultLiner(Liner):
     _bg_colour_mapping = {
         "New Service": "White",
+        "Recovering Service": "Grey",
         "Service Open": "Magenta",
         "Governance": "Red",
         "Signature": "Green",
@@ -55,9 +56,13 @@ class DefaultLiner(Liner):
             self.flush()
             self.append(f"{view}: ", "White")
 
-        if self.split_services and category == "New Service":
-            self.flush()
-            self.append(f"{view}.{seqno}: ", "White")
+        if self.split_services:
+            if category == "New Service":
+                self.flush()
+                self.append(f"{view}.{seqno}: ", "White")
+            elif category == "Recovering Service":
+                self.flush()
+                self.append(f"{view}.{seqno}: ", "Grey")
 
         char = " "
         if self.write_views:
@@ -140,7 +145,9 @@ def main():
     ledger = ccf.ledger.Ledger(
         ledger_paths,
         committed_only=not args.uncommitted,
-        insecure_skip_verification=args.insecure_skip_verification,
+        validator=ccf.ledger.LedgerValidator()
+        if args.insecure_skip_verification
+        else None,
     )
 
     l = DefaultLiner(args.write_views, args.split_views, args.split_services)
@@ -167,6 +174,9 @@ def main():
                             l.entry("Governance", view, seqno)
                         elif service_info["status"] == "Opening":
                             l.entry("New Service", view, seqno)
+                            current_service_identity = service_info["cert"]
+                        elif service_info["status"] == "Recovering":
+                            l.entry("Recovering Service", view, seqno)
                             current_service_identity = service_info["cert"]
                         elif (
                             service_info["cert"] == current_service_identity

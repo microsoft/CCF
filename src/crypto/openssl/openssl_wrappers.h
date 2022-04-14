@@ -5,6 +5,8 @@
 #include "ccf/crypto/pem.h"
 
 #define FMT_HEADER_ONLY
+#include <chrono>
+#include <ds/x509_time_fmt.h>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
@@ -25,6 +27,26 @@ namespace crypto
      * Generic OpenSSL error handling
      */
 
+    /// Returns the error string from an error code
+    inline std::string error_string(int ec)
+    {
+      // ERR_error_string doesn't really expect the code could actually be zero
+      // and uses the `static char buf[256]` which is NOT cleaned nor checked
+      // if it has changed. So we use ERR_error_string_n directly.
+      if (ec)
+      {
+        std::string err(256, '\0');
+        ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        // Remove any trailing NULs before returning
+        err.resize(std::strlen(err.c_str()));
+        return err;
+      }
+      else
+      {
+        return "unknown error";
+      }
+    }
+
     /// Throws if rc is 1 and has error
     inline void CHECK1(int rc)
     {
@@ -32,7 +54,7 @@ namespace crypto
       if (rc != 1 && ec != 0)
       {
         throw std::runtime_error(
-          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+          fmt::format("OpenSSL error: {}", error_string(ec)));
       }
     }
 
@@ -43,7 +65,7 @@ namespace crypto
       if (rc == 0 && ec != 0)
       {
         throw std::runtime_error(
-          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+          fmt::format("OpenSSL error: {}", error_string(ec)));
       }
     }
 
@@ -54,12 +76,6 @@ namespace crypto
       {
         throw std::runtime_error("OpenSSL error: missing object");
       }
-    }
-
-    /// Returns the error string from an error code
-    inline std::string error_string(int ec)
-    {
-      return ERR_error_string((unsigned long)ec, NULL);
     }
 
     /*
@@ -153,6 +169,10 @@ namespace crypto
       : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_PKEY(BIO* mem) :
+        Unique_SSL_OBJECT(
+          PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
+      {}
     };
 
     struct Unique_EVP_PKEY_CTX
@@ -268,11 +288,15 @@ namespace crypto
       Unique_X509_TIME(const std::string& s) :
         Unique_SSL_OBJECT(ASN1_TIME_new(), ASN1_TIME_free, /*check_null=*/false)
       {
-        CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
+        auto t = ds::to_x509_time_string(s);
+        CHECK1(ASN1_TIME_set_string(*this, t.c_str()));
         CHECK1(ASN1_TIME_normalize(*this));
       }
       Unique_X509_TIME(ASN1_TIME* t) :
         Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
+      {}
+      Unique_X509_TIME(const std::chrono::system_clock::time_point& t) :
+        Unique_X509_TIME(ds::to_x509_time_string(t))
       {}
     };
 

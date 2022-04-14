@@ -6,34 +6,10 @@
 #include "ccf/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/rpc_context_impl.h"
 
 namespace http
 {
-  inline static std::optional<std::string> extract_actor(
-    enclave::RpcContext& ctx)
-  {
-    const auto path = ctx.get_method();
-
-    const auto first_slash = path.find_first_of('/');
-    const auto second_slash = path.find_first_of('/', first_slash + 1);
-
-    if (first_slash != 0 || second_slash == std::string::npos)
-    {
-      return std::nullopt;
-    }
-
-    const auto actor = path.substr(first_slash + 1, second_slash - 1);
-    const auto remaining_path = path.substr(second_slash);
-
-    if (actor.empty() || remaining_path.empty())
-    {
-      return std::nullopt;
-    }
-
-    ctx.set_method(remaining_path);
-    return actor;
-  }
-
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
@@ -56,11 +32,9 @@ namespace http
     return error({status, code, std::move(msg)});
   }
 
-  class HttpRpcContext : public enclave::RpcContext
+  class HttpRpcContext : public ccf::RpcContextImpl
   {
   private:
-    size_t request_index;
-
     ccf::RESTVerb verb;
     std::string url = {};
 
@@ -72,7 +46,6 @@ namespace http
     http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
-    enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
 
@@ -115,16 +88,13 @@ namespace http
 
   public:
     HttpRpcContext(
-      size_t request_index_,
-      std::shared_ptr<enclave::SessionContext> s,
+      std::shared_ptr<ccf::SessionContext> s,
       llhttp_method verb_,
       const std::string_view& url_,
       const http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
-      const std::vector<uint8_t>& raw_request_ = {},
-      const std::vector<uint8_t>& raw_bft_ = {}) :
-      RpcContext(s, raw_bft_),
-      request_index(request_index_),
+      const std::vector<uint8_t>& raw_request_ = {}) :
+      RpcContextImpl(s),
       verb(verb_),
       url(url_),
       request_headers(headers_),
@@ -148,11 +118,6 @@ namespace http
       return ccf::FrameFormat::http;
     }
 
-    virtual size_t get_request_index() const override
-    {
-      return request_index;
-    }
-
     virtual void set_tx_id(const ccf::TxID& tx_id) override
     {
       set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
@@ -166,11 +131,6 @@ namespace http
     virtual const std::string& get_request_query() const override
     {
       return query;
-    }
-
-    virtual enclave::PathParams& get_request_path_params() override
-    {
-      return path_params;
     }
 
     virtual const ccf::RESTVerb& get_request_verb() const override
@@ -194,7 +154,7 @@ namespace http
       return path;
     }
 
-    virtual void set_method(const std::string_view& p) override
+    void set_method(const std::string_view& p)
     {
       path = p;
     }
@@ -289,14 +249,36 @@ namespace http
       return http_response.build_response();
     }
   };
+
+  inline static std::optional<std::string> extract_actor(HttpRpcContext& ctx)
+  {
+    const auto path = ctx.get_method();
+
+    const auto first_slash = path.find_first_of('/');
+    const auto second_slash = path.find_first_of('/', first_slash + 1);
+
+    if (first_slash != 0 || second_slash == std::string::npos)
+    {
+      return std::nullopt;
+    }
+
+    const auto actor = path.substr(first_slash + 1, second_slash - 1);
+    const auto remaining_path = path.substr(second_slash);
+
+    if (actor.empty() || remaining_path.empty())
+    {
+      return std::nullopt;
+    }
+
+    ctx.set_method(remaining_path);
+    return actor;
+  }
 }
 
-namespace enclave
+namespace ccf
 {
-  inline std::shared_ptr<RpcContext> make_rpc_context(
-    std::shared_ptr<enclave::SessionContext> s,
-    const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_bft = {})
+  inline std::shared_ptr<http::HttpRpcContext> make_rpc_context(
+    std::shared_ptr<ccf::SessionContext> s, const std::vector<uint8_t>& packed)
   {
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
@@ -314,20 +296,19 @@ namespace enclave
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
-      0, s, msg.method, msg.url, msg.headers, msg.body, packed, raw_bft);
+      s, msg.method, msg.url, msg.headers, msg.body, packed);
   }
 
-  inline std::shared_ptr<enclave::RpcContext> make_fwd_rpc_context(
-    std::shared_ptr<enclave::SessionContext> s,
+  inline std::shared_ptr<http::HttpRpcContext> make_fwd_rpc_context(
+    std::shared_ptr<ccf::SessionContext> s,
     const std::vector<uint8_t>& packed,
-    ccf::FrameFormat frame_format,
-    const std::vector<uint8_t>& raw_bft = {})
+    ccf::FrameFormat frame_format)
   {
     switch (frame_format)
     {
       case ccf::FrameFormat::http:
       {
-        return make_rpc_context(s, packed, raw_bft);
+        return make_rpc_context(s, packed);
       }
       default:
         throw std::logic_error("Unknown Frame Format");

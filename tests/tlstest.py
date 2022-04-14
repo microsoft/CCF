@@ -76,14 +76,18 @@ def cond_removal(file):
 def test(network, args):
     node = network.nodes[0]
     endpoint = f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}"
-    cond_removal("tls_report.csv")
+    report_basename = "tls_report"
+    report_csv = f"{report_basename}.csv"
+    cond_removal(report_csv)
     cond_removal("tls_report.html")
     cond_removal("tls_report.json")
     cond_removal("tls_report.log")
     r = subprocess.run(
-        ["testssl/testssl.sh", "--outfile", "tls_report", endpoint], check=False
+        ["testssl/testssl.sh", "--outfile", report_basename, endpoint], check=False
     )
     assert r.returncode == 0
+    # Sort csv output lines to simplify comparison
+    subprocess.run(["sort", "--stable", report_csv, "-o", report_csv], check=True)
     assert compare_golden()
 
 

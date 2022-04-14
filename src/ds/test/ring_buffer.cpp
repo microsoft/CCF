@@ -250,23 +250,20 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
   const bool v2 = false;
   const TEnum v3 = Baz;
   const std::vector<uint8_t> v4 = {0xab, 0xac, 0xad, 0xae, 0xaf};
-
   const size_t v5_limit = 3;
   const char v6 = 'x';
+  const std::vector<uint8_t> v7 = {0x1a, 0x1b, 0x1c};
 
-  // NB: byte-vector is dumped directly, not length-prefixed, so length must be
-  // manually inserted where required
   w.write(
     Const::msg_min,
     v0,
     v1,
     v2,
     v3,
-    v4.size(),
     v4,
-    v5_limit,
     serializer::ByteRange{v4.data(), v5_limit},
-    v6);
+    v6,
+    v7);
 
   r.read(1, [&](Message m, const uint8_t* data, size_t size) {
     REQUIRE(Const::msg_min == m);
@@ -283,6 +280,7 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
     auto r3 = serialized::read<std::remove_const_t<decltype(v3)>>(data, size);
     REQUIRE(v3 == r3);
 
+    // Size prefix is inserted by writer
     auto s4 =
       serialized::read<std::remove_const_t<decltype(v4.size())>>(data, size);
     REQUIRE(v4.size() == s4);
@@ -295,6 +293,7 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
       REQUIRE(v4[i] == r4i);
     }
 
+    // Size prefix is inserted by writer
     auto s5 =
       serialized::read<std::remove_const_t<decltype(v5_limit)>>(data, size);
     REQUIRE(v5_limit == s5);
@@ -309,6 +308,10 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
 
     auto r6 = serialized::read<std::remove_const_t<decltype(v6)>>(data, size);
     REQUIRE(v6 == r6);
+
+    // Trailing variably sized value is not size-prefixed
+    auto r7 = serialized::read(data, size, size);
+    REQUIRE(v7 == r7);
 
     REQUIRE(size == 0);
   });
@@ -570,12 +573,14 @@ TEST_CASE("Multiple threads can wait" * doctest::test_suite("ringbuffer"))
   constexpr size_t size = 32u;
   auto pairify = std::make_pair<size_t, size_t>;
 
-  for (auto [max_n, thread_count] : {
+  for (auto [max_n_, thread_count_] : {
          pairify(2, 2), // Slight contention
          pairify(size * 3, 4), // Large workloads
          pairify(4, size * 3) // Many workers
        })
   {
+    auto& max_n = max_n_;
+    auto& thread_count = thread_count_;
     auto buffer = std::make_unique<ringbuffer::TestBuffer>(size);
     Reader r(buffer->bd);
     std::vector<std::thread> writer_threads;

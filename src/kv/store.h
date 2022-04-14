@@ -3,14 +3,16 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/kv/read_only_store.h"
 #include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
+#include "kv/snapshot.h"
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "snapshot.h"
+#include "service/tables/signatures.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -49,8 +51,9 @@ namespace kv
     Version last_committable = 0;
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>>
-      pending_txs;
+    std::
+      unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool, bool>>
+        pending_txs;
 
   public:
     void clear()
@@ -75,7 +78,8 @@ namespace kv
 
   class Store : public AbstractStore,
                 public StoreState,
-                public ExecutionWrapperStore
+                public ExecutionWrapperStore,
+                public ReadOnlyStore
   {
   private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
@@ -84,9 +88,9 @@ namespace kv
     MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
-
     std::shared_ptr<TxHistory> history = nullptr;
     EncryptorPtr encryptor = nullptr;
+    SnapshotterPtr snapshotter = nullptr;
 
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
@@ -109,7 +113,8 @@ namespace kv
       Version v,
       Term term,
       const MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks) override
+      kv::ConsensusHookPtrs& hooks,
+      bool& force_ledger_chunk) override
     {
       auto c = apply_changes(
         changes,
@@ -126,6 +131,11 @@ namespace kv
         version = v;
         last_replicated = version;
         term_of_last_version = term;
+      }
+      if (snapshotter && changes.find(ccf::Tables::SIGNATURES) != changes.end())
+      {
+        force_ledger_chunk = snapshotter->record_committable(v);
+        LOG_TRACE_FMT("Force ledger chunk: {}", force_ledger_chunk);
       }
       return true;
     }
@@ -184,7 +194,7 @@ namespace kv
       return consensus;
     }
 
-    void set_consensus(std::shared_ptr<Consensus> consensus_)
+    void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
       consensus = consensus_;
     }
@@ -194,7 +204,7 @@ namespace kv
       return history;
     }
 
-    void set_history(std::shared_ptr<TxHistory> history_)
+    void set_history(const std::shared_ptr<TxHistory>& history_)
     {
       history = history_;
     }
@@ -207,6 +217,11 @@ namespace kv
     EncryptorPtr get_encryptor() override
     {
       return encryptor;
+    }
+
+    void set_snapshotter(const SnapshotterPtr& snapshotter_)
+    {
+      snapshotter = snapshotter_;
     }
 
     /** Get a map by name, iff it exists at the given version.
@@ -535,6 +550,14 @@ namespace kv
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
+
+      if (snapshotter)
+      {
+        auto c = get_consensus();
+        bool generate_snapshot = c && c->is_primary();
+        snapshotter->commit(v, generate_snapshot);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       if (v > current_version())
@@ -583,6 +606,12 @@ namespace kv
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
+
+      if (snapshotter)
+      {
+        snapshotter->rollback(tx_id.version);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       {
@@ -788,6 +817,7 @@ namespace kv
         LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
         return false;
       }
+
       return true;
     }
 
@@ -846,11 +876,17 @@ namespace kv
       return version;
     }
 
-    TxID current_txid() override
+    kv::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
       return current_txid_unsafe();
+    }
+
+    ccf::TxID get_txid() override
+    {
+      const auto kv_id = current_txid();
+      return {kv_id.term, kv_id.version};
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
@@ -884,6 +920,9 @@ namespace kv
       {
         return CommitResult::SUCCESS;
       }
+
+      bool force_ledger_chunk = snapshotter && globally_committable &&
+        snapshotter->record_committable(txid.version);
 
       std::lock_guard<std::mutex> cguard(commit_lock);
 
@@ -919,7 +958,8 @@ namespace kv
 
         pending_txs.insert(
           {txid.version,
-           std::make_pair(std::move(pending_tx), globally_committable)});
+           std::make_tuple(
+             std::move(pending_tx), globally_committable, force_ledger_chunk)});
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
@@ -942,7 +982,7 @@ namespace kv
             break;
           }
 
-          auto& [pending_tx_, committable_] = search->second;
+          auto& [pending_tx_, committable_, force_chunk_] = search->second;
           auto
             [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
               pending_tx_->call();
@@ -974,7 +1014,11 @@ namespace kv
             txid.version);
 
           batch.emplace_back(
-            last_replicated + offset, data_shared, committable_, hooks_shared);
+            last_replicated + offset,
+            data_shared,
+            committable_,
+            force_chunk_,
+            hooks_shared);
           pending_txs.erase(search);
         }
 
@@ -1201,7 +1245,7 @@ namespace kv
       }
     }
 
-    ReadOnlyTx create_read_only_tx()
+    ReadOnlyTx create_read_only_tx() override
     {
       return ReadOnlyTx(this);
     }
@@ -1251,4 +1295,6 @@ namespace kv
       return (flags & static_cast<uint8_t>(f)) != 0;
     }
   };
+
+  using StorePtr = std::shared_ptr<kv::Store>;
 }

@@ -17,6 +17,7 @@
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/host_processes.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
@@ -27,7 +28,7 @@
 
 #include <openssl/engine.h>
 
-namespace enclave
+namespace ccf
 {
   class Enclave
   {
@@ -135,6 +136,10 @@ namespace enclave
       context->install_subsystem(std::make_shared<ccf::NodeOperation>(*node));
       context->install_subsystem(
         std::make_shared<ccf::GovernanceEffects>(*node));
+
+      context->install_subsystem(
+        std::make_shared<ccf::NetworkIdentitySubsystem>(
+          *node, network.identity));
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -257,7 +262,7 @@ namespace enclave
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
-        last_tick_time = enclave::get_enclave_time();
+        last_tick_time = ccf::get_enclave_time();
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
@@ -268,7 +273,7 @@ namespace enclave
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::work_stats, to_host, j.dump());
 
-            const auto time_now = enclave::get_enclave_time();
+            const auto time_now = ccf::get_enclave_time();
             ringbuffer_logger->set_time(time_now);
 
             const auto elapsed_ms =
@@ -310,24 +315,15 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                if (from_seqno != to_seqno)
-                {
-                  LOG_FAIL_FMT(
-                    "Unexpected range for Recovery response "
-                    "ledger_entry_range: {}->{} "
-                    "(expected single ledger entry)",
-                    from_seqno,
-                    to_seqno);
-                }
                 if (
                   node->is_reading_public_ledger() ||
                   node->is_verifying_snapshot())
                 {
-                  node->recover_public_ledger_entry(body);
+                  node->recover_public_ledger_entries(body);
                 }
                 else if (node->is_reading_private_ledger())
                 {
-                  node->recover_private_ledger_entry(body);
+                  node->recover_private_ledger_entries(body);
                 }
                 else
                 {
@@ -435,7 +431,7 @@ namespace enclave
           // messages were executed, idle
           if (read == 0 && thread_msg == 0)
           {
-            const auto time_now = enclave::get_enclave_time();
+            const auto time_now = ccf::get_enclave_time();
             static std::chrono::microseconds idling_start_time;
 
             if (consecutive_idles == 0)

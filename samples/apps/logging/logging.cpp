@@ -8,12 +8,12 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/hash.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
-#include "kv/store.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -52,7 +52,7 @@ namespace loggingapp
   public:
     std::unique_ptr<ccf::AuthnIdentity> authenticate(
       kv::ReadOnlyTx&,
-      const std::shared_ptr<enclave::RpcContext>& ctx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override
     {
       const auto& headers = ctx->get_request_headers();
@@ -222,7 +222,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.9.0";
+      openapi_info.document_version = "1.9.2";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -512,7 +512,8 @@ namespace loggingapp
         std::shared_ptr<crypto::Verifier> verifier;
         try
         {
-          const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
+          const auto& cert_data =
+            ctx.rpc_ctx->get_session_context()->caller_cert;
           verifier = crypto::make_verifier(cert_data);
         }
         catch (const std::exception& ex)
@@ -841,8 +842,7 @@ namespace loggingapp
       make_endpoint(
         "/log/private/historical",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical, context.get_historical_state(), is_tx_committed),
+        ccf::historical::adapter_v3(get_historical, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
@@ -895,10 +895,8 @@ namespace loggingapp
       make_endpoint(
         "/log/private/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical_with_receipt,
-          context.get_historical_state(),
-          is_tx_committed),
+        ccf::historical::adapter_v3(
+          get_historical_with_receipt, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
@@ -955,10 +953,8 @@ namespace loggingapp
       make_endpoint(
         "/log/public/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v2(
-          get_historical_with_receipt_and_claims,
-          context.get_historical_state(),
-          is_tx_committed),
+        ccf::historical::adapter_v3(
+          get_historical_with_receipt_and_claims, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
@@ -1154,12 +1150,10 @@ namespace loggingapp
         // requests from different users will collide, and overwrite each
         // other's progress!
         auto make_handle = [](size_t begin, size_t end, size_t id) {
-          auto size = sizeof(begin) + sizeof(end) + sizeof(id);
+          size_t raw[] = {begin, end, id};
+          auto size = sizeof(raw);
           std::vector<uint8_t> v(size);
-          auto data = v.data();
-          serialized::write(data, size, begin);
-          serialized::write(data, size, end);
-          serialized::write(data, size, id);
+          memcpy(v.data(), (const uint8_t*)raw, size);
           return std::hash<decltype(v)>()(v);
         };
 
@@ -1199,7 +1193,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().version;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
@@ -1356,12 +1350,10 @@ namespace loggingapp
         // requests from different users will collide, and overwrite each
         // other's progress!
         auto make_handle = [](size_t begin, size_t end, size_t id) {
-          auto size = sizeof(begin) + sizeof(end) + sizeof(id);
+          size_t raw[] = {begin, end, id};
+          auto size = sizeof(raw);
           std::vector<uint8_t> v(size);
-          auto data = v.data();
-          serialized::write(data, size, begin);
-          serialized::write(data, size, end);
-          serialized::write(data, size, id);
+          memcpy(v.data(), (const uint8_t*)raw, size);
           return std::hash<decltype(v)>()(v);
         };
 
@@ -1406,7 +1398,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().version;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);

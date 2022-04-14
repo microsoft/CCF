@@ -36,15 +36,61 @@ from types import MappingProxyType
 from loguru import logger as LOG
 
 
+def show_cert(name, cert):
+    from OpenSSL.crypto import dump_certificate, FILETYPE_TEXT
+
+    dc = dump_certificate(FILETYPE_TEXT, cert).decode("unicode_escape")
+    LOG.info(f"{name} cert: {dc}")
+
+
+def verify_endorsements_openssl(service_cert, receipt):
+    from OpenSSL.crypto import (
+        load_certificate,
+        FILETYPE_PEM,
+        X509,
+        X509Store,
+        X509StoreContext,
+    )
+
+    store = X509Store()
+
+    # pyopenssl does not support X509_V_FLAG_NO_CHECK_TIME. For recovery of expired
+    # services and historical receipt, we want to ignore the validity time. 0x200000
+    # is the bitmask for this option in more recent versions of OpenSSL.
+    X509_V_FLAG_NO_CHECK_TIME = 0x200000
+    store.set_flags(X509_V_FLAG_NO_CHECK_TIME)
+
+    store.add_cert(X509.from_cryptography(service_cert))
+    chain = None
+    if "service_endorsements" in receipt:
+        chain = []
+        for endo in receipt["service_endorsements"]:
+            chain.append(load_certificate(FILETYPE_PEM, endo.encode()))
+    node_cert_pem = receipt["cert"].encode()
+    ctx = X509StoreContext(store, load_certificate(FILETYPE_PEM, node_cert_pem), chain)
+    ctx.verify_certificate()  # (throws on error)
+
+
 def verify_receipt(
-    receipt, service_cert, check_endorsement=True, claims=None, generic=True
+    receipt, service_cert, claims=None, generic=True, skip_endorsement_check=False
 ):
     """
     Raises an exception on failure
     """
+
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
-    if check_endorsement:
-        ccf.receipt.check_endorsement(node_cert, service_cert)
+
+    if not skip_endorsement_check:
+        service_endorsements = []
+        if "service_endorsements" in receipt:
+            service_endorsements = [
+                load_pem_x509_certificate(endo.encode(), default_backend())
+                for endo in receipt["service_endorsements"]
+            ]
+        ccf.receipt.check_endorsements(node_cert, service_cert, service_endorsements)
+
+        verify_endorsements_openssl(service_cert, receipt)
+
     if claims is not None:
         assert "leaf_components" in receipt
         assert "commit_evidence" in receipt["leaf_components"]
@@ -123,6 +169,12 @@ def test_illegal(network, args):
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
     )
 
+    def get_main_interface_metrics():
+        with primary.client() as c:
+            return c.get("/node/metrics").body.json()["sessions"]["interfaces"][
+                infra.interfaces.PRIMARY_RPC_INTERFACE
+            ]
+
     def send_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -136,10 +188,16 @@ def test_illegal(network, args):
         response.begin()
         return response
 
+    additional_parsing_errors = 0
+
     def send_bad_raw_content(content):
+        nonlocal additional_parsing_errors
         response = send_raw_content(content)
         response_body = response.read()
         LOG.warning(response_body)
+        # If request parsing error, the interface metrics should report it
+        if response_body.startswith(b"Unable to parse data as a HTTP request."):
+            additional_parsing_errors += 1
         if response.status == http.HTTPStatus.BAD_REQUEST:
             assert content in response_body, response_body
         else:
@@ -148,6 +206,7 @@ def test_illegal(network, args):
                 response_body,
             )
 
+    initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
     send_bad_raw_content(b"\x01")
     send_bad_raw_content(b"\x01\x02\x03\x04")
     send_bad_raw_content(b"NOTAVERB ")
@@ -174,6 +233,11 @@ def test_illegal(network, args):
             for replacement in (b"\x00", b"\x01", bytes([(content[i] + 128) % 256])):
                 corrupt_content = content[:i] + replacement + content[i + 1 :]
                 send_bad_raw_content(corrupt_content)
+
+    assert (
+        get_main_interface_metrics()["errors"]["parsing"]
+        == initial_parsing_errors + additional_parsing_errors
+    )
 
     good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
     response = send_raw_content(good_content)
@@ -773,7 +837,7 @@ def test_historical_receipts_with_claims(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"], domain="public"
             )
             r = first_receipt.json()["receipt"]
-            verify_receipt(r, network.cert, True, first_receipt.json()["msg"].encode())
+            verify_receipt(r, network.cert, first_receipt.json()["msg"].encode())
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
@@ -1364,9 +1428,9 @@ def test_random_receipts(
                     verify_receipt(
                         receipt,
                         network.cert,
-                        not lts,
                         claims=additional_seqnos.get(s),
                         generic=True,
+                        skip_endorsement_check=lts,
                     )
                     if s == max_seqno:
                         # Always a signature receipt
@@ -1471,7 +1535,6 @@ def run_parsing_errors(args):
     ) as network:
         network.start_and_open(args)
 
-        network.ignore_error_pattern_on_shutdown("Error parsing HTTP request")
         network = test_illegal(network, args)
         network = test_protocols(network, args)
 
@@ -1518,7 +1581,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    # Run illegal traffic tests in separate runner, where we can swallow unhelpful error logs
+    # Run illegal traffic tests in separate runners, to reduce total serial runtime
     cr.add(
         "js_illegal",
         run_parsing_errors,

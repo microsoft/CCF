@@ -11,7 +11,7 @@
 
 namespace kv
 {
-  /** Defines the schema of a set type within the @c kv::Store. This set is an
+  /** Defines the schema of a set type accessed by a @c ccf::Tx. This set is an
    * unordered container of unique keys. Each key is either present or missing
    * within the set, and key presence can be efficiently tested.
    *
@@ -42,6 +42,7 @@ namespace kv
     using MapHook = MapHook<Write>;
     using CommitHook = CommitHook<Write>;
 
+    using Key = K;
     using KeySerialiser = KSerialiser;
 
     using GetName::GetName;

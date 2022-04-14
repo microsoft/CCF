@@ -17,7 +17,10 @@ A member proposes to recover the network and other members can vote on the propo
         "actions": [
             {
                 "name": "transition_service_to_open",
-                "args": null
+                "args": {
+                    "previous_service_identity": "-----BEGIN CERTIFICATE-----\nMIIBuDCCAT6gAwIBAgIRANWm4xJICc6i4sir+jRXE2gwCgYIKoZIzj0EAwMwFjEU\nMBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwMzExMTcwNTEyWhcNMjIwMzEyMTcw\nNTExWjAWMRQwEgYDVQQDDAtDQ0YgTmV0d29yazB2MBAGByqGSM49AgEGBSuBBAAi\nA2IABOyCL4ZOG0mu7fLpciVWcDHFp1dOVr1osONVgG/fhjjZryR/HS5xIc20d96L\nN4yl6qbtoEGE1r1juQB44xoEKOox7OLRD2S0N1/T/DfdCIdgyv5rAVIFCMZVtxGA\nsg6I26NQME4wDAYDVR0TBAUwAwEB/zAdBgNVHQ4EFgQUAz9Pfzi3sEN2w6KuncV2\n0wFXDC0wHwYDVR0jBBgwFoAUAz9Pfzi3sEN2w6KuncV20wFXDC0wCgYIKoZIzj0E\nAwMDaAAwZQIxAKM+T5Lvv4/2nKn8ZL87DkKiBwaGh1kLmrM/0xLhlQYgRp13iqw8\ndt/Zm+/dLCZe/AIwBrgsP5YM2TZ/AAHgC50H8+DKd0k/DfVIy28qhMb/6jr1bCMp\nf0CN7wvG22F59hDa\n-----END CERTIFICATE-----\n",
+                    "next_service_identity": "-----BEGIN CERTIFICATE-----\nMIIBezCCASGgAwIBAgIRAOVHYf9qhvjzdoIw3fPHp5YwCgYIKoZIzj0EAwIwFjEU\nMBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwMzExMTcwNTQzWhcNMjIwMzEyMTcw\nNTQyWjAWMRQwEgYDVQQDDAtDQ0YgTmV0d29yazBZMBMGByqGSM49AgEGCCqGSM49\nAwEHA0IABBZXMHCrjfBeO+FHqDG8Szjzc4lQC8KmvTX8Il0ZERXH/mjLZ7Dc52rX\nnilD1ghdRDWXiKMQWT9RPvm4tefWHD6jUDBOMAwGA1UdEwQFMAMBAf8wHQYDVR0O\nBBYEFCUmm9u05D0/IFupggFW5VgVlUSyMB8GA1UdIwQYMBaAFCUmm9u05D0/IFup\nggFW5VgVlUSyMAoGCCqGSM49BAMCA0gAMEUCIQCy6WoeLtTUD8GRIOM+oRNe/lTj\nRrrry+0AxZgxBU1oSwIgJmyrTfT90re+rzAkF9uiqoL44TVWkQf1t3cZrgVFYK8=\n-----END CERTIFICATE-----\n"
+                }
             }
         ]
     }
@@ -47,6 +50,10 @@ A member proposes to recover the network and other members can vote on the propo
     }
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
+
+Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next service identity (x509 certificates in PEM format). This is to ensure that the correct network is recovered and to facilitate auditing, as well as to avoid forks. The previous service identity is used to validate the snapshot the recovery node is started from; CCF will refuse to start from a snapshot where the signing node certificate is not endorsed by the previous service identity. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
+
+.. note:: The ``previous_service_identity`` argument to the ``transition_service_to_open`` proposal is required for recovery, but must not be provided when opening a new service as there is no previous identity.
 
 Submitting Recovery Shares
 --------------------------

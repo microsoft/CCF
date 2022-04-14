@@ -15,6 +15,23 @@ namespace consensus
   public:
     static constexpr size_t FRAME_SIZE = sizeof(uint32_t);
 
+    /**
+     * Retrieve a single entry, advancing offset to the next entry.
+     *
+     * @param data Serialised entries
+     * @param size Size of overall serialised entries
+     *
+     * @return Raw entry as a vector
+     */
+    static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
+    {
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
+      size_t entry_size = kv::serialised_entry_header_size + header.size;
+      std::vector<uint8_t> entry(data, data + entry_size);
+      serialized::skip(data, size, entry_size);
+      return entry;
+    }
+
   private:
     ringbuffer::WriterPtr to_host;
 
@@ -91,27 +108,10 @@ namespace consensus
      * @param data Serialised entries
      * @param size Size of overall serialised entries
      */
-    void skip_entry(const uint8_t*& data, size_t& size)
+    static void skip_entry(const uint8_t*& data, size_t& size)
     {
       auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
       serialized::skip(data, size, header.size);
-    }
-
-    /**
-     * Retrieve a single entry, advancing offset to the next entry.
-     *
-     * @param data Serialised entries
-     * @param size Size of overall serialised entries
-     *
-     * @return Raw entry as a vector
-     */
-    std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
-    {
-      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
-      size_t entry_size = kv::serialised_entry_header_size + header.size;
-      std::vector<uint8_t> entry(data, data + entry_size);
-      serialized::skip(data, size, entry_size);
-      return entry;
     }
 
     /**

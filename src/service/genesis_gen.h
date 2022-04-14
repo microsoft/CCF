@@ -292,7 +292,8 @@ namespace ccf
       auto service = tx.rw(tables.service);
       service->put(
         {service_cert,
-         recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING});
+         recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
+         recovering ? service->get_version_of_previous_write() : std::nullopt});
     }
 
     bool is_service_created(const crypto::Pem& expected_service_cert)
@@ -333,11 +334,15 @@ namespace ccf
         active_service->status != ServiceStatus::OPENING &&
         active_service->status != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
-        LOG_FAIL_FMT("Could not open current service: status is not OPENING");
+        LOG_FAIL_FMT(
+          "Could not open current service: status is not OPENING or "
+          "WAITING_FOR_RECOVERY_SHARES");
         return false;
       }
 
       active_service->status = ServiceStatus::OPEN;
+      active_service->previous_service_identity_version =
+        service->get_version_of_previous_write();
       service->put(active_service.value());
 
       return true;

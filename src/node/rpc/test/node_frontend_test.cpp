@@ -22,8 +22,8 @@ using TResponse = http::SimpleResponseProcessor::Response;
 
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
-auto valid_from = crypto::OpenSSL::to_x509_time_string(
-  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
@@ -55,9 +55,9 @@ TResponse frontend_process(
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
-  auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, caller.raw());
-  auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
+  auto session =
+    std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, caller.raw());
+  auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
   CHECK(serialised_response.has_value());

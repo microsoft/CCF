@@ -4,9 +4,9 @@
 
 #include <vector>
 
-namespace enclave
+namespace ccf
 {
-  class RpcContext;
+  class RpcContextImpl;
 
   class AbstractRPCResponder
   {
@@ -21,7 +21,7 @@ namespace enclave
     virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
-      std::shared_ptr<enclave::RpcContext> rpc_ctx,
+      std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,
       const ccf::NodeId& to,
       const std::vector<uint8_t>& caller_cert) = 0;
   };

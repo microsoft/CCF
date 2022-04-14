@@ -4,11 +4,11 @@
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
-#include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
+#include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "json_schema.h"
@@ -354,11 +354,17 @@ int main(int argc, char** argv)
     startup_config.worker_threads = config.worker_threads;
     startup_config.node_certificate = config.node_certificate;
 
+    if (config.node_data_json_file.has_value())
+    {
+      startup_config.node_data =
+        files::slurp_json(config.node_data_json_file.value());
+    }
+
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
-    startup_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
-      std::chrono::system_clock::to_time_t(startup_host_time));
+    startup_config.startup_host_time =
+      ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
@@ -542,7 +548,7 @@ int main(int argc, char** argv)
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
+        LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
 
         // This exception should be rethrown, probably aborting the process, but
         // we sleep briefly to allow more outbound messages to be processed. If

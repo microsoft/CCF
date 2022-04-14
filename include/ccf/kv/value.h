@@ -11,10 +11,10 @@
 
 namespace kv
 {
-  /** Defines the schema of a value type within the @c kv::Store. This value
-   * type is a container for an optional single element of type V. This may be
-   * undefined if the value has not been written to the KV, or else it has the
-   * value from the current or last-applied transaction.
+  /** Defines the schema of a single-valued type accessed by a @c ccf::Tx. This
+   * value type is a container for an optional single element of type V. This
+   * may be undefined if the value has not been written to the KV, or else it
+   * has the value from the current or last-applied transaction.
    *
    * V defines the type of the contained Value. VSerialiser determines how
    * this V is serialised and deserialised, so it may be written to the ledger
@@ -41,6 +41,11 @@ namespace kv
     using ValueSerialiser = VSerialiser;
 
     using GetName::GetName;
+
+    static kv::serialisers::SerialisedEntry create_unit()
+    {
+      return Unit::get();
+    }
 
   private:
     static Write deserialise_write(const kv::untyped::Write& w)

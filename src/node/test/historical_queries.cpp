@@ -27,8 +27,8 @@ using NumToString = kv::Map<size_t, std::string>;
 
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
-auto valid_from = crypto::OpenSSL::to_x509_time_string(
-  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
@@ -168,7 +168,7 @@ kv::Version rekey(
   return tx_version;
 }
 
-void validate_business_transaction(kv::StorePtr store, ccf::SeqNo seqno)
+void validate_business_transaction(kv::ReadOnlyStorePtr store, ccf::SeqNo seqno)
 {
   REQUIRE(store != nullptr);
 
@@ -203,9 +203,9 @@ void validate_business_transaction(
   REQUIRE(state->receipt != nullptr);
 
   const auto state_txid = state->transaction_id;
-  const auto store_txid = state->store->current_txid();
-  REQUIRE(state_txid.view == store_txid.term);
-  REQUIRE(state_txid.seqno == store_txid.version);
+  const auto store_txid = state->store->get_txid();
+  REQUIRE(state_txid.view == store_txid.view);
+  REQUIRE(state_txid.seqno == store_txid.seqno);
 }
 
 std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
@@ -284,8 +284,11 @@ TEST_CASE("StateCache point queries")
       const uint8_t* data = write.contents.data();
       size_t size = write.contents.size();
       REQUIRE(write.m == consensus::ledger_get_range);
-      auto [from_seqno, to_seqno, purpose] =
+      auto [from_seqno_, to_seqno_, purpose_] =
         ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+      auto& purpose = purpose_;
+      auto& from_seqno = from_seqno_;
+      auto& to_seqno = to_seqno_;
       REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
       REQUIRE(from_seqno == to_seqno);
       actual.insert(from_seqno);
@@ -729,7 +732,7 @@ TEST_CASE("StateCache range queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->current_version();
+        const auto seqno = store->get_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -849,7 +852,7 @@ TEST_CASE("StateCache sparse queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->current_version();
+        const auto seqno = store->get_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -955,8 +958,9 @@ TEST_CASE("StateCache concurrent access")
         auto size = write.contents.size();
         if (write.m == consensus::ledger_get_range)
         {
-          const auto [from_seqno, to_seqno, purpose] =
+          const auto [from_seqno, to_seqno, purpose_] =
             ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+          auto& purpose = purpose_;
           REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
 
           std::vector<uint8_t> combined;
@@ -1031,27 +1035,28 @@ TEST_CASE("StateCache concurrent access")
       }
     };
 
-  auto validate_all_stores = [&](const std::vector<kv::StorePtr>& stores) {
-    for (auto& store : stores)
-    {
-      REQUIRE(store != nullptr);
-      const auto seqno = store->current_version();
-      if (
-        std::find(
-          signature_versions.begin(), signature_versions.end(), seqno) ==
-        signature_versions.end())
+  auto validate_all_stores =
+    [&](const std::vector<kv::ReadOnlyStorePtr>& stores) {
+      for (auto& store : stores)
       {
-        validate_business_transaction(store, seqno);
+        REQUIRE(store != nullptr);
+        const auto seqno = store->get_txid().seqno;
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), seqno) ==
+          signature_versions.end())
+        {
+          validate_business_transaction(store, seqno);
+        }
       }
-    }
-  };
+    };
 
   auto validate_all_states =
     [&](const std::vector<ccf::historical::StatePtr>& states) {
       for (auto& state : states)
       {
         REQUIRE(state != nullptr);
-        const auto seqno = state->store->current_version();
+        const auto seqno = state->store->get_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
@@ -1064,7 +1069,7 @@ TEST_CASE("StateCache concurrent access")
 
   auto query_random_point_store =
     [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
-      kv::StorePtr store;
+      kv::ReadOnlyStorePtr store;
       auto fetch_result = [&]() {
         store = cache.get_store_at(handle, target_seqno);
       };
@@ -1091,7 +1096,7 @@ TEST_CASE("StateCache concurrent access")
                                      ccf::SeqNo range_end,
                                      size_t handle,
                                      const auto& error_printer) {
-    std::vector<kv::StorePtr> stores;
+    std::vector<kv::ReadOnlyStorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_store_range(handle, range_start, range_end);
     };
@@ -1120,7 +1125,7 @@ TEST_CASE("StateCache concurrent access")
                                           const ccf::SeqNoCollection& seqnos,
                                           size_t handle,
                                           const auto& error_printer) {
-    std::vector<kv::StorePtr> stores;
+    std::vector<kv::ReadOnlyStorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_stores_for(handle, seqnos);
     };

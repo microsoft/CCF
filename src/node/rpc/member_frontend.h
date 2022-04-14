@@ -464,7 +464,7 @@ namespace ccf
     }
 
     bool get_proposal_id_from_path(
-      const enclave::PathParams& params,
+      const ccf::PathParams& params,
       ProposalId& proposal_id,
       std::string& error)
     {
@@ -472,9 +472,7 @@ namespace ccf
     }
 
     bool get_member_id_from_path(
-      const enclave::PathParams& params,
-      MemberId& member_id,
-      std::string& error)
+      const ccf::PathParams& params, MemberId& member_id, std::string& error)
     {
       return get_path_param(params, "member_id", member_id.value(), error);
     }
@@ -495,7 +493,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.7.0";
+      openapi_info.document_version = "2.7.1";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -712,7 +710,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             errors::AuthorizationFailed,
-            "Member is not active");
+            "Member is not active.");
         }
 
         GenesisGenerator g(this->network, ctx.tx);
@@ -722,7 +720,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             errors::ServiceNotWaitingForRecoveryShares,
-            "Service is not waiting for recovery shares");
+            "Service is not waiting for recovery shares.");
         }
 
         auto node_operation = context.get_subsystem<AbstractNodeOperation>();
@@ -737,7 +735,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             errors::NodeAlreadyRecovering,
-            "Node is already recovering private ledger");
+            "Node is already recovering private ledger.");
         }
 
         const auto in = params.get<SubmitRecoveryShare::In>();
@@ -752,7 +750,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          constexpr auto error_msg = "Error submitting recovery shares";
+          constexpr auto error_msg = "Error submitting recovery shares.";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           return make_error(
@@ -783,7 +781,7 @@ namespace ccf
         {
           // Clear the submitted shares if combination fails so that members can
           // start over.
-          constexpr auto error_msg = "Failed to initiate private recovery";
+          constexpr auto error_msg = "Failed to initiate private recovery.";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(ctx.tx);
@@ -793,8 +791,6 @@ namespace ccf
             errors::InternalError,
             error_msg);
         }
-
-        share_manager.clear_submitted_recovery_shares(ctx.tx);
 
         return make_success(SubmitRecoveryShare::Out{fmt::format(
           "{}/{} recovery shares successfully submitted. End of recovery "

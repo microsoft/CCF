@@ -17,7 +17,7 @@
 #include <limits>
 #include <unordered_map>
 
-namespace enclave
+namespace ccf
 {
   using ServerEndpointImpl = http::HTTPServerEndpoint;
   using ClientEndpointImpl = http::HTTPClientEndpoint;
@@ -27,7 +27,9 @@ namespace enclave
   static constexpr ccf::Endorsement endorsement_default =
     ccf::Endorsement{ccf::Authority::SERVICE};
 
-  class RPCSessions : public AbstractRPCResponder
+  class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
+                      public AbstractRPCResponder,
+                      public http::ErrorReporter
   {
   private:
     struct ListenInterface
@@ -37,6 +39,7 @@ namespace enclave
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
+      ccf::SessionMetrics::Errors errors;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
@@ -56,14 +59,14 @@ namespace enclave
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
-    class NoMoreSessionsEndpointImpl : public enclave::TLSEndpoint
+    class NoMoreSessionsEndpointImpl : public ccf::TLSEndpoint
     {
     public:
       NoMoreSessionsEndpointImpl(
         tls::ConnID session_id,
         ringbuffer::AbstractWriterFactory& writer_factory,
         std::unique_ptr<tls::Context> ctx) :
-        enclave::TLSEndpoint(session_id, writer_factory, std::move(ctx))
+        ccf::TLSEndpoint(session_id, writer_factory, std::move(ctx))
       {}
 
       static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
@@ -148,6 +151,21 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
+    void report_parsing_error(tls::ConnID id) override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+
+      auto search = sessions.find(id);
+      if (search != sessions.end())
+      {
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          it->second.errors.parsing++;
+        }
+      }
+    }
+
     void update_listening_interface_options(
       const ccf::NodeInfoNetwork& node_info)
     {
@@ -190,7 +208,8 @@ namespace enclave
           interface.open_sessions,
           interface.peak_sessions,
           interface.max_open_sessions_soft,
-          interface.max_open_sessions_hard};
+          interface.max_open_sessions_hard,
+          interface.errors};
       }
 
       return sm;
@@ -306,7 +325,12 @@ namespace enclave
         auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
 
         auto session = std::make_shared<ServerEndpointImpl>(
-          rpc_map, id, listen_interface_id, writer_factory, std::move(ctx));
+          rpc_map,
+          id,
+          listen_interface_id,
+          writer_factory,
+          std::move(ctx),
+          shared_from_this());
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(session))));
         per_listen_interface.open_sessions++;

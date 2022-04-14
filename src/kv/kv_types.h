@@ -72,7 +72,7 @@ namespace kv
       return {term, version};
     }
 
-    bool operator==(const TxID& other)
+    bool operator==(const TxID& other) const
     {
       return term == other.term && version == other.version;
     }
@@ -196,15 +196,25 @@ namespace kv
     std::vector<Configuration> configs = {};
     std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
     MembershipState membership_state;
-    std::optional<LeadershipState> leadership_state;
-    std::optional<RetirementPhase> retirement_phase;
-    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
-    std::optional<ReconfigurationType> reconfiguration_type;
+    std::optional<LeadershipState> leadership_state = std::nullopt;
+    std::optional<RetirementPhase> retirement_phase = std::nullopt;
+    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
+      std::nullopt;
+    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
+    std::optional<ccf::NodeId> primary_id = std::nullopt;
+    ccf::View current_view = 0;
+    bool ticking = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
-    ConsensusDetails, configs, acks, membership_state);
+    ConsensusDetails,
+    configs,
+    acks,
+    membership_state,
+    primary_id,
+    current_view,
+    ticking);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ConsensusDetails,
     reconfiguration_type,
@@ -234,19 +244,13 @@ namespace kv
       const ccf::ResharingResult& result) = 0;
     virtual std::optional<Configuration::Nodes> orc(
       kv::ReconfigurationId rid, const NodeId& node_id) = 0;
-    virtual void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const NodeId& node_id,
-      const crypto::Pem& node_cert) = 0;
-    virtual void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) = 0;
     virtual void update_parameters(ConsensusParameters& params) = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
     Version,
     std::shared_ptr<std::vector<uint8_t>>,
+    bool,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
@@ -579,8 +583,18 @@ namespace kv
     virtual crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) = 0;
   };
-
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
+
+  class AbstractSnapshotter
+  {
+  public:
+    virtual ~AbstractSnapshotter(){};
+
+    virtual bool record_committable(kv::Version v) = 0;
+    virtual void commit(kv::Version v, bool generate_snapshot) = 0;
+    virtual void rollback(kv::Version v) = 0;
+  };
+  using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
   class AbstractChangeSet
   {
@@ -670,6 +684,8 @@ namespace kv
     // Thus, a large rollback is one which did not result from the map creating
     // issue. https://github.com/microsoft/CCF/issues/2799
     virtual bool should_rollback_to_last_committed() = 0;
+
+    bool force_ledger_chunk = false;
   };
 
   class AbstractStore

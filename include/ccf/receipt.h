@@ -3,8 +3,11 @@
 
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/entity_id.h"
+
+#include <optional>
 
 namespace ccf
 {
@@ -35,14 +38,24 @@ namespace ccf
       bool operator==(const LeafComponents& other) const = default;
     };
 
+    /// Signature over the root of the Merkle Tree, by the node private key
     std::string signature;
+    /// Root of the Merkle Tree
     std::optional<std::string> root = std::nullopt;
+    /// Merkle proof from the signed root to the leaf components
     std::vector<Element> proof = {};
+    /// Node identity that produced the signature at the time
     ccf::NodeId node_id;
+    /// Node identity as a PEM certificate
     std::optional<std::string> cert = std::nullopt;
     // In practice, either leaf or leaf_components is set
+    /// Leaf of the Merkle proof, only set on transactions emitted by 1.x
+    /// networks. Corresponds to the write set digest.
     std::optional<std::string> leaf = std::nullopt;
+    /// Leaf components in transactions emitted by 2.x networks.
     std::optional<LeafComponents> leaf_components = std::nullopt;
+
+    std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::Element)
@@ -56,5 +69,6 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id)
-  DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root, cert, leaf, leaf_components)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    Receipt, root, cert, leaf, leaf_components, service_endorsements)
 }

@@ -8,7 +8,6 @@
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
-#include "crypto/openssl/x509_time.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
@@ -33,6 +32,7 @@ namespace ccf::js
   using KVMap = kv::untyped::Map;
 
   JSClassID kv_class_id = 0;
+  JSClassID kv_read_only_class_id = 0;
   JSClassID kv_map_handle_class_id = 0;
   JSClassID body_class_id = 0;
   JSClassID node_class_id = 0;
@@ -45,6 +45,8 @@ namespace ccf::js
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
+  JSClassDef kv_read_only_class_def = {};
+  JSClassExoticMethods kv_read_only_exotic_methods = {};
   JSClassDef kv_map_handle_class_def = {};
   JSClassDef body_class_def = {};
   JSClassDef node_class_def = {};
@@ -331,23 +333,13 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  static int js_kv_lookup(
-    JSContext* ctx,
-    JSPropertyDescriptor* desc,
-    JSValueConst this_val,
-    JSAtom property)
+  static bool _check_kv_map_access(
+    TxAccess access, const std::string& table_name)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    const auto property_name = jsctx.to_str(property).value_or("");
-    LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
-
     const auto [security_domain, access_category] =
-      kv::parse_map_name(property_name);
+      kv::parse_map_name(table_name);
 
-    auto tx_ctx_ptr =
-      static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
-
-    auto read_only = false;
+    bool read_only = false;
     switch (access_category)
     {
       case kv::AccessCategory::INTERNAL:
@@ -360,29 +352,33 @@ namespace ccf::js
         {
           throw std::runtime_error(fmt::format(
             "JS application cannot access private internal CCF table '{}'",
-            property_name));
+            table_name));
         }
         break;
       }
       case kv::AccessCategory::GOVERNANCE:
       {
-        read_only = tx_ctx_ptr->access != TxAccess::GOV_RW;
+        read_only = access != TxAccess::GOV_RW;
         break;
       }
       case kv::AccessCategory::APPLICATION:
       {
-        read_only = tx_ctx_ptr->access != TxAccess::APP;
+        read_only = access != TxAccess::APP;
         break;
       }
       default:
       {
-        throw std::logic_error(fmt::format(
-          "Unhandled AccessCategory for table '{}'", property_name));
+        throw std::logic_error(
+          fmt::format("Unhandled AccessCategory for table '{}'", table_name));
       }
     }
 
-    auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
+    return read_only;
+  }
 
+  static void _create_kv_map_handle(
+    JSContext* ctx, JSPropertyDescriptor* desc, void* handle, bool read_only)
+  {
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
     // Keys and values are ArrayBuffers. Keys are matched based on their
@@ -448,6 +444,50 @@ namespace ccf::js
 
     desc->flags = 0;
     desc->value = view_val;
+  }
+
+  static int js_kv_lookup(
+    JSContext* ctx,
+    JSPropertyDescriptor* desc,
+    JSValueConst this_val,
+    JSAtom property)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    const auto property_name = jsctx.to_str(property).value_or("");
+    LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
+
+    auto tx_ctx_ptr =
+      static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
+
+    const auto read_only =
+      _check_kv_map_access(tx_ctx_ptr->access, property_name);
+
+    auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
+
+    _create_kv_map_handle(ctx, desc, handle, read_only);
+
+    return true;
+  }
+
+  static int js_read_only_kv_lookup(
+    JSContext* ctx,
+    JSPropertyDescriptor* desc,
+    JSValueConst this_val,
+    JSAtom property)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    const auto property_name = jsctx.to_str(property).value_or("");
+    LOG_TRACE_FMT("Looking for read-only kv map '{}'", property_name);
+
+    auto tx_ctx_ptr = static_cast<ReadOnlyTxContext*>(
+      JS_GetOpaque(this_val, kv_read_only_class_id));
+
+    _check_kv_map_access(tx_ctx_ptr->access, property_name);
+    const auto read_only = true;
+
+    auto handle = tx_ctx_ptr->tx->ro<KVMap>(property_name);
+
+    _create_kv_map_handle(ctx, desc, handle, read_only);
 
     return true;
   }
@@ -765,7 +805,7 @@ namespace ccf::js
     }
 
     auto rpc_ctx =
-      static_cast<enclave::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
+      static_cast<ccf::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
 
     if (rpc_ctx == nullptr)
     {
@@ -792,7 +832,7 @@ namespace ccf::js
     }
 
     auto rpc_ctx =
-      static_cast<enclave::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
+      static_cast<ccf::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
 
     if (rpc_ctx == nullptr)
     {
@@ -854,14 +894,14 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "issuer argument is not a string");
     }
 
-    JSValue metadata_val = JS_JSONStringify(ctx, argv[1], JS_NULL, JS_NULL);
+    auto metadata_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[1]));
     if (JS_IsException(metadata_val))
     {
       return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
     }
     auto metadata_json = jsctx.to_str(metadata_val);
 
-    JSValue jwks_val = JS_JSONStringify(ctx, argv[2], JS_NULL, JS_NULL);
+    auto jwks_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[2]));
     if (JS_IsException(jwks_val))
     {
       return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");
@@ -1256,6 +1296,11 @@ namespace ccf::js
     kv_class_def.class_name = "KV Tables";
     kv_class_def.exotic = &kv_exotic_methods;
 
+    JS_NewClassID(&kv_read_only_class_id);
+    kv_read_only_exotic_methods.get_own_property = js_read_only_kv_lookup;
+    kv_read_only_class_def.class_name = "Read-only KV Tables";
+    kv_read_only_class_def.exotic = &kv_read_only_exotic_methods;
+
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";
 
@@ -1455,8 +1500,8 @@ namespace ccf::js
 
   JSValue create_ccf_obj(
     TxContext* txctx,
-    TxContext* historical_txctx,
-    enclave::RpcContext* rpc_ctx,
+    ReadOnlyTxContext* historical_txctx,
+    ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
@@ -1570,7 +1615,7 @@ namespace ccf::js
         JS_NewString(ctx, transaction_id->to_str().c_str()));
       auto js_receipt = ccf_receipt_to_js(ctx, receipt);
       JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
       JS_SetOpaque(kv, historical_txctx);
       JS_SetPropertyStr(ctx, state, "kv", kv);
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
@@ -1748,8 +1793,8 @@ namespace ccf::js
 
   void populate_global_ccf(
     TxContext* txctx,
-    TxContext* historical_txctx,
-    enclave::RpcContext* rpc_ctx,
+    ReadOnlyTxContext* historical_txctx,
+    ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
@@ -1781,8 +1826,8 @@ namespace ccf::js
 
   void populate_global(
     TxContext* txctx,
-    TxContext* historical_txctx,
-    enclave::RpcContext* rpc_ctx,
+    ReadOnlyTxContext* historical_txctx,
+    ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
@@ -1816,6 +1861,7 @@ namespace ccf::js
   {
     std::vector<std::pair<JSClassID, JSClassDef*>> classes{
       {kv_class_id, &kv_class_def},
+      {kv_read_only_class_id, &kv_read_only_class_def},
       {kv_map_handle_class_id, &kv_map_handle_class_def},
       {body_class_id, &body_class_def},
       {node_class_id, &node_class_def},

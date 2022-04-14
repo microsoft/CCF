@@ -191,10 +191,10 @@ install(
   PATTERN "*.hpp"
 )
 
-# Install all CCF headers
+# Install all private CCF headers, which may still be needed
 install(
   DIRECTORY src/
-  DESTINATION include/ccf
+  DESTINATION include/ccf/_private
   FILES_MATCHING
   PATTERN "*.h"
   PATTERN "*/test*" EXCLUDE
@@ -668,7 +668,7 @@ if(BUILD_TESTS)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
         rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-        https://github.com/drwetter/testssl.sh
+        --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
     )
     add_custom_target(
@@ -689,11 +689,13 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     CONSENSUS cft
   )
-
-  # Higher snapshot interval as the test currently assumes that no transactions
-  # are emitted while partitions are up. To be removed when
-  # https://github.com/microsoft/CCF/issues/2577 is implemented
-  set(PARTITIONS_TEST_ARGS --snapshot-tx-interval 10000)
+  set(PARTITIONS_TEST_ARGS
+      # Higher snapshot interval as the test currently assumes that no
+      # transactions
+      # are emitted while partitions are up. To be removed when
+      # https://github.com/microsoft/CCF/issues/2577 is implemented
+      --snapshot-tx-interval 10000
+  )
   if(ENABLE_2TX_RECONFIG)
     list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
   endif()

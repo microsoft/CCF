@@ -85,20 +85,10 @@ TEST_CASE("Simple custom types")
 
   openapi::server(doc, server_url);
 
-  openapi::add_request_body_schema<Foo>(
-    doc, "/app/foo", HTTP_POST, http::headervalues::contenttype::JSON);
+  openapi::add_request_body_schema<Foo>(doc, "/app/foo", HTTP_POST);
   openapi::add_response_schema<size_t>(
-    doc,
-    "/app/foo",
-    HTTP_POST,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
-  openapi::add_response_schema<Foo>(
-    doc,
-    "/app/foo",
-    HTTP_POST,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
+    doc, "/app/foo", HTTP_POST, HTTP_STATUS_OK);
+  openapi::add_response_schema<Foo>(doc, "/app/foo", HTTP_POST, HTTP_STATUS_OK);
 
   required_doc_elements(doc);
 }
@@ -157,44 +147,18 @@ TEST_CASE("Complex custom types")
   openapi::server(doc, server_url);
 
   openapi::add_response_schema<std::vector<Foo>>(
-    doc,
-    "/app/foos",
-    HTTP_GET,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
+    doc, "/app/foos", HTTP_GET, HTTP_STATUS_OK);
   openapi::add_response_schema<std::vector<std::vector<Foo>>>(
-    doc,
-    "/app/fooss",
-    HTTP_GET,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
-  openapi::add_response_schema<Bar>(
-    doc,
-    "/app/bar",
-    HTTP_GET,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
-  openapi::add_response_schema<Baz>(
-    doc,
-    "/app/baz",
-    HTTP_GET,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
+    doc, "/app/fooss", HTTP_GET, HTTP_STATUS_OK);
+  openapi::add_response_schema<Bar>(doc, "/app/bar", HTTP_GET, HTTP_STATUS_OK);
+  openapi::add_response_schema<Baz>(doc, "/app/baz", HTTP_GET, HTTP_STATUS_OK);
   openapi::add_response_schema<std::map<std::string, Buzz>>(
-    doc,
-    "/app/buzz",
-    HTTP_GET,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
+    doc, "/app/buzz", HTTP_GET, HTTP_STATUS_OK);
 
   openapi::add_request_body_schema<std::optional<Bar>>(
-    doc, "/app/complex", HTTP_POST, http::headervalues::contenttype::JSON);
+    doc, "/app/complex", HTTP_POST);
   openapi::add_response_schema<std::map<Baz, std::vector<Buzz>>>(
-    doc,
-    "/app/complex",
-    HTTP_POST,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::JSON);
+    doc, "/app/complex", HTTP_POST, HTTP_STATUS_OK);
 
   required_doc_elements(doc);
 }
@@ -282,8 +246,7 @@ TEST_CASE("Manual function definitions")
       "Some longer description enhanced with **Markdown**",
       "0.1.42");
 
-    openapi::add_request_body_schema<bbb::Person>(
-      doc, "/person", HTTP_POST, http::headervalues::contenttype::JSON);
+    openapi::add_request_body_schema<bbb::Person>(doc, "/person", HTTP_POST);
 
     const auto components_schemas = doc["components"]["schemas"];
     REQUIRE(components_schemas.find("Person") != components_schemas.end());

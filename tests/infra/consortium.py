@@ -17,6 +17,7 @@ from infra.proposal import ProposalState
 import shutil
 import tempfile
 import glob
+import datetime
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
@@ -144,7 +145,10 @@ class Consortium:
             args = {}
             for k, v in kwargs.items():
                 if v is not None:
-                    args[k] = v
+                    if isinstance(v, datetime.datetime):
+                        args[k] = str(v)
+                    else:
+                        args[k] = v
             action["args"] = args
 
         proposal_body = {"actions": [action]}
@@ -646,6 +650,15 @@ class Consortium:
             "remove_node_code", code_id=code_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_node_data(self, remote_node, node_service_id, node_data):
+        proposal, careful_vote = self.make_proposal(
+            "set_node_data",
+            node_id=node_service_id,
+            node_data=node_data,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_node_certificate_validity(

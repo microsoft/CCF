@@ -72,8 +72,10 @@ class StartupSeqnoIsOld(Exception):
     pass
 
 
-class NodeShutdownError(Exception):
-    pass
+class NetworkShutdownError(Exception):
+    def __init__(self, msg, errors=None):
+        super().__init__(msg)
+        self.errors = errors
 
 
 def get_common_folder_name(workspace, label):
@@ -190,9 +192,7 @@ class Network:
         self.next_node_id += 1
         return next_node_id
 
-    def create_node(
-        self, host, binary_dir=None, library_dir=None, node_port=0, version=None
-    ):
+    def create_node(self, host, binary_dir=None, library_dir=None, **kwargs):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -207,8 +207,7 @@ class Network:
             library_dir or self.library_dir,
             debug,
             perf,
-            node_port=node_port,
-            version=version,
+            **kwargs,
         )
         self.nodes.append(node)
         return node
@@ -237,11 +236,8 @@ class Network:
         committed_ledger_dirs = read_only_ledger_dirs or []
         current_ledger_dir = ledger_dir
 
-        # By default, only copy historical ledger if node is started from snapshot
-        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
-            LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
-            current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
-
+        # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
+        # to produce more ledger entries
         if from_snapshot:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             snapshots_dir = snapshots_dir or self.get_committed_snapshots(primary)
@@ -255,6 +251,11 @@ class Network:
             LOG.info(
                 "Joining without snapshot: complete transaction history will be replayed"
             )
+
+        # By default, only copy historical ledger if node is started from snapshot
+        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
+            LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
+            current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
         node.join(
             lib_name=lib_name,
@@ -351,7 +352,7 @@ class Network:
                         **kwargs,
                     )
             except Exception:
-                LOG.exception("Failed to start node {}".format(node.local_node_id))
+                LOG.exception(f"Failed to start node {node.local_node_id}")
                 raise
 
         self.election_duration = args.election_timeout_ms / 1000
@@ -457,9 +458,6 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
-        self.verify_service_certificate_validity_period(
-            args.initial_service_cert_validity_days
-        )
         LOG.success("***** Network is now open *****")
 
     def start_and_open(self, args, **kwargs):
@@ -560,9 +558,6 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.verify_service_certificate_validity_period(
-            args.initial_service_cert_validity_days
-        )
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -606,6 +601,11 @@ class Network:
 
             ledger_paths = node.remote.ledger_paths()
 
+            # Check that at least the main ledger directory, created by
+            # the node on startup, exists
+            if not os.path.isdir(ledger_paths[0]):
+                return
+
             ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
             if not ledger_files:
                 continue
@@ -629,9 +629,10 @@ class Network:
                         f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
                     )
 
-        LOG.info(
-            f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
-        )
+        if longest_ledger_files:
+            LOG.info(
+                f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
+            )
 
     def stop_all_nodes(
         self, skip_verification=False, verbose_verification=False, **kwargs
@@ -651,10 +652,12 @@ class Network:
             for pattern in self.ignore_error_patterns:
                 LOG.warning(f"  {pattern}")
 
+        node_errors = {}
         for node in self.nodes:
             _, fatal_errors = node.stop(
                 ignore_error_patterns=self.ignore_error_patterns
             )
+            node_errors[node.local_node_id] = fatal_errors
             if fatal_errors:
                 fatal_error_found = True
 
@@ -665,7 +668,9 @@ class Network:
             if self.ignoring_shutdown_errors:
                 LOG.warning("Ignoring shutdown errors")
             else:
-                raise NodeShutdownError("Fatal error found during node shutdown")
+                raise NetworkShutdownError(
+                    "Fatal error found during node shutdown", node_errors
+                )
 
     def join_node(
         self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
@@ -707,9 +712,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or str(
-                    infra.crypto.datetime_to_X509time(datetime.now())
-                )
+                valid_from = valid_from or datetime.now()
                 timeout = ceil(args.join_timer_s * 2)
                 self.consortium.trust_node(
                     primary,
@@ -1164,7 +1167,7 @@ class Network:
             time.sleep(0.1)
         raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
 
-    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
+    def wait_for_snapshot_committed_for(self, seqno, timeout=3, on_all_nodes=False):
         # Check that snapshot exists for target seqno and if so, wait until
         # snapshot evidence is committed
         snapshot_evidence_seqno = None
@@ -1176,7 +1179,15 @@ class Network:
         if snapshot_evidence_seqno is None:
             return False
 
-        return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
+        if on_all_nodes:
+            for node in self.get_joined_nodes():
+                if not self.wait_for_commit_proof(
+                    node, snapshot_evidence_seqno, timeout
+                ):
+                    return False
+            return True
+        else:
+            return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
 
     def get_committed_snapshots(self, node):
         # Wait for all available snapshot files to be committed before
@@ -1274,7 +1285,7 @@ class Network:
         )
         if valid_to != expected_valid_to:
             raise ValueError(
-                f'Validity period for service certiticate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+                f'Validity period for service certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
             )
 
         validity_period = valid_to - valid_from + timedelta(seconds=1)

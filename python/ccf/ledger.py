@@ -37,6 +37,7 @@ SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
 RECOVERY_FILE_SUFFIX = ".recovery"
+IGNORED_FILE_SUFFIX = ".ignored"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -369,12 +370,18 @@ class LedgerValidator:
         self.last_verified_seqno = 0
         self.last_verified_view = 0
 
+        self.service_status = None
+
+    def last_verified_txid(self) -> TxID:
+        return TxID(self.last_verified_view, self.last_verified_seqno)
+
     def add_transaction(self, transaction):
         """
         To validate the ledger, ledger transactions need to be added via this method.
         Depending on the tables that were part of the transaction, it does different things.
         When transaction contains signature table, it starts the verification process and verifies that the root of merkle tree was signed by a node which was part of the network.
         It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.
+        Further, it validates all service status transitions.
         If any of the above checks fail, this method throws.
         """
         transaction_public_domain = transaction.get_public_domain()
@@ -455,6 +462,26 @@ class LedgerValidator:
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
+
+        # Check service status transitions
+        if SERVICE_INFO_TABLE_NAME in tables:
+            service_table = tables[SERVICE_INFO_TABLE_NAME]
+            updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+            updated_service_json = json.loads(updated_service)
+            updated_status = updated_service_json["status"]
+            if self.service_status == updated_status:
+                pass
+            elif self.service_status == "Opening":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Recovering":
+                assert updated_status in ["WaitingForRecoveryShares"]
+            elif self.service_status == "WaitingForRecoveryShares":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Open":
+                assert updated_status in ["Recovering"]
+            else:
+                assert self.service_status == None
+            self.service_status = updated_status
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_tx_digest(), False)
@@ -803,6 +830,33 @@ class LedgerChunk:
         return self.start_seqno, self.end_seqno
 
 
+class LedgerIterator:
+    _filenames: list
+    _fileindex: int = -1
+    _current_chunk: LedgerChunk
+    _validator: Optional[LedgerValidator] = None
+
+    def __init__(self, filenames: list, validator: Optional[LedgerValidator] = None):
+        self._filenames = filenames
+        self._validator = validator
+
+    def __next__(self) -> LedgerChunk:
+        self._fileindex += 1
+        if len(self._filenames) > self._fileindex:
+            self._current_chunk = LedgerChunk(
+                self._filenames[self._fileindex], self._validator
+            )
+            return self._current_chunk
+        else:
+            raise StopIteration
+
+    def signature_count(self) -> int:
+        return self._validator.signature_count if self._validator else 0
+
+    def last_verified_txid(self) -> Optional[TxID]:
+        return self._validator.last_verified_txid() if self._validator else None
+
+
 class Ledger:
     """
     Class used to iterate over all :py:class:`ccf.ledger.LedgerChunk` stored in a CCF ledger folder.
@@ -811,23 +865,14 @@ class Ledger:
     """
 
     _filenames: list
-    _fileindex: int
-    _current_chunk: LedgerChunk
-    _ledger_validator: Optional[LedgerValidator] = None
-
-    def _reset_iterators(self, insecure_skip_verification: bool = False):
-        self._fileindex = -1
-        # Initialize LedgerValidator instance which will be passed to LedgerChunks.
-        self._ledger_validator = (
-            LedgerValidator() if not insecure_skip_verification else None
-        )
+    _validator: Optional[LedgerValidator]
 
     def __init__(
         self,
         paths: List[str],
         committed_only: bool = True,
         read_recovery_files: bool = False,
-        insecure_skip_verification: bool = False,
+        validator: Optional[LedgerValidator] = None,
     ):
 
         self._filenames = []
@@ -840,6 +885,9 @@ class Ledger:
                 sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
                 if not read_recovery_files:
                     return
+
+            if path.endswith(IGNORED_FILE_SUFFIX):
+                return
 
             if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
                 return
@@ -877,28 +925,18 @@ class Ledger:
                     f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
                 )
 
-        self._reset_iterators(insecure_skip_verification)
+        self._validator = validator
 
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
         last_chunk_name = self._filenames[-1]
         return range_from_filename(last_chunk_name)
 
-    def __next__(self) -> LedgerChunk:
-        self._fileindex += 1
-        if len(self._filenames) > self._fileindex:
-            self._current_chunk = LedgerChunk(
-                self._filenames[self._fileindex], self._ledger_validator
-            )
-            return self._current_chunk
-        else:
-            raise StopIteration
-
     def __len__(self):
         return len(self._filenames)
 
     def __iter__(self):
-        return self
+        return LedgerIterator(self._filenames, self._validator)
 
     def get_transaction(self, seqno: int) -> Transaction:
         """
@@ -914,19 +952,15 @@ class Ledger:
         if seqno < 1:
             raise ValueError("Ledger first seqno is 1")
 
-        self._reset_iterators()
-
         transaction = None
-        try:
-            # Note: This is slower than it really needs to as this will walk through
-            # all transactions from the start of the ledger.
-            for chunk in self:
-                for tx in chunk:
-                    public_transaction = tx.get_public_domain()
-                    if public_transaction.get_seqno() == seqno:
-                        return tx
-        finally:
-            self._reset_iterators()
+        for chunk in self:
+            _, chunk_end = chunk.get_seqnos()
+            if chunk_end and chunk_end < seqno:
+                continue
+            for tx in chunk:
+                public_transaction = tx.get_public_domain()
+                if public_transaction.get_seqno() == seqno:
+                    return tx
 
         if transaction is None:
             raise UnknownTransaction(
@@ -943,7 +977,6 @@ class Ledger:
 
         :return: Tuple[Dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.
         """
-        self._reset_iterators()
 
         public_tables: Dict[str, Dict] = {}
         latest_seqno = 0
@@ -964,32 +997,8 @@ class Ledger:
 
         return public_tables, latest_seqno
 
-    def signature_count(self) -> int:
-        """
-        Return the number of verified signature transactions in the *parsed* ledger.
-
-        Note: The ledger should first be parsed before calling this function.
-
-        :return int: Number of verified signature transactions.
-        """
-        return self._ledger_validator.signature_count if self._ledger_validator else 0
-
-    def last_verified_txid(self) -> Optional[TxID]:
-        """
-        Return the :py:class:`ccf.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
-
-        Note: The ledger should first be parsed before calling this function.
-
-        :return: :py:class:`ccf.tx_id.TxID`
-        """
-        return (
-            TxID(
-                self._ledger_validator.last_verified_view,
-                self._ledger_validator.last_verified_seqno,
-            )
-            if self._ledger_validator
-            else None
-        )
+    def validator(self):
+        return self._validator
 
 
 class InvalidRootException(Exception):

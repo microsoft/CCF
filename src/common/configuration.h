@@ -22,7 +22,6 @@
 
 namespace logger
 {
-#ifdef VERBOSE_LOGGING
   DECLARE_JSON_ENUM(
     Level,
     {{Level::TRACE, "Trace"},
@@ -30,11 +29,6 @@ namespace logger
      {Level::INFO, "Info"},
      {Level::FAIL, "Fail"},
      {Level::FATAL, "Fatal"}});
-#else
-  DECLARE_JSON_ENUM(
-    Level,
-    {{Level::INFO, "Info"}, {Level::FAIL, "Fail"}, {Level::FATAL, "Fatal"}});
-#endif
 }
 
 DECLARE_JSON_ENUM(
@@ -133,6 +127,8 @@ struct StartupConfig : CCFConfig
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;
 
+  nlohmann::json node_data = nullptr;
+
   struct Start
   {
     std::vector<ccf::NewMember> members;
@@ -177,6 +173,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   startup_host_time,
   snapshot_tx_interval,
   initial_service_certificate_validity_days,
+  node_data,
   start,
   join,
   recover);

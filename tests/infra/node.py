@@ -19,6 +19,8 @@ import ipaddress
 import ssl
 import copy
 import json
+import time
+import http
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -26,6 +28,8 @@ from setuptools.extern.packaging.version import Version  # type: ignore
 from loguru import logger as LOG
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
+
+NODE_STARTUP_RETRY_COUNT = 5
 
 
 class NodeNetworkState(Enum):
@@ -103,6 +107,7 @@ class Node:
         perf=False,
         node_port=0,
         version=None,
+        node_data_json_file=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -127,6 +132,7 @@ class Node:
         self.consensus = None
         self.certificate_valid_from = None
         self.certificate_validity_days = None
+        self.initial_node_data_json_file = node_data_json_file
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -273,6 +279,7 @@ class Node:
             members_info=members_info,
             version=self.version,
             major_version=self.major_version,
+            node_data_json_file=self.initial_node_data_json_file,
             **kwargs,
         )
         self.remote.setup()
@@ -299,15 +306,18 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
-        try:
-            file_timeout = kwargs.get("file_timeout")
-            self.remote.get_startup_files(
-                self.common_dir, timeout=file_timeout or infra.remote.FILE_TIMEOUT
-            )
-        except Exception as e:
-            LOG.exception(e)
-            self.remote.get_logs(tail_lines_len=None)
-            raise
+        # Detect whether node started up successfully
+        for _ in range(NODE_STARTUP_RETRY_COUNT):
+            try:
+                if self.remote.check_done():
+                    raise RuntimeError("Node crashed at startup")
+                self.remote.get_startup_files(self.common_dir)
+            except Exception as e:
+                if self.remote.check_done():
+                    self.remote.get_logs(tail_lines_len=None)
+                    raise RuntimeError(
+                        f"Error starting node {self.local_node_id}"
+                    ) from e
 
         self.consensus = kwargs.get("consensus")
 
@@ -598,12 +608,17 @@ class Node:
                     f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
                 )
         else:
-            if (
-                infra.crypto.datetime_to_X509time(valid_from)
-                != self.certificate_valid_from
-            ):
+            # Does this check provide any more precision than the check for valid+from + timedelta below?
+            normalized_from = infra.crypto.datetime_to_X509time(valid_from)
+            normalized_expected = (
+                self.certificate_valid_from
+                if isinstance(self.certificate_valid_from, str)
+                else infra.crypto.datetime_to_X509time(self.certificate_valid_from)
+            )
+
+            if normalized_from != normalized_expected:
                 raise ValueError(
-                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{infra.crypto.datetime_to_X509time(valid_from)}", but expected "{self.certificate_valid_from}"'
+                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{normalized_from}", but expected "{normalized_expected}"'
                 )
 
         # Note: CCF substracts one second from validity period since x509 specifies
@@ -614,7 +629,7 @@ class Node:
         )
         if valid_to != expected_valid_to:
             raise ValueError(
-                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+                f'Validity period for node {self.local_node_id} certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
             )
 
         validity_period = valid_to - valid_from + timedelta(seconds=1)
@@ -643,6 +658,36 @@ class Node:
                 not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3)
             )
         )
+
+    def get_receipt(self, view, seqno, timeout=3):
+        found = False
+        start_time = time.time()
+        while time.time() < (start_time + timeout):
+            with self.client() as c:
+                rep = c.get(f"/node/receipt?transaction_id={view}.{seqno}")
+                if rep.status_code == http.HTTPStatus.OK:
+                    return rep.body
+                elif rep.status_code == http.HTTPStatus.NOT_FOUND:
+                    LOG.warning("Frontend is not yet open")
+                    continue
+
+                if rep.status_code == http.HTTPStatus.ACCEPTED:
+                    retry_after = rep.headers.get("retry-after")
+                    if retry_after is None:
+                        raise ValueError(
+                            f"Response with status {rep.status_code} is missing 'retry-after' header"
+                        )
+                else:
+                    raise ValueError(
+                        f"Unexpected response status code {rep.status_code}: {rep.body}"
+                    )
+
+                time.sleep(0.1)
+
+        if not found:
+            raise ValueError(
+                f"Unable to retrieve entry at TxID {view}.{seqno} on node {node.local_node_id} after {timeout}s"
+            )
 
 
 @contextmanager
