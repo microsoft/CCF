@@ -10,6 +10,7 @@ from shutil import copyfileobj
 from enum import Enum, auto
 import infra.concurrency
 import random
+from contextlib import contextmanager
 
 
 from loguru import logger as LOG
@@ -195,7 +196,6 @@ class LoadClient:
         self._start_client(primary, backups, event)
 
 
-# TODO: Context manage!
 class ServiceLoad(infra.concurrency.StoppableThread):
     def __init__(self, verbose=False):
         super().__init__(name="load")
@@ -224,6 +224,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         log_capture = None if self.verbose else []
         primary, backups = self.network.find_nodes(timeout=10, log_capture=log_capture)
         known_nodes = [primary] + backups
+        known_network = self.network
         while not self.is_stopped():
             try:
                 LOG.error("poll...")
@@ -233,12 +234,14 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                 )
                 new_nodes = [new_primary] + new_backups
                 LOG.success(f"new nodes: {[n.local_node_id for n in new_nodes]}")
-                if new_nodes != known_nodes:
+                if new_nodes != known_nodes or self.network != known_network:
                     LOG.warning(
                         "Network configuration has changed, restarting service load client"
                     )
                     event = ""
-                    if primary not in new_nodes:
+                    if self.network != known_network:
+                        event = "recovery"
+                    elif primary not in new_nodes:
                         event = f"stop p[{primary.local_node_id}]"
                     elif new_primary != primary:
                         event = f"elect p[{primary.local_node_id}] -> p[{new_primary.local_node_id}]"
@@ -260,3 +263,10 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                 LOG.warning(f"Error finding nodes: {e}")
             time.sleep(NETWORK_POLL_INTERVAL_S)
         return
+
+
+@contextmanager
+def load(*args, **kwargs):
+    s = ServiceLoad(*args, **kwargs)
+    yield s
+    s.stop()

@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 
 
+
 from loguru import logger as LOG
 
 from cryptography.x509 import load_pem_x509_certificate
@@ -155,7 +156,6 @@ class Network:
             self.jwt_issuer = existing_network.jwt_issuer
             self.hosts = [node.host for node in existing_network.nodes]
             self.service_load = None
-            # TODO: Fix
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
 
