@@ -21,20 +21,20 @@ namespace ccf
     ccf::Receipt out;
 
     out.signature = receipt_ptr->signature;
-    out.root;
+    out.root = receipt_ptr->root;
 
     if (receipt_ptr->path != nullptr)
     {
-      out.path.reserve(receipt_ptr->path->size());
+      out.proof.reserve(receipt_ptr->path->size());
       for (const auto& node : *receipt_ptr->path)
       {
         const auto direction =
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
-          ccf::Receipt::PathStep::Left :
-          ccf::Receipt::PathStep::Right;
+          ccf::Receipt::ProofStep::Left :
+          ccf::Receipt::ProofStep::Right;
         const auto hash = crypto::Sha256Hash::from_span(
           {node.hash.bytes, sizeof(node.hash.bytes)});
-        out.path.push_back({direction, hash});
+        out.proof.push_back({direction, hash});
       }
     }
 
@@ -56,7 +56,7 @@ namespace ccf
 
     if (receipt_ptr->node_cert.has_value())
     {
-      out.node_cert = receipt_ptr->node_cert.value();
+      out.cert = receipt_ptr->node_cert.value();
     }
 
     return out;
