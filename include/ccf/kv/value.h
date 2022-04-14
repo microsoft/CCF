@@ -42,6 +42,11 @@ namespace kv
 
     using GetName::GetName;
 
+    static kv::serialisers::SerialisedEntry create_unit()
+    {
+      return Unit::get();
+    }
+
   private:
     static Write deserialise_write(const kv::untyped::Write& w)
     {

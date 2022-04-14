@@ -7,6 +7,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
+#include "kv/store.h"
 #include "node/network_state.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
@@ -16,7 +17,8 @@
 
 namespace ccf
 {
-  class Snapshotter : public std::enable_shared_from_this<Snapshotter>
+  class Snapshotter : public std::enable_shared_from_this<Snapshotter>,
+                      public kv::AbstractSnapshotter
   {
   public:
     static constexpr auto max_tx_interval = std::numeric_limits<size_t>::max();
@@ -223,7 +225,7 @@ namespace ccf
       store(store_),
       snapshot_tx_interval(snapshot_tx_interval_)
     {
-      next_snapshot_indices.push_back({initial_snapshot_idx, false, false});
+      next_snapshot_indices.push_back({initial_snapshot_idx, false, true});
     }
 
     void init_after_public_recovery()
@@ -257,10 +259,10 @@ namespace ccf
       last_snapshot_idx = idx;
 
       next_snapshot_indices.clear();
-      next_snapshot_indices.push_back({last_snapshot_idx, false, false});
+      next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
-    bool record_committable(consensus::Index idx)
+    bool record_committable(consensus::Index idx) override
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
@@ -348,7 +350,7 @@ namespace ccf
         std::move(msg));
     }
 
-    void commit(consensus::Index idx, bool generate_snapshot)
+    void commit(consensus::Index idx, bool generate_snapshot) override
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
       // at the last snapshottable index before idx, and schedule snapshot
@@ -396,7 +398,7 @@ namespace ccf
       }
     }
 
-    void rollback(consensus::Index idx)
+    void rollback(consensus::Index idx) override
     {
       std::lock_guard<std::mutex> guard(lock);
 

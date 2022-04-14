@@ -96,7 +96,7 @@ namespace kv::test
       {
         replica.push_back(entry);
 
-        const auto& [v, data, committable, hooks] = entry;
+        const auto& [v, data, committable, force_chunk, hooks] = entry;
 
         // Simplification: all entries are replicated in the same term
         view_history.update(v, view);
@@ -214,17 +214,6 @@ namespace kv::test
     {
       return std::nullopt;
     }
-
-    void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const NodeId& node_id,
-      const crypto::Pem& node_cert) override
-    {}
-
-    void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) override
-    {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {

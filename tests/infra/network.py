@@ -75,8 +75,10 @@ class StartupSnapshotIsOld(Exception):
     pass
 
 
-class NodeShutdownError(Exception):
-    pass
+class NetworkShutdownError(Exception):
+    def __init__(self, msg, errors=None):
+        super().__init__(msg)
+        self.errors = errors
 
 
 def get_common_folder_name(workspace, label):
@@ -360,7 +362,7 @@ class Network:
                         **kwargs,
                     )
             except Exception:
-                LOG.exception("Failed to start node {}".format(node.local_node_id))
+                LOG.exception(f"Failed to start node {node.local_node_id}")
                 raise
 
         self.election_duration = args.election_timeout_ms / 1000
@@ -611,6 +613,11 @@ class Network:
 
             ledger_paths = node.remote.ledger_paths()
 
+            # Check that at least the main ledger directory, created by
+            # the node on startup, exists
+            if not os.path.isdir(ledger_paths[0]):
+                return
+
             ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
             if not ledger_files:
                 continue
@@ -657,10 +664,12 @@ class Network:
             for pattern in self.ignore_error_patterns:
                 LOG.warning(f"  {pattern}")
 
+        node_errors = {}
         for node in self.nodes:
             _, fatal_errors = node.stop(
                 ignore_error_patterns=self.ignore_error_patterns
             )
+            node_errors[node.local_node_id] = fatal_errors
             if fatal_errors:
                 fatal_error_found = True
 
@@ -671,7 +680,9 @@ class Network:
             if self.ignoring_shutdown_errors:
                 LOG.warning("Ignoring shutdown errors")
             else:
-                raise NodeShutdownError("Fatal error found during node shutdown")
+                raise NetworkShutdownError(
+                    "Fatal error found during node shutdown", node_errors
+                )
 
     def join_node(
         self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
