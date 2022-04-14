@@ -418,7 +418,7 @@ def test_each_node_cert_renewal(network, args):
 
                     # Verify that presented self-signed certificate matches the one returned by
                     # operator endpoint
-                    self_signed_cert = node.retrieve_new_self_signed_cert(
+                    self_signed_cert = node.retrieve_self_signed_cert(
                         interface_name=interface_name
                     )
                     if (
@@ -468,7 +468,7 @@ def test_each_node_cert_renewal(network, args):
 
                     # verify_ca is false since the certificate has been renewed and
                     # it needs to be retrieved from the node
-                    self_signed_cert = node.retrieve_new_self_signed_cert(
+                    self_signed_cert = node.retrieve_self_signed_cert(
                         interface_name=interface_name,
                         verify_ca=rpc_interface.endorsement.authority
                         != infra.interfaces.EndorsementAuthority.Node,
@@ -481,8 +481,8 @@ def test_each_node_cert_renewal(network, args):
 
                     # Once the self-signed certificate has been retrieved and stored
                     # on disk, it can be used to verify the server identity
-                    self_signed_cert = node.retrieve_new_self_signed_cert(
-                        interface_name=interface_name
+                    node.retrieve_self_signed_cert(
+                        interface_name=interface_name, verify_ca=True
                     )
 
                     node.verify_certificate_validity_period(
@@ -546,7 +546,7 @@ def test_service_cert_renewal_extended(network, args):
     return network
 
 
-@reqs.description("Update certificates of all nodes, one by one")
+@reqs.description("Update certificates of all nodes at once")
 def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
@@ -557,7 +557,7 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
     for node in network.get_joined_nodes():
         self_signed_node_certs_before[
             node.local_node_id
-        ] = node.retrieve_new_self_signed_cert()
+        ] = node.retrieve_self_signed_cert()
 
     network.consortium.set_all_nodes_certificate_validity(
         primary,
@@ -565,11 +565,14 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
         validity_period_days=validity_period_days,
     )
 
+    # Node certificates are updated on global commit hook
+    network.wait_for_all_nodes_to_commit(primary)
+
     for node in network.get_joined_nodes():
         node.set_certificate_validity_period(valid_from, validity_period_days)
         assert (
             self_signed_node_certs_before[node.local_node_id]
-            != node.retrieve_new_self_signed_cert()
+            != node.retrieve_self_signed_cert()
         ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
 
 

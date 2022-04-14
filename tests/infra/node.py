@@ -517,10 +517,10 @@ class Node:
     ):
         return self.host.rpc_interfaces[interface_name].public_port
 
-    def retrieve_new_self_signed_cert(
+    def retrieve_self_signed_cert(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE, *args, **kwargs
     ):
-        # Retrieve and override node self-signed certificate in common directory
+        # Retrieve and overwrite node self-signed certificate in common directory
         with self.client(interface_name=interface_name, *args, **kwargs) as c:
             new_self_signed_cert = c.get("/node/self_signed_certificate").body.json()[
                 "self_signed_certificate"
