@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Configurations and proposals now accept more date/time formats, including the Python-default ISO 8601 format (#3739).
 
+## Added
+
+- Added new `GET /node/self_signed_certificate` endpoint to retrieve the self-signed certificate of the target node (#3767).
+
 ## [2.0.0-rc6]
 
 ### Changed
