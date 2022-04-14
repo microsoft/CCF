@@ -203,7 +203,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         self.client = None
         self.verbose = verbose
 
-    def start(self, network, *args, **kwargs):
+    def begin(self, network, *args, **kwargs):
         self.network = network
         self.client = LoadClient(self.network, *args, **kwargs)
         self.client.start(*self.network.find_nodes())
@@ -213,7 +213,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
     def set_network(self, network):
         self.network = network
 
-    def stop(self):
+    def end(self):
         super().stop()
         if self.client:
             self.client.stop()
@@ -265,4 +265,4 @@ class ServiceLoad(infra.concurrency.StoppableThread):
 def load(*args, **kwargs):
     s = ServiceLoad(*args, **kwargs)
     yield s
-    s.stop()
+    s.end()

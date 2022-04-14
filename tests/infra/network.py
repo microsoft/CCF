@@ -468,7 +468,7 @@ class Network:
         LOG.info(f"Initial set of users added: {len(initial_users)}")
         LOG.success("***** Network is now open *****")
         if self.service_load:
-            self.service_load.start(self)
+            self.service_load.begin(self)
 
     def start_and_open(self, args, **kwargs):
         self.start(args, **kwargs)
