@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/node/quote.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/node_subsystem_interface.h"
@@ -9,7 +10,6 @@
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
 #include "node/session_metrics.h"
-#include "ccf/crypto/pem.h"
 
 namespace ccf
 {
