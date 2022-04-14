@@ -17,10 +17,8 @@ from loguru import logger as LOG
 
 # Interval (s) at which the network is polled to find out
 # when the load client should be restarted
-NETWORK_POLL_INTERVAL_S = 5
+NETWORK_POLL_INTERVAL_S = 1
 
-# Number of requests sent to the service per sec
-DEFAULT_LOAD_RATE_PER_S = 10  # TODO: Change back
 
 # Scope for logging txs so that they do not conflict
 # with the txs recorded by the actual tests
@@ -56,12 +54,10 @@ class LoadClient:
         self,
         network,
         strategy=LoadStrategy.PRIMARY,
-        rate=DEFAULT_LOAD_RATE_PER_S,
         target_node=None,
         existing_events=None,
     ):
         self.network = network
-        self.rate = rate
         self.strategy = strategy
         self.target_node = target_node
         self.events = existing_events or []
@@ -107,7 +103,7 @@ class LoadClient:
 
         cmd += ["--host", "https://0.0.0.0"]  # Dummy host required to start locust
 
-        LOG.info(f'Starting locust: {" ".join(cmd)}')
+        LOG.debug(f'Starting locust: {" ".join(cmd)}')
         self.proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
 
         self.events.append((event, time.time()))
@@ -199,36 +195,44 @@ class LoadClient:
         self._start_client(primary, backups, event)
 
 
+# TODO: Context manage!
 class ServiceLoad(infra.concurrency.StoppableThread):
-    def __init__(self, network, *args, verbose=False, **kwargs):
+    def __init__(self, verbose=False):
         super().__init__(name="load")
-        self.network = network
+        self.network = None
+        self.client = None
         self.verbose = verbose
-        self.client = LoadClient(self.network, *args, **kwargs)
 
-    def start(self):
+    def start(self, network, *args, **kwargs):
+        self.network = network
+        self.client = LoadClient(self.network, *args, **kwargs)
         self.client.start(*self.network.find_nodes())
         super().start()
-        LOG.info("Load client started")
+        LOG.info("Service load started")
+
+    def set_network(self, network):
+        self.network = network
 
     def stop(self):
         super().stop()
-        self.client.stop()
-        LOG.info("Load client stopped")
-
-    def get_existing_events(self):
-        return self.client.events
+        if self.client:
+            self.client.stop()
+        LOG.info("Service load stopped")
 
     def run(self):
+        LOG.error("run!")
         log_capture = None if self.verbose else []
         primary, backups = self.network.find_nodes(timeout=10, log_capture=log_capture)
         known_nodes = [primary] + backups
         while not self.is_stopped():
             try:
+                LOG.error("poll...")
+                LOG.warning(f"known nodes: {[n.local_node_id for n in known_nodes]}")
                 new_primary, new_backups = self.network.find_nodes(
                     timeout=10, log_capture=log_capture
                 )
                 new_nodes = [new_primary] + new_backups
+                LOG.success(f"new nodes: {[n.local_node_id for n in new_nodes]}")
                 if new_nodes != known_nodes:
                     LOG.warning(
                         "Network configuration has changed, restarting service load client"

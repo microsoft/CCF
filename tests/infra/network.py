@@ -137,7 +137,7 @@ class Network:
         library_dir=".",
         init_partitioner=False,
         version=None,
-        with_load=False,
+        service_load=None,
     ):
         if existing_network is None:
             self.consortium = None
@@ -146,9 +146,7 @@ class Network:
             self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
-            self.service_load = (
-                infra.service_load.ServiceLoad(self) if with_load else None
-            )
+            self.service_load = service_load
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -157,12 +155,9 @@ class Network:
             self.jwt_issuer = existing_network.jwt_issuer
             self.hosts = [node.host for node in existing_network.nodes]
             self.service_load = None
+            # TODO: Fix
             if existing_network.service_load:
-                existing_network.service_load.stop()
-                self.service_load = infra.service_load.ServiceLoad(
-                    network=self,
-                    existing_events=existing_network.service_load.get_existing_events(),
-                )
+                self.service_load = existing_network.service_load
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -473,7 +468,7 @@ class Network:
         LOG.info(f"Initial set of users added: {len(initial_users)}")
         LOG.success("***** Network is now open *****")
         if self.service_load:
-            self.service_load.start()
+            self.service_load.start(self)
 
     def start_and_open(self, args, **kwargs):
         self.start(args, **kwargs)
@@ -575,7 +570,7 @@ class Network:
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
         if self.service_load:
-            self.service_load.start()
+            self.service_load.set_network(self)
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
@@ -649,9 +644,6 @@ class Network:
     def stop_all_nodes(
         self, skip_verification=False, verbose_verification=False, **kwargs
     ):
-        if self.service_load:
-            self.service_load.stop()
-
         if not skip_verification:
             if self.txs is not None:
                 LOG.info("Verifying that all committed txs can be read before shutdown")
@@ -1323,7 +1315,7 @@ def network(
     library_directory=".",
     init_partitioner=False,
     version=None,
-    with_load=False,
+    service_load=None,
 ):
     """
     Context manager for Network class.
@@ -1352,7 +1344,7 @@ def network(
         jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,
         version=version,
-        with_load=with_load,
+        service_load=service_load,
     )
     try:
         yield net

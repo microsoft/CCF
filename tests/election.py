@@ -10,6 +10,7 @@ import infra.checker
 import suite.test_requirements as reqs
 from infra.runner import ConcurrentRunner
 import copy
+import infra.service_load
 
 from loguru import logger as LOG
 
@@ -34,6 +35,10 @@ def test_kill_primary_no_reqs(network, args):
             r = c.get("/node/network")
             c.wait_for_commit(r)
 
+    import time
+
+    time.sleep(10)
+
     return network
 
 
@@ -44,13 +49,14 @@ def test_kill_primary(network, args):
 
 
 def run(args):
+    service_load = infra.service_load.ServiceLoad()
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,
         pdb=args.pdb,
-        with_load=True,
+        service_load=service_load,
     ) as network:
         check = infra.checker.Checker()
 
@@ -110,7 +116,7 @@ if __name__ == "__main__":
             "cft",
             run,
             package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(args, f=1),
+            nodes=infra.e2e_args.min_nodes(args, f=3),
             election_timeout_ms=1000,
             consensus="CFT",
         )
@@ -121,7 +127,7 @@ if __name__ == "__main__":
             "bft",
             run,
             package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(args, f=1),
+            nodes=infra.e2e_args.max_nodes(args, f=1),
             consensus="BFT",
         )
 

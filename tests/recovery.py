@@ -15,6 +15,7 @@ from infra.consortium import slurp_file
 import infra.health_watcher
 import time
 from e2e_logging import verify_receipt
+import infra.service_load
 
 from loguru import logger as LOG
 
@@ -321,6 +322,8 @@ def test_share_resilience(network, args, from_snapshot=False):
         new_primary,
         infra.network.ServiceStatus.OPEN,
     )
+    if recovered_network.service_load:
+        recovered_network.service_load.set_network(recovered_network)
     return recovered_network
 
 
@@ -487,6 +490,8 @@ def check_snapshots(args, network):
 def run(args):
     recoveries_count = 5
 
+    service_load = infra.service_load.ServiceLoad()
+
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -495,7 +500,7 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        with_load=True,
+        service_load=service_load,
     ) as network:
         network.start_and_open(args)
 
@@ -532,6 +537,7 @@ def run(args):
         primary, _ = network.find_primary()
 
     network.stop_all_nodes()
+    service_load.stop()
 
     # Verify that a new ledger chunk was created at the start of each recovery
     ledger = ccf.ledger.Ledger(
@@ -558,7 +564,7 @@ def run(args):
                         chunk_start_seqno == seqno
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    test_recover_service_with_expired_cert(args)
+    # test_recover_service_with_expired_cert(args)
 
 
 if __name__ == "__main__":
@@ -596,14 +602,14 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snasphot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snasphot_tx_interval=1000000,
+    # )
 
     cr.run()
