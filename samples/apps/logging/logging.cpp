@@ -884,7 +884,7 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
-            out.receipt = ccf::describe_receipt(historical_state->receipt);
+            out.receipt = ccf::describe_receipt(*historical_state->receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
@@ -938,7 +938,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
-            out.receipt = ccf::describe_receipt(historical_state->receipt);
+            out.receipt = ccf::describe_receipt(*historical_state->receipt);
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
             // TODO

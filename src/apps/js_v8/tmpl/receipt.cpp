@@ -119,7 +119,7 @@ namespace ccf::v8_tmpl
     ccf::Receipt* receipt_out = new ccf::Receipt();
     V8Context::from_context(context).register_finalizer(
       [](void* data) { delete static_cast<ccf::Receipt*>(data); }, receipt_out);
-    *receipt_out = ccf::describe_receipt(receipt);
+    *receipt_out = ccf::describe_receipt(*receipt);
 
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);

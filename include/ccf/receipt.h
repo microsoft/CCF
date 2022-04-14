@@ -7,6 +7,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/json.h"
+#include "ccf/ds/openapi.h"
 #include "ccf/entity_id.h"
 
 #include <optional>
@@ -45,11 +46,6 @@ namespace ccf
     Proof proof = {};
 
     LeafComponents leaf_components = {};
-    crypto::Sha256Hash get_leaf_hash()
-    {
-      // TODO
-      return {};
-    }
 
     ccf::NodeId node_id = {};
     crypto::Pem cert = {};
@@ -109,16 +105,13 @@ namespace ccf
     schema = nlohmann::json::object();
 
     auto possible_hash = [](const auto& name) {
-      auto hash_schema = nlohmann::json::object();
-      hash_schema["type"] = "TODO";
-      auto properties = nlohmann::json::object();
-      properties[name] = hash_schema;
-      auto required = nlohmann::json::array();
-      required.push_back(name);
-      auto ret = nlohmann::json::object();
-      ret["properties"] = properties;
-      ret["required"] = required;
-      return ret;
+      auto schema = nlohmann::json::object();
+      schema["required"] = nlohmann::json::array();
+      schema["required"].push_back(name);
+      schema["properties"] = nlohmann::json::object();
+      schema["properties"][name] = ds::openapi::components_ref_object(
+        ds::json::schema_name<crypto::Sha256Hash>());
+      return schema;
     };
 
     schema["type"] = "object";

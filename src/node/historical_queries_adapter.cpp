@@ -14,20 +14,18 @@ namespace ccf
   static std::map<crypto::Pem, std::vector<crypto::Pem>>
     service_endorsement_cache;
 
-  ccf::Receipt describe_receipt(
-    const TxReceiptImplPtr& receipt_ptr, bool include_root)
+  ccf::Receipt describe_receipt(const TxReceiptImpl& receipt, bool include_root)
   {
-    // TODO: Why did I take a pointer?
     ccf::Receipt out;
 
-    out.signature = receipt_ptr->signature;
+    out.signature = receipt.signature;
     out.root = crypto::Sha256Hash::from_span(
-      {receipt_ptr->root.bytes, sizeof(receipt_ptr->root.bytes)});
+      {receipt.root.bytes, sizeof(receipt.root.bytes)});
 
-    if (receipt_ptr->path != nullptr)
+    if (receipt.path != nullptr)
     {
-      out.proof.reserve(receipt_ptr->path->size());
-      for (const auto& node : *receipt_ptr->path)
+      out.proof.reserve(receipt.path->size());
+      for (const auto& node : *receipt.path)
       {
         const auto direction =
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
@@ -39,30 +37,28 @@ namespace ccf
       }
     }
 
-    if (receipt_ptr->write_set_digest.has_value())
+    if (receipt.write_set_digest.has_value())
     {
-      out.leaf_components.write_set_digest =
-        receipt_ptr->write_set_digest.value();
+      out.leaf_components.write_set_digest = receipt.write_set_digest.value();
     }
 
-    if (receipt_ptr->commit_evidence.has_value())
+    if (receipt.commit_evidence.has_value())
     {
-      out.leaf_components.commit_evidence =
-        receipt_ptr->commit_evidence.value();
+      out.leaf_components.commit_evidence = receipt.commit_evidence.value();
     }
 
-    out.leaf_components.claims_digest = receipt_ptr->claims_digest;
+    out.leaf_components.claims_digest = receipt.claims_digest;
 
-    out.node_id = receipt_ptr->node_id;
+    out.node_id = receipt.node_id;
 
-    if (receipt_ptr->node_cert.has_value())
+    if (receipt.node_cert.has_value())
     {
-      out.cert = receipt_ptr->node_cert.value();
+      out.cert = receipt.node_cert.value();
     }
 
-    if (receipt_ptr->service_endorsements.has_value())
+    if (receipt.service_endorsements.has_value())
     {
-      out.service_endorsements = receipt_ptr->service_endorsements.value();
+      out.service_endorsements = receipt.service_endorsements.value();
     }
 
     return out;
