@@ -262,7 +262,7 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
-    bool record_committable(consensus::Index idx) override
+    bool record_committable_unsafe(consensus::Index idx) override
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
@@ -274,7 +274,7 @@ namespace ccf
         idx,
         next_snapshot_indices.back().idx);
 
-      bool forced = store->flag_enabled(
+      bool forced = store->flag_enabled_unsafe(
         kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       consensus::Index last_unforced_idx = last_snapshot_idx;
@@ -295,7 +295,8 @@ namespace ccf
         next_snapshot_indices.push_back({idx, !due, false});
         LOG_TRACE_FMT(
           "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
-        store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        store->unset_flag_unsafe(
+          kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         return due;
       }
 

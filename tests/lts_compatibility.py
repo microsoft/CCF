@@ -424,6 +424,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
+        previous_major_version = None
+        previous_version_past_2_rc6 = False
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
                 version, install_path = repo.install_release(lts_release)
@@ -501,10 +503,25 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
+                # We accept ledger chunk file differences during upgrades
+                # from 2.x-rc6 to 2.x-rc7 and from 1.x to 2.x-rc7
+                current_version_past_2_rc6 = primary.version_after("ccf-2.0.0-rc6")
+                is_ledger_chunk_breaking = (
+                    not previous_major_version
+                    or previous_major_version == 1
+                    or not previous_version_past_2_rc6
+                ) and current_version_past_2_rc6
+                previous_major_version = primary.major_version
+                previous_version_past_2_rc6 = current_version_past_2_rc6
+
                 snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
-                network.stop_all_nodes(skip_verification=True)
+
+                network.stop_all_nodes(
+                    skip_verification=True,
+                    accept_ledger_diff=is_ledger_chunk_breaking,
+                )
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
                 network.save_service_identity(args)
 

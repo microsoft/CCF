@@ -28,7 +28,6 @@ namespace aft
     virtual void put_entry(
       const std::vector<uint8_t>& original,
       bool globally_committable,
-      bool force_chunk,
       kv::Term term,
       kv::Version index)
     {

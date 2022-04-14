@@ -251,7 +251,6 @@ namespace kv
     Version,
     std::shared_ptr<std::vector<uint8_t>>,
     bool,
-    bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
   enum CommitResult
@@ -590,7 +589,7 @@ namespace kv
   public:
     virtual ~AbstractSnapshotter(){};
 
-    virtual bool record_committable(kv::Version v) = 0;
+    virtual bool record_committable_unsafe(kv::Version v) = 0;
     virtual void commit(kv::Version v, bool generate_snapshot) = 0;
     virtual void rollback(kv::Version v) = 0;
   };
@@ -684,8 +683,6 @@ namespace kv
     // Thus, a large rollback is one which did not result from the map creating
     // issue. https://github.com/microsoft/CCF/issues/2799
     virtual bool should_rollback_to_last_committed() = 0;
-
-    bool force_ledger_chunk = false;
   };
 
   class AbstractStore
@@ -748,6 +745,8 @@ namespace kv
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
+    virtual bool must_force_ledger_chunk(Version version) = 0;
+    virtual bool must_force_ledger_chunk_unsafe(Version version) = 0;
 
     virtual size_t commit_gap() = 0;
 

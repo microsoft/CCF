@@ -78,7 +78,7 @@ bool record_signature(
   std::vector<uint8_t> dummy_signature(128, 43);
   crypto::Pem node_cert;
 
-  bool requires_snapshot = snapshotter->record_committable(idx);
+  bool requires_snapshot = snapshotter->record_committable_unsafe(idx);
   snapshotter->record_signature(
     idx, dummy_signature, kv::test::PrimaryNodeId, node_cert);
   snapshotter->record_serialised_tree(idx, history->serialise_tree(1, idx));
