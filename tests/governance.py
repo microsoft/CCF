@@ -393,7 +393,6 @@ def test_each_node_cert_renewal(network, args):
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
-
     test_vectors = [
         (now, validity_period_allowed, None),
         (now, None, None),  # Omit validity period (deduced from service configuration)
