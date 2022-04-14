@@ -37,7 +37,8 @@ namespace ccf
     {
       crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
-      ccf::ClaimsDigest claims_digest;
+      // https://github.com/microsoft/CCF/issues/3606
+      std::optional<ccf::ClaimsDigest> claims_digest;
     };
 
     std::vector<uint8_t> signature = {};
@@ -120,9 +121,10 @@ namespace ccf
     schema["oneOf"].push_back(possible_hash("right"));
   }
 
-  DECLARE_JSON_TYPE(Receipt::LeafComponents);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::LeafComponents);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Receipt::LeafComponents, write_set_digest, commit_evidence, claims_digest);
+    Receipt::LeafComponents, write_set_digest, commit_evidence);
+  DECLARE_JSON_OPTIONAL_FIELDS(Receipt::LeafComponents, claims_digest);
 
   DECLARE_JSON_TYPE(Receipt);
   DECLARE_JSON_REQUIRED_FIELDS(

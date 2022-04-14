@@ -114,9 +114,7 @@ Historical Queries
    :project: CCF
    :members:
 
-// TODO: This is wrong
-
-.. doxygenstruct:: ccf::TxReceiptImpl
+.. doxygenstruct:: ccf::Receipt
    :project: CCF
    :members:
 

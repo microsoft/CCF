@@ -47,7 +47,10 @@ namespace ccf
       out.leaf_components.commit_evidence = receipt.commit_evidence.value();
     }
 
-    out.leaf_components.claims_digest = receipt.claims_digest;
+    if (!receipt.claims_digest.empty())
+    {
+      out.leaf_components.claims_digest = receipt.claims_digest;
+    }
 
     out.node_id = receipt.node_id;
 

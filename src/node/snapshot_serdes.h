@@ -28,7 +28,7 @@ namespace ccf
 
     crypto::Sha256Hash ce_dgst(components.commit_evidence);
     current = crypto::Sha256Hash(
-      components.write_set_digest, ce_dgst, components.claims_digest.value());
+      components.write_set_digest, ce_dgst, components.claims_digest->value());
 
     for (auto const& element : receipt.proof)
     {
@@ -114,7 +114,7 @@ namespace ccf
       auto snapshot_digest =
         crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
       auto snapshot_digest_claim =
-        receipt.leaf_components.claims_digest.value();
+        receipt.leaf_components.claims_digest->value();
       if (snapshot_digest != snapshot_digest_claim)
       {
         throw std::logic_error(fmt::format(

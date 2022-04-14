@@ -43,10 +43,10 @@ namespace ccf::js
       "commit_evidence",
       JS_NewString(ctx, receipt_out.leaf_components.commit_evidence.c_str()));
 
-    if (!receipt_out.leaf_components.claims_digest.empty())
+    if (receipt_out.leaf_components.claims_digest.has_value())
     {
       const auto cd_hex =
-        ds::to_hex(receipt_out.leaf_components.claims_digest.value().h);
+        ds::to_hex(receipt_out.leaf_components.claims_digest->value().h);
       JS_SetPropertyStr(
         ctx,
         leaf_components,
