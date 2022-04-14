@@ -270,13 +270,13 @@ namespace asynchost
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
-          current_idx++;
 
           LOG_TRACE_FMT(
             "Recovered one entry of size {} at seqno {}",
             entry_size,
             current_idx);
 
+          current_idx++;
           positions.push_back(total_len);
           total_len += (kv::serialised_entry_header_size + entry_size);
         }
@@ -978,9 +978,7 @@ namespace asynchost
           (get_start_idx_from_file_name(file_name) > idx))
         {
           LOG_INFO_FMT(
-            "Ignoring uncommitted ledger file {} after init at {}",
-            file_name,
-            idx);
+            "Ignoring ledger file {} after init at {}", file_name, idx);
 
           ignore_ledger_file(file_name);
         }

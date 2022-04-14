@@ -133,6 +133,7 @@ class Node:
         self.certificate_valid_from = None
         self.certificate_validity_days = None
         self.initial_node_data_json_file = node_data_json_file
+        self.label = None
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -259,6 +260,7 @@ class Node:
         )
         self.common_dir = common_dir
         members_info = members_info or []
+        self.label = label
 
         self.remote = self.remote_shim(
             start_type,
@@ -515,7 +517,7 @@ class Node:
     ):
         return self.host.rpc_interfaces[interface_name].port
 
-    def session_ca(self, self_signed_ok):
+    def session_ca(self, self_signed_ok=False):
         if self_signed_ok:
             return {"ca": ""}
         else:
