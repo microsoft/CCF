@@ -277,7 +277,7 @@ aft::LedgerStubProxy* add_raft_consensus(
   std::shared_ptr<kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
-  using TRaft = aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
+  using TRaft = aft::Aft<aft::LedgerStubProxy>;
   using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
@@ -288,7 +288,6 @@ aft::LedgerStubProxy* add_raft_consensus(
     std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr);
