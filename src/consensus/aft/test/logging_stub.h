@@ -408,11 +408,6 @@ namespace aft
 
     void set_last_snapshot_idx(Index idx) {}
 
-    bool record_committable(Index)
-    {
-      return false;
-    }
-
     void commit(Index, bool) {}
 
     void rollback(Index) {}
