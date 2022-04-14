@@ -555,9 +555,11 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 
     self_signed_node_certs_before = {}
     for node in network.get_joined_nodes():
-        self_signed_node_certs_before[
-            node.local_node_id
-        ] = node.retrieve_self_signed_cert()
+        # Note: GET /node/self_signed_certificate endpoint was added after 2.0.0-r6
+        if node.version_after("ccf-2.0.0-rc6"):
+            self_signed_node_certs_before[
+                node.local_node_id
+            ] = node.retrieve_self_signed_cert()
 
     network.consortium.set_all_nodes_certificate_validity(
         primary,
@@ -570,10 +572,11 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 
     for node in network.get_joined_nodes():
         node.set_certificate_validity_period(valid_from, validity_period_days)
-        assert (
-            self_signed_node_certs_before[node.local_node_id]
-            != node.retrieve_self_signed_cert()
-        ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
+        if node.version_after("ccf-2.0.0-rc6"):
+            assert (
+                self_signed_node_certs_before[node.local_node_id]
+                != node.retrieve_self_signed_cert()
+            ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
 
 
 def gov(args):
