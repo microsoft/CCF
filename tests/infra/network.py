@@ -1218,7 +1218,7 @@ class Network:
 
                 with node.client(self.consortium.get_any_active_member().local_id) as c:
                     logs = []
-                    for _ in range(self.args.snapshot_tx_interval):
+                    for _ in range(self.args.snapshot_tx_interval // 2):
                         r = c.post("/gov/ack/update_state_digest", log_capture=logs)
                         assert (
                             r.status_code == http.HTTPStatus.OK.value
