@@ -53,6 +53,8 @@ namespace ccf
 
     ccf::NodeId node_id = {};
     crypto::Pem cert = {};
+
+    std::vector<crypto::Pem> service_endorsements = {};
   };
 
   using ReceiptPtr = std::shared_ptr<Receipt>;
@@ -101,7 +103,8 @@ namespace ccf
     return "Receipt__Element";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const Receipt::ProofStep*)
+  inline void fill_json_schema(
+    nlohmann::json& schema, const Receipt::ProofStep*)
   {
     schema = nlohmann::json::object();
 
@@ -130,5 +133,12 @@ namespace ccf
 
   DECLARE_JSON_TYPE(Receipt);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Receipt, signature, root, proof, leaf_components, node_id, cert);
+    Receipt,
+    signature,
+    root,
+    proof,
+    leaf_components,
+    node_id,
+    cert,
+    service_endorsements);
 }
