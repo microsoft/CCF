@@ -11,80 +11,81 @@ namespace ccf::js
   {
     ccf::Receipt receipt_out = ccf::describe_receipt(receipt);
     auto js_receipt = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx,
-      js_receipt,
-      "signature",
-      JS_NewString(ctx, receipt_out.signature.c_str()));
-    if (receipt_out.cert.has_value())
-      JS_SetPropertyStr(
-        ctx,
-        js_receipt,
-        "cert",
-        JS_NewString(ctx, receipt_out.cert.value().c_str()));
-    if (receipt_out.leaf.has_value())
-    {
-      JS_SetPropertyStr(
-        ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf->c_str()));
-    }
-    else if (receipt_out.leaf_components.has_value())
-    {
-      auto leaf_components = JS_NewObject(ctx);
-      if (receipt_out.leaf_components->write_set_digest.has_value())
-      {
-        JS_SetPropertyStr(
-          ctx,
-          leaf_components,
-          "write_set_digest",
-          JS_NewString(
-            ctx, receipt_out.leaf_components->write_set_digest->c_str()));
-      }
+    // TODO
+    // JS_SetPropertyStr(
+    //   ctx,
+    //   js_receipt,
+    //   "signature",
+    //   JS_NewString(ctx, receipt_out.signature.c_str()));
+    // if (receipt_out.cert.has_value())
+    //   JS_SetPropertyStr(
+    //     ctx,
+    //     js_receipt,
+    //     "cert",
+    //     JS_NewString(ctx, receipt_out.cert.value().c_str()));
+    // if (receipt_out.leaf.has_value())
+    // {
+    //   JS_SetPropertyStr(
+    //     ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf->c_str()));
+    // }
+    // else if (receipt_out.leaf_components.has_value())
+    // {
+    //   auto leaf_components = JS_NewObject(ctx);
+    //   if (receipt_out.leaf_components->write_set_digest.has_value())
+    //   {
+    //     JS_SetPropertyStr(
+    //       ctx,
+    //       leaf_components,
+    //       "write_set_digest",
+    //       JS_NewString(
+    //         ctx, receipt_out.leaf_components->write_set_digest->c_str()));
+    //   }
 
-      if (receipt_out.leaf_components->commit_evidence.has_value())
-      {
-        JS_SetPropertyStr(
-          ctx,
-          leaf_components,
-          "commit_evidence",
-          JS_NewString(
-            ctx, receipt_out.leaf_components->commit_evidence->c_str()));
-      }
+    //   if (receipt_out.leaf_components->commit_evidence.has_value())
+    //   {
+    //     JS_SetPropertyStr(
+    //       ctx,
+    //       leaf_components,
+    //       "commit_evidence",
+    //       JS_NewString(
+    //         ctx, receipt_out.leaf_components->commit_evidence->c_str()));
+    //   }
 
-      if (receipt_out.leaf_components->claims_digest.has_value())
-      {
-        JS_SetPropertyStr(
-          ctx,
-          leaf_components,
-          "claims_digest",
-          JS_NewString(
-            ctx, receipt_out.leaf_components->claims_digest->c_str()));
-      }
-      JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
-    }
-    else
-    {
-      throw std::logic_error("Receipt neither has leaf nor leaf_components");
-    }
-    JS_SetPropertyStr(
-      ctx,
-      js_receipt,
-      "node_id",
-      JS_NewString(ctx, receipt_out.node_id.value().c_str()));
-    auto proof = JS_NewArray(ctx);
-    uint32_t i = 0;
-    for (auto& element : receipt_out.proof)
-    {
-      auto js_element = JS_NewObject(ctx);
-      auto is_left = element.left.has_value();
-      JS_SetPropertyStr(
-        ctx,
-        js_element,
-        is_left ? "left" : "right",
-        JS_NewString(
-          ctx, (is_left ? element.left : element.right).value().c_str()));
-      JS_DefinePropertyValueUint32(ctx, proof, i++, js_element, JS_PROP_C_W_E);
-    }
-    JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
+    //   if (receipt_out.leaf_components->claims_digest.has_value())
+    //   {
+    //     JS_SetPropertyStr(
+    //       ctx,
+    //       leaf_components,
+    //       "claims_digest",
+    //       JS_NewString(
+    //         ctx, receipt_out.leaf_components->claims_digest->c_str()));
+    //   }
+    //   JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
+    // }
+    // else
+    // {
+    //   throw std::logic_error("Receipt neither has leaf nor leaf_components");
+    // }
+    // JS_SetPropertyStr(
+    //   ctx,
+    //   js_receipt,
+    //   "node_id",
+    //   JS_NewString(ctx, receipt_out.node_id.value().c_str()));
+    // auto proof = JS_NewArray(ctx);
+    // uint32_t i = 0;
+    // for (auto& element : receipt_out.proof)
+    // {
+    //   auto js_element = JS_NewObject(ctx);
+    //   auto is_left = element.left.has_value();
+    //   JS_SetPropertyStr(
+    //     ctx,
+    //     js_element,
+    //     is_left ? "left" : "right",
+    //     JS_NewString(
+    //       ctx, (is_left ? element.left : element.right).value().c_str()));
+    //   JS_DefinePropertyValueUint32(ctx, proof, i++, js_element, JS_PROP_C_W_E);
+    // }
+    // JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
     return js_receipt;
   }
 

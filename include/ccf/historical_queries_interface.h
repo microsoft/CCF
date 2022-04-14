@@ -13,14 +13,11 @@
 
 namespace ccf
 {
-  // TODO: Remove this stuff
   // This is an opaque, incomplete type, but can be summarised to a
-  // JSON-serialisable form by the functions below
+  // JSON-serialisable form by the function below
   struct TxReceiptImpl;
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
 
-  ccf::Receipt describe_receipt(
-    const TxReceiptImpl& receipt, bool include_root = false);
   ccf::Receipt describe_receipt(
     const TxReceiptImplPtr& receipt_ptr, bool include_root = false);
 }

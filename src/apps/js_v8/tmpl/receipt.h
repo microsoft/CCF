@@ -14,7 +14,6 @@ namespace ccf::v8_tmpl
     static constexpr const char* NAME = "CCFReceipt";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    // TODO: Should use public receipt type?
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context, const ccf::TxReceiptImpl& receipt);
   };

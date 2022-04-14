@@ -190,13 +190,13 @@ namespace aaa
     fn.surname = s.substr(nickname_end + 2);
   }
 
-  std::string schema_name(const FriendlyName&)
+  std::string schema_name(const FriendlyName*)
   {
     return "FriendlyName";
   }
 
   template <typename T>
-  void add_schema_components(T& doc, nlohmann::json& j, const FriendlyName&)
+  void add_schema_components(T& doc, nlohmann::json& j, const FriendlyName*)
   {
     j["type"] = "string";
     j["pattern"] = "^.* \".*\" .*$";
@@ -250,8 +250,9 @@ TEST_CASE("Manual function definitions")
 
     const auto components_schemas = doc["components"]["schemas"];
     REQUIRE(components_schemas.find("Person") != components_schemas.end());
+    aaa::FriendlyName* fn = nullptr;
     REQUIRE(
-      components_schemas.find(aaa::schema_name(aaa::FriendlyName())) !=
+      components_schemas.find(aaa::schema_name(fn)) !=
       components_schemas.end());
   }
 }

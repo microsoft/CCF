@@ -24,49 +24,50 @@ namespace ccf
     const Receipt& receipt)
   {
     crypto::Sha256Hash current;
-    if (receipt.leaf_components.has_value())
-    {
-      auto components = receipt.leaf_components.value();
-      if (
-        components.write_set_digest.has_value() &&
-        components.commit_evidence.has_value() &&
-        components.claims_digest.has_value())
-      {
-        auto ws_dgst = crypto::Sha256Hash::from_hex_string(
-          components.write_set_digest.value());
-        crypto::Sha256Hash ce_dgst(components.commit_evidence.value());
-        auto cl_dgst =
-          crypto::Sha256Hash::from_hex_string(components.claims_digest.value());
-        current = crypto::Sha256Hash(ws_dgst, ce_dgst, cl_dgst);
-      }
-      else
-      {
-        throw std::logic_error(
-          "Cannot compute leaf unless write_set_digest, commit_evidence and "
-          "claims_digest "
-          "are set");
-      }
-    }
-    else
-    {
-      throw std::logic_error(
-        "Cannot compute root if leaf_components are not set");
-    }
-    for (auto const& element : receipt.proof)
-    {
-      if (element.left.has_value())
-      {
-        assert(!element.right.has_value());
-        auto left = crypto::Sha256Hash::from_hex_string(element.left.value());
-        current = crypto::Sha256Hash(left, current);
-      }
-      else
-      {
-        assert(element.right.has_value());
-        auto right = crypto::Sha256Hash::from_hex_string(element.right.value());
-        current = crypto::Sha256Hash(current, right);
-      }
-    }
+    // TODO
+    // if (receipt.leaf_components.has_value())
+    // {
+    //   auto components = receipt.leaf_components.value();
+    //   if (
+    //     components.write_set_digest.has_value() &&
+    //     components.commit_evidence.has_value() &&
+    //     components.claims_digest.has_value())
+    //   {
+    //     auto ws_dgst = crypto::Sha256Hash::from_hex_string(
+    //       components.write_set_digest.value());
+    //     crypto::Sha256Hash ce_dgst(components.commit_evidence.value());
+    //     auto cl_dgst =
+    //       crypto::Sha256Hash::from_hex_string(components.claims_digest.value());
+    //     current = crypto::Sha256Hash(ws_dgst, ce_dgst, cl_dgst);
+    //   }
+    //   else
+    //   {
+    //     throw std::logic_error(
+    //       "Cannot compute leaf unless write_set_digest, commit_evidence and "
+    //       "claims_digest "
+    //       "are set");
+    //   }
+    // }
+    // else
+    // {
+    //   throw std::logic_error(
+    //     "Cannot compute root if leaf_components are not set");
+    // }
+    // for (auto const& element : receipt.proof)
+    // {
+    //   if (element.left.has_value())
+    //   {
+    //     assert(!element.right.has_value());
+    //     auto left = crypto::Sha256Hash::from_hex_string(element.left.value());
+    //     current = crypto::Sha256Hash(left, current);
+    //   }
+    //   else
+    //   {
+    //     assert(element.right.has_value());
+    //     auto right = crypto::Sha256Hash::from_hex_string(element.right.value());
+    //     current = crypto::Sha256Hash(current, right);
+    //   }
+    // }
 
     return current;
   }
@@ -137,53 +138,54 @@ namespace ccf
       auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
       auto receipt = j.get<Receipt>();
 
-      if (
-        !receipt.leaf_components.has_value() ||
-        !receipt.leaf_components->claims_digest.has_value())
-      {
-        throw std::logic_error(
-          "Snapshot receipt is missing snapshot digest claim");
-      }
+      // TODO
+    //   if (
+    //     !receipt.leaf_components.has_value() ||
+    //     !receipt.leaf_components->claims_digest.has_value())
+    //   {
+    //     throw std::logic_error(
+    //       "Snapshot receipt is missing snapshot digest claim");
+    //   }
 
-      auto snapshot_digest =
-        crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
-      auto snapshot_digest_claim = crypto::Sha256Hash::from_hex_string(
-        receipt.leaf_components->claims_digest.value());
-      if (snapshot_digest != snapshot_digest_claim)
-      {
-        throw std::logic_error(fmt::format(
-          "Snapshot digest ({}) does not match receipt claim ({})",
-          snapshot_digest,
-          snapshot_digest_claim));
-      }
+    //   auto snapshot_digest =
+    //     crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+    //   auto snapshot_digest_claim = crypto::Sha256Hash::from_hex_string(
+    //     receipt.leaf_components->claims_digest.value());
+    //   if (snapshot_digest != snapshot_digest_claim)
+    //   {
+    //     throw std::logic_error(fmt::format(
+    //       "Snapshot digest ({}) does not match receipt claim ({})",
+    //       snapshot_digest,
+    //       snapshot_digest_claim));
+    //   }
 
-      auto root = compute_root_from_snapshot_receipt(receipt);
-      auto raw_sig = crypto::raw_from_b64(receipt.signature);
+    //   auto root = compute_root_from_snapshot_receipt(receipt);
+    //   auto raw_sig = crypto::raw_from_b64(receipt.signature);
 
-      if (!receipt.cert.has_value())
-      {
-        throw std::logic_error("Missing node certificate in snapshot receipt");
-      }
+    //   if (!receipt.cert.has_value())
+    //   {
+    //     throw std::logic_error("Missing node certificate in snapshot receipt");
+    //   }
 
-      auto v = crypto::make_unique_verifier(receipt.cert.value());
-      if (!v->verify_hash(
-            root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
-      {
-        throw std::logic_error(
-          "Signature verification failed for snapshot receipt");
-      }
+    //   auto v = crypto::make_unique_verifier(receipt.cert.value());
+    //   if (!v->verify_hash(
+    //         root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
+    //   {
+    //     throw std::logic_error(
+    //       "Signature verification failed for snapshot receipt");
+    //   }
 
-      if (prev_service_identity)
-      {
-        crypto::Pem prev_pem(*prev_service_identity);
-        if (!v->verify_certificate({&prev_pem}, {}, /* ignore_time */ true))
-        {
-          throw std::logic_error(
-            "Previous service identity does not endorse the node identity that "
-            "signed the snapshot");
-        }
-        LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
-      }
+    //   if (prev_service_identity)
+    //   {
+    //     crypto::Pem prev_pem(*prev_service_identity);
+    //     if (!v->verify_certificate({&prev_pem}, {}, /* ignore_time */ true))
+    //     {
+    //       throw std::logic_error(
+    //         "Previous service identity does not endorse the node identity that "
+    //         "signed the snapshot");
+    //     }
+    //     LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
+    //   }
     }
 
     LOG_INFO_FMT(

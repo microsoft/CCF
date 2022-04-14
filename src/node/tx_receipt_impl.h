@@ -2,12 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/receipt.h"
 #include "node/history.h"
 
 namespace ccf
 {
-  // Representation of receipt used by internal framework code. Mirrored in the
-  // public API by ccf::TxReceipt
+  // Representation of receipt used by internal framework code. Mirrored in
+  // public interface by ccf::Receipt
   struct TxReceiptImpl
   {
     std::vector<uint8_t> signature = {};

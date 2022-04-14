@@ -40,7 +40,7 @@ namespace crypto
     std::string hex_str() const;
 
     static Sha256Hash from_hex_string(const std::string& str);
-    static Sha256Hash from_span(const std::span<uint8_t, SIZE>& sp);
+    static Sha256Hash from_span(const std::span<const uint8_t, SIZE>& sp);
     static Sha256Hash from_representation(const Representation& r);
   };
 
