@@ -48,7 +48,7 @@ namespace ccf
     crypto::Sha256Hash get_leaf_hash()
     {
       // TODO
-      return {};  
+      return {};
     }
 
     ccf::NodeId node_id = {};
@@ -58,13 +58,15 @@ namespace ccf
   using ReceiptPtr = std::shared_ptr<Receipt>;
 
   // TODO: Should this be implemented here, or in .cpp?
+  // Manual JSON serializers for these non-trivial types
   inline void to_json(nlohmann::json& j, const Receipt::PathStep& step) {}
   inline void from_json(const nlohmann::json& j, Receipt::PathStep& step) {}
   inline std::string schema_name(const Receipt::PathStep*)
   {
     return "ReceiptPathStep";
   }
-  inline void fill_json_schema(nlohmann::json& schema, const Receipt::PathStep*) {}
+  inline void fill_json_schema(nlohmann::json& schema, const Receipt::PathStep*)
+  {}
 
   inline void to_json(nlohmann::json& j, const Receipt::LeafComponents& lc) {}
   inline void from_json(const nlohmann::json& j, Receipt::LeafComponents& lc) {}
@@ -72,14 +74,11 @@ namespace ccf
   {
     return "ReceiptLeafComponents";
   }
-  inline void fill_json_schema(nlohmann::json& schema, const Receipt::LeafComponents*)
+  inline void fill_json_schema(
+    nlohmann::json& schema, const Receipt::LeafComponents*)
   {}
 
-  inline void to_json(nlohmann::json& j, const Receipt& r) {}
-  inline void from_json(const nlohmann::json& j, Receipt& r) {}
-  inline std::string schema_name(const Receipt*)
-  {
-    return "Receipt";
-  }
-  inline void fill_json_schema(nlohmann::json& schema, const Receipt*) {}
+  DECLARE_JSON_TYPE(Receipt);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    Receipt, signature, root, path, leaf_components, node_id, node_cert);
 }

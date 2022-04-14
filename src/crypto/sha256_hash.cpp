@@ -105,6 +105,22 @@ namespace crypto
     }
   }
 
+  std::string schema_name(const Sha256Hash*)
+  {
+    return "Sha256Digest";
+  }
+
+  void fill_json_schema(nlohmann::json& schema, const Sha256Hash*)
+  {
+    schema["type"] = "string";
+
+    // According to the spec, "format is an open value, so you can use any
+    // formats, even not those defined by the OpenAPI Specification"
+    // https://swagger.io/docs/specification/data-models/data-types/#format
+    schema["format"] = "hex";
+    schema["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", Sha256Hash::SIZE);
+  }
+
   bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs)
   {
     for (unsigned i = 0; i < crypto::Sha256Hash::SIZE; i++)
