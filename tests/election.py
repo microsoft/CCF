@@ -35,10 +35,6 @@ def test_kill_primary_no_reqs(network, args):
             r = c.get("/node/network")
             c.wait_for_commit(r)
 
-    import time
-
-    time.sleep(10)
-
     return network
 
 
@@ -118,7 +114,7 @@ if __name__ == "__main__":
             "cft",
             run,
             package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(args, f=3),
+            nodes=infra.e2e_args.min_nodes(args, f=1),
             election_timeout_ms=1000,
             consensus="CFT",
         )
@@ -129,7 +125,7 @@ if __name__ == "__main__":
             "bft",
             run,
             package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.max_nodes(args, f=1),
+            nodes=infra.e2e_args.min_nodes(args, f=1),
             consensus="BFT",
         )
 

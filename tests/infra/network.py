@@ -26,7 +26,6 @@ from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 
 
-
 from loguru import logger as LOG
 
 from cryptography.x509 import load_pem_x509_certificate
@@ -158,6 +157,7 @@ class Network:
             self.service_load = None
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
+                self.service_load.set_network(self)
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -569,8 +569,6 @@ class Network:
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
-        if self.service_load:
-            self.service_load.set_network(self)
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True

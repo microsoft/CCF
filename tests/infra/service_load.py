@@ -220,20 +220,16 @@ class ServiceLoad(infra.concurrency.StoppableThread):
         LOG.info("Service load stopped")
 
     def run(self):
-        LOG.error("run!")
         log_capture = None if self.verbose else []
         primary, backups = self.network.find_nodes(timeout=10, log_capture=log_capture)
         known_nodes = [primary] + backups
         known_network = self.network
         while not self.is_stopped():
             try:
-                LOG.error("poll...")
-                LOG.warning(f"known nodes: {[n.local_node_id for n in known_nodes]}")
                 new_primary, new_backups = self.network.find_nodes(
                     timeout=10, log_capture=log_capture
                 )
                 new_nodes = [new_primary] + new_backups
-                LOG.success(f"new nodes: {[n.local_node_id for n in new_nodes]}")
                 if new_nodes != known_nodes or self.network != known_network:
                     LOG.warning(
                         "Network configuration has changed, restarting service load client"
@@ -246,8 +242,8 @@ class ServiceLoad(infra.concurrency.StoppableThread):
                     elif new_primary != primary:
                         event = f"elect p[{primary.local_node_id}] -> p[{new_primary.local_node_id}]"
                     else:
-                        added = list(set(new_nodes) - set(known_nodes))
-                        removed = list(set(known_nodes) - set(new_nodes))
+                        added = set(new_nodes) - set(known_nodes)
+                        removed = set(known_nodes) - set(new_nodes)
                         event = ""
                         if added:
                             event += f"add n{[n.local_node_id for n in added]}"
