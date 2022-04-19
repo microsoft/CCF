@@ -504,7 +504,10 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     )
 
                 # We accept ledger chunk file differences during upgrades
-                # from 2.x-rc6 to 2.x-rc7 and from 1.x to 2.x-rc7
+                # from 2.x-rc6 to 2.x-rc7 and from 1.x to 2.x-rc7. This
+                # is necessary because we broke the ledger compatibility between
+                # those versions (see https://github.com/microsoft/ccf/issues/3613).
+                # This can go once 2.0 is released.
                 current_version_past_2_rc6 = primary.version_after("ccf-2.0.0-rc6")
                 is_ledger_chunk_breaking = (
                     not previous_major_version
