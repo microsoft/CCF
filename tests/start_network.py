@@ -76,23 +76,13 @@ def run(args):
             max_len = max([len(str(node.local_node_id)) for node in nodes])
 
             # To be sure, confirm that the app frontend is open on each node
-            timeout = 3
-            end_time = time.time() + timeout
-            while time.time() < end_time:
-                is_open_on_all_nodes = True
-                for node in nodes:
-                    with node.client("user0") as c:
-                        if args.verbose:
-                            r = c.get("/app/commit")
-                        else:
-                            r = c.get("/app/commit", log_capture=[])
-                        if r.status_code != http.HTTPStatus.OK:
-                            is_open_on_all_nodes &= False
-                time.sleep(0.1)
-            if not is_open_on_all_nodes:
-                raise TimeoutError(
-                    f"Application frontend was not open on all nodes after {timeout}s"
-                )
+            for node in nodes:
+                with node.client("user0") as c:
+                    if args.verbose:
+                        r = c.get("/app/commit")
+                    else:
+                        r = c.get("/app/commit", log_capture=[])
+                    assert r.status_code == http.HTTPStatus.OK, r.status_code
 
             def pad_node_id(nid):
                 return (f"{{:{max_len}d}}").format(nid)
