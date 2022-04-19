@@ -393,10 +393,6 @@ def test_each_node_cert_renewal(network, args):
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
-    # Nodes should be started with at least 2 RPC interfaces to
-    # test endorsed and self-signed node certificate refresh
-    assert len(primary.host.rpc_interfaces) > 1
-
     test_vectors = [
         (now, validity_period_allowed, None),
         (now, None, None),  # Omit validity period (deduced from service configuration)

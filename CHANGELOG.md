@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed issue with incorrect node and service certificate validity period when starting node in non-GMT timezone (#3732).
-- Fixed issue with self-signed node certificates that are now renewed when the `set_node_certificate_validity` proposal is issued (#3767).
+- Fixed issue with self-signed node certificates that are now renewed when the `set_node_certificate_validity` proposal is applied (#3767).
 
 ## Changed
 
