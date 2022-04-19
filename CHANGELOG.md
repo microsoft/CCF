@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Configurations and proposals now accept more date/time formats, including the Python-default ISO 8601 format (#3739).
 
+## Added
+
+- Primary node now also reports time at which the ack from each backup node was last received (`GET /node/consensus` endpoint). This can be used by operators to detect one-way partitions between the primary and backup nodes (#3769).
+
 ## [2.0.0-rc6]
 
 ### Changed
