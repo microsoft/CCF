@@ -18,7 +18,7 @@ DEFAULT_CLIENT_NODE_TIMEOUT_S = 3
 # network is considered as _not_ self-healable and thus should
 # be recovered by operators (i.e. disaster recovery procedure).
 # Unreliable networks should set this to a higher value.
-DEFAULT_ELECTION_FACTOR = 2
+DEFAULT_ELECTION_FACTOR = 1
 
 
 class HealthState(Enum):
@@ -61,8 +61,6 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
             node, client_node_timeout_s, verbose=verbose
         )
     assert len(primaries) == len(nodes)
-
-    LOG.error(acks)
 
     # Count how many (primary nodes, views) are reported by all nodes in
     # the network. If a majority of nodes report the same primary node in

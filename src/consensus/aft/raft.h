@@ -1481,7 +1481,6 @@ namespace aft
         return;
       }
 
-      // TODO: Reset last_received_ack_time for node
       using namespace std::chrono_literals;
       node->second.last_ack_timeout = 0ms;
 
