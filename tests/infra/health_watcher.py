@@ -44,7 +44,7 @@ def get_primary(
             return (r["primary_id"], r["current_view"]), r["acks"]
     except Exception as e:
         LOG.warning(f"Could not connect to node {node.local_node_id}: {e}")
-        return None
+        return None, None
 
 
 def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose=True):
