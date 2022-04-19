@@ -29,6 +29,8 @@ from loguru import logger as LOG
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
+NODE_STARTUP_RETRY_COUNT = 5
+
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -131,6 +133,7 @@ class Node:
         self.certificate_valid_from = None
         self.certificate_validity_days = None
         self.initial_node_data_json_file = node_data_json_file
+        self.label = None
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -257,6 +260,7 @@ class Node:
         )
         self.common_dir = common_dir
         members_info = members_info or []
+        self.label = label
 
         self.remote = self.remote_shim(
             start_type,
@@ -304,15 +308,18 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
-        try:
-            file_timeout = kwargs.get("file_timeout")
-            self.remote.get_startup_files(
-                self.common_dir, timeout=file_timeout or infra.remote.FILE_TIMEOUT
-            )
-        except Exception as e:
-            LOG.exception(e)
-            self.remote.get_logs(tail_lines_len=None)
-            raise
+        # Detect whether node started up successfully
+        for _ in range(NODE_STARTUP_RETRY_COUNT):
+            try:
+                if self.remote.check_done():
+                    raise RuntimeError("Node crashed at startup")
+                self.remote.get_startup_files(self.common_dir)
+            except Exception as e:
+                if self.remote.check_done():
+                    self.remote.get_logs(tail_lines_len=None)
+                    raise RuntimeError(
+                        f"Error starting node {self.local_node_id}"
+                    ) from e
 
         self.consensus = kwargs.get("consensus")
 
@@ -510,7 +517,7 @@ class Node:
     ):
         return self.host.rpc_interfaces[interface_name].port
 
-    def session_ca(self, self_signed_ok):
+    def session_ca(self, self_signed_ok=False):
         if self_signed_ok:
             return {"ca": ""}
         else:

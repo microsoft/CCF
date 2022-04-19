@@ -57,9 +57,6 @@ def test_recover_service(network, args, from_snapshot=False):
 
     watcher.wait_for_recovery()
 
-    # Stop remaining nodes
-    network.stop_all_nodes()
-
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     recovered_network = infra.network.Network(
@@ -112,14 +109,11 @@ def test_recover_service_with_wrong_identity(network, args):
 
     exception = None
     try:
-        # The first remote.get() will fail because the node aborts before it
-        # writes its node cert, so we want a short file_timeout.
         broken_network.start_in_recovery(
             args,
             ledger_dir=current_ledger_dir,
             committed_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
-            file_timeout=3,
         )
     except Exception as ex:
         exception = ex
@@ -324,6 +318,8 @@ def test_share_resilience(network, args, from_snapshot=False):
         new_primary,
         infra.network.ServiceStatus.OPEN,
     )
+    if recovered_network.service_load:
+        recovered_network.service_load.set_network(recovered_network)
     return recovered_network
 
 
@@ -476,13 +472,15 @@ def check_snapshots(args, network):
     seqno = find_recovery_tx_seqno(primary)
 
     if seqno:
-        # Check that all active nodes have produced a snapshot. The wait timeout is larger than the
+        # Check that primary node has produced a snapshot. The wait timeout is larger than the
         # signature interval, so the snapshots should become available within the timeout.
         assert args.sig_ms_interval < 3000
         if not network.wait_for_snapshot_committed_for(
             seqno, timeout=3, on_all_nodes=True
         ):
-            raise ValueError(f"No snapshot after seqno={seqno} on some nodes")
+            raise ValueError(
+                f"No snapshot found after seqno={seqno} on primary {primary.local_node_id}"
+            )
 
 
 def run(args):
@@ -530,6 +528,7 @@ def run(args):
             LOG.success("Recovery complete on all nodes")
 
         primary, _ = network.find_primary()
+        network.stop_all_nodes()
 
     # Verify that a new ledger chunk was created at the start of each recovery
     ledger = ccf.ledger.Ledger(
