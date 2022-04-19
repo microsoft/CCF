@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed issue with incorrect node and service certificate validity period when starting node in non-GMT timezone (#3732).
+- Fixed issue with self-signed node certificates that are now renewed when the `set_node_certificate_validity` proposal is applied (#3767).
 
 ## Changed
 
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Added
 
+- Added new `GET /node/self_signed_certificate` endpoint to retrieve the self-signed certificate of the target node (#3767).
 - Primary node now also reports time at which the ack from each backup node was last received (`GET /node/consensus` endpoint). This can be used by operators to detect one-way partitions between the primary and backup nodes (#3769).
 
 ## [2.0.0-rc6]

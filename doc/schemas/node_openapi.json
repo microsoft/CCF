@@ -644,6 +644,17 @@
         ],
         "type": "string"
       },
+      "SelfSignedNodeCertificateInfo": {
+        "properties": {
+          "self_signed_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "self_signed_certificate"
+        ],
+        "type": "object"
+      },
       "ServiceConfiguration": {
         "properties": {
           "consensus": {
@@ -1154,6 +1165,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/node/self_signed_certificate": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfSignedNodeCertificateInfo"
                 }
               }
             },

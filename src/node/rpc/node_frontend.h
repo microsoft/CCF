@@ -104,6 +104,15 @@ namespace ccf
   DECLARE_JSON_TYPE(ConsensusConfigDetails);
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusConfigDetails, details);
 
+  struct SelfSignedNodeCertificateInfo
+  {
+    crypto::Pem self_signed_certificate;
+  };
+
+  DECLARE_JSON_TYPE(SelfSignedNodeCertificateInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    SelfSignedNodeCertificateInfo, self_signed_certificate);
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -907,6 +916,21 @@ namespace ccf
           "port", ccf::endpoints::OptionalParameter)
         .add_query_parameter<std::string>(
           "status", ccf::endpoints::OptionalParameter)
+        .install();
+
+      auto get_self_signed_certificate = [this](auto& args, nlohmann::json&&) {
+        return SelfSignedNodeCertificateInfo{
+          this->node_operation.get_self_signed_node_certificate()};
+      };
+      make_command_endpoint(
+        "/self_signed_certificate",
+        HTTP_GET,
+        json_command_adapter(get_self_signed_certificate),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, SelfSignedNodeCertificateInfo>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
