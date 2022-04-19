@@ -10,6 +10,7 @@ import infra.checker
 import suite.test_requirements as reqs
 from infra.runner import ConcurrentRunner
 import copy
+import infra.service_load
 
 from loguru import logger as LOG
 
@@ -44,53 +45,61 @@ def test_kill_primary(network, args):
 
 
 def run(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        check = infra.checker.Checker()
+    with infra.service_load.load() as load:
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            pdb=args.pdb,
+            service_load=load,
+        ) as network:
+            check = infra.checker.Checker()
 
-        network.start_and_open(args)
-        current_view = None
-        primary, current_view = network.find_primary()
-
-        # Number of nodes F to stop until network cannot make progress
-        nodes_to_stop = math.ceil(len(args.nodes) / 2)
-        if args.consensus == "BFT":
-            nodes_to_stop = math.ceil(len(args.nodes) / 3)
-
-        primary_is_known = True
-        for node_to_stop in range(nodes_to_stop):
+            network.start_and_open(args)
+            current_view = None
             primary, current_view = network.find_primary()
 
-            LOG.debug(
-                "Commit new transactions, primary:{}, current_view:{}".format(
-                    primary.local_node_id, current_view
+            # Number of nodes F to stop until network cannot make progress
+            nodes_to_stop = math.ceil(len(args.nodes) / 2)
+            if args.consensus == "BFT":
+                nodes_to_stop = math.ceil(len(args.nodes) / 3)
+
+            primary_is_known = True
+            for node_to_stop in range(nodes_to_stop):
+                primary, current_view = network.find_primary()
+
+                LOG.debug(
+                    "Commit new transactions, primary:{}, current_view:{}".format(
+                        primary.local_node_id, current_view
+                    )
                 )
-            )
-            with primary.client("user0") as c:
-                res = c.post(
-                    "/app/log/private",
-                    {
-                        "id": current_view,
-                        "msg": "This log is committed in view {}".format(current_view),
-                    },
-                )
-                check(res, result=True)
+                with primary.client("user0") as c:
+                    res = c.post(
+                        "/app/log/private",
+                        {
+                            "id": current_view,
+                            "msg": "This log is committed in view {}".format(
+                                current_view
+                            ),
+                        },
+                    )
+                    check(res, result=True)
 
-            LOG.debug("Waiting for transaction to be committed by all nodes")
+                LOG.debug("Waiting for transaction to be committed by all nodes")
 
-            network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
+                network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
 
-            try:
-                test_kill_primary_no_reqs(network, args)
-            except PrimaryNotFound:
-                if node_to_stop < nodes_to_stop - 1:
-                    raise
-                else:
-                    primary_is_known = False
+                try:
+                    test_kill_primary_no_reqs(network, args)
+                except PrimaryNotFound:
+                    if node_to_stop < nodes_to_stop - 1:
+                        raise
+                    else:
+                        primary_is_known = False
 
-        assert not primary_is_known, "Primary is still known"
-        LOG.success("Test ended successfully.")
+            assert not primary_is_known, "Primary is still known"
+            LOG.success("Test ended successfully.")
 
 
 if __name__ == "__main__":
