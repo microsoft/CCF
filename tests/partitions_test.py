@@ -104,6 +104,24 @@ def test_isolate_primary_from_one_backup(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(p, b_0)
 
+    LOG.info(
+        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0}"
+    )
+    last_ack = 0
+    while True:
+        with p.client() as c:
+            r = c.get("/node/consensus").body.json()["details"]
+            ack = r["acks"][b_0.node_id]["last_received_ms"]
+        if r["primary_id"] is not None:
+            assert (
+                ack >= last_ack
+            ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
+            last_ack = ack
+        else:
+            LOG.debug(f"Node {p.local_node_id} is no longer primary")
+            break
+        time.sleep(0.1)
+
     # Now wait for several elections to occur. We expect:
     # - b_0 to call and win an election with b_1's help
     # - b_0 to produce a new signature, and commit it with b_1's help
@@ -342,12 +360,12 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_new_joiner_helps_liveness(network, args)
+        # for n in range(5):
+        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":
