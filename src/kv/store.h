@@ -1050,6 +1050,9 @@ namespace kv
 
     bool must_force_ledger_chunk_unsafe(Version version) override
     {
+      // Note that snapshotter->record_committable, and therefore this function,
+      // assumes that `version` is a committable entry/signature.
+
       bool r = flag_enabled_unsafe(
                  AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
         flag_enabled_unsafe(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
