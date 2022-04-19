@@ -10,10 +10,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed issue with incorrect node and service certificate validity period when starting node in non-GMT timezone (#3732).
+- Fixed issue with self-signed node certificates that are now renewed when the `set_node_certificate_validity` proposal is applied (#3767).
 
 ## Changed
 
 - Configurations and proposals now accept more date/time formats, including the Python-default ISO 8601 format (#3739).
+
+## Added
+
+- Added new `GET /node/self_signed_certificate` endpoint to retrieve the self-signed certificate of the target node (#3767).
 
 ## [2.0.0-rc6]
 

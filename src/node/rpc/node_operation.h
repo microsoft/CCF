@@ -84,5 +84,10 @@ namespace ccf
     {
       impl.initiate_private_recovery(tx);
     }
+
+    crypto::Pem get_self_signed_node_certificate() override
+    {
+      return impl.get_self_signed_certificate();
+    }
   };
 }
