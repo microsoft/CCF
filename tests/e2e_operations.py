@@ -250,7 +250,9 @@ def run_tls_san_checks(args):
             infra.interfaces.HostSpec(
                 rpc_interfaces={
                     infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        endorsement=infra.interfaces.Endorsement(authority="Node")
+                        endorsement=infra.interfaces.Endorsement(
+                            authority=infra.interfaces.EndorsementAuthority.Node
+                        )
                     )
                 }
             )
@@ -270,7 +272,9 @@ def run_tls_san_checks(args):
                 rpc_interfaces={
                     infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                         public_host=dummy_public_rpc_host,
-                        endorsement=infra.interfaces.Endorsement(authority="Node"),
+                        endorsement=infra.interfaces.Endorsement(
+                            authority=infra.interfaces.EndorsementAuthority.Node
+                        ),
                     )
                 }
             )
