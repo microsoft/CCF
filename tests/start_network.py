@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from urllib3 import Timeout
 import infra.e2e_args
 import infra.interfaces
 import infra.network
