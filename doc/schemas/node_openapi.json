@@ -67,7 +67,7 @@
       "ConsensusDetails": {
         "properties": {
           "acks": {
-            "$ref": "#/components/schemas/NodeId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_ConsensusDetails__Ack"
           },
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
@@ -104,6 +104,21 @@
           "primary_id",
           "current_view",
           "ticking"
+        ],
+        "type": "object"
+      },
+      "ConsensusDetails__Ack": {
+        "properties": {
+          "last_received_ms": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "seqno",
+          "last_received_ms"
         ],
         "type": "object"
       },
@@ -445,6 +460,12 @@
         },
         "type": "object"
       },
+      "NodeId_to_ConsensusDetails__Ack": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ConsensusDetails__Ack"
+        },
+        "type": "object"
+      },
       "NodeId_to_uint64": {
         "additionalProperties": {
           "$ref": "#/components/schemas/uint64"
@@ -782,7 +803,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.16.1"
+    "version": "2.17.0"
   },
   "openapi": "3.0.0",
   "paths": {
