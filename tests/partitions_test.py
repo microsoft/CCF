@@ -143,6 +143,8 @@ def test_isolate_primary_from_one_backup(network, args):
     # Explicitly drop rules before continuing
     rules.drop()
 
+    # TODO: Also test that ack time is now stable
+
     # Original primary should now, or very soon, report the new primary
     new_primary_, new_view_ = network.wait_for_new_primary(p, nodes=[p])
     assert (
@@ -362,10 +364,10 @@ def run(args):
 
         # test_invalid_partitions(network, args)
         # test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
+        # test_isolate_primary_from_one_backup(network, args)
         # test_new_joiner_helps_liveness(network, args)
-        # for n in range(5):
-        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":
