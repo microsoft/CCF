@@ -148,16 +148,14 @@ def test_illegal(network, args, verify=True):
 def test_protocols(network, args):
     primary, _ = network.find_primary()
 
-    primary_root = (
-        f"https://{primary.pubhost}:{primary.pubport}"
-    )
-    url = f"{primary_root}/node/state"
+    primary_root = f"https://{primary.pubhost}:{primary.pubport}"
+    url = f"{primary_root}/node/version"
     ca_path = os.path.join(network.common_dir, "networkcert.pem")
 
     common_options = [url, "-sS", "--cacert", ca_path]
 
     with primary.client("user0") as c:
-        r = c.get("/node/state")
+        r = c.get("/node/version")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         expected_response_body = r.body.text()
 
