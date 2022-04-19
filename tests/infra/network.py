@@ -1156,7 +1156,7 @@ class Network:
         assert all_good, f"Multiple primaries: {primaries}"
         delay = time.time() - start_time
         LOG.info(
-            f"Primary unanimity after {delay:.}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
+            f"Primary unanimity after {delay:.2f}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
         )
         return primaries[0]
 

@@ -105,12 +105,12 @@ def test_isolate_primary_from_one_backup(network, args):
     rules = network.partitioner.isolate_node(p, b_0)
 
     LOG.info(
-        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0}"
+        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id}"
     )
     last_ack = 0
     while True:
         with p.client() as c:
-            r = c.get("/node/consensus").body.json()["details"]
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
             ack = r["acks"][b_0.node_id]["last_received_ms"]
         if r["primary_id"] is not None:
             assert (
@@ -143,7 +143,22 @@ def test_isolate_primary_from_one_backup(network, args):
     # Explicitly drop rules before continuing
     rules.drop()
 
-    # TODO: Also test that ack time is now stable
+    LOG.info(f"Check that new primary {new_primary.local_node_id} reports stable acks")
+    last_ack = 0
+    end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
+    while time.time() < end_time:
+        with new_primary.client() as c:
+            acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
+                "acks"
+            ]
+            delayed_acks = [
+                ack
+                for ack in acks.values()
+                if ack["last_received_ms"] > args.election_timeout_ms
+            ]
+            if delayed_acks:
+                raise RuntimeError(f"New primary reported some delayed acks: {acks}")
+        time.sleep(0.1)
 
     # Original primary should now, or very soon, report the new primary
     new_primary_, new_view_ = network.wait_for_new_primary(p, nodes=[p])
@@ -362,10 +377,10 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_invalid_partitions(network, args)
-        # test_partition_majority(network, args)
-        # test_isolate_primary_from_one_backup(network, args)
-        # test_new_joiner_helps_liveness(network, args)
+        test_invalid_partitions(network, args)
+        test_partition_majority(network, args)
+        test_isolate_primary_from_one_backup(network, args)
+        test_new_joiner_helps_liveness(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
 
