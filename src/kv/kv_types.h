@@ -589,7 +589,7 @@ namespace kv
   public:
     virtual ~AbstractSnapshotter(){};
 
-    virtual bool record_committable_unsafe(kv::Version v) = 0;
+    virtual bool record_committable(kv::Version v) = 0;
     virtual void commit(kv::Version v, bool generate_snapshot) = 0;
     virtual void rollback(kv::Version v) = 0;
   };

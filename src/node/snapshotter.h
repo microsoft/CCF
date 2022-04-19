@@ -262,7 +262,7 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
-    bool record_committable_unsafe(consensus::Index idx) override
+    bool record_committable(consensus::Index idx) override
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk

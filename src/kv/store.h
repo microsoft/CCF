@@ -1056,7 +1056,7 @@ namespace kv
 
       if (snapshotter)
       {
-        r |= snapshotter->record_committable_unsafe(version);
+        r |= snapshotter->record_committable(version);
       }
 
       return r;
