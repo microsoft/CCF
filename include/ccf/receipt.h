@@ -56,7 +56,7 @@ namespace ccf
 
   using ReceiptPtr = std::shared_ptr<Receipt>;
 
-  // Manual JSON serializers for this non-trivial type
+  // Manual JSON serializers are specified for this variant type
   inline void to_json(nlohmann::json& j, const Receipt::ProofStep& step)
   {
     j = nlohmann::json::object();

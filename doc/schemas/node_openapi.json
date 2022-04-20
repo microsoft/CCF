@@ -545,10 +545,7 @@
       "Receipt": {
         "properties": {
           "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Pem"
           },
           "leaf_components": {
             "$ref": "#/components/schemas/Receipt__LeafComponents"
@@ -560,31 +557,49 @@
             "$ref": "#/components/schemas/Receipt__Element_array"
           },
           "root": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Sha256Digest"
           },
           "service_endorsements": {
             "$ref": "#/components/schemas/Pem_array"
           },
           "signature": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/base64string"
           }
         },
         "required": [
           "signature",
+          "root",
           "proof",
-          "node_id"
+          "leaf_components",
+          "node_id",
+          "cert",
+          "service_endorsements"
         ],
         "type": "object"
       },
       "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
+        "oneOf": [
+          {
+            "properties": {
+              "left": {
+                "$ref": "#/components/schemas/Sha256Digest"
+              }
+            },
+            "required": [
+              "left"
+            ]
           },
-          "right": {
-            "$ref": "#/components/schemas/string"
+          {
+            "properties": {
+              "right": {
+                "$ref": "#/components/schemas/Sha256Digest"
+              }
+            },
+            "required": [
+              "right"
+            ]
           }
-        },
+        ],
         "type": "object"
       },
       "Receipt__Element_array": {
@@ -596,15 +611,19 @@
       "Receipt__LeafComponents": {
         "properties": {
           "claims_digest": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Sha256Digest"
           },
           "commit_evidence": {
             "$ref": "#/components/schemas/string"
           },
           "write_set_digest": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Sha256Digest"
           }
         },
+        "required": [
+          "write_set_digest",
+          "commit_evidence"
+        ],
         "type": "object"
       },
       "ReconfigurationType": {
@@ -712,6 +731,11 @@
         ],
         "type": "object"
       },
+      "Sha256Digest": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{32}$",
+        "type": "string"
+      },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
@@ -782,7 +806,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.16.1"
+    "version": "2.16.2"
   },
   "openapi": "3.0.0",
   "paths": {

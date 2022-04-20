@@ -158,7 +158,7 @@
             "$ref": "#/components/schemas/string"
           },
           "receipt": {
-            "$ref": "#/components/schemas/Receipt"
+            "$ref": "#/components/schemas/json"
           }
         },
         "required": [
@@ -213,10 +213,7 @@
       "Receipt": {
         "properties": {
           "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Pem"
           },
           "leaf_components": {
             "$ref": "#/components/schemas/Receipt__LeafComponents"
@@ -228,31 +225,49 @@
             "$ref": "#/components/schemas/Receipt__Element_array"
           },
           "root": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Sha256Digest"
           },
           "service_endorsements": {
             "$ref": "#/components/schemas/Pem_array"
           },
           "signature": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/base64string"
           }
         },
         "required": [
           "signature",
+          "root",
           "proof",
-          "node_id"
+          "leaf_components",
+          "node_id",
+          "cert",
+          "service_endorsements"
         ],
         "type": "object"
       },
       "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
+        "oneOf": [
+          {
+            "properties": {
+              "left": {
+                "$ref": "#/components/schemas/Sha256Digest"
+              }
+            },
+            "required": [
+              "left"
+            ]
           },
-          "right": {
-            "$ref": "#/components/schemas/string"
+          {
+            "properties": {
+              "right": {
+                "$ref": "#/components/schemas/Sha256Digest"
+              }
+            },
+            "required": [
+              "right"
+            ]
           }
-        },
+        ],
         "type": "object"
       },
       "Receipt__Element_array": {
@@ -264,16 +279,25 @@
       "Receipt__LeafComponents": {
         "properties": {
           "claims_digest": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Sha256Digest"
           },
           "commit_evidence": {
             "$ref": "#/components/schemas/string"
           },
           "write_set_digest": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/Sha256Digest"
           }
         },
+        "required": [
+          "write_set_digest",
+          "commit_evidence"
+        ],
         "type": "object"
+      },
+      "Sha256Digest": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{32}$",
+        "type": "string"
       },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
@@ -286,6 +310,10 @@
           "Committed",
           "Invalid"
         ],
+        "type": "string"
+      },
+      "base64string": {
+        "format": "base64",
         "type": "string"
       },
       "boolean": {
@@ -322,7 +350,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "1.9.2"
+    "version": "1.9.3"
   },
   "openapi": "3.0.0",
   "paths": {
