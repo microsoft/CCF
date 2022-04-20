@@ -122,6 +122,7 @@ class Network:
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
+        "check_quorum",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

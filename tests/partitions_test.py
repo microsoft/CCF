@@ -14,6 +14,7 @@ from infra.tx_status import TxStatus
 import time
 import http
 import contextlib
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -175,6 +176,10 @@ def test_isolate_primary_from_one_backup(network, args):
 @reqs.description("Isolate and reconnect primary")
 def test_isolate_and_reconnect_primary(network, args, **kwargs):
     primary, backups = network.find_nodes()
+
+    with primary.client() as c:
+        primary_view = c.get("/node/consensus").body.json()["details"]["current_view"]
+
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
 
@@ -182,6 +187,9 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
             primary, nodes=backups, timeout_multiplier=6
         )
         new_tx_resp = check_can_progress(new_primary)
+
+        if args.check_quorum:
+            primary.wait_for_leadership_state(primary_view, "Follower")
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
@@ -192,6 +200,8 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
             # arbitrarily allow 3 time periods to avoid being too brittle when
             # raft timeouts line up badly.
             c.wait_for_commit(new_tx_resp, timeout=(network.election_duration * 4))
+            r = c.get("/node/consensus").body.json()["details"]
+            LOG.error(r)
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
             assert (
@@ -368,6 +378,10 @@ def run_2tx_reconfig_tests(args):
 def run(args):
     txs = app.LoggingTxs("user0")
 
+    LOG.error("here")
+
+    # TODO: Test both with and without check quorum
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -379,12 +393,14 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
+        # test_isolate_primary_from_one_backup(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        # for n in range(5):
+        # test_isolate_and_reconnect_primary(network, args)  # , iteration=n)
+
+    LOG.success("there")
 
 
 if __name__ == "__main__":
@@ -397,9 +413,29 @@ if __name__ == "__main__":
             action="store_true",
         )
 
-    args = infra.e2e_args.cli_args(add)
-    args.package = "samples/apps/logging/liblogging"
+    cr = ConcurrentRunner(add)
 
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
-    run_2tx_reconfig_tests(args)
+    cr.add(
+        "vanilla",
+        run,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        package="samples/apps/logging/liblogging",
+        check_quorum=False,
+    )
+
+    cr.add(
+        "extensions",
+        run,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        package="samples/apps/logging/liblogging",
+        check_quorum=True,
+    )
+
+    # cr.add(
+    #     "2tx",
+    #     run_2tx_reconfig_tests,
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #     package="samples/apps/logging/liblogging",
+    # )
+
+    cr.run()

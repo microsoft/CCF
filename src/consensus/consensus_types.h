@@ -17,13 +17,15 @@ namespace consensus
     ds::TimeString message_timeout = {"100ms"};
     ds::TimeString election_timeout = {"5000ms"};
 
+    bool check_quorum = false;
+
     bool operator==(const Configuration&) const = default;
     bool operator!=(const Configuration&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    Configuration, type, message_timeout, election_timeout);
+    Configuration, type, message_timeout, election_timeout, check_quorum);
 
 #pragma pack(push, 1)
   template <typename T>

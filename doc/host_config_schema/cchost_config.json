@@ -332,6 +332,11 @@
           "type": "string",
           "default": "5000ms",
           "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than 'message_timeout'"
+        },
+        "check_quorum": {
+          "type": "boolean",
+          "default": false,
+          "description": "Experimental. If true, the primary node automatically steps down as a backup if it has not received any ack from "
         }
       },
       "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)"
