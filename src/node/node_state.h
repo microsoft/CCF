@@ -454,9 +454,9 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void initiate_join()
+
+    void initiate_join_unsafe()
     {
-      std::lock_guard<std::mutex> guard(lock);
       sm.expect(NodeStartupState::pending);
 
       auto network_ca = std::make_shared<tls::CA>(std::string(
@@ -693,9 +693,18 @@ namespace ccf
       join_client->send_request(r.build_request());
     }
 
+    // Note: _unsafe() pattern can be simplified once 2.x has been released
+    // and 1.x snapshots no longer need to be verified
+    // (https://github.com/microsoft/CCF/issues/2981)
+    void initiate_join()
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      initiate_join_unsafe();
+    }
+
     void start_join_timer()
     {
-      initiate_join();
+      initiate_join_unsafe();
 
       struct JoinTimeMsg
       {
@@ -723,6 +732,7 @@ namespace ccf
 
     void join()
     {
+      std::lock_guard<std::mutex> guard(lock);
       start_join_timer();
     }
 
@@ -808,7 +818,14 @@ namespace ccf
 
       if (size == 0)
       {
-        recover_public_ledger_end_unsafe();
+        if (is_verifying_snapshot())
+        {
+          verify_snapshot_end_unsafe();
+        }
+        else
+        {
+          recover_public_ledger_end_unsafe();
+        }
         return;
       }
 
@@ -937,9 +954,8 @@ namespace ccf
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
-    void verify_snapshot_end()
+    void verify_snapshot_end_unsafe()
     {
-      std::lock_guard<std::mutex> guard(lock);
       if (!sm.check(NodeStartupState::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
@@ -969,6 +985,12 @@ namespace ccf
 
       sm.advance(NodeStartupState::pending);
       start_join_timer();
+    }
+
+    void verify_snapshot_end()
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      verify_snapshot_end_unsafe();
     }
 
     void recover_public_ledger_end_unsafe()
