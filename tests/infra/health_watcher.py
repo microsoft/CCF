@@ -92,7 +92,7 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
     delayed_acks = [
         ack
         for ack in acks[most_common_primary[0]].values()
-        if ack["last_received_ms"] > network.args.election_timeout_ms // 2
+        if ack["last_received_ms"] > network.args.election_timeout_ms
     ]
 
     if len(delayed_acks) >= majority:
