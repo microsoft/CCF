@@ -314,6 +314,7 @@ class Node:
                 if self.remote.check_done():
                     raise RuntimeError("Node crashed at startup")
                 self.remote.get_startup_files(self.common_dir)
+                break
             except Exception as e:
                 if self.remote.check_done():
                     self.remote.get_logs(tail_lines_len=None)
@@ -332,7 +333,10 @@ class Node:
 
         self._read_ports()
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
-        LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
+        start_msg = f"Node {self.local_node_id} started: {self.node_id}"
+        if self.version is not None:
+            start_msg += f" [version: {self.version}]"
+        LOG.info(start_msg)
 
     def _resolve_address(self, address_file_path, interfaces):
         with open(address_file_path, "r", encoding="utf-8") as f:
