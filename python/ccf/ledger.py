@@ -37,6 +37,7 @@ SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
 RECOVERY_FILE_SUFFIX = ".recovery"
+IGNORED_FILE_SUFFIX = ".ignored"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -369,12 +370,18 @@ class LedgerValidator:
         self.last_verified_seqno = 0
         self.last_verified_view = 0
 
+        self.service_status = None
+
+    def last_verified_txid(self) -> TxID:
+        return TxID(self.last_verified_view, self.last_verified_seqno)
+
     def add_transaction(self, transaction):
         """
         To validate the ledger, ledger transactions need to be added via this method.
         Depending on the tables that were part of the transaction, it does different things.
         When transaction contains signature table, it starts the verification process and verifies that the root of merkle tree was signed by a node which was part of the network.
         It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.
+        Further, it validates all service status transitions.
         If any of the above checks fail, this method throws.
         """
         transaction_public_domain = transaction.get_public_domain()
@@ -455,6 +462,26 @@ class LedgerValidator:
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
+
+        # Check service status transitions
+        if SERVICE_INFO_TABLE_NAME in tables:
+            service_table = tables[SERVICE_INFO_TABLE_NAME]
+            updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+            updated_service_json = json.loads(updated_service)
+            updated_status = updated_service_json["status"]
+            if self.service_status == updated_status:
+                pass
+            elif self.service_status == "Opening":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Recovering":
+                assert updated_status in ["WaitingForRecoveryShares"]
+            elif self.service_status == "WaitingForRecoveryShares":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Open":
+                assert updated_status in ["Recovering"]
+            else:
+                assert self.service_status == None
+            self.service_status = updated_status
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_tx_digest(), False)
@@ -827,14 +854,7 @@ class LedgerIterator:
         return self._validator.signature_count if self._validator else 0
 
     def last_verified_txid(self) -> Optional[TxID]:
-        return (
-            TxID(
-                self._validator.last_verified_view,
-                self._validator.last_verified_seqno,
-            )
-            if self._validator
-            else None
-        )
+        return self._validator.last_verified_txid() if self._validator else None
 
 
 class Ledger:
@@ -865,6 +885,9 @@ class Ledger:
                 sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
                 if not read_recovery_files:
                     return
+
+            if path.endswith(IGNORED_FILE_SUFFIX):
+                return
 
             if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
                 return
@@ -897,7 +920,11 @@ class Ledger:
         for file_a, file_b in zip(self._filenames[:-1], self._filenames[1:]):
             range_a = range_from_filename(file_a)
             range_b = range_from_filename(file_b)
-            if range_a[1] is None or range_a[1] + 1 != range_b[0]:
+            if range_a[1] is None and range_b[1] is not None:
+                raise ValueError(
+                    f"Ledger cannot parse committed chunk {file_b} following uncommitted chunk {file_a}"
+                )
+            if range_a[1] is not None and range_a[1] + 1 != range_b[0]:
                 raise ValueError(
                     f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
                 )

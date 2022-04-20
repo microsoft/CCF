@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass
 from typing import Optional, Dict
+from enum import Enum, auto
 
 
 def split_address(addr, default_port=0):
@@ -16,20 +17,26 @@ def make_address(host, port=0):
 
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
-DEFAULT_AUTHORITY = "Service"
+
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
+SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
+
+
+class EndorsementAuthority(Enum):
+    Service = auto()
+    Node = auto()
 
 
 @dataclass
 class Endorsement:
-    authority: str = DEFAULT_AUTHORITY
+    authority: EndorsementAuthority = EndorsementAuthority.Service
 
     @staticmethod
     def to_json(endorsement):
         return {
-            "authority": endorsement.authority,
+            "authority": endorsement.authority.name,
         }
 
     @staticmethod
@@ -82,6 +89,14 @@ class RPCInterface(Interface):
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
         return interface
+
+
+def make_secondary_interface():
+    return {
+        SECONDARY_RPC_INTERFACE: RPCInterface(
+            endorsement=Endorsement(EndorsementAuthority.Node)
+        )
+    }
 
 
 @dataclass

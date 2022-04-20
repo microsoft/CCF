@@ -64,7 +64,7 @@ namespace aft
       ++skip_count;
     }
 
-    std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
+    static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
       const auto entry_size = serialized::read<size_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_size);
@@ -407,11 +407,6 @@ namespace aft
     void update(Index, bool) {}
 
     void set_last_snapshot_idx(Index idx) {}
-
-    bool record_committable(Index)
-    {
-      return false;
-    }
 
     void commit(Index, bool) {}
 

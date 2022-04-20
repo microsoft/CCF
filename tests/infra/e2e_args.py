@@ -108,7 +108,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("release", "debug", "virtual"),
     )
     parser.add_argument(
-        "-l",
         "--host-log-level",
         help="Runtime host log level",
         default="info",
@@ -203,7 +202,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Subject Name in node certificate, eg. CN=CCF Node",
     )
     parser.add_argument(
-        "--subject_alt_names",
+        "--subject-alt-names",
         help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
         action="append",
         default=[],

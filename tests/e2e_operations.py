@@ -240,6 +240,9 @@ def run_tls_san_checks(args):
     ) as network:
         args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start_and_open(args)
+        network.verify_service_certificate_validity_period(
+            args.initial_service_cert_validity_days
+        )
 
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"
@@ -247,7 +250,9 @@ def run_tls_san_checks(args):
             infra.interfaces.HostSpec(
                 rpc_interfaces={
                     infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        endorsement=infra.interfaces.Endorsement(authority="Node")
+                        endorsement=infra.interfaces.Endorsement(
+                            authority=infra.interfaces.EndorsementAuthority.Node
+                        )
                     )
                 }
             )
@@ -267,7 +272,9 @@ def run_tls_san_checks(args):
                 rpc_interfaces={
                     infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                         public_host=dummy_public_rpc_host,
-                        endorsement=infra.interfaces.Endorsement(authority="Node"),
+                        endorsement=infra.interfaces.Endorsement(
+                            authority=infra.interfaces.EndorsementAuthority.Node
+                        ),
                     )
                 }
             )

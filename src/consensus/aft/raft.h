@@ -30,7 +30,7 @@ namespace aft
 {
   using Configuration = kv::Configuration;
 
-  template <class LedgerProxy, class SnapshotterProxy>
+  template <class LedgerProxy>
   class Aft : public kv::Consensus
   {
   private:
@@ -150,7 +150,6 @@ namespace aft
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
-    std::shared_ptr<SnapshotterProxy> snapshotter;
 
   public:
     Aft(
@@ -158,7 +157,6 @@ namespace aft
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
-      std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
@@ -190,8 +188,7 @@ namespace aft
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
-      channels(channels_),
-      snapshotter(snapshotter_)
+      channels(channels_)
 
     {
       LOG_DEBUG_FMT(
@@ -359,7 +356,6 @@ namespace aft
       state->view_history.initialise(term_history);
 
       ledger->init(index, recovery_start_index);
-      snapshotter->set_last_snapshot_idx(index);
 
       become_aware_of_new_term(term);
     }
@@ -559,21 +555,6 @@ namespace aft
       LOG_INFO_FMT("Election timer has become active");
     }
 
-    void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const ccf::NodeId& node_id,
-      const crypto::Pem& node_cert) override
-    {
-      snapshotter->record_signature(version, sig, node_id, node_cert);
-    }
-
-    void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) override
-    {
-      snapshotter->record_serialised_tree(version, tree);
-    }
-
     void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
@@ -732,7 +713,9 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto& [index, data, is_globally_committable, hooks] : entries)
+      for (
+        auto& [index, data, is_globally_committable, force_ledger_chunk, hooks] :
+        entries)
       {
         bool globally_committable = is_globally_committable;
 
@@ -761,7 +744,6 @@ namespace aft
           hook->call(this);
         }
 
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
           LOG_DEBUG_FMT(
@@ -775,11 +757,6 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
-
-          // Only if globally committable, a snapshot requires a new ledger
-          // chunk to be created
-          force_ledger_chunk = snapshotter->record_committable(index);
-
           start_ticking_if_necessary();
         }
 
@@ -1255,7 +1232,7 @@ namespace aft
         std::vector<uint8_t> entry;
         try
         {
-          entry = ledger->get_entry(data, size);
+          entry = LedgerProxy::get_entry(data, size);
         }
         catch (const std::logic_error& e)
         {
@@ -1316,10 +1293,8 @@ namespace aft
 
         bool globally_committable =
           (apply_success == kv::ApplyResult::PASS_SIGNATURE);
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          force_ledger_chunk = snapshotter->record_committable(i);
           start_ticking_if_necessary();
         }
 
@@ -1328,7 +1303,7 @@ namespace aft
         ledger->put_entry(
           entry,
           globally_committable,
-          force_ledger_chunk,
+          ds->force_ledger_chunk,
           ds->get_term(),
           ds->get_index());
 
@@ -1535,14 +1510,23 @@ namespace aft
       }
 
       // Update next and match for the responding node.
+      auto& match_idx = node->second.match_idx;
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        node->second.match_idx =
+        const auto this_match =
           find_highest_possible_match({r.term, r.last_log_idx});
+        if (match_idx == 0)
+        {
+          match_idx = this_match;
+        }
+        else
+        {
+          match_idx = std::min(match_idx, this_match);
+        }
       }
       else
       {
-        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+        match_idx = std::min(r.last_log_idx, state->last_idx);
       }
 
       if (r.success != AppendEntriesResponseType::OK)
@@ -2156,12 +2140,6 @@ namespace aft
       }
 
       LOG_DEBUG_FMT("Compacting...");
-      // Snapshots are not yet supported with BFT
-      snapshotter->commit(
-        idx,
-        leadership_state == kv::LeadershipState::Leader &&
-          consensus_type == ConsensusType::CFT);
-
       store->compact(idx);
       ledger->commit(idx);
 
@@ -2345,7 +2323,6 @@ namespace aft
         return;
       }
 
-      snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
 
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);

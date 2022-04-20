@@ -110,7 +110,7 @@ size_t number_of_committed_files_in_ledger_dir(bool allow_recovery = false)
     if (
       (allow_recovery && is_ledger_file_name_recovery(file_name) &&
        file_name.find(ledger_committed_suffix) != std::string::npos) ||
-      is_ledger_file_committed(file_name))
+      is_ledger_file_name_committed(file_name))
     {
       committed_file_count++;
     }
@@ -177,6 +177,7 @@ void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
     throw std::logic_error(
       fmt::format("Failed to read ledger entries from {} to {}", from, to));
   }
+
   verify_framed_entries_range(entries.value(), from, to);
 }
 
@@ -422,6 +423,18 @@ TEST_CASE("Regular chunking")
       ledger, end_of_first_chunk_idx + 1, last_idx);
     read_entries_range_from_ledger(
       ledger, end_of_first_chunk_idx + 1, last_idx - 1);
+
+    // Non strict
+    bool strict = false;
+    auto entries = ledger.read_entries(1, last_idx, strict);
+    verify_framed_entries_range(entries.value(), 1, last_idx);
+
+    entries = ledger.read_entries(1, last_idx + 1, strict);
+    verify_framed_entries_range(entries.value(), 1, last_idx);
+
+    entries = ledger.read_entries(end_of_first_chunk_idx, 2 * last_idx, strict);
+    verify_framed_entries_range(
+      entries.value(), end_of_first_chunk_idx, last_idx);
   }
 }
 
@@ -560,6 +573,12 @@ TEST_CASE("Commit")
     ledger.commit(last_idx);
     REQUIRE(number_of_committed_files_in_ledger_dir() == 4);
     read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+
+  INFO("Commit past last idx");
+  {
+    ledger.commit(last_idx + 1); // No effect
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 4);
   }
 
   INFO("Ledger cannot be truncated earlier than commit");
@@ -852,7 +871,7 @@ TEST_CASE("Multiple ledger paths")
     fs::create_directory(ledger_dir_2);
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!is_ledger_file_committed(f.path().filename()))
+      if (!is_ledger_file_name_committed(f.path().filename()))
       {
         fs::copy(f.path(), ledger_dir_2);
       }
@@ -1038,7 +1057,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(f.path(), false, true /* corrupt_first_hdr */);
       }
@@ -1062,7 +1081,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(
           f.path(), false, false, true /* corrupt_last_entry */);

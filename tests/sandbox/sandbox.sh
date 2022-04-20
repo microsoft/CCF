@@ -62,7 +62,9 @@ if [ -f "${VERSION_FILE}" ]; then
         echo "Using python package: ${PYTHON_PACKAGE_PATH}"
         pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
     else
-        pip install -q -U ccf=="$VERSION"
+        # Note: Strip unsafe suffix if it exists
+        sanitised_version=${VERSION%"+unsafe"}
+        pip install -q -U ccf=="${sanitised_version}"
     fi
     pip install -q -U -r "${PATH_HERE}"/requirements.txt
 else
@@ -86,5 +88,7 @@ exec python "${START_NETWORK_SCRIPT}" \
     --constitution "${PATH_HERE}"/apply.js \
     --ledger-chunk-bytes 5000000 \
     --snapshot-tx-interval 10000 \
+    --initial-node-cert-validity-days 90 \
+    --initial-service-cert-validity-days 90 \
     --label sandbox \
     "${extra_args[@]}"

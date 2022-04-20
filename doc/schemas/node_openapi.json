@@ -623,6 +623,17 @@
         ],
         "type": "string"
       },
+      "SelfSignedNodeCertificateInfo": {
+        "properties": {
+          "self_signed_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "self_signed_certificate"
+        ],
+        "type": "object"
+      },
       "ServiceConfiguration": {
         "properties": {
           "consensus": {
@@ -782,7 +793,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.16.1"
+    "version": "2.17.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1133,6 +1144,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/node/self_signed_certificate": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfSignedNodeCertificateInfo"
                 }
               }
             },

@@ -49,7 +49,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         max_num_configs = 0
         all_same_rid = True
         for node in network.get_joined_nodes():
-            with node.client(self_signed_ok=True) as c:
+            with node.client(verify_ca=False) as c:
                 try:
                     r = c.get("/node/consensus")
                     rj = r.body.json()
@@ -83,7 +83,9 @@ def test_add_node(network, args):
                 ),
                 operator_rpc_interface: infra.interfaces.RPCInterface(
                     host=host,
-                    endorsement=infra.interfaces.Endorsement(authority="Node"),
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    ),
                 ),
             }
         )
@@ -400,9 +402,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(
-                        infra.crypto.datetime_to_X509time(datetime.now())
-                    ),
+                    "valid_from": str(datetime.now()),
                 },
             },
             {
@@ -682,7 +682,9 @@ def check_2tx_ledger(ledger_paths, learner_id):
 
 
 @reqs.description("Migrate from 1tx to 2tx reconfiguration scheme")
-def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwargs):
+def test_migration_2tx_reconfiguration(
+    network, args, initial_is_1tx=True, valid_from=None, **kwargs
+):
     primary, _ = network.find_primary()
 
     # Check that the service config agrees that this is a 1tx network
@@ -709,7 +711,7 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
 
     new_node = network.create_node("local://localhost", **kwargs)
     network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
+    network.trust_node(new_node, args, valid_from=valid_from)
 
     # Check that the new node has the right consensus parameter
     with new_node.client() as c:

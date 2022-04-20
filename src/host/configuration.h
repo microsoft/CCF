@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ccf/crypto/pem.h"
 #include "common/configuration.h"
 #include "ds/unit_strings.h"
 

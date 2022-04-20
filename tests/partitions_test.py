@@ -244,7 +244,9 @@ def test_learner_does_not_take_part(network, args):
                 ),
                 operator_rpc_interface: infra.interfaces.RPCInterface(
                     host=host,
-                    endorsement=infra.interfaces.Endorsement(authority="Node"),
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    ),
                 ),
             }
         )
@@ -271,7 +273,7 @@ def test_learner_does_not_take_part(network, args):
                 primary,
                 new_node.node_id,
                 timeout=ceil(args.join_timer_s * 2),
-                valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
+                valid_from=datetime.now(),
             )
         except TimeoutError:
             LOG.info("Trust node proposal did not commit as expected")
@@ -286,7 +288,7 @@ def test_learner_does_not_take_part(network, args):
 
         LOG.info("New joiner is not promoted to Trusted without f other backups")
         with new_node.client(
-            interface_name=operator_rpc_interface, self_signed_ok=True
+            interface_name=operator_rpc_interface, verify_ca=False
         ) as c:
             r = c.get("/node/network/nodes/self")
             assert r.body.json()["status"] == "Learner"

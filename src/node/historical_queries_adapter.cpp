@@ -290,17 +290,18 @@ namespace ccf::historical
           auto eit = service_endorsement_cache.find(hpubkey);
           if (eit != service_endorsement_cache.end())
           {
+            // Note: validity period of service certificate may have changed
+            // since we created the cached endorsements.
             receipt.service_endorsements = eit->second;
           }
           else
           {
+            auto ncv = crypto::make_unique_verifier(network_identity->cert);
             auto endorsement = create_endorsed_cert(
               hpubkey,
               ReplicatedNetworkIdentity::subject_name,
               {},
-              crypto::OpenSSL::to_x509_time_string(
-                crypto::OpenSSL::to_time_t(NULL)),
-              1 /* days valid */,
+              ncv->validity_period(),
               network_identity->priv_key,
               network_identity->cert,
               true);

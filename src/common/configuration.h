@@ -22,7 +22,6 @@
 
 namespace logger
 {
-#ifdef VERBOSE_LOGGING
   DECLARE_JSON_ENUM(
     Level,
     {{Level::TRACE, "Trace"},
@@ -30,11 +29,6 @@ namespace logger
      {Level::INFO, "Info"},
      {Level::FAIL, "Fail"},
      {Level::FATAL, "Fatal"}});
-#else
-  DECLARE_JSON_ENUM(
-    Level,
-    {{Level::INFO, "Info"}, {Level::FAIL, "Fail"}, {Level::FATAL, "Fatal"}});
-#endif
 }
 
 DECLARE_JSON_ENUM(

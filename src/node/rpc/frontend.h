@@ -469,6 +469,12 @@ namespace ccf
       return is_open_;
     }
 
+    bool is_open() override
+    {
+      std::lock_guard<std::mutex> mguard(open_lock);
+      return is_open_;
+    }
+
     void set_root_on_proposals(
       const ccf::RpcContextImpl& ctx, kv::CommittableTx& tx)
     {
