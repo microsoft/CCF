@@ -244,19 +244,13 @@ namespace kv
       const ccf::ResharingResult& result) = 0;
     virtual std::optional<Configuration::Nodes> orc(
       kv::ReconfigurationId rid, const NodeId& node_id) = 0;
-    virtual void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const NodeId& node_id,
-      const crypto::Pem& node_cert) = 0;
-    virtual void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) = 0;
     virtual void update_parameters(ConsensusParameters& params) = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
     Version,
     std::shared_ptr<std::vector<uint8_t>>,
+    bool,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
@@ -589,8 +583,18 @@ namespace kv
     virtual crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) = 0;
   };
-
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
+
+  class AbstractSnapshotter
+  {
+  public:
+    virtual ~AbstractSnapshotter(){};
+
+    virtual bool record_committable(kv::Version v) = 0;
+    virtual void commit(kv::Version v, bool generate_snapshot) = 0;
+    virtual void rollback(kv::Version v) = 0;
+  };
+  using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
   class AbstractChangeSet
   {
@@ -680,6 +684,8 @@ namespace kv
     // Thus, a large rollback is one which did not result from the map creating
     // issue. https://github.com/microsoft/CCF/issues/2799
     virtual bool should_rollback_to_last_committed() = 0;
+
+    bool force_ledger_chunk = false;
   };
 
   class AbstractStore

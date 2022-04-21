@@ -29,6 +29,44 @@ auto valid_from =
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
+static std::vector<ActionDesc> create_actions(
+  ExpectedSeqNos& seqnos_hello,
+  ExpectedSeqNos& seqnos_saluton,
+  ExpectedSeqNos& seqnos_1,
+  ExpectedSeqNos& seqnos_2)
+{
+  std::vector<ActionDesc> actions;
+  actions.push_back({seqnos_hello, [](size_t i, kv::Tx& tx) {
+                       tx.wo(map_a)->put("hello", "value doesn't matter");
+                       return true;
+                     }});
+  actions.push_back({seqnos_saluton, [](size_t i, kv::Tx& tx) {
+                       if (i % 2 == 0)
+                       {
+                         tx.wo(map_a)->put("saluton", "value doesn't matter");
+                         return true;
+                       }
+                       return false;
+                     }});
+  actions.push_back({seqnos_1, [](size_t i, kv::Tx& tx) {
+                       if (i % 3 == 0)
+                       {
+                         tx.wo(map_b)->put(1, 42);
+                         return true;
+                       }
+                       return false;
+                     }});
+  actions.push_back({seqnos_2, [](size_t i, kv::Tx& tx) {
+                       if (i % 4 == 0)
+                       {
+                         tx.wo(map_b)->put(2, 42);
+                         return true;
+                       }
+                       return false;
+                     }});
+  return actions;
+}
+
 template <typename AA>
 void run_tests(
   const std::function<void()>& tick_until_caught_up,
@@ -106,7 +144,9 @@ void run_tests(
   {
     INFO("Both indexes continue to be updated with new entries");
     REQUIRE(create_transactions(
-      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100));
+      kv_store,
+      create_actions(seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2),
+      100));
 
     if constexpr (std::is_same_v<AA, LazyIndexA>)
     {
@@ -148,7 +188,8 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
     ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
   REQUIRE(create_transactions(
-    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2));
+    kv_store,
+    create_actions(seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2)));
 
   auto tick_until_caught_up = [&]() {
     while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
@@ -236,7 +277,7 @@ aft::LedgerStubProxy* add_raft_consensus(
   std::shared_ptr<kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
-  using TRaft = aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
+  using TRaft = aft::Aft<aft::LedgerStubProxy>;
   using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
@@ -247,7 +288,6 @@ aft::LedgerStubProxy* add_raft_consensus(
     std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr);
@@ -315,16 +355,15 @@ TEST_CASE_TEMPLATE(
   }
 
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
-
+  auto actions =
+    create_actions(seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
   for (size_t i = 0; i < 3; ++i)
   {
-    REQUIRE(create_transactions(
-      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 10));
+    REQUIRE(create_transactions(kv_store, actions, 10));
     rekey(kv_store, ledger_secrets);
   }
 
-  REQUIRE(create_transactions(
-    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2));
+  REQUIRE(create_transactions(kv_store, actions));
 
   size_t handled_writes = 0;
   const auto& writes = stub_writer->writes;

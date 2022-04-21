@@ -62,7 +62,9 @@ if [ -f "${VERSION_FILE}" ]; then
         echo "Using python package: ${PYTHON_PACKAGE_PATH}"
         pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
     else
-        pip install -q -U ccf=="$VERSION"
+        # Note: Strip unsafe suffix if it exists
+        sanitised_version=${VERSION%"+unsafe"}
+        pip install -q -U ccf=="${sanitised_version}"
     fi
     pip install -q -U -r "${PATH_HERE}"/requirements.txt
 else

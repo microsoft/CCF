@@ -29,6 +29,8 @@ from loguru import logger as LOG
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
+NODE_STARTUP_RETRY_COUNT = 5
+
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -131,6 +133,7 @@ class Node:
         self.certificate_valid_from = None
         self.certificate_validity_days = None
         self.initial_node_data_json_file = node_data_json_file
+        self.label = None
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -257,6 +260,7 @@ class Node:
         )
         self.common_dir = common_dir
         members_info = members_info or []
+        self.label = label
 
         self.remote = self.remote_shim(
             start_type,
@@ -304,15 +308,19 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
-        try:
-            file_timeout = kwargs.get("file_timeout")
-            self.remote.get_startup_files(
-                self.common_dir, timeout=file_timeout or infra.remote.FILE_TIMEOUT
-            )
-        except Exception as e:
-            LOG.exception(e)
-            self.remote.get_logs(tail_lines_len=None)
-            raise
+        # Detect whether node started up successfully
+        for _ in range(NODE_STARTUP_RETRY_COUNT):
+            try:
+                if self.remote.check_done():
+                    raise RuntimeError("Node crashed at startup")
+                self.remote.get_startup_files(self.common_dir)
+                break
+            except Exception as e:
+                if self.remote.check_done():
+                    self.remote.get_logs(tail_lines_len=None)
+                    raise RuntimeError(
+                        f"Error starting node {self.local_node_id}"
+                    ) from e
 
         self.consensus = kwargs.get("consensus")
 
@@ -325,7 +333,10 @@ class Node:
 
         self._read_ports()
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
-        LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
+        start_msg = f"Node {self.local_node_id} started: {self.node_id}"
+        if self.version is not None:
+            start_msg += f" [version: {self.version}]"
+        LOG.info(start_msg)
 
     def _resolve_address(self, address_file_path, interfaces):
         with open(address_file_path, "r", encoding="utf-8") as f:
@@ -502,17 +513,36 @@ class Node:
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
-    def get_public_rpc_host(self):
-        return self.remote.get_host()
+    def get_public_rpc_host(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
+        return self.host.rpc_interfaces[interface_name].public_host
 
     def get_public_rpc_port(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
-        return self.host.rpc_interfaces[interface_name].port
+        return self.host.rpc_interfaces[interface_name].public_port
 
-    def session_ca(self, self_signed_ok):
-        if self_signed_ok:
-            return {"ca": ""}
+    def retrieve_self_signed_cert(self, *args, **kwargs):
+        # Retrieve and overwrite node self-signed certificate in common directory
+        with self.client(*args, **kwargs) as c:
+            new_self_signed_cert = c.get("/node/self_signed_certificate").body.json()[
+                "self_signed_certificate"
+            ]
+            with open(
+                os.path.join(self.common_dir, f"{self.local_node_id}.pem"),
+                "w",
+                encoding="utf-8",
+            ) as self_signed_cert_file:
+                self_signed_cert_file.write(new_self_signed_cert)
+            return new_self_signed_cert
+
+    def session_ca(self, self_signed=False, verify_ca=True):
+        if not verify_ca:
+            return {"ca": None}
+
+        if self_signed:
+            return {"ca": os.path.join(self.common_dir, f"{self.local_node_id}.pem")}
         else:
             return {"ca": os.path.join(self.common_dir, "service_cert.pem")}
 
@@ -521,7 +551,7 @@ class Node:
         identity=None,
         signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
-        self_signed_ok=False,
+        verify_ca=True,
         **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
@@ -529,7 +559,19 @@ class Node:
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
             )
 
-        akwargs = self.session_ca(self_signed_ok)
+        try:
+            rpc_interface = self.host.rpc_interfaces[interface_name]
+        except KeyError:
+            LOG.error(
+                f'Cannot create client on interface "{interface_name}" - available interfaces: {self.host.rpc_interfaces.keys()}'
+            )
+            raise
+
+        akwargs = self.session_ca(
+            self_signed=rpc_interface.endorsement.authority
+            == infra.interfaces.EndorsementAuthority.Node,
+            verify_ca=verify_ca,
+        )
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
@@ -540,14 +582,6 @@ class Node:
         if self.curl:
             akwargs["curl"] = True
 
-        try:
-            rpc_interface = self.host.rpc_interfaces[interface_name]
-        except KeyError:
-            LOG.error(
-                f'Cannot create client on interface "{interface_name}" - available interfaces: {self.host.rpc_interfaces.keys()}'
-            )
-            raise
-
         return infra.clients.client(
             rpc_interface.public_host, rpc_interface.public_port, **akwargs
         )
@@ -557,7 +591,7 @@ class Node:
     ):
         return ssl.get_server_certificate(
             (
-                self.get_public_rpc_host(),
+                self.get_public_rpc_host(interface_name=interface_name),
                 self.get_public_rpc_port(interface_name=interface_name),
             )
         )

@@ -24,6 +24,7 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "resharing.h"
 #include "rpc/frontend.h"
@@ -31,7 +32,6 @@
 #include "secret_broadcast.h"
 #include "service/genesis_gen.h"
 #include "share_manager.h"
-#include "snapshotter.h"
 #include "tls/client.h"
 
 #ifdef USE_NULL_ENCRYPTOR
@@ -49,7 +49,7 @@
 
 namespace ccf
 {
-  using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave>;
 
   struct NodeCreateInfo
   {
@@ -121,7 +121,7 @@ namespace ccf
   }
 #endif
 
-  class NodeState : public ccf::AbstractNodeState
+  class NodeState : public AbstractNodeState
   {
   private:
     //
@@ -154,11 +154,11 @@ namespace ccf
     NetworkState& network;
 
     std::shared_ptr<kv::Consensus> consensus;
-    std::shared_ptr<ccf::RPCMap> rpc_map;
-    std::shared_ptr<ccf::indexing::Indexer> indexer;
+    std::shared_ptr<RPCMap> rpc_map;
+    std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
-    std::shared_ptr<ccf::RPCSessions> rpcsessions;
+    std::shared_ptr<RPCSessions> rpcsessions;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
@@ -246,7 +246,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      std::shared_ptr<ccf::RPCSessions> rpcsessions,
+      std::shared_ptr<RPCSessions> rpcsessions,
       ShareManager& share_manager,
       crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
@@ -284,9 +284,9 @@ namespace ccf
     //
     void initialize(
       const consensus::Configuration& consensus_config_,
-      std::shared_ptr<ccf::RPCMap> rpc_map_,
-      std::shared_ptr<ccf::AbstractRPCResponder> rpc_sessions_,
-      std::shared_ptr<ccf::indexing::Indexer> indexer_,
+      std::shared_ptr<RPCMap> rpc_map_,
+      std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
+      std::shared_ptr<indexing::Indexer> indexer_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -299,10 +299,9 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels =
-        std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
+      n2n_channels = std::make_shared<NodeToNodeChannelManager>(writer_factory);
 
-      cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
+      cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.type);
 
       sm.advance(NodeStartupState::initialized);
@@ -455,8 +454,11 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void initiate_join()
+
+    void initiate_join_unsafe()
     {
+      sm.expect(NodeStartupState::pending);
+
       auto network_ca = std::make_shared<tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
       auto join_client_cert = std::make_unique<tls::Cert>(
@@ -636,6 +638,9 @@ namespace ccf
               view_history,
               last_recovered_signed_idx);
 
+            snapshotter->set_last_snapshot_idx(
+              network.tables->current_version());
+
             if (resp.network_info->public_only)
             {
               sm.advance(NodeStartupState::partOfPublicNetwork);
@@ -679,8 +684,8 @@ namespace ccf
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
 
-      http::Request r(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "join"));
+      http::Request r(
+        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
@@ -688,9 +693,18 @@ namespace ccf
       join_client->send_request(r.build_request());
     }
 
+    // Note: _unsafe() pattern can be simplified once 2.x has been released
+    // and 1.x snapshots no longer need to be verified
+    // (https://github.com/microsoft/CCF/issues/2981)
+    void initiate_join()
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      initiate_join_unsafe();
+    }
+
     void start_join_timer()
     {
-      initiate_join();
+      initiate_join_unsafe();
 
       struct JoinTimeMsg
       {
@@ -719,7 +733,6 @@ namespace ccf
     void join()
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(NodeStartupState::pending);
       start_join_timer();
     }
 
@@ -805,7 +818,14 @@ namespace ccf
 
       if (size == 0)
       {
-        recover_public_ledger_end_unsafe();
+        if (is_verifying_snapshot())
+        {
+          verify_snapshot_end_unsafe();
+        }
+        else
+        {
+          recover_public_ledger_end_unsafe();
+        }
         return;
       }
 
@@ -850,8 +870,7 @@ namespace ccf
         {
           // If the ledger entry is a signature, it is safe to compact the store
           store->compact(last_recovered_idx);
-          auto tx = store->create_tx();
-          GenesisGenerator g(network, tx);
+          auto tx = store->create_read_only_tx();
           auto last_sig = tx.ro(network.signatures)->get();
 
           if (!last_sig.has_value())
@@ -935,9 +954,8 @@ namespace ccf
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
-    void verify_snapshot_end()
+    void verify_snapshot_end_unsafe()
     {
-      std::lock_guard<std::mutex> guard(lock);
       if (!sm.check(NodeStartupState::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
@@ -967,6 +985,12 @@ namespace ccf
 
       sm.advance(NodeStartupState::pending);
       start_join_timer();
+    }
+
+    void verify_snapshot_end()
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      verify_snapshot_end_unsafe();
     }
 
     void recover_public_ledger_end_unsafe()
@@ -1485,12 +1509,12 @@ namespace ccf
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
       auto [msg_type, from, payload] =
-        ringbuffer::read_message<ccf::node_inbound>(data, size);
+        ringbuffer::read_message<node_inbound>(data, size);
 
       auto payload_data = payload.data;
       auto payload_size = payload.size;
 
-      if (msg_type == ccf::NodeMsgType::forwarded_msg)
+      if (msg_type == NodeMsgType::forwarded_msg)
       {
         cmd_forwarder->recv_message(from, payload_data, payload_size);
       }
@@ -1643,6 +1667,12 @@ namespace ccf
       return rpcsessions->get_session_metrics();
     }
 
+    crypto::Pem get_self_signed_certificate() override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      return self_signed_node_cert;
+    }
+
   private:
     bool is_ip(const std::string_view& hostname)
     {
@@ -1732,22 +1762,31 @@ namespace ccf
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
-    void open_frontend(
-      ccf::ActorsType actor,
-      std::optional<crypto::Pem*> identity = std::nullopt)
+    auto find_frontend(ActorsType actor)
     {
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())
       {
         throw std::logic_error(
-          fmt::format("Cannot open {} frontend", (int)actor));
+          fmt::format("Cannot find {} frontend", (int)actor));
       }
-      fe.value()->open(identity);
+      return fe.value();
     }
 
-    void open_user_frontend() override
+    void open_frontend(
+      ActorsType actor, std::optional<crypto::Pem*> identity = std::nullopt)
     {
-      open_frontend(ccf::ActorsType::users, &network.identity->cert);
+      find_frontend(actor)->open(identity);
+    }
+
+    void open_user_frontend()
+    {
+      open_frontend(ActorsType::users, &network.identity->cert);
+    }
+
+    bool is_member_frontend_open()
+    {
+      return find_frontend(ActorsType::members)->is_open();
     }
 
     std::vector<uint8_t> serialize_create_request(bool create_consortium = true)
@@ -1786,8 +1825,8 @@ namespace ccf
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
-      http::Request request(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "create"));
+      http::Request request(
+        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
@@ -1835,9 +1874,9 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
-      auto node_session = std::make_shared<ccf::SessionContext>(
-        ccf::InvalidSessionId, self_signed_node_cert.raw());
-      auto ctx = ccf::make_rpc_context(node_session, packed);
+      auto node_session = std::make_shared<SessionContext>(
+        InvalidSessionId, self_signed_node_cert.raw());
+      auto ctx = make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
 
@@ -2056,10 +2095,32 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
+              std::lock_guard<std::mutex> guard(lock);
+
               endorsed_node_cert = endorsed_certificate.value();
               history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
+
+              if (is_member_frontend_open())
+              {
+                // Also, automatically refresh self-signed node certificate,
+                // using the same validity period as the endorsed certificate.
+                // Note that this is only done when the certificate is renewed
+                // via proposal (i.e. when the member frontend is open), and not
+                // for the initial addition of the node (the self-signed
+                // certificate is output to disk then).
+                auto [valid_from, valid_to] =
+                  crypto::make_verifier(endorsed_node_cert.value())
+                    ->validity_period();
+                self_signed_node_cert = create_self_signed_cert(
+                  node_sign_kp,
+                  config.node_certificate.subject_name,
+                  subject_alt_names,
+                  valid_from,
+                  valid_to);
+                accept_node_tls_connections();
+              }
 
               open_frontend(ActorsType::members);
             }
@@ -2215,7 +2276,7 @@ namespace ccf
       auto resharing_tracker = nullptr;
       if (consensus_config.type == ConsensusType::BFT)
       {
-        std::make_shared<ccf::SplitIdentityResharingTracker>(
+        std::make_shared<SplitIdentityResharingTracker>(
           shared_state,
           rpc_map,
           node_sign_kp,
@@ -2237,7 +2298,6 @@ namespace ccf
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
-        snapshotter,
         shared_state,
         std::move(resharing_tracker),
         node_client,
@@ -2246,6 +2306,7 @@ namespace ccf
         reconfiguration_type);
 
       network.tables->set_consensus(consensus);
+      network.tables->set_snapshotter(snapshotter);
 
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
@@ -2265,20 +2326,32 @@ namespace ccf
             return std::make_unique<ResharingsHook>(version, w);
           }));
 
+      // Note: The Signatures hook and SerialisedMerkleTree hook are separate
+      // because the signature and the Merkle tree are recorded in distinct
+      // tables (for serialisation performance reasons). However here, they are
+      // expected to always be called together and for the same version as they
+      // are always written by each signature transaction.
+
       network.tables->set_map_hook(
         network.signatures.get_name(),
         network.signatures.wrap_map_hook(
-          [](kv::Version version, const Signatures::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<SignaturesHook>(version, w);
+          [s = this->snapshotter](
+            kv::Version version, const Signatures::Write& w) {
+            assert(w.has_value());
+            auto sig = w.value();
+            s->record_signature(version, sig.sig, sig.node, sig.cert);
+            return kv::ConsensusHookPtr(nullptr);
           }));
 
       network.tables->set_map_hook(
         network.serialise_tree.get_name(),
         network.serialise_tree.wrap_map_hook(
-          [](kv::Version version, const SerialisedMerkleTree::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<SerialisedMerkleTreeHook>(version, w);
+          [s = this->snapshotter](
+            kv::Version version, const SerialisedMerkleTree::Write& w) {
+            assert(w.has_value());
+            auto tree = w.value();
+            s->record_serialised_tree(version, tree);
+            return kv::ConsensusHookPtr(nullptr);
           }));
 
       network.tables->set_global_hook(
