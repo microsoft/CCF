@@ -468,6 +468,10 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
+
+        for node in self.get_joined_nodes():
+            self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
+
         LOG.success("***** Network is now open *****")
         if self.service_load:
             self.service_load.begin(self)
@@ -570,6 +574,7 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
+        self.wait_for_app_frontend_to_open(timeout=args.ledger_recovery_timeout)
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
