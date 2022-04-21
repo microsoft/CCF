@@ -224,9 +224,6 @@
           "proof": {
             "$ref": "#/components/schemas/Receipt__Element_array"
           },
-          "root": {
-            "$ref": "#/components/schemas/Sha256Digest"
-          },
           "service_endorsements": {
             "$ref": "#/components/schemas/Pem_array"
           },
@@ -236,12 +233,10 @@
         },
         "required": [
           "signature",
-          "root",
           "proof",
           "leaf_components",
           "node_id",
-          "cert",
-          "service_endorsements"
+          "cert"
         ],
         "type": "object"
       },

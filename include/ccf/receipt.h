@@ -17,6 +17,11 @@ namespace ccf
 {
   class Receipt
   {
+  private:
+    // Lazily constructed
+    std::optional<crypto::Sha256Hash> leaf = std::nullopt;
+    std::optional<crypto::Sha256Hash> root = std::nullopt;
+
   public:
     virtual ~Receipt() = default;
 
@@ -42,11 +47,47 @@ namespace ccf
     };
 
     std::vector<uint8_t> signature = {};
+    crypto::Sha256Hash get_root()
+    {
+      if (!root.has_value())
+      {
+        auto current = get_leaf();
 
-    crypto::Sha256Hash root = {};
+        for (const auto& element : proof)
+        {
+          if (element.direction == Receipt::ProofStep::Left)
+          {
+            current = crypto::Sha256Hash(element.hash, current);
+          }
+          else
+          {
+            current = crypto::Sha256Hash(current, element.hash);
+          }
+        }
+
+        root = current;
+      }
+
+      return root.value();
+    }
+
     Proof proof = {};
 
     LeafComponents leaf_components = {};
+    crypto::Sha256Hash get_leaf()
+    {
+      if (!leaf.has_value())
+      {
+        crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
+        leaf = crypto::Sha256Hash(
+          leaf_components.write_set_digest,
+          ce_dgst,
+          leaf_components.claims_digest
+            ->value()); // TODO: What about when this is empty?
+      }
+
+      return leaf.value();
+    }
 
     ccf::NodeId node_id = {};
     crypto::Pem cert = {};
@@ -126,14 +167,8 @@ namespace ccf
     Receipt::LeafComponents, write_set_digest, commit_evidence);
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt::LeafComponents, claims_digest);
 
-  DECLARE_JSON_TYPE(Receipt);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Receipt,
-    signature,
-    root,
-    proof,
-    leaf_components,
-    node_id,
-    cert,
-    service_endorsements);
+    Receipt, signature, proof, leaf_components, node_id, cert);
+  DECLARE_JSON_OPTIONAL_FIELDS(Receipt, service_endorsements);
 }

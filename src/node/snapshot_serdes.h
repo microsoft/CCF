@@ -15,36 +15,6 @@
 
 namespace ccf
 {
-  /* Receipts included in snapshots always contain leaf components,
-     including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
-     This verification code deliberately does not support snapshots
-     produced by 2.0.0-dev* releases
-  */
-  static crypto::Sha256Hash compute_root_from_snapshot_receipt(
-    const Receipt& receipt)
-  {
-    crypto::Sha256Hash current;
-    const auto& components = receipt.leaf_components;
-
-    crypto::Sha256Hash ce_dgst(components.commit_evidence);
-    current = crypto::Sha256Hash(
-      components.write_set_digest, ce_dgst, components.claims_digest->value());
-
-    for (auto const& element : receipt.proof)
-    {
-      if (element.direction == Receipt::ProofStep::Left)
-      {
-        current = crypto::Sha256Hash(element.hash, current);
-      }
-      else
-      {
-        current = crypto::Sha256Hash(current, element.hash);
-      }
-    }
-
-    return current;
-  }
-
   struct StartupSnapshotInfo
   {
     std::vector<uint8_t> raw;
@@ -123,7 +93,7 @@ namespace ccf
           snapshot_digest_claim));
       }
 
-      auto root = compute_root_from_snapshot_receipt(receipt);
+      auto root = receipt.get_root();
       auto raw_sig = receipt.signature;
 
       auto v = crypto::make_unique_verifier(receipt.cert);

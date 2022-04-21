@@ -19,8 +19,6 @@ namespace ccf
     ccf::Receipt out;
 
     out.signature = receipt.signature;
-    out.root = crypto::Sha256Hash::from_span(
-      {receipt.root.bytes, sizeof(receipt.root.bytes)});
 
     if (receipt.path != nullptr)
     {
@@ -63,6 +61,10 @@ namespace ccf
     {
       out.service_endorsements = receipt.service_endorsements.value();
     }
+
+    // TODO: Confirm that out.get_root() and receipt.root match?
+    // out.root = crypto::Sha256Hash::from_span(
+    //   {receipt.root.bytes, sizeof(receipt.root.bytes)});
 
     return out;
   }
