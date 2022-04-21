@@ -1410,10 +1410,11 @@ def test_random_receipts(
         last_sig_seqno = max_seqno
         interesting_prefix = [genesis_seqno, likely_first_sig_seqno]
         seqnos = range(len(interesting_prefix) + 1, max_seqno)
+        random_sample_count = 20 if lts else 50
         for s in (
             interesting_prefix
             + sorted(
-                random.sample(seqnos, min(50, len(seqnos)))
+                random.sample(seqnos, min(random_sample_count, len(seqnos)))
                 + list(additional_seqnos.keys())
             )
             + [last_sig_seqno]
