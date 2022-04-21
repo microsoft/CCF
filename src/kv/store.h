@@ -1101,7 +1101,7 @@ namespace kv
       return {term_of_next_version, version};
     }
 
-    size_t commit_gap() override
+    size_t committable_gap() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
       return version - last_committable;

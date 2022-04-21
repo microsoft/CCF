@@ -749,7 +749,7 @@ namespace kv
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
 
-    virtual size_t commit_gap() = 0;
+    virtual size_t committable_gap() = 0;
 
     enum class Flag : uint8_t
     {

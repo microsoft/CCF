@@ -538,7 +538,8 @@ namespace ccf
             auto consensus = self->store.get_consensus();
             if (
               (consensus != nullptr) && consensus->can_replicate() &&
-              self->store.commit_gap() > 0 && time > time_of_last_signature &&
+              self->store.committable_gap() > 0 &&
+              time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
               should_emit_signature = true;
@@ -723,12 +724,12 @@ namespace ccf
     void try_emit_signature() override
     {
       std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
-      if (store.commit_gap() < sig_tx_interval || !mguard.try_lock())
+      if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;
       }
 
-      if (store.commit_gap() >= sig_tx_interval)
+      if (store.committable_gap() >= sig_tx_interval)
       {
         mguard.unlock();
         emit_signature();
