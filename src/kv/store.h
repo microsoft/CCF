@@ -131,6 +131,11 @@ namespace kv
         version = v;
         last_replicated = version;
         term_of_last_version = term;
+
+        if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
+        {
+          last_committable = version;
+        }
       }
       if (snapshotter && changes.find(ccf::Tables::SIGNATURES) != changes.end())
       {
