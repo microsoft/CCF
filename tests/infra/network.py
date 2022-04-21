@@ -574,7 +574,6 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.wait_for_app_frontend_to_open(timeout=args.ledger_recovery_timeout)
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
