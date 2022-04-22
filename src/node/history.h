@@ -720,7 +720,6 @@ namespace ccf
 
     std::mutex signature_lock;
 
-    // TODO: Rename
     void try_emit_signature() override
     {
       std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
@@ -729,15 +728,17 @@ namespace ccf
         return;
       }
 
-      // TODO: Do we still need this crazy lock dance?
       if (store.commit_gap() >= sig_tx_interval)
       {
         mguard.unlock();
 
+        // Note: emit signature asynchronously to avoid possible deadlocks in
+        // case the signature synchronously triggers commit hooks that acquire
+        // already-taken locks (typically with the /node/create transaction
+        // triggered from the node state).
         auto emit_sig_msg = std::make_unique<threading::Tmsg<EmitSigMsg>>(
           [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
             auto& self = msg->data.self;
-            LOG_FAIL_FMT("Force signature tx");
             msg->data.self->emit_signature();
           },
           this);
