@@ -2022,14 +2022,9 @@ TEST_CASE("Deserialise return status")
     auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
-    REQUIRE(store.committable_gap() == store.current_version());
-
     REQUIRE(
       store.deserialize(data, ConsensusType::CFT)->apply() ==
       kv::ApplyResult::PASS_SIGNATURE);
-
-    // Signature is now very last transaction
-    REQUIRE(store.committable_gap() == 0);
   }
 
   INFO("Signature transactions with additional contents should fail");
