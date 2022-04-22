@@ -9,7 +9,8 @@ namespace ccf::js
 
   static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptImplPtr receipt)
   {
-    ccf::Receipt receipt_out = ccf::describe_receipt(*receipt);
+    ccf::ReceiptPtr receipt_p = ccf::describe_receipt(*receipt);
+    auto& receipt_out = *receipt_p;
     auto js_receipt = JS_NewObject(ctx);
     const auto sig_hex = ds::to_hex(receipt_out.signature);
     JS_SetPropertyStr(
@@ -29,30 +30,31 @@ namespace ccf::js
     // }
     auto leaf_components = JS_NewObject(ctx);
 
-    const auto wsd_hex =
-      ds::to_hex(receipt_out.leaf_components.write_set_digest.h);
-    JS_SetPropertyStr(
-      ctx,
-      leaf_components,
-      "write_set_digest",
-      JS_NewString(ctx, wsd_hex.c_str()));
+    // TODO
+    // const auto wsd_hex =
+    //   ds::to_hex(receipt_out.leaf_components.write_set_digest.h);
+    // JS_SetPropertyStr(
+    //   ctx,
+    //   leaf_components,
+    //   "write_set_digest",
+    //   JS_NewString(ctx, wsd_hex.c_str()));
 
-    JS_SetPropertyStr(
-      ctx,
-      leaf_components,
-      "commit_evidence",
-      JS_NewString(ctx, receipt_out.leaf_components.commit_evidence.c_str()));
+    // JS_SetPropertyStr(
+    //   ctx,
+    //   leaf_components,
+    //   "commit_evidence",
+    //   JS_NewString(ctx, receipt_out.leaf_components.commit_evidence.c_str()));
 
-    if (receipt_out.leaf_components.claims_digest.has_value())
-    {
-      const auto cd_hex =
-        ds::to_hex(receipt_out.leaf_components.claims_digest->value().h);
-      JS_SetPropertyStr(
-        ctx,
-        leaf_components,
-        "claims_digest",
-        JS_NewString(ctx, cd_hex.c_str()));
-    }
+    // if (receipt_out.leaf_components.claims_digest.has_value())
+    // {
+    //   const auto cd_hex =
+    //     ds::to_hex(receipt_out.leaf_components.claims_digest->value().h);
+    //   JS_SetPropertyStr(
+    //     ctx,
+    //     leaf_components,
+    //     "claims_digest",
+    //     JS_NewString(ctx, cd_hex.c_str()));
+    // }
     JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
 
     JS_SetPropertyStr(

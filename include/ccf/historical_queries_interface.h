@@ -11,17 +11,6 @@
 #include <chrono>
 #include <memory>
 
-namespace ccf
-{
-  // This is an opaque, incomplete type, but can be summarised to a readable
-  // (and JSON-serialisable) form by the function below
-  struct TxReceiptImpl;
-  using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
-
-  ccf::Receipt describe_receipt(
-    const TxReceiptImpl& receipt, bool include_root = false);
-}
-
 namespace ccf::historical
 {
   struct State

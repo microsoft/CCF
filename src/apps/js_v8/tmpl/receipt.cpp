@@ -17,8 +17,9 @@ namespace ccf::v8_tmpl
 
   static ccf::Receipt* unwrap_receipt(v8::Local<v8::Object> obj)
   {
-    return static_cast<ccf::Receipt*>(
+    auto receipt_smart_ptr = static_cast<ccf::ReceiptPtr*>(
       get_internal_field(obj, InternalField::Receipt));
+    return *receipt_smart_ptr;
   }
 
   static void get_signature(
@@ -116,7 +117,7 @@ namespace ccf::v8_tmpl
   v8::Local<v8::Object> Receipt::wrap(
     v8::Local<v8::Context> context, const ccf::TxReceiptImpl& receipt)
   {
-    ccf::Receipt* receipt_out = new ccf::Receipt();
+    ccf::ReceiptPtr* receipt_out = new ccf::ReceiptPtr();
     V8Context::from_context(context).register_finalizer(
       [](void* data) { delete static_cast<ccf::Receipt*>(data); }, receipt_out);
     *receipt_out = ccf::describe_receipt(*receipt);

@@ -79,12 +79,19 @@ namespace ccf
       auto receipt_size = size - store_snapshot_size;
 
       auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
-      auto receipt = j.get<Receipt>();
+      auto receipt_p = j.get<ReceiptPtr>();
+      auto receipt =
+        std::dynamic_pointer_cast<ccf::LeafExpandedReceipt>(receipt_p);
+      if (receipt == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Unexpected receipt type: missing expanded claims"));
+      }
 
       auto snapshot_digest =
         crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
       auto snapshot_digest_claim =
-        receipt.leaf_components.claims_digest->value();
+        receipt->leaf_components.claims_digest->value();
       if (snapshot_digest != snapshot_digest_claim)
       {
         throw std::logic_error(fmt::format(
@@ -93,15 +100,15 @@ namespace ccf
           snapshot_digest_claim));
       }
 
-      auto root = receipt.get_root();
-      auto raw_sig = receipt.signature;
+      auto root = receipt->get_root();
+      auto raw_sig = receipt->signature;
 
-      auto v = crypto::make_unique_verifier(receipt.cert);
+      auto v = crypto::make_unique_verifier(receipt->cert);
       if (!v->verify_hash(
             root.h.data(),
             root.h.size(),
-            receipt.signature.data(),
-            receipt.signature.size()))
+            receipt->signature.data(),
+            receipt->signature.size()))
       {
         throw std::logic_error(
           "Signature verification failed for snapshot receipt");
@@ -186,7 +193,7 @@ namespace ccf
       commit_evidence,
       cd);
 
-    Receipt receipt = ccf::describe_receipt(tx_receipt);
+    ReceiptPtr receipt = ccf::describe_receipt(tx_receipt);
     const auto receipt_str = nlohmann::json(receipt).dump();
     return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
   }

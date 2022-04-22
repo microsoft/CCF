@@ -14,16 +14,17 @@ namespace ccf
   static std::map<crypto::Pem, std::vector<crypto::Pem>>
     service_endorsement_cache;
 
-  ccf::Receipt describe_receipt(const TxReceiptImpl& receipt, bool include_root)
+  ccf::ReceiptPtr describe_receipt(const TxReceiptImpl& in)
   {
-    ccf::Receipt out;
+    // TODO
+    ccf::ReceiptPtr receipt = nullptr;
 
-    out.signature = receipt.signature;
-
-    if (receipt.path != nullptr)
+    if (in.path != nullptr)
     {
-      out.proof.reserve(receipt.path->size());
-      for (const auto& node : *receipt.path)
+      auto expanded_receipt = std::make_shared<LeafExpandedReceipt>();
+
+      expanded_receipt->proof.reserve(in.path->size());
+      for (const auto& node : *in.path)
       {
         const auto direction =
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
@@ -31,42 +32,55 @@ namespace ccf
           ccf::Receipt::ProofStep::Right;
         const auto hash = crypto::Sha256Hash::from_span(
           {node.hash.bytes, sizeof(node.hash.bytes)});
-        out.proof.push_back({direction, hash});
+        expanded_receipt->proof.push_back({direction, hash});
       }
-    }
 
-    if (receipt.write_set_digest.has_value())
+      if (in.write_set_digest.has_value())
+      {
+        expanded_receipt->leaf_components.write_set_digest =
+          in.write_set_digest.value();
+      }
+
+      if (in.commit_evidence.has_value())
+      {
+        expanded_receipt->leaf_components.commit_evidence =
+          in.commit_evidence.value();
+      }
+
+      if (!in.claims_digest.empty())
+      {
+        expanded_receipt->leaf_components.claims_digest = in.claims_digest;
+      }
+
+      receipt = expanded_receipt;
+    }
+    else
     {
-      out.leaf_components.write_set_digest = receipt.write_set_digest.value();
+      // Signature transaction
+      auto digest_receipt = std::make_shared<LeafDigestReceipt>();
+      digest_receipt->leaf_digest =
+        crypto::Sha256Hash::from_span({in.root.bytes, sizeof(in.root.bytes)});
+
+      receipt = digest_receipt;
     }
 
-    if (receipt.commit_evidence.has_value())
+    auto& out = *receipt;
+
+    out.signature = in.signature;
+
+    out.node_id = in.node_id;
+
+    if (in.node_cert.has_value())
     {
-      out.leaf_components.commit_evidence = receipt.commit_evidence.value();
+      out.cert = in.node_cert.value();
     }
 
-    if (!receipt.claims_digest.empty())
+    if (in.service_endorsements.has_value())
     {
-      out.leaf_components.claims_digest = receipt.claims_digest;
+      out.service_endorsements = in.service_endorsements.value();
     }
 
-    out.node_id = receipt.node_id;
-
-    if (receipt.node_cert.has_value())
-    {
-      out.cert = receipt.node_cert.value();
-    }
-
-    if (receipt.service_endorsements.has_value())
-    {
-      out.service_endorsements = receipt.service_endorsements.value();
-    }
-
-    // TODO: Confirm that out.get_root() and receipt.root match?
-    // out.root = crypto::Sha256Hash::from_span(
-    //   {receipt.root.bytes, sizeof(receipt.root.bytes)});
-
-    return out;
+    return receipt;
   }
 }
 
