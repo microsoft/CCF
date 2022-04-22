@@ -920,7 +920,11 @@ class Ledger:
         for file_a, file_b in zip(self._filenames[:-1], self._filenames[1:]):
             range_a = range_from_filename(file_a)
             range_b = range_from_filename(file_b)
-            if range_a[1] is None or range_a[1] + 1 != range_b[0]:
+            if range_a[1] is None and range_b[1] is not None:
+                raise ValueError(
+                    f"Ledger cannot parse committed chunk {file_b} following uncommitted chunk {file_a}"
+                )
+            if range_a[1] is not None and range_a[1] + 1 != range_b[0]:
                 raise ValueError(
                     f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
                 )

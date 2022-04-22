@@ -7,13 +7,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Primary node now also reports time at which the ack from each backup node was last received (`GET /node/consensus` endpoint). This can be used by operators to detect one-way partitions between the primary and backup nodes (#3769).
+
+## [2.0.0-rc7]
+
 ### Fixed
 
 - Fixed issue with incorrect node and service certificate validity period when starting node in non-GMT timezone (#3732).
+- Fixed issue with self-signed node certificates that are now renewed when the `set_node_certificate_validity` proposal is applied (#3767).
 
 ## Changed
 
 - Configurations and proposals now accept more date/time formats, including the Python-default ISO 8601 format (#3739).
+
+## Added
+
+- Added new `GET /node/self_signed_certificate` endpoint to retrieve the self-signed certificate of the target node (#3767).
 
 ## [2.0.0-rc6]
 
@@ -1284,6 +1295,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc7
 [2.0.0-rc6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc6
 [2.0.0-rc5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc5
 [2.0.0-rc4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc4

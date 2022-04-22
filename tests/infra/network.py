@@ -2,12 +2,14 @@
 # Licensed under the Apache 2.0 License.
 import os
 import time
+
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
+import infra.service_load
 import infra.node
 import infra.consortium
 import ccf.ledger
@@ -22,6 +24,7 @@ import functools
 import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
+
 
 from loguru import logger as LOG
 
@@ -136,6 +139,7 @@ class Network:
         library_dir=".",
         init_partitioner=False,
         version=None,
+        service_load=None,
     ):
         if existing_network is None:
             self.consortium = None
@@ -144,6 +148,7 @@ class Network:
             self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
+            self.service_load = service_load
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -151,6 +156,10 @@ class Network:
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
             self.hosts = [node.host for node in existing_network.nodes]
+            self.service_load = None
+            if existing_network.service_load:
+                self.service_load = existing_network.service_load
+                self.service_load.set_network(self)
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -459,6 +468,8 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
         LOG.success("***** Network is now open *****")
+        if self.service_load:
+            self.service_load.begin(self)
 
     def start_and_open(self, args, **kwargs):
         self.start(args, **kwargs)
@@ -635,7 +646,11 @@ class Network:
             )
 
     def stop_all_nodes(
-        self, skip_verification=False, verbose_verification=False, **kwargs
+        self,
+        skip_verification=False,
+        verbose_verification=False,
+        accept_ledger_diff=False,
+        **kwargs,
     ):
         if not skip_verification:
             if self.txs is not None:
@@ -662,7 +677,8 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        self.check_ledger_files_identical(**kwargs)
+        if not accept_ledger_diff:
+            self.check_ledger_files_identical(**kwargs)
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -884,9 +900,11 @@ class Network:
     def find_random_node(self):
         return random.choice(self.get_joined_nodes())
 
-    def find_nodes(self, timeout=3):
-        primary, _ = self.find_primary(timeout=timeout)
-        backups = self.find_backups(primary=primary, timeout=timeout)
+    def find_nodes(self, timeout=3, log_capture=None):
+        primary, _ = self.find_primary(timeout=timeout, log_capture=log_capture)
+        backups = self.find_backups(
+            primary=primary, timeout=timeout, log_capture=log_capture
+        )
         return primary, backups
 
     def find_primary_and_any_backup(self, timeout=3):
@@ -1058,7 +1076,7 @@ class Network:
                     flush_info(logs, None)
                     delay = time.time() - start_time
                     LOG.info(
-                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay:.2f}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -1093,7 +1111,7 @@ class Network:
                     flush_info(logs, None)
                     delay = time.time() - start_time
                     LOG.info(
-                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay:.2f}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -1142,7 +1160,7 @@ class Network:
         assert all_good, f"Multiple primaries: {primaries}"
         delay = time.time() - start_time
         LOG.info(
-            f"Primary unanimity after {delay}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
+            f"Primary unanimity after {delay:.2f}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
         )
         return primaries[0]
 
@@ -1167,7 +1185,7 @@ class Network:
             time.sleep(0.1)
         raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
 
-    def wait_for_snapshot_committed_for(self, seqno, timeout=3, on_all_nodes=False):
+    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
         # Check that snapshot exists for target seqno and if so, wait until
         # snapshot evidence is committed
         snapshot_evidence_seqno = None
@@ -1179,42 +1197,45 @@ class Network:
         if snapshot_evidence_seqno is None:
             return False
 
-        if on_all_nodes:
-            for node in self.get_joined_nodes():
-                if not self.wait_for_commit_proof(
-                    node, snapshot_evidence_seqno, timeout
-                ):
-                    return False
-            return True
-        else:
-            return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
+        return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
 
     def get_committed_snapshots(self, node):
-        # Wait for all available snapshot files to be committed before
-        # copying snapshot directory, so that we always use the latest snapshot
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
+        # Wait for the snapshot including target_seqno to be committed before
+        # copying snapshot directory
+        target_seqno = None
+        with node.client() as c:
+            r = c.get("/node/commit").body.json()
+            target_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
+            LOG.info(
+                f"Waiting for a snapshot to be committed including seqno {target_seqno}"
+            )
             end_time = time.time() + timeout
-            committed = True
-            uncommitted_snapshots = []
             while time.time() < end_time:
-                committed = True
-                uncommitted_snapshots = []
                 for f in list_src_dir_func(src_dir):
-                    is_committed = infra.node.is_file_committed(f)
-                    if not is_committed:
-                        self.wait_for_commit_proof(
-                            node, infra.node.get_snapshot_seqnos(f)[1]
+                    snapshot_seqno = infra.node.get_snapshot_seqnos(f)[1]
+                    if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
+                        f
+                    ):
+                        LOG.info(
+                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time())}s"
                         )
-                        uncommitted_snapshots.append(f)
-                    committed &= is_committed
-                if committed:
-                    break
+                        return True
+
+                with node.client(self.consortium.get_any_active_member().local_id) as c:
+                    logs = []
+                    for _ in range(self.args.snapshot_tx_interval // 2):
+                        r = c.post("/gov/ack/update_state_digest", log_capture=logs)
+                        assert (
+                            r.status_code == http.HTTPStatus.OK.value
+                        ), f"Error ack/update_state_digest: {r}"
+                    c.wait_for_commit(r)
                 time.sleep(0.1)
-            if not committed:
-                LOG.error(
-                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
-                )
-            return committed
+            LOG.error(
+                f"Could not find committed snapshot for seqno {target_seqno} after {timeout}s in {src_dir}: {list_src_dir_func(src_dir)}"
+            )
+            return False
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
@@ -1313,6 +1334,7 @@ def network(
     library_directory=".",
     init_partitioner=False,
     version=None,
+    service_load=None,
 ):
     """
     Context manager for Network class.
@@ -1341,6 +1363,7 @@ def network(
         jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,
         version=version,
+        service_load=service_load,
     )
     try:
         yield net
