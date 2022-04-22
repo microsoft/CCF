@@ -48,7 +48,10 @@ namespace kv
     Term term_of_last_version = 0;
 
     Version last_replicated = 0;
+    // Version of the latest committable entry committed in this term and by
+    // _this_ store. Always reset on rollback.
     Version last_committable = 0;
+
     Version rollback_count = 0;
 
     std::
@@ -131,11 +134,6 @@ namespace kv
         version = v;
         last_replicated = version;
         term_of_last_version = term;
-
-        if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
-        {
-          last_committable = version;
-        }
       }
       if (snapshotter && changes.find(ccf::Tables::SIGNATURES) != changes.end())
       {
@@ -531,7 +529,6 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = v;
-        last_committable = v;
       }
 
       if (h)
@@ -649,7 +646,7 @@ namespace kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        last_committable = tx_id.version;
+        last_committable = 0;
         unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
