@@ -193,8 +193,14 @@ namespace kv
 
   struct ConsensusDetails
   {
+    struct Ack
+    {
+      ccf::SeqNo seqno;
+      size_t last_received_ms;
+    };
+
     std::vector<Configuration> configs = {};
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
+    std::unordered_map<ccf::NodeId, Ack> acks = {};
     MembershipState membership_state;
     std::optional<LeadershipState> leadership_state = std::nullopt;
     std::optional<RetirementPhase> retirement_phase = std::nullopt;
@@ -205,6 +211,9 @@ namespace kv
     ccf::View current_view = 0;
     bool ticking = false;
   };
+
+  DECLARE_JSON_TYPE(ConsensusDetails::Ack);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails::Ack, seqno, last_received_ms);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -250,7 +259,6 @@ namespace kv
   using BatchVector = std::vector<std::tuple<
     Version,
     std::shared_ptr<std::vector<uint8_t>>,
-    bool,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
@@ -686,8 +694,6 @@ namespace kv
     // Thus, a large rollback is one which did not result from the map creating
     // issue. https://github.com/microsoft/CCF/issues/2799
     virtual bool should_rollback_to_last_committed() = 0;
-
-    bool force_ledger_chunk = false;
   };
 
   class AbstractStore
@@ -750,6 +756,8 @@ namespace kv
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
+    virtual bool must_force_ledger_chunk(Version version) = 0;
+    virtual bool must_force_ledger_chunk_unsafe(Version version) = 0;
 
     virtual size_t commit_gap() = 0;
 

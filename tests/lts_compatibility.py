@@ -424,6 +424,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
+        previous_major_version = None
+        previous_version_past_2_rc7 = False
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
                 version, install_path = repo.install_release(lts_release)
@@ -501,10 +503,30 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
+                # We accept ledger chunk file differences during upgrades
+                # from 2.x-rc7 to 2.x-rc8 and from 1.x to 2.x-rc8. This
+                # is necessary because the ledger files may not be chunked
+                # at the same interval between those versions (see
+                # https://github.com/microsoft/ccf/issues/3613; 1.x ledgers
+                # do not contain the header flags to synchronize ledger chunks).
+                # This can go once 2.0 is released.
+                current_version_past_2_rc7 = primary.version_after("ccf-2.0.0-rc7")
+                is_ledger_chunk_breaking = (
+                    not previous_major_version
+                    or previous_major_version == 1
+                    or not previous_version_past_2_rc7
+                ) and current_version_past_2_rc7
+                previous_major_version = primary.major_version
+                previous_version_past_2_rc7 = current_version_past_2_rc7
+
                 snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
-                network.stop_all_nodes(skip_verification=True)
+
+                network.stop_all_nodes(
+                    skip_verification=True,
+                    accept_ledger_diff=is_ledger_chunk_breaking,
+                )
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
                 network.save_service_identity(args)
 
