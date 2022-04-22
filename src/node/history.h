@@ -486,6 +486,12 @@ namespace ccf
 
     std::optional<crypto::Pem> endorsed_cert = std::nullopt;
 
+    struct EmitSigMsg
+    {
+      HashedTxHistory<T>* self;
+      EmitSigMsg(HashedTxHistory<T>* self_) : self(self_) {}
+    };
+
   public:
     HashedTxHistory(
       kv::Store& store_,
@@ -508,12 +514,6 @@ namespace ccf
 
     void start_signature_emit_timer()
     {
-      struct EmitSigMsg
-      {
-        EmitSigMsg(HashedTxHistory<T>* self_) : self(self_) {}
-        HashedTxHistory<T>* self;
-      };
-
       auto emit_sig_msg = std::make_unique<threading::Tmsg<EmitSigMsg>>(
         [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
           auto self = msg->data.self;
@@ -720,6 +720,7 @@ namespace ccf
 
     std::mutex signature_lock;
 
+    // TODO: Rename
     void try_emit_signature() override
     {
       std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
@@ -728,10 +729,21 @@ namespace ccf
         return;
       }
 
+      // TODO: Do we still need this crazy lock dance?
       if (store.commit_gap() >= sig_tx_interval)
       {
         mguard.unlock();
-        emit_signature();
+
+        auto emit_sig_msg = std::make_unique<threading::Tmsg<EmitSigMsg>>(
+          [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
+            auto& self = msg->data.self;
+            LOG_FAIL_FMT("Force signature tx");
+            msg->data.self->emit_signature();
+          },
+          this);
+
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::get_current_thread_id(), std::move(emit_sig_msg));
       }
     }
 
