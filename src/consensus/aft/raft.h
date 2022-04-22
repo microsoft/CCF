@@ -727,9 +727,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (
-        auto& [index, data, is_globally_committable, force_ledger_chunk, hooks] :
-        entries)
+      for (auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
 
@@ -776,11 +774,7 @@ namespace aft
 
         state->last_idx = index;
         ledger->put_entry(
-          *data,
-          globally_committable,
-          force_ledger_chunk,
-          state->current_view,
-          index);
+          *data, globally_committable, state->current_view, index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -1320,11 +1314,7 @@ namespace aft
         const auto& entry = ds->get_entry();
 
         ledger->put_entry(
-          entry,
-          globally_committable,
-          ds->force_ledger_chunk,
-          ds->get_term(),
-          ds->get_index());
+          entry, globally_committable, ds->get_term(), ds->get_index());
 
         switch (apply_success)
         {

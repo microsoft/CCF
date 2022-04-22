@@ -40,7 +40,6 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
   void put_entry(
     const std::vector<uint8_t>& data,
     bool globally_committable,
-    bool force_chunk,
     kv::Term term,
     kv::Version index) override
   {
@@ -52,8 +51,7 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
                          index,
                          stringify(data))
                     << std::endl;
-    aft::LedgerStubProxy::put_entry(
-      data, globally_committable, force_chunk, term, index);
+    aft::LedgerStubProxy::put_entry(data, globally_committable, term, index);
   }
 
   void truncate(aft::Index idx) override
@@ -550,7 +548,7 @@ public:
                     << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     // True means all these entries are committable
-    raft->replicate(kv::BatchVector{{idx, data, true, false, hooks}}, term);
+    raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, term);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
