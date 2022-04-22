@@ -193,8 +193,14 @@ namespace kv
 
   struct ConsensusDetails
   {
+    struct Ack
+    {
+      ccf::SeqNo seqno;
+      size_t last_received_ms;
+    };
+
     std::vector<Configuration> configs = {};
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
+    std::unordered_map<ccf::NodeId, Ack> acks = {};
     MembershipState membership_state;
     std::optional<LeadershipState> leadership_state = std::nullopt;
     std::optional<RetirementPhase> retirement_phase = std::nullopt;
@@ -205,6 +211,9 @@ namespace kv
     ccf::View current_view = 0;
     bool ticking = false;
   };
+
+  DECLARE_JSON_TYPE(ConsensusDetails::Ack);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails::Ack, seqno, last_received_ms);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
