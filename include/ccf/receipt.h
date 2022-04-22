@@ -113,88 +113,20 @@ namespace ccf
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
   ReceiptPtr describe_receipt(const TxReceiptImpl& receipt);
 
-  // Manual JSON serializers are specified for this variant type
-  inline void to_json(nlohmann::json& j, const Receipt::ProofStep& step)
-  {
-    j = nlohmann::json::object();
-    const auto key =
-      step.direction == Receipt::ProofStep::Left ? "left" : "right";
-    j[key] = step.hash;
-  }
-
-  inline void from_json(const nlohmann::json& j, Receipt::ProofStep& step)
-  {
-    if (!j.is_object())
-    {
-      throw JsonParseError(fmt::format(
-        "Cannot parse Receipt Step: Expected object, got {}", j.dump()));
-    }
-
-    const auto l_it = j.find("left");
-    const auto r_it = j.find("right");
-    if ((l_it == j.end()) == (r_it == j.end()))
-    {
-      throw JsonParseError(fmt::format(
-        "Cannot parse Receipt Step: Expected either 'left' or 'right' field, "
-        "got {}",
-        j.dump()));
-    }
-
-    if (l_it != j.end())
-    {
-      step.direction = Receipt::ProofStep::Left;
-      step.hash = l_it.value();
-    }
-    else
-    {
-      step.direction = Receipt::ProofStep::Right;
-      step.hash = r_it.value();
-    }
-  }
-
-  inline std::string schema_name(const Receipt::ProofStep*)
-  {
-    return "Receipt__Element";
-  }
-
-  inline void fill_json_schema(
-    nlohmann::json& schema, const Receipt::ProofStep*)
-  {
-    schema = nlohmann::json::object();
-
-    auto possible_hash = [](const auto& name) {
-      auto schema = nlohmann::json::object();
-      schema["required"] = nlohmann::json::array();
-      schema["required"].push_back(name);
-      schema["properties"] = nlohmann::json::object();
-      schema["properties"][name] = ds::openapi::components_ref_object(
-        ds::json::schema_name<crypto::Sha256Hash>());
-      return schema;
-    };
-
-    schema["type"] = "object";
-    schema["oneOf"] = nlohmann::json::array();
-    schema["oneOf"].push_back(possible_hash("left"));
-    schema["oneOf"].push_back(possible_hash("right"));
-  }
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LeafExpandedReceipt::Components);
   DECLARE_JSON_REQUIRED_FIELDS(
     LeafExpandedReceipt::Components, write_set_digest, commit_evidence);
   DECLARE_JSON_OPTIONAL_FIELDS(LeafExpandedReceipt::Components, claims_digest);
 
-  inline void to_json(nlohmann::json& j, const ReceiptPtr& receipt) {}
+  // Manual JSON serializers are specified for these types as they are not
+  // trivial POD structs
+  void to_json(nlohmann::json& j, const Receipt::ProofStep& step);
+  void from_json(const nlohmann::json& j, Receipt::ProofStep& step);
+  std::string schema_name(const Receipt::ProofStep*);
+  void fill_json_schema(nlohmann::json& schema, const Receipt::ProofStep*);
 
-  inline void from_json(const nlohmann::json& j, ReceiptPtr& receipt) {}
-
-  inline std::string schema_name(const ReceiptPtr*)
-  {
-    return "Receipt";
-  }
-
-  inline void fill_json_schema(nlohmann::json& schema, const ReceiptPtr*) {}
-
-  // DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt);
-  // DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id, cert);
-  // DECLARE_JSON_OPTIONAL_FIELDS(Receipt, service_endorsements);
+  void to_json(nlohmann::json& j, const ReceiptPtr& receipt);
+  void from_json(const nlohmann::json& j, ReceiptPtr& receipt);
+  std::string schema_name(const ReceiptPtr*);
+  void fill_json_schema(nlohmann::json& schema, const ReceiptPtr*);
 }

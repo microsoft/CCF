@@ -16,7 +16,6 @@ namespace ccf
 
   ccf::ReceiptPtr describe_receipt(const TxReceiptImpl& in)
   {
-    // TODO
     ccf::ReceiptPtr receipt = nullptr;
 
     if (in.path != nullptr)
