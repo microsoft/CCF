@@ -8,6 +8,7 @@ import infra.consortium
 import random
 from infra.runner import ConcurrentRunner
 import memberclient
+import infra.proposal
 
 import suite.test_requirements as reqs
 
@@ -126,13 +127,13 @@ def service_startups(args):
         try:
             network.start_and_open(args)
             assert False, "Service cannot be opened with no recovery members"
-        except TimeoutError:
+        except infra.proposal.ProposalNotAccepted:
             primary, _ = network.find_primary()
             network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.OPENING
             )
             LOG.success(
-                "Service could not be opened with insufficient number of recovery mmebers"
+                "Service could not be opened with insufficient number of recovery members"
             )
 
     LOG.info(
