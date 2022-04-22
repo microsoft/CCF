@@ -121,11 +121,12 @@ def service_startups(args):
     args.initial_member_count = 2
     args.initial_recovery_member_count = 0
     args.initial_operator_count = 1
+    args.ledger_recovery_timeout = 5
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
         try:
             network.start_and_open(args)
             assert False, "Service cannot be opened with no recovery members"
-        except AssertionError:
+        except TimeoutError:
             primary, _ = network.find_primary()
             network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.OPENING
