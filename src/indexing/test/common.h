@@ -93,7 +93,7 @@ public:
     // Rather than building a history that produces real signatures, we just
     // overwrite the entries here to say that everything is committable
     kv::BatchVector entries(entries_);
-    for (auto& [seqno, data, committable, force_chunk, hooks] : entries)
+    for (auto& [seqno, data, committable, hooks] : entries)
     {
       committable = true;
     }

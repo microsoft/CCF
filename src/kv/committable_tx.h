@@ -427,13 +427,7 @@ namespace kv
       // This is a signature and, if the ledger chunking or snapshot flags are
       // enabled, we want the host to create a chunk when it sees this entry.
       // version_lock held by Store::commit
-      bool force_ledger_chunk =
-        pimpl->store->flag_enabled_unsafe(
-          AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
-        pimpl->store->flag_enabled_unsafe(
-          AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
-
-      if (force_ledger_chunk)
+      if (pimpl->store->must_force_ledger_chunk_unsafe(version))
       {
         entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(

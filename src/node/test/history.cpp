@@ -231,7 +231,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, ccf::View view) override
   {
-    for (auto& [version, data, committable, force_chunk, hooks] : entries)
+    for (auto& [version, data, committable, hooks] : entries)
     {
       count++;
       if (committable)
@@ -353,7 +353,7 @@ public:
 
   bool replicate(const kv::BatchVector& entries, ccf::View view) override
   {
-    for (auto& [version, data, committable, force_chunk, hook] : entries)
+    for (auto& [version, data, committable, hook] : entries)
     {
       count++;
       if (version == rollback_at)

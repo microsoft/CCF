@@ -3024,6 +3024,43 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0);
     }
   }
+
+  SUBCASE("Chunk when the snapshotter requires one")
+  {
+    store.set_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+    INFO("Add a signature that triggers a snapshot");
+    {
+      auto txid = store.next_txid();
+      auto tx = store.create_reserved_tx(txid);
+
+      // The store must know that we need a new ledger chunk at this version
+      REQUIRE(store.must_force_ledger_chunk(txid.version));
+
+      // Add the signature
+      auto sig_handle = tx.rw(signatures);
+      auto tree_handle = tx.rw(serialised_tree);
+      ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+      sig_handle->put(sigv);
+      tree_handle->put({});
+      auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+        tx.commit_reserved();
+      auto& success = success_;
+      auto& data = data_;
+      REQUIRE(success == kv::CommitResult::SUCCESS);
+
+      REQUIRE(
+        store.deserialize(data, ConsensusType::CFT)->apply() ==
+        kv::ApplyResult::PASS_SIGNATURE);
+
+      // Check that the ledger chunk header flag is set in the last entry
+      const uint8_t* entry_data = data.data();
+      size_t entry_data_size = data.size();
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+        entry_data, entry_data_size);
+      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
+    }
+  }
 }
 
 int main(int argc, char** argv)
