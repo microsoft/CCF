@@ -67,7 +67,7 @@
       "ConsensusDetails": {
         "properties": {
           "acks": {
-            "$ref": "#/components/schemas/NodeId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_ConsensusDetails__Ack"
           },
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
@@ -104,6 +104,21 @@
           "primary_id",
           "current_view",
           "ticking"
+        ],
+        "type": "object"
+      },
+      "ConsensusDetails__Ack": {
+        "properties": {
+          "last_received_ms": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "seqno",
+          "last_received_ms"
         ],
         "type": "object"
       },
@@ -442,6 +457,12 @@
       "NodeId_to_Configuration__NodeInfo": {
         "additionalProperties": {
           "$ref": "#/components/schemas/Configuration__NodeInfo"
+        },
+        "type": "object"
+      },
+      "NodeId_to_ConsensusDetails__Ack": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ConsensusDetails__Ack"
         },
         "type": "object"
       },
