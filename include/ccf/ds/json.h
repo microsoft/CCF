@@ -8,12 +8,6 @@
 #include <fmt/format.h>
 #include <sstream>
 
-template <typename T>
-void assign_j(T& o, const nlohmann::json& j)
-{
-  o = std::move(j.get<T>());
-}
-
 /** Represents a field within a JSON object. Tuples of these can be used in
  * schema generation.
  */
