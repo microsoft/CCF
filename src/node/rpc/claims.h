@@ -25,6 +25,7 @@ namespace ccf
     const ClaimsDigest& claims_digest)
   {
     crypto::Sha256Hash write_set_digest(write_set);
+
     if (commit_evidence_digest.has_value())
     {
       if (claims_digest.empty())

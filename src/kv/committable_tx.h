@@ -40,7 +40,7 @@ namespace kv
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
-      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
+      const ccf::ClaimsDigest& claims_digest_,
       bool include_reads = false)
     {
       if (!committed)
@@ -48,6 +48,9 @@ namespace kv
 
       if (!success)
         throw std::logic_error("Transaction aborted");
+
+      if (claims_digest_.empty())
+        throw std::logic_error("Missing claims");
 
       // If no transactions made changes, return a zero length vector.
       const bool any_changes =
@@ -72,8 +75,6 @@ namespace kv
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
       crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
-      // Set empty claims on transactions that do not provide them
-      const ccf::ClaimsDigest& claims_digest = claims_digest_.empty() ? ccf::empty_claims() : claims_digest_;
       auto entry_type = EntryType::WriteSetWithCommitEvidenceAndClaims;
 
       if (flag_enabled(Flag::LEDGER_CHUNK_BEFORE_THIS_TX))
@@ -87,7 +88,7 @@ namespace kv
         entry_type,
         entry_flags,
         tx_commit_evidence_digest,
-        claims_digest);
+        claims_digest_);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -438,8 +439,8 @@ namespace kv
       }
 
       committed = true;
-      auto data =
-        serialise(commit_evidence_digest, commit_evidence, ccf::empty_claims());
+      auto claims = ccf::empty_claims();
+      auto data = serialise(commit_evidence_digest, commit_evidence, claims);
 
       // Reset ledger chunk flag in the store
       pimpl->store->unset_flag_unsafe(
