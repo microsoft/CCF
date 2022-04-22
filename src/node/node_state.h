@@ -1673,6 +1673,11 @@ namespace ccf
       return self_signed_node_cert;
     }
 
+    void try_emit_signature()
+    {
+      history->try_force_emit_signature();
+    }
+
   private:
     bool is_ip(const std::string_view& hostname)
     {

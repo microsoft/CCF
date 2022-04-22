@@ -417,9 +417,19 @@ namespace ccf
         while (!bp.get_finished())
         {
           // First, read some messages from the ringbuffer
-          auto read = bp.read_n(max_messages, circuit->read_from_outside());
+          // Note: only read one message at a time so we can schedule new
+          // signatures before processing new transactions
+          size_t read = -1;
+          size_t read_messages = 0;
+          while (read != 0 && read_messages < max_messages)
+          {
+            read = bp.read_n(1, circuit->read_from_outside());
+            read_messages += read;
 
-          // Then, execute some thread messages
+            node->try_emit_signature();
+          }
+
+          // Finally, execute some thread messages
           size_t thread_msg = 0;
           while (thread_msg < max_messages &&
                  threading::ThreadMessaging::thread_messaging.run_one())
@@ -429,7 +439,7 @@ namespace ccf
 
           // If no messages were read from the ringbuffer and no thread
           // messages were executed, idle
-          if (read == 0 && thread_msg == 0)
+          if (read_messages == 0 && thread_msg == 0)
           {
             const auto time_now = ccf::get_enclave_time();
             static std::chrono::microseconds idling_start_time;

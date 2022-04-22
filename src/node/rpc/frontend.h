@@ -322,7 +322,7 @@ namespace ccf
                 consensus != nullptr && consensus->can_replicate() &&
                 history != nullptr)
               {
-                history->try_emit_signature();
+                history->force_signature();
               }
 
               update_metrics(ctx, endpoint);

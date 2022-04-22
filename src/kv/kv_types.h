@@ -425,6 +425,8 @@ namespace kv
       kv::Configuration::Nodes& nodes) = 0;
     virtual bool verify(
       Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
+    virtual void force_signature() = 0;
+    virtual void try_force_emit_signature() = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;

@@ -720,6 +720,8 @@ namespace ccf
 
     std::mutex signature_lock;
 
+    bool forced_signature = false;
+
     void try_emit_signature() override
     {
       std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
@@ -787,6 +789,31 @@ namespace ccf
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
           txid, commit_txid, store, *this, id, kp, endorsed_cert.value()),
         true);
+    }
+
+    void force_signature() override
+    {
+      std::unique_lock<std::mutex> mguard(signature_lock);
+
+      forced_signature = true;
+    }
+
+    void try_force_emit_signature() override
+    {
+      bool forced = false;
+      {
+        std::unique_lock<std::mutex> mguard(signature_lock);
+        if (forced_signature)
+        {
+          forced = true;
+          forced_signature = false;
+        }
+      }
+
+      if (forced)
+      {
+        emit_signature();
+      }
     }
 
     std::vector<uint8_t> get_proof(kv::Version index) override
