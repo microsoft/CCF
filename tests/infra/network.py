@@ -1214,6 +1214,9 @@ class Network:
                     if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
                         f
                     ):
+                        LOG.info(
+                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time())}s"
+                        )
                         return True
 
                 with node.client(self.consortium.get_any_active_member().local_id) as c:
