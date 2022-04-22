@@ -17,14 +17,14 @@ from loguru import logger as LOG
 # This test starts from a given number of nodes (hosts), commits
 # a transaction, stops the current primary, waits for an election and repeats
 # this process until no progress can be made (i.e. no primary can be elected
-# as F > N/2).+
+# as F > N/2).
 
 
 @reqs.description("Stop current primary and wait for a new one to be elected")
 def test_kill_primary_no_reqs(network, args):
-    primary, _ = network.find_primary_and_any_backup()
-    primary.stop()
-    network.wait_for_new_primary(primary)
+    old_primary, _ = network.find_primary_and_any_backup()
+    old_primary.stop()
+    new_primary, _ = network.wait_for_new_primary(old_primary)
 
     # Verify that the TxID reported just after an election is valid
     # Note that the first TxID read after an election may be of a signature
@@ -34,6 +34,19 @@ def test_kill_primary_no_reqs(network, args):
         with node.client() as c:
             r = c.get("/node/network")
             c.wait_for_commit(r)
+
+            # Also verify that reported last ack time are as expected
+            r = c.get("/node/consensus")
+            acks = r.body.json()["details"]["acks"]
+            for ack in acks.values():
+                if node is new_primary:
+                    assert (
+                        ack["last_received_ms"] < network.args.election_timeout_ms
+                    ), acks
+                else:
+                    assert (
+                        ack["last_received_ms"] == 0
+                    ), f"Backup {node.local_node_id} should report time of last acks of 0: {acks}"
 
     return network
 

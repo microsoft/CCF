@@ -44,6 +44,9 @@ namespace aft
       // the highest matching index with the node that was confirmed
       Index match_idx;
 
+      // timeout tracking the last time an ack was received from the node
+      std::chrono::milliseconds last_ack_timeout;
+
       NodeState() = default;
 
       NodeState(
@@ -52,7 +55,8 @@ namespace aft
         Index match_idx_ = 0) :
         node_info(node_info_),
         sent_idx(sent_idx_),
-        match_idx(match_idx_)
+        match_idx(match_idx_),
+        last_ack_timeout(0)
       {}
     };
 
@@ -577,6 +581,15 @@ namespace aft
       }
     }
 
+    void reset_last_ack_timeouts()
+    {
+      for (auto& node : nodes)
+      {
+        using namespace std::chrono_literals;
+        node.second.last_ack_timeout = 0ms;
+      }
+    }
+
     // For more info about Observed Reconfiguration Commits see
     // https://microsoft.github.io/CCF/main/architecture/consensus/2tx-reconfig.html
     //
@@ -679,7 +692,8 @@ namespace aft
       }
       for (auto& [k, v] : nodes)
       {
-        details.acks[k] = v.match_idx;
+        details.acks[k] = {
+          v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
       }
       details.reconfiguration_type = reconfiguration_type;
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
@@ -713,9 +727,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (
-        auto& [index, data, is_globally_committable, force_ledger_chunk, hooks] :
-        entries)
+      for (auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
 
@@ -762,11 +774,7 @@ namespace aft
 
         state->last_idx = index;
         ledger->put_entry(
-          *data,
-          globally_committable,
-          force_ledger_chunk,
-          state->current_view,
-          index);
+          *data, globally_committable, state->current_view, index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -873,6 +881,11 @@ namespace aft
           {
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
+        }
+
+        for (auto& node : nodes)
+        {
+          node.second.last_ack_timeout += elapsed;
         }
       }
       else if (consensus_type != ConsensusType::BFT)
@@ -1301,11 +1314,7 @@ namespace aft
         const auto& entry = ds->get_entry();
 
         ledger->put_entry(
-          entry,
-          globally_committable,
-          ds->force_ledger_chunk,
-          ds->get_term(),
-          ds->get_index());
+          entry, globally_committable, ds->get_term(), ds->get_index());
 
         switch (apply_success)
         {
@@ -1461,7 +1470,11 @@ namespace aft
           from);
         return;
       }
-      else if (state->current_view < r.term)
+
+      using namespace std::chrono_literals;
+      node->second.last_ack_timeout = 0ms;
+
+      if (state->current_view < r.term)
       {
         // We are behind, update our state.
         LOG_DEBUG_FMT(
@@ -1744,6 +1757,7 @@ namespace aft
       state->current_view++;
 
       restart_election_timeout();
+      reset_last_ack_timeouts();
       add_vote_for_me(state->my_node_id);
 
       LOG_INFO_FMT(
@@ -1751,9 +1765,9 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        for (auto const& node : nodes)
         {
-          send_request_vote(it->first);
+          send_request_vote(node.first);
         }
       }
     }
@@ -1791,6 +1805,8 @@ namespace aft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
+      reset_last_ack_timeouts();
+
       LOG_INFO_FMT(
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
@@ -1804,13 +1820,13 @@ namespace aft
       // Reset next, match, and sent indices for all nodes.
       auto next = state->last_idx + 1;
 
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      for (auto& node : nodes)
       {
-        it->second.match_idx = 0;
-        it->second.sent_idx = next - 1;
+        node.second.match_idx = 0;
+        node.second.sent_idx = next - 1;
 
         // Send an empty append_entries to all nodes.
-        send_append_entries(it->first, next);
+        send_append_entries(node.first, next);
       }
     }
 
@@ -1840,6 +1856,7 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
       clear_orc_sets();
+      reset_last_ack_timeouts();
 
       rollback(last_committable_index());
 
@@ -2428,7 +2445,7 @@ namespace aft
       // configuration.
       std::vector<ccf::NodeId> to_remove;
 
-      for (auto& node : nodes)
+      for (const auto& node : nodes)
       {
         if (active_nodes.find(node.first) == active_nodes.end())
         {

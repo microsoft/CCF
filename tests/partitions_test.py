@@ -104,6 +104,24 @@ def test_isolate_primary_from_one_backup(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(p, b_0)
 
+    LOG.info(
+        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id}"
+    )
+    last_ack = 0
+    while True:
+        with p.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            ack = r["acks"][b_0.node_id]["last_received_ms"]
+        if r["primary_id"] is not None:
+            assert (
+                ack >= last_ack
+            ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
+            last_ack = ack
+        else:
+            LOG.debug(f"Node {p.local_node_id} is no longer primary")
+            break
+        time.sleep(0.1)
+
     # Now wait for several elections to occur. We expect:
     # - b_0 to call and win an election with b_1's help
     # - b_0 to produce a new signature, and commit it with b_1's help
@@ -124,6 +142,23 @@ def test_isolate_primary_from_one_backup(network, args):
     # The partition is now between 2 backups, but both can talk to the new primary
     # Explicitly drop rules before continuing
     rules.drop()
+
+    LOG.info(f"Check that new primary {new_primary.local_node_id} reports stable acks")
+    last_ack = 0
+    end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
+    while time.time() < end_time:
+        with new_primary.client() as c:
+            acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
+                "acks"
+            ]
+            delayed_acks = [
+                ack
+                for ack in acks.values()
+                if ack["last_received_ms"] > args.election_timeout_ms
+            ]
+            if delayed_acks:
+                raise RuntimeError(f"New primary reported some delayed acks: {acks}")
+        time.sleep(0.1)
 
     # Original primary should now, or very soon, report the new primary
     new_primary_, new_view_ = network.wait_for_new_primary(p, nodes=[p])

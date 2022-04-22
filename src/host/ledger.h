@@ -1061,19 +1061,13 @@ namespace asynchost
       return read_entries_range(from, to, false, strict);
     }
 
-    size_t write_entry(
-      const uint8_t* data,
-      size_t size,
-      bool committable,
-      bool force_chunk_after)
+    size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger entry - {} bytes, committable={}, "
-        "force_chunk_after={}, "
         "require_new_file={}",
         size,
         committable,
-        force_chunk_after,
         require_new_file));
 
       auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
@@ -1093,9 +1087,9 @@ namespace asynchost
         }
       }
 
-      bool force_chunk_after_in_header =
+      bool force_chunk_after =
         header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
-      if (force_chunk_after_in_header)
+      if (force_chunk_after)
       {
         if (!committable)
         {
@@ -1106,7 +1100,6 @@ namespace asynchost
           "Forcing ledger chunk after entry as required by the entry header "
           "flags");
       }
-      force_chunk_after |= force_chunk_after_in_header;
 
       if (require_new_file)
       {
@@ -1300,8 +1293,7 @@ namespace asynchost
         consensus::ledger_append,
         [this](const uint8_t* data, size_t size) {
           auto committable = serialized::read<bool>(data, size);
-          auto force_chunk_after = serialized::read<bool>(data, size);
-          write_entry(data, size, committable, force_chunk_after);
+          write_entry(data, size, committable);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

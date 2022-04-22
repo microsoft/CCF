@@ -647,7 +647,11 @@ class Network:
             )
 
     def stop_all_nodes(
-        self, skip_verification=False, verbose_verification=False, **kwargs
+        self,
+        skip_verification=False,
+        verbose_verification=False,
+        accept_ledger_diff=False,
+        **kwargs,
     ):
         if not skip_verification:
             if self.txs is not None:
@@ -674,7 +678,8 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        self.check_ledger_files_identical(**kwargs)
+        if not accept_ledger_diff:
+            self.check_ledger_files_identical(**kwargs)
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -1072,7 +1077,7 @@ class Network:
                     flush_info(logs, None)
                     delay = time.time() - start_time
                     LOG.info(
-                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay:.2f}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -1107,7 +1112,7 @@ class Network:
                     flush_info(logs, None)
                     delay = time.time() - start_time
                     LOG.info(
-                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay:.2f}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -1156,7 +1161,7 @@ class Network:
         assert all_good, f"Multiple primaries: {primaries}"
         delay = time.time() - start_time
         LOG.info(
-            f"Primary unanimity after {delay}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
+            f"Primary unanimity after {delay:.2f}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
         )
         return primaries[0]
 
@@ -1203,7 +1208,7 @@ class Network:
             r = c.get("/node/commit").body.json()
             target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
             LOG.info(
                 f"Waiting for a snapshot to be committed including seqno {target_seqno}"
             )
@@ -1214,6 +1219,9 @@ class Network:
                     if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
                         f
                     ):
+                        LOG.info(
+                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time())}s"
+                        )
                         return True
 
                 with node.client(self.consortium.get_any_active_member().local_id) as c:
@@ -1225,6 +1233,9 @@ class Network:
                         ), f"Error ack/update_state_digest: {r}"
                     c.wait_for_commit(r)
                 time.sleep(0.1)
+            LOG.error(
+                f"Could not find committed snapshot for seqno {target_seqno} after {timeout}s in {src_dir}: {list_src_dir_func(src_dir)}"
+            )
             return False
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
