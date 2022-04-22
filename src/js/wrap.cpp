@@ -657,6 +657,7 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       LOG_FAIL_FMT("Unable to open service: {}", e.what());
+      return JS_ThrowInternalError(ctx, "Unable to open service: %s", e.what());
     }
 
     return JS_UNDEFINED;
