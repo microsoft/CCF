@@ -209,7 +209,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   DOCTEST_INFO("Entry at 1.1 is received by all nodes");
   {
     auto entry = make_ledger_entry(1, 1);
-    rA.replicate(kv::BatchVector{{1, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{1, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 1);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
     // Size limit was reached, so periodic is not needed
@@ -239,21 +239,21 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     "committed");
   {
     auto entry = make_ledger_entry(1, 2);
-    rA.replicate(kv::BatchVector{{2, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{2, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 2);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
 
     entry = make_ledger_entry(1, 3);
-    rA.replicate(kv::BatchVector{{3, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{3, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 3);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
 
     entry = make_ledger_entry(1, 4);
-    rA.replicate(kv::BatchVector{{4, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 4);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
     // Size limit was reached, so periodic is not needed
@@ -287,7 +287,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     "committed");
   {
     auto entry = make_ledger_entry(1, 5);
-    rA.replicate(kv::BatchVector{{5, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{5, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 5);
     // Size limit was reached, so periodic is not needed
     // rB.periodic(request_timeout);
@@ -354,11 +354,11 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   DOCTEST_INFO("Node B writes some entries, though they are lost");
   {
     auto entry = make_ledger_entry(2, 6);
-    rB.replicate(kv::BatchVector{{6, entry, true, false, hooks}}, 2);
+    rB.replicate(kv::BatchVector{{6, entry, true, hooks}}, 2);
     DOCTEST_REQUIRE(rB.get_last_idx() == 6);
 
     entry = make_ledger_entry(2, 7);
-    rB.replicate(kv::BatchVector{{7, entry, true, false, hooks}}, 2);
+    rB.replicate(kv::BatchVector{{7, entry, true, hooks}}, 2);
     DOCTEST_REQUIRE(rB.get_last_idx() == 7);
 
     // Size limit was reached, so periodic is not needed
@@ -405,15 +405,15 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   DOCTEST_REQUIRE("Node C produces 3.5, 3.6, and 3.7");
   {
     auto entry = make_ledger_entry(3, 5);
-    rC.replicate(kv::BatchVector{{5, entry, true, false, hooks}}, 3);
+    rC.replicate(kv::BatchVector{{5, entry, true, hooks}}, 3);
     DOCTEST_REQUIRE(rC.get_last_idx() == 5);
 
     entry = make_ledger_entry(3, 6);
-    rC.replicate(kv::BatchVector{{6, entry, true, false, hooks}}, 3);
+    rC.replicate(kv::BatchVector{{6, entry, true, hooks}}, 3);
     DOCTEST_REQUIRE(rC.get_last_idx() == 6);
 
     entry = make_ledger_entry(3, 7);
-    rC.replicate(kv::BatchVector{{7, entry, true, false, hooks}}, 3);
+    rC.replicate(kv::BatchVector{{7, entry, true, hooks}}, 3);
     DOCTEST_REQUIRE(rC.get_last_idx() == 7);
 
     // The early AppendEntries that describe this are lost
@@ -519,9 +519,9 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
 
     auto entry = make_ledger_entry(1, 1);
-    rA.replicate(kv::BatchVector{{1, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{1, entry, true, hooks}}, 1);
     entry = make_ledger_entry(1, 2);
-    rA.replicate(kv::BatchVector{{2, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{2, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 2);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
     // Size limit was reached, so periodic is not needed
@@ -554,18 +554,18 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     // Node A produces 2 additional entries that A and B have, and 2 additional
     // entries that only A has
     entry = make_ledger_entry(1, 3);
-    rA.replicate(kv::BatchVector{{3, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{3, entry, true, hooks}}, 1);
 
     entry = make_ledger_entry(1, 4);
-    rA.replicate(kv::BatchVector{{4, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
     keep_messages_for(node_idB, channelsA->messages);
     DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
 
     entry = make_ledger_entry(1, 5);
-    rA.replicate(kv::BatchVector{{5, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{5, entry, true, hooks}}, 1);
 
     entry = make_ledger_entry(1, 6);
-    rA.replicate(kv::BatchVector{{6, entry, true, false, hooks}}, 1);
+    rA.replicate(kv::BatchVector{{6, entry, true, hooks}}, 1);
     channelsA->messages.clear();
     channelsB->messages.clear();
 
@@ -642,7 +642,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     {
       auto entry = make_ledger_entry(primary.get_view(), idx);
       primary.replicate(
-        kv::BatchVector{{idx, entry, true, false, hooks}}, primary.get_view());
+        kv::BatchVector{{idx, entry, true, hooks}}, primary.get_view());
     }
 
     // All related AppendEntries are lost

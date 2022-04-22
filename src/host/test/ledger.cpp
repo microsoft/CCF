@@ -201,8 +201,7 @@ public:
     return last_idx;
   }
 
-  void write(
-    bool is_committable, bool force_chunk = false, uint8_t header_flags = 0)
+  void write(bool is_committable, uint8_t header_flags = 0)
   {
     auto e = TestLedgerEntry(++last_idx);
     std::vector<uint8_t> framed_entry(
@@ -218,10 +217,7 @@ public:
     serialized::write(data, size, e);
     REQUIRE(
       ledger.write_entry(
-        framed_entry.data(),
-        framed_entry.size(),
-        is_committable,
-        force_chunk) == last_idx);
+        framed_entry.data(), framed_entry.size(), is_committable) == last_idx);
   }
 
   void truncate(size_t idx)
@@ -351,23 +347,20 @@ TEST_CASE("Regular chunking")
 
     // Write a new committable entry that forces a new ledger chunk
     is_committable = true;
-    bool force_new_chunk = true;
-    entry_submitter.write(is_committable, force_new_chunk);
+    entry_submitter.write(is_committable, kv::FORCE_LEDGER_CHUNK_AFTER);
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after);
 
     // Because of forcing a new chunk, the next entry will create a new chunk
     is_committable = false;
     entry_submitter.write(is_committable);
 
-    // A new chunk is created as the entry is committable _and_ forced
+    // A new chunk is created as the previous entry was committable _and_ forced
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
 
     is_committable = true;
-    force_new_chunk = true;
-    entry_submitter.write(is_committable, force_new_chunk);
-    // No new chunk is created as the entry is committable but doesn't force a
-    // new chunk
-    REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
+    entry_submitter.write(is_committable, kv::FORCE_LEDGER_CHUNK_BEFORE);
+    // A new chunk is created before, as the entry is committable and forced
+    REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 2);
   }
 
   INFO("Reading entries across all chunks");
@@ -1541,7 +1534,7 @@ TEST_CASE("Chunking according to entry header flag")
   INFO("Write an entry with the ledger chunking after header flag enabled");
   {
     entry_submitter.write(
-      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+      is_committable, kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
 
     REQUIRE(number_of_files_in_ledger_dir() == 1);
 
@@ -1564,7 +1557,7 @@ TEST_CASE("Chunking according to entry header flag")
   {
     auto ledger_files_count = number_of_files_in_ledger_dir();
     entry_submitter.write(
-      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
+      is_committable, kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
 
     // Forcing a new chunk before creating a new chunk to store this entry
     REQUIRE(number_of_files_in_ledger_dir() == ledger_files_count + 1);

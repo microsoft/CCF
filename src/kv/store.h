@@ -12,7 +12,6 @@
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "service/tables/signatures.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -51,9 +50,8 @@ namespace kv
     Version last_committable = 0;
     Version rollback_count = 0;
 
-    std::
-      unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool, bool>>
-        pending_txs;
+    std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
+      pending_txs;
 
   public:
     void clear()
@@ -113,8 +111,7 @@ namespace kv
       Version v,
       Term term,
       const MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks,
-      bool& force_ledger_chunk) override
+      kv::ConsensusHookPtrs& hooks) override
     {
       auto c = apply_changes(
         changes,
@@ -131,11 +128,6 @@ namespace kv
         version = v;
         last_replicated = version;
         term_of_last_version = term;
-      }
-      if (snapshotter && changes.find(ccf::Tables::SIGNATURES) != changes.end())
-      {
-        force_ledger_chunk = snapshotter->record_committable(v);
-        LOG_TRACE_FMT("Force ledger chunk: {}", force_ledger_chunk);
       }
       return true;
     }
@@ -921,9 +913,6 @@ namespace kv
         return CommitResult::SUCCESS;
       }
 
-      bool force_ledger_chunk = snapshotter && globally_committable &&
-        snapshotter->record_committable(txid.version);
-
       std::lock_guard<std::mutex> cguard(commit_lock);
 
       LOG_DEBUG_FMT(
@@ -958,8 +947,7 @@ namespace kv
 
         pending_txs.insert(
           {txid.version,
-           std::make_tuple(
-             std::move(pending_tx), globally_committable, force_ledger_chunk)});
+           std::make_tuple(std::move(pending_tx), globally_committable)});
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
@@ -982,7 +970,7 @@ namespace kv
             break;
           }
 
-          auto& [pending_tx_, committable_, force_chunk_] = search->second;
+          auto& [pending_tx_, committable_] = search->second;
           auto
             [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
               pending_tx_->call();
@@ -1014,11 +1002,7 @@ namespace kv
             txid.version);
 
           batch.emplace_back(
-            last_replicated + offset,
-            data_shared,
-            committable_,
-            force_chunk_,
-            hooks_shared);
+            last_replicated + offset, data_shared, committable_, hooks_shared);
           pending_txs.erase(search);
         }
 
@@ -1056,6 +1040,29 @@ namespace kv
         LOG_DEBUG_FMT("Failed to replicate");
         return CommitResult::FAIL_NO_REPLICATE;
       }
+    }
+
+    bool must_force_ledger_chunk(Version version) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return must_force_ledger_chunk_unsafe(version);
+    }
+
+    bool must_force_ledger_chunk_unsafe(Version version) override
+    {
+      // Note that snapshotter->record_committable, and therefore this function,
+      // assumes that `version` is a committable entry/signature.
+
+      bool r = flag_enabled_unsafe(
+                 AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
+        flag_enabled_unsafe(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      if (snapshotter)
+      {
+        r |= snapshotter->record_committable(version);
+      }
+
+      return r;
     }
 
     void lock() override

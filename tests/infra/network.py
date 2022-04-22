@@ -651,7 +651,11 @@ class Network:
             )
 
     def stop_all_nodes(
-        self, skip_verification=False, verbose_verification=False, **kwargs
+        self,
+        skip_verification=False,
+        verbose_verification=False,
+        accept_ledger_diff=False,
+        **kwargs,
     ):
         if not skip_verification:
             if self.txs is not None:
@@ -678,7 +682,8 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        self.check_ledger_files_identical(**kwargs)
+        if not accept_ledger_diff:
+            self.check_ledger_files_identical(**kwargs)
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
