@@ -543,9 +543,36 @@
         "type": "array"
       },
       "Receipt": {
+        "allOf": [
+          {
+            "required": [
+              "cert",
+              "node_id",
+              "proof",
+              "signature"
+            ]
+          },
+          {
+            "oneOf": [
+              {
+                "required": [
+                  "leaf"
+                ]
+              },
+              {
+                "required": [
+                  "leaf_components"
+                ]
+              }
+            ]
+          }
+        ],
         "properties": {
           "cert": {
             "$ref": "#/components/schemas/Pem"
+          },
+          "leaf": {
+            "$ref": "#/components/schemas/Sha256Digest"
           },
           "leaf_components": {
             "$ref": "#/components/schemas/Receipt__LeafComponents"
@@ -563,13 +590,6 @@
             "$ref": "#/components/schemas/base64string"
           }
         },
-        "required": [
-          "signature",
-          "proof",
-          "leaf_components",
-          "node_id",
-          "cert"
-        ],
         "type": "object"
       },
       "Receipt__Element": {
@@ -616,8 +636,8 @@
           }
         },
         "required": [
-          "write_set_digest",
-          "commit_evidence"
+          "commit_evidence",
+          "write_set_digest"
         ],
         "type": "object"
       },
