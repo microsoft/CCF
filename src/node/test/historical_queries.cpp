@@ -651,6 +651,14 @@ TEST_CASE("StateCache get store vs get state")
       cache.drop_cached_states(default_handle);
     }
   }
+
+  {
+    INFO("Empty ranges are an error");
+
+    const ccf::SeqNoCollection empty{};
+    REQUIRE_THROWS(cache.get_stores_for(default_handle, empty));
+    REQUIRE_THROWS(cache.get_states_for(default_handle, empty));
+  }
 }
 
 TEST_CASE("StateCache range queries")
