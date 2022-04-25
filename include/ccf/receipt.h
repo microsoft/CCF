@@ -113,13 +113,16 @@ namespace ccf
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
   ReceiptPtr describe_receipt(const TxReceiptImpl& receipt);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LeafExpandedReceipt::Components);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    LeafExpandedReceipt::Components, write_set_digest, commit_evidence);
-  DECLARE_JSON_OPTIONAL_FIELDS(LeafExpandedReceipt::Components, claims_digest);
-
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
+
+  void to_json(nlohmann::json& j, const LeafExpandedReceipt::Components& step);
+  void from_json(
+    const nlohmann::json& j, LeafExpandedReceipt::Components& step);
+  std::string schema_name(const LeafExpandedReceipt::Components*);
+  void fill_json_schema(
+    nlohmann::json& schema, const LeafExpandedReceipt::Components*);
+
   void to_json(nlohmann::json& j, const Receipt::ProofStep& step);
   void from_json(const nlohmann::json& j, Receipt::ProofStep& step);
   std::string schema_name(const Receipt::ProofStep*);
@@ -129,4 +132,47 @@ namespace ccf
   void from_json(const nlohmann::json& j, ReceiptPtr& receipt);
   std::string schema_name(const ReceiptPtr*);
   void fill_json_schema(nlohmann::json& schema, const ReceiptPtr*);
+
+  // TODO: Ensure dependency schemas are correctly added to components
+  template <typename T>
+  void add_schema_components(
+    T& helper,
+    nlohmann::json& schema,
+    const LeafExpandedReceipt::Components* comp)
+  {
+    helper.template add_schema_component<decltype(
+      LeafExpandedReceipt::Components::write_set_digest)>();
+    helper.template add_schema_component<decltype(
+      LeafExpandedReceipt::Components::claims_digest)>();
+
+    fill_json_schema(schema, comp);
+  }
+
+  template <typename T>
+  void add_schema_components(
+    T& helper, nlohmann::json& schema, const Receipt::ProofStep* ps)
+  {
+    helper.template add_schema_component<decltype(Receipt::ProofStep::hash)>();
+
+    fill_json_schema(schema, ps);
+  }
+
+  template <typename T>
+  void add_schema_components(
+    T& helper, nlohmann::json& schema, const ReceiptPtr* r)
+  {
+    helper.template add_schema_component<decltype(Receipt::cert)>();
+    helper.template add_schema_component<decltype(Receipt::node_id)>();
+    helper.template add_schema_component<decltype(Receipt::proof)>();
+    helper
+      .template add_schema_component<decltype(Receipt::service_endorsements)>();
+    helper.template add_schema_component<decltype(Receipt::signature)>();
+
+    helper.template add_schema_component<decltype(
+      LeafExpandedReceipt::leaf_components)>();
+    helper.template add_schema_component<decltype(
+      LeafDigestReceipt::leaf_digest)>();
+
+    fill_json_schema(schema, r);
+  }
 }

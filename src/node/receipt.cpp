@@ -3,8 +3,95 @@
 
 #include "ccf/receipt.h"
 
+#define FROM_JSON_TRY_PARSE(TYPE, FIELD) \
+  try \
+  { \
+    out.FIELD = it->get<decltype(TYPE::FIELD)>(); \
+  } \
+  catch (JsonParseError & jpe) \
+  { \
+    jpe.pointer_elements.push_back(#FIELD); \
+    throw; \
+  }
+
+#define FROM_JSON_GET_REQUIRED_FIELD(TYPE, FIELD) \
+  { \
+    const auto it = j.find(#FIELD); \
+    if (it == j.end()) \
+    { \
+      throw JsonParseError(fmt::format( \
+        "Missing required field '" #FIELD "' in object:", j.dump())); \
+    } \
+    FROM_JSON_TRY_PARSE(TYPE, FIELD) \
+  }
+
+#define FROM_JSON_GET_OPTIONAL_FIELD(TYPE, FIELD) \
+  { \
+    const auto it = j.find(#FIELD); \
+    if (it != j.end()) \
+    { \
+      FROM_JSON_TRY_PARSE(TYPE, FIELD) \
+    } \
+  }
+
 namespace ccf
 {
+  void to_json(
+    nlohmann::json& j, const LeafExpandedReceipt::Components& components)
+  {}
+
+  void from_json(const nlohmann::json& j, LeafExpandedReceipt::Components& out)
+  {
+    if (!j.is_object())
+    {
+      throw JsonParseError(fmt::format(
+        "Cannot parse Receipt LeafComponents: Expected object, got {}",
+        j.dump()));
+    }
+
+    FROM_JSON_GET_REQUIRED_FIELD(
+      LeafExpandedReceipt::Components, write_set_digest);
+    FROM_JSON_GET_REQUIRED_FIELD(
+      LeafExpandedReceipt::Components, commit_evidence);
+    FROM_JSON_GET_OPTIONAL_FIELD(
+      LeafExpandedReceipt::Components, claims_digest);
+  }
+
+  std::string schema_name(const LeafExpandedReceipt::Components*)
+  {
+    return "Receipt__LeafComponents";
+  }
+
+  void fill_json_schema(
+    nlohmann::json& schema, const LeafExpandedReceipt::Components*)
+  {
+    schema = nlohmann::json::object();
+    schema["type"] = "object";
+
+    auto required = nlohmann::json::array();
+    auto properties = nlohmann::json::object();
+
+    {
+      // Not required
+      properties["claims_digest"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(
+          LeafExpandedReceipt::Components::claims_digest)>());
+
+      required.push_back("commit_evidence");
+      properties["commit_evidence"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(
+          LeafExpandedReceipt::Components::commit_evidence)>());
+
+      required.push_back("write_set_digest");
+      properties["write_set_digest"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(
+          LeafExpandedReceipt::Components::write_set_digest)>());
+    }
+
+    schema["required"] = required;
+    schema["properties"] = properties;
+  }
+
   void to_json(nlohmann::json& j, const Receipt::ProofStep& step)
   {
     j = nlohmann::json::object();
@@ -57,8 +144,8 @@ namespace ccf
       schema["required"] = nlohmann::json::array();
       schema["required"].push_back(name);
       schema["properties"] = nlohmann::json::object();
-      // schema["properties"][name] =
-      //   ds::openapi::add_schema_component<crypto::Sha256Hash>();
+      schema["properties"][name] = ds::openapi::components_ref_object(
+        ds::json::schema_name<crypto::Sha256Hash>());
       return schema;
     };
 
@@ -86,9 +173,32 @@ namespace ccf
     auto properties = nlohmann::json::object();
 
     {
+      required.push_back("cert");
+      properties["cert"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(Receipt::cert)>());
+
+      required.push_back("node_id");
+      properties["node_id"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(Receipt::node_id)>());
+
+      required.push_back("proof");
+      properties["proof"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(Receipt::proof)>());
+
+      // Not required
+      properties["service_endorsements"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(Receipt::service_endorsements)>());
+
       required.push_back("signature");
-      // properties["signature"] =
-      //   ds::openapi::add_schema_component<decltype(Receipt::signature)>();
+      properties["signature"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(Receipt::signature)>());
+
+      // TODO: These should be oneOf'd
+      properties["leaf_components"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(
+          LeafExpandedReceipt::leaf_components)>());
+      properties["leaf"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(LeafDigestReceipt::leaf_digest)>());
     }
 
     schema["required"] = required;
