@@ -517,10 +517,16 @@ if(BUILD_TESTS)
       ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
+  if(LONG_TESTS)
+    set(ADDITIONAL_RECOVERY_ARGS --with-load)
+  endif()
+
+  
   add_e2e_test(
     NAME recovery_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   if(LONG_TESTS)
