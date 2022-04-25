@@ -70,6 +70,13 @@ class EntryType(Enum):
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
         )
 
+    def is_deprecated(self):
+        return self in (
+            EntryType.WRITE_SET,
+            EntryType.WRITE_SET_WITH_CLAIMS,
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE
+        )
+
 
 def to_uint_64(buffer):
     return struct.unpack("@Q", buffer)[0]
