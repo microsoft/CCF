@@ -11,7 +11,6 @@
 #include "quic/msg_types.h"
 
 #include <exception>
-#include <uv.h>
 
 namespace quic
 {
@@ -394,16 +393,6 @@ namespace quic
         return len_read;
       else
         return -1;
-    }
-
-    static void free_write(uv_udp_send_t* req)
-    {
-      if (req == nullptr)
-        return;
-
-      char* copy = (char*)req->data;
-      delete[] copy;
-      delete req;
     }
   };
 
