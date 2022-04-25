@@ -175,6 +175,9 @@ namespace ccf
       return {};
     }
 
+    void force_signature() override {}
+    void try_force_emit_signature() override {}
+
     void emit_signature() override
     {
       auto txid = store.next_txid();
