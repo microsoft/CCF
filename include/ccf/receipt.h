@@ -24,6 +24,7 @@ namespace ccf
   public:
     virtual ~Receipt() = default;
 
+    // Signature over the root digest, signed by the identity described in cert
     std::vector<uint8_t> signature = {};
     crypto::Sha256Hash get_root()
     {
@@ -65,8 +66,12 @@ namespace ccf
       }
     };
     using Proof = std::vector<ProofStep>;
+
+    // A merkle-tree path from the leaf digest to the signed root
     Proof proof = {};
 
+    // The leaf digest representing this transaction. This will generally be
+    // constructed from the components described in LeafExpandedReceipt.
     virtual crypto::Sha256Hash get_leaf_digest() = 0;
 
     ccf::NodeId node_id = {};
@@ -75,6 +80,10 @@ namespace ccf
     std::vector<crypto::Pem> service_endorsements = {};
   };
 
+  // Most transactions produce a receipt constructed from a combination of 3
+  // digests. Note that transactions emitted by old code versions may not
+  // include a claims_digest, but from 2.0 onwards every transaction will
+  // contain a (potentially default-zero'd) claims digest.
   class LeafExpandedReceipt : public Receipt
   {
   public:
@@ -91,14 +100,26 @@ namespace ccf
     crypto::Sha256Hash get_leaf_digest() override
     {
       crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
-      return crypto::Sha256Hash(
-        leaf_components.write_set_digest,
-        ce_dgst,
-        leaf_components.claims_digest
-          ->value()); // TODO: What about when this is empty?
+      if (leaf_components.claims_digest.has_value())
+      {
+        return crypto::Sha256Hash(
+          leaf_components.write_set_digest,
+          ce_dgst,
+          leaf_components.claims_digest->value());
+      }
+      else
+      {
+        return crypto::Sha256Hash(leaf_components.write_set_digest, ce_dgst);
+      }
     }
   };
 
+  // Signature transactions contain a single leaf digest. Note that since the
+  // proof for signature transactions is an empty vector, this is also the root
+  // digest which is directly signed.
+  // Transactions produced by old code versions before commit evidence and
+  // claims digests were added will also result in this format, as they contain
+  // only a single leaf digest (equivalent to write_set_digest)
   class LeafDigestReceipt : public Receipt
   {
   public:
@@ -138,7 +159,6 @@ namespace ccf
   std::string schema_name(const ReceiptPtr*);
   void fill_json_schema(nlohmann::json& schema, const ReceiptPtr*);
 
-  // TODO: Ensure dependency schemas are correctly added to components
   template <typename T>
   void add_schema_components(
     T& helper,

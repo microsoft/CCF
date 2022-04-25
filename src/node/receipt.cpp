@@ -38,7 +38,16 @@ namespace ccf
 {
   void to_json(
     nlohmann::json& j, const LeafExpandedReceipt::Components& components)
-  {}
+  {
+    j = nlohmann::json::object();
+
+    j["write_set_digest"] = components.write_set_digest;
+    j["commit_evidence"] = components.commit_evidence;
+    if (components.claims_digest.has_value())
+    {
+      j["claims_digest"] = components.claims_digest;
+    }
+  }
 
   void from_json(const nlohmann::json& j, LeafExpandedReceipt::Components& out)
   {
@@ -264,15 +273,39 @@ namespace ccf
       properties["signature"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(Receipt::signature)>());
 
-      // TODO: These should be oneOf'd
       properties["leaf_components"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(
           LeafExpandedReceipt::leaf_components)>());
+
       properties["leaf"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(LeafDigestReceipt::leaf)>());
+
+      // This says the required properties are all the properties we currently
+      // have, AND one of either leaf OR leaf_components. It inserts the
+      // following element into the schema, constructing a composite required
+      // list:
+      // "allOf":
+      // [
+      //   {"required": ["cert", "signature"...]},
+      //   {
+      //     "oneOf": [
+      //       {"required": ["leaf"]},
+      //       {"required": ["leaf_components"]}
+      //     ]
+      //   }
+      // ]
+      const auto oneOf = nlohmann::json::object(
+        {{"oneOf",
+          nlohmann::json::array(
+            {nlohmann::json::object(
+               {{"required", nlohmann::json::array({"leaf"})}}),
+             nlohmann::json::object(
+               {{"required", nlohmann::json::array({"leaf_components"})}})})}});
+
+      schema["allOf"] = nlohmann::json::array(
+        {nlohmann::json::object({{"required", required}}), oneOf});
     }
 
-    schema["required"] = required;
     schema["properties"] = properties;
   }
 }
