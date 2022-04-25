@@ -1163,23 +1163,33 @@ namespace loggingapp
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        auto stores =
-          historical_cache.get_stores_for(handle, interesting_seqnos.value());
-        if (stores.empty())
+        std::vector<kv::ReadOnlyStorePtr> stores;
+        if (!interesting_seqnos->empty())
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-          static constexpr size_t retry_after_seconds = 3;
-          ctx.rpc_ctx->set_response_header(
-            http::headers::RETRY_AFTER, retry_after_seconds);
-          ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
-            "Historical transactions from {} to {} are not yet "
-            "available, fetching now",
-            range_begin,
-            range_end));
-          return;
+          stores =
+            historical_cache.get_stores_for(handle, interesting_seqnos.value());
+          if (stores.empty())
+          {
+            // Empty response indicates these stores are still being fetched.
+            // Return a retry response
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+            static constexpr size_t retry_after_seconds = 3;
+            ctx.rpc_ctx->set_response_header(
+              http::headers::RETRY_AFTER, retry_after_seconds);
+            ctx.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::TEXT);
+            ctx.rpc_ctx->set_response_body(fmt::format(
+              "Historical transactions from {} to {} are not yet "
+              "available, fetching now",
+              range_begin,
+              range_end));
+            return;
+          }
         }
+        // else the index authoritatvely tells us there are _no_ interesting
+        // seqnos in this range, so we have no stores to process, but can return
+        // a complete result
 
         // Process the fetched Stores
         LoggingGetHistoricalRange::Out response;
@@ -1198,7 +1208,7 @@ namespace loggingapp
             e.msg = v.value();
             response.entries.push_back(e);
           }
-          // This response do not include any entry when the given key wasn't
+          // This response does not include any entry when the given key wasn't
           // modified at this seqno. It could instead indicate that the store
           // was checked with an empty tombstone object, but this approach gives
           // smaller responses
