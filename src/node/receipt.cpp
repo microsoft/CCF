@@ -155,9 +155,80 @@ namespace ccf
     schema["oneOf"].push_back(possible_hash("right"));
   }
 
-  void to_json(nlohmann::json& j, const ReceiptPtr& receipt) {}
+  void to_json(nlohmann::json& j, const ReceiptPtr& receipt)
+  {
+    if (receipt == nullptr)
+    {
+      throw JsonParseError(
+        fmt::format("Cannot serialise Receipt to JSON: Got nullptr"));
+    }
 
-  void from_json(const nlohmann::json& j, ReceiptPtr& receipt) {}
+    j = nlohmann::json::object();
+
+    j["signature"] = receipt->signature;
+    j["proof"] = receipt->proof;
+    j["node_id"] = receipt->node_id;
+    j["cert"] = receipt->cert;
+    j["service_endorsements"] = receipt->service_endorsements;
+
+    if (auto ld_receipt = std::dynamic_pointer_cast<LeafDigestReceipt>(receipt))
+    {
+      j["leaf"] = ld_receipt->leaf;
+    }
+    else if (
+      auto le_receipt = std::dynamic_pointer_cast<LeafExpandedReceipt>(receipt))
+    {
+      j["leaf_components"] = le_receipt->leaf_components;
+    }
+  }
+
+  void from_json(const nlohmann::json& j, ReceiptPtr& receipt)
+  {
+    if (!j.is_object())
+    {
+      throw JsonParseError(
+        fmt::format("Cannot parse Receipt: Expected object, got {}", j.dump()));
+    }
+
+    const auto leaf_it = j.find("leaf");
+    const auto has_leaf = leaf_it != j.end();
+
+    const auto leaf_components_it = j.find("leaf_components");
+    const auto has_leaf_components = leaf_components_it != j.end();
+
+    if (has_leaf && !has_leaf_components)
+    {
+      auto ld_receipt = std::make_shared<LeafDigestReceipt>();
+
+      auto& out = *ld_receipt;
+      FROM_JSON_GET_REQUIRED_FIELD(LeafDigestReceipt, leaf);
+
+      receipt = ld_receipt;
+    }
+    else if (!has_leaf && has_leaf_components)
+    {
+      auto le_receipt = std::make_shared<LeafExpandedReceipt>();
+
+      auto& out = *le_receipt;
+      FROM_JSON_GET_REQUIRED_FIELD(LeafExpandedReceipt, leaf_components);
+
+      receipt = le_receipt;
+    }
+    else
+    {
+      throw JsonParseError(fmt::format(
+        "Cannot parse Receipt: Expected either 'leaf' or 'leaf_components' "
+        "field, got {}",
+        j.dump()));
+    }
+
+    auto& out = *receipt;
+    FROM_JSON_GET_REQUIRED_FIELD(Receipt, signature);
+    FROM_JSON_GET_REQUIRED_FIELD(Receipt, proof);
+    FROM_JSON_GET_REQUIRED_FIELD(Receipt, node_id);
+    FROM_JSON_GET_REQUIRED_FIELD(Receipt, cert);
+    FROM_JSON_GET_REQUIRED_FIELD(Receipt, service_endorsements);
+  }
 
   std::string schema_name(const ReceiptPtr*)
   {
@@ -198,7 +269,7 @@ namespace ccf
         ds::json::schema_name<decltype(
           LeafExpandedReceipt::leaf_components)>());
       properties["leaf"] = ds::openapi::components_ref_object(
-        ds::json::schema_name<decltype(LeafDigestReceipt::leaf_digest)>());
+        ds::json::schema_name<decltype(LeafDigestReceipt::leaf)>());
     }
 
     schema["required"] = required;

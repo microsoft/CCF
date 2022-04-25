@@ -57,7 +57,7 @@ namespace ccf
     {
       // Signature transaction
       auto digest_receipt = std::make_shared<LeafDigestReceipt>();
-      digest_receipt->leaf_digest =
+      digest_receipt->leaf =
         crypto::Sha256Hash::from_span({in.root.bytes, sizeof(in.root.bytes)});
 
       receipt = digest_receipt;

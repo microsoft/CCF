@@ -58,6 +58,11 @@ namespace ccf
       } direction;
 
       crypto::Sha256Hash hash = {};
+
+      bool operator==(const ProofStep& other) const
+      {
+        return direction == other.direction && hash == other.hash;
+      }
     };
     using Proof = std::vector<ProofStep>;
     Proof proof = {};
@@ -97,11 +102,11 @@ namespace ccf
   class LeafDigestReceipt : public Receipt
   {
   public:
-    crypto::Sha256Hash leaf_digest = {};
+    crypto::Sha256Hash leaf = {};
 
     crypto::Sha256Hash get_leaf_digest() override
     {
-      return leaf_digest;
+      return leaf;
     };
   };
 
@@ -170,8 +175,7 @@ namespace ccf
 
     helper.template add_schema_component<decltype(
       LeafExpandedReceipt::leaf_components)>();
-    helper.template add_schema_component<decltype(
-      LeafDigestReceipt::leaf_digest)>();
+    helper.template add_schema_component<decltype(LeafDigestReceipt::leaf)>();
 
     fill_json_schema(schema, r);
   }

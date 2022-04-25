@@ -342,6 +342,8 @@ if(BUILD_TESTS)
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
