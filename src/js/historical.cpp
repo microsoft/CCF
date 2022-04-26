@@ -9,53 +9,59 @@ namespace ccf::js
 
   static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptImplPtr receipt)
   {
-    ccf::ReceiptPtr receipt_p = ccf::describe_receipt(*receipt);
-    auto& receipt_out = *receipt_p;
+    ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt(*receipt);
+    auto& receipt_out = *receipt_out_p;
     auto js_receipt = JS_NewObject(ctx);
-    const auto sig_hex = ds::to_hex(receipt_out.signature);
+
+    const auto sig_b64 = crypto::b64_from_raw(receipt_out.signature);
     JS_SetPropertyStr(
-      ctx, js_receipt, "signature", JS_NewString(ctx, sig_hex.c_str()));
+      ctx, js_receipt, "signature", JS_NewString(ctx, sig_b64.c_str()));
+
     JS_SetPropertyStr(
       ctx,
       js_receipt,
       "cert",
       JS_NewString(ctx, receipt_out.cert.str().c_str()));
 
-    // TODO?
-    // if (receipt_out.leaf.has_value())
-    // {
-    //   JS_SetPropertyStr(
-    //     ctx, js_receipt, "leaf", JS_NewString(ctx,
-    //     receipt_out.leaf->c_str()));
-    // }
-    auto leaf_components = JS_NewObject(ctx);
+    if (
+      auto le_receipt =
+        std::dynamic_pointer_cast<ccf::LeafExpandedReceipt>(receipt_out_p))
+    {
+      auto leaf_components = JS_NewObject(ctx);
+      const auto wsd_hex =
+        ds::to_hex(le_receipt->leaf_components.write_set_digest.h);
+      JS_SetPropertyStr(
+        ctx,
+        leaf_components,
+        "write_set_digest",
+        JS_NewString(ctx, wsd_hex.c_str()));
 
-    // TODO
-    // const auto wsd_hex =
-    //   ds::to_hex(receipt_out.leaf_components.write_set_digest.h);
-    // JS_SetPropertyStr(
-    //   ctx,
-    //   leaf_components,
-    //   "write_set_digest",
-    //   JS_NewString(ctx, wsd_hex.c_str()));
+      JS_SetPropertyStr(
+        ctx,
+        leaf_components,
+        "commit_evidence",
+        JS_NewString(ctx, le_receipt->leaf_components.commit_evidence.c_str()));
 
-    // JS_SetPropertyStr(
-    //   ctx,
-    //   leaf_components,
-    //   "commit_evidence",
-    //   JS_NewString(ctx, receipt_out.leaf_components.commit_evidence.c_str()));
+      if (le_receipt->leaf_components.claims_digest.has_value())
+      {
+        const auto cd_hex =
+          ds::to_hex(le_receipt->leaf_components.claims_digest->value().h);
+        JS_SetPropertyStr(
+          ctx,
+          leaf_components,
+          "claims_digest",
+          JS_NewString(ctx, cd_hex.c_str()));
+      }
 
-    // if (receipt_out.leaf_components.claims_digest.has_value())
-    // {
-    //   const auto cd_hex =
-    //     ds::to_hex(receipt_out.leaf_components.claims_digest->value().h);
-    //   JS_SetPropertyStr(
-    //     ctx,
-    //     leaf_components,
-    //     "claims_digest",
-    //     JS_NewString(ctx, cd_hex.c_str()));
-    // }
-    JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
+      JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
+    }
+    else
+    {
+      const auto leaf = receipt_out.get_leaf_digest();
+      const auto leaf_hex = ds::to_hex(leaf.h);
+      JS_SetPropertyStr(
+        ctx, js_receipt, "leaf", JS_NewString(ctx, leaf_hex.c_str()));
+    }
 
     JS_SetPropertyStr(
       ctx,
