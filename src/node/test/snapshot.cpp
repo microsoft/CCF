@@ -78,7 +78,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     REQUIRE(source_root_before_signature == target_tree.get_root());
 
     target_tree.append(ccf::entry_leaf(
-      serialised_signature, crypto::Sha256Hash("ce:0.4:"), ccf::no_claims()));
+      serialised_signature,
+      crypto::Sha256Hash("ce:0.4:"),
+      ccf::empty_claims()));
     REQUIRE(
       target_tree.get_root() == source_history->get_replicated_state_root());
   }

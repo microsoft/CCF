@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - When using the `sandbox.sh` script, always wait for `/app` frontend to be open on all nodes before marking the service as open (#3779).
 
+### Changed
+
+- Every leaf in the Merkle Tree, and every receipt now includes a claims digest (#3606).
+
 ### Added
 
 - Primary node now also reports time at which the ack from each backup node was last received (`GET /node/consensus` endpoint). This can be used by operators to detect one-way partitions between the primary and backup nodes (#3769).
