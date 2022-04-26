@@ -10,7 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - When using the `sandbox.sh` script, always wait for `/app` frontend to be open on all nodes before marking the service as open (#3779).
-- Every leaf in the Merkle Tree now includes a claims digest (#3606).
+
+### Changed
+
+- Every leaf in the Merkle Tree, and every receipt now includes a claims digest (#3606).
 
 ### Added
 
