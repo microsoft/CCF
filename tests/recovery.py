@@ -500,18 +500,17 @@ def run(args):
         network.start_and_open(args)
 
         if args.with_load:
-            # Attempt recovery of large ledger. See https://github.com/microsoft/CCF/issues/3788
-            LOG.info("Loading service before recovery")
+            # See https://github.com/microsoft/CCF/issues/3788 for justification
+            LOG.info("Loading service before recovery...")
             primary, _ = network.find_primary()
             with infra.service_load.load() as load:
                 load.begin(network, rate=infra.service_load.DEFAULT_REQUEST_RATE_S * 10)
                 while True:
                     with primary.client() as c:
-                        r = c.get("/node/commit").body.json()
-                        if (
-                            ccf.tx_id.TxID.from_str(r["transaction_id"]).seqno
-                            > args.sig_tx_interval
-                        ):
+                        r = c.get("/node/commit", log_capture=[]).body.json()
+                        tx_id = ccf.tx_id.TxID.from_str(r["transaction_id"])
+                        if tx_id.seqno > args.sig_tx_interval:
+                            LOG.info(f"Loaded service successfully: tx_id, {tx_id}")
                             break
                     time.sleep(0.1)
 
