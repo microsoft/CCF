@@ -99,10 +99,10 @@ class RPCInterface(Interface):
         return interface
 
 
-def make_secondary_interface():
+def make_secondary_interface(transport="tcp"):
     return {
         SECONDARY_RPC_INTERFACE: RPCInterface(
-            endorsement=Endorsement(EndorsementAuthority.Node)
+            endorsement=Endorsement(EndorsementAuthority.Node), transport=transport
         )
     }
 

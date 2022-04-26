@@ -1491,14 +1491,7 @@ def test_udp_echo(network, args):
 
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on first node
-    primary = args.nodes[0].rpc_interfaces["primary_rpc_interface"]
-    udp_interface = infra.interfaces.make_secondary_interface()
-    for interface in udp_interface.values():
-        interface.host = primary.host
-        interface.port = primary.port
-        interface.public_host = primary.public_host
-        interface.public_port = primary.public_port
-        interface.transport = "udp"
+    udp_interface = infra.interfaces.make_secondary_interface("udp")
     args.nodes[0].rpc_interfaces.update(udp_interface)
 
     txs = app.LoggingTxs("user0")
@@ -1645,10 +1638,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    # We need one TCP node as the primary and a second UDP one that is not
-    # part of the network, but uses the same infrastructure. The test will
-    # separate them later as a hack to make UDP tests work before we have
-    # a full stack implementation of services using UDP channels.
+    # This is just for the UDP echo test for now
     cr.add(
         "udp",
         run_udp_tests,
