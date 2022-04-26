@@ -754,7 +754,11 @@ namespace ccf
         return;
       }
 
-      LOG_FAIL_FMT("Emit signature");
+      if (!endorsed_cert.has_value())
+      {
+        throw std::logic_error(
+          fmt::format("No endorsed certificate set to emit signature"));
+      }
 
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
@@ -770,13 +774,6 @@ namespace ccf
         commit_txid.term,
         commit_txid.version,
         commit_txid.previous_version);
-
-      if (!endorsed_cert.has_value())
-      {
-        throw std::logic_error("Ahahahah");
-      }
-
-      assert(endorsed_cert.has_value());
 
       store.commit(
         txid,
@@ -822,7 +819,6 @@ namespace ccf
 
     void set_endorsed_certificate(const crypto::Pem& cert) override
     {
-      LOG_FAIL_FMT("Endorsed cert set");
       endorsed_cert = cert;
     }
   };

@@ -1087,24 +1087,17 @@ namespace ccf
       // (https://github.com/microsoft/CCF/issues/3788)
       auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-          LOG_FAIL_FMT("Here");
           if (!msg->data.self.create_and_send_boot_request(
                 false /* Restore consortium from ledger */))
           {
             throw std::runtime_error(
               "End of public recovery transaction could not be committed");
           }
-
-          LOG_FAIL_FMT("there");
-
           msg->data.self.advance_part_of_public_network();
-          // history->start_signature_emit_timer();
         },
         *this);
-      threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg), std::chrono::milliseconds(1000));
-
-      LOG_FAIL_FMT("async scheduled");
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::get_current_thread_id(), std::move(msg));
     }
 
     //

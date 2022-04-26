@@ -38,8 +38,6 @@ class Submitter(HttpUser):
     hosts = []
     current_host_idx = 0
 
-    # wait_time = constant_throughput(10)
-
     def wait_time(self):
         return constant_throughput(self.rate)(self)
 
@@ -49,12 +47,6 @@ class Submitter(HttpUser):
             self.environment.parsed_options.rate
             / self.environment.parsed_options.num_users
         )
-        # LOG.error(self.wait_time)
-        # self.wait_time = constant_throughput(
-        #     self.environment.parsed_options.rate
-        #     / self.environment.parsed_options.num_users
-        # )
-        # LOG.error(wait_time)
 
     @task()
     def submit(self):
