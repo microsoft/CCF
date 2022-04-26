@@ -236,7 +236,11 @@ namespace ccf
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, proof);
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, node_id);
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, cert);
-    FROM_JSON_GET_REQUIRED_FIELD(Receipt, service_endorsements);
+
+    // service_endorsements is always _emitted_ by current code, but may be
+    // missing from old receipts. When parsing those from JSON, treat it as
+    // optional
+    FROM_JSON_GET_OPTIONAL_FIELD(Receipt, service_endorsements);
   }
 
   std::string schema_name(const ReceiptPtr*)
@@ -265,7 +269,7 @@ namespace ccf
       properties["proof"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(Receipt::proof)>());
 
-      // Not required
+      required.push_back("service_endorsements");
       properties["service_endorsements"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(Receipt::service_endorsements)>());
 

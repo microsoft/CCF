@@ -120,7 +120,8 @@ TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
   "cert": "-----BEGIN CERTIFICATE-----\nMIIBzjCCAVSgAwIBAgIQGR/ue9CFspRa/g6jSMHFYjAKBggqhkjOPQQDAzAWMRQw\nEgYDVQQDDAtDQ0YgTmV0d29yazAeFw0yMjAxMjgxNjAzNDZaFw0yMjAxMjkxNjAz\nNDVaMBMxETAPBgNVBAMMCENDRiBOb2RlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE\nwsdpHLNw7xso/g71XzlQjoITiTBOef8gCayOiPJh/W2YfzreOawzD6gVQPSI+iPg\nZPc6smFhtV5bP/WZ2KW0K9Pn+OIjm/jMU5+s3rSgts50cRjlA/k81bUI88dzQzx9\no2owaDAJBgNVHRMEAjAAMB0GA1UdDgQWBBQgtPwYar54AQ4UL0RImVsm6wQQpzAf\nBgNVHSMEGDAWgBS2ngksRlVPvwDcLhN57VV+j2WyBTAbBgNVHREEFDAShwR/AAAB\nhwR/ZEUlhwR/AAACMAoGCCqGSM49BAMDA2gAMGUCMQDq54yS4Bmfwfcikpy2yL2+\nGFemyqNKXheFExRVt2edxVgId+uvIBGjrJEqf6zS/dsCMHVnBCLYRgxpamFkX1BF\nBDkVitfTOdYfUDWGV3MIMNdbam9BDNxG4q6XtQr4eb3jqg==\n-----END CERTIFICATE-----\n",
   "leaf_components": {
     "commit_evidence": "ce:2.643:55dbbbf04b71c6dcc01dd9d1c0012a6a959aef907398f7e183cc8913c82468d8",
-    "write_set_digest": "d0c521504ce2be6b4c22db8e99b14fc475b51bc91224181c75c64aa2cef72b83"
+    "write_set_digest": "d0c521504ce2be6b4c22db8e99b14fc475b51bc91224181c75c64aa2cef72b83",
+    "claims_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "node_id": "7dfbb9a56ebe8b43c833b34cb227153ef61e4890187fe6164022255dec8f9646",
   "proof": [
@@ -152,6 +153,17 @@ TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
 
   nlohmann::json j2 = receipt;
   REQUIRE(j == j2);
+
+  INFO("Check that old formats, with missing fields, can still be parsed");
+  {
+    j.erase("service_endorsements");
+    auto unendorsed = j.get<ccf::ReceiptPtr>();
+    receipt->service_endorsements.clear();
+    compare_receipts(receipt, unendorsed);
+
+    j["leaf_components"].erase("claims_digest");
+    REQUIRE_NOTHROW(j.get<ccf::ReceiptPtr>());
+  }
 }
 
 TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
