@@ -472,6 +472,21 @@ TEST_CASE("Non-ASN.1 timepoint formats")
   tp = ds::time_point_from_string(time_str);
   conv = ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220407103749Z");
+
+  time_str = "220425165619+0000";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220425165619Z");
+
+  time_str = "220425165619+0200";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220425145619Z");
+
+  time_str = "20220425165619-0300";
+  tp = ds::time_point_from_string(time_str);
+  conv = ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20220425195619Z");
 }
 
 TEST_CASE("Create sign and verify certificates")
