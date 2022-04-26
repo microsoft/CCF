@@ -210,6 +210,7 @@ def run_code_upgrade_from(
 
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
+            from_major_version = primary.major_version
 
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
@@ -324,13 +325,13 @@ def run_code_upgrade_from(
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
+            primary, _ = network.find_nodes()
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
             if not os.getenv("CONTAINER_NODES"):
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
-                primary, _ = network.find_nodes()
                 if not primary.major_version or primary.major_version > 1:
                     jwt_issuer.wait_for_refresh(network)
                 else:
@@ -354,7 +355,15 @@ def run_code_upgrade_from(
             )
 
             # Check that the ledger can be parsed
-            network.get_latest_ledger_public_state()
+            # Note: When upgrading from 1.x to 2.x, it is possible that ledger chunk are not
+            # in sync between nodes, which may cause some chunks to differ when starting
+            # from a snapshot. See https://github.com/microsoft/ccf/issues/3613. In such case,
+            # we only verify that the ledger can be parsed, even if some chunks are duplicated.
+            # This can go once 2.0 is released.
+            insecure_ledger_verification = from_major_version == 1 and primary.version_after("ccf-2.0.0-rc7")
+            network.get_latest_ledger_public_state(
+                insecure=insecure_ledger_verification
+            )
 
 
 @reqs.description("Run live compatibility with latest LTS")
