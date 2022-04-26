@@ -911,15 +911,6 @@ namespace ccf
           {
             startup_snapshot_info->is_evidence_committed = true;
           }
-
-          if (sm.check(NodeStartupState::readingPublicLedger))
-          {
-            // Inform snapshotter of all signature entries so that this node can
-            // continue generating snapshots at the correct interval once the
-            // recovery is complete
-            snapshotter->record_committable(last_recovered_idx);
-            snapshotter->commit(last_recovered_idx, false);
-          }
         }
         else if (
           result == kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE &&
