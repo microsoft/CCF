@@ -347,6 +347,7 @@
               "cert",
               "node_id",
               "proof",
+              "service_endorsements",
               "signature"
             ]
           },
