@@ -30,7 +30,7 @@ namespace aft
 {
   using Configuration = kv::Configuration;
 
-  template <class LedgerProxy, class SnapshotterProxy>
+  template <class LedgerProxy>
   class Aft : public kv::Consensus
   {
   private:
@@ -44,6 +44,9 @@ namespace aft
       // the highest matching index with the node that was confirmed
       Index match_idx;
 
+      // timeout tracking the last time an ack was received from the node
+      std::chrono::milliseconds last_ack_timeout;
+
       NodeState() = default;
 
       NodeState(
@@ -52,7 +55,8 @@ namespace aft
         Index match_idx_ = 0) :
         node_info(node_info_),
         sent_idx(sent_idx_),
-        match_idx(match_idx_)
+        match_idx(match_idx_),
+        last_ack_timeout(0)
       {}
     };
 
@@ -150,7 +154,6 @@ namespace aft
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
-    std::shared_ptr<SnapshotterProxy> snapshotter;
 
   public:
     Aft(
@@ -158,7 +161,6 @@ namespace aft
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
-      std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
@@ -190,8 +192,7 @@ namespace aft
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
-      channels(channels_),
-      snapshotter(snapshotter_)
+      channels(channels_)
 
     {
       LOG_DEBUG_FMT(
@@ -359,7 +360,6 @@ namespace aft
       state->view_history.initialise(term_history);
 
       ledger->init(index, recovery_start_index);
-      snapshotter->set_last_snapshot_idx(index);
 
       become_aware_of_new_term(term);
     }
@@ -559,21 +559,6 @@ namespace aft
       LOG_INFO_FMT("Election timer has become active");
     }
 
-    void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const ccf::NodeId& node_id,
-      const crypto::Pem& node_cert) override
-    {
-      snapshotter->record_signature(version, sig, node_id, node_cert);
-    }
-
-    void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) override
-    {
-      snapshotter->record_serialised_tree(version, tree);
-    }
-
     void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
@@ -593,6 +578,15 @@ namespace aft
       for (auto& [_, s] : orc_sets)
       {
         s.clear();
+      }
+    }
+
+    void reset_last_ack_timeouts()
+    {
+      for (auto& node : nodes)
+      {
+        using namespace std::chrono_literals;
+        node.second.last_ack_timeout = 0ms;
       }
     }
 
@@ -698,7 +692,8 @@ namespace aft
       }
       for (auto& [k, v] : nodes)
       {
-        details.acks[k] = v.match_idx;
+        details.acks[k] = {
+          v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
       }
       details.reconfiguration_type = reconfiguration_type;
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
@@ -761,7 +756,6 @@ namespace aft
           hook->call(this);
         }
 
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
           LOG_DEBUG_FMT(
@@ -775,21 +769,12 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
-
-          // Only if globally committable, a snapshot requires a new ledger
-          // chunk to be created
-          force_ledger_chunk = snapshotter->record_committable(index);
-
           start_ticking_if_necessary();
         }
 
         state->last_idx = index;
         ledger->put_entry(
-          *data,
-          globally_committable,
-          force_ledger_chunk,
-          state->current_view,
-          index);
+          *data, globally_committable, state->current_view, index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -896,6 +881,11 @@ namespace aft
           {
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
+        }
+
+        for (auto& node : nodes)
+        {
+          node.second.last_ack_timeout += elapsed;
         }
       }
       else if (consensus_type != ConsensusType::BFT)
@@ -1316,21 +1306,15 @@ namespace aft
 
         bool globally_committable =
           (apply_success == kv::ApplyResult::PASS_SIGNATURE);
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          force_ledger_chunk = snapshotter->record_committable(i);
           start_ticking_if_necessary();
         }
 
         const auto& entry = ds->get_entry();
 
         ledger->put_entry(
-          entry,
-          globally_committable,
-          force_ledger_chunk,
-          ds->get_term(),
-          ds->get_index());
+          entry, globally_committable, ds->get_term(), ds->get_index());
 
         switch (apply_success)
         {
@@ -1486,7 +1470,11 @@ namespace aft
           from);
         return;
       }
-      else if (state->current_view < r.term)
+
+      using namespace std::chrono_literals;
+      node->second.last_ack_timeout = 0ms;
+
+      if (state->current_view < r.term)
       {
         // We are behind, update our state.
         LOG_DEBUG_FMT(
@@ -1769,6 +1757,7 @@ namespace aft
       state->current_view++;
 
       restart_election_timeout();
+      reset_last_ack_timeouts();
       add_vote_for_me(state->my_node_id);
 
       LOG_INFO_FMT(
@@ -1776,9 +1765,9 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        for (auto const& node : nodes)
         {
-          send_request_vote(it->first);
+          send_request_vote(node.first);
         }
       }
     }
@@ -1816,6 +1805,8 @@ namespace aft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
+      reset_last_ack_timeouts();
+
       LOG_INFO_FMT(
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
@@ -1829,13 +1820,13 @@ namespace aft
       // Reset next, match, and sent indices for all nodes.
       auto next = state->last_idx + 1;
 
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      for (auto& node : nodes)
       {
-        it->second.match_idx = 0;
-        it->second.sent_idx = next - 1;
+        node.second.match_idx = 0;
+        node.second.sent_idx = next - 1;
 
         // Send an empty append_entries to all nodes.
-        send_append_entries(it->first, next);
+        send_append_entries(node.first, next);
       }
     }
 
@@ -1865,6 +1856,7 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
       clear_orc_sets();
+      reset_last_ack_timeouts();
 
       rollback(last_committable_index());
 
@@ -2165,12 +2157,6 @@ namespace aft
       }
 
       LOG_DEBUG_FMT("Compacting...");
-      // Snapshots are not yet supported with BFT
-      snapshotter->commit(
-        idx,
-        leadership_state == kv::LeadershipState::Leader &&
-          consensus_type == ConsensusType::CFT);
-
       store->compact(idx);
       ledger->commit(idx);
 
@@ -2354,7 +2340,6 @@ namespace aft
         return;
       }
 
-      snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
 
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
@@ -2460,7 +2445,7 @@ namespace aft
       // configuration.
       std::vector<ccf::NodeId> to_remove;
 
-      for (auto& node : nodes)
+      for (const auto& node : nodes)
       {
         if (active_nodes.find(node.first) == active_nodes.end())
         {

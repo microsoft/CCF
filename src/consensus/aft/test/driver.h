@@ -40,7 +40,6 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
   void put_entry(
     const std::vector<uint8_t>& data,
     bool globally_committable,
-    bool force_chunk,
     kv::Term term,
     kv::Version index) override
   {
@@ -52,8 +51,7 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
                          index,
                          stringify(data))
                     << std::endl;
-    aft::LedgerStubProxy::put_entry(
-      data, globally_committable, force_chunk, term, index);
+    aft::LedgerStubProxy::put_entry(data, globally_committable, term, index);
   }
 
   void truncate(aft::Index idx) override
@@ -107,7 +105,7 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
 };
 
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid, aft::StubSnapshotter>;
+using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -145,7 +143,6 @@ public:
         std::make_unique<Adaptor>(kv),
         std::make_unique<LedgerStubProxy_Mermaid>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
-        std::make_shared<aft::StubSnapshotter>(),
         std::make_shared<aft::State>(node_id),
         nullptr,
         nullptr);

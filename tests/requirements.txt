@@ -14,4 +14,5 @@ better_exceptions
 pyasn1
 Jinja2
 httpx == 0.21.*
+locust
 pyOpenSSL

@@ -331,7 +331,7 @@
         "election_timeout": {
           "type": "string",
           "default": "5000ms",
-          "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than 'message_timeout'"
+          "description": "Maximum timeout (time string) after which backup nodes that have not received any message from the primary node (or voted for a candidate) will trigger a new election. This timeout is also used by candidates to restart unsuccessful elections. This should be set to a significantly greater value than 'message_timeout' plus the expected network delay."
         }
       },
       "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)"

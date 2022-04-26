@@ -28,7 +28,6 @@ namespace aft
     virtual void put_entry(
       const std::vector<uint8_t>& original,
       bool globally_committable,
-      bool force_chunk,
       kv::Term term,
       kv::Version index)
     {
@@ -407,11 +406,6 @@ namespace aft
     void update(Index, bool) {}
 
     void set_last_snapshot_idx(Index idx) {}
-
-    bool record_committable(Index)
-    {
-      return false;
-    }
 
     void commit(Index, bool) {}
 

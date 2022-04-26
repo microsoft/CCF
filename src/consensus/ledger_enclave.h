@@ -45,25 +45,16 @@ namespace consensus
      *
      * @param entry Serialised entry
      * @param globally_committable True if entry is signature transaction
-     * @param force_chunk Force new ledger chunk to be created after this entry
-     * (only if globally_committable)
      * @param term Consensus term of entry
      * @param index Index (seqno) of entry
      */
     void put_entry(
       const std::vector<uint8_t>& entry,
       bool globally_committable,
-      bool force_chunk,
       kv::Term term,
       kv::Version index)
     {
-      put_entry(
-        entry.data(),
-        entry.size(),
-        globally_committable,
-        force_chunk,
-        term,
-        index);
+      put_entry(entry.data(), entry.size(), globally_committable, term, index);
     }
 
     /**
@@ -72,8 +63,6 @@ namespace consensus
      * @param data Serialised entry start
      * @param size Serialised entry size
      * @param globally_committable True if entry is signature transaction
-     * @param force_chunk Force new ledger chunk to be created after this entry
-     * (only if globally_committable)
      * @param term Consensus term of entry
      * @param index Index (seqno) of entry
      *
@@ -83,21 +72,12 @@ namespace consensus
       const uint8_t* data,
       size_t size,
       bool globally_committable,
-      bool force_chunk,
       kv::Term term,
       kv::Version index)
     {
-      CCF_ASSERT_FMT(
-        globally_committable || !force_chunk,
-        "Only globally committable entries can force new ledger chunk");
-
       serializer::ByteRange byte_range = {data, size};
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_append,
-        to_host,
-        globally_committable,
-        force_chunk,
-        byte_range);
+        consensus::ledger_append, to_host, globally_committable, byte_range);
     }
 
     /**

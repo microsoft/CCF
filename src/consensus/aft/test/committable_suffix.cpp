@@ -91,7 +91,6 @@ void keep_earliest_append_entries_for_each_target(
     std::make_unique<AllSigsAdaptor>(store##N), \
     std::make_unique<aft::LedgerStubProxy>(node_id##N), \
     std::make_shared<aft::ChannelStubProxy>(), \
-    std::make_shared<aft::StubSnapshotter>(), \
     std::make_shared<aft::State>(node_id##N), \
     nullptr, \
     nullptr); \

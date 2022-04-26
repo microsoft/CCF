@@ -155,6 +155,7 @@ To renew the soon-to-be-expired certificate of a node, members should issue a ``
 
 - The ``valid_from`` date/time argument accepts time points in ASN.1 UTCTime format (``"YYMMDDhhmmssZ"``) or ISO 8601 format (``"YYYY-MM-DD HH:MM:SS.ssssss+HH:MM"``), with optional fractional seconds and timezone offset. For details see :ccf_repo:`src/ds/x509_time_fmt.h`.
 - If set, the ``validity_period_days`` should be less than the service-wide maximum validity period configured by operators. If omitted, the ``validity_period_days`` defaults to the service-wide maximum validity period configured by operators (see :ref:`operations/certificates:Node Certificates`).
+- Both Service-endorsed and self-signed node certificates are renewed by this proposal.
 
 A sample proposal is:
 

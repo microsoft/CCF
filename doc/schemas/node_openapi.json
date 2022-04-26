@@ -67,7 +67,7 @@
       "ConsensusDetails": {
         "properties": {
           "acks": {
-            "$ref": "#/components/schemas/NodeId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_ConsensusDetails__Ack"
           },
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
@@ -104,6 +104,21 @@
           "primary_id",
           "current_view",
           "ticking"
+        ],
+        "type": "object"
+      },
+      "ConsensusDetails__Ack": {
+        "properties": {
+          "last_received_ms": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "seqno",
+          "last_received_ms"
         ],
         "type": "object"
       },
@@ -445,6 +460,12 @@
         },
         "type": "object"
       },
+      "NodeId_to_ConsensusDetails__Ack": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ConsensusDetails__Ack"
+        },
+        "type": "object"
+      },
       "NodeId_to_uint64": {
         "additionalProperties": {
           "$ref": "#/components/schemas/uint64"
@@ -657,6 +678,17 @@
         ],
         "type": "string"
       },
+      "SelfSignedNodeCertificateInfo": {
+        "properties": {
+          "self_signed_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "self_signed_certificate"
+        ],
+        "type": "object"
+      },
       "ServiceConfiguration": {
         "properties": {
           "consensus": {
@@ -821,7 +853,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.16.2"
+    "version": "2.17.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1172,6 +1204,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/node/self_signed_certificate": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfSignedNodeCertificateInfo"
                 }
               }
             },

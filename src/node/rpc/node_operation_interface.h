@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/node/quote.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/node_subsystem_interface.h"
@@ -50,5 +51,7 @@ namespace ccf
       CodeDigest& code_digest) = 0;
 
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
+
+    virtual crypto::Pem get_self_signed_node_certificate() = 0;
   };
 }
