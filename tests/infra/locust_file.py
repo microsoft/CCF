@@ -36,6 +36,7 @@ class Submitter(HttpUser):
     # Round-robin between all hosts specified at startup
     hosts = []
     current_host_idx = 0
+    rate = 0
 
     def wait_time(self):
         return constant_throughput(self.rate)(self)
