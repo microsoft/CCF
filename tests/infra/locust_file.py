@@ -5,7 +5,6 @@ import locust.stats
 from locust import HttpUser, task, events, constant_throughput
 import json
 
-from loguru import logger as LOG
 
 # Scope for logging txs so that they do not conflict
 # with the txs recorded by the actual tests

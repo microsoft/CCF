@@ -521,7 +521,6 @@ if(BUILD_TESTS)
     set(ADDITIONAL_RECOVERY_ARGS --with-load)
   endif()
 
-  
   add_e2e_test(
     NAME recovery_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
