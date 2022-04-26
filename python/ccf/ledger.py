@@ -70,6 +70,13 @@ class EntryType(Enum):
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
         )
 
+    def is_deprecated(self):
+        return self in (
+            EntryType.WRITE_SET,
+            EntryType.WRITE_SET_WITH_CLAIMS,
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
+        )
+
 
 def to_uint_64(buffer):
     return struct.unpack("@Q", buffer)[0]
@@ -173,6 +180,9 @@ class PublicDomain:
 
         self._tables = {}
         self._read()
+
+    def is_deprecated(self):
+        return self._entry_type.is_deprecated()
 
     def _read_entry_type(self):
         val = unpack(self._buffer, "<B")
@@ -355,10 +365,13 @@ class LedgerValidator:
         3) The merkle proof is correct for each set of transactions
     """
 
-    def __init__(self):
-        self.node_certificates = {}
-        self.node_activity_status = {}
-        self.signature_count = 0
+    accept_deprecated_entry_types: bool = True
+    node_certificates: Dict[str, str] = {}
+    node_activity_status: Dict[str, Tuple[str, int]] = {}
+    signature_count: int = 0
+
+    def __init__(self, accept_deprecated_entry_types: bool = True):
+        self.accept_deprecated_entry_types = accept_deprecated_entry_types
         self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
 
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
@@ -385,6 +398,8 @@ class LedgerValidator:
         If any of the above checks fail, this method throws.
         """
         transaction_public_domain = transaction.get_public_domain()
+        if not self.accept_deprecated_entry_types:
+            assert not transaction_public_domain.is_deprecated()
         tables = transaction_public_domain.get_tables()
 
         # Add contributing nodes certs and update nodes network trust status for verification
