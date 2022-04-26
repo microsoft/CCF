@@ -467,6 +467,10 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
+
+        for node in self.get_joined_nodes():
+            self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
+
         LOG.success("***** Network is now open *****")
         if self.service_load:
             self.service_load.begin(self)

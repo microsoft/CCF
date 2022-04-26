@@ -741,6 +741,12 @@ namespace ccf::historical
       ExpiryDuration seconds_until_expiry,
       bool include_receipts)
     {
+      if (seqnos.empty())
+      {
+        throw std::logic_error(
+          "Invalid range for historical query: Cannot request empty range");
+      }
+
       std::lock_guard<std::mutex> guard(requests_lock);
 
       const auto ms_until_expiry =

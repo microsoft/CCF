@@ -543,7 +543,7 @@ class LocalRemote(CmdMixin):
         return f"cd {self.root} && {DBG} --args {cmd}"
 
     def check_done(self):
-        return self.proc.poll() is not None
+        return self.proc is not None and self.proc.poll() is not None
 
     def get_result(self, line_count):
         with open(self.out, "rb") as out:
