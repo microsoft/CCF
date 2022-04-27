@@ -73,7 +73,7 @@ namespace ccf::js
     for (auto& element : receipt_out.proof)
     {
       auto js_element = JS_NewObject(ctx);
-      auto is_left = element.direction == ccf::Receipt::ProofStep::Left;
+      auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
       const auto hash_hex = ds::to_hex(element.hash.h);
       JS_SetPropertyStr(
         ctx,

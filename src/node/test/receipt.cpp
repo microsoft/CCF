@@ -25,7 +25,7 @@ crypto::Sha256Hash rand_digest()
   return ret;
 }
 
-void populate_receipt(ccf::ReceiptPtr receipt)
+void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
 {
   using namespace std::literals;
   const auto valid_from =
@@ -44,14 +44,14 @@ void populate_receipt(ccf::ReceiptPtr receipt)
   const auto num_proof_steps = rand() % 8;
   for (auto i = 0; i < num_proof_steps; ++i)
   {
-    const auto dir = rand() % 2 == 0 ? ccf::Receipt::ProofStep::Left :
-                                       ccf::Receipt::ProofStep::Right;
+    const auto dir = rand() % 2 == 0 ? ccf::ProofReceipt::ProofStep::Left :
+                                       ccf::ProofReceipt::ProofStep::Right;
     const auto digest = rand_digest();
 
-    ccf::Receipt::ProofStep step{dir, digest};
+    ccf::ProofReceipt::ProofStep step{dir, digest};
     receipt->proof.push_back(step);
 
-    if (dir == ccf::Receipt::ProofStep::Left)
+    if (dir == ccf::ProofReceipt::ProofStep::Left)
     {
       current_digest = crypto::Sha256Hash(digest, current_digest);
     }
@@ -61,7 +61,7 @@ void populate_receipt(ccf::ReceiptPtr receipt)
     }
   }
 
-  const auto root = receipt->get_root();
+  const auto root = receipt->calculate_root();
   receipt->signature = node_kp->sign_hash(root.h.data(), root.h.size());
 
   const auto num_endorsements = rand() % 3;
@@ -83,32 +83,32 @@ void compare_receipts(ccf::ReceiptPtr l, ccf::ReceiptPtr r)
   REQUIRE(r != nullptr);
 
   REQUIRE(l->signature == r->signature);
-  REQUIRE(l->proof == r->proof);
   REQUIRE(l->node_id == r->node_id);
   REQUIRE(l->cert == r->cert);
   REQUIRE(l->service_endorsements == r->service_endorsements);
+  REQUIRE(l->is_signature_transaction == r->is_signature_transaction);
 
-  if (auto ld_l = std::dynamic_pointer_cast<ccf::LeafDigestReceipt>(l))
+  if (!l->is_signature_transaction)
   {
-    auto ld_r = std::dynamic_pointer_cast<ccf::LeafDigestReceipt>(r);
-    REQUIRE(ld_r != nullptr);
+    auto p_l = std::dynamic_pointer_cast<ccf::ProofReceipt>(l);
+    REQUIRE(p_l != nullptr);
 
-    REQUIRE(ld_l->leaf == ld_r->leaf);
+    auto p_r = std::dynamic_pointer_cast<ccf::ProofReceipt>(r);
+    REQUIRE(p_r != nullptr);
+
+    REQUIRE(p_l->proof == p_r->proof);
+    REQUIRE(
+      p_l->leaf_components.write_set_digest ==
+      p_r->leaf_components.write_set_digest);
+    REQUIRE(
+      p_l->leaf_components.commit_evidence ==
+      p_r->leaf_components.commit_evidence);
+    REQUIRE(
+      p_l->leaf_components.claims_digest == p_r->leaf_components.claims_digest);
   }
-  else if (auto le_l = std::dynamic_pointer_cast<ccf::LeafExpandedReceipt>(l))
+  else
   {
-    auto le_r = std::dynamic_pointer_cast<ccf::LeafExpandedReceipt>(r);
-    REQUIRE(le_r != nullptr);
-
-    REQUIRE(
-      le_l->leaf_components.write_set_digest ==
-      le_r->leaf_components.write_set_digest);
-    REQUIRE(
-      le_l->leaf_components.commit_evidence ==
-      le_r->leaf_components.commit_evidence);
-    REQUIRE(
-      le_l->leaf_components.claims_digest ==
-      le_r->leaf_components.claims_digest);
+    throw std::logic_error("Unhandled receipt type");
   }
 }
 
@@ -143,7 +143,8 @@ TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
   "service_endorsements": [
     "-----BEGIN CERTIFICATE-----MIIBtTCCATugAwIBAgIRAN37fxGnWYNVLZn8nM8iBP8wCgYIKoZIzj0EAwMwFjEU\nMBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwMzIzMTMxMDA2WhcNMjIwMzI0MTMx\nMDA1WjAWMRQwEgYDVQQDDAtDQ0YgTmV0d29yazB2MBAGByqGSM49AgEGBSuBBAAi\nA2IABBErIfAEVg2Uw+iBPV9kEcpQw8NcoZWHmj4boHf7VVd6yCwRl+X/wOaOudca\nCqMMcwrt4Bb7n11RbsRwU04B7fG907MelICFHiPZjU/XMK5HEsSEZWowVtNwOLDo\nl5cN6aNNMEswCQYDVR0TBAIwADAdBgNVHQ4EFgQU4n5gHhHFnYZc3nwxKRggl8YB\nqdgwHwYDVR0jBBgwFoAUcAvR3F5YSUvPPGcAxrvh2Z5ump8wCgYIKoZIzj0EAwMD\naAAwZQIxAMeRoXo9FDzr51qkiD4Ws0Y+KZT06MFHcCg47TMDSGvnGrwL3DcIjGs7\nTTwJJQjbWAIwS9AqOJP24sN6jzXOTd6RokeF/MTGJbQAihzgTbZia7EKM8s/0yDB\n0QYtrfMjtPOx\n-----END CERTIFICATE-----\n"
   ],
-  "signature": "MGQCMHrnwS123oHqUKuQRPsQ+gk6WVutixeOvxcXX79InBgPOxJCoScCOlBnK4UYyLzangIwW9k7IZkMgG076qVv5zcx7OuKb7bKyii1yP1rcakeGVvVMwISeE+Fr3BnFfPD66Df"
+  "signature": "MGQCMHrnwS123oHqUKuQRPsQ+gk6WVutixeOvxcXX79InBgPOxJCoScCOlBnK4UYyLzangIwW9k7IZkMgG076qVv5zcx7OuKb7bKyii1yP1rcakeGVvVMwISeE+Fr3BnFfPD66Df",
+  "is_signature_transaction": false
 })xxx";
 
   nlohmann::json j = nlohmann::json::parse(sample_json_receipt);
@@ -177,31 +178,18 @@ TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
   for (auto i = 0; i < 20; ++i)
   {
     {
-      INFO("LeafDigestReceipt");
-      auto ld_receipt = std::make_shared<ccf::LeafDigestReceipt>();
-      ld_receipt->leaf = rand_digest();
+      INFO("ProofReceipt");
+      auto p_receipt = std::make_shared<ccf::ProofReceipt>();
+      p_receipt->leaf_components.write_set_digest = rand_digest();
+      p_receipt->leaf_components.commit_evidence = "ce:2.4:abcd";
+      p_receipt->leaf_components.claims_digest.set(rand_digest());
 
-      populate_receipt(ld_receipt);
+      populate_receipt(p_receipt);
 
-      nlohmann::json j = ld_receipt;
-
-      const auto parsed = j.get<ccf::ReceiptPtr>();
-      compare_receipts(ld_receipt, parsed);
-    }
-
-    {
-      INFO("LeafExpandedReceipt");
-      auto ld_receipt = std::make_shared<ccf::LeafExpandedReceipt>();
-      ld_receipt->leaf_components.write_set_digest = rand_digest();
-      ld_receipt->leaf_components.commit_evidence = "ce:2.4:abcd";
-      ld_receipt->leaf_components.claims_digest.set(rand_digest());
-
-      populate_receipt(ld_receipt);
-
-      nlohmann::json j = ld_receipt;
+      nlohmann::json j = p_receipt;
 
       const auto parsed = j.get<ccf::ReceiptPtr>();
-      compare_receipts(ld_receipt, parsed);
+      compare_receipts(p_receipt, parsed);
     }
   }
 }

@@ -100,7 +100,7 @@ namespace ccf
           snapshot_digest_claim));
       }
 
-      auto root = receipt->get_root();
+      auto root = receipt->calculate_root();
       auto raw_sig = receipt->signature;
 
       auto v = crypto::make_unique_verifier(receipt->cert);

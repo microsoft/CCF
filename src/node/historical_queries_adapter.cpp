@@ -27,8 +27,8 @@ namespace ccf
       {
         const auto direction =
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
-          ccf::Receipt::ProofStep::Left :
-          ccf::Receipt::ProofStep::Right;
+          ccf::ProofReceipt::ProofStep::Left :
+          ccf::ProofReceipt::ProofStep::Right;
         const auto hash = crypto::Sha256Hash::from_span(
           {node.hash.bytes, sizeof(node.hash.bytes)});
         expanded_receipt->proof.push_back({direction, hash});

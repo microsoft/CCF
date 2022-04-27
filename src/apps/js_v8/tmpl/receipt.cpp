@@ -44,14 +44,15 @@ namespace ccf::v8_tmpl
   static void get_leaf(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    ccf::Receipt* receipt = unwrap_receipt(info.Holder());
+    // ccf::Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::Value> value;
-    if (auto ld_receipt = dynamic_cast<const ccf::LeafDigestReceipt*>(receipt))
-    {
-      const auto leaf_hex = ds::to_hex(ld_receipt->leaf.h);
-      value = v8_util::to_v8_str(info.GetIsolate(), leaf_hex);
-    }
-    else
+    // if (auto ld_receipt = dynamic_cast<const
+    // ccf::LeafDigestReceipt*>(receipt))
+    // {
+    //   const auto leaf_hex = ds::to_hex(ld_receipt->leaf.h);
+    //   value = v8_util::to_v8_str(info.GetIsolate(), leaf_hex);
+    // }
+    // else
     {
       value = v8::Undefined(info.GetIsolate());
     }
@@ -79,7 +80,7 @@ namespace ccf::v8_tmpl
     elements.reserve(size);
     for (auto& element : receipt->proof)
     {
-      const auto is_left = element.direction == ccf::Receipt::ProofStep::Left;
+      const auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
       const auto hex_digest = ds::to_hex(element.hash.h);
       v8::Local<v8::Object> obj = v8::Object::New(isolate);
       obj

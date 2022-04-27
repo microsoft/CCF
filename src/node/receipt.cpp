@@ -36,8 +36,7 @@
 
 namespace ccf
 {
-  void to_json(
-    nlohmann::json& j, const LeafExpandedReceipt::Components& components)
+  void to_json(nlohmann::json& j, const ProofReceipt::Components& components)
   {
     j = nlohmann::json::object();
 
@@ -50,7 +49,7 @@ namespace ccf
     }
   }
 
-  void from_json(const nlohmann::json& j, LeafExpandedReceipt::Components& out)
+  void from_json(const nlohmann::json& j, ProofReceipt::Components& out)
   {
     if (!j.is_object())
     {
@@ -59,25 +58,21 @@ namespace ccf
         j.dump()));
     }
 
-    FROM_JSON_GET_REQUIRED_FIELD(
-      LeafExpandedReceipt::Components, write_set_digest);
-    FROM_JSON_GET_REQUIRED_FIELD(
-      LeafExpandedReceipt::Components, commit_evidence);
+    FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt::Components, write_set_digest);
+    FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt::Components, commit_evidence);
 
     // claims_digest is always _emitted_ by current code, but may be
     // missing from old receipts. When parsing those from JSON, treat it as
     // optional
-    FROM_JSON_GET_OPTIONAL_FIELD(
-      LeafExpandedReceipt::Components, claims_digest);
+    FROM_JSON_GET_OPTIONAL_FIELD(ProofReceipt::Components, claims_digest);
   }
 
-  std::string schema_name(const LeafExpandedReceipt::Components*)
+  std::string schema_name(const ProofReceipt::Components*)
   {
     return "Receipt__LeafComponents";
   }
 
-  void fill_json_schema(
-    nlohmann::json& schema, const LeafExpandedReceipt::Components*)
+  void fill_json_schema(nlohmann::json& schema, const ProofReceipt::Components*)
   {
     schema = nlohmann::json::object();
     schema["type"] = "object";
@@ -89,32 +84,32 @@ namespace ccf
       required.push_back("claims_digest");
       properties["claims_digest"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(
-          LeafExpandedReceipt::Components::claims_digest)>());
+          ProofReceipt::Components::claims_digest)>());
 
       required.push_back("commit_evidence");
       properties["commit_evidence"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(
-          LeafExpandedReceipt::Components::commit_evidence)>());
+          ProofReceipt::Components::commit_evidence)>());
 
       required.push_back("write_set_digest");
       properties["write_set_digest"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(
-          LeafExpandedReceipt::Components::write_set_digest)>());
+          ProofReceipt::Components::write_set_digest)>());
     }
 
     schema["required"] = required;
     schema["properties"] = properties;
   }
 
-  void to_json(nlohmann::json& j, const Receipt::ProofStep& step)
+  void to_json(nlohmann::json& j, const ProofReceipt::ProofStep& step)
   {
     j = nlohmann::json::object();
     const auto key =
-      step.direction == Receipt::ProofStep::Left ? "left" : "right";
+      step.direction == ProofReceipt::ProofStep::Left ? "left" : "right";
     j[key] = step.hash;
   }
 
-  void from_json(const nlohmann::json& j, Receipt::ProofStep& step)
+  void from_json(const nlohmann::json& j, ProofReceipt::ProofStep& step)
   {
     if (!j.is_object())
     {
@@ -134,22 +129,22 @@ namespace ccf
 
     if (l_it != j.end())
     {
-      step.direction = Receipt::ProofStep::Left;
+      step.direction = ProofReceipt::ProofStep::Left;
       step.hash = l_it.value();
     }
     else
     {
-      step.direction = Receipt::ProofStep::Right;
+      step.direction = ProofReceipt::ProofStep::Right;
       step.hash = r_it.value();
     }
   }
 
-  std::string schema_name(const Receipt::ProofStep*)
+  std::string schema_name(const ProofReceipt::ProofStep*)
   {
     return "Receipt__Element";
   }
 
-  void fill_json_schema(nlohmann::json& schema, const Receipt::ProofStep*)
+  void fill_json_schema(nlohmann::json& schema, const ProofReceipt::ProofStep*)
   {
     schema = nlohmann::json::object();
 
@@ -180,19 +175,26 @@ namespace ccf
     j = nlohmann::json::object();
 
     j["signature"] = receipt->signature;
-    j["proof"] = receipt->proof;
     j["node_id"] = receipt->node_id;
     j["cert"] = receipt->cert;
     j["service_endorsements"] = receipt->service_endorsements;
+    j["is_signature_transaction"] = receipt->is_signature_transaction;
 
-    if (auto ld_receipt = std::dynamic_pointer_cast<LeafDigestReceipt>(receipt))
+    if (receipt->is_signature_transaction)
     {
-      j["leaf"] = ld_receipt->leaf;
+      throw std::logic_error(
+        "Conversion of signature receipts to JSON is currently undefined");
     }
-    else if (
-      auto le_receipt = std::dynamic_pointer_cast<LeafExpandedReceipt>(receipt))
+    else
     {
-      j["leaf_components"] = le_receipt->leaf_components;
+      auto p_receipt = std::dynamic_pointer_cast<ProofReceipt>(receipt);
+      if (p_receipt == nullptr)
+      {
+        throw std::logic_error("Unexpected receipt type");
+      }
+
+      j["leaf_components"] = p_receipt->leaf_components;
+      j["proof"] = p_receipt->proof;
     }
   }
 
@@ -204,43 +206,40 @@ namespace ccf
         fmt::format("Cannot parse Receipt: Expected object, got {}", j.dump()));
     }
 
-    const auto leaf_it = j.find("leaf");
-    const auto has_leaf = leaf_it != j.end();
-
-    const auto leaf_components_it = j.find("leaf_components");
-    const auto has_leaf_components = leaf_components_it != j.end();
-
-    if (has_leaf && !has_leaf_components)
+    const auto is_sig_it = j.find("is_signature_transaction");
+    if (is_sig_it == j.end())
     {
-      auto ld_receipt = std::make_shared<LeafDigestReceipt>();
-
-      auto& out = *ld_receipt;
-      FROM_JSON_GET_REQUIRED_FIELD(LeafDigestReceipt, leaf);
-
-      receipt = ld_receipt;
+      throw JsonParseError(fmt::format(
+        "Cannot parse Receipt: Expected 'is_signature_transaction' "
+        "field, got {}",
+        j.dump()));
     }
-    else if (!has_leaf && has_leaf_components)
+
+    const bool is_sig = is_sig_it->get<bool>();
+
+    if (!is_sig)
     {
-      auto le_receipt = std::make_shared<LeafExpandedReceipt>();
+      auto p_receipt = std::make_shared<ProofReceipt>();
 
-      auto& out = *le_receipt;
-      FROM_JSON_GET_REQUIRED_FIELD(LeafExpandedReceipt, leaf_components);
+      auto& out = *p_receipt;
+      FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, leaf_components);
+      FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, proof);
 
-      receipt = le_receipt;
+      receipt = p_receipt;
     }
     else
     {
       throw JsonParseError(fmt::format(
-        "Cannot parse Receipt: Expected either 'leaf' or 'leaf_components' "
-        "field, got {}",
+        "Cannot parse Receipt: Expected 'leaf_components' and 'proof'"
+        "fields, got {}",
         j.dump()));
     }
 
     auto& out = *receipt;
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, signature);
-    FROM_JSON_GET_REQUIRED_FIELD(Receipt, proof);
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, node_id);
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, cert);
+    FROM_JSON_GET_REQUIRED_FIELD(Receipt, is_signature_transaction);
 
     // service_endorsements is always _emitted_ by current code, but may be
     // missing from old receipts. When parsing those from JSON, treat it as
@@ -270,10 +269,6 @@ namespace ccf
       properties["node_id"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(Receipt::node_id)>());
 
-      required.push_back("proof");
-      properties["proof"] = ds::openapi::components_ref_object(
-        ds::json::schema_name<decltype(Receipt::proof)>());
-
       required.push_back("service_endorsements");
       properties["service_endorsements"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(Receipt::service_endorsements)>());
@@ -282,12 +277,15 @@ namespace ccf
       properties["signature"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(Receipt::signature)>());
 
+      required.push_back("proof");
+      properties["proof"] = ds::openapi::components_ref_object(
+        ds::json::schema_name<decltype(ProofReceipt::proof)>());
+
       properties["leaf_components"] = ds::openapi::components_ref_object(
-        ds::json::schema_name<decltype(
-          LeafExpandedReceipt::leaf_components)>());
+        ds::json::schema_name<decltype(ProofReceipt::leaf_components)>());
 
       properties["leaf"] = ds::openapi::components_ref_object(
-        ds::json::schema_name<decltype(LeafDigestReceipt::leaf)>());
+        ds::json::schema_name<decltype(SignatureReceipt::signed_root)>());
 
       // This says the required properties are all the properties we currently
       // have, AND one of either leaf OR leaf_components. It inserts the
@@ -299,7 +297,7 @@ namespace ccf
       //   {
       //     "oneOf": [
       //       {"required": ["leaf"]},
-      //       {"required": ["leaf_components"]}
+      //       {"required": ["leaf_components", "proof"]}
       //     ]
       //   }
       // ]
@@ -309,7 +307,8 @@ namespace ccf
             {nlohmann::json::object(
                {{"required", nlohmann::json::array({"leaf"})}}),
              nlohmann::json::object(
-               {{"required", nlohmann::json::array({"leaf_components"})}})})}});
+               {{"required",
+                 nlohmann::json::array({"leaf_components", "proof"})}})})}});
 
       schema["allOf"] = nlohmann::json::array(
         {nlohmann::json::object({{"required", required}}), oneOf});
