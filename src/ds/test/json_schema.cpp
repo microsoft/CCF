@@ -213,7 +213,7 @@ namespace custom
         std::string email;
       };
 
-      void fill_json_schema(nlohmann::json& schema, const X&)
+      void fill_json_schema(nlohmann::json& schema, const X*)
       {
         schema["type"] = "string";
         schema["format"] = "email";
