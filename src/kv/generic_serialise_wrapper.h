@@ -31,6 +31,9 @@ namespace kv
     // must only be set by set_current_domain, since it affects current_writer
     SecurityDomain current_domain;
 
+    // If true, consider historical ledger secrets when encrypting entries
+    bool historical_hint;
+
     template <typename T>
     void serialise_internal(const T& t)
     {
@@ -63,11 +66,13 @@ namespace kv
       // The evidence and claims digest must be systematically present
       // in regular transactions, but absent in snapshots.
       const crypto::Sha256Hash& commit_evidence_digest_ = {},
-      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
+      bool historical_hint_ = false) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
-      crypto_util(e)
+      crypto_util(e),
+      historical_hint(historical_hint_)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
@@ -201,7 +206,8 @@ namespace kv
             serialised_hdr,
             encrypted_private_domain,
             tx_id,
-            entry_type))
+            entry_type,
+            historical_hint))
       {
         throw KvSerialiserException(fmt::format(
           "Could not serialise transaction at seqno {}", tx_id.version));
@@ -341,6 +347,8 @@ namespace kv
       auto data_public = data_;
       public_reader.init(data_public, public_domain_length);
       read_public_header();
+
+      LOG_FAIL_FMT("version: {}, entry_type: {}", version, entry_type);
 
       // If the domain is public only, skip the decryption and only return the
       // public data (integrity will be verified at the next signature entry)
