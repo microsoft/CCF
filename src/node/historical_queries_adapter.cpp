@@ -20,9 +20,10 @@ namespace ccf
     nlohmann::json out = nlohmann::json::object();
 
     out["signature"] = crypto::b64_from_raw(receipt.signature);
+
+    auto proof = nlohmann::json::array();
     if (receipt.path != nullptr)
     {
-      auto proof = nlohmann::json::array();
       for (const auto& node : *receipt.path)
       {
         auto n = nlohmann::json::object();
@@ -36,8 +37,9 @@ namespace ccf
         }
         proof.emplace_back(std::move(n));
       }
-      out["proof"] = proof;
     }
+    out["proof"] = proof;
+
     out["node_id"] = receipt.node_id;
 
     if (receipt.node_cert.has_value())
