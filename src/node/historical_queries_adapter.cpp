@@ -18,7 +18,7 @@ namespace ccf
   {
     ccf::ReceiptPtr receipt = nullptr;
 
-    if (in.path != nullptr)
+    if (in.path != nullptr && in.commit_evidence.has_value())
     {
       auto expanded_receipt = std::make_shared<LeafExpandedReceipt>();
 

@@ -43,7 +43,11 @@ namespace ccf
 
     j["write_set_digest"] = components.write_set_digest;
     j["commit_evidence"] = components.commit_evidence;
-    j["claims_digest"] = components.claims_digest;
+
+    if (!components.claims_digest.empty())
+    {
+      j["claims_digest"] = components.claims_digest;
+    }
   }
 
   void from_json(const nlohmann::json& j, LeafExpandedReceipt::Components& out)
