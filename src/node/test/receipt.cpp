@@ -194,12 +194,7 @@ TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
       auto ld_receipt = std::make_shared<ccf::LeafExpandedReceipt>();
       ld_receipt->leaf_components.write_set_digest = rand_digest();
       ld_receipt->leaf_components.commit_evidence = "ce:2.4:abcd";
-
-      if (rand() % 2 == 0)
-      {
-        ld_receipt->leaf_components.claims_digest = ccf::ClaimsDigest();
-        ld_receipt->leaf_components.claims_digest->set(rand_digest());
-      }
+      ld_receipt->leaf_components.claims_digest.set(rand_digest());
 
       populate_receipt(ld_receipt);
 

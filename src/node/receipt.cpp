@@ -43,10 +43,7 @@ namespace ccf
 
     j["write_set_digest"] = components.write_set_digest;
     j["commit_evidence"] = components.commit_evidence;
-    if (components.claims_digest.has_value())
-    {
-      j["claims_digest"] = components.claims_digest;
-    }
+    j["claims_digest"] = components.claims_digest;
   }
 
   void from_json(const nlohmann::json& j, LeafExpandedReceipt::Components& out)
@@ -62,6 +59,10 @@ namespace ccf
       LeafExpandedReceipt::Components, write_set_digest);
     FROM_JSON_GET_REQUIRED_FIELD(
       LeafExpandedReceipt::Components, commit_evidence);
+
+    // claims_digest is always _emitted_ by current code, but may be
+    // missing from old receipts. When parsing those from JSON, treat it as
+    // optional
     FROM_JSON_GET_OPTIONAL_FIELD(
       LeafExpandedReceipt::Components, claims_digest);
   }
@@ -81,7 +82,7 @@ namespace ccf
     auto properties = nlohmann::json::object();
 
     {
-      // Not required
+      required.push_back("claims_digest");
       properties["claims_digest"] = ds::openapi::components_ref_object(
         ds::json::schema_name<decltype(
           LeafExpandedReceipt::Components::claims_digest)>());

@@ -92,8 +92,7 @@ namespace ccf
     {
       crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
-      // https://github.com/microsoft/CCF/issues/3606
-      std::optional<ccf::ClaimsDigest> claims_digest;
+      ccf::ClaimsDigest claims_digest;
     };
 
     Components leaf_components;
@@ -101,12 +100,12 @@ namespace ccf
     crypto::Sha256Hash get_leaf_digest() override
     {
       crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
-      if (leaf_components.claims_digest.has_value())
+      if (!leaf_components.claims_digest.empty())
       {
         return crypto::Sha256Hash(
           leaf_components.write_set_digest,
           ce_dgst,
-          leaf_components.claims_digest->value());
+          leaf_components.claims_digest.value());
       }
       else
       {
