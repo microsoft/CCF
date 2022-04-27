@@ -82,8 +82,8 @@ namespace ccf
 
   // Most transactions produce a receipt constructed from a combination of 3
   // digests. Note that transactions emitted by old code versions may not
-  // include a claims_digest, but from 2.0 onwards every transaction will
-  // contain a (potentially default-zero'd) claims digest.
+  // include a claims_digest or a commit_evidence_digest, but from 2.0 onwards every transaction will
+  // contain a (potentially default-zero'd) claims digest and a commit evidence digest.
   class LeafExpandedReceipt : public Receipt
   {
   public:
