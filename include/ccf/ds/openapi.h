@@ -238,7 +238,7 @@ namespace ds
     // recursive implementation for struct-to-object types is created by the
     // json.h macros, and this could be implemented manually for other types.
     template <typename Doc, typename T>
-    void add_schema_components(Doc&, nlohmann::json& j, const T& t)
+    void add_schema_components(Doc&, nlohmann::json& j, const T* t)
     {
       fill_json_schema(j, t);
     }
@@ -340,7 +340,7 @@ namespace ds
 #  pragma clang diagnostic ignored "-Wuninitialized-const-reference"
 #endif
             // Use argument-dependent-lookup to call correct functions
-            T t;
+            T* t = nullptr;
             if constexpr (std::is_enum<T>::value)
             {
               fill_enum_schema(j, t);
