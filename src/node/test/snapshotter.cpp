@@ -364,8 +364,10 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
   size_t snapshot_idx = snapshot_tx_interval + 1;
 
-  INFO("Schedule snapshot");
+  INFO("Trigger snapshot");
   {
+    // It is necessary to record a signature for the snapshot to be
+    // deserialisable by the backup store
     auto tx = network.tables->create_tx();
     auto sigs = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto trees =
@@ -376,7 +378,6 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     tx.commit();
 
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-    LOG_FAIL_FMT("***************************");
     snapshotter->commit(snapshot_idx, true);
 
     // Do not schedule task just yet so that we can interleave ledger rekey
