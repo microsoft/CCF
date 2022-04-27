@@ -86,9 +86,9 @@ void compare_receipts(ccf::ReceiptPtr l, ccf::ReceiptPtr r)
   REQUIRE(l->node_id == r->node_id);
   REQUIRE(l->cert == r->cert);
   REQUIRE(l->service_endorsements == r->service_endorsements);
-  REQUIRE(l->is_signature_transaction == r->is_signature_transaction);
+  REQUIRE(l->is_signature_transaction() == r->is_signature_transaction());
 
-  if (!l->is_signature_transaction)
+  if (!l->is_signature_transaction())
   {
     auto p_l = std::dynamic_pointer_cast<ccf::ProofReceipt>(l);
     REQUIRE(p_l != nullptr);

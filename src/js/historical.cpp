@@ -9,7 +9,7 @@ namespace ccf::js
 
   static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptImplPtr receipt)
   {
-    ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt(*receipt);
+    ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt_v2(*receipt);
     auto& receipt_out = *receipt_out_p;
     auto js_receipt = JS_NewObject(ctx);
 
@@ -23,13 +23,25 @@ namespace ccf::js
       "cert",
       JS_NewString(ctx, receipt_out.cert.str().c_str()));
 
-    if (
-      auto le_receipt =
-        std::dynamic_pointer_cast<ccf::LeafExpandedReceipt>(receipt_out_p))
+    JS_SetPropertyStr(
+      ctx,
+      js_receipt,
+      "node_id",
+      JS_NewString(ctx, receipt_out.node_id.value().c_str()));
+
+    JS_SetPropertyStr(
+      ctx,
+      js_receipt,
+      "is_signature_transaction",
+      JS_NewBool(ctx, receipt_out.is_signature_transaction()));
+
+    if (!receipt_out_p->is_signature_transaction())
     {
+      auto p_receipt =
+        std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_out_p);
       auto leaf_components = JS_NewObject(ctx);
       const auto wsd_hex =
-        ds::to_hex(le_receipt->leaf_components.write_set_digest.h);
+        ds::to_hex(p_receipt->leaf_components.write_set_digest.h);
       JS_SetPropertyStr(
         ctx,
         leaf_components,
@@ -40,12 +52,12 @@ namespace ccf::js
         ctx,
         leaf_components,
         "commit_evidence",
-        JS_NewString(ctx, le_receipt->leaf_components.commit_evidence.c_str()));
+        JS_NewString(ctx, p_receipt->leaf_components.commit_evidence.c_str()));
 
-      if (!le_receipt->leaf_components.claims_digest.empty())
+      if (!p_receipt->leaf_components.claims_digest.empty())
       {
         const auto cd_hex =
-          ds::to_hex(le_receipt->leaf_components.claims_digest.value().h);
+          ds::to_hex(p_receipt->leaf_components.claims_digest.value().h);
         JS_SetPropertyStr(
           ctx,
           leaf_components,
@@ -54,35 +66,34 @@ namespace ccf::js
       }
 
       JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
+
+      auto proof = JS_NewArray(ctx);
+      uint32_t i = 0;
+      for (auto& element : p_receipt->proof)
+      {
+        auto js_element = JS_NewObject(ctx);
+        auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
+        const auto hash_hex = ds::to_hex(element.hash.h);
+        JS_SetPropertyStr(
+          ctx,
+          js_element,
+          is_left ? "left" : "right",
+          JS_NewString(ctx, hash_hex.c_str()));
+        JS_DefinePropertyValueUint32(
+          ctx, proof, i++, js_element, JS_PROP_C_W_E);
+      }
+      JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
     }
     else
     {
-      const auto leaf = receipt_out.get_leaf_digest();
-      const auto leaf_hex = ds::to_hex(leaf.h);
+      auto sig_receipt =
+        std::dynamic_pointer_cast<ccf::SignatureReceipt>(receipt_out_p);
+      const auto signed_root = sig_receipt->signed_root;
+      const auto root_hex = ds::to_hex(signed_root.h);
       JS_SetPropertyStr(
-        ctx, js_receipt, "leaf", JS_NewString(ctx, leaf_hex.c_str()));
+        ctx, js_receipt, "root_hex", JS_NewString(ctx, root_hex.c_str()));
     }
 
-    JS_SetPropertyStr(
-      ctx,
-      js_receipt,
-      "node_id",
-      JS_NewString(ctx, receipt_out.node_id.value().c_str()));
-    auto proof = JS_NewArray(ctx);
-    uint32_t i = 0;
-    for (auto& element : receipt_out.proof)
-    {
-      auto js_element = JS_NewObject(ctx);
-      auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
-      const auto hash_hex = ds::to_hex(element.hash.h);
-      JS_SetPropertyStr(
-        ctx,
-        js_element,
-        is_left ? "left" : "right",
-        JS_NewString(ctx, hash_hex.c_str()));
-      JS_DefinePropertyValueUint32(ctx, proof, i++, js_element, JS_PROP_C_W_E);
-    }
-    JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
     return js_receipt;
   }
 

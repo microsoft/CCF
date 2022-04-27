@@ -29,7 +29,7 @@ namespace ccf
 
     std::vector<crypto::Pem> service_endorsements = {};
 
-    bool is_signature_transaction = false;
+    virtual bool is_signature_transaction() const = 0;
   };
 
   // Most transactions produce a receipt constructed from a combination of 3
@@ -102,6 +102,11 @@ namespace ccf
         return crypto::Sha256Hash(leaf_components.write_set_digest, ce_dgst);
       }
     }
+
+    bool is_signature_transaction() const override
+    {
+       return false;
+    }
   };
 
   // Signature transactions are special, as they contain no proof. They contain
@@ -115,12 +120,17 @@ namespace ccf
     {
       return signed_root;
     };
+
+    bool is_signature_transaction() const override
+    {
+       return true;
+    }
   };
 
   using ReceiptPtr = std::shared_ptr<Receipt>;
 
   // This is an opaque, incomplete type, but can be summarised to a JSON object
-  // by describe_receipt_v1, or a ccf::Receipt by describe_receipt_v2
+  // by describe_receipt_v1, or a ccf::ReceiptPtr by describe_receipt_v2
   struct TxReceiptImpl;
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);

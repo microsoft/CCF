@@ -80,8 +80,7 @@ namespace ccf
 
       auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
       auto receipt_p = j.get<ReceiptPtr>();
-      auto receipt =
-        std::dynamic_pointer_cast<ccf::LeafExpandedReceipt>(receipt_p);
+      auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
       if (receipt == nullptr)
       {
         throw std::logic_error(
@@ -193,8 +192,8 @@ namespace ccf
       commit_evidence,
       cd);
 
-    ReceiptPtr receipt = ccf::describe_receipt(tx_receipt);
-    const auto receipt_str = nlohmann::json(receipt).dump();
+    auto receipt = ccf::describe_receipt_v1(tx_receipt);
+    const auto receipt_str = receipt.dump();
     return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
   }
 }

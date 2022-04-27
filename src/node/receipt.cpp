@@ -178,9 +178,9 @@ namespace ccf
     j["node_id"] = receipt->node_id;
     j["cert"] = receipt->cert;
     j["service_endorsements"] = receipt->service_endorsements;
-    j["is_signature_transaction"] = receipt->is_signature_transaction;
+    j["is_signature_transaction"] = receipt->is_signature_transaction();
 
-    if (receipt->is_signature_transaction)
+    if (receipt->is_signature_transaction())
     {
       throw std::logic_error(
         "Conversion of signature receipts to JSON is currently undefined");
@@ -239,7 +239,6 @@ namespace ccf
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, signature);
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, node_id);
     FROM_JSON_GET_REQUIRED_FIELD(Receipt, cert);
-    FROM_JSON_GET_REQUIRED_FIELD(Receipt, is_signature_transaction);
 
     // service_endorsements is always _emitted_ by current code, but may be
     // missing from old receipts. When parsing those from JSON, treat it as

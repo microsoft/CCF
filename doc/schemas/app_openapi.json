@@ -216,9 +216,9 @@
             "required": [
               "cert",
               "node_id",
-              "proof",
               "service_endorsements",
-              "signature"
+              "signature",
+              "proof"
             ]
           },
           {
@@ -230,7 +230,8 @@
               },
               {
                 "required": [
-                  "leaf_components"
+                  "leaf_components",
+                  "proof"
                 ]
               }
             ]
@@ -305,6 +306,7 @@
           }
         },
         "required": [
+          "claims_digest",
           "commit_evidence",
           "write_set_digest"
         ],

@@ -75,25 +75,27 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
 
-    size_t size = receipt->proof.size();
-    std::vector<v8::Local<v8::Value>> elements;
-    elements.reserve(size);
-    for (auto& element : receipt->proof)
-    {
-      const auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
-      const auto hex_digest = ds::to_hex(element.hash.h);
-      v8::Local<v8::Object> obj = v8::Object::New(isolate);
-      obj
-        ->Set(
-          context,
-          v8_util::to_v8_istr(isolate, is_left ? "left" : "right"),
-          v8_util::to_v8_str(isolate, hex_digest))
-        .Check();
-      elements.push_back(obj);
-    }
+    // TODO
+    // size_t size = receipt->proof.size();
+    // std::vector<v8::Local<v8::Value>> elements;
+    // elements.reserve(size);
+    // for (auto& element : receipt->proof)
+    // {
+    //   const auto is_left =
+    //     element.direction == ccf::ProofReceipt::ProofStep::Left;
+    //   const auto hex_digest = ds::to_hex(element.hash.h);
+    //   v8::Local<v8::Object> obj = v8::Object::New(isolate);
+    //   obj
+    //     ->Set(
+    //       context,
+    //       v8_util::to_v8_istr(isolate, is_left ? "left" : "right"),
+    //       v8_util::to_v8_str(isolate, hex_digest))
+    //     .Check();
+    //   elements.push_back(obj);
+    // }
 
-    v8::Local<v8::Array> array =
-      v8::Array::New(info.GetIsolate(), elements.data(), size);
+    v8::Local<v8::Array> array;
+    // = v8::Array::New(info.GetIsolate(), elements.data(), size);
 
     info.GetReturnValue().Set(array);
   }
@@ -124,7 +126,7 @@ namespace ccf::v8_tmpl
     ccf::ReceiptPtr* receipt_out = new ccf::ReceiptPtr();
     V8Context::from_context(context).register_finalizer(
       [](void* data) { delete static_cast<ccf::Receipt*>(data); }, receipt_out);
-    *receipt_out = ccf::describe_receipt(receipt);
+    *receipt_out = ccf::describe_receipt_v2(receipt);
 
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
