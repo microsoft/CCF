@@ -348,8 +348,6 @@ namespace kv
       public_reader.init(data_public, public_domain_length);
       read_public_header();
 
-      LOG_FAIL_FMT("version: {}, entry_type: {}", version, entry_type);
-
       // If the domain is public only, skip the decryption and only return the
       // public data (integrity will be verified at the next signature entry)
       if (

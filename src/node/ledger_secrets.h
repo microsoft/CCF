@@ -37,9 +37,6 @@ namespace ccf
     LedgerSecretPtr get_secret_for_version(
       kv::Version version, bool historical_hint = false)
     {
-      LOG_FAIL_FMT(
-        "Get secret for version: {}, hint: {}", version, historical_hint);
-
       if (ledger_secrets.empty())
       {
         LOG_FAIL_FMT("Ledger secrets map is empty");
@@ -48,7 +45,6 @@ namespace ccf
 
       if (!historical_hint && last_used_secret_it.has_value())
       {
-        LOG_FAIL_FMT("Here");
         // Fast path for non-historical queries as both primary and backup nodes
         // encrypt/decrypt transactions in order, it is sufficient to keep an
         // iterator on the last used secret to access ledger secrets in constant
@@ -59,11 +55,9 @@ namespace ccf
           version >= std::next(last_used_secret_it_)->first)
         {
           // Across a rekey, start using the next key
-          LOG_FAIL_FMT("There!");
           ++last_used_secret_it_;
         }
 
-        LOG_FAIL_FMT("Returning secret at {}", last_used_secret_it_->first);
         return last_used_secret_it_->second;
       }
 
@@ -92,8 +86,6 @@ namespace ccf
         // store
         last_used_secret_it = std::prev(search);
       }
-
-      LOG_FAIL_FMT("[SLOW] Returning secret at {}", std::prev(search)->first);
 
       return std::prev(search)->second;
     }

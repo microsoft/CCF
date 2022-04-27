@@ -514,8 +514,6 @@ namespace ccf
 
           auto j = serdes::unpack(data, serdes::Pack::Text);
 
-          LOG_FAIL_FMT("Join response: {}", j.dump());
-
           JoinNetworkNodeToNode::Out resp;
           try
           {
