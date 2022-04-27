@@ -55,6 +55,8 @@ namespace ds
       {"%04u-%02u-%02u %02u:%02u:%f %d:%02u", 8},
       {"%04u-%02u-%02uT%02u:%02u:%f %d:%02u", 8},
       {"%04u-%02u-%02u %02u:%02u:%f %03d %02u", 8},
+      {"%02u%02u%02u%02u%02u%02f%03d%02u", 8},
+      {"%04u%02u%02u%02u%02u%02f%03d%02u", 8},
       {"%04u-%02u-%02uT%02u:%02u:%f", 6},
       {"%04u-%02u-%02u %02u:%02u:%f", 6}};
 
@@ -67,6 +69,12 @@ namespace ds
       if (sscanf(ts, fmt, &y, &m, &d, &h, &mn, &s, &oh, &om) == n)
       {
         using namespace std::chrono;
+
+        if (strncmp(fmt, "%02u", 4) == 0)
+        {
+          // ASN.1 two-digit year range
+          y += y >= 50 ? 1900 : 2000;
+        }
 
         auto date = year_month_day(year(y), month(m), day(d));
 

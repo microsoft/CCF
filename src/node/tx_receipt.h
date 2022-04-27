@@ -26,7 +26,9 @@ namespace ccf
       const NodeId& node_id_,
       const std::optional<crypto::Pem>& node_cert_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
+      // Optional to support historical transactions, where it may be absent
       const std::optional<std::string>& commit_evidence_ = std::nullopt,
+      // May not be set on historical transactions
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       const std::optional<std::vector<crypto::Pem>>& service_endorsements_ =
         std::nullopt) :

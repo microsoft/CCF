@@ -45,7 +45,7 @@ namespace ds
     void fill_schema(nlohmann::json& schema);
 
     template <typename T>
-    void fill_json_schema(nlohmann::json& j, const T& t);
+    void fill_json_schema(nlohmann::json& j, const T* t);
 
     template <typename T>
     nlohmann::json schema_element()
@@ -72,14 +72,14 @@ namespace ds
       template <typename T>
       std::string schema_name()
       {
-        T t;
+        T* t = nullptr;
         return schema_name(t);
       }
 
       template <typename T>
       void fill_schema(nlohmann::json& schema)
       {
-        T t;
+        T* t = nullptr;
         if constexpr (std::is_enum<T>::value)
         {
           fill_enum_schema(schema, t);

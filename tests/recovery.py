@@ -551,7 +551,7 @@ def run(args):
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,
-        validator=ccf.ledger.LedgerValidator(),
+        validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
     )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()

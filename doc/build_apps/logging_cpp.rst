@@ -274,4 +274,4 @@ Receipts from this endpoint will then look like:
                            {'left': 'abc9bcbeff670930c34ebdab0f2d57b56e9d393e4dccdccf2db59b5e34507422'}],
                  'signature': 'MGUCMHYBgZ3gySdkJ+STUL13EURVBd8354ULC11l/kjx20IwpXrg/aDYLWYf7tsGwqUxPwIxAMH2wJDd9wpwbQrULpaAx5XEifpUfOriKtYo7XiFr05J+BV10U39xa9GBS49OK47QA=='}}
                  
-Note that the ``claims_digest`` is not present in the ``leaf_components``, and must be re-computed by digesting the ``msg``.
+Note that the ``claims_digest`` is deliberately omitted from ``leaf_components``, and must be re-computed by digesting the ``msg``.
