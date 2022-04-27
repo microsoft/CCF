@@ -19,15 +19,16 @@ namespace ccf::v8_tmpl
   {
     auto receipt_smart_ptr = static_cast<ccf::ReceiptPtr*>(
       get_internal_field(obj, InternalField::Receipt));
-    return *receipt_smart_ptr;
+    return receipt_smart_ptr->get();
   }
 
   static void get_signature(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
+    const auto sig_b64 = crypto::b64_from_raw(receipt->signature);
     v8::Local<v8::String> value =
-      v8_util::to_v8_str(info.GetIsolate(), receipt->signature.c_str());
+      v8_util::to_v8_str(info.GetIsolate(), sig_b64);
     info.GetReturnValue().Set(value);
   }
 
@@ -35,11 +36,8 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
-    v8::Local<v8::Value> value;
-    if (receipt->cert.has_value())
-      value = v8_util::to_v8_str(info.GetIsolate(), receipt->cert.value());
-    else
-      value = v8::Undefined(info.GetIsolate());
+    v8::Local<v8::Value> value =
+      v8_util::to_v8_str(info.GetIsolate(), receipt->cert.str());
     info.GetReturnValue().Set(value);
   }
 
@@ -48,10 +46,15 @@ namespace ccf::v8_tmpl
   {
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::Value> value;
-    if (receipt->leaf.has_value())
-      value = v8_util::to_v8_str(info.GetIsolate(), receipt->leaf.value());
+    if (auto ld_receipt = dynamic_cast<const ccf::LeafDigestReceipt*>(receipt))
+    {
+      const auto leaf_hex = ds::to_hex(ld_receipt->leaf.h);
+      value = v8_util::to_v8_str(info.GetIsolate(), leaf_hex);
+    }
     else
+    {
       value = v8::Undefined(info.GetIsolate());
+    }
     info.GetReturnValue().Set(value);
   }
 
@@ -76,14 +79,14 @@ namespace ccf::v8_tmpl
     elements.reserve(size);
     for (auto& element : receipt->proof)
     {
-      auto is_left = element.left.has_value();
+      const auto is_left = element.direction == ccf::Receipt::ProofStep::Left;
+      const auto hex_digest = ds::to_hex(element.hash.h);
       v8::Local<v8::Object> obj = v8::Object::New(isolate);
       obj
         ->Set(
           context,
           v8_util::to_v8_istr(isolate, is_left ? "left" : "right"),
-          v8_util::to_v8_str(
-            isolate, (is_left ? element.left : element.right).value()))
+          v8_util::to_v8_str(isolate, hex_digest))
         .Check();
       elements.push_back(obj);
     }
@@ -120,7 +123,7 @@ namespace ccf::v8_tmpl
     ccf::ReceiptPtr* receipt_out = new ccf::ReceiptPtr();
     V8Context::from_context(context).register_finalizer(
       [](void* data) { delete static_cast<ccf::Receipt*>(data); }, receipt_out);
-    *receipt_out = ccf::describe_receipt(*receipt);
+    *receipt_out = ccf::describe_receipt(receipt);
 
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
