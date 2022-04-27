@@ -360,7 +360,9 @@ def run_code_upgrade_from(
             # from a snapshot. See https://github.com/microsoft/ccf/issues/3613. In such case,
             # we only verify that the ledger can be parsed, even if some chunks are duplicated.
             # This can go once 2.0 is released.
-            insecure_ledger_verification = from_major_version == 1 and primary.version_after("ccf-2.0.0-rc7")
+            insecure_ledger_verification = (
+                from_major_version == 1 and primary.version_after("ccf-2.0.0-rc7")
+            )
             network.get_latest_ledger_public_state(
                 insecure=insecure_ledger_verification
             )
