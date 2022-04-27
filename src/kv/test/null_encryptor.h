@@ -16,7 +16,8 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      EntryType entry_type = EntryType::WriteSet) override
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) override
     {
       cipher = plain;
       return true;

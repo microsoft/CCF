@@ -63,6 +63,9 @@ namespace kv
      * corresponding with the plaintext
      * @param[in]   entry_type       Indicates the type of the entry to
      * avoid IV re-use
+     * @param[in]   historical_hint   If true, considers all ledger secrets for
+     * encryption. Otherwise, try to use the latest used secret (defaults to
+     * false)
      *
      * @return Boolean status indicating success of encryption.
      */
@@ -72,13 +75,15 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      EntryType entry_type = EntryType::WriteSet) override
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) override
     {
       S hdr;
 
       set_iv(hdr, tx_id, entry_type);
 
-      auto key = ledger_secrets->get_encryption_key_for(tx_id.version);
+      auto key =
+        ledger_secrets->get_encryption_key_for(tx_id.version, historical_hint);
       if (key == nullptr)
       {
         return false;
