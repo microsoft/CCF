@@ -460,7 +460,7 @@ class Node:
 
     def get_ledger_public_state_at(self, seqno, insecure=False):
         validator = ccf.ledger.LedgerValidator() if not insecure else None
-        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths(), validator=validator)
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
 

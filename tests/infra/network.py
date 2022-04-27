@@ -1256,10 +1256,10 @@ class Network:
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
         )
 
-    def get_ledger_public_state_at(self, seqno, timeout=5):
+    def get_ledger_public_state_at(self, seqno, timeout=5, insecure=False):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout
+            primary, primary.get_ledger_public_tables_at, seqno, timeout, insecure
         )
 
     def get_latest_ledger_public_state(self, insecure=False, timeout=5):

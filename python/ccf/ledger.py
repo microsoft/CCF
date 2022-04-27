@@ -959,9 +959,9 @@ class Ledger:
         transaction = None
         for chunk in self:
             _, chunk_end = chunk.get_seqnos()
-            if chunk_end and chunk_end < seqno:
-                continue
             for tx in chunk:
+                if chunk_end and chunk_end < seqno:
+                    continue
                 public_transaction = tx.get_public_domain()
                 if public_transaction.get_seqno() == seqno:
                     return tx
