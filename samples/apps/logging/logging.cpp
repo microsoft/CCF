@@ -940,7 +940,8 @@ namespace loggingapp
             // SNIPPET_START: claims_digest_in_receipt
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
-            auto full_receipt = ccf::describe_receipt(*historical_state->receipt);
+            auto full_receipt =
+              ccf::describe_receipt(*historical_state->receipt);
             out.receipt = full_receipt;
             out.receipt["leaf_components"].erase("claims_digest");
             // SNIPPET_END: claims_digest_in_receipt
