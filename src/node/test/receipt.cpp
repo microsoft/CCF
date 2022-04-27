@@ -64,18 +64,17 @@ void populate_receipt(ccf::ReceiptPtr receipt)
   const auto root = receipt->get_root();
   receipt->signature = node_kp->sign_hash(root.h.data(), root.h.size());
 
-  // TODO
-  // const auto num_endorsements = (rand() % 3) + 2;
-  // for (auto i = 0; i < num_endorsements; ++i)
-  // {
-  //   auto service_kp = crypto::make_key_pair();
-  //   auto service_cert =
-  //     service_kp->self_sign("CN=service", valid_from, valid_to);
-  //   const auto csr = node_kp->create_csr(fmt::format("Test {}", i));
-  //   const auto endorsement =
-  //     service_kp->sign_csr(service_cert, csr, valid_from, valid_to);
-  //   receipt->service_endorsements.push_back(endorsement);
-  // }
+  const auto num_endorsements = rand() % 3;
+  for (auto i = 0; i < num_endorsements; ++i)
+  {
+    auto service_kp = crypto::make_key_pair();
+    auto service_cert =
+      service_kp->self_sign("CN=service", valid_from, valid_to);
+    const auto csr = node_kp->create_csr(fmt::format("CN=Test{}", i));
+    const auto endorsement =
+      service_kp->sign_csr(service_cert, csr, valid_from, valid_to);
+    receipt->service_endorsements.push_back(endorsement);
+  }
 }
 
 void compare_receipts(ccf::ReceiptPtr l, ccf::ReceiptPtr r)
