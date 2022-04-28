@@ -935,7 +935,7 @@ class CCFRemote(object):
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        # It is possible that snapshots are committed while the copy is happening 
+        # It is possible that snapshots are committed while the copy is happening
         # so retry a reasonable number of times.
         max_retry_count = 5
         retry_count = 0
