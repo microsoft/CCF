@@ -249,7 +249,7 @@ namespace ccf
       no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
-      .set_auto_schema<void, ccf::ReceiptPtr>()
+      .set_auto_schema<void, nlohmann::json>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .install();
   }

@@ -244,19 +244,8 @@
         ],
         "type": "string"
       },
-      "NodeId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
       "Pem": {
         "type": "string"
-      },
-      "Pem_array": {
-        "items": {
-          "$ref": "#/components/schemas/Pem"
-        },
-        "type": "array"
       },
       "Proposal": {
         "properties": {
@@ -340,113 +329,6 @@
         ],
         "type": "string"
       },
-      "Receipt": {
-        "allOf": [
-          {
-            "required": [
-              "cert",
-              "node_id",
-              "service_endorsements",
-              "signature",
-              "proof"
-            ]
-          },
-          {
-            "oneOf": [
-              {
-                "required": [
-                  "leaf"
-                ]
-              },
-              {
-                "required": [
-                  "leaf_components",
-                  "proof"
-                ]
-              }
-            ]
-          }
-        ],
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/Pem"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/Sha256Digest"
-          },
-          "leaf_components": {
-            "$ref": "#/components/schemas/Receipt__LeafComponents"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/NodeId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/Receipt__Element_array"
-          },
-          "service_endorsements": {
-            "$ref": "#/components/schemas/Pem_array"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/base64string"
-          }
-        },
-        "type": "object"
-      },
-      "Receipt__Element": {
-        "oneOf": [
-          {
-            "properties": {
-              "left": {
-                "$ref": "#/components/schemas/Sha256Digest"
-              }
-            },
-            "required": [
-              "left"
-            ]
-          },
-          {
-            "properties": {
-              "right": {
-                "$ref": "#/components/schemas/Sha256Digest"
-              }
-            },
-            "required": [
-              "right"
-            ]
-          }
-        ],
-        "type": "object"
-      },
-      "Receipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/Receipt__Element"
-        },
-        "type": "array"
-      },
-      "Receipt__LeafComponents": {
-        "properties": {
-          "claims_digest": {
-            "$ref": "#/components/schemas/Sha256Digest"
-          },
-          "commit_evidence": {
-            "$ref": "#/components/schemas/string"
-          },
-          "write_set_digest": {
-            "$ref": "#/components/schemas/Sha256Digest"
-          }
-        },
-        "required": [
-          "claims_digest",
-          "commit_evidence",
-          "write_set_digest"
-        ],
-        "type": "object"
-      },
-      "Sha256Digest": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{32}$",
-        "type": "string"
-      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -491,10 +373,6 @@
           "Committed",
           "Invalid"
         ],
-        "type": "string"
-      },
-      "base64string": {
-        "format": "base64",
         "type": "string"
       },
       "boolean": {
@@ -919,7 +797,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
