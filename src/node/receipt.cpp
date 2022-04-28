@@ -207,32 +207,73 @@ namespace ccf
     }
 
     const auto is_sig_it = j.find("is_signature_transaction");
-    if (is_sig_it == j.end())
+    if (is_sig_it != j.end())
     {
-      throw JsonParseError(fmt::format(
-        "Cannot parse Receipt: Expected 'is_signature_transaction' "
-        "field, got {}",
-        j.dump()));
-    }
+      const bool is_sig = is_sig_it->get<bool>();
 
-    const bool is_sig = is_sig_it->get<bool>();
+      if (!is_sig)
+      {
+        auto p_receipt = std::make_shared<ProofReceipt>();
 
-    if (!is_sig)
-    {
-      auto p_receipt = std::make_shared<ProofReceipt>();
+        auto& out = *p_receipt;
+        FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, leaf_components);
+        FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, proof);
 
-      auto& out = *p_receipt;
-      FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, leaf_components);
-      FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, proof);
-
-      receipt = p_receipt;
+        receipt = p_receipt;
+      }
+      else
+      {
+        throw JsonParseError(fmt::format(
+          "Cannot parse Receipt: Expected 'leaf_components' and 'proof'"
+          "fields, got {}",
+          j.dump()));
+      }
     }
     else
     {
-      throw JsonParseError(fmt::format(
-        "Cannot parse Receipt: Expected 'leaf_components' and 'proof'"
-        "fields, got {}",
-        j.dump()));
+      // An old receipt format! Look for leaf field or leaf_components, and
+      // parse to new representation accordingly
+      const auto leaf_it = j.find("leaf");
+      const auto has_leaf = leaf_it != j.end();
+
+      const auto leaf_components_it = j.find("leaf_components");
+      const auto has_leaf_components = leaf_components_it != j.end();
+
+      if (has_leaf && !has_leaf_components)
+      {
+        auto sig_receipt = std::make_shared<SignatureReceipt>();
+
+        try
+        {
+          sig_receipt->signed_root =
+            leaf_it->get<decltype(SignatureReceipt::signed_root)>();
+        }
+        catch (JsonParseError& jpe)
+        {
+          jpe.pointer_elements.push_back("leaf");
+          throw;
+        }
+
+        receipt = sig_receipt;
+      }
+      else if (!has_leaf && has_leaf_components)
+      {
+        auto p_receipt = std::make_shared<ProofReceipt>();
+
+        auto& out = *p_receipt;
+        FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, leaf_components);
+        FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt, proof);
+
+        receipt = p_receipt;
+      }
+      else
+      {
+        throw JsonParseError(fmt::format(
+          "Cannot parse v1 Receipt: Expected either 'leaf' or "
+          "'leaf_components' "
+          "field, got {}",
+          j.dump()));
+      }
     }
 
     auto& out = *receipt;
