@@ -60,6 +60,8 @@ namespace kv
       const TxID& tx_id_,
       EntryType entry_type_,
       SerialisedEntryFlags header_flags_,
+      // The evidence and claims digest must be systematically present
+      // in regular transactions, but absent in snapshots.
       const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
@@ -235,7 +237,9 @@ namespace kv
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
+    // Present systematically in regular transactions, but absent from snapshots
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
+    // Present systematically in regular transactions, but absent from snapshots
     std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;

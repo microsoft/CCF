@@ -77,7 +77,7 @@ def run(args):
 
             # To be sure, confirm that the app frontend is open on each node
             for node in nodes:
-                with node.client("user0") as c:
+                with node.client() as c:
                     if args.verbose:
                         r = c.get("/app/commit")
                     else:

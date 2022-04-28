@@ -128,13 +128,13 @@ namespace kv
     ni.port = p;
   }
 
-  inline std::string schema_name(const Configuration::NodeInfo&)
+  inline std::string schema_name(const Configuration::NodeInfo*)
   {
     return "Configuration__NodeInfo";
   }
 
   inline void fill_json_schema(
-    nlohmann::json& schema, const Configuration::NodeInfo&)
+    nlohmann::json& schema, const Configuration::NodeInfo*)
   {
     schema["type"] = "object";
     schema["required"] = nlohmann::json::array();
@@ -259,7 +259,6 @@ namespace kv
   using BatchVector = std::vector<std::tuple<
     Version,
     std::shared_ptr<std::vector<uint8_t>>,
-    bool,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
@@ -693,8 +692,6 @@ namespace kv
     // Thus, a large rollback is one which did not result from the map creating
     // issue. https://github.com/microsoft/CCF/issues/2799
     virtual bool should_rollback_to_last_committed() = 0;
-
-    bool force_ledger_chunk = false;
   };
 
   class AbstractStore
@@ -757,6 +754,8 @@ namespace kv
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
+    virtual bool must_force_ledger_chunk(Version version) = 0;
+    virtual bool must_force_ledger_chunk_unsafe(Version version) = 0;
 
     virtual size_t committable_gap() = 0;
 

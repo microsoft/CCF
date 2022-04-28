@@ -117,12 +117,12 @@ namespace crypto
     }
   }
 
-  inline std::string schema_name(const Pem&)
+  inline std::string schema_name(const Pem*)
   {
     return "Pem";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const Pem&)
+  inline void fill_json_schema(nlohmann::json& schema, const Pem*)
   {
     schema["type"] = "string";
   }

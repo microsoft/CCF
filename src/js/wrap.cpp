@@ -657,6 +657,7 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       LOG_FAIL_FMT("Unable to open service: {}", e.what());
+      return JS_ThrowInternalError(ctx, "Unable to open service: %s", e.what());
     }
 
     return JS_UNDEFINED;
@@ -750,10 +751,17 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    auto renewed_cert =
-      network->identity->issue_certificate(valid_from, validity_period_days);
+    try
+    {
+      auto renewed_cert =
+        network->identity->issue_certificate(valid_from, validity_period_days);
 
-    return JS_NewString(ctx, renewed_cert.str().c_str());
+      return JS_NewString(ctx, renewed_cert.str().c_str());
+    }
+    catch (std::exception& exc)
+    {
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+    }
   }
 
   JSValue js_network_latest_ledger_secret_seqno(

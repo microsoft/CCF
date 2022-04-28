@@ -56,6 +56,9 @@ def check_endorsement(endorsee: Certificate, endorser: Certificate):
 def check_endorsements(
     node_cert: Certificate, service_cert: Certificate, endorsements: List[Certificate]
 ):
+    """
+    Check a node certificate is endorsed by a service certificate, transitively through a list of endorsements.
+    """
     cert_i = node_cert
     for endorsement in endorsements:
         check_endorsement(cert_i, endorsement)
