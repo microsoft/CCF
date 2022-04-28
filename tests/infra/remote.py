@@ -935,11 +935,25 @@ class CCFRemote(object):
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        self.remote.get(
-            self.snapshot_dir_name,
-            self.common_dir,
-            pre_condition_func=pre_condition_func,
-        )
+        # It is possible that snapshots are committed while the copy is happening 
+        # so retry a reasonable number of times.
+        max_retry_count = 5
+        retry_count = 0
+        while retry_count < max_retry_count:
+            try:
+                self.remote.get(
+                    self.snapshot_dir_name,
+                    self.common_dir,
+                    pre_condition_func=pre_condition_func,
+                )
+                break
+            except Exception as e:
+                LOG.warning(
+                    f"Error copying committed snapshots from {self.snapshot_dir_name}: {e}. Retrying..."
+                )
+                retry_count += 1
+                time.sleep(0.1)
+
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def log_path(self):
