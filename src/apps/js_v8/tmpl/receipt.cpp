@@ -44,19 +44,10 @@ namespace ccf::v8_tmpl
   static void get_leaf(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    // ccf::Receipt* receipt = unwrap_receipt(info.Holder());
-    v8::Local<v8::Value> value;
-    // if (auto ld_receipt = dynamic_cast<const
-    // ccf::LeafDigestReceipt*>(receipt))
-    // {
-    //   const auto leaf_hex = ds::to_hex(ld_receipt->leaf.h);
-    //   value = v8_util::to_v8_str(info.GetIsolate(), leaf_hex);
-    // }
-    // else
-    {
-      value = v8::Undefined(info.GetIsolate());
-    }
-    info.GetReturnValue().Set(value);
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::String> what =
+      v8_util::to_v8_str(isolate, "leaf is unimplemented in v8");
+    isolate->ThrowException(what);
   }
 
   static void get_node_id(
@@ -72,32 +63,9 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
     v8::Isolate* isolate = info.GetIsolate();
-    v8::Local<v8::Context> context = isolate->GetCurrentContext();
-    ccf::Receipt* receipt = unwrap_receipt(info.Holder());
-
-    // TODO
-    // size_t size = receipt->proof.size();
-    // std::vector<v8::Local<v8::Value>> elements;
-    // elements.reserve(size);
-    // for (auto& element : receipt->proof)
-    // {
-    //   const auto is_left =
-    //     element.direction == ccf::ProofReceipt::ProofStep::Left;
-    //   const auto hex_digest = ds::to_hex(element.hash.h);
-    //   v8::Local<v8::Object> obj = v8::Object::New(isolate);
-    //   obj
-    //     ->Set(
-    //       context,
-    //       v8_util::to_v8_istr(isolate, is_left ? "left" : "right"),
-    //       v8_util::to_v8_str(isolate, hex_digest))
-    //     .Check();
-    //   elements.push_back(obj);
-    // }
-
-    v8::Local<v8::Array> array;
-    // = v8::Array::New(info.GetIsolate(), elements.data(), size);
-
-    info.GetReturnValue().Set(array);
+    v8::Local<v8::String> what =
+      v8_util::to_v8_str(isolate, "proof is unimplemented in v8");
+    isolate->ThrowException(what);
   }
 
   v8::Local<v8::ObjectTemplate> Receipt::create_template(v8::Isolate* isolate)

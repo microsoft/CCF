@@ -105,7 +105,7 @@ namespace ccf
 
     bool is_signature_transaction() const override
     {
-       return false;
+      return false;
     }
   };
 
@@ -123,7 +123,7 @@ namespace ccf
 
     bool is_signature_transaction() const override
     {
-       return true;
+      return true;
     }
   };
 
