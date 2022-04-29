@@ -185,6 +185,8 @@ namespace ccf
 
     void try_emit_signature() override {}
 
+    void start_signature_emit_timer() override {}
+
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return crypto::Sha256Hash(std::to_string(version));
@@ -506,7 +508,7 @@ namespace ccf
       }
     }
 
-    void start_signature_emit_timer()
+    void start_signature_emit_timer() override
     {
       struct EmitSigMsg
       {
@@ -752,6 +754,12 @@ namespace ccf
         return;
       }
 
+      if (!endorsed_cert.has_value())
+      {
+        throw std::logic_error(
+          fmt::format("No endorsed certificate set to emit signature"));
+      }
+
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
@@ -766,8 +774,6 @@ namespace ccf
         commit_txid.term,
         commit_txid.version,
         commit_txid.previous_version);
-
-      assert(endorsed_cert.has_value());
 
       store.commit(
         txid,

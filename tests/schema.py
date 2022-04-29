@@ -80,6 +80,10 @@ def run(args):
                     LOG.error(f"Writing to {alt_file} for comparison")
                     with open(alt_file, "w", encoding="utf-8") as f2:
                         f2.write(formatted_schema)
+                    try:
+                        old_schema.remove(alt_file)
+                    except KeyError:
+                        pass
                 changed_files.append(openapi_target_file)
             else:
                 LOG.debug("Schema matches in {}".format(openapi_target_file))

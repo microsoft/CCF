@@ -236,7 +236,7 @@ namespace ccf
           ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
         assert(historical_state->receipt);
-        ccf::Receipt out = ccf::describe_receipt(historical_state->receipt);
+        auto out = ccf::describe_receipt_v1(*historical_state->receipt);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
       };
@@ -249,7 +249,7 @@ namespace ccf
       no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
-      .set_auto_schema<void, ccf::Receipt>()
+      .set_auto_schema<void, nlohmann::json>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .install();
   }
