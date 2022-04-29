@@ -989,6 +989,7 @@ namespace ccf
     void advance_part_of_public_network()
     {
       std::lock_guard<std::mutex> guard(lock);
+      sm.expect(NodeStartupState::readingPublicLedger);
       history->start_signature_emit_timer();
       sm.advance(NodeStartupState::partOfPublicNetwork);
     }
