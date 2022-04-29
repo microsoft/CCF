@@ -1470,8 +1470,9 @@ def test_rekey(network, args):
 @reqs.description("Test UDP echo endpoint")
 @reqs.at_least_n_nodes(1)
 def test_udp_echo(network, args):
+    # For now, only test UDP on primary
     primary, _ = network.find_primary()
-    udp_interface = primary.host.rpc_interfaces["secondary_rpc_interface"]
+    udp_interface = primary.host.rpc_interfaces["udp_interface"]
     host = udp_interface.public_host
     port = udp_interface.public_port
     LOG.info(f"Testing UDP echo server at {host}:{port}")
@@ -1479,20 +1480,25 @@ def test_udp_echo(network, args):
     server_address = (host, port)
     buffer_size = 1024
     test_string = b"Some random text"
+    attempts = 10
+    attempt = 1
 
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.sendto(test_string, server_address)
-        recv = s.recvfrom(buffer_size)
-
-    text = recv[0]
-    LOG.info(f"Testing UDP echo server received {text}")
-    assert text == test_string
+    while attempt <= attempts:
+        LOG.info(f"Testing UDP echo server sending '{test_string}'")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.sendto(test_string, server_address)
+            recv = s.recvfrom(buffer_size)
+        text = recv[0]
+        LOG.info(f"Testing UDP echo server received '{text}'")
+        assert text == test_string
+        attempt = attempt + 1
 
 
 def run_udp_tests(args):
-    # Register secondary interface as an UDP socket on first node
-    udp_interface = infra.interfaces.make_secondary_interface("udp")
-    args.nodes[0].rpc_interfaces.update(udp_interface)
+    # Register secondary interface as an UDP socket on all nodes
+    udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
+    for node in args.nodes:
+        node.rpc_interfaces.update(udp_interface)
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(

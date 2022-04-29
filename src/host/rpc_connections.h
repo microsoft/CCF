@@ -202,7 +202,7 @@ namespace asynchost
         {
           auto [addr_family, addr_data] = quic::sockaddr_encode(addr);
 
-          LOG_DEBUG_FMT("rpc udp read {}: {}", id, len);
+          LOG_DEBUG_FMT("rpc udp read into ring buffer {}: {}", id, len);
           RINGBUFFER_WRITE_MESSAGE(
             quic::quic_inbound,
             parent.to_enclave,

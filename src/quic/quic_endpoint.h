@@ -366,22 +366,20 @@ namespace quic
         throw std::runtime_error("Called handle_recv from incorrect thread");
       }
 
-      int len_read = 0;
+      size_t len_read = 0;
       for (auto& read : pending_reads)
       {
         // Only handle pending reads that belong to the same address
         if (!memcmp((void*)&addr, (void*)&read.addr, sizeof(addr)))
           continue;
 
-        // Use the pending data vector. This is populated when the host
-        // writes a chunk larger than the size requested by the enclave.
         size_t rd = std::min(len, read.len);
         ::memcpy(buf, read.req, rd);
-        read.erase(rd);
+        read.clear = true;
 
+        // UDP packets are datagrams, so it's either whole or nothing
         len_read += rd;
-        len -= rd;
-        if (len == 0)
+        if (len_read >= len)
           break;
       }
 

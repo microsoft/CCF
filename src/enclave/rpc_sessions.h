@@ -332,6 +332,7 @@ namespace ccf
 
         if (udp)
         {
+          LOG_DEBUG_FMT("New UDP endpoint at {}", id);
           auto session = std::make_shared<QUICEndpointImpl>(
             rpc_map, id, listen_interface_id, writer_factory);
           sessions.insert(std::make_pair(
@@ -463,6 +464,8 @@ namespace ccf
         disp, quic::quic_inbound, [this](const uint8_t* data, size_t size) {
           auto [id, addr_family, addr_data, body] =
             ringbuffer::read_message<quic::quic_inbound>(data, size);
+
+          LOG_DEBUG_FMT("rpc udp read from ring buffer {}: {}", id, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
