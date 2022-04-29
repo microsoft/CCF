@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Primary node now also reports time at which the ack from each backup node was last received (`GET /node/consensus` endpoint). This can be used by operators to detect one-way partitions between the primary and backup nodes (#3769).
+- Current receipt format is now exposed to C++ applications as `ccf::Receipt`, retrieved from `describe_receipt_v2`. Note that the previous JSON format is still available, but must be retrieved as a JSON object from `describe_receipt_v1`.
 
 ## [2.0.0-rc7]
 

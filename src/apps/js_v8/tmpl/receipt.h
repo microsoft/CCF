@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/tx_receipt.h"
+#include "node/tx_receipt_impl.h"
 
 #include <v8.h>
 
@@ -15,7 +15,7 @@ namespace ccf::v8_tmpl
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
     static v8::Local<v8::Object> wrap(
-      v8::Local<v8::Context> context, const ccf::TxReceipt& receipt);
+      v8::Local<v8::Context> context, const ccf::TxReceiptImpl& receipt);
   };
 
 } // namespace ccf::v8_tmpl
