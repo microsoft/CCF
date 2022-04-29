@@ -26,6 +26,7 @@ RUN ["/bin/bash", "-c", "wget -r -l1 --no-parent -nd -A *sgx_$(echo ${PSW_VERSIO
 RUN ["/bin/bash", "-c", "mv *sgx_$(echo ${PSW_VERSION//./_})_${UBUNTU}_custom_version.cfg /etc/apt/preferences.d/intel-sgx.pref"]
 
 COPY getting_started/setup_vm/ /setup_vm/
+COPY open-enclave_0.17.0_amd64.deb /tmp/open-enclave_0.17.0_amd64.deb
 RUN apt update \
     && apt install -y ansible software-properties-common bsdmainutils dnsutils \
     && cd setup_vm \
