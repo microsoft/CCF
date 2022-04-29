@@ -176,22 +176,6 @@ def run(get_command, args):
                         else:
                             LOG.warning(f"Skipping upload for {remote_client.name}")
 
-                    primary, _ = network.find_primary()
-                    with primary.client() as nc:
-                        r = nc.get("/node/memory")
-                        assert r.status_code == http.HTTPStatus.OK.value
-
-                        results = r.body.json()
-
-                        # Construct name for heap metric, removing ^ suffix if present
-                        heap_peak_metric = args.label
-                        if heap_peak_metric.endswith("^"):
-                            heap_peak_metric = heap_peak_metric[:-1]
-                        heap_peak_metric += "_mem"
-
-                        peak_value = results["peak_allocated_heap_size"]
-                        metrics.put(heap_peak_metric, peak_value)
-
                     for remote_client in clients:
                         remote_client.stop()
 
