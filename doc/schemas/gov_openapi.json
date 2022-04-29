@@ -244,19 +244,8 @@
         ],
         "type": "string"
       },
-      "NodeId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
       "Pem": {
         "type": "string"
-      },
-      "Pem_array": {
-        "items": {
-          "$ref": "#/components/schemas/Pem"
-        },
-        "type": "array"
       },
       "Proposal": {
         "properties": {
@@ -340,71 +329,6 @@
         ],
         "type": "string"
       },
-      "Receipt": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf_components": {
-            "$ref": "#/components/schemas/Receipt__LeafComponents"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/NodeId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/Receipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "service_endorsements": {
-            "$ref": "#/components/schemas/Pem_array"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "proof",
-          "node_id"
-        ],
-        "type": "object"
-      },
-      "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "Receipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/Receipt__Element"
-        },
-        "type": "array"
-      },
-      "Receipt__LeafComponents": {
-        "properties": {
-          "claims_digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "commit_evidence": {
-            "$ref": "#/components/schemas/string"
-          },
-          "write_set_digest": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -481,7 +405,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.7.1"
+    "version": "2.7.2"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -873,7 +797,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },

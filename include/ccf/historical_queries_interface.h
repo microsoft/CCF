@@ -11,19 +11,6 @@
 #include <chrono>
 #include <memory>
 
-namespace ccf
-{
-  // This is an opaque, incomplete type, but can be summarised to a
-  // JSON-serialisable form by the functions below
-  struct TxReceipt;
-  using TxReceiptPtr = std::shared_ptr<TxReceipt>;
-
-  ccf::Receipt describe_receipt(
-    const TxReceipt& receipt, bool include_root = false);
-  ccf::Receipt describe_receipt(
-    const TxReceiptPtr& receipt_ptr, bool include_root = false);
-}
-
 namespace ccf::historical
 {
   struct State
@@ -31,13 +18,13 @@ namespace ccf::historical
     /// Read-only historical store at transaction_id
     kv::ReadOnlyStorePtr store = nullptr;
     /// Receipt for ledger entry at transaction_id
-    TxReceiptPtr receipt = nullptr;
+    TxReceiptImplPtr receipt = nullptr;
     /// View and Sequence Number for the State
     ccf::TxID transaction_id;
 
     State(
       const kv::ReadOnlyStorePtr& store_,
-      const TxReceiptPtr& receipt_,
+      const TxReceiptImplPtr& receipt_,
       const ccf::TxID& transaction_id_) :
       store(store_),
       receipt(receipt_),

@@ -7,79 +7,151 @@
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
-#include "node/tx_receipt.h"
+#include "node/tx_receipt_impl.h"
 
 namespace ccf
 {
   static std::map<crypto::Pem, std::vector<crypto::Pem>>
     service_endorsement_cache;
 
-  ccf::Receipt describe_receipt(const TxReceipt& receipt, bool include_root)
+  nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt)
   {
-    ccf::Receipt out;
-    out.signature = crypto::b64_from_raw(receipt.signature);
-    if (include_root)
-    {
-      out.root = receipt.root.to_string();
-    }
+    // Legacy JSON format, retained for compatibility
+    nlohmann::json out = nlohmann::json::object();
+
+    out["signature"] = crypto::b64_from_raw(receipt.signature);
+
+    auto proof = nlohmann::json::array();
     if (receipt.path != nullptr)
     {
       for (const auto& node : *receipt.path)
       {
-        ccf::Receipt::Element n;
+        auto n = nlohmann::json::object();
         if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
         {
-          n.left = node.hash.to_string();
+          n["left"] = node.hash.to_string();
         }
         else
         {
-          n.right = node.hash.to_string();
+          n["right"] = node.hash.to_string();
         }
-        out.proof.emplace_back(std::move(n));
+        proof.emplace_back(std::move(n));
       }
     }
-    out.node_id = receipt.node_id;
+    out["proof"] = proof;
+
+    out["node_id"] = receipt.node_id;
 
     if (receipt.node_cert.has_value())
     {
-      out.cert = receipt.node_cert->str();
+      out["cert"] = receipt.node_cert->str();
     }
 
     if (receipt.path == nullptr)
     {
       // Signature transaction
-      out.leaf = receipt.root.to_string();
+      out["leaf"] = receipt.root.to_string();
     }
     else if (!receipt.commit_evidence.has_value())
     {
-      out.leaf = receipt.write_set_digest->hex_str();
+      out["leaf"] = receipt.write_set_digest->hex_str();
     }
     else
     {
-      std::optional<std::string> write_set_digest_str = std::nullopt;
+      auto leaf_components = nlohmann::json::object();
       if (receipt.write_set_digest.has_value())
-        write_set_digest_str = receipt.write_set_digest->hex_str();
-      std::optional<std::string> claims_digest_str = std::nullopt;
+      {
+        leaf_components["write_set_digest"] =
+          receipt.write_set_digest->hex_str();
+      }
+
+      if (receipt.commit_evidence.has_value())
+      {
+        leaf_components["commit_evidence"] = receipt.commit_evidence.value();
+      }
+
       if (!receipt.claims_digest.empty())
-        claims_digest_str = receipt.claims_digest.value().hex_str();
-      out.leaf_components = Receipt::LeafComponents{
-        write_set_digest_str, receipt.commit_evidence, claims_digest_str};
+      {
+        leaf_components["claims_digest"] =
+          receipt.claims_digest.value().hex_str();
+      }
+      out["leaf_components"] = leaf_components;
     }
 
-    out.service_endorsements = receipt.service_endorsements;
+    if (receipt.service_endorsements.has_value())
+    {
+      out["service_endorsements"] = receipt.service_endorsements;
+    }
 
     return out;
   }
 
-  ccf::Receipt describe_receipt(
-    const TxReceiptPtr& receipt_ptr, bool include_root)
+  ccf::ReceiptPtr describe_receipt_v2(const TxReceiptImpl& in)
   {
-    if (receipt_ptr == nullptr)
+    ccf::ReceiptPtr receipt = nullptr;
+
+    if (in.path != nullptr && in.commit_evidence.has_value())
     {
-      throw std::runtime_error("Cannot describe nullptr receipt");
+      auto proof_receipt = std::make_shared<ProofReceipt>();
+
+      proof_receipt->proof.reserve(in.path->size());
+      for (const auto& node : *in.path)
+      {
+        const auto direction =
+          node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
+          ccf::ProofReceipt::ProofStep::Left :
+          ccf::ProofReceipt::ProofStep::Right;
+        const auto hash = crypto::Sha256Hash::from_span(
+          {node.hash.bytes, sizeof(node.hash.bytes)});
+        proof_receipt->proof.push_back({direction, hash});
+      }
+
+      if (in.write_set_digest.has_value())
+      {
+        proof_receipt->leaf_components.write_set_digest =
+          in.write_set_digest.value();
+      }
+
+      if (in.commit_evidence.has_value())
+      {
+        proof_receipt->leaf_components.commit_evidence =
+          in.commit_evidence.value();
+      }
+
+      if (!in.claims_digest.empty())
+      {
+        proof_receipt->leaf_components.claims_digest = in.claims_digest;
+      }
+
+      receipt = proof_receipt;
+    }
+    else
+    {
+      // Signature transaction
+      auto sig_receipt = std::make_shared<SignatureReceipt>();
+      sig_receipt->signed_root =
+        crypto::Sha256Hash::from_span({in.root.bytes, sizeof(in.root.bytes)});
+
+      receipt = sig_receipt;
     }
 
-    return describe_receipt(*receipt_ptr, include_root);
+    auto& out = *receipt;
+
+    out.signature = in.signature;
+
+    out.node_id = in.node_id;
+
+    if (in.node_cert.has_value())
+    {
+      out.cert = in.node_cert.value();
+    }
+
+    if (in.service_endorsements.has_value())
+    {
+      out.service_endorsements = in.service_endorsements.value();
+    }
+
+    return receipt;
   }
 }
 
