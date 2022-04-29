@@ -44,10 +44,20 @@ namespace kv
       // Set the execution dependency for the snapshot to be the version
       // previous to said snapshot to ensure that the correct snapshot is
       // serialized.
-      // Note: Snapshots are always taken at compacted state so version only is
+      // Notes:
+      // - Snapshots are always taken at compacted state so version only is
       // unique enough to prevent IV reuse
+      // - Because snapshot generation and ledger rekey can be interleaved,
+      // consider historical ledger secrets when encrypting snapshot (see
+      // https://github.com/microsoft/CCF/issues/3796).
       KvStoreSerialiser serialiser(
-        encryptor, {0, version}, kv::EntryType::Snapshot, 0);
+        encryptor,
+        {0, version},
+        kv::EntryType::Snapshot,
+        0,
+        {},
+        ccf::no_claims(),
+        true /* historical_hint */);
 
       if (hash_at_snapshot.has_value())
       {
