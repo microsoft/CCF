@@ -263,7 +263,8 @@ def run(args):
 
         network.ignore_error_pattern_on_shutdown("Could not open ledger file")
 
-        test_ledger_chunk_removal(network, args)
+        # TODO: Restore
+        # test_ledger_chunk_removal(network, args)
         test_ledger_chunk_truncation(network, args)
         # test_ledger_chunk_tampering(network, args)
 

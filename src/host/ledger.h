@@ -356,6 +356,8 @@ namespace asynchost
 
     std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
     {
+      // TODO: Remove these LOGs
+      LOG_INFO_FMT("About to try read_entries({}, {})", from, to);
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
         LOG_FAIL_FMT("Unknown entries range: {} - {}", from, to);
@@ -364,13 +366,14 @@ namespace asynchost
 
       std::unique_lock<std::mutex> guard(file_lock);
       auto size = entries_size(from, to);
+      LOG_INFO_FMT("Calculated size {}", size);
       std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
       if (fread(entries.data(), size, 1, file) != 1)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to read entry range {} - {} from file", from, to));
+        LOG_FAIL_FMT("Failed to read entry range {} - {} from file", from, to);
+        return std::nullopt;
       }
 
       return entries;
@@ -741,6 +744,7 @@ namespace asynchost
         auto v = f_from->read_entries(idx, to_);
         if (!v.has_value())
         {
+          LOG_INFO_FMT("[{}] Read entries returned nullopt", idx);
           return std::nullopt;
         }
         entries.insert(
@@ -1239,8 +1243,11 @@ namespace asynchost
       std::optional<std::vector<uint8_t>>&& entries,
       consensus::LedgerRequestPurpose purpose)
     {
+      LOG_INFO_FMT(
+        "Responding about {} to {} for {}", from_idx, to_idx, purpose);
       if (entries.has_value())
       {
+        LOG_INFO_FMT("Contains {} bytes", entries->size());
         RINGBUFFER_WRITE_MESSAGE(
           consensus::ledger_entry_range,
           to_enclave,
@@ -1251,6 +1258,7 @@ namespace asynchost
       }
       else
       {
+        LOG_INFO_FMT("No entries!");
         RINGBUFFER_WRITE_MESSAGE(
           consensus::ledger_no_entry_range,
           to_enclave,
@@ -1313,6 +1321,9 @@ namespace asynchost
           auto [from_idx, to_idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get_range>(data, size);
 
+          LOG_INFO_FMT(
+            "Reading from {} to {} for {}", from_idx, to_idx, purpose);
+
           // Recovery reads ledger in fixed-size batches until it reaches the
           // end of the ledger. When the end of the ledger is reached, we return
           // as many entries as possible including the very last one.
@@ -1320,6 +1331,7 @@ namespace asynchost
 
           if (is_in_committed_file(to_idx))
           {
+            LOG_INFO_FMT("In committed file");
             // Start an asynchronous job to do this, since it is committed and
             // can be accessed independently (and in parallel)
             uv_work_t* work_handle = new uv_work_t;
@@ -1354,6 +1366,7 @@ namespace asynchost
           }
           else
           {
+            LOG_INFO_FMT("In UNcommitted file");
             // Read synchronously, since this accesses uncommitted state and
             // must accurately reflect changing files
             write_ledger_get_range_response(
