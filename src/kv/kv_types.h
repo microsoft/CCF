@@ -454,6 +454,7 @@ namespace kv
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
     virtual void set_endorsed_certificate(const crypto::Pem& cert) = 0;
+    virtual void start_signature_emit_timer() = 0;
   };
 
   class Consensus : public ConfigurableConsensus
@@ -573,7 +574,8 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      EntryType entry_type = EntryType::WriteSet) = 0;
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
