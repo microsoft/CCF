@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import locust.stats
-from locust import HttpUser, task, events, constant_pacing
+from locust import HttpUser, task, events, constant_throughput
 import json
 
 
@@ -13,6 +13,8 @@ LOGGING_TXS_SCOPE = "load"
 # Flush csv stats to disk more often than default (10s)
 locust.stats.CSV_STATS_FLUSH_INTERVAL_SEC = 1
 
+DEFAULT_REQUEST_RATE_S = 100
+
 
 @events.init_command_line_parser.add_listener
 def init_parser(parser):
@@ -21,6 +23,9 @@ def init_parser(parser):
     parser.add_argument("--cert", help="Path to client certificate")
     parser.add_argument(
         "--node-host", help="List of node hosts to target", action="append", default=[]
+    )
+    parser.add_argument(
+        "--rate", help="Request rate", type=int, default=DEFAULT_REQUEST_RATE_S
     )
 
 
@@ -31,12 +36,17 @@ class Submitter(HttpUser):
     # Round-robin between all hosts specified at startup
     hosts = []
     current_host_idx = 0
+    rate = 0
+
+    def wait_time(self):
+        return constant_throughput(self.rate)(self)
 
     def on_start(self):
         self.hosts = self.environment.parsed_options.node_host
-
-    # Crudely limit rate manually like this for now.
-    wait_time = constant_pacing(0.1)
+        self.rate = (
+            self.environment.parsed_options.rate
+            / self.environment.parsed_options.num_users
+        )
 
     @task()
     def submit(self):

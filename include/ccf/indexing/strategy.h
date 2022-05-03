@@ -41,7 +41,7 @@ namespace ccf::indexing
   class LazyStrategy : public Base
   {
   protected:
-    ccf::SeqNo requested_seqno = 0;
+    ccf::SeqNo max_requested_seqno = 0;
 
   public:
     using Base::Base;
@@ -51,18 +51,7 @@ namespace ccf::indexing
       const auto base = Base::next_requested();
       if (base.has_value())
       {
-        if (requested_seqno < *base)
-        {
-          if (requested_seqno > 0)
-          {
-            return requested_seqno;
-          }
-          else
-          {
-            return std::nullopt;
-          }
-        }
-        else
+        if (*base <= max_requested_seqno)
         {
           return base;
         }
@@ -73,9 +62,9 @@ namespace ccf::indexing
 
     void extend_index_to(ccf::TxID to_txid)
     {
-      if (to_txid.seqno > requested_seqno)
+      if (to_txid.seqno > max_requested_seqno)
       {
-        requested_seqno = to_txid.seqno;
+        max_requested_seqno = to_txid.seqno;
       }
     }
   };

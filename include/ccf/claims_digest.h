@@ -45,4 +45,24 @@ namespace ccf
       return (is_set == other.is_set) && (digest == other.digest);
     }
   };
+
+  inline void to_json(nlohmann::json& j, const ClaimsDigest& hash)
+  {
+    j = hash.value();
+  }
+
+  inline void from_json(const nlohmann::json& j, ClaimsDigest& hash)
+  {
+    hash.set(j.get<ClaimsDigest::Digest>());
+  }
+
+  inline std::string schema_name(const ClaimsDigest*)
+  {
+    return ds::json::schema_name<ClaimsDigest::Digest>();
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const ClaimsDigest*)
+  {
+    ds::json::fill_schema<ClaimsDigest::Digest>(schema);
+  }
 }

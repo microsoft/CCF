@@ -42,7 +42,7 @@ namespace loggingapp
     struct Out
     {
       std::string msg;
-      ccf::Receipt receipt;
+      nlohmann::json receipt;
     };
   };
 

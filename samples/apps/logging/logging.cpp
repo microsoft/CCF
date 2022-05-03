@@ -222,7 +222,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.9.2";
+      openapi_info.document_version = "1.9.3";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -884,7 +884,7 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
-            out.receipt = ccf::describe_receipt(historical_state->receipt);
+            out.receipt = ccf::describe_receipt_v1(*historical_state->receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
@@ -938,10 +938,12 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
-            out.receipt = ccf::describe_receipt(historical_state->receipt);
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
-            out.receipt.leaf_components->claims_digest = std::nullopt;
+            auto full_receipt =
+              ccf::describe_receipt_v1(*historical_state->receipt);
+            out.receipt = full_receipt;
+            out.receipt["leaf_components"].erase("claims_digest");
             // SNIPPET_END: claims_digest_in_receipt
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }

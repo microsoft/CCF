@@ -114,7 +114,7 @@ Historical Queries
    :project: CCF
    :members:
 
-.. doxygenstruct:: ccf::TxReceipt
+.. doxygenstruct:: ccf::Receipt
    :project: CCF
    :members:
 

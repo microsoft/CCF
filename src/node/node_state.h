@@ -142,6 +142,12 @@ namespace ccf
     CodeDigest node_code_id;
     StartupConfig config;
 
+    struct NodeStateMsg
+    {
+      NodeStateMsg(NodeState& self_) : self(self_) {}
+      NodeState& self;
+    };
+
     //
     // kv store, replication, and I/O
     //
@@ -348,7 +354,9 @@ namespace ccf
       }
 #endif
 
-      setup_history();
+      // Signatures are only emitted on a timer once the public ledger has been
+      // recovered
+      setup_history(start_type != StartType::Recover);
       setup_snapshotter();
       setup_encryptor();
 
@@ -706,14 +714,8 @@ namespace ccf
     {
       initiate_join_unsafe();
 
-      struct JoinTimeMsg
-      {
-        JoinTimeMsg(NodeState& self_) : self(self_) {}
-        NodeState& self;
-      };
-
-      auto timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
-        [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
+      auto timer_msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
           if (msg->data.self.sm.check(NodeStartupState::pending))
           {
             msg->data.self.initiate_join();
@@ -984,6 +986,14 @@ namespace ccf
       verify_snapshot_end_unsafe();
     }
 
+    void advance_part_of_public_network()
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      sm.expect(NodeStartupState::readingPublicLedger);
+      history->start_signature_emit_timer();
+      sm.advance(NodeStartupState::partOfPublicNetwork);
+    }
+
     void recover_public_ledger_end_unsafe()
     {
       sm.expect(NodeStartupState::readingPublicLedger);
@@ -1074,14 +1084,21 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      if (!create_and_send_boot_request(
-            false /* Restore consortium from ledger */))
-      {
-        throw std::runtime_error(
-          "End of public recovery transaction could not be committed");
-      }
-
-      sm.advance(NodeStartupState::partOfPublicNetwork);
+      // First recovery transaction is asynchronous to avoid deadlocks
+      // (https://github.com/microsoft/CCF/issues/3788)
+      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+          if (!msg->data.self.create_and_send_boot_request(
+                false /* Restore consortium from ledger */))
+          {
+            throw std::runtime_error(
+              "End of public recovery transaction could not be committed");
+          }
+          msg->data.self.advance_part_of_public_network();
+        },
+        *this);
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::get_current_thread_id(), std::move(msg));
     }
 
     //
@@ -2224,7 +2241,7 @@ namespace ccf
       cmd_forwarder->initialize(self);
     }
 
-    void setup_history()
+    void setup_history(bool signature_timer = true)
     {
       if (history)
       {
@@ -2237,7 +2254,7 @@ namespace ccf
         *node_sign_kp,
         sig_tx_interval,
         sig_ms_interval,
-        true);
+        signature_timer);
       network.tables->set_history(history);
     }
 
