@@ -1385,6 +1385,6 @@ def network(
             raise
     finally:
         LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True)
+        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
         if init_partitioner:
             net.partitioner.cleanup()
