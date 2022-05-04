@@ -939,7 +939,7 @@ class Ledger:
                 raise ValueError(
                     f"Ledger cannot parse committed chunk {file_b} following uncommitted chunk {file_a}"
                 )
-            if range_a[1] is not None and range_a[1] + 1 != range_b[0]:
+            if validator and range_a[1] is not None and range_a[1] + 1 != range_b[0]:
                 raise ValueError(
                     f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
                 )
@@ -974,9 +974,9 @@ class Ledger:
         transaction = None
         for chunk in self:
             _, chunk_end = chunk.get_seqnos()
-            if chunk_end and chunk_end < seqno:
-                continue
             for tx in chunk:
+                if chunk_end and chunk_end < seqno:
+                    continue
                 public_transaction = tx.get_public_domain()
                 if public_transaction.get_seqno() == seqno:
                     return tx
