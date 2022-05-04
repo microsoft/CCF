@@ -93,8 +93,6 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 DOCTEST_TEST_CASE(
   "Multiple nodes startup and election" * doctest::test_suite("multiple"))
 {
-  logger::config::default_init();
-
   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
   ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
