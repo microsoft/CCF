@@ -1616,7 +1616,7 @@ namespace aft
 
       if (leader_id.has_value())
       {
-        // Reply false, since we already know the leader.
+        // Reply false, since we already know the leader in the current term.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: leader {} already known in term {}",
           state->my_node_id,
