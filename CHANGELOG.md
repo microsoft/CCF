@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed an issue where new node started without a snapshot would be able to join from a node that started with a snapshot (#3573).
 
+### Changes
+
+- Upgraded Open Enclave to 0.17.7
+
 ## [2.0.0-rc8]
 
 ### Fixed
