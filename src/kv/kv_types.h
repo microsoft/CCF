@@ -759,7 +759,7 @@ namespace kv
     virtual bool must_force_ledger_chunk(Version version) = 0;
     virtual bool must_force_ledger_chunk_unsafe(Version version) = 0;
 
-    virtual size_t commit_gap() = 0;
+    virtual size_t committable_gap() = 0;
 
     enum class Flag : uint8_t
     {
