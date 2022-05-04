@@ -21,7 +21,7 @@ To create a new CCF network, the first node of the network should be started wit
         Uninitialized-- config -->Initialized;
         Initialized-- start -->PartOfNetwork;
 
-The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest the public key contained in its identity certificate (e.g. ``50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007``). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when :ref:`governance/common_member_operations:Trusting a New Node`).
+The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest of the public key contained in its identity certificate (e.g. ``50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007``). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when :ref:`governance/common_member_operations:Trusting a New Node`).
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then a ``dNSName`` subject alternative name should be specified as part of the ``node_certificate.subject_alt_names`` configuration entry. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 

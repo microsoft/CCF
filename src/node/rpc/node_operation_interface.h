@@ -39,7 +39,7 @@ namespace ccf
     virtual bool can_replicate() = 0;
 
     virtual kv::Version get_last_recovered_signed_idx() = 0;
-    virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
+    virtual kv::Version get_startup_snapshot_seqno() = 0;
 
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;
