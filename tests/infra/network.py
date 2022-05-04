@@ -71,7 +71,7 @@ class CodeIdNotFound(Exception):
     pass
 
 
-class StartupSnapshotIsOld(Exception):
+class StartupSeqnoIsOld(Exception):
     pass
 
 
@@ -231,15 +231,15 @@ class Network:
         ledger_dir=None,
         copy_ledger_read_only=False,
         read_only_ledger_dirs=None,
-        from_snapshot=False,
+        from_snapshot=True,
         snapshots_dir=None,
         **kwargs,
     ):
         # Contact primary if no target node is set
-        if target_node is None:
-            target_node, _ = self.find_primary(
-                timeout=args.ledger_recovery_timeout if recovery else 3
-            )
+        primary, _ = self.find_primary(
+            timeout=args.ledger_recovery_timeout if recovery else 3
+        )
+        target_node = target_node or primary
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
         committed_ledger_dirs = read_only_ledger_dirs or []
@@ -248,9 +248,8 @@ class Network:
         # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
         # to produce more ledger entries
         if from_snapshot:
-            # Only retrieve snapshot from target node if the snapshot directory is not
-            # specified
-            snapshots_dir = snapshots_dir or self.get_committed_snapshots(target_node)
+            # Only retrieve snapshot from primary if the snapshot directory is not specified
+            snapshots_dir = snapshots_dir or self.get_committed_snapshots(primary)
             if os.listdir(snapshots_dir):
                 LOG.info(f"Joining from snapshot directory: {snapshots_dir}")
             else:
@@ -723,8 +722,8 @@ class Network:
                 for error in errors:
                     if "Quote does not contain known enclave measurement" in error:
                         raise CodeIdNotFound from e
-                    if "StartupSnapshotIsOld" in error:
-                        raise StartupSnapshotIsOld from e
+                    if "StartupSeqnoIsOld" in error:
+                        raise StartupSeqnoIsOld from e
             raise
 
     def trust_node(
@@ -1244,11 +1243,11 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout, insecure=False):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                return call(seqno)
+                return call(seqno, insecure=insecure)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
                 self.consortium.create_and_withdraw_large_proposal(node)
@@ -1257,20 +1256,20 @@ class Network:
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
         )
 
-    def get_ledger_public_state_at(self, seqno, timeout=5):
+    def get_ledger_public_state_at(self, seqno, timeout=5, insecure=False):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout
+            primary, primary.get_ledger_public_tables_at, seqno, timeout, insecure
         )
 
-    def get_latest_ledger_public_state(self, timeout=5):
+    def get_latest_ledger_public_state(self, insecure=False, timeout=5):
         primary, _ = self.find_primary()
         with primary.client() as nc:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
+            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout, insecure
         )
 
     @functools.cached_property
