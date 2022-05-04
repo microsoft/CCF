@@ -47,7 +47,10 @@ namespace kv
     Term term_of_last_version = 0;
 
     Version last_replicated = 0;
+    // Version of the latest committable entry committed in this term and by
+    // _this_ store. Always reset on rollback.
     Version last_committable = 0;
+
     Version rollback_count = 0;
 
     std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
@@ -518,7 +521,6 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = v;
-        last_committable = v;
       }
 
       if (h)
@@ -636,7 +638,7 @@ namespace kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        last_committable = tx_id.version;
+        last_committable = 0;
         unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
@@ -1103,7 +1105,7 @@ namespace kv
       return {term_of_next_version, version};
     }
 
-    size_t commit_gap() override
+    size_t committable_gap() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
       return version - last_committable;
