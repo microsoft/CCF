@@ -1614,6 +1614,19 @@ namespace aft
         become_aware_of_new_term(r.term);
       }
 
+      if (leader_id.has_value())
+      {
+        // Reply false, since we already know the leader in the current term.
+        LOG_DEBUG_FMT(
+          "Recv request vote to {} from {}: leader {} already known in term {}",
+          state->my_node_id,
+          from,
+          leader_id.value(),
+          state->current_view);
+        send_request_vote_response(from, false);
+        return;
+      }
+
       if ((voted_for.has_value()) && (voted_for.value() != from))
       {
         // Reply false, since we already voted for someone else.
@@ -1682,8 +1695,9 @@ namespace aft
       if (leadership_state != kv::LeadershipState::Candidate)
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {}: we aren't a candidate",
-          state->my_node_id);
+          "Recv request vote response to {} from: {}: we aren't a candidate",
+          state->my_node_id,
+          from);
         return;
       }
 
