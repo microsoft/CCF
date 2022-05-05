@@ -88,8 +88,10 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
                 )
                 # Strict schema with no extra fields allowed https://github.com/microsoft/CCF/issues/3813
                 assert (
-                    "additionalProperties" in v and v["additionalProperties"] is False
-                ), f"AdditionalProperties not set to false in {k}"
+                    "allOf" in v
+                    or "additionalProperties" in v
+                    and v["additionalProperties"] is False
+                ), f"AdditionalProperties not set to false in {k}:{v}"
             if "additionalProperties" in v:
                 if isinstance(v["additionalProperties"], dict):
                     print_object(

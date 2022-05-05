@@ -137,13 +137,13 @@ if __name__ == "__main__":
             elif k == "node_address":
                 output["network"]["node_to_node_interface"]["bind_address"] = v
             elif k == "network_cert_file":
-                output["service_certificate_file"] = v
+                output["command"]["service_certificate_file"] = v
 
             # node certificate
             elif k == "san":
-                output["node_certificate"][k] = json.loads(v)
+                output["node_certificate"]["subject_alt_names"] = json.loads(v)
             elif k == "sn":
-                output["node_certificate"][k] = v
+                output["node_certificate"]["subject_name"] = v
             elif k == "curve_id":
                 output["node_certificate"][k] = v.title()
 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
             # logging
             elif k == "log_format_json":
-                output["logging"]["log_format"] = "Json" if bool(v) else "Text"
+                output["logging"]["format"] = "Json" if bool(v) else "Text"
             elif k == "host_log_level":
                 output["logging"]["host_level"] = v.title()
 
