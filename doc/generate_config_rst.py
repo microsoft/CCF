@@ -86,6 +86,10 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
                 print_object(
                     output, v["properties"], depth=depth + 1, required_entries=reqs
                 )
+                # Strict schema with no extra fields allowed https://github.com/microsoft/CCF/issues/3813
+                assert (
+                    "additionalProperties" in v and v["additionalProperties"] is False
+                ), f"AdditionalProperties not set to false in {k}"
             if "additionalProperties" in v:
                 if isinstance(v["additionalProperties"], dict):
                     print_object(
@@ -128,6 +132,9 @@ def generate_configuration_docs(input_file_path, output_file_path):
     print_object(
         output, j["properties"], required_entries=j["required"], depth=START_DEPTH
     )
+    assert (
+        "additionalProperties" in j and j["additionalProperties"] is False
+    ), f"AdditionalProperties not set to false in top level schema"
 
     out = output.render()
     # Only update output file if the file will be modified

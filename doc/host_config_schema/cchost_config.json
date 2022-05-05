@@ -31,11 +31,11 @@
             "bind_address": {
               "type": "string",
               "description": "Local address the node binds to and listens on"
-            },
-            "additionalProperties": false
+            }
           },
           "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
-          "required": ["bind_address"]
+          "required": ["bind_address"],
+          "additionalProperties": false
         },
         "rpc_interfaces": {
           "type": "object",
@@ -71,7 +71,8 @@
                     "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed."
                   }
                 },
-                "required": ["authority"]
+                "required": ["authority"],
+                "additionalProperties": false
               }
             },
             "required": ["bind_address"]
@@ -80,7 +81,8 @@
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
-      "required": ["node_to_node_interface", "rpc_interfaces"]
+      "required": ["node_to_node_interface", "rpc_interfaces"],
+      "additionalProperties": false
     },
     "command": {
       "type": "object",
@@ -162,7 +164,8 @@
                         "enum": ["OneTransaction", "TwoTransaction"]
                       }
                     },
-                    "required": ["recovery_threshold"]
+                    "required": ["recovery_threshold"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["constitution_files", "members"],
@@ -228,7 +231,8 @@
         }
       ],
       "description": "This section includes configuration of how the node should start (either start, join or recover) and associated information",
-      "required": ["type"]
+      "required": ["type"],
+      "additionalProperties": false
     },
     "node_certificate": {
       "type": "object",
@@ -364,7 +368,9 @@
           "description": "Maximum duration after which a signature transaction is automatically generated"
         }
       },
-      "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput."
+      "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.",
+      "additionalProperties": false
+
     },
     "jwt": {
       "type": "object",
