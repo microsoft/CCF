@@ -9,15 +9,6 @@
 namespace asynchost
 {
   /**
-   * @brief Type of connection (TCP/UDP)
-   */
-  enum ConnTypeID
-  {
-    CONN_TCP,
-    CONN_UDP
-  };
-
-  /**
    * @brief Callback service for user-specific behaviour for TCP and UDP
    * connections.
    *

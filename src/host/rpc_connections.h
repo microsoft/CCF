@@ -12,36 +12,25 @@
 namespace
 {
   template <class T>
-  asynchost::ConnTypeID getConnTypeID()
+  constexpr bool isTCP()
   {
-    // This is ugly but will have to do for now. Once we make TCP and UDP
-    // inherit from the same base abstract class we can remove that (and the two
-    // sockets maps, and probably other things as well).
-    if (std::is_same<T, asynchost::TCP>())
-    {
-      return asynchost::CONN_TCP;
-    }
-    else if (std::is_same<T, asynchost::UDP>())
-    {
-      return asynchost::CONN_UDP;
-    }
-    else
-    {
-      throw std::runtime_error("Invalid connection type");
-    }
+    return std::is_same<T, asynchost::TCP>();
   }
 
   template <class T>
-  const char* getConnTypeName()
+  constexpr bool isUDP()
   {
-    // This is ugly but will have to do for now. Once we make TCP and UDP
-    // inherit from the same base abstract class we can remove that (and the two
-    // sockets maps, and probably other things as well).
-    if (std::is_same<T, asynchost::TCP>())
+    return std::is_same<T, asynchost::UDP>();
+  }
+
+  template <class T>
+  constexpr const char* getConnTypeName()
+  {
+    if constexpr (isTCP<T>())
     {
       return "TCP";
     }
-    else if (std::is_same<T, asynchost::UDP>())
+    else if constexpr (isUDP<T>())
     {
       return "UDP";
     }
@@ -146,7 +135,7 @@ namespace asynchost
 
       void cleanup()
       {
-        if (getConnTypeID<ConnType>() == CONN_TCP)
+        if constexpr (isTCP<ConnType>())
         {
           RINGBUFFER_WRITE_MESSAGE(tls::tls_close, parent.to_enclave, id);
         }
@@ -168,7 +157,7 @@ namespace asynchost
       void on_accept(ConnType& peer) override
       {
         // UDP connections don't register peers
-        if (getConnTypeID<ConnType>() == CONN_UDP)
+        if constexpr (isUDP<ConnType>())
         {
           return;
         }
@@ -191,23 +180,25 @@ namespace asynchost
           interface_name,
           this->conn_name);
 
-        switch (getConnTypeID<ConnType>())
+        if constexpr (isTCP<ConnType>())
         {
-          case CONN_TCP:
-            RINGBUFFER_WRITE_MESSAGE(
-              tls::tls_start, parent.to_enclave, peer_id, interface_name);
-            break;
-          case CONN_UDP:
-            RINGBUFFER_WRITE_MESSAGE(
-              quic::quic_start, parent.to_enclave, peer_id, interface_name);
-            break;
+          RINGBUFFER_WRITE_MESSAGE(
+            tls::tls_start, parent.to_enclave, peer_id, interface_name);
+          return;
+        }
+
+        if constexpr (isUDP<ConnType>())
+        {
+          RINGBUFFER_WRITE_MESSAGE(
+            quic::quic_start, parent.to_enclave, peer_id, interface_name);
+          return;
         }
       }
 
       void on_read(size_t len, uint8_t*& data, sockaddr addr) override
       {
         // UDP connections don't have clients, it's all done in the server
-        if (getConnTypeID<ConnType>() == CONN_UDP)
+        if constexpr (isUDP<ConnType>())
         {
           quic::sockaddr_encoding* enc =
             reinterpret_cast<quic::sockaddr_encoding*>(&addr);
@@ -276,7 +267,7 @@ namespace asynchost
 
       // UDP connections don't have peers, so we need to register the main
       // socket TCP connections started via peer, on on_accept behaviour call
-      if (getConnTypeID<ConnType>() == CONN_UDP)
+      if constexpr (isUDP<ConnType>())
       {
         s->start(id);
       }
