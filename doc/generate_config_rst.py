@@ -61,6 +61,8 @@ def print_entry(output, entry, name, required=False, depth=0):
 
 
 def has_subobjs(obj):
+    if not isinstance(obj, dict):
+        return False
     return any(
         k in ["properties", "additionalProperties", "items"] for k in obj.keys()
     ) and ("items" not in obj or obj["items"]["type"] == "object")
@@ -85,12 +87,13 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
                     output, v["properties"], depth=depth + 1, required_entries=reqs
                 )
             if "additionalProperties" in v:
-                print_object(
-                    output,
-                    v["additionalProperties"]["properties"],
-                    depth=depth + 1,
-                    required_entries=v["additionalProperties"].get("required", []),
-                )
+                if isinstance(v["additionalProperties"], dict):
+                    print_object(
+                        output,
+                        v["additionalProperties"]["properties"],
+                        depth=depth + 1,
+                        required_entries=v["additionalProperties"].get("required", []),
+                    )
             if "items" in v and v["items"]["type"] == "object":
                 print_object(
                     output,
@@ -108,6 +111,10 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
                         required_entries=reqs,
                         additional_desc=f'Only if ``{k_}`` is ``"{cond_["const"]}"``',
                     )
+        elif k == "additionalProperties" and isinstance(v, bool):
+            # Skip display of additionalProperties if bool as it is used
+            # to make the schema stricter
+            pass
         else:
             print_entry(output, v, name=k, required=k in required_entries, depth=depth)
 
