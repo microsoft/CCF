@@ -12,6 +12,8 @@ jobs:
     container: ccfciteam/ccf-ci:oe-0.17.7-0
 
     steps:
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
