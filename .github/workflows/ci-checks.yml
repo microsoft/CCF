@@ -8,7 +8,7 @@ on:
 
 jobs:
   checks:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     container: ccfciteam/ccf-ci:oe-0.17.7-0
 
     steps:
