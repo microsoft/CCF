@@ -200,16 +200,15 @@ namespace asynchost
         // UDP connections don't have clients, it's all done in the server
         if constexpr (isUDP<ConnType>())
         {
-          quic::sockaddr_encoding* enc =
-            reinterpret_cast<quic::sockaddr_encoding*>(&addr);
+          auto [addr_family, addr_data] = quic::sockaddr_encode(addr);
 
           LOG_DEBUG_FMT("rpc udp read {}: {}", id, len);
           RINGBUFFER_WRITE_MESSAGE(
             quic::quic_inbound,
             parent.to_enclave,
             id,
-            enc->lhs,
-            enc->rhs,
+            addr_family,
+            addr_data,
             serializer::ByteRange{data, len});
         }
       }
@@ -394,16 +393,14 @@ namespace asynchost
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, quic::quic_outbound, [this](const uint8_t* data, size_t size) {
-          auto [id, lhs, rhs, body] =
+          auto [id, addr_family, addr_data, body] =
             ringbuffer::read_message<quic::quic_outbound>(data, size);
-
-          quic::sockaddr_encoding enc{lhs, rhs};
-          sockaddr* addr = reinterpret_cast<sockaddr*>(&enc);
 
           ConnID connect_id = (ConnID)id;
           LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
 
-          write(connect_id, body.size, body.data, *addr);
+          auto addr = quic::sockaddr_decode(addr_family, addr_data);
+          write(connect_id, body.size, body.data, addr);
         });
     }
 

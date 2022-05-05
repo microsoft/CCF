@@ -22,15 +22,34 @@ namespace quic
     DEFINE_RINGBUFFER_MSG_TYPE(quic_outbound),
   };
 
-  struct sockaddr_encoding
+  static std::tuple<short, std::vector<uint8_t>> sockaddr_encode(sockaddr& addr)
   {
-    uint64_t lhs;
-    uint64_t rhs;
-  };
+    short family = addr.sa_family;
+    std::vector<uint8_t> data(14, '\0');
+    memcpy(&data[0], &addr.sa_data, 14);
+    return std::make_pair(family, data);
+  }
+
+  static sockaddr sockaddr_decode(
+    short family, const std::vector<uint8_t>& data)
+  {
+    sockaddr addr;
+    addr.sa_family = family;
+    memcpy(&addr.sa_data, &data[0], 14);
+    return addr;
+  }
 }
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(quic::quic_start, quic::ConnID, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  quic::quic_inbound, quic::ConnID, uint64_t, uint64_t, serializer::ByteRange);
+  quic::quic_inbound,
+  quic::ConnID,
+  short,
+  std::vector<uint8_t>,
+  serializer::ByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  quic::quic_outbound, quic::ConnID, uint64_t, uint64_t, serializer::ByteRange);
+  quic::quic_outbound,
+  quic::ConnID,
+  short,
+  std::vector<uint8_t>,
+  serializer::ByteRange);

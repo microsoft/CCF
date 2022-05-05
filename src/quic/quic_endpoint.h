@@ -342,16 +342,15 @@ namespace quic
 
     int handle_send(const uint8_t* buf, size_t len, sockaddr addr)
     {
-      quic::sockaddr_encoding* enc =
-        reinterpret_cast<quic::sockaddr_encoding*>(&addr);
+      auto [addr_family, addr_data] = quic::sockaddr_encode(addr);
 
       // Either write all of the data or none of it.
       auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
         quic::quic_outbound,
         to_host,
         session_id,
-        enc->lhs,
-        enc->rhs,
+        addr_family,
+        addr_data,
         serializer::ByteRange{buf, len});
 
       if (!wrote)

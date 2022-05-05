@@ -461,7 +461,7 @@ namespace ccf
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, quic::quic_inbound, [this](const uint8_t* data, size_t size) {
-          auto [id, lhs, rhs, body] =
+          auto [id, addr_family, addr_data, body] =
             ringbuffer::read_message<quic::quic_inbound>(data, size);
 
           auto search = sessions.find(id);
@@ -471,10 +471,8 @@ namespace ccf
               "Ignoring quic_inbound for unknown or refused session: {}", id);
             return;
           }
-          quic::sockaddr_encoding enc{lhs, rhs};
-          sockaddr* addr = reinterpret_cast<sockaddr*>(&enc);
-          auto str = std::string((const char*)addr->sa_data, 14);
-          search->second.second->recv(body.data, body.size, *addr);
+          auto addr = quic::sockaddr_decode(addr_family, addr_data);
+          search->second.second->recv(body.data, body.size, addr);
         });
     }
   };
