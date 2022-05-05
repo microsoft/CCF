@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed an issue where new node started without a snapshot would be able to join from a node that started with a snapshot (#3573).
 - Fixed consensus issue where a node would grant its vote even though it already knew about the current primary (#3810).
+- Fixed issue with JSON configuration for `cchost` where extra fields were silently ignored rather than being rejected at startup (#3816).
 
 ## [2.0.0-rc8]
 
