@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
             # logging
             elif k == "log_format_json":
-                output["logging"]["format"] = "Json" if bool(v) else "Text"
+                output["logging"]["format"] = "Json" if v else "Text"
             elif k == "host_log_level":
                 output["logging"]["host_level"] = v.title()
 
