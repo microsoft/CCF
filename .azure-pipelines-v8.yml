@@ -20,7 +20,7 @@ parameters:
 
 jobs:
   - job: build_v8
-    container: ccfmsrc.azurecr.io/ccf-sgx-ci:oe-0.17.7-0
+    container: ccfmsrc.azurecr.io/ccf-sgx-ci:oe-0.17.7-0-acr
     pool: 1es-dv4-focal
 
     strategy:
