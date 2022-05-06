@@ -29,6 +29,7 @@ resources:
     - container: nosgx
       type: ACR
       azureSubscription: CCF
+      endpoint: CCF
       resourceGroup: ccf-containers
       registry: ccfmsrc.azurecr.io
       repository: ccf_ci
