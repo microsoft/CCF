@@ -18,7 +18,7 @@ The ``ccfmsrc.azurecr.io`` Azure Container Registry (ACR) has been setup so that
 
 .. code-block:: bash
     
-    $ az login --use-device-code
+    $ az login
     $ az account set --subscription CCF
     $ az acr update --name ccfmsrc --anonymous-pull-enabled
 
@@ -26,7 +26,7 @@ The ``ci-push-token`` has been setup so that only authorised users (in this case
 
 .. code-block:: bash
 
-    $ az login --use-device-code
+    $ az login
     $ az account set --subscription CCF
     # Create scoped map
     $ az acr scope-map create --name ci-push --registry ccfmsrc --description "Push CCF CI images"
