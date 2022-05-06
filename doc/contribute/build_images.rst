@@ -1,5 +1,5 @@
-CCF Build images
-================
+CCF Docker Images
+=================
 
 CCF build images are produced by running the `docker/app_ci <https://github.com/microsoft/CCF/blob/main/docker/ccf_ci>`_ Docker file,
 and pushed to `Docker Hub <https://hub.docker.com/r/ccfciteam/ccf-ci/tags>`_.

@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    name: "Build SGX CI Containers"
+    name: "Build and Publish SGX CI Containers"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
