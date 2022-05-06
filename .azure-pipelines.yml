@@ -27,13 +27,16 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      endpoint: ccfmsrc.azurecr.io
-      image: ccf-ci:oe-0.17.6-0
+      type: ACR
+      azureSubscription: CCF
+      resourceGroup: ccf-containers
+      registry: ccfmsrc.azurecr.io
+      repository: ccf_ci
+      image: ccfciteam/ccf-ci:oe-0.17.7-0
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      endpoint: ccfmsrc.azurecr.io
-      image: ccf-ci:oe-0.17.6-0
+      image: ccfciteam/ccf-ci:oe-0.17.7-0
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
 variables:

@@ -210,6 +210,7 @@ def run_code_upgrade_from(
 
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
+            from_major_version = primary.major_version
 
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
@@ -324,13 +325,13 @@ def run_code_upgrade_from(
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
+            primary, _ = network.find_nodes()
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
             if not os.getenv("CONTAINER_NODES"):
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
-                primary, _ = network.find_nodes()
                 if not primary.major_version or primary.major_version > 1:
                     jwt_issuer.wait_for_refresh(network)
                 else:
@@ -354,7 +355,17 @@ def run_code_upgrade_from(
             )
 
             # Check that the ledger can be parsed
-            network.get_latest_ledger_public_state()
+            # Note: When upgrading from 1.x to 2.x, it is possible that ledger chunk are not
+            # in sync between nodes, which may cause some chunks to differ when starting
+            # from a snapshot. See https://github.com/microsoft/ccf/issues/3613. In such case,
+            # we only verify that the ledger can be parsed, even if some chunks are duplicated.
+            # This can go once 2.0 is released.
+            insecure_ledger_verification = (
+                from_major_version == 1 and primary.version_after("ccf-2.0.0-rc7")
+            )
+            network.get_latest_ledger_public_state(
+                insecure=insecure_ledger_verification
+            )
 
 
 @reqs.description("Run live compatibility with latest LTS")
@@ -410,6 +421,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
     lts_releases = repo.get_lts_releases(local_branch)
+    has_pre_2_rc7_ledger = False
 
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
@@ -424,8 +436,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
-        previous_major_version = None
-        previous_version_past_2_rc7 = False
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
                 version, install_path = repo.install_release(lts_release)
@@ -504,20 +514,18 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     )
 
                 # We accept ledger chunk file differences during upgrades
-                # from 2.x-rc7 to 2.x-rc8 and from 1.x to 2.x-rc8. This
-                # is necessary because the ledger files may not be chunked
-                # at the same interval between those versions (see
-                # https://github.com/microsoft/ccf/issues/3613; 1.x ledgers
-                # do not contain the header flags to synchronize ledger chunks).
+                # from 1.x to 2.x post rc7 ledger. This is necessary because
+                # the ledger files may not be chunked at the same interval
+                # between those versions (see https://github.com/microsoft/ccf/issues/3613;
+                # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
                 # This can go once 2.0 is released.
                 current_version_past_2_rc7 = primary.version_after("ccf-2.0.0-rc7")
+                has_pre_2_rc7_ledger = (
+                    not current_version_past_2_rc7 or has_pre_2_rc7_ledger
+                )
                 is_ledger_chunk_breaking = (
-                    not previous_major_version
-                    or previous_major_version == 1
-                    or not previous_version_past_2_rc7
-                ) and current_version_past_2_rc7
-                previous_major_version = primary.major_version
-                previous_version_past_2_rc7 = current_version_past_2_rc7
+                    has_pre_2_rc7_ledger and current_version_past_2_rc7
+                )
 
                 snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
