@@ -8,10 +8,12 @@ on:
 
 jobs:
   checks:
-    runs-on: ubuntu-20.04
-    container: ccfciteam/ccf-ci:oe-0.17.6-0
+    runs-on: ubuntu-latest
+    container: ccfciteam/ccf-ci:oe-0.17.7-0
 
     steps:
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
