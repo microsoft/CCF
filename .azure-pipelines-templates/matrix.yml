@@ -1,5 +1,5 @@
 parameters:
-  target: ["NoSGX", "SGX"]
+  target: ["NoSGX"]
 
   env:
     Hosted:
@@ -55,16 +55,16 @@ jobs:
           fetch_v8: release # debug is tested in daily
 
   # Performance
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: common.yml
-        parameters:
-          target: SGX
-          env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
-          suffix: "Perf"
-          artifact_name: "SGX_Perf"
-          ctest_filter: "${{ parameters.test.perf.ctest_args }}"
-          fetch_v8: release
+  # - ${{ if eq(parameters.perf_tests, 'run') }}:
+  #     - template: common.yml
+  #       parameters:
+  #         target: SGX
+  #         env: ${{ parameters.env.SGX }}
+  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
+  #         suffix: "Perf"
+  #         artifact_name: "SGX_Perf"
+  #         ctest_filter: "${{ parameters.test.perf.ctest_args }}"
+  #         fetch_v8: release
 
   # Performance (NoSGX)
   # NOTE: CI doesn't support SGX and NoSGX perf tests at the same time.
