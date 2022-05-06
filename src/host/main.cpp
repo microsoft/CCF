@@ -78,8 +78,16 @@ int main(int argc, char** argv)
   }
 
   std::string config_str = files::slurp_string(config_file_path);
-
-  auto config_json = nlohmann::json::parse(config_str);
+  nlohmann::json config_json;
+  try
+  {
+    config_json = nlohmann::json::parse(config_str);
+  }
+  catch (const std::exception& e)
+  {
+    throw std::logic_error(fmt::format(
+      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+  }
   auto schema_json = nlohmann::json::parse(host::host_config_schema);
 
   auto schema_error_msg = json::validate_json(config_json, schema_json);
@@ -91,16 +99,7 @@ int main(int argc, char** argv)
       schema_error_msg.value()));
   }
 
-  host::CCHostConfig config = {};
-  try
-  {
-    config = nlohmann::json::parse(config_str);
-  }
-  catch (const std::exception& e)
-  {
-    throw std::logic_error(fmt::format(
-      "Error parsing configuration file {}: {}", config_file_path, e.what()));
-  }
+  host::CCHostConfig config = config_json;
 
   if (config.logging.format == host::LogFormat::JSON)
   {

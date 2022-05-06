@@ -13,9 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed consensus issue where a node would grant its vote even though it already knew about the current primary (#3810).
 - Fixed issue with JSON configuration for `cchost` where extra fields were silently ignored rather than being rejected at startup (#3816).
 
-### Changes
+### Changed
 
-- Upgraded Open Enclave to 0.17.7
+- Upgraded Open Enclave to 0.17.7 (#3815).
 
 ## [2.0.0-rc8]
 
