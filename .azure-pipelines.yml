@@ -31,8 +31,8 @@ resources:
       azureSubscription: CCF
       resourceGroup: ccf-containers
       registry: ccfmsrc.azurecr.io
-      repository: ccf_ci
-      image: ccfmsrc.azurecr.io/ccf_ci:oe-0.17.6-0
+      repository: ccf-ci
+      image: ccfmsrc.azurecr.io/ccf-ci:oe-0.17.6-0
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx
