@@ -32,6 +32,6 @@ debs:
 docker_debs:
   - docker-ce-cli
 
-doxygen_ver: "1.9.3"
+doxygen_ver: "1.9.4"
 doxygen_bin: "doxygen-{{ doxygen_ver }}.linux.bin.tar.gz"
 doxygen_url: "https://doxygen.nl/files/{{ doxygen_bin }}"
