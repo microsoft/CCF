@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Upgraded Open Enclave to 0.17.7 (#3815).
+- CCF Docker images are now available through Azure Container Registry rather than Docker Hub (#3821).
+  - The `ccfciteam/ccf-app-run` image is now available at `ccfmsrc.azurecr.io/ccf-sgx-app-run`.
+  - The `ccfciteam/ccf-app-ci` image is now available at `ccfmsrc.azurecr.io/ccf-sgx-app-dev`.
 
 ## [2.0.0-rc8]
 
