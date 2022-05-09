@@ -19,8 +19,8 @@ jobs:
         run: echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
         id: tref
 
-      - name: Build App CI container
-        run: docker build -f docker/app_ci . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/ccf-sgx-app-dev:${{steps.tref.outputs.tag}} -t $ACR_REGISTRY/ccf-sgx-app-dev:latest
+      - name: Build App Dev container
+        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/ccf-sgx-app-dev:${{steps.tref.outputs.tag}} -t $ACR_REGISTRY/ccf-sgx-app-dev:latest
 
       - name: Build App Run container
         run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/ccf-sgx-app-run:${{steps.tref.outputs.tag}} -t $ACR_REGISTRY/ccf-sgx-app-run:latest
