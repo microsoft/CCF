@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Upgraded Open Enclave to 0.17.7 (#3815).
-- Added support for ciphers 'ECDHE-RSA-AES256-GCM-SHA384' and 'ECDHE-RSA-AES128-GCM-SHA256' when using TLS 1.2.
+- CCF Docker images are now available through Azure Container Registry rather than Docker Hub (#3821).
+  - The `ccfciteam/ccf-app-run` image is now available at `ccfmsrc.azurecr.io/ccf-sgx-app-run`.
+  - The `ccfciteam/ccf-app-ci` image is now available at `ccfmsrc.azurecr.io/ccf-sgx-app-dev`.
+- Added support for ciphers 'ECDHE-RSA-AES256-GCM-SHA384' and 'ECDHE-RSA-AES128-GCM-SHA256' when using TLS 1.2 (#3822).
 
 ## [2.0.0-rc8]
 
