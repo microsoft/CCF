@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Upgraded Open Enclave to 0.17.7 (#3815).
+- Added support for ciphers 'ECDHE-RSA-AES256-GCM-SHA384' and 'ECDHE-RSA-AES128-GCM-SHA256' when using TLS 1.2.
 
 ## [2.0.0-rc8]
 
