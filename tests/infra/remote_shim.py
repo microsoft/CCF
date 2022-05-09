@@ -27,7 +27,7 @@ def map_azure_devops_docker_workspace_dir(workspace_dir):
 
 
 # Docker image name prefix
-DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
+DOCKER_IMAGE_NAME_PREFIX = "ccfmsrc.azurecr.io/ccf-sgx-app-run"
 
 # Network name
 AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR = "AGENT_CONTAINERNETWORK"
