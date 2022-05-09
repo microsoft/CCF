@@ -28,12 +28,11 @@ The ``ci-push-token`` has been setup so that only authorised users (in this case
 
     $ az login
     $ az account set --subscription CCF
-    # Create scoped map
+    # Create d map
     $ az acr scope-map create --name ci-push --registry ccfmsrc --description "Push CCF CI images"
     # Add repository, even before repository is created
     $ az acr scope-map update --name ci-push --registry ccfmsrc --add-repository ccf-sgx-ci content/write content/read
     # Create token, outputs password to add as GitHub ACR_CI_PUSH_TOKEN_PASSWORD secret
     $ az acr token create --name ci-push-token --registry ccfmsrc --scope-map ci-push
 
-.. note:: 
-    - The ``ccfmsrc`` ACR instance was upgraded to Premium to enable preview features such as scoped maps.
+.. note:: The ``ccfmsrc`` ACR instance was upgraded to Premium to enable preview features such as `scope maps <https://docs.microsoft.com/en-us/azure/container-registry/container-registry-repository-scoped-permissions#concepts>`_.
