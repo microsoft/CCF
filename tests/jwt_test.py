@@ -8,11 +8,14 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.net
+import infra.crypto
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.jwt_issuer
 from infra.runner import ConcurrentRunner
 import ca_certs
+import ssl
+import socket
 
 from loguru import logger as LOG
 
@@ -334,6 +337,20 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
         ), "input cert is not equal to stored cert"
 
 
+def check_kv_jwt_keys_not_empty(network, issuer):
+    primary, _ = network.find_nodes()
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
+        r = c.get("/gov/jwt_keys/all")
+        assert r.status_code == 200, r
+        latest_jwt_signing_keys = r.body.json()
+
+    for _, data in latest_jwt_signing_keys.items():
+        if issuer == data["issuer"]:
+            return
+
+    assert False, "No keys for issuer"
+
+
 def get_jwt_refresh_endpoint_metrics(network) -> dict:
     primary, _ = network.find_nodes()
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
@@ -485,6 +502,41 @@ def test_jwt_key_initial_refresh(network, args):
     return network
 
 
+def test_jwt_key_refresh_aad(network, args):
+    primary, _ = network.find_nodes()
+
+    hostname = "login.microsoftonline.com"
+    ctx = ssl.create_default_context()
+    with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
+        s.connect((hostname, 443))
+    ca_der = ctx.get_ca_certs(binary_form=True)[0]
+    ca_pem = infra.crypto.cert_der_to_pem(ca_der)
+
+    LOG.info("Add CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(ca_pem)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(primary, "aad", ca_cert_bundle_fp.name)
+
+    issuer = "https://login.microsoftonline.com/common/v2.0/"
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        json.dump(
+            {
+                "issuer": issuer,
+                "auto_refresh": True,
+                "ca_cert_bundle_name": "aad",
+            },
+            metadata_fp,
+        )
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    LOG.info("Check that keys got refreshed")
+    # Auto-refresh interval has been set to a large value so that it doesn't happen within the timeout.
+    # This is testing the one-off refresh after adding a new issuer.
+    with_timeout(lambda: check_kv_jwt_keys_not_empty(network, issuer), timeout=5)
+
+
 def with_timeout(fn, timeout):
     t0 = time.time()
     while True:
@@ -514,6 +566,8 @@ def run_auto(args):
         primary.stop()
         network.wait_for_new_primary(primary)
         test_jwt_key_auto_refresh(network, args)
+        # Check that we can refresh keys for AAD endpoint
+        test_jwt_key_refresh_aad(network, args)
 
 
 def run_manual(args):
