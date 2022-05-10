@@ -51,6 +51,11 @@
                 "default": "Value of 'bind_address'",
                 "description": "The published RPC address advertised to clients"
               },
+              "protocol": {
+                "type": "string",
+                "default": "tcp",
+                "description": "The RPC protocol used (udp | tcp)"
+              },
               "max_open_sessions_soft": {
                 "type": "integer",
                 "default": 1000,

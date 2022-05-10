@@ -49,11 +49,13 @@ namespace ccf
   {
     using NetAddress = std::string;
     using RpcInterfaceID = std::string;
+    using NetProtocol = std::string;
 
     struct NetInterface
     {
       NetAddress bind_address;
       NetAddress published_address;
+      NetProtocol protocol;
 
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
@@ -64,6 +66,7 @@ namespace ccf
       {
         return bind_address == other.bind_address &&
           published_address == other.published_address &&
+          protocol == other.protocol &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
           endorsement == other.endorsement;
@@ -82,7 +85,8 @@ namespace ccf
     endorsement,
     max_open_sessions_soft,
     max_open_sessions_hard,
-    published_address);
+    published_address,
+    protocol);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
