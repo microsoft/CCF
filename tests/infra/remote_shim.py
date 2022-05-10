@@ -27,6 +27,7 @@ def map_azure_devops_docker_workspace_dir(workspace_dir):
 
 
 # Docker image name prefix
+# To update when runtime images are pushed to ACR
 DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
 
 # Network name
