@@ -60,10 +60,6 @@ namespace tls
       SSL_CTX_set1_curves_list(cfg, "P-521:P-384");
       SSL_set1_curves_list(ssl, "P-521:P-384");
 
-      // Restrict the curves to approved ones
-      SSL_CTX_set1_curves_list(cfg, "P-521:P-384");
-      SSL_set1_curves_list(ssl, "P-521:P-384");
-
       // Initialise connection
       if (client)
         SSL_set_connect_state(ssl);
