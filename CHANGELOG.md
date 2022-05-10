@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0-rc9]
 
 ### Fixed
 
@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Upgraded Open Enclave to 0.17.7 (#3815).
+- CCF Docker images are now available through Azure Container Registry rather than Docker Hub (#3821).
+  - The `ccfciteam/ccf-app-run` image is now available at `ccfmsrc.azurecr.io/ccf-sgx-app-run`.
+  - The `ccfciteam/ccf-app-ci` image is now available at `ccfmsrc.azurecr.io/ccf-sgx-app-dev`.
+- Added support for ciphers 'ECDHE-RSA-AES256-GCM-SHA384' and 'ECDHE-RSA-AES128-GCM-SHA256' when using TLS 1.2 (#3822).
 
 ## [2.0.0-rc8]
 
@@ -1312,6 +1316,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc9]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc9
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
 [2.0.0-rc7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc7
 [2.0.0-rc6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc6
