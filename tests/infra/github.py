@@ -103,6 +103,19 @@ class Repository:
             if "heads/release" in branch
         ]
 
+    def _filter_released_tags(self, tags):
+        # From a list of tags ordered by semver (latest first), filter out the ones
+        # that don't have a release yet
+        first_release_tag_idx = -1
+        for i, t in enumerate(tags):
+            if not has_release_for_tag_name(t):
+                LOG.debug(f"No release available for tag {t}")
+                first_release_tag_idx = i
+            else:
+                break
+
+        return tags[first_release_tag_idx + 1 :]
+
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
         return sorted(
@@ -148,15 +161,7 @@ class Repository:
         )
 
         # Only consider tags that have releases as a release might be in progress
-        first_release_tag_idx = -1
-        for i, t in enumerate(tags_for_release):
-            if not has_release_for_tag_name(t):
-                LOG.debug(f"No release available for tag {t}")
-                first_release_tag_idx = i
-            else:
-                break
-
-        return tags_for_release[first_release_tag_idx + 1 :]
+        return self._filter_released_tags(tags_for_release)
 
     def get_latest_dev_tag(self):
         dev_tags = [t for t in self.tags if "-dev" in t]
