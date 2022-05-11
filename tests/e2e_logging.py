@@ -1486,6 +1486,7 @@ def test_udp_echo(network, args):
     while attempt <= attempts:
         LOG.info(f"Testing UDP echo server sending '{test_string}'")
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(3)
             s.sendto(test_string, server_address)
             recv = s.recvfrom(buffer_size)
         text = recv[0]
