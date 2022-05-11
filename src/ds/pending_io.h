@@ -21,11 +21,11 @@ struct PendingIO
   free_cb_t free_cb;
   bool clear;
 
-  PendingIO(T* req, size_t len, sockaddr addr, free_cb_t free_cb = nullptr) :
-    req(req),
-    len(len),
-    addr(addr),
-    free_cb(free_cb),
+  PendingIO(T* req_, size_t len_, sockaddr addr_, free_cb_t free_cb_ = nullptr) :
+    req(req_),
+    len(len_),
+    addr(addr_),
+    free_cb(free_cb_),
     clear(false)
   {
     if (free_cb == nullptr)
