@@ -1646,6 +1646,7 @@ if __name__ == "__main__":
     )
 
     # https://github.com/microsoft/CCF/issues/3830
+    # pylint: disable=using-constant-test
     if False:
         # This is just for the UDP echo test for now
         cr.add(
