@@ -118,6 +118,17 @@ Historical Queries
    :project: CCF
    :members:
 
+Indexing
+--------
+
+.. doxygenclass:: ccf::indexing::Strategy
+   :project: CCF
+   :members:
+
+.. doxygenclass:: ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped
+   :project: CCF
+   :members:
+
 JavaScript FFI Plugins
 ----------------------
 
