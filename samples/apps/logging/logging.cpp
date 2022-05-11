@@ -35,8 +35,10 @@ namespace loggingapp
   static constexpr auto PUBLIC_FIRST_WRITES = "public:first_write_version";
   static constexpr auto FIRST_WRITES = "first_write_version";
 
+  // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
     ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
+  // SNIPPET_END: indexing_strategy_definition
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -1132,9 +1134,11 @@ namespace loggingapp
         const auto range_end =
           std::min(to_seqno, range_begin + max_seqno_per_page);
 
+        // SNIPPET_START: indexing_strategy_use
         const auto interesting_seqnos =
           index_per_public_key->get_write_txs_in_range(
             id, range_begin, range_end);
+        // SNIPPET_END: indexing_strategy_use
         if (!interesting_seqnos.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);

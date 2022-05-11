@@ -10,6 +10,15 @@
 
 namespace ccf::indexing
 {
+  /** The base class for all indexing strategies.
+   *
+   * Sub-class this and override handle_committed_transaction to implement your
+   * own indexing strategy. Create an instance of this on each node, and then
+   * install it with context.get_indexing_strategies().install_strategy(). It
+   * will then be given each committed transaction shortly after commit. You
+   * should build some aggregate/summary from these transactions, and return
+   * that to endpoint handlers in an efficient format.
+   */
   class Strategy
   {
     const std::string name;
@@ -23,15 +32,16 @@ namespace ccf::indexing
       return name;
     }
 
-    // Receives every committed transaction, in-order
+    /** Receives every committed transaction, in-order, shortly after commit
+     */
     virtual void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) = 0;
 
     virtual void tick() {}
 
-    // Returns next tx for which this index should be populated, or
-    // nullopt if it wants none. Allows indexes to be populated
-    // lazily on-demand, or out-of-order, or reset
+    /** Returns next tx for which this index should be populated, or
+     * nullopt if it wants none. Allows indexes to be populated
+     * lazily on-demand, or out-of-order, or reset */
     virtual std::optional<ccf::SeqNo> next_requested() = 0;
   };
 
