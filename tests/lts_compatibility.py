@@ -117,18 +117,6 @@ def run_code_upgrade_from(
                 from_snapshot = not from_snapshot
                 new_nodes.append(new_node)
 
-            # Verify that all nodes run the expected CCF version
-            for node in network.get_joined_nodes():
-                # Note: /node/version endpoint was added in 2.x
-                if not node.version or node.version > 1:
-                    with node.client() as c:
-                        r = c.get("/node/version")
-                        expected_version = node.version or args.ccf_version
-                        version = r.body.json()["ccf_version"]
-                        assert (
-                            version == expected_version
-                        ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
-
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
