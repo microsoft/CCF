@@ -165,9 +165,9 @@ class Repository:
         """
         releases = {}
         for release_branch in self.get_release_branches_names():
-            releases[release_branch] = self.get_tags_for_release_branch(release_branch)[
-                0
-            ]
+            tags = self.get_tags_for_release_branch(release_branch)
+            if tags:
+                releases[release_branch] = tags[0]
         return releases
 
     def install_release(self, tag):
