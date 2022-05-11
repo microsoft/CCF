@@ -1645,12 +1645,14 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # https://github.com/microsoft/CCF/issues/3830
+    if False:
+        # This is just for the UDP echo test for now
+        cr.add(
+            "udp",
+            run_udp_tests,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        )
 
     cr.run()
