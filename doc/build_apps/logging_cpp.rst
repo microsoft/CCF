@@ -44,7 +44,7 @@ The Logging application simply has:
         :dedent:
 
 Application Endpoints
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::endpoints::EndpointRegistry`, containing the endpoints that constitute the app.
 
@@ -182,7 +182,10 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
 Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
-This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v2`.
+This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v3`.
+Most endpoints operate over the _current_ state of the KV, but these historical queries operate over _old_ state, specifically over the writes made by a previous transaction.
+The adapter handles extracting the target :term:`Transaction ID` from the user's request, and interacting with the :ref:`Historical Queries API <build_apps/api:Historical Queries>` to asynchronously fetch this entry from the ledger.
+The deserialised and verified transaction is then presented to the handler code below, which performs reads and constructs a response like any other handler.
 
 The handler passed to the adapter is very similar to a read-only endpoint definition, but receives a read-only :cpp:struct:`ccf::historical::State` rather than a transaction.
 
