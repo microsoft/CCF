@@ -40,25 +40,21 @@ namespace tls
           SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
           SSL_OP_NO_RENEGOTIATION);
 
-      // Set cipher for TLS 1.2 (TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
-      SSL_CTX_set_cipher_list(
-        cfg,
+      // Set cipher for TLS 1.2
+      const auto cipher_list =
         "ECDHE-ECDSA-AES256-GCM-SHA384:"
-        "ECDHE-ECDSA-AES128-GCM-SHA256");
-      SSL_set_cipher_list(
-        ssl,
-        "ECDHE-ECDSA-AES256-GCM-SHA384:"
-        "ECDHE-ECDSA-AES128-GCM-SHA256");
+        "ECDHE-ECDSA-AES128-GCM-SHA256:"
+        "ECDHE-RSA-AES256-GCM-SHA384:"
+        "ECDHE-RSA-AES128-GCM-SHA256";
+      SSL_CTX_set_cipher_list(cfg, cipher_list);
+      SSL_set_cipher_list(ssl, cipher_list);
 
-      // Set cipher for TLS 1.3 (same as above)
-      SSL_CTX_set_ciphersuites(
-        cfg,
+      // Set cipher for TLS 1.3
+      const auto ciphersuites =
         "TLS_AES_256_GCM_SHA384:"
-        "TLS_AES_128_GCM_SHA256");
-      SSL_set_ciphersuites(
-        ssl,
-        "TLS_AES_256_GCM_SHA384:"
-        "TLS_AES_128_GCM_SHA256");
+        "TLS_AES_128_GCM_SHA256";
+      SSL_CTX_set_ciphersuites(cfg, ciphersuites);
+      SSL_set_ciphersuites(ssl, ciphersuites);
 
       // Restrict the curves to approved ones
       SSL_CTX_set1_curves_list(cfg, "P-521:P-384");

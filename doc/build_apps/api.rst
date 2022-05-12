@@ -103,7 +103,7 @@ Supporting Types
 Historical Queries
 ------------------
 
-.. doxygenfunction:: ccf::historical::adapter_v2
+.. doxygenfunction:: ccf::historical::adapter_v3
    :project: CCF
 
 .. doxygenclass:: ccf::historical::AbstractStateCache
@@ -114,7 +114,18 @@ Historical Queries
    :project: CCF
    :members:
 
-.. doxygenstruct:: ccf::Receipt
+.. doxygenclass:: ccf::Receipt
+   :project: CCF
+   :members:
+
+Indexing
+--------
+
+.. doxygenclass:: ccf::indexing::Strategy
+   :project: CCF
+   :members:
+
+.. doxygenclass:: ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped
    :project: CCF
    :members:
 

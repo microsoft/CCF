@@ -1467,6 +1467,54 @@ def test_rekey(network, args):
     return network
 
 
+@reqs.description("Test UDP echo endpoint")
+@reqs.at_least_n_nodes(1)
+def test_udp_echo(network, args):
+    # For now, only test UDP on primary
+    primary, _ = network.find_primary()
+    udp_interface = primary.host.rpc_interfaces["udp_interface"]
+    host = udp_interface.public_host
+    port = udp_interface.public_port
+    LOG.info(f"Testing UDP echo server at {host}:{port}")
+
+    server_address = (host, port)
+    buffer_size = 1024
+    test_string = b"Some random text"
+    attempts = 10
+    attempt = 1
+
+    while attempt <= attempts:
+        LOG.info(f"Testing UDP echo server sending '{test_string}'")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(3)
+            s.sendto(test_string, server_address)
+            recv = s.recvfrom(buffer_size)
+        text = recv[0]
+        LOG.info(f"Testing UDP echo server received '{text}'")
+        assert text == test_string
+        attempt = attempt + 1
+
+
+def run_udp_tests(args):
+    # Register secondary interface as an UDP socket on all nodes
+    udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
+    for node in args.nodes:
+        node.rpc_interfaces.update(udp_interface)
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start(args)
+
+        test_udp_echo(network, args)
+
+
 def run(args):
     # Listen on two additional RPC interfaces for each node
     def additional_interfaces(local_node_id):
@@ -1593,6 +1641,14 @@ if __name__ == "__main__":
     cr.add(
         "cpp_illegal",
         run_parsing_errors,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # This is just for the UDP echo test for now
+    cr.add(
+        "udp",
+        run_udp_tests,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )

@@ -52,7 +52,7 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
     nodes = network.nodes
 
     # Number of nodes required for network to commit new transactions
-    majority = (len(nodes) + 1) // 2
+    majority = (len(nodes) // 2) + 1
 
     primaries = {}
     acks = {}
