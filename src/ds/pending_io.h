@@ -67,7 +67,7 @@ struct PendingIO
     }
     else
     {
-      free(req);
+      delete[] req;
     }
   }
 
