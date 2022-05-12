@@ -156,7 +156,9 @@ class Network:
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
-            self.hosts = infra.e2e_args.nodes(existing_network.args, len(existing_network.nodes))
+            self.hosts = infra.e2e_args.nodes(
+                existing_network.args, len(existing_network.nodes)
+            )
             self.service_load = None
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
