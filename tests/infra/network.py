@@ -12,6 +12,7 @@ import infra.proc
 import infra.service_load
 import infra.node
 import infra.consortium
+import infra.e2e_args
 import ccf.ledger
 from infra.tx_status import TxStatus
 from ccf.tx_id import TxID
@@ -155,7 +156,9 @@ class Network:
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
-            self.hosts = [node.host for node in existing_network.nodes]
+            self.hosts = infra.e2e_args.nodes(
+                existing_network.args, len(existing_network.nodes)
+            )
             self.service_load = None
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
