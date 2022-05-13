@@ -111,28 +111,23 @@ def verify_receipt(
             .hex()
         )
     else:
-        if "leaf" in receipt:
-            leaf = receipt["leaf"]
-        else:
-            assert "leaf_components" in receipt
-            assert "write_set_digest" in receipt["leaf_components"]
-            write_set_digest = bytes.fromhex(
-                receipt["leaf_components"]["write_set_digest"]
-            )
-            assert "commit_evidence" in receipt["leaf_components"]
-            commit_evidence_digest = sha256(
-                receipt["leaf_components"]["commit_evidence"].encode()
-            ).digest()
-            claims_digest = (
-                bytes.fromhex(receipt["leaf_components"]["claims_digest"])
-                if "claims_digest" in receipt["leaf_components"]
-                else b""
-            )
-            leaf = (
-                sha256(write_set_digest + commit_evidence_digest + claims_digest)
-                .digest()
-                .hex()
-            )
+        assert "leaf_components" in receipt, receipt
+        assert "write_set_digest" in receipt["leaf_components"]
+        write_set_digest = bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+        assert "commit_evidence" in receipt["leaf_components"]
+        commit_evidence_digest = sha256(
+            receipt["leaf_components"]["commit_evidence"].encode()
+        ).digest()
+        claims_digest = (
+            bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+            if "claims_digest" in receipt["leaf_components"]
+            else b""
+        )
+        leaf = (
+            sha256(write_set_digest + commit_evidence_digest + claims_digest)
+            .digest()
+            .hex()
+        )
     root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
@@ -1424,18 +1419,21 @@ def test_random_receipts(
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
-                    if lts and not receipt.get("cert"):
-                        receipt["cert"] = certs[receipt["node_id"]]
-                    verify_receipt(
-                        receipt,
-                        network.cert,
-                        claims=additional_seqnos.get(s),
-                        generic=True,
-                        skip_endorsement_check=lts,
-                    )
-                    if s == max_seqno:
-                        # Always a signature receipt
-                        assert receipt["proof"] == [], receipt
+                    if "leaf" in receipt:
+                        # Legacy signature receipt
+                        LOG.warning(
+                            f"Skipping verification of signature receipt at {view}.{s}"
+                        )
+                    else:
+                        if lts and not receipt.get("cert"):
+                            receipt["cert"] = certs[receipt["node_id"]]
+                        verify_receipt(
+                            receipt,
+                            network.cert,
+                            claims=additional_seqnos.get(s),
+                            generic=True,
+                            skip_endorsement_check=lts,
+                        )
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
                     time.sleep(0.5)
