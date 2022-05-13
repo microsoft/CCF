@@ -24,7 +24,7 @@ download_curl() {
 		if_modified=(-z tla2tools.jar)
 	fi
 
-	curl -f -Ss -R -O "${if_modified[@]}" "$1"
+	curl -f -Ss -L -R -O "${if_modified[@]}" "$1"
 
 	if [ $? -ne 0 ]; then
 		echo "Couldn't download tla2tools.jar"
@@ -39,7 +39,7 @@ print_version() {
 main() {
 	echo "Downloading tla2tools.jar..."
 	before=$(date -r tla2tools.jar 2>/dev/null)
-	download https://tla.msr-inria.inria.fr/tlatoolbox/dist/tla2tools.jar
+	download https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar
 	after=$(date -r tla2tools.jar 2>/dev/null)
 
 	if [ ! -e tla2tools.jar ]; then
