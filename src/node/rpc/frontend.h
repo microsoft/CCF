@@ -182,227 +182,235 @@ namespace ccf
       // are not counted against any particular endpoint.
       endpoints.increment_metrics_calls(endpoint);
 
-      std::unique_ptr<AuthnIdentity> identity = nullptr;
-
-      // If any auth policy was required, check that at least one is accepted
-      if (!endpoint->authn_policies.empty())
+      try
       {
-        std::string auth_error_reason;
-        for (const auto& policy : endpoint->authn_policies)
+        std::unique_ptr<AuthnIdentity> identity = nullptr;
+
+        // If any auth policy was required, check that at least one is accepted
+        if (!endpoint->authn_policies.empty())
         {
-          identity = policy->authenticate(tx, ctx, auth_error_reason);
-          if (identity != nullptr)
+          std::string auth_error_reason;
+          for (const auto& policy : endpoint->authn_policies)
           {
-            break;
-          }
-        }
-
-        if (identity == nullptr)
-        {
-          // If none were accepted, let the last set an error
-          endpoint->authn_policies.back()->set_unauthenticated_error(
-            ctx, std::move(auth_error_reason));
-          update_metrics(ctx, endpoint);
-          return ctx->serialise_response();
-        }
-      }
-
-      update_history();
-
-      const bool is_primary = (consensus == nullptr) ||
-        consensus->can_replicate() || ctx->is_create_request;
-      const bool forwardable = (consensus != nullptr) &&
-        (consensus->type() == ConsensusType::CFT ||
-         (consensus->type() != ConsensusType::CFT && !ctx->execute_on_node));
-
-      if (!is_primary && forwardable)
-      {
-        switch (endpoint->properties.forwarding_required)
-        {
-          case endpoints::ForwardingRequired::Never:
-          {
-            break;
-          }
-
-          case endpoints::ForwardingRequired::Sometimes:
-          {
-            if (
-              (ctx->get_session_context()->is_forwarding &&
-               consensus->type() == ConsensusType::CFT) ||
-              (consensus->type() != ConsensusType::CFT &&
-               !ctx->execute_on_node &&
-               (endpoint == nullptr ||
-                (endpoint != nullptr &&
-                 endpoint->properties.execute_outside_consensus !=
-                   endpoints::ExecuteOutsideConsensus::Locally))))
+            identity = policy->authenticate(tx, ctx, auth_error_reason);
+            if (identity != nullptr)
             {
-              ctx->get_session_context()->is_forwarding = true;
-              return forward(ctx, tx, endpoint);
+              break;
             }
-            break;
           }
 
-          case endpoints::ForwardingRequired::Always:
+          if (identity == nullptr)
           {
-            ctx->get_session_context()->is_forwarding = true;
-            return forward(ctx, tx, endpoint);
-          }
-        }
-      }
-
-      auto args = endpoints::EndpointContext(ctx, std::move(identity), tx);
-
-      size_t attempts = 0;
-      constexpr auto max_attempts = 30;
-
-      while (attempts < max_attempts)
-      {
-        if (attempts > 0)
-        {
-          // If the endpoint has already been executed, the effects of its
-          // execution should be dropped
-          tx = tables.create_tx();
-          ctx->reset_response();
-          set_root_on_proposals(*ctx, tx);
-          endpoints.increment_metrics_retries(endpoint);
-        }
-
-        ++attempts;
-
-        try
-        {
-          if (pre_exec)
-          {
-            pre_exec(tx, *ctx.get());
-          }
-
-          endpoints.execute_endpoint(endpoint, args);
-
-          if (!ctx->should_apply_writes())
-          {
+            // If none were accepted, let the last set an error
+            endpoint->authn_policies.back()->set_unauthenticated_error(
+              ctx, std::move(auth_error_reason));
             update_metrics(ctx, endpoint);
             return ctx->serialise_response();
           }
+        }
 
-          kv::CommitResult result;
-          bool track_read_versions =
-            (consensus != nullptr && consensus->type() == ConsensusType::BFT);
-          if (prescribed_commit_version != kv::NoVersion)
+        update_history();
+
+        const bool is_primary = (consensus == nullptr) ||
+          consensus->can_replicate() || ctx->is_create_request;
+        const bool forwardable = (consensus != nullptr) &&
+          (consensus->type() == ConsensusType::CFT ||
+           (consensus->type() != ConsensusType::CFT && !ctx->execute_on_node));
+
+        if (!is_primary && forwardable)
+        {
+          switch (endpoint->properties.forwarding_required)
           {
-            CCF_ASSERT(
-              consensus->type() == ConsensusType::BFT, "Wrong consensus type");
-            auto version_resolver = [&](bool) {
-              tables.next_version();
-              return std::make_tuple(prescribed_commit_version, kv::NoVersion);
-            };
-            tx.set_view(replicated_view);
-            result =
-              tx.commit(ctx->claims, track_read_versions, version_resolver);
-          }
-          else
-          {
-            result = tx.commit(ctx->claims, track_read_versions);
-          }
-
-          switch (result)
-          {
-            case kv::CommitResult::SUCCESS:
-            {
-              auto tx_id = tx.get_txid();
-              if (tx_id.has_value() && consensus != nullptr)
-              {
-                // Only transactions that acquired one or more map handles have
-                // a TxID, while others (e.g. unauthenticated commands) don't.
-                // Also, only report a TxID if the consensus is set, as the
-                // consensus is required to verify that a TxID is valid.
-                ctx->set_tx_id(tx_id.value());
-              }
-
-              if (
-                consensus != nullptr && consensus->can_replicate() &&
-                history != nullptr)
-              {
-                history->try_emit_signature();
-              }
-
-              update_metrics(ctx, endpoint);
-              return ctx->serialise_response();
-            }
-
-            case kv::CommitResult::FAIL_CONFLICT:
+            case endpoints::ForwardingRequired::Never:
             {
               break;
             }
 
-            case kv::CommitResult::FAIL_NO_REPLICATE:
+            case endpoints::ForwardingRequired::Sometimes:
             {
-              ctx->set_error(
-                HTTP_STATUS_SERVICE_UNAVAILABLE,
-                ccf::errors::TransactionReplicationFailed,
-                "Transaction failed to replicate.");
-              update_metrics(ctx, endpoint);
-              return ctx->serialise_response();
+              if (
+                (ctx->get_session_context()->is_forwarding &&
+                 consensus->type() == ConsensusType::CFT) ||
+                (consensus->type() != ConsensusType::CFT &&
+                 !ctx->execute_on_node &&
+                 (endpoint == nullptr ||
+                  (endpoint != nullptr &&
+                   endpoint->properties.execute_outside_consensus !=
+                     endpoints::ExecuteOutsideConsensus::Locally))))
+              {
+                ctx->get_session_context()->is_forwarding = true;
+                return forward(ctx, tx, endpoint);
+              }
+              break;
+            }
+
+            case endpoints::ForwardingRequired::Always:
+            {
+              ctx->get_session_context()->is_forwarding = true;
+              return forward(ctx, tx, endpoint);
             }
           }
         }
-        catch (const kv::CompactedVersionConflict& e)
+
+        auto args = endpoints::EndpointContext(ctx, std::move(identity), tx);
+
+        size_t attempts = 0;
+        constexpr auto max_attempts = 30;
+
+        while (attempts < max_attempts)
         {
-          // The executing transaction failed because of a conflicting
-          // compaction. Reset and retry
-          LOG_DEBUG_FMT(
-            "Transaction execution conflicted with compaction: {}", e.what());
-          continue;
-        }
-        catch (RpcException& e)
-        {
-          ctx->set_error(std::move(e.error));
-          update_metrics(ctx, endpoint);
-          return ctx->serialise_response();
-        }
-        catch (JsonParseError& e)
-        {
+          if (attempts > 0)
+          {
+            // If the endpoint has already been executed, the effects of its
+            // execution should be dropped
+            tx = tables.create_tx();
+            ctx->reset_response();
+            set_root_on_proposals(*ctx, tx);
+            endpoints.increment_metrics_retries(endpoint);
+          }
+
+          ++attempts;
+
+          try
+          {
+            if (pre_exec)
+            {
+              pre_exec(tx, *ctx.get());
+            }
+
+            endpoints.execute_endpoint(endpoint, args);
+
+            if (!ctx->should_apply_writes())
+            {
+              update_metrics(ctx, endpoint);
+              return ctx->serialise_response();
+            }
+
+            kv::CommitResult result;
+            bool track_read_versions =
+              (consensus != nullptr && consensus->type() == ConsensusType::BFT);
+            if (prescribed_commit_version != kv::NoVersion)
+            {
+              CCF_ASSERT(
+                consensus->type() == ConsensusType::BFT,
+                "Wrong consensus type");
+              auto version_resolver = [&](bool) {
+                tables.next_version();
+                return std::make_tuple(
+                  prescribed_commit_version, kv::NoVersion);
+              };
+              tx.set_view(replicated_view);
+              result =
+                tx.commit(ctx->claims, track_read_versions, version_resolver);
+            }
+            else
+            {
+              result = tx.commit(ctx->claims, track_read_versions);
+            }
+
+            switch (result)
+            {
+              case kv::CommitResult::SUCCESS:
+              {
+                auto tx_id = tx.get_txid();
+                if (tx_id.has_value() && consensus != nullptr)
+                {
+                  // Only transactions that acquired one or more map handles
+                  // have a TxID, while others (e.g. unauthenticated commands)
+                  // don't. Also, only report a TxID if the consensus is set, as
+                  // the consensus is required to verify that a TxID is valid.
+                  ctx->set_tx_id(tx_id.value());
+                }
+
+                if (
+                  consensus != nullptr && consensus->can_replicate() &&
+                  history != nullptr)
+                {
+                  history->try_emit_signature();
+                }
+
+                update_metrics(ctx, endpoint);
+                return ctx->serialise_response();
+              }
+
+              case kv::CommitResult::FAIL_CONFLICT:
+              {
+                break;
+              }
+
+              case kv::CommitResult::FAIL_NO_REPLICATE:
+              {
+                ctx->set_error(
+                  HTTP_STATUS_SERVICE_UNAVAILABLE,
+                  ccf::errors::TransactionReplicationFailed,
+                  "Transaction failed to replicate.");
+                update_metrics(ctx, endpoint);
+                return ctx->serialise_response();
+              }
+            }
+          }
+          catch (const kv::CompactedVersionConflict& e)
+          {
+            // The executing transaction failed because of a conflicting
+            // compaction. Reset and retry
+            LOG_DEBUG_FMT(
+              "Transaction execution conflicted with compaction: {}", e.what());
+            continue;
+          }
+          catch (RpcException& e)
+          {
+            ctx->set_error(std::move(e.error));
+            update_metrics(ctx, endpoint);
+            return ctx->serialise_response();
+          }
+          catch (JsonParseError& e)
+          {
+            ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              fmt::format("At {}: {}", e.pointer(), e.what()));
+            update_metrics(ctx, endpoint);
+            return ctx->serialise_response();
+          }
+          catch (const nlohmann::json::exception& e)
+          {
+            ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
+            update_metrics(ctx, endpoint);
+            return ctx->serialise_response();
+          }
+          catch (const kv::KvSerialiserException& e)
+          {
+            // If serialising the committed transaction fails, there is no way
+            // to recover safely (https://github.com/microsoft/CCF/issues/338).
+            // Better to abort.
+            LOG_DEBUG_FMT("Failed to serialise: {}", e.what());
+            LOG_FATAL_FMT("Failed to serialise");
+            abort();
+          }
+
           ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidInput,
-            fmt::format("At {}: {}", e.pointer(), e.what()));
-          update_metrics(ctx, endpoint);
-          return ctx->serialise_response();
-        }
-        catch (const nlohmann::json::exception& e)
-        {
-          ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
-          update_metrics(ctx, endpoint);
-          return ctx->serialise_response();
-        }
-        catch (const kv::KvSerialiserException& e)
-        {
-          // If serialising the committed transaction fails, there is no way
-          // to recover safely (https://github.com/microsoft/CCF/issues/338).
-          // Better to abort.
-          LOG_DEBUG_FMT("Failed to serialise: {}", e.what());
-          LOG_FATAL_FMT("Failed to serialise");
-          abort();
-        }
-        catch (const std::exception& e)
-        {
-          ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            e.what());
-          update_metrics(ctx, endpoint);
-          return ctx->serialise_response();
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
+            ccf::errors::TransactionCommitAttemptsExceedLimit,
+            fmt::format(
+              "Transaction continued to conflict after {} attempts. Retry "
+              "later.",
+              max_attempts));
+          static constexpr size_t retry_after_seconds = 3;
+          ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
         }
       }
+      catch (const std::exception& e)
+      {
+        ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          e.what());
+        update_metrics(ctx, endpoint);
+        return ctx->serialise_response();
+      }
 
-      ctx->set_error(
-        HTTP_STATUS_SERVICE_UNAVAILABLE,
-        ccf::errors::TransactionCommitAttemptsExceedLimit,
-        fmt::format(
-          "Transaction continued to conflict after {} attempts. Retry later.",
-          max_attempts));
-      static constexpr size_t retry_after_seconds = 3;
-      ctx->set_response_header(http::headers::RETRY_AFTER, retry_after_seconds);
       return ctx->serialise_response();
     }
 
