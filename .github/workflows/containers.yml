@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Truncate ref
-        run: echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
+        run: echo "2.0.0"
         id: tref
 
       - name: Build App Dev SGX container
