@@ -31,7 +31,7 @@ The ``ci-push-token`` has been setup so that only authorised users (in this case
     # Create d map
     $ az acr scope-map create --name ci-push --registry ccfmsrc --description "Push CCF CI images"
     # Add repository, even before repository is created
-    $ az acr scope-map update --name ci-push --registry ccfmsrc --add-repository ccf/sgx/ci content/write content/read
+    $ az acr scope-map update --name ci-push --registry ccfmsrc --add-repository ccf/ci/sgx content/write content/read
     # Create token, outputs password to add as GitHub ACR_CI_PUSH_TOKEN_PASSWORD secret
     $ az acr token create --name ci-push-token --registry ccfmsrc --scope-map ci-push
 
