@@ -363,7 +363,7 @@ namespace ccf
             update_metrics(ctx, endpoint);
             return ctx->serialise_response();
           }
-          catch (JsonParseError& e)
+          catch (const JsonParseError& e)
           {
             ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
