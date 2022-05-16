@@ -1420,6 +1420,8 @@ def test_random_receipts(
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
                     if "leaf" in receipt:
+                        if not lts:
+                            assert len(receipt["path"]) == 0
                         # Legacy signature receipt
                         LOG.warning(
                             f"Skipping verification of signature receipt at {view}.{s}"
