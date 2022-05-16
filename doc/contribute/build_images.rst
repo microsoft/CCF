@@ -5,9 +5,9 @@ CCF build images are produced by running the :ccf_repo:`docker/ccf_ci` Docker fi
 
 .. code-block:: bash
 
-    $ docker pull ccfmsrc.azurecr.io/ccf-sgx-ci:<tag>
+    $ docker pull ccfmsrc.azurecr.io/ccf/ci/sgx:<tag>
 
-Pushing a git tag of the form ``ccf_ci_image/$TAG`` will trigger the :ccf_repo:`.github/workflows/ci-containers.yml` workflow that builds and pushes a new ``ccfmsrc.azurecr.io/ccf-sgx-ci:$TAG`` image.
+Pushing a git tag of the form ``ccf_ci_image/$TAG`` will trigger the :ccf_repo:`.github/workflows/ci-containers.yml` workflow that builds and pushes a new ``ccfmsrc.azurecr.io/ccf/ci/sgx:$TAG`` image.
 
 That image can then be used in CI and CD pipelines.
 
@@ -22,7 +22,7 @@ The ``ccfmsrc.azurecr.io`` Azure Container Registry (ACR) has been setup so that
     $ az account set --subscription CCF
     $ az acr update --name ccfmsrc --anonymous-pull-enabled
 
-The ``ci-push-token`` has been setup so that only authorised users (in this case the :ccf_repo:`.github/workflows/ci-containers.yml` workflow) can push new ``ccf-sgx-ci`` images:
+The ``ci-push-token`` has been setup so that only authorised users (in this case the :ccf_repo:`.github/workflows/ci-containers.yml` workflow) can push new ``ccf/ci/sgx`` images:
 
 .. code-block:: bash
 
@@ -31,7 +31,7 @@ The ``ci-push-token`` has been setup so that only authorised users (in this case
     # Create d map
     $ az acr scope-map create --name ci-push --registry ccfmsrc --description "Push CCF CI images"
     # Add repository, even before repository is created
-    $ az acr scope-map update --name ci-push --registry ccfmsrc --add-repository ccf-sgx-ci content/write content/read
+    $ az acr scope-map update --name ci-push --registry ccfmsrc --add-repository ccf/sgx/ci content/write content/read
     # Create token, outputs password to add as GitHub ACR_CI_PUSH_TOKEN_PASSWORD secret
     $ az acr token create --name ci-push-token --registry ccfmsrc --scope-map ci-push
 
