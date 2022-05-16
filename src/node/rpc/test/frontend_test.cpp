@@ -691,9 +691,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(
-        error_msg.find("Could not find matching user certificate") !=
-        std::string::npos);
+      CHECK(error_msg.find("No caller user certificate") != std::string::npos);
     }
   }
 }
