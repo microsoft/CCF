@@ -587,8 +587,11 @@ CommittedTermPrefix(i, x) ==
     IF Len(log[i]) /= 0 /\ \E y \in DOMAIN log[i] : log[i][y].term <= x 
     THEN 
       \* then, we use the subsequence up to the maximum committed term of the leader
-      LET maxTerm == (CHOOSE y \in DOMAIN log[i] : \A z \in DOMAIN log[i] : log[i][y].term >= log[i][z].term /\ y >= z)
-      IN SubSeq(log[i], 1, Min({maxTerm, commitIndex[i]}))
+      LET maxTermIndex == 
+          CHOOSE y \in DOMAIN log[i] : 
+            /\ log[i][y].term <= x 
+            /\ \A z \in DOMAIN log[i] : log[i][z].term <= x  => y >= z
+      IN SubSeq(log[i], 1, Min({maxTermIndex, commitIndex[i]}))
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 ----
