@@ -391,6 +391,8 @@ namespace ccf
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());
 
+        node->register_message_handlers(bp.get_dispatcher());
+
         if (start_type == StartType::Join)
         {
           // When joining from a snapshot, deserialise ledger suffix to verify

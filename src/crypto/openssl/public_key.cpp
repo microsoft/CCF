@@ -29,7 +29,9 @@ namespace crypto
     Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
     if (!key)
+    {
       throw std::runtime_error("could not parse PEM");
+    }
   }
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(const std::vector<uint8_t>& der)
@@ -47,7 +49,9 @@ namespace crypto
   PublicKey_OpenSSL::~PublicKey_OpenSSL()
   {
     if (key)
+    {
       EVP_PKEY_free(key);
+    }
   }
 
   CurveID PublicKey_OpenSSL::get_curve_id() const
@@ -194,5 +198,21 @@ namespace crypto
     CHECK1(EVP_PKEY_set1_EC_KEY(pk, ec_key));
     EVP_PKEY_up_ref(pk);
     return pk;
+  }
+
+  PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
+  {
+    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
+    const EC_POINT* p = EC_KEY_get0_public_key(eckey);
+    Unique_EC_GROUP group(get_openssl_group_id());
+    Unique_BN_CTX bn_ctx;
+    Unique_BIGNUM x, y;
+    CHECK1(EC_POINT_get_affine_coordinates(group, p, x, y, bn_ctx));
+    Coordinates r;
+    r.x.resize(BN_num_bytes(x));
+    r.y.resize(BN_num_bytes(y));
+    BN_bn2bin(x, r.x.data());
+    BN_bn2bin(y, r.y.data());
+    return r;
   }
 }

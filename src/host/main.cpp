@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "acme_challenge_server.h"
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
@@ -11,6 +12,7 @@
 #include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "host/acme_challenge_server.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
@@ -605,6 +607,8 @@ int main(int argc, char** argv)
     {
       threads.emplace_back(std::thread(enclave_thread_start));
     }
+
+    ACMEChallengeServer acs("10.1.0.4", bp.get_dispatcher(), writer_factory);
 
     LOG_INFO_FMT("Entering event loop");
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);

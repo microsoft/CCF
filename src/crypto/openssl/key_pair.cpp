@@ -4,6 +4,7 @@
 #include "crypto/openssl/key_pair.h"
 
 #include "ccf/crypto/curve.h"
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
 #include "openssl_wrappers.h"
@@ -161,7 +162,7 @@ namespace crypto
     return 0;
   }
 
-  Pem KeyPair_OpenSSL::create_csr(
+  Unique_X509_REQ KeyPair_OpenSSL::create_req(
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
@@ -215,12 +216,42 @@ namespace crypto
     if (key)
       OpenSSL::CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
 
+    return req;
+  }
+
+  Pem KeyPair_OpenSSL::create_csr(
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    Unique_X509_REQ req =
+      create_req(subject_name, subject_alt_names, public_key);
+
     Unique_BIO mem;
     OpenSSL::CHECK1(PEM_write_bio_X509_REQ(mem, req));
 
     BUF_MEM* bptr;
     BIO_get_mem_ptr(mem, &bptr);
     Pem result((uint8_t*)bptr->data, bptr->length);
+
+    return result;
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::create_csr_der(
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    Unique_X509_REQ req =
+      create_req(subject_name, subject_alt_names, public_key);
+
+    Unique_BIO mem;
+    CHECK1(i2d_X509_REQ_bio(mem, req));
+
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(mem, &bptr);
+    std::vector<uint8_t> result(
+      (uint8_t*)bptr->data, (uint8_t*)bptr->data + bptr->length);
 
     return result;
   }
@@ -392,5 +423,10 @@ namespace crypto
     EVP_PKEY_free(pk);
 
     return shared_secret;
+  }
+
+  PublicKey::Coordinates KeyPair_OpenSSL::coordinates() const
+  {
+    return PublicKey_OpenSSL::coordinates();
   }
 }

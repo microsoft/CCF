@@ -129,6 +129,8 @@ struct StartupConfig : CCFConfig
 
   nlohmann::json node_data = nullptr;
 
+  std::optional<std::string> acme_directory_url;
+
   struct Start
   {
     std::vector<ccf::NewMember> members;
@@ -178,4 +180,4 @@ DECLARE_JSON_REQUIRED_FIELDS(
   join,
   recover);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
+  StartupConfig, startup_snapshot_evidence_seqno_for_1_x, acme_directory_url);
