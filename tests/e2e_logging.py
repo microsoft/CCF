@@ -1421,7 +1421,8 @@ def test_random_receipts(
                     receipt = rc.body.json()
                     if "leaf" in receipt:
                         if not lts:
-                            assert len(receipt["path"]) == 0
+                            assert "proof" in receipt, receipt
+                            assert len(receipt["proof"]) == 0, receipt
                         # Legacy signature receipt
                         LOG.warning(
                             f"Skipping verification of signature receipt at {view}.{s}"
