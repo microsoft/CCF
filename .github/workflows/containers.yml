@@ -1,8 +1,9 @@
 name: "Build and Publish SGX Release Containers to ACR"
 
 on:
-  release:
-    types: [published]
+  push
+  # release:
+  #   types: [published]
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
