@@ -39,4 +39,4 @@ jobs:
         run: docker push $ACR_REGISTRY/public/ccf/app/dev:latest
 
       - name: Push App Run SGX latest container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run:latest TODO: Include SGX too?
+        run: docker push $ACR_REGISTRY/public/ccf/app/run:latest
