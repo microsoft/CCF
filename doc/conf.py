@@ -116,9 +116,7 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    "announcement": 'CCF 2.0 release candidate <a href="https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0"> is now available </a> <br/> We are <a href="https://careers.microsoft.com/us/en/search-results?keywords=confidential%20consortium%20framework">hiring</a>!'
-}
+html_theme_options = {}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
