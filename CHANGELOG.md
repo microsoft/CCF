@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The `ccfmsrc.azurecr.io/ccf-sgx-app-run` image is now available at `ccfmsrc.azurecr.io/public/ccf/app/run:<tag>-sgx`.
   - The `ccfmsrc.azurecr.io/ccf-sgx-app-dev` image is now available at `ccfmsrc.azurecr.io/public/ccf/app/dev:<tag>-sgx`.
 
+### Added
+
+- Added new JavaScript application runtime image (including `libjs_generic` application under `/usr/lib/ccf`) ().
+
 ## [2.0.0-rc9]
 
 ### Fixed
