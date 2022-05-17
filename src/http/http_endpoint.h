@@ -5,7 +5,6 @@
 #include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
-#include "enclave/rpc_sessions.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
 
