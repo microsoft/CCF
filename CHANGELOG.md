@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added new JavaScript application runtime image (including `libjs_generic` application under `/usr/lib/ccf`) ().
+- Added new `ccfmsrc.azurecr.io/public/ccf/app/run-js` JavaScript application runtime image (including `libjs_generic` application under `/usr/lib/ccf`) (#3845).
 
 ## [2.0.0-rc9]
 
