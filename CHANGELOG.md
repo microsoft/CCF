@@ -130,6 +130,7 @@ Key-Value Store
 - CCF Docker images are now available through Azure Container Registry rather than Docker Hub (#3839, #3821).
   - The `ccfmsrc.azurecr.io/ccf-sgx-app-run` image is now available at `ccfmsrc.azurecr.io/public/ccf/app/run:<tag>-sgx`.
   - The `ccfmsrc.azurecr.io/ccf-sgx-app-dev` image is now available at `ccfmsrc.azurecr.io/public/ccf/app/dev:<tag>-sgx`.
+  - New `ccfmsrc.azurecr.io/public/ccf/app/run-js` JavaScript application runtime image (including `libjs_generic` application under `/usr/lib/ccf`) (#3845).
 
 ---
 
