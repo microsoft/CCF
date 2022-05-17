@@ -20,7 +20,7 @@ jobs:
       - script: |
           set -ex
           cd $(Build.ArtifactStagingDirectory)
-          for f in *+*.deb; do mv -- "$f" "${f//+/_}"; done
+          for f in *+*.deb; do mv -- "$f" "${f//+/_}" || true; done
         displayName: Remove characters that break GitHubRelease
 
       - task: GitHubRelease@0
