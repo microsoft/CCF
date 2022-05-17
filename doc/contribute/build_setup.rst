@@ -22,8 +22,8 @@ The quickest way to get started building CCF applications is to use the CCF buil
 
 .. code-block:: bash
 
-    $ docker pull ccfmsrc.azurecr.io/ccf-sgx-app-dev:latest # Latest CCF release
-    $ docker pull ccfmsrc.azurecr.io/ccf-sgx-app-dev:X.YZ   # Specific CCF release
+    $ docker pull ccfmsrc.azurecr.io/ccf/app/dev:latest-sgx # Latest CCF release
+    $ docker pull ccfmsrc.azurecr.io/ccf/app/dev:X.YZ-sgx   # Specific CCF release
 
 The container contains the latest release of CCF along with a complete build toolchain, and startup scripts.
 
