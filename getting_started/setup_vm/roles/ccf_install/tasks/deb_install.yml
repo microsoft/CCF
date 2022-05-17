@@ -25,6 +25,22 @@
   become: true
   when: run_only|bool
 
+- name: Create ccf folder in /usr/lib
+  file:
+    path: "/usr/lib/ccf"
+    state: directory
+    recurse: yes
+  become: true
+  when: run_js|bool
+
+- name: Copy JS generic
+  copy:
+    src: "/opt/ccf/lib/{{ ccf_js_app_name }}"
+    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}"
+    remote_src: true
+  become: true
+  when: run_js|bool
+
 - name: Remove release
   apt:
     name: ccf
