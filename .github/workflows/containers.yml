@@ -25,9 +25,6 @@ jobs:
       - name: Build App Run SGX container
         run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
 
-      - name: Build JS App Run SGX container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
-
       - name: Log in
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
@@ -37,8 +34,5 @@ jobs:
       - name: Push App Run SGX container
         run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
 
-      - name: Push JS App Run SGX container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
-
-      - name: Push App Dev SGX devcontainer
+      - name: Push App Dev SGX latest container
         run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer

@@ -21,7 +21,11 @@ schedules:
 resources:
   containers:
     - container: sgx
+<<<<<<< HEAD
       image: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-0
+=======
+      image: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.17.7-1
+>>>>>>> dfb7d1e9... Rename App and CI container images (#3839)
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
