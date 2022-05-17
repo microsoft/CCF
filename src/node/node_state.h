@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "acme_client.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
@@ -196,6 +197,9 @@ namespace ccf
     // the lifetime of the node
     kv::Version startup_seqno = 0;
 
+    // ACME certificate endorsement client
+    std::shared_ptr<ACMEClient> acme_client = nullptr;
+
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
     {
 #ifdef USE_NULL_ENCRYPTOR
@@ -266,6 +270,16 @@ namespace ccf
       rpcsessions(rpcsessions),
       share_manager(share_manager)
     {}
+
+    void register_message_handlers(
+      messaging::Dispatcher<ringbuffer::Message>& dispatcher)
+    {
+      if (acme_client)
+      {
+        acme_client->register_message_handlers(dispatcher);
+        acme_client->start();
+      }
+    }
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
@@ -403,6 +417,9 @@ namespace ccf
           sm.advance(NodeStartupState::partOfNetwork);
 
           LOG_INFO_FMT("Created new node {}", self);
+
+          acme_client = std::make_shared<ACMEClient>(
+            rpcsessions, network.identity, to_host);
 
           return {self_signed_node_cert, network.identity->cert};
         }

@@ -8,6 +8,7 @@
 #include "ccf/json_handler.h"
 #include "ds/ring_buffer_types.h"
 #include "enclave/interface.h"
+#include "host/socket.h"
 #include "http/http_builder.h"
 #include "http/http_endpoint.h"
 #include "http/http_parser.h"
@@ -19,122 +20,128 @@
 #include <stdexcept>
 #include <uv.h>
 
-class ClientBehaviour : public asynchost::TCPBehaviour
-{
-public:
-  ClientBehaviour(
-    asynchost::TCP socket,
-    std::mutex& lock,
-    const std::map<std::string, std::string>& prepared_responses,
-    ringbuffer::WriterPtr to_enclave) :
-    parser(sp),
-    socket(socket),
-    lock(lock),
-    prepared_responses(prepared_responses),
-    to_enclave(to_enclave)
-  {}
-
-  virtual ~ClientBehaviour() {}
-
-  void reply(http::Response& r, const std::string& body)
-  {
-    if (!socket.is_null())
-    {
-      std::vector<uint8_t> vody(body.begin(), body.end());
-      r.set_body(vody.data(), vody.size());
-      auto bytes = r.build_response();
-      socket->write(bytes.size(), bytes.data());
-    }
-  }
-
-  void on_read(size_t len, uint8_t*& incoming) override
-  {
-    std::string txt((char*)incoming, len);
-    LOG_INFO_FMT("txt={}", txt);
-
-    try
-    {
-      parser.execute(incoming, len);
-      while (!sp.received.empty())
-      {
-        auto req = sp.received.front();
-        sp.received.pop();
-
-        LOG_INFO_FMT("ACME: url={}", req.url);
-
-        // We serve only http://<YOUR_DOMAIN>/.well-known/acme-challenge/<TOKEN>
-        if (req.url.find("/.well-known/acme-challenge/") != 0)
-        {
-          http::Response r(HTTP_STATUS_NOT_FOUND);
-          reply(r, "Not found");
-        }
-        else
-        {
-          auto token = req.url.substr(req.url.rfind('/') + 1);
-
-          if (token.empty())
-          {
-            throw std::runtime_error("Missing ACME token");
-          }
-
-          LOG_DEBUG_FMT("ACME: received challenge request for token={}", token);
-
-          {
-            std::unique_lock<std::mutex> guard(lock);
-
-            auto tit = prepared_responses.find(token);
-            if (tit == prepared_responses.end())
-            {
-              LOG_DEBUG_FMT("ACME: token response not found");
-              http::Response r(HTTP_STATUS_NOT_FOUND);
-              reply(r, fmt::format("No response for token '{}' found", token));
-            }
-            else
-            {
-              auto rbody = fmt::format("{}.{}", tit->first, tit->second);
-              LOG_DEBUG_FMT("ACME: token response: {}", rbody);
-              http::Response r(HTTP_STATUS_OK);
-              r.set_header("Content-Type", "application/octet-stream");
-              reply(r, rbody);
-
-              RINGBUFFER_WRITE_MESSAGE(
-                ACMEMessage::acme_challenge_complete, to_enclave, token);
-            }
-          }
-        }
-      }
-    }
-    catch (const std::exception& ex)
-    {
-      http::Response r(HTTP_STATUS_BAD_REQUEST);
-      reply(r, "Bad request");
-    }
-  }
-
-protected:
-  http::SimpleRequestProcessor sp;
-  http::RequestParser parser;
-  asynchost::TCP socket;
-
-  std::mutex& lock;
-  const std::map<std::string, std::string>& prepared_responses;
-  ringbuffer::WriterPtr to_enclave;
-};
-
-class ConnectionTracker
+class ACMEConnectionTracker
 {
 public:
   virtual void add(asynchost::TCP& peer) = 0;
 };
 
-class ACMEServerBehaviour : public asynchost::TCPBehaviour
+class ACMEServerBehaviour : public asynchost::SocketBehaviour<asynchost::TCP>
 {
+protected:
+  class ClientBehaviour : public asynchost::SocketBehaviour<asynchost::TCP>
+  {
+  public:
+    ClientBehaviour(
+      asynchost::TCP socket,
+      std::mutex& lock,
+      const std::map<std::string, std::string>& prepared_responses,
+      ringbuffer::WriterPtr to_enclave) :
+      asynchost::SocketBehaviour<asynchost::TCP>("", ""),
+      parser(sp),
+      socket(socket),
+      lock(lock),
+      prepared_responses(prepared_responses),
+      to_enclave(to_enclave)
+    {}
+
+    virtual ~ClientBehaviour() {}
+
+    void reply(http::Response& r, const std::string& body)
+    {
+      if (!socket.is_null())
+      {
+        std::vector<uint8_t> vody(body.begin(), body.end());
+        r.set_body(vody.data(), vody.size());
+        auto bytes = r.build_response();
+        socket->write(bytes.size(), bytes.data());
+      }
+    }
+
+    virtual void on_read(size_t len, uint8_t*& incoming, sockaddr sa) override
+    {
+      std::string txt((char*)incoming, len);
+      LOG_INFO_FMT("txt={}", txt);
+
+      try
+      {
+        parser.execute(incoming, len);
+        while (!sp.received.empty())
+        {
+          auto req = sp.received.front();
+          sp.received.pop();
+
+          LOG_INFO_FMT("ACME: url={}", req.url);
+
+          // We serve only
+          // http://<YOUR_DOMAIN>/.well-known/acme-challenge/<TOKEN>
+          if (req.url.find("/.well-known/acme-challenge/") != 0)
+          {
+            http::Response r(HTTP_STATUS_NOT_FOUND);
+            reply(r, "Not found");
+          }
+          else
+          {
+            auto token = req.url.substr(req.url.rfind('/') + 1);
+
+            if (token.empty())
+            {
+              throw std::runtime_error("Missing ACME token");
+            }
+
+            LOG_DEBUG_FMT(
+              "ACME: received challenge request for token={}", token);
+
+            {
+              std::unique_lock<std::mutex> guard(lock);
+
+              auto tit = prepared_responses.find(token);
+              if (tit == prepared_responses.end())
+              {
+                LOG_DEBUG_FMT("ACME: token response not found");
+                http::Response r(HTTP_STATUS_NOT_FOUND);
+                reply(
+                  r, fmt::format("No response for token '{}' found", token));
+              }
+              else
+              {
+                auto rbody = fmt::format("{}.{}", tit->first, tit->second);
+                LOG_DEBUG_FMT("ACME: token response: {}", rbody);
+                http::Response r(HTTP_STATUS_OK);
+                r.set_header("Content-Type", "application/octet-stream");
+                reply(r, rbody);
+
+                RINGBUFFER_WRITE_MESSAGE(
+                  ACMEMessage::acme_challenge_complete, to_enclave, token);
+              }
+            }
+          }
+        }
+      }
+      catch (const std::exception& ex)
+      {
+        http::Response r(HTTP_STATUS_BAD_REQUEST);
+        reply(r, "Bad request");
+      }
+    }
+
+  protected:
+    http::SimpleRequestProcessor sp;
+    http::RequestParser parser;
+    asynchost::TCP socket;
+
+    std::mutex& lock;
+    const std::map<std::string, std::string>& prepared_responses;
+    ringbuffer::WriterPtr to_enclave;
+  };
+
 public:
   ACMEServerBehaviour(
-    ConnectionTracker& tracker,
+    ACMEConnectionTracker& tracker,
     std::mutex& lock,
     const std::map<std::string, std::string>& prepared_responses,
     ringbuffer::WriterPtr to_enclave) :
+    asynchost::SocketBehaviour<asynchost::TCP>("", ""),
     tracker(tracker),
     lock(lock),
     prepared_responses(prepared_responses),
@@ -144,55 +151,55 @@ public:
   void on_listening(
     const std::string& host, const std::string& service) override
   {
-    LOG_INFO_FMT("Listening for ACME connections on {}:{}", host, service);
+    LOG_DEBUG_FMT("Listening for ACME connections on {}:{}", host, service);
   }
 
   void on_accept(asynchost::TCP& peer) override
   {
-    LOG_INFO_FMT(
+    LOG_DEBUG_FMT(
       "Accepted new incoming ACME connection from {}", peer->get_host());
     peer->set_behaviour(std::make_unique<ClientBehaviour>(
       peer, lock, prepared_responses, to_enclave));
     tracker.add(peer);
   }
 
-  void on_read(size_t len, uint8_t*& incoming) override
+  virtual void on_read(size_t len, uint8_t*& incoming, sockaddr sa) override
   {
-    LOG_INFO_FMT("ACME: received {} bytes", len);
+    LOG_TRACE_FMT("ACME: received {} bytes", len);
   }
 
   virtual void on_resolve_failed() override
   {
-    LOG_INFO_FMT("ACME: on_resolve_failed");
+    LOG_TRACE_FMT("ACME: on_resolve_failed");
   }
   virtual void on_listen_failed() override
   {
-    LOG_INFO_FMT("ACME: on_listen_failed");
+    LOG_TRACE_FMT("ACME: on_listen_failed");
   }
   virtual void on_bind_failed() override
   {
-    LOG_INFO_FMT("ACME: on_bind_failed");
+    LOG_TRACE_FMT("ACME: on_bind_failed");
   }
   virtual void on_connect() override
   {
-    LOG_INFO_FMT("ACME: on_connect");
+    LOG_TRACE_FMT("ACME: on_connect");
   }
   virtual void on_connect_failed() override
   {
-    LOG_INFO_FMT("ACME: on_connect_failed");
+    LOG_TRACE_FMT("ACME: on_connect_failed");
   }
   virtual void on_disconnect() override
   {
-    LOG_INFO_FMT("ACME: on_disconnect");
+    LOG_TRACE_FMT("ACME: on_disconnect");
   }
 
-  ConnectionTracker& tracker;
+  ACMEConnectionTracker& tracker;
   std::mutex& lock;
   const std::map<std::string, std::string>& prepared_responses;
   ringbuffer::WriterPtr to_enclave;
 };
 
-class ACMEChallengeServer : public ConnectionTracker
+class ACMEChallengeServer : public ACMEConnectionTracker
 {
 public:
   ACMEChallengeServer(
