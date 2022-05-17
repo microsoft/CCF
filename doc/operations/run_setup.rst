@@ -22,8 +22,7 @@ The pre-built container can be obtained from the ``ccfmsrc.azurecr.io/ccf/app/ru
 
 .. code-block:: bash
 
-   $ docker pull ccfmsrc.azurecr.io/ccf/app/run:latest-sgx # Latest CCF release
-   $ docker pull ccfmsrc.azurecr.io/ccf/app/run:X.YZ-sgx   # Specific CCF release
+   $ docker pull ccfmsrc.azurecr.io/ccf/app/run:X.YZ
 
 The container does not contain any particular CCF enclave application, and may be helpful when deploying CCF nodes via docker, k8s, etc. It is up to the operator(s) to mount the appropriate CCF enclave application and start and manage the CCF node.
 
