@@ -824,7 +824,9 @@ namespace asynchost
       behaviour->on_read((size_t)sz, p);
 
       if (p != nullptr)
+      {
         on_free(buf);
+      }
     }
 
     static void on_write(uv_write_t* req, int)
@@ -835,7 +837,9 @@ namespace asynchost
     static void free_write(uv_write_t* req)
     {
       if (req == nullptr)
+      {
         return;
+      }
 
       char* copy = (char*)req->data;
       delete[] copy;
