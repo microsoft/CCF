@@ -5,17 +5,182 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0]
 
-### Changed
+See [documentation for code upgrade 1.x to 2.0](https://microsoft.github.io/CCF/main/operations/code_upgrade_1x.html) to upgrade an existing 1.x CCF service to 2.0
 
-- CCF Docker images have been renamed to align with Microsoft image naming convention (#3839).
+### Developer API
+
+#### C++
+
+- CCF is now built with Clang 10. It is strongly recommended that C++ applications upgrade to Clang 10 as well.
+- Raised the minimum supported CMake version for building CCF to 3.16 (#2946).
+- Removed `mbedtls` as cryptography and TLS library.
+
+- The CCF public API is now under `include/ccf`, and all application includes of framework code should use only these files.
+- Private headers have been moved to `ccf/include/ccf/_private` so they cannot be accidentally included from existing paths. Any applications relying on private headers should remove this dependency, or raise an issue to request the dependency be moved to the public API. In a future release private headers will be removed entirely from the installed package.
+
+- The `enclave::` namespace has been removed, and all types which were under it are now under `ccf::`. This will affect any apps using `enclave::RpcContext`, which should be replaced with `ccf::RpcContext` (#3664).
+- The `kv::Store` type is no longer visible to application code, and is replaced by a simpler `kv::ReadOnlyStore`. This is the interface given to historical queries to access historical state and enforces read-only access, without exposing internal implementation details of the store. This should have no impact on JS apps, but C++ apps will need to replace calls to `store->current_txid()` with calls to `store->get_txid()`, and `store->create_tx()` to `store->create_read_only_tx()`.
+- The C++ types used to define public governance tables are now exposed in public headers. Any C++ applications reading these tables should update their include paths (ie - `#include "service/tables/nodes.h"` => `#include "ccf/service/tables/nodes.h"`) (#3608).
+- `TxReceipt::describe()` has been replaced with `ccf::describe_receipt_v2()`. Note that the previous JSON format is still available, but must be retrieved as a JSON object from `describe_receipt_v1()`. Includes of the private `node/tx_receipt.h` from C++ applications should be removed (#3610).
+- The entry point for creation of C++ apps is now `make_user_endpoints()`. The old entry point `get_rpc_handler()` has been removed (#3562). For an example of the necessary change, see [this diff](https://github.com/microsoft/CCF/commit/5b40ba7b42d5664d787cc7e3cfc9cbe18c01e5a1#diff-78fa25442e77145040265646434b9582d491928819e58be03c5693c01417c6c6) of the logging sample app (#3562).
+
+- Added `get_untrusted_host_time_v1` API. This can be used to retrieve a timestamp during endpoint execution, accurate to within a few milliseconds. Note that this timestamp comes directly from the host so is not trusted, and should not be used to make sensitive decisions within a transaction (#2550).
+- Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
+- Added `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
+- Added `set_claims_digest()` API to `RpcContext`, see [documentation](https://microsoft.github.io/CCF/main/build_apps/logging_cpp.html#user-defined-claims-in-receipts) on how to use it to attach application-defined claims to transaction receipts.
+- Added [indexing system](https://microsoft.github.io/CCF/main/architecture/indexing.html) to speed up historical queries (#3280, #3444).
+- Removed `get_node_state()` from `AbstractNodeContext`. The local node's ID is still available to endpoints as `get_node_id()`, and other subsystems which are app-visible can be fetched directly (#3552).
+
+- Receipts now come with service endorsements of previous service identities after recoveries (#3679). See `verify_receipt` in `e2e_logging.py` for an example of how to verify the resulting certificate chain. This functionality is introduced in `ccf::historical::adapter_v3`.
+- `ccf::historical::adapter_v2`, and its successor `ccf::historical::adapter_v3` now return 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
+- `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()` (#3187).
+
+Key-Value Store
+
+- Added `kv::Value` and `kv::Set`, as a more error-proof alternative to `kv::Map`s which had a single key or meaningless values (#2599).
+- Added `foreach_key` and `foreach_value` to C++ KV API, to iterate without deserializing both entries when only one is used (#2918).
+
+#### JavaScript
+
+- Added JavaScript bytecode caching to avoid repeated compilation overhead. See the [documentation](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#deployment) for more information (#2643).
+- Added `ccf.crypto.verifySignature()` for verifying digital signatures to the JavaScript API (#2661).
+- Added experimental JavaScript API `ccf.host.triggerSubprocess()` (#2461).
+
+- `ccf.crypto.verifySignature()` previously required DER-encoded ECDSA signatures and now requires IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API (#2735).
+- `ccf.historical.getStateRange` / `ccf.historical.dropCachedStates` JavaScript APIs to manually retrieve historical state in endpoints declared as `"mode": "readonly"` (#3033).
+- JavaScript endpoints with `"mode": "historical"` now expose the historical KV at `ccf.historicalState.kv` while `ccf.kv` always refers to the current KV state. Applications relying on the old behaviour should make their code forward-compatible before upgrading to 2.x with `const kv = ccf.historicalState.kv || ccf.kv`.
+- Receipts accessible through JavaScript no longer contain the redundant `root` hash field. Applications should be changed to not rely on this field anymore before upgrading to 2.x.
+- Add request details with additional URL components to JS + TS API: `request.url`, `request.route`, `request.method`, `request.hostname` (#3498).
+
+---
+
+### Governance
+
+- Updated `actions.js` constitution fragment to record service-endorsed node certificate on the `transition_node_to_trusted` action. The constitution must be updated using the existing `set_constitution` proposal (#2844).
+- The existing `transition_node_to_trusted` proposal action now requires a new `valid_from` argument (and optional `validity_period_days`, which defaults to the value of `maximum_node_certificate_validity_days`).
+- The `proposal_generator` has been removed from the `ccf` Python package. The majority of proposals can be trivially constructed in existing client tooling, without needing to invoke Python. This also introduces parity between the default constitution and custom constitution actions - all should be constructed and called from the same governance client code. Some jinja templates are included in `samples/templates` for constructing careful ballots from existing proposals.
+- A new governance action `trigger_ledger_chunk` to request the creation of a ledger chunk at the next signature (#3519).
+- A new governance action `trigger_snapshot` to request the creation of a snapshot at the next signature (#3544).
+- Configurations and proposals now accept more date/time formats, including the Python-default ISO 8601 format (#3739).
+- The `transition_service_to_open` governance proposal now requires the service identity as an argument to ensure the correct service is started. During recovery, it further requires the previous service identity to ensure the right service is recovered (#3624).
+
+---
+
+### Operations
+
+#### `cchost` Configuration
+
+- **Breaking change**: Configuration for CCF node is now a JSON configuration file passed in to `cchost` via `--config /path/to/config/file/` CLI argument. Existing CLI arguments have been removed. The `migrate_1_x_config.py` script (included in `ccf` Python package) should be used to migrate existing `.ini` configuration files to `.json` format (#3209).
+- Added support for listening on multiple interfaces for incoming client RPCs, with individual session caps (#2628).
+- The per-node session cap behaviour has changed. The `network.rpc_interfaces.<interface_name>.max_open_sessions_soft` is now a soft cap on the number of sessions. Beyond this, new sessions will receive a HTTP 503 error immediately after completing the TLS handshake. The existing hard cap (where sessions are closed immediately, before the TLS handshake) is still available, under the new argument `network.rpc_interfaces.<interface_name>.max_open_sessions_hard` (#2583).
+- Snapshot files now include receipt of evidence transaction. Nodes can now join or recover a service from a standalone snapshot file. 2.x nodes can still make use of snapshots created by a 1.x node, as long as the ledger suffix containing the proof of evidence is also specified at start-up (#2998).
+- If no `node_certificate.subject_alt_names` is specified at node start-up, the node certificate _Subject Alternative Name_ extension now defaults to the value of `published_address` of the first RPC interface (#2902).
+- Primary node now also reports time at which the ack from each backup node was last received (`GET /node/consensus` endpoint). This can be used by operators to detect one-way partitions between the primary and backup nodes (#3769).
+- Added new `GET /node/self_signed_certificate` endpoint to retrieve the self-signed certificate of the target node (#3767).
+- New `GET /gov/members` endpoint which returns details of all members from the KV (#3615).
+- The new `endorsement` configuration entry lets operators set the desired TLS certificate endorsement, either service-endorsed or node-endorsed (self-signed), for each network RPC interface of a node, defaulting to service-endorsed (#2875).
+
+#### Certificate(s) Validity Period
+
+- Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
+
+  - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
+  - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
+  - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
+
+- Service certificate validity period is no longer hardcoded and must instead be set by operators and renewed by members (#3363):
+
+  - The new `service_certificate_initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the service certificate (valid from the current system time).
+  - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
+  - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
+
+#### Misc
+
+- The service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
+- Log more detailed errors on early startup (#3116).
+- Format of node output RPC and node-to-node addresses files is now JSON (#3300).
+- Joining nodes now present service-endorsed certificate in client TLS sessions _after_ they have observed their own addition to the store, rather than as soon as they have joined the service. Operators should monitor the initial progress of a new node using its self-signed certificate as TLS session certificate authority (#2844).
+
+- Slow ledger IO operations will now be logged at level FAIL. The threshold over which logging will activate can be adjusted by the `slow_io_logging_threshold` configuration entry to cchost (#3067).
+- Added a new `client_connection_timeout` configuration entry to specify the maximum time a node should wait before re-establishing failed client connections. This should be set to a significantly lower value than `consensus.election_timeout` (#2618).
+- Nodes code digests are now extracted and cached at network join time in `public:ccf.gov.nodes.info`, and the `GET /node/quotes` and `GET /node/quotes/self` endpoints will use this cached value whenever possible (#2651).
+- DNS resolution of client connections is now asynchronous (#3140).
+- The curve-id selected for the identity of joining nodes no longer needs to match that of the network (#2525).
+- Removed long-deprecated `--domain` argument from `cchost`. Node certificate Subject Alternative Names should be passed in via existing `node_certificate.subject_alt_names` configuration entry (#2798).
+- Added experimental support for 2-transaction reconfiguration with CFT consensus, see [documentation](https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration). Note that mixing 1tx and 2tx nodes in the same network is unsupported and unsafe at this stage (#3097).
+- Aside from regular release packages, CCF now also provides `unsafe` packages with verbose logging, helpful for troubleshooting. The extent of the logging in these builds make them fundamentally UNSAFE to use for production purposes, hence the name.
+- Nodes no longer crash at start-up if the ledger in the read-only ledger directories (`ledger.read_only_directories`) is ahead of the ledger in the main ledger directory (`ledger.directory`) (#3597).
+- Nodes now have a free-form `node_data` field, to match users and members. This can be set when the node is launched, or modified by governance. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier (#3662).
+- New `GET /node/consensus` endpoint now also returns primary node ID and current view (#3666).
+- HTTP parsing errors are now recorded per-interface and returned by `GET /node/metrics` (#3671).
+- Failed recovery procedures no longer block subsequent recoveries: `.recovery` ledger files are now created while the recovery is in progress and ignored or deleted by nodes on startup (#3563).
+- Corrupted or incomplete ledger files are now recovered gracefully, until the last valid entry (#3585).
+
+#### Fixed
+
+- Fixed issue with ledger inconsistency when starting a new joiner node without a snapshot but with an existing ledger prefix (#3064).
+- Fixed issue with join nodes which could get stuck if an election was triggered while catching up (#3169).
+- Nodes joining must have a snapshot at least as recent as the primary's (#3573).
+
+### Release artefacts
+
+- `cchost` can now run both SGX and virtual enclave libraries. `cchost.virtual` is no longer needed, and has been removed (#3476).
+- CCF Docker images are now available through Azure Container Registry rather than Docker Hub (#3839, #3821).
   - The `ccfmsrc.azurecr.io/ccf-sgx-app-run` image is now available at `ccfmsrc.azurecr.io/public/ccf/app/run:<tag>-sgx`.
   - The `ccfmsrc.azurecr.io/ccf-sgx-app-dev` image is now available at `ccfmsrc.azurecr.io/public/ccf/app/dev:<tag>-sgx`.
+  - New `ccfmsrc.azurecr.io/public/ccf/app/run-js` JavaScript application runtime image (including `libjs_generic` application under `/usr/lib/ccf`) (#3845).
 
-### Added
+---
 
-- Added new `ccfmsrc.azurecr.io/public/ccf/app/run-js` JavaScript application runtime image (including `libjs_generic` application under `/usr/lib/ccf`) (#3845).
+### Auditor
+
+- Receipts now include the endorsed certificate of the node, as well as its node id, for convenience (#2991).
+- Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
+- Service-endorsed node certificates are now recorded in a new `public:ccf.gov.nodes.endorsed_certificates` table, while the existing `cert` field in the `public:ccf.gov.nodes.info` table is now deprecated (#2844).
+- New `split_ledger.py` utility to split existing ledger files (#3129).
+- Python `ccf.read_ledger` module now accepts custom formatting rules for the key and value based on the key-value store table name (#2791).
+- [Ledger entries](https://microsoft.github.io/CCF/main/architecture/ledger.html#transaction-format) now contain a `commit_evidence_digest`, as well as a `claims_digest`, which can be set with `set_claims_digest()`. The digest of the write set was previously the per-transaction leaf in the Merkle Tree, but is now combined with the digest of the commit evidence and the user claims. [Receipt verification instructions](https://microsoft.github.io/CCF/main/audit/receipts.html) have been amended accordingly. The presence of `commit_evidence` in receipts serves two purposes: giving the user access to the TxID without having to parse the write set, and proving that a transaction has been committed by the service. Transactions are flushed to disk eagerly by the primary to keep in-enclave memory use to a minimum, so the existence of a ledger suffix is not on its own indicative of its commit status. The digest of the commit evidence is in the ledger to allow audit and recovery, but only the disclosure of the commit evidence indicates that a transaction has been committed by the service
+- Add `--insecure-skip-verification` to `ledger_viz` utility, to allow visualisation of unverified ledger chunks (#3618).
+- Add `--split-services` to `ledger_viz` utility, to easily find out at which TxID new services were created (#3621).
+- Python `ccf.read_ledger` and `ccf.ledger_viz` tools now accept paths to individual ledger chunks, to avoid parsing the entire ledger.
+
+---
+
+### Client API
+
+- Added support for TLS 1.3 (now used by default).
+
+- Added `GET /gov/jwt_keys/all` endpoint (#2519).
+- Added new operator RPC `GET /node/js_metrics` returning the JavaScript bytecode size and whether the bytecode is used (#2643).
+- Added a new `GET /node/metrics` endpoint which includes the count of active and peak concurrent sessions handled by the node (#2596).
+- Added endpoint to obtain service configuration via `GET /node/service/configuration` (#3251).
+- Added QuickJS version to RPC `GET /node/version` (#2643).
+- Added a `GET /node/jwt_metrics` endpoint to monitor attempts and successes of key refresh for each issuer. See [documentation](https://microsoft.github.io/CCF/main/build_apps/auth/jwt.html#extracting-jwt-metrics) on how to use it.
+
+- Schema of `GET /network/nodes/{node_id}` and `GET /network/nodes` endpoints has been modified to include all RPC interfaces (#3300).
+- Improved performance for lookup of path-templated endpoints (#2918).
+- CCF now responds to HTTP requests that could not be parsed with a 400 response including error details (#2652).
+- Node RPC interfaces do not transition anymore from node-endorsed to service-endorsed TLS certificates but are fixed to a single configured type. While a given endorsement is not available yet (typically at start-up for service-endorsed certificates) the interface rejects TLS sessions instead of defaulting to a node-endorsed certificate (#2875).
+
+- Websockets endpoints are no longer supported. Usage is insufficient to justify ongoing maintenance.
+- The `ccf` Python package no longer provides utilities to issue requests to a running CCF service. This is because CCF supports widely-used client-server protocols (TLS, HTTP) that should already be provided by libraries for all programming languages. The `ccf` Python package can still be used to audit the ledger and snapshot files (#3386).
+
+---
+
+### Dependencies
+
+- Upgraded Open Enclave to 0.17.7 (#3815).
+
+---
+
+### Misc Fixes
+
+- When using the `sandbox.sh` script, always wait for `/app` frontend to be open on all nodes before marking the service as open (#3779).
+- Snapshot generation no longer causes a node crash if the snapshot is larger than the ring buffer message size (`memory.max_msg_size`). Instead, the generation of the large snapshot is skipped (#3603).
+
+---
 
 ## [2.0.0-rc9]
 
@@ -1328,6 +1493,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0
 [2.0.0-rc9]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc9
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
 [2.0.0-rc7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc7
