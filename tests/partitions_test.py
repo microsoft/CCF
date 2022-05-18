@@ -174,7 +174,7 @@ def test_isolate_primary_from_one_backup(network, args):
 
 
 @reqs.description("Isolate and reconnect primary")
-def test_isolate_and_reconnect_primary(network, args, **kwargs):
+def test_isolate_and_reconnect_primary(network, args):
     primary, backups = network.find_nodes()
 
     with primary.client() as c:
@@ -190,6 +190,8 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
 
         if args.check_quorum:
             primary.wait_for_leadership_state(primary_view, "Follower")
+        else:
+            primary.wait_for_leadership_state(primary_view, "Primary")
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
@@ -375,12 +377,10 @@ def run_2tx_reconfig_tests(args):
         test_learner_does_not_take_part(network, local_args)
 
 
-def run(args):
+def run(args, check_quorum=False):
     txs = app.LoggingTxs("user0")
 
-    LOG.error("here")
-
-    # TODO: Test both with and without check quorum
+    args.check_quorum = check_quorum
 
     with infra.network.network(
         args.nodes,
@@ -398,9 +398,7 @@ def run(args):
         # test_isolate_primary_from_one_backup(network, args)
         # test_new_joiner_helps_liveness(network, args)
         # for n in range(5):
-        # test_isolate_and_reconnect_primary(network, args)  # , iteration=n)
-
-    LOG.success("there")
+        test_isolate_and_reconnect_primary(network, args)  # , iteration=n)
 
 
 if __name__ == "__main__":
@@ -413,29 +411,10 @@ if __name__ == "__main__":
             action="store_true",
         )
 
-    cr = ConcurrentRunner(add)
+    args = infra.e2e_args.cli_args(add)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.package = "samples/apps/logging/liblogging"
 
-    cr.add(
-        "vanilla",
-        run,
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        package="samples/apps/logging/liblogging",
-        check_quorum=False,
-    )
-
-    cr.add(
-        "extensions",
-        run,
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        package="samples/apps/logging/liblogging",
-        check_quorum=True,
-    )
-
-    # cr.add(
-    #     "2tx",
-    #     run_2tx_reconfig_tests,
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     package="samples/apps/logging/liblogging",
-    # )
-
-    cr.run()
+    run(args, check_quorum=False)
+    run(args, check_quorum=True)
+    # run_2tx_reconfig_tests(args)
