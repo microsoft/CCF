@@ -50,7 +50,7 @@ namespace asynchost
     }
     virtual void on_disconnect()
     {
-      LOG_INFO_FMT("{} {} disconnected", conn_name, name);
+      LOG_TRACE_FMT("{} {} disconnected", conn_name, name);
     }
 
     /// Failure loggers for when things go wrong, but not fatal

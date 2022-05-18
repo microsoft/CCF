@@ -418,8 +418,7 @@ namespace ccf
 
           LOG_INFO_FMT("Created new node {}", self);
 
-          acme_client = std::make_shared<ACMEClient>(
-            rpcsessions, network.identity, to_host);
+          setup_acme_client();
 
           return {self_signed_node_cert, network.identity->cert};
         }
@@ -665,6 +664,8 @@ namespace ccf
 
             snapshotter->set_last_snapshot_idx(
               network.tables->current_version());
+
+            setup_acme_client();
 
             if (resp.network_info->public_only)
             {
@@ -2435,6 +2436,12 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(
         consensus::ledger_truncate, to_host, idx, recovery_mode);
+    }
+
+    void setup_acme_client()
+    {
+      acme_client = std::make_shared<ACMEClient>(
+        network.identity, node_sign_kp, get_node_id(), rpcsessions, to_host);
     }
   };
 }

@@ -11,6 +11,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/http_status.h"
 #include "ds/messaging.h"
+#include "ds/thread_messaging.h"
 #include "enclave/interface.h"
 #include "enclave/rpc_sessions.h"
 #include "http/http_builder.h"
@@ -23,20 +24,32 @@
 #include <chrono>
 #include <cstddef>
 #include <thread>
+#include <unordered_set>
+#include <vector>
 
 class ACMEClient
 {
 public:
   ACMEClient(
+    const std::unique_ptr<ccf::NetworkIdentity>& service_identity,
+    const std::shared_ptr<crypto::KeyPair>& node_key_pair,
+    const std::string& node_id,
     const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
-    const std::unique_ptr<ccf::NetworkIdentity>& identity,
     ringbuffer::WriterPtr& to_host) :
-    identity(identity),
+    service_identity(service_identity),
+    node_key_pair(node_key_pair),
+    node_id(node_id),
     rpcsessions(rpcsessions),
     to_host(to_host)
   {
-    service_key_pair = crypto::make_key_pair(identity->priv_key);
     account_key_pair = crypto::make_key_pair();
+    // node_dns_name = node_id + "." + config.service_dns_name;
+    node_dns_name = "acc-cwinter.uksouth.cloudapp.azure.com";
+
+    identifiers = nlohmann::json::array({
+      {{"type", "dns"}, {"value", node_dns_name}},
+      {{"type", "dns"}, {"value", config.service_dns_name}},
+    });
   }
 
   virtual ~ACMEClient()
@@ -49,6 +62,7 @@ public:
     request_directory();
   }
 
+protected:
   void make_request(
     llhttp_method method,
     const http::URL& url,
@@ -90,7 +104,10 @@ public:
           }
 
           auto nonce_opt = get_header_value(headers, "replay-nonce");
-          nonce = nonce_opt.value_or(nonce);
+          if (nonce_opt)
+          {
+            nonces.push_back(*nonce_opt);
+          }
 
           try
           {
@@ -159,6 +176,75 @@ public:
       });
   }
 
+  void post_as_get(
+    const std::string& account_url,
+    const std::string& resource_url,
+    std::function<bool(http::HeaderMap&, const std::vector<uint8_t>&)>
+      ok_callback)
+  {
+    if (nonces.empty())
+    {
+      request_new_nonce(
+        [=]() { post_as_get(account_url, resource_url, ok_callback); });
+    }
+    else
+    {
+      auto nonce = nonces.front();
+      nonces.pop_front();
+      auto header = mk_kid_header(account_url, nonce, resource_url);
+      JWS jws(header, true, *account_key_pair);
+      http::URL url = with_default_port(resource_url);
+      make_request(
+        HTTP_POST, url, json_to_bytes(jws), HTTP_STATUS_OK, ok_callback);
+    }
+  }
+
+  void post_as_get_json(
+    const std::string& account_url,
+    const std::string& resource_url,
+    std::function<bool(http::HeaderMap&, const nlohmann::json&)> ok_callback,
+    bool empty_payload = false)
+  {
+    if (nonces.empty())
+    {
+      request_new_nonce([=]() {
+        post_as_get_json(account_url, resource_url, ok_callback, empty_payload);
+      });
+    }
+    else
+    {
+      auto nonce = nonces.front();
+      nonces.pop_front();
+
+      auto header = mk_kid_header(account_url, nonce, resource_url);
+      JWS jws(
+        header,
+        true,
+        nlohmann::json::object_t(),
+        *account_key_pair,
+        empty_payload);
+      http::URL url = with_default_port(resource_url);
+      make_request(
+        HTTP_POST,
+        url,
+        json_to_bytes(jws),
+        HTTP_STATUS_OK,
+        [ok_callback](
+          http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+          try
+          {
+            ok_callback(headers, nlohmann::json::parse(data));
+            return true;
+          }
+          catch (const std::exception& ex)
+          {
+            LOG_FATAL_FMT("ACME: request callback failed: {}", ex.what());
+            return false;
+          }
+        });
+    }
+  }
+
 protected:
   struct Config
   {
@@ -195,7 +281,7 @@ protected:
     std::string directory_url =
       "https://acme-staging-v02.api.letsencrypt.org/directory";
 
-    std::string service_url = "my-ccf.adns.ccf.dev";
+    std::string service_dns_name = "my-ccf.adns.ccf.dev";
     std::vector<std::string> contact = {"mailto:cwinter@microsoft.com"};
     bool terms_of_service_agreed = true;
     std::string challenge_type = "http-01";
@@ -203,9 +289,14 @@ protected:
     std::optional<std::string> not_after;
   } config;
 
-  const std::unique_ptr<ccf::NetworkIdentity>& identity;
-  std::shared_ptr<crypto::KeyPair> service_key_pair;
+  const std::unique_ptr<ccf::NetworkIdentity>& service_identity;
   std::shared_ptr<crypto::KeyPair> account_key_pair;
+  std::shared_ptr<crypto::KeyPair> node_key_pair;
+  const std::string node_id;
+  std::string node_dns_name;
+  nlohmann::json identifiers;
+  std::unordered_set<std::string> pending_authorizations;
+
   std::shared_ptr<ccf::RPCSessions> rpcsessions;
   ringbuffer::WriterPtr to_host;
   std::mutex req_lock;
@@ -213,7 +304,7 @@ protected:
 
   nlohmann::json directory;
   nlohmann::json account;
-  std::string nonce;
+  std::list<std::string> nonces;
 
   static http::URL with_default_port(const std::string& url)
   {
@@ -384,11 +475,11 @@ protected:
       HTTP_STATUS_OK,
       [this](http::HeaderMap&, const nlohmann::json& j) {
         directory = j;
-        request_new_nonce();
+        request_new_account();
       });
   }
 
-  void request_new_nonce()
+  void request_new_nonce(std::function<void()> ok_callback)
   {
     http::URL url = with_default_port(directory.at("newNonce"));
     make_json_request(
@@ -396,8 +487,9 @@ protected:
       url,
       {},
       HTTP_STATUS_NO_CONTENT,
-      [this](http::HeaderMap& headers, const nlohmann::json& j) {
-        request_new_account();
+      [this, ok_callback](http::HeaderMap& headers, const nlohmann::json& j) {
+        ok_callback();
+        return true;
       });
   }
 
@@ -425,45 +517,57 @@ protected:
   {
     std::string new_account_url = directory.at("newAccount").get<std::string>();
 
-    auto crv_alg = get_crv_alg(account_key_pair);
-    auto key_coords = account_key_pair->coordinates();
+    if (nonces.empty())
+    {
+      request_new_nonce([this]() { request_new_account(); });
+    }
+    else
+    {
+      auto nonce = nonces.front();
+      nonces.pop_front();
 
-    JWK jwk(
-      "EC",
-      crv_alg.first,
-      crypto::b64url_from_raw(key_coords.x, false),
-      crypto::b64url_from_raw(key_coords.y, false));
+      auto crv_alg = get_crv_alg(account_key_pair);
+      auto key_coords = account_key_pair->coordinates();
 
-    nlohmann::json header = {
-      {"alg", crv_alg.second},
-      {"jwk", jwk},
-      {"nonce", nonce},
-      {"url", new_account_url}};
+      JWK jwk(
+        "EC",
+        crv_alg.first,
+        crypto::b64url_from_raw(key_coords.x, false),
+        crypto::b64url_from_raw(key_coords.y, false));
 
-    nlohmann::json payload = {
-      {"termsOfServiceAgreed", config.terms_of_service_agreed},
-      {"contact", config.contact}};
+      nlohmann::json header = {
+        {"alg", crv_alg.second},
+        {"jwk", jwk},
+        {"nonce", nonce},
+        {"url", new_account_url}};
 
-    JWS jws(header, true, payload, *account_key_pair);
+      nlohmann::json payload = {
+        {"termsOfServiceAgreed", config.terms_of_service_agreed},
+        {"contact", config.contact}};
 
-    http::URL url = with_default_port(new_account_url);
-    make_json_request(
-      HTTP_POST,
-      url,
-      json_to_bytes(jws),
-      HTTP_STATUS_CREATED,
-      [this](http::HeaderMap& headers, const nlohmann::json& j) {
-        expect_string(j, "status", "valid");
-        // expect(j, "orders"); // CHECK: Isn't this mandatory?
-        account = j;
-        auto loc_opt = get_header_value(headers, "location");
-        std::string account_url = loc_opt.value_or("");
-        submit_new_order(account_url);
-      });
+      JWS jws(header, true, payload, *account_key_pair);
+
+      http::URL url = with_default_port(new_account_url);
+      make_json_request(
+        HTTP_POST,
+        url,
+        json_to_bytes(jws),
+        HTTP_STATUS_CREATED,
+        [this](http::HeaderMap& headers, const nlohmann::json& j) {
+          expect_string(j, "status", "valid");
+          // expect(j, "orders"); // CHECK: Isn't this mandatory?
+          account = j;
+          auto loc_opt = get_header_value(headers, "location");
+          std::string account_url = loc_opt.value_or("");
+          submit_new_order(account_url);
+        });
+    }
   }
 
   nlohmann::json mk_kid_header(
-    const std::string& account_url, const std::string& resource_url)
+    const std::string& account_url,
+    const std::string& nonce,
+    const std::string& resource_url)
   {
     //  For all other requests, the request is signed using an existing account,
     //  and there MUST be a "kid" field.  This field MUST contain the account
@@ -480,95 +584,62 @@ protected:
     return r;
   }
 
+  void authorize_next_challenge(
+    const std::string& account_url, std::string finalize_url)
+  {
+    if (!pending_authorizations.empty())
+    {
+      submit_authorization(
+        account_url, *pending_authorizations.begin(), finalize_url);
+    }
+  }
+
   void submit_new_order(const std::string& account_url)
   {
-    auto header = mk_kid_header(account_url, directory.at("newOrder"));
-
-    nlohmann::json payload = {
-      {"identifiers",
-       nlohmann::json::array(
-         {{{"type", "dns"}, {"value", config.service_url}}})},
-    };
-
-    if (config.not_before)
+    if (nonces.empty())
     {
-      payload["notBefore"] = *config.not_before;
+      request_new_nonce(
+        [this, account_url]() { submit_new_order(account_url); });
     }
-    if (config.not_after)
+    else
     {
-      payload["notAfter"] = *config.not_after;
-    }
+      auto nonce = nonces.front();
+      nonces.pop_front();
 
-    JWS jws(header, true, payload, *account_key_pair);
+      auto header = mk_kid_header(account_url, nonce, directory.at("newOrder"));
 
-    http::URL url = with_default_port(directory.at("newOrder"));
-    make_json_request(
-      HTTP_POST,
-      url,
-      json_to_bytes(jws),
-      HTTP_STATUS_CREATED,
-      [this, account_url](http::HeaderMap& headers, const nlohmann::json& j) {
-        expect_string(j, "status", "pending");
-        expect(j, "finalize");
-        expect(j, "authorizations");
+      nlohmann::json payload = {{"identifiers", identifiers}};
 
-        if (j.contains("authorizations"))
-        {
-          for (const auto& authz_url : j["authorizations"])
+      if (config.not_before)
+      {
+        payload["notBefore"] = *config.not_before;
+      }
+      if (config.not_after)
+      {
+        payload["notAfter"] = *config.not_after;
+      }
+
+      JWS jws(header, true, payload, *account_key_pair);
+
+      http::URL url = with_default_port(directory.at("newOrder"));
+      make_json_request(
+        HTTP_POST,
+        url,
+        json_to_bytes(jws),
+        HTTP_STATUS_CREATED,
+        [this, account_url](http::HeaderMap& headers, const nlohmann::json& j) {
+          expect_string(j, "status", "pending");
+          expect(j, "finalize");
+          expect(j, "authorizations");
+
+          if (j.contains("authorizations"))
           {
-            submit_authorization(account_url, authz_url, j["finalize"]);
+            pending_authorizations =
+              j["authorizations"].get<std::unordered_set<std::string>>();
+            authorize_next_challenge(account_url, j["finalize"]);
           }
-        }
-      });
-  }
-
-  void post_as_get(
-    const std::string& nonce,
-    const std::string& account_url,
-    const std::string& resource_url,
-    std::function<bool(http::HeaderMap&, const std::vector<uint8_t>&)>
-      ok_callback)
-  {
-    auto header = mk_kid_header(account_url, resource_url);
-    JWS jws(header, true, *account_key_pair);
-    http::URL url = with_default_port(resource_url);
-    make_request(
-      HTTP_POST, url, json_to_bytes(jws), HTTP_STATUS_OK, ok_callback);
-  }
-
-  void post_as_get_json(
-    const std::string& nonce,
-    const std::string& account_url,
-    const std::string& resource_url,
-    std::function<bool(http::HeaderMap&, const nlohmann::json&)> ok_callback,
-    bool empty_payload = false)
-  {
-    auto header = mk_kid_header(account_url, resource_url);
-    JWS jws(
-      header,
-      true,
-      nlohmann::json::object_t(),
-      *account_key_pair,
-      empty_payload);
-    http::URL url = with_default_port(resource_url);
-    make_request(
-      HTTP_POST,
-      url,
-      json_to_bytes(jws),
-      HTTP_STATUS_OK,
-      [ok_callback](
-        http::HeaderMap& headers, const std::vector<uint8_t>& data) {
-        try
-        {
-          ok_callback(headers, nlohmann::json::parse(data));
-          return true;
-        }
-        catch (const std::exception& ex)
-        {
-          LOG_FATAL_FMT("ACME: request callback failed: {}", ex.what());
-          return false;
-        }
-      });
+        });
+    }
   }
 
   void submit_authorization(
@@ -577,10 +648,9 @@ protected:
     const std::string& finalize_url)
   {
     post_as_get_json(
-      nonce,
       account_url,
       authz_url,
-      [this, account_url, finalize_url](
+      [this, account_url, authz_url, finalize_url](
         http::HeaderMap& headers, const nlohmann::json& j) {
         LOG_DEBUG_FMT("ACME: authorization reply: {}", j.dump());
         expect_string(j, "status", "pending");
@@ -600,17 +670,21 @@ protected:
             std::string token = challenge["token"];
             std::string url = challenge["url"];
 
-            submit_challenge(account_url, token, url, finalize_url);
+            add_challenge(account_url, token, url, finalize_url);
             found_match = true;
             break;
           }
         }
+
+        pending_authorizations.erase(authz_url);
 
         if (!found_match)
         {
           throw std::runtime_error(fmt::format(
             "challenge type '{}' not offered", config.challenge_type));
         }
+
+        authorize_next_challenge(account_url, finalize_url);
 
         return true;
       },
@@ -627,7 +701,7 @@ protected:
 
   std::map<std::string, Challenge> active_challenges;
 
-  void submit_challenge(
+  void add_challenge(
     const std::string& account_url,
     const std::string& token,
     const std::string& challenge_url,
@@ -667,34 +741,35 @@ protected:
     return active_challenges.find(token) != active_challenges.end();
   }
 
+  auto schedule_check_challenge(const Challenge& challenge)
+  {
+    return std::make_unique<threading::Tmsg<ChallengeWaitMsg>>(
+      [](std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> msg) {
+        const Challenge& challenge = msg->data.challenge;
+        ACMEClient* client = msg->data.client;
+
+        LOG_TRACE_FMT(
+          "ACME: Checking for challenge completion for token '{}' ...",
+          challenge.token);
+
+        if (client->check_challenge(challenge))
+        {
+          LOG_DEBUG_FMT("ACME: scheduling next challenge check");
+          threading::ThreadMessaging::thread_messaging.add_task_after(
+            std::move(msg), std::chrono::seconds(10));
+        }
+      },
+      challenge,
+      this);
+  }
+
   void start_challenge(const std::string& token)
   {
     auto cit = active_challenges.find(token);
     if (cit != active_challenges.end())
     {
-      auto wait_msg = std::make_unique<threading::Tmsg<ChallengeWaitMsg>>(
-        [](std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> msg) {
-          const Challenge& challenge = msg->data.challenge;
-          ACMEClient* client = msg->data.client;
-
-          LOG_TRACE_FMT(
-            "Checking for challenge completion for token '{}' ...",
-            challenge.token);
-
-          if (client->check_challenge(challenge))
-          {
-            LOG_DEBUG_FMT("ACME: scheduling next challenge check");
-            threading::ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg), std::chrono::seconds(60));
-          }
-          else
-            LOG_DEBUG_FMT("ACME: not check_challenge");
-        },
-        cit->second,
-        this);
-
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(wait_msg), std::chrono::milliseconds(0));
+        schedule_check_challenge(cit->second), std::chrono::milliseconds(0));
     }
   }
 
@@ -703,12 +778,11 @@ protected:
     if (is_challenge_in_progress(challenge.token))
     {
       post_as_get_json(
-        nonce,
         challenge.account_url,
         challenge.challenge_url,
         [this, token = challenge.token](
           http::HeaderMap& headers, const nlohmann::json& j) {
-          LOG_DEBUG_FMT("ACME: challenge reply: {}", j.dump());
+          LOG_DEBUG_FMT("ACME: challenge result: {}", j.dump());
           expect(j, "status");
 
           if (j["status"] == "valid")
@@ -740,9 +814,11 @@ protected:
 
           return false;
         });
+
+      return true;
     }
 
-    return true;
+    return false;
   }
 
   void finalize_challenge(const std::string& token)
@@ -756,43 +832,55 @@ protected:
         fmt::format("No active challenge for token '{}'", token));
     }
 
-    const Challenge& challenge = cit->second;
+    Challenge challenge = cit->second;
 
-    submit_finalize(
-      challenge.account_url, challenge.token, challenge.finalize_url);
+    active_challenges.erase(cit);
+
+    if (active_challenges.empty())
+    {
+      submit_finalize(challenge.account_url, challenge.finalize_url);
+    }
   }
 
   void submit_finalize(
-    const std::string& account_url,
-    const std::string& token,
-    const std::string& finalize_url)
+    const std::string& account_url, const std::string& finalize_url)
   {
-    if (!is_challenge_in_progress(token))
+    if (!active_challenges.empty())
     {
       return;
     }
 
-    auto header = mk_kid_header(account_url, finalize_url);
+    if (nonces.empty())
+    {
+      request_new_nonce([=]() { submit_finalize(account_url, finalize_url); });
+    }
+    else
+    {
+      auto nonce = nonces.front();
+      nonces.pop_front();
 
-    auto csr = service_key_pair->create_csr_der("CN=" + config.service_url, {});
+      auto header = mk_kid_header(account_url, nonce, finalize_url);
 
-    nlohmann::json payload = {{"csr", crypto::b64url_from_raw(csr, false)}};
+      auto csr = node_key_pair->create_csr_der(
+        "CN=" + node_dns_name,
+        {{node_dns_name, false}, {config.service_dns_name, false}});
 
-    JWS jws(header, true, payload, *account_key_pair);
+      nlohmann::json payload = {{"csr", crypto::b64url_from_raw(csr, false)}};
 
-    http::URL url = with_default_port(finalize_url);
-    make_json_request(
-      HTTP_POST,
-      url,
-      json_to_bytes(jws),
-      HTTP_STATUS_OK,
-      [this, account_url](http::HeaderMap& headers, const nlohmann::json& j) {
-        LOG_DEBUG_FMT("ACME: finalize successful");
-        expect(j, "certificate");
-        download_certificate(account_url, j["certificate"]);
-      });
+      JWS jws(header, true, payload, *account_key_pair);
 
-    active_challenges.erase(token);
+      http::URL url = with_default_port(finalize_url);
+      make_json_request(
+        HTTP_POST,
+        url,
+        json_to_bytes(jws),
+        HTTP_STATUS_OK,
+        [this, account_url](http::HeaderMap& headers, const nlohmann::json& j) {
+          expect(j, "certificate");
+          LOG_DEBUG_FMT("ACME: finalize successful");
+          download_certificate(account_url, j["certificate"]);
+        });
+    }
   }
 
   void download_certificate(
@@ -800,12 +888,12 @@ protected:
   {
     http::URL url = with_default_port(certificate_url);
     post_as_get(
-      nonce,
       account_url,
       certificate_url,
       [this](http::HeaderMap& headers, const std::vector<uint8_t>& data) {
         crypto::Pem pem(data);
-        LOG_DEBUG_FMT("Obtained certificate: {}", pem.str());
+        LOG_DEBUG_FMT("Obtained certificate (chain): {}", pem.str());
+        rpcsessions->set_network_cert(pem, node_key_pair->private_key_pem());
         return true;
       });
   }

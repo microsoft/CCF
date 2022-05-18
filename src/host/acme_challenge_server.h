@@ -60,8 +60,7 @@ protected:
 
     virtual void on_read(size_t len, uint8_t*& incoming, sockaddr sa) override
     {
-      std::string txt((char*)incoming, len);
-      LOG_INFO_FMT("txt={}", txt);
+      std::string body((char*)incoming, len);
 
       try
       {
@@ -71,12 +70,11 @@ protected:
           auto req = sp.received.front();
           sp.received.pop();
 
-          LOG_INFO_FMT("ACME: url={}", req.url);
-
           // We serve only
           // http://<YOUR_DOMAIN>/.well-known/acme-challenge/<TOKEN>
           if (req.url.find("/.well-known/acme-challenge/") != 0)
           {
+            LOG_INFO_FMT("ACME: invalid url={} body={}", req.url, body);
             http::Response r(HTTP_STATUS_NOT_FOUND);
             reply(r, "Not found");
           }
@@ -89,16 +87,14 @@ protected:
               throw std::runtime_error("Missing ACME token");
             }
 
-            LOG_DEBUG_FMT(
-              "ACME: received challenge request for token={}", token);
-
             {
               std::unique_lock<std::mutex> guard(lock);
 
               auto tit = prepared_responses.find(token);
               if (tit == prepared_responses.end())
               {
-                LOG_DEBUG_FMT("ACME: token response not found");
+                LOG_DEBUG_FMT(
+                  "ACME: token response for token '{}' not found", token);
                 http::Response r(HTTP_STATUS_NOT_FOUND);
                 reply(
                   r, fmt::format("No response for token '{}' found", token));
@@ -106,7 +102,8 @@ protected:
               else
               {
                 auto rbody = fmt::format("{}.{}", tit->first, tit->second);
-                LOG_DEBUG_FMT("ACME: token response: {}", rbody);
+                LOG_DEBUG_FMT(
+                  "ACME: challenge response to token '{}': {}", token, rbody);
                 http::Response r(HTTP_STATUS_OK);
                 r.set_header("Content-Type", "application/octet-stream");
                 reply(r, rbody);
@@ -157,7 +154,7 @@ public:
   void on_accept(asynchost::TCP& peer) override
   {
     LOG_DEBUG_FMT(
-      "Accepted new incoming ACME connection from {}", peer->get_host());
+      "Accepted new incoming ACME connection from {}", peer->get_peer_name());
     peer->set_behaviour(std::make_unique<ClientBehaviour>(
       peer, lock, prepared_responses, to_enclave));
     tracker.add(peer);
@@ -172,22 +169,27 @@ public:
   {
     LOG_TRACE_FMT("ACME: on_resolve_failed");
   }
+
   virtual void on_listen_failed() override
   {
     LOG_TRACE_FMT("ACME: on_listen_failed");
   }
+
   virtual void on_bind_failed() override
   {
     LOG_TRACE_FMT("ACME: on_bind_failed");
   }
+
   virtual void on_connect() override
   {
     LOG_TRACE_FMT("ACME: on_connect");
   }
+
   virtual void on_connect_failed() override
   {
     LOG_TRACE_FMT("ACME: on_connect_failed");
   }
+
   virtual void on_disconnect() override
   {
     LOG_TRACE_FMT("ACME: on_disconnect");
