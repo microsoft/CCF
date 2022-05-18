@@ -894,7 +894,6 @@ namespace aft
         if (check_quorum && ack_timeout_count >= get_quorum(nodes.size() + 1))
         {
           LOG_FAIL_FMT("ack_timeout_count: {}", ack_timeout_count);
-          // TODO: Step down if necessary
           become_follower();
         }
       }
@@ -1862,10 +1861,7 @@ namespace aft
       restart_election_timeout();
       clear_orc_sets();
       reset_last_ack_timeouts();
-<<<<<<< HEAD
-=======
 
->>>>>>> 49cd887c6b1f9163b1b0020730ceda5465a8d966
       rollback(last_committable_index());
 
       is_new_follower = true;
