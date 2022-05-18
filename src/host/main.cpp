@@ -39,6 +39,7 @@ using ResolvedAddresses = std::
   map<ccf::NodeInfoNetwork::RpcInterfaceID, ccf::NodeInfoNetwork::NetAddress>;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
+size_t asynchost::UDPImpl::remaining_read_quota;
 
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
@@ -77,19 +78,17 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  host::CCHostConfig config = {};
   std::string config_str = files::slurp_string(config_file_path);
+  nlohmann::json config_json;
   try
   {
-    config = nlohmann::json::parse(config_str);
+    config_json = nlohmann::json::parse(config_str);
   }
   catch (const std::exception& e)
   {
     throw std::logic_error(fmt::format(
       "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
-
-  auto config_json = nlohmann::json(config);
   auto schema_json = nlohmann::json::parse(host::host_config_schema);
 
   auto schema_error_msg = json::validate_json(config_json, schema_json);
@@ -100,6 +99,8 @@ int main(int argc, char** argv)
       config_file_path,
       schema_error_msg.value()));
   }
+
+  host::CCHostConfig config = config_json;
 
   if (config.logging.format == host::LogFormat::JSON)
   {
@@ -239,6 +240,9 @@ int main(int argc, char** argv)
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
 
+    // reset the inbound-UDP processing quota each iteration
+    asynchost::ResetUDPReadQuota reset_udp_quota;
+
     // regularly update the time given to the enclave
     asynchost::TimeUpdater time_updater(1ms);
 
@@ -294,15 +298,44 @@ int main(int argc, char** argv)
         config.output_files.node_to_node_address_file);
     }
 
-    asynchost::RPCConnections rpc(
-      writer_factory, config.client_connection_timeout);
+    asynchost::ConnIDGenerator idGen;
+
+    asynchost::RPCConnections<asynchost::TCP> rpc(
+      writer_factory, idGen, config.client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
+
+    // This is a temporary solution to keep UDP RPC handlers in the same
+    // way as the TCP ones without having to parametrize per connection,
+    // which is not yet possible, due to UDP and TCP not being derived
+    // from the same abstract class.
+    asynchost::RPCConnections<asynchost::UDP> rpc_udp(
+      writer_factory, idGen, config.client_connection_timeout);
+    rpc_udp.register_quic_message_handlers(bp.get_dispatcher());
 
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
     {
       auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
-      rpc.listen(0, rpc_host, rpc_port, name);
+      LOG_INFO_FMT(
+        "Registering RPC interface {}, on {} {}:{}",
+        name,
+        interface.protocol,
+        rpc_host,
+        rpc_port);
+      if (interface.protocol == "udp")
+      {
+        rpc_udp.listen(0, rpc_host, rpc_port, name);
+      }
+      else
+      {
+        rpc.listen(0, rpc_host, rpc_port, name);
+      }
+      LOG_INFO_FMT(
+        "Registered RPC interface {}, on {} {}:{}",
+        name,
+        interface.protocol,
+        rpc_host,
+        rpc_port);
 
       resolved_rpc_addresses[name] = fmt::format("{}:{}", rpc_host, rpc_port);
 

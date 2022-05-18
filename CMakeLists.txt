@@ -342,6 +342,8 @@ if(BUILD_TESTS)
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
@@ -517,10 +519,15 @@ if(BUILD_TESTS)
       ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
+  if(LONG_TESTS)
+    set(ADDITIONAL_RECOVERY_ARGS --with-load)
+  endif()
+
   add_e2e_test(
     NAME recovery_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   if(LONG_TESTS)

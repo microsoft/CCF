@@ -96,7 +96,7 @@ namespace kv::test
       {
         replica.push_back(entry);
 
-        const auto& [v, data, committable, force_chunk, hooks] = entry;
+        const auto& [v, data, committable, hooks] = entry;
 
         // Simplification: all entries are replicated in the same term
         view_history.update(v, view);

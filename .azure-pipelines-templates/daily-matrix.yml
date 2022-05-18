@@ -8,7 +8,7 @@ parameters:
       pool: 1es-dcv2-focal
     SGXIceLake:
       container: sgx
-      pool: 1es-dcv3-focal
+      pool: 1es-dcdv3-focal
 
   build:
     common:
@@ -48,7 +48,7 @@ jobs:
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: "600"
+      ctest_timeout: "800"
 
   - template: common.yml
     parameters:

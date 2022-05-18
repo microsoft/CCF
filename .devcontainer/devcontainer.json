@@ -1,7 +1,7 @@
 {
   "name": "Sample Development Environment for CCF",
   "context": "..",
-  "image": "ccfciteam/ccf-app-ci:latest",
+  "image": "ccfmsrc.azurecr.io/ccf/app/dev:lts-devcontainer",
   "runArgs": [],
   "extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }

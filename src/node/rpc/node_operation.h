@@ -55,7 +55,7 @@ namespace ccf
       return impl.get_last_recovered_signed_idx();
     }
 
-    std::optional<kv::Version> get_startup_snapshot_seqno() override
+    kv::Version get_startup_snapshot_seqno() override
     {
       return impl.get_startup_snapshot_seqno();
     }

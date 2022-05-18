@@ -180,7 +180,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,

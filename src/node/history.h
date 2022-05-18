@@ -185,6 +185,8 @@ namespace ccf
 
     void try_emit_signature() override {}
 
+    void start_signature_emit_timer() override {}
+
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return crypto::Sha256Hash(std::to_string(version));
@@ -506,7 +508,7 @@ namespace ccf
       }
     }
 
-    void start_signature_emit_timer()
+    void start_signature_emit_timer() override
     {
       struct EmitSigMsg
       {
@@ -538,7 +540,8 @@ namespace ccf
             auto consensus = self->store.get_consensus();
             if (
               (consensus != nullptr) && consensus->can_replicate() &&
-              self->store.commit_gap() > 0 && time > time_of_last_signature &&
+              self->store.committable_gap() > 0 &&
+              time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
               should_emit_signature = true;
@@ -723,12 +726,12 @@ namespace ccf
     void try_emit_signature() override
     {
       std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
-      if (store.commit_gap() < sig_tx_interval || !mguard.try_lock())
+      if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;
       }
 
-      if (store.commit_gap() >= sig_tx_interval)
+      if (store.committable_gap() >= sig_tx_interval)
       {
         mguard.unlock();
         emit_signature();
@@ -752,6 +755,12 @@ namespace ccf
         return;
       }
 
+      if (!endorsed_cert.has_value())
+      {
+        throw std::logic_error(
+          fmt::format("No endorsed certificate set to emit signature"));
+      }
+
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
@@ -766,8 +775,6 @@ namespace ccf
         commit_txid.term,
         commit_txid.version,
         commit_txid.previous_version);
-
-      assert(endorsed_cert.has_value());
 
       store.commit(
         txid,

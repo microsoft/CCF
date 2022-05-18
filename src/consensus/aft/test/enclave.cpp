@@ -24,9 +24,8 @@ TEST_CASE("Enclave put")
   auto enclave = LedgerEnclave(*writer_factory);
 
   bool globally_committable = false;
-  bool force_ledger_chunk = false;
   const std::vector<uint8_t> tx = {'a', 'b', 'c'};
-  enclave.put_entry(tx, globally_committable, force_ledger_chunk, 1, 1);
+  enclave.put_entry(tx, globally_committable, 1, 1);
   size_t num_msgs = 0;
   eio.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
@@ -36,7 +35,6 @@ TEST_CASE("Enclave put")
         {
           REQUIRE(num_msgs == 0);
           REQUIRE(serialized::read<bool>(data, size) == globally_committable);
-          REQUIRE(serialized::read<bool>(data, size) == force_ledger_chunk);
           auto entry = std::vector<uint8_t>(data, data + size);
           REQUIRE(entry == tx);
         }
@@ -74,7 +72,6 @@ TEST_CASE("Enclave record")
   auto follower_ledger_enclave = LedgerEnclave(*writer_factory_follower);
 
   bool globally_committable = false;
-  bool force_ledger_chunk = false;
   const std::vector<uint8_t> entry = {'a', 'b', 'c'};
   kv::SerialisedEntryHeader entry_header;
 
@@ -84,8 +81,7 @@ TEST_CASE("Enclave record")
   serialized::write(tx_, size_, entry_header);
   serialized::write(tx_, size_, entry.data(), entry.size());
 
-  leader_ledger_enclave.put_entry(
-    tx, globally_committable, force_ledger_chunk, 1, 1);
+  leader_ledger_enclave.put_entry(tx, globally_committable, 1, 1);
   size_t num_msgs = 0;
   std::vector<uint8_t> record;
   eio_leader.read_from_inside().read(
@@ -96,7 +92,6 @@ TEST_CASE("Enclave record")
         {
           REQUIRE(num_msgs == 0);
           REQUIRE(serialized::read<bool>(data, size) == globally_committable);
-          REQUIRE(serialized::read<bool>(data, size) == force_ledger_chunk);
           copy(data, data + size, back_inserter(record));
         }
         break;
@@ -109,8 +104,7 @@ TEST_CASE("Enclave record")
   REQUIRE(record == tx);
 
   num_msgs = 0;
-  follower_ledger_enclave.put_entry(
-    record, globally_committable, force_ledger_chunk, 1, 2);
+  follower_ledger_enclave.put_entry(record, globally_committable, 1, 2);
   eio_follower.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
@@ -119,7 +113,6 @@ TEST_CASE("Enclave record")
         {
           REQUIRE(num_msgs == 0);
           REQUIRE(serialized::read<bool>(data, size) == globally_committable);
-          REQUIRE(serialized::read<bool>(data, size) == force_ledger_chunk);
           auto entry = std::vector<uint8_t>(data, data + size);
           REQUIRE(entry == tx);
         }

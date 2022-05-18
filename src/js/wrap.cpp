@@ -657,6 +657,7 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       LOG_FAIL_FMT("Unable to open service: {}", e.what());
+      return JS_ThrowInternalError(ctx, "Unable to open service: %s", e.what());
     }
 
     return JS_UNDEFINED;
@@ -750,10 +751,17 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    auto renewed_cert =
-      network->identity->issue_certificate(valid_from, validity_period_days);
+    try
+    {
+      auto renewed_cert =
+        network->identity->issue_certificate(valid_from, validity_period_days);
 
-    return JS_NewString(ctx, renewed_cert.str().c_str());
+      return JS_NewString(ctx, renewed_cert.str().c_str());
+    }
+    catch (std::exception& exc)
+    {
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+    }
   }
 
   JSValue js_network_latest_ledger_secret_seqno(
@@ -1503,7 +1511,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
@@ -1796,7 +1804,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
@@ -1829,7 +1837,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,

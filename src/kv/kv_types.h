@@ -128,13 +128,13 @@ namespace kv
     ni.port = p;
   }
 
-  inline std::string schema_name(const Configuration::NodeInfo&)
+  inline std::string schema_name(const Configuration::NodeInfo*)
   {
     return "Configuration__NodeInfo";
   }
 
   inline void fill_json_schema(
-    nlohmann::json& schema, const Configuration::NodeInfo&)
+    nlohmann::json& schema, const Configuration::NodeInfo*)
   {
     schema["type"] = "object";
     schema["required"] = nlohmann::json::array();
@@ -259,7 +259,6 @@ namespace kv
   using BatchVector = std::vector<std::tuple<
     Version,
     std::shared_ptr<std::vector<uint8_t>>,
-    bool,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
@@ -455,6 +454,7 @@ namespace kv
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
     virtual void set_endorsed_certificate(const crypto::Pem& cert) = 0;
+    virtual void start_signature_emit_timer() = 0;
   };
 
   class Consensus : public ConfigurableConsensus
@@ -574,7 +574,8 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      EntryType entry_type = EntryType::WriteSet) = 0;
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -693,8 +694,6 @@ namespace kv
     // Thus, a large rollback is one which did not result from the map creating
     // issue. https://github.com/microsoft/CCF/issues/2799
     virtual bool should_rollback_to_last_committed() = 0;
-
-    bool force_ledger_chunk = false;
   };
 
   class AbstractStore
@@ -757,8 +756,10 @@ namespace kv
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
+    virtual bool must_force_ledger_chunk(Version version) = 0;
+    virtual bool must_force_ledger_chunk_unsafe(Version version) = 0;
 
-    virtual size_t commit_gap() = 0;
+    virtual size_t committable_gap() = 0;
 
     enum class Flag : uint8_t
     {

@@ -30,6 +30,10 @@ LOCUST_STATS_HISTORY_SUFFIX = "stats_history.csv"
 # Number of clients launched by locust
 LOAD_USERS_COUNT = 10
 
+# Default request rate issued to service
+# Currently limited to ~1000 req/s (see https://github.com/locustio/locust/issues/2066)
+DEFAULT_REQUEST_RATE_S = 100
+
 RESULTS_CSV_FILE_NAME = "load_results.csv"
 RESULTS_IMG_FILE_NAME = "load_results.png"
 LOCUST_FILE_NAME = "locust_file.py"
@@ -57,6 +61,7 @@ class LoadClient:
         strategy=LoadStrategy.PRIMARY,
         target_node=None,
         existing_events=None,
+        rate=DEFAULT_REQUEST_RATE_S,
     ):
         self.network = network
         self.strategy = strategy
@@ -66,6 +71,7 @@ class LoadClient:
         self.title = None
         self.env = None
         self.stats = None
+        self.rate = rate
 
     def _start_client(self, primary, backups, event):
         self.title = primary.label
@@ -90,6 +96,7 @@ class LoadClient:
             "--spawn-rate",
             f"{LOAD_USERS_COUNT}",
         ]  # All users are spawned within 1s
+        cmd += ["--rate", f"{self.rate}"]
 
         # Targets
         if self.strategy == LoadStrategy.PRIMARY:
@@ -182,7 +189,9 @@ class LoadClient:
             dpi=500,
         )
         plt.close(fig)
-        LOG.debug(f"Load results rendered to {RESULTS_IMG_FILE_NAME}")
+        LOG.debug(
+            f"Load results rendered to {in_common_dir(self.network,RESULTS_IMG_FILE_NAME)}"
+        )
 
     def start(self, primary, backups):
         self._start_client(primary, backups, event="run")

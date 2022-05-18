@@ -44,7 +44,7 @@ The Logging application simply has:
         :dedent:
 
 Application Endpoints
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::endpoints::EndpointRegistry`, containing the endpoints that constitute the app.
 
@@ -182,7 +182,10 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
 Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
-This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v2`.
+This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v3`.
+Most endpoints operate over the _current_ state of the KV, but these historical queries operate over _old_ state, specifically over the writes made by a previous transaction.
+The adapter handles extracting the target :term:`Transaction ID` from the user's request, and interacting with the :ref:`Historical Queries API <build_apps/api:Historical Queries>` to asynchronously fetch this entry from the ledger.
+The deserialised and verified transaction is then presented to the handler code below, which performs reads and constructs a response like any other handler.
 
 The handler passed to the adapter is very similar to a read-only endpoint definition, but receives a read-only :cpp:struct:`ccf::historical::State` rather than a transaction.
 
@@ -191,6 +194,36 @@ The handler passed to the adapter is very similar to a read-only endpoint defini
     :start-after: SNIPPET_START: get_historical
     :end-before: SNIPPET_END: get_historical
     :dedent:
+
+Indexing
+~~~~~~~~
+
+The historical endpoint described above must process each target transaction on a specific node, asynchronously, before the result can be served.
+For some use cases, in particular where the response is repeated often rather than dynamically constructed, this may be extremely inefficient.
+Instead, we would prefer to pre-process all committed transactions and construct an efficient index of their contents, geared towards responding to a known pattern of user queries.
+
+For instance, if we want to list every value written to a specific key but know that writes are relatively rare, we could build an index of such writes.
+When this historical query comes in, rather than fetching every transaction - to extract useful writes from a small fraction - the historical query endpoint can first ask the index which transactions should be processed and fetch only those.
+If the response format is known, the index could even pre-construct the response itself.
+
+In CCF, this is achieved by implementing an indexing :cpp:type:`ccf::indexing::Strategy`.
+This is constructed on each node, in-enclave, by processing every committed transaction in-order in the implementation of :cpp:func:`ccf::indexing::Strategy::handle_committed_transaction`.
+The strategy can then return its aggregated results to the calling endpoint in whatever format is appropriate.
+A :cpp:type:`ccf::indexing::Strategy` may offload partial results to disk to avoid infinite memory growth, via the automatically encrypted LFS (Large File Storage) system.
+Since the indexing system and all the strategies it manages exist entirely within the enclave, this has the same trust guarantees as any other in-enclave code - users can trust that the results are accurate and complete, and the query may process private data.
+
+An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
+This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory useage.
+This sample strategy is 
+In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the _interesting_ transactions; those which write to the target key:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: indexing_strategy_use
+    :end-before: SNIPPET_END: indexing_strategy_use
+    :dedent:
+
+See the sample app for full details of how this strategy is installed and used.
 
 Receipts
 ~~~~~~~~
@@ -274,4 +307,4 @@ Receipts from this endpoint will then look like:
                            {'left': 'abc9bcbeff670930c34ebdab0f2d57b56e9d393e4dccdccf2db59b5e34507422'}],
                  'signature': 'MGUCMHYBgZ3gySdkJ+STUL13EURVBd8354ULC11l/kjx20IwpXrg/aDYLWYf7tsGwqUxPwIxAMH2wJDd9wpwbQrULpaAx5XEifpUfOriKtYo7XiFr05J+BV10U39xa9GBS49OK47QA=='}}
                  
-Note that the ``claims_digest`` is not present in the ``leaf_components``, and must be re-computed by digesting the ``msg``.
+Note that the ``claims_digest`` is deliberately omitted from ``leaf_components``, and must be re-computed by digesting the ``msg``.

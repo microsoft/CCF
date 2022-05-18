@@ -15,6 +15,8 @@ from infra.consortium import slurp_file
 import infra.health_watcher
 import time
 from e2e_logging import verify_receipt
+import infra.service_load
+import ccf.tx_id
 
 from loguru import logger as LOG
 
@@ -39,7 +41,7 @@ def get_and_verify_historical_receipt(network, ref_msg):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=False):
+def test_recover_service(network, args, from_snapshot=True):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -497,6 +499,21 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        if args.with_load:
+            # See https://github.com/microsoft/CCF/issues/3788 for justification
+            LOG.info("Loading service before recovery...")
+            primary, _ = network.find_primary()
+            with infra.service_load.load() as load:
+                load.begin(network, rate=infra.service_load.DEFAULT_REQUEST_RATE_S * 10)
+                while True:
+                    with primary.client() as c:
+                        r = c.get("/node/commit", log_capture=[]).body.json()
+                        tx_id = ccf.tx_id.TxID.from_str(r["transaction_id"])
+                        if tx_id.seqno > args.sig_tx_interval:
+                            LOG.info(f"Loaded service successfully: tx_id, {tx_id}")
+                            break
+                    time.sleep(0.1)
+
         ref_msg = get_and_verify_historical_receipt(network, None)
 
         network = test_recover_service_with_wrong_identity(network, args)
@@ -534,7 +551,7 @@ def run(args):
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,
-        validator=ccf.ledger.LedgerValidator(),
+        validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
     )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()
@@ -562,7 +579,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.description = """
-This test_recover_service executes multiple recoveries (as specified by the "--recovery" arg),
+This test_recover_service executes multiple recoveries,
 with a fixed number of messages applied between each network crash (as
 specified by the "--msgs-per-recovery" arg). After the network is recovered
 and before applying new transactions, all transactions previously applied are
@@ -574,10 +591,16 @@ checked. Note that the key for each logging message is unique (per table).
             type=int,
             default=5,
         )
+        parser.add_argument(
+            "--with-load",
+            help="If set, the service is loaded before being recovered",
+            action="store_true",
+            default=False,
+        )
 
     args = infra.e2e_args.cli_args(add)
 
-    cr = ConcurrentRunner()
+    cr = ConcurrentRunner(add)
 
     cr.add(
         "recovery",

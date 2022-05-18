@@ -12,6 +12,7 @@ import infra.proc
 import infra.service_load
 import infra.node
 import infra.consortium
+import infra.e2e_args
 import ccf.ledger
 from infra.tx_status import TxStatus
 from ccf.tx_id import TxID
@@ -71,7 +72,7 @@ class CodeIdNotFound(Exception):
     pass
 
 
-class StartupSnapshotIsOld(Exception):
+class StartupSeqnoIsOld(Exception):
     pass
 
 
@@ -156,7 +157,9 @@ class Network:
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
-            self.hosts = [node.host for node in existing_network.nodes]
+            self.hosts = infra.e2e_args.nodes(
+                existing_network.args, len(existing_network.nodes)
+            )
             self.service_load = None
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
@@ -232,15 +235,15 @@ class Network:
         ledger_dir=None,
         copy_ledger_read_only=False,
         read_only_ledger_dirs=None,
-        from_snapshot=False,
+        from_snapshot=True,
         snapshots_dir=None,
         **kwargs,
     ):
         # Contact primary if no target node is set
-        if target_node is None:
-            target_node, _ = self.find_primary(
-                timeout=args.ledger_recovery_timeout if recovery else 3
-            )
+        primary, _ = self.find_primary(
+            timeout=args.ledger_recovery_timeout if recovery else 3
+        )
+        target_node = target_node or primary
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
         committed_ledger_dirs = read_only_ledger_dirs or []
@@ -249,9 +252,8 @@ class Network:
         # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
         # to produce more ledger entries
         if from_snapshot:
-            # Only retrieve snapshot from target node if the snapshot directory is not
-            # specified
-            snapshots_dir = snapshots_dir or self.get_committed_snapshots(target_node)
+            # Only retrieve snapshot from primary if the snapshot directory is not specified
+            snapshots_dir = snapshots_dir or self.get_committed_snapshots(primary)
             if os.listdir(snapshots_dir):
                 LOG.info(f"Joining from snapshot directory: {snapshots_dir}")
             else:
@@ -469,6 +471,10 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
+
+        for node in self.get_joined_nodes():
+            self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
+
         LOG.success("***** Network is now open *****")
         if self.service_load:
             self.service_load.begin(self)
@@ -648,7 +654,11 @@ class Network:
             )
 
     def stop_all_nodes(
-        self, skip_verification=False, verbose_verification=False, **kwargs
+        self,
+        skip_verification=False,
+        verbose_verification=False,
+        accept_ledger_diff=False,
+        **kwargs,
     ):
         if not skip_verification:
             if self.txs is not None:
@@ -675,7 +685,8 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        self.check_ledger_files_identical(**kwargs)
+        if not accept_ledger_diff:
+            self.check_ledger_files_identical(**kwargs)
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -715,8 +726,8 @@ class Network:
                 for error in errors:
                     if "Quote does not contain known enclave measurement" in error:
                         raise CodeIdNotFound from e
-                    if "StartupSnapshotIsOld" in error:
-                        raise StartupSnapshotIsOld from e
+                    if "StartupSeqnoIsOld" in error:
+                        raise StartupSeqnoIsOld from e
             raise
 
     def trust_node(
@@ -1204,7 +1215,7 @@ class Network:
             r = c.get("/node/commit").body.json()
             target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
             LOG.info(
                 f"Waiting for a snapshot to be committed including seqno {target_seqno}"
             )
@@ -1215,6 +1226,9 @@ class Network:
                     if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
                         f
                     ):
+                        LOG.info(
+                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time())}s"
+                        )
                         return True
 
                 with node.client(self.consortium.get_any_active_member().local_id) as c:
@@ -1226,15 +1240,18 @@ class Network:
                         ), f"Error ack/update_state_digest: {r}"
                     c.wait_for_commit(r)
                 time.sleep(0.1)
+            LOG.error(
+                f"Could not find committed snapshot for seqno {target_seqno} after {timeout}s in {src_dir}: {list_src_dir_func(src_dir)}"
+            )
             return False
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout, insecure=False):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                return call(seqno)
+                return call(seqno, insecure=insecure)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
                 self.consortium.create_and_withdraw_large_proposal(node)
@@ -1243,20 +1260,20 @@ class Network:
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
         )
 
-    def get_ledger_public_state_at(self, seqno, timeout=5):
+    def get_ledger_public_state_at(self, seqno, timeout=5, insecure=False):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout
+            primary, primary.get_ledger_public_tables_at, seqno, timeout, insecure
         )
 
-    def get_latest_ledger_public_state(self, timeout=5):
+    def get_latest_ledger_public_state(self, insecure=False, timeout=5):
         primary, _ = self.find_primary()
         with primary.client() as nc:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
+            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout, insecure
         )
 
     @functools.cached_property
@@ -1371,6 +1388,6 @@ def network(
             raise
     finally:
         LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True)
+        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
         if init_partitioner:
             net.partitioner.cleanup()

@@ -486,6 +486,9 @@
           "max_open_sessions_soft": {
             "$ref": "#/components/schemas/uint64"
           },
+          "protocol": {
+            "$ref": "#/components/schemas/string"
+          },
           "published_address": {
             "$ref": "#/components/schemas/string"
           }
@@ -518,12 +521,6 @@
       },
       "Pem": {
         "type": "string"
-      },
-      "Pem_array": {
-        "items": {
-          "$ref": "#/components/schemas/Pem"
-        },
-        "type": "array"
       },
       "Quote": {
         "properties": {
@@ -562,71 +559,6 @@
           "$ref": "#/components/schemas/Quote"
         },
         "type": "array"
-      },
-      "Receipt": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf_components": {
-            "$ref": "#/components/schemas/Receipt__LeafComponents"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/NodeId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/Receipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "service_endorsements": {
-            "$ref": "#/components/schemas/Pem_array"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "proof",
-          "node_id"
-        ],
-        "type": "object"
-      },
-      "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "Receipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/Receipt__Element"
-        },
-        "type": "array"
-      },
-      "Receipt__LeafComponents": {
-        "properties": {
-          "claims_digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "commit_evidence": {
-            "$ref": "#/components/schemas/string"
-          },
-          "write_set_digest": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
       },
       "ReconfigurationType": {
         "enum": [
@@ -814,7 +746,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.17.0"
+    "version": "2.17.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1164,7 +1096,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },

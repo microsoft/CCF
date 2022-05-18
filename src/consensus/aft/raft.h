@@ -723,9 +723,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (
-        auto& [index, data, is_globally_committable, force_ledger_chunk, hooks] :
-        entries)
+      for (auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
 
@@ -772,11 +770,7 @@ namespace aft
 
         state->last_idx = index;
         ledger->put_entry(
-          *data,
-          globally_committable,
-          force_ledger_chunk,
-          state->current_view,
-          index);
+          *data, globally_committable, state->current_view, index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -1317,11 +1311,7 @@ namespace aft
         const auto& entry = ds->get_entry();
 
         ledger->put_entry(
-          entry,
-          globally_committable,
-          ds->force_ledger_chunk,
-          ds->get_term(),
-          ds->get_index());
+          entry, globally_committable, ds->get_term(), ds->get_index());
 
         switch (apply_success)
         {
@@ -1621,6 +1611,19 @@ namespace aft
         become_aware_of_new_term(r.term);
       }
 
+      if (leader_id.has_value())
+      {
+        // Reply false, since we already know the leader in the current term.
+        LOG_DEBUG_FMT(
+          "Recv request vote to {} from {}: leader {} already known in term {}",
+          state->my_node_id,
+          from,
+          leader_id.value(),
+          state->current_view);
+        send_request_vote_response(from, false);
+        return;
+      }
+
       if ((voted_for.has_value()) && (voted_for.value() != from))
       {
         // Reply false, since we already voted for someone else.
@@ -1689,8 +1692,9 @@ namespace aft
       if (leadership_state != kv::LeadershipState::Candidate)
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {}: we aren't a candidate",
-          state->my_node_id);
+          "Recv request vote response to {} from: {}: we aren't a candidate",
+          state->my_node_id,
+          from);
         return;
       }
 
@@ -1858,6 +1862,10 @@ namespace aft
       restart_election_timeout();
       clear_orc_sets();
       reset_last_ack_timeouts();
+<<<<<<< HEAD
+=======
+
+>>>>>>> 49cd887c6b1f9163b1b0020730ceda5465a8d966
       rollback(last_committable_index());
 
       is_new_follower = true;

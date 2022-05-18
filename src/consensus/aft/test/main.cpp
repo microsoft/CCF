@@ -84,7 +84,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
-    r0.replicate(kv::BatchVector{{i, entry, true, false, hooks}}, 1);
+    r0.replicate(kv::BatchVector{{i, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
     DOCTEST_REQUIRE(r0.get_committed_seqno() == i);
   }
@@ -96,10 +96,12 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
   ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
+  ccf::NodeId node_id3 = kv::test::ThirdBackupNodeId;
 
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
+  auto kv_store3 = std::make_shared<Store>(node_id3);
 
   TRaft r0(
     raft_settings,
@@ -125,27 +127,38 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr);
+  TRaft r3(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store3),
+    std::make_unique<aft::LedgerStubProxy>(node_id3),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id3),
+    nullptr,
+    nullptr);
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {};
   config[node_id2] = {};
+  config[node_id3] = {};
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
+  r3.add_configuration(0, config);
 
   auto r0c = channel_stub_proxy(r0);
   auto r1c = channel_stub_proxy(r1);
   auto r2c = channel_stub_proxy(r2);
+  auto r3c = channel_stub_proxy(r3);
 
   DOCTEST_INFO("Node 0 exceeds its election timeout and starts an election");
 
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
-    r0c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 2);
+    r0c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 3);
 
-  DOCTEST_INFO("Node 1 receives the request");
+  DOCTEST_INFO("Node 1 receives the request vote");
 
   auto rv_raw = r0c->pop_first(aft::RaftMsgType::raft_request_vote, node_id1);
   DOCTEST_REQUIRE(rv_raw.has_value());
@@ -159,7 +172,7 @@ DOCTEST_TEST_CASE(
 
   receive_message(r0, r1, *rv_raw);
 
-  DOCTEST_INFO("Node 2 receives the request");
+  DOCTEST_INFO("Node 2 receives the request vote");
 
   rv_raw = r0c->pop_first(aft::RaftMsgType::raft_request_vote, node_id2);
   DOCTEST_REQUIRE(rv_raw.has_value());
@@ -212,7 +225,7 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(
-    r0c->count_messages_with_type(aft::RaftMsgType::raft_append_entries) == 2);
+    r0c->count_messages_with_type(aft::RaftMsgType::raft_append_entries) == 3);
 
   auto ae_raw = r0c->pop_first(aft::RaftMsgType::raft_append_entries, node_id1);
   DOCTEST_REQUIRE(ae_raw.has_value());
@@ -234,6 +247,34 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(aec.prev_idx == 0);
     DOCTEST_REQUIRE(aec.prev_term == aft::ViewHistory::InvalidView);
     DOCTEST_REQUIRE(aec.leader_commit_idx == 0);
+  }
+
+  // See https://github.com/microsoft/CCF/issues/3808
+  DOCTEST_INFO("Node 3 finds out that Node 0 is primary from append entries");
+
+  // Intercept vote request from 0 to 3
+  auto vote_for_r0 =
+    r0c->pop_first(aft::RaftMsgType::raft_request_vote, node_id3);
+  rvr_raw = r0c->pop_first(aft::RaftMsgType::raft_append_entries, node_id3);
+
+  receive_message(r0, r3, *rvr_raw);
+
+  auto r3_primary = r3.primary();
+  DOCTEST_REQUIRE(r3_primary.has_value());
+  DOCTEST_REQUIRE(r3_primary.value() == r0.id());
+
+  DOCTEST_INFO(
+    "Node 3 does not grant its vote to Node 0 since the primary node is now "
+    "known");
+
+  receive_message(r0, r3, *vote_for_r0);
+
+  auto vote_resp_raw =
+    r3c->pop_first(aft::RaftMsgType::raft_request_vote_response, node_id0);
+  DOCTEST_REQUIRE(vote_resp_raw.has_value());
+  {
+    auto vr = *(aft::RequestVoteResponse*)vote_resp_raw->data();
+    DOCTEST_REQUIRE(vr.vote_granted == false);
   }
 }
 
@@ -329,11 +370,10 @@ DOCTEST_TEST_CASE(
   auto data = std::make_shared<std::vector<uint8_t>>(entry);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
   DOCTEST_REQUIRE_FALSE(
-    r1.replicate(kv::BatchVector{{1, data, true, false, hooks}}, 1));
+    r1.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
 
   DOCTEST_INFO("Tell the leader to replicate a message");
-  DOCTEST_REQUIRE(
-    r0.replicate(kv::BatchVector{{1, data, true, false, hooks}}, 1));
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
 
   // The test ledger adds its own header. Confirm that the expected data is
@@ -448,8 +488,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   std::vector<uint8_t> first_entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-  DOCTEST_REQUIRE(
-    r0.replicate(kv::BatchVector{{1, data, true, false, hooks}}, 1));
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   r0.periodic(request_timeout);
 
   DOCTEST_REQUIRE(
@@ -561,10 +600,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::vector<uint8_t> second_entry = {2, 2, 2};
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
 
-    DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{1, data_1, true, false, hooks}}, 1));
-    DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{2, data_2, true, false, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
@@ -585,8 +622,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
-    DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{3, data, true, false, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
@@ -618,8 +654,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
-    DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{4, data, true, false, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
@@ -632,8 +667,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
-    DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{5, data, true, false, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
@@ -662,8 +696,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_6 = {6, 6, 6};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_6);
-      DOCTEST_REQUIRE(
-        r0.replicate(kv::BatchVector{{6, data, true, false, hooks}}, 1));
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{6, data, true, hooks}}, 1));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 6);
     }
     const auto last_correct_version = r0.ledger->ledger.size();
@@ -672,8 +705,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_7 = {7, 7, 7};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_7);
-      DOCTEST_REQUIRE(
-        r0.replicate(kv::BatchVector{{7, data, true, false, hooks}}, 1));
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 1));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
       dead_branch = r0.ledger->ledger.back();
     }
@@ -694,8 +726,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_7b = {7, 7, 'b'};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_7b);
-      DOCTEST_REQUIRE(
-        r0.replicate(kv::BatchVector{{7, data, true, false, hooks}}, 4));
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 4));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
       live_branch = r0.ledger->ledger.back();
     }
@@ -703,8 +734,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     {
       std::vector<uint8_t> entry_8 = {8, 8, 8};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_8);
-      DOCTEST_REQUIRE(
-        r0.replicate(kv::BatchVector{{8, data, true, false, hooks}}, 4));
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{8, data, true, hooks}}, 4));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 8);
       DOCTEST_REQUIRE(r0.ledger->ledger.size() > last_correct_version);
     }
@@ -835,8 +865,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{i, data, true, false, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(
       msg_response ==
       dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
@@ -856,7 +885,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   {
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(
-      r0.replicate(kv::BatchVector{{i, smaller_data, true, false, hooks}}, 1));
+      r0.replicate(kv::BatchVector{{i, smaller_data, true, hooks}}, 1));
     dispatch_all(nodes, node_id0, r0c->messages);
   }
 
