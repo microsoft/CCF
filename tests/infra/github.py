@@ -105,7 +105,7 @@ class Repository:
 
     def get_release_branches_names(self):
         # Hardcoded here. This is because we only ever want to test
-        # compatibility with past release branches, and this is case
+        # compatibility with past release branches, and in this case
         # (local branch is "release/1.x") the only past branch is this one.
         return ["release/1.x"]
 
