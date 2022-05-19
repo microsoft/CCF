@@ -188,10 +188,10 @@ def test_isolate_and_reconnect_primary(network, args):
         )
         new_tx_resp = check_can_progress(new_primary)
 
-        if args.check_quorum:
-            primary.wait_for_leadership_state(primary_view, "Follower")
-        else:
-            primary.wait_for_leadership_state(primary_view, "Primary")
+        # CheckQuorum: the primary node should automatically step
+        # down if it has not heard back from a majority of backups
+        primary.wait_for_leadership_state(primary_view, "Follower")
+        
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
@@ -377,10 +377,8 @@ def run_2tx_reconfig_tests(args):
         test_learner_does_not_take_part(network, local_args)
 
 
-def run(args, check_quorum=False):
+def run(args):
     txs = app.LoggingTxs("user0")
-
-    args.check_quorum = check_quorum
 
     with infra.network.network(
         args.nodes,
@@ -415,6 +413,5 @@ if __name__ == "__main__":
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
 
-    run(args, check_quorum=False)
-    run(args, check_quorum=True)
+    run(args)
     # run_2tx_reconfig_tests(args)

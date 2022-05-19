@@ -111,10 +111,6 @@ namespace aft
     std::chrono::milliseconds election_timeout;
     bool ticking = false;
 
-    // If set, the primary node automatically steps down if it has not received
-    // a majority of acks within an election timeout
-    bool check_quorum = false;
-
     // Configurations
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
@@ -184,8 +180,6 @@ namespace aft
 
       request_timeout(settings_.message_timeout),
       election_timeout(settings_.election_timeout),
-
-      check_quorum(settings_.check_quorum),
 
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
@@ -891,9 +885,7 @@ namespace aft
 
         // The primary automatically steps down if it has not heard back from
         // a majority of backups during an election timeout.
-        if (
-          check_quorum &&
-          backup_ack_timeout_count >= get_quorum(nodes.size()))
+        if (backup_ack_timeout_count >= get_quorum(nodes.size()))
         {
           LOG_FAIL_FMT(
             "backup_ack_timeout_count: {}", backup_ack_timeout_count);
