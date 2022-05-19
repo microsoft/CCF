@@ -883,12 +883,16 @@ namespace aft
           }
         }
 
-        // The primary automatically steps down if it has not heard back from
-        // a majority of backups during an election timeout.
         if (backup_ack_timeout_count >= get_quorum(nodes.size()))
         {
-          LOG_FAIL_FMT(
-            "backup_ack_timeout_count: {}", backup_ack_timeout_count);
+          // CheckQuorum: The primary automatically steps down if it has not
+          // heard back from a majority of backups during an election timeout.
+          LOG_INFO_FMT(
+            "Stepping down as follower {}: No ack received from a majority {} "
+            "of backups in last {}",
+            state->my_node_id,
+            backup_ack_timeout_count,
+            election_timeout);
           become_follower();
         }
       }
@@ -1859,8 +1863,6 @@ namespace aft
 
       rollback(last_committable_index());
 
-      is_new_follower = true;
-
       if (
         can_endorse_primary() &&
         membership_state != kv::MembershipState::RetirementInitiated)
@@ -1885,6 +1887,7 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
       become_follower();
+      is_new_follower = true;
     }
 
     std::string leadership_state_string()

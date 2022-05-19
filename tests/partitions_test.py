@@ -191,7 +191,6 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         # CheckQuorum: the primary node should automatically step
         # down if it has not heard back from a majority of backups
         primary.wait_for_leadership_state(primary_view, "Follower")
-        
 
     # Check reconnected former primary has caught up
     with primary.client() as c:

@@ -202,7 +202,7 @@
                   "retry_timeout": {
                     "type": "string",
                     "default": "1000ms",
-                    "description": "Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of 'consensus.election_timeout' of the primary node of the existing service to join."
+                    "description": "Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of 'consensus.election_timeout' set on the primary node of the existing service to join."
                   }
                 },
                 "required": ["target_rpc_address"],
