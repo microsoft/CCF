@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout.
+- Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout (#3685).
 
 ## [2.0.0]
 
