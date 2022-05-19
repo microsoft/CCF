@@ -41,6 +41,7 @@ dispatch_all
 periodic_one,0,50
 dispatch_all
 
+state_all
 assert_is_primary,0
 assert_is_backup,1
 assert_is_backup,2
@@ -65,6 +66,7 @@ assert_is_primary,0
 periodic_one,0,50
 
 # Node 0 has stepped down as backup (check quorum)
+state_all
 assert_is_backup,0
 assert_is_backup,1
 assert_is_backup,2

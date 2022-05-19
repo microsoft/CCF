@@ -889,16 +889,11 @@ namespace aft
           }
         }
 
-        // TODO: Is the number of nodes correct here? What is a reconfiguration
-        // is happening and the new nodes are catching up?
-        // When CheckQuorum is enabled, the primary automatically steps
-        // down if it has not heard back from a majority (minus one) of backups.
-
-        // If more than
+        // The primary automatically steps down if it has not heard back from
+        // a majority of backups during an election timeout.
         if (
           check_quorum &&
-          backup_ack_timeout_count >
-            (nodes.size() + 1) - get_quorum(nodes.size() + 1))
+          backup_ack_timeout_count >= get_quorum(nodes.size()))
         {
           LOG_FAIL_FMT(
             "backup_ack_timeout_count: {}", backup_ack_timeout_count);
