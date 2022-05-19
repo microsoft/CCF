@@ -879,21 +879,29 @@ namespace aft
           }
         }
 
-        size_t ack_timeout_count = 0;
+        size_t backup_ack_timeout_count = 0;
         for (auto& node : nodes)
         {
           node.second.last_ack_timeout += elapsed;
           if (node.second.last_ack_timeout >= election_timeout)
           {
-            ack_timeout_count++;
+            backup_ack_timeout_count++;
           }
         }
 
         // TODO: Is the number of nodes correct here? What is a reconfiguration
         // is happening and the new nodes are catching up?
-        if (check_quorum && ack_timeout_count >= get_quorum(nodes.size() + 1))
+        // When CheckQuorum is enabled, the primary automatically steps
+        // down if it has not heard back from a majority (minus one) of backups.
+
+        // If more than
+        if (
+          check_quorum &&
+          backup_ack_timeout_count >
+            (nodes.size() + 1) - get_quorum(nodes.size() + 1))
         {
-          LOG_FAIL_FMT("ack_timeout_count: {}", ack_timeout_count);
+          LOG_FAIL_FMT(
+            "backup_ack_timeout_count: {}", backup_ack_timeout_count);
           become_follower();
         }
       }
