@@ -86,11 +86,12 @@ def strip_version(full_version):
 
 
 def version_rc(full_version):
-    if full_version is None:
-        return (None, 0)
-    tokens = full_version.split("-")
-    rc_tkn = tokens[2] if len(tokens) > 2 else None
-    return (int(rc_tkn[2:]), len(tokens)) if rc_tkn else (None, 0)
+    if full_version is not None:
+        tokens = full_version.split("-")
+        if len(tokens) > 2 and "rc" in tokens[2]:
+            rc_tkn = tokens[2]
+            return (int(rc_tkn[2:]), len(tokens))
+    return (None, 0)
 
 
 class Node:
