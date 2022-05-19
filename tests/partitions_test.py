@@ -14,7 +14,6 @@ from infra.tx_status import TxStatus
 import time
 import http
 import contextlib
-from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 

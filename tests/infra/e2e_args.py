@@ -342,12 +342,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Absolute path to node JSON configuration file",
         default=None,
     )
-    parser.add_argument(
-        "--check-quorum",
-        help="If set, the primary node will automatically step down when partitioned",
-        action="store_true",
-        default=False,
-    )
 
     add(parser)
 

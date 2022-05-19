@@ -122,7 +122,7 @@ class Network:
         "reconfiguration_type",
         "config_file",
         "ubsan_options",
-        "previous_service_identity_file"
+        "previous_service_identity_file",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
