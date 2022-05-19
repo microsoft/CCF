@@ -72,15 +72,16 @@ assert_is_backup,1
 assert_is_backup,2
 assert_is_backup,3
 
-# Eventually, the partition is lifted and a new leader (3) is elected
+# Eventually, the partition is lifted and a new leader is elected.
+# In this case, we check that node 0 can be re-elected.
 
 reconnect,0,1
 reconnect,0,2
 dispatch_all
 
-periodic_one,3,100
+periodic_one,0,100
 dispatch_all
 
-assert_is_primary,3
+assert_is_primary,0
 
 state_all
