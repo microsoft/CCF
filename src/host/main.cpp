@@ -288,6 +288,11 @@ int main(int argc, char** argv)
       config.client_connection_timeout);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);
+    if (config.network.node_to_node_interface.published_address.empty())
+    {
+      config.network.node_to_node_interface.published_address =
+        config.network.node_to_node_interface.bind_address;
+    }
     if (!config.output_files.node_to_node_address_file.empty())
     {
       ResolvedAddresses resolved_node_address;

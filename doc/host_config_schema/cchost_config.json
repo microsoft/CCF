@@ -31,6 +31,11 @@
             "bind_address": {
               "type": "string",
               "description": "Local address the node binds to and listens on"
+            },
+            "published_address": {
+              "type": "string",
+              "default": "Value of 'bind_address'",
+              "description": "The published RPC address advertised to other nodes"
             }
           },
           "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
