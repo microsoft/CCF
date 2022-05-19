@@ -133,7 +133,6 @@ namespace aft
     // Earliest index at which this node's retirement can be committed
     std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
 
-    // Append entries batching logic
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
     Index entries_batch_size = 20;
