@@ -726,7 +726,6 @@ class Node:
         while time.time() < end_time:
             with self.client() as c:
                 r = c.get("/node/consensus").body.json()["details"]
-                LOG.error(r)
                 if (
                     r["current_view"] == view
                     and r["leadership_state"] == leadership_state
