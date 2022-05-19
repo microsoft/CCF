@@ -104,11 +104,10 @@ class Repository:
         ]
 
     def get_release_branches_names(self):
-        # Branches are ordered based on major version, with oldest first
-        return sorted(
-            self.release_branches,
-            key=get_major_version_from_release_branch_name,
-        )
+        # Hardcoded here. This is because we only ever want to test
+        # compatibility with past release branches, and in this case
+        # (local branch is "release/1.x") the only past branch is this one.
+        return ["release/1.x"]
 
     def get_release_branch_name_before(self, release_branch_name):
         release_branches = self.get_release_branches_names()
