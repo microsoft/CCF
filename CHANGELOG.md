@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout.
+
 ## [2.0.0]
 
 See [documentation for code upgrade 1.x to 2.0](https://microsoft.github.io/CCF/main/operations/code_upgrade_1x.html) to upgrade an existing 1.x CCF service to 2.0
@@ -211,10 +217,7 @@ Key-Value Store
 ### Added
 
 - Primary node now also reports time at which the ack from each backup node was last received (`GET /node/consensus` endpoint). This can be used by operators to detect one-way partitions between the primary and backup nodes (#3769).
-  <<<<<<< HEAD
-  =======
 - Current receipt format is now exposed to C++ applications as `ccf::Receipt`, retrieved from `describe_receipt_v2`. Note that the previous JSON format is still available, but must be retrieved as a JSON object from `describe_receipt_v1`.
-  > > > > > > > 49cd887c6b1f9163b1b0020730ceda5465a8d966
 
 ## [2.0.0-rc7]
 
