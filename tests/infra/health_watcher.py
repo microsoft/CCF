@@ -84,7 +84,7 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
         # about to lose its primaryship
         return HealthState.election
 
-    # Note: No longer need to check for backups' "last_received_ms" acks 
+    # Note: No longer need to check for backups' "last_received_ms" acks
     # as the primary node will automatically step down as follower if
     # it is isolated from a majority of backups (CheckQuorum extension)
 
