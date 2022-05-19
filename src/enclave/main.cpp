@@ -231,20 +231,24 @@ extern "C"
         cc.consensus,
         cc.node_certificate.curve_id);
     }
-    catch (const ccf::ccf_oe_attester_init_error&)
+    catch (const ccf::ccf_oe_attester_init_error& e)
     {
+      LOG_TRACE_FMT("{}", e.what());
       return CreateNodeStatus::OEAttesterInitFailed;
     }
-    catch (const ccf::ccf_oe_verifier_init_error&)
+    catch (const ccf::ccf_oe_verifier_init_error& e)
     {
+      LOG_TRACE_FMT("{}", e.what());
       return CreateNodeStatus::OEVerifierInitFailed;
     }
-    catch (const ccf::ccf_openssl_rdrand_init_error&)
+    catch (const ccf::ccf_openssl_rdrand_init_error& e)
     {
+      LOG_TRACE_FMT("{}", e.what());
       return CreateNodeStatus::OpenSSLRDRANDInitFailed;
     }
-    catch (const std::exception&)
+    catch (const std::exception& e)
     {
+      LOG_TRACE_FMT("{}", e.what());
       return CreateNodeStatus::EnclaveInitFailed;
     }
 
