@@ -3,8 +3,5 @@
   "context": "..",
   "image": "ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.17.7-1",
   "runArgs": [],
-  "extensions": [
-    "ms-vscode.cpptools",
-    "ms-python.python"
-  ]
+  "extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }
