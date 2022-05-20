@@ -878,19 +878,12 @@ namespace aft
           node.second.last_ack_timeout += elapsed;
           if (node.second.last_ack_timeout >= election_timeout)
           {
-            LOG_FAIL_FMT(
-              "For node {}, last_ack_timeout: {}",
-              node.first,
-              node.second.last_ack_timeout);
             backup_ack_timeout_count++;
           }
         }
 
         if (backup_ack_timeout_count >= get_quorum(nodes.size()))
         {
-          // TODO: Remove
-          LOG_FAIL_FMT(
-            "get_quorum({})={}", nodes.size(), get_quorum(nodes.size()));
           // CheckQuorum: The primary automatically steps down if it has not
           // heard back from a majority of backups during an election timeout.
           LOG_INFO_FMT(
