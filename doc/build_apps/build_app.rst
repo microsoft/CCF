@@ -54,3 +54,10 @@ It is then possible to inspect the signed enclave library:
 For a given application, the ``signature`` field depends on the key used to sign the enclave. See :ref:`governance/common_member_operations:Updating Code Version` for instructions on how members can register new application versions (``mrenclave`` field).
 
 .. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/master/docs/GettingStartedDocs/buildandsign.md#signing-an-sgx-enclave>`_. provides further details about how to sign enclave applications using ``oesign``.
+
+Debugging
+---------
+
+To connect a debugger to a CCF node, the configuration passed to ``oesign sign`` must have debugging enabled  (``Debug=1``). This `must` be disabled for production enclaves, to ensure confidentiality is maintained. If using the ``sign_app_library`` function defined in ``ccf_app.cmake``, two variants will be produced for each enclave. ``name.enclave.so.debuggable`` will have debugging enabled (meaning a debugger may be attached - the optimisation level is handled independently), while ``name.enclave.so.signed`` produces a final debugging-disabled enclave. The produced binaries are otherwise identical.
+
+Additionally, the ``cchost`` binary must be told that the enclave type is debug, by setting the ``enclave.type`` configuration option to ``"debug"``.
