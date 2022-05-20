@@ -1458,6 +1458,10 @@ namespace aft
 
       if (leadership_state != kv::LeadershipState::Leader)
       {
+        LOG_FAIL_FMT(
+          "Recv append entries response to {} from {}: no longer leader",
+          state->my_node_id,
+          from);
         return;
       }
 
