@@ -610,7 +610,14 @@ int main(int argc, char** argv)
       threads.emplace_back(std::thread(enclave_thread_start));
     }
 
-    ACMEChallengeServer acs("0.0.0.0", bp.get_dispatcher(), writer_factory);
+    std::unique_ptr<ACMEChallengeServer> acs;
+    if (config.acme_client_config)
+    {
+      acs = std::make_unique<ACMEChallengeServer>(
+        config.acme_client_config->challenge_server_interface,
+        bp.get_dispatcher(),
+        writer_factory);
+    }
 
     LOG_INFO_FMT("Entering event loop");
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);

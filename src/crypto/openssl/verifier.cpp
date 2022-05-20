@@ -180,4 +180,15 @@ namespace crypto
     BIO_get_mem_ptr(mem, &bptr);
     return std::string(bptr->data, bptr->length);
   }
+
+  size_t Verifier_OpenSSL::remaining_seconds() const
+  {
+    auto [from, to] = validity_period();
+    auto tp_from = ds::time_point_from_string(from);
+    auto tp_to = ds::time_point_from_string(to);
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::seconds>(tp_to - now)
+             .count() +
+      1;
+  }
 }

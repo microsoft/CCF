@@ -22,6 +22,8 @@ namespace ccf
     std::optional<std::string> not_before = std::nullopt;
     std::optional<std::string> not_after = std::nullopt;
 
+    std::string challenge_server_interface = "0.0.0.0";
+
     bool operator==(const ACMEClientConfig& other) const = default;
   };
 
@@ -34,6 +36,7 @@ namespace ccf
     node_dns_name,
     contact,
     terms_of_service_agreed,
-    challenge_type);
+    challenge_type,
+    challenge_server_interface);
   DECLARE_JSON_OPTIONAL_FIELDS(ACMEClientConfig, not_before, not_after);
 }

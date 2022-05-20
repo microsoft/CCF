@@ -6,6 +6,7 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/tables/service.h"
@@ -2453,27 +2454,95 @@ namespace ccf
 
     void setup_acme_client()
     {
-      if (config.acme_client_config && !acme_client)
+      auto& aconfig = config.acme_client_config;
+      if (aconfig && !acme_client)
       {
+        bool validity_dates_supported =
+          false; // Let's encrypt does not support custom validity dates
+
+        if (validity_dates_supported)
+        {
+          if (!aconfig->not_before)
+          {
+            *aconfig->not_before = config.startup_host_time;
+          }
+
+          if (!aconfig->not_after)
+          {
+            *aconfig->not_after = crypto::compute_cert_valid_to_string(
+              *aconfig->not_before,
+              config.node_certificate.initial_validity_days);
+          }
+        }
+
         acme_client = std::make_shared<ACMEClient>(
-          *config.acme_client_config,
+          *aconfig,
           network.identity,
-          node_sign_kp,
           get_node_id(),
           rpcsessions,
           to_host,
           [this](const crypto::Pem& pem) {
+            // Write the endorsed certificate to the service table; all nodes
+            // will install it in the global hook on this table.
             auto tx = network.tables->create_tx();
             auto service = tx.rw<Service>(Tables::SERVICE);
             auto service_info = service->get();
             service_info->tls_cert = pem;
             service->put(service_info.value());
             tx.commit();
-
-            // rpcsessions->set_network_cert(pem,
-            // node_sign_kp->private_key_pem());
-            // rpcsessions->set_network_cert(pem, network.identity->priv_key);
           });
+
+        // Start tasks to check whether the cert is expired.
+        auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+          [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+            auto& state = msg->data.self;
+            auto& config = state.config;
+
+            if (!state.consensus->can_replicate())
+            {
+              return;
+            }
+
+            auto acme_client = state.acme_client;
+            if (!acme_client)
+            {
+              return;
+            }
+
+            auto tables = state.network.tables;
+            auto tx = tables->create_read_only_tx();
+            auto service = tx.ro<Service>(Tables::SERVICE);
+            auto service_info = service->get();
+            if (service_info->tls_cert)
+            {
+              auto v = crypto::make_verifier(*service_info->tls_cert);
+              if (acme_client)
+              {
+                size_t rem_sec = v->remaining_seconds();
+
+                LOG_TRACE_FMT(
+                  "ACME: certificate period: {} seconds remaining", rem_sec);
+
+                // 7689600 = 89 days
+                if (rem_sec < (7689600 - 5 * 60))
+                {
+                  acme_client->start();
+                }
+              }
+            }
+            else
+            {
+              LOG_TRACE_FMT(
+                "ACME: certificate expiration check: no certificate");
+            }
+            auto delay = std::chrono::seconds(std::chrono::seconds(10));
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), delay);
+          },
+          *this);
+
+        threading::ThreadMessaging::thread_messaging.add_task_after(
+          std::move(msg), std::chrono::seconds(30));
       }
     }
   };
