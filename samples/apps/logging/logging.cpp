@@ -253,7 +253,7 @@ namespace loggingapp
           {
             const std::string bar("bar");
             if (
-              std::search(v.begin(), v.end(), foo.begin(), foo.end()) !=
+              std::search(v.begin(), v.end(), bar.begin(), bar.end()) !=
               v.end())
             {
               category = "contains_bar";
@@ -1483,147 +1483,155 @@ namespace loggingapp
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto get_historical_by_value = [&, this](
-                                       ccf::endpoints::EndpointContext& ctx) {
-        // Parse arguments from query
-        const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+      auto get_historical_by_value =
+        [&, this](ccf::endpoints::EndpointContext& ctx) {
+          // Parse arguments from query
+          const auto parsed_query =
+            http::parse_query(ctx.rpc_ctx->get_request_query());
 
-        std::string error_reason;
+          std::string error_reason;
 
-        size_t contains;
-        if (!http::get_query_value(
-              parsed_query, "contains", contains, error_reason))
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
-          return;
-        }
-
-        std::string category;
-        if (contains == "foo")
-        {
-          category = "contains_foo";
-        }
-        else if (contains == "bar")
-        {
-          category = "contains_bar";
-        }
-        else
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidQueryParameterValue,
-            fmt::format("'contains' query value must be 'foo' or 'bar'"));
-          return;
-        }
-
-        auto entries = index_by_contents->get_entries_for_category(category);
-
-        // Process the fetched Stores
-        LoggingGetHistoricalRange::Out response;
-        if (!entries.empty())
-        {
-          // End of range must be committed
-
-          const auto final_seqno = entries.back().tx_id.seqno;
-          const auto tx_status = get_tx_status(final_seqno);
-          if (!tx_status.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Unable to retrieve Tx status");
-            return;
-          }
-
-          if (tx_status.value() != ccf::TxStatus::Committed)
+          std::string contains;
+          if (!http::get_query_value(
+                parsed_query, "contains", contains, error_reason))
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              fmt::format(
-                "Only committed transactions can be queried. This category "
-                "includes a transaction at seqno {}, which is {}",
-                final_seqno,
-                ccf::tx_status_to_str(tx_status.value())));
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
             return;
           }
 
-          // NB: Currently ignoring pagination
-
-          ccf::historical::RequestHandle handle;
-          ccf::SeqNoCollection seqno_collection;
+          std::string category;
+          if (contains == std::string("foo"))
           {
-            std::hash<ccf::SeqNo> h;
-            for (const auto& entry : entries)
-            {
-              const auto seqno = entry.tx_id.seqno;
-              ds::hashutils::hash_combine(handle, seqno, h);
-              seqno_collection.insert(seqno);
-            }
+            category = "contains_foo";
           }
-
-          // Fetch the interesting seqnos
-          auto& historical_cache = context.get_historical_state();
-          auto stores = historical_cache.get_stores_for(handle, seqno_collection);
-          if (stores.empty())
+          else if (contains == std::string("bar"))
           {
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-            static constexpr size_t retry_after_seconds = 3;
-            ctx.rpc_ctx->set_response_header(
-              http::headers::RETRY_AFTER, retry_after_seconds);
-            ctx.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-            ctx.rpc_ctx->set_response_body(fmt::format(
-              "Historical transactions are not yet available, fetching now"));
+            category = "contains_bar";
+          }
+          else
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              fmt::format("'contains' query value must be 'foo' or 'bar'"));
             return;
           }
 
-          auto store_it = stores.begin();
-          auto entry_it = entries.begin();
-          while (store_it != stores.end())
-          {
-          }
-          for (const auto& store : stores)
-          {
-            auto historical_tx = store->create_read_only_tx();
-            auto records_handle =
-              historical_tx.template ro<RecordsMap>(private_records(ctx));
-            const auto v = records_handle->get(id);
+          auto entries = index_by_contents->get_entries_for_category(category);
 
-            if (v.has_value())
+          // Process the fetched Stores
+          LoggingGetHistoricalRange::Out response;
+          if (!entries.empty())
+          {
+            // End of range must be committed
+
+            const auto final_seqno = entries.back().tx_id.seqno;
+            const auto tx_status = get_tx_status(final_seqno);
+            if (!tx_status.has_value())
             {
-              LoggingGetHistoricalRange::Entry e;
-              e.seqno = store->get_txid().seqno;
-              e.id = id;
-              e.msg = v.value();
-              response.entries.push_back(e);
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Unable to retrieve Tx status");
+              return;
+            }
+
+            if (tx_status.value() != ccf::TxStatus::Committed)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidInput,
+                fmt::format(
+                  "Only committed transactions can be queried. This category "
+                  "includes a transaction at seqno {}, which is {}",
+                  final_seqno,
+                  ccf::tx_status_to_str(tx_status.value())));
+              return;
+            }
+
+            // NB: Currently ignoring pagination
+
+            ccf::historical::RequestHandle handle;
+            ccf::SeqNoCollection seqno_collection;
+            {
+              std::hash<ccf::SeqNo> h;
+              for (const auto& entry : entries)
+              {
+                const auto seqno = entry.tx_id.seqno;
+                ds::hashutils::hash_combine(handle, seqno, h);
+                seqno_collection.insert(seqno);
+              }
+            }
+
+            // Fetch the interesting seqnos
+            auto& historical_cache = context.get_historical_state();
+            auto stores =
+              historical_cache.get_stores_for(handle, seqno_collection);
+            if (stores.empty())
+            {
+              ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+              static constexpr size_t retry_after_seconds = 3;
+              ctx.rpc_ctx->set_response_header(
+                http::headers::RETRY_AFTER, retry_after_seconds);
+              ctx.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::TEXT);
+              ctx.rpc_ctx->set_response_body(fmt::format(
+                "Historical transactions are not yet available, fetching now"));
+              return;
+            }
+
+            auto store_it = stores.begin();
+            auto entry_it = entries.begin();
+            while (store_it != stores.end())
+            {
+              auto& store = *store_it;
+              auto& entry = *entry_it;
+
+              auto historical_tx = store->create_read_only_tx();
+
+              auto records_handle =
+                historical_tx.template ro<RecordsMap>(public_records(ctx));
+
+              const auto id =
+                RecordsMap::KeySerialiser::from_serialised(entry.key);
+              const auto v = records_handle->get(id);
+
+              if (v.has_value())
+              {
+                LoggingGetHistoricalRange::Entry e;
+                e.seqno = store->get_txid().seqno;
+                e.id = id;
+                e.msg = v.value();
+                response.entries.push_back(e);
+              }
+              else
+              {
+                LOG_TRACE_FMT("No value for {} in {}", id, entry.tx_id.to_str());
+              }
+
+              ++store_it;
+              ++entry_it;
             }
           }
-        }
-        else
-        {
-          // Index is complete, and tells us that nothing exists for this
-          // category. Send response now
-        }
+          else
+          {
+            // Index is complete, and tells us that nothing exists for this
+            // category. Send response now
+          }
 
-        // Construct the HTTP response
-        nlohmann::json j_response = response;
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(j_response.dump());
-
-        // ALSO: Assume this response makes it all the way to the client, and
-        // they're finished with it, so we can drop the retrieved state. In a
-        // real app this may be driven by a separate client request or an LRU
-        historical_cache.drop_cached_states(handle);
-      };
+          // Construct the HTTP response
+          nlohmann::json j_response = response;
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(j_response.dump());
+        };
       make_endpoint(
-        "/log/private/historical/by_value",
+        "/log/public/historical/by_value",
         HTTP_GET,
         get_historical_by_value,
         auth_policies)

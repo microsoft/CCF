@@ -30,7 +30,7 @@ namespace loggingapp
       const ccf::TxID tx_id;
       const ccf::ByteVector key;
       const ccf::ByteVector value;
-    }
+    };
 
     IndexByValue(const std::string& map_name, const Categoriser& cat) :
       ccf::indexing::strategies::VisitEachEntryInMap(map_name, "IndexByValue"),
@@ -45,18 +45,25 @@ namespace loggingapp
       const auto category = categoriser(tx_id, k, v);
       if (category.has_value())
       {
+        LOG_TRACE_FMT("Storing category {}", category.value());
         auto& cd = current[category.value()];
-        cd.entries.emplace_back({tx_id, k, v});
+        cd.entries.emplace_back(KVEntry{tx_id, k, v});
       }
     }
 
-    std::vector<KVEntry> get_entry_for_category(const Category& cat)
+    std::vector<KVEntry> get_entries_for_category(const Category& cat)
     {
       const auto it = current.find(cat);
       if (it != current.end())
       {
+        LOG_TRACE_FMT(
+          "Returning {} entries for category {}",
+          it->second.entries.size(),
+          cat);
         return it->second.entries;
       }
+      LOG_TRACE_FMT(
+        "Returning no entries for category {}", cat);
       return {};
     }
 
