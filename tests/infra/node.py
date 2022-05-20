@@ -722,7 +722,6 @@ class Node:
             )
 
     def wait_for_leadership_state(self, view, leadership_state, timeout=3):
-        node_is_in_leadership_state = False
         end_time = time.time() + timeout
         while time.time() < end_time:
             with self.client() as c:
@@ -731,14 +730,12 @@ class Node:
                     r["current_view"] == view
                     and r["leadership_state"] == leadership_state
                 ):
-                    node_is_in_leadership_state = True
-                    break
+                    return
 
             time.sleep(0.1)
-        if not node_is_in_leadership_state:
-            raise TimeoutError(
-                f"Node {self.local_node_id} was not in leadership state {leadership_state} after {timeout}s: {r}"
-            )
+        raise TimeoutError(
+            f"Node {self.local_node_id} was not in leadership state {leadership_state} after {timeout}s: {r}"
+        )
 
 
 @contextmanager

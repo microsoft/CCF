@@ -275,6 +275,9 @@ def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
     f_backups = backups[: network.get_f() + 1]
 
+    with primary.client() as c:
+        primary_view = c.get("/node/consensus").body.json()["details"]["current_view"]
+
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
@@ -310,8 +313,6 @@ def test_learner_does_not_take_part(network, args):
     # successfully.
     with network.partitioner.partition(f_backups):
 
-        check_does_not_progress(primary, timeout=5)
-
         try:
             network.consortium.trust_node(
                 primary,
@@ -324,7 +325,9 @@ def test_learner_does_not_take_part(network, args):
         else:
             raise Exception("Trust node proposal committed unexpectedly")
 
-        check_does_not_progress(primary, timeout=5)
+        # CheckQuorum: the primary node should automatically step
+        # down if it has not heard back from a majority of backups
+        primary.wait_for_leadership_state(primary_view, "Follower")
 
         LOG.info("Majority partition can make progress")
         partition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
