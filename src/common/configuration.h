@@ -14,6 +14,7 @@
 #include "ds/unit_strings.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
+#include "node/acme_client_config.h"
 #include "service/tables/config.h"
 
 #include <optional>
@@ -129,8 +130,6 @@ struct StartupConfig : CCFConfig
 
   nlohmann::json node_data = nullptr;
 
-  std::optional<std::string> acme_directory_url;
-
   struct Start
   {
     std::vector<ccf::NewMember> members;
@@ -155,6 +154,8 @@ struct StartupConfig : CCFConfig
       std::nullopt;
   };
   Recover recover = {};
+
+  std::optional<ccf::ACMEClientConfig> acme_client_config = std::nullopt;
 };
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
@@ -180,4 +181,4 @@ DECLARE_JSON_REQUIRED_FIELDS(
   join,
   recover);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  StartupConfig, startup_snapshot_evidence_seqno_for_1_x, acme_directory_url);
+  StartupConfig, startup_snapshot_evidence_seqno_for_1_x, acme_client_config);

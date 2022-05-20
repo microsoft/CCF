@@ -467,6 +467,48 @@
       },
       "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care!)",
       "additionalProperties": false
+    },
+    "acme_client_config": {
+      "type": "object",
+      "properties": {
+        "ca_cert": {
+          "type": "string",
+          "default": "",
+          "description": ""
+        },
+        "directory_url": {
+          "type": "string",
+          "default": "",
+          "description": ""
+        },
+        "service_dns_name": {
+          "type": "string",
+          "default": "",
+          "description": ""
+        },
+        "node_dns_name": {
+          "type": "string",
+          "default": "",
+          "description": ""
+        },
+        "contact": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": ""
+        },
+        "terms_of_service_agreed": {
+          "type": "boolean",
+          "default": false,
+          "description": ""
+        },
+        "challenge_type": {
+          "type": "string",
+          "default": "http-01",
+          "description": ""
+        }
+      }
     }
   },
   "required": ["enclave", "network", "command"],

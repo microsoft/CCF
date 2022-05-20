@@ -146,6 +146,8 @@ namespace host
       Recover recover = {};
     };
     Command command = {};
+
+    std::optional<ccf::ACMEClientConfig> acme_client_config;
   };
 
   DECLARE_JSON_TYPE(CCHostConfig::Enclave);
@@ -215,5 +217,6 @@ namespace host
     ledger,
     snapshots,
     logging,
-    memory);
+    memory,
+    acme_client_config);
 }

@@ -528,6 +528,8 @@ int main(int argc, char** argv)
 #endif
     }
 
+    startup_config.acme_client_config = config.acme_client_config;
+
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
     auto flush_outbound = [&]() {
@@ -608,7 +610,7 @@ int main(int argc, char** argv)
       threads.emplace_back(std::thread(enclave_thread_start));
     }
 
-    ACMEChallengeServer acs("10.1.0.4", bp.get_dispatcher(), writer_factory);
+    ACMEChallengeServer acs("0.0.0.0", bp.get_dispatcher(), writer_factory);
 
     LOG_INFO_FMT("Entering event loop");
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);

@@ -277,7 +277,6 @@ namespace ccf
       if (acme_client)
       {
         acme_client->register_message_handlers(dispatcher);
-        acme_client->start();
       }
     }
 
@@ -374,6 +373,8 @@ namespace ccf
       setup_snapshotter();
       setup_encryptor();
 
+      setup_acme_client();
+
       switch (start_type)
       {
         case StartType::Start:
@@ -418,7 +419,10 @@ namespace ccf
 
           LOG_INFO_FMT("Created new node {}", self);
 
-          setup_acme_client();
+          if (acme_client)
+          {
+            acme_client->start();
+          }
 
           return {self_signed_node_cert, network.identity->cert};
         }
@@ -665,8 +669,6 @@ namespace ccf
             snapshotter->set_last_snapshot_idx(
               network.tables->current_version());
 
-            setup_acme_client();
-
             if (resp.network_info->public_only)
             {
               sm.advance(NodeStartupState::partOfPublicNetwork);
@@ -676,6 +678,11 @@ namespace ccf
               reset_data(quote_info.quote);
               reset_data(quote_info.endorsements);
               sm.advance(NodeStartupState::partOfNetwork);
+            }
+
+            if (acme_client)
+            {
+              acme_client->start();
             }
 
             LOG_INFO_FMT(
@@ -2205,6 +2212,12 @@ namespace ccf
             RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
             LOG_INFO_FMT("Service open at seqno {}", hook_version);
           }
+
+          if (w->tls_cert)
+          {
+            rpcsessions->set_network_cert(
+              *w->tls_cert, network.identity->priv_key);
+          }
         }));
     }
 
@@ -2440,8 +2453,28 @@ namespace ccf
 
     void setup_acme_client()
     {
-      acme_client = std::make_shared<ACMEClient>(
-        network.identity, node_sign_kp, get_node_id(), rpcsessions, to_host);
+      if (config.acme_client_config && !acme_client)
+      {
+        acme_client = std::make_shared<ACMEClient>(
+          *config.acme_client_config,
+          network.identity,
+          node_sign_kp,
+          get_node_id(),
+          rpcsessions,
+          to_host,
+          [this](const crypto::Pem& pem) {
+            auto tx = network.tables->create_tx();
+            auto service = tx.rw<Service>(Tables::SERVICE);
+            auto service_info = service->get();
+            service_info->tls_cert = pem;
+            service->put(service_info.value());
+            tx.commit();
+
+            // rpcsessions->set_network_cert(pem,
+            // node_sign_kp->private_key_pem());
+            // rpcsessions->set_network_cert(pem, network.identity->priv_key);
+          });
+      }
     }
   };
 }
