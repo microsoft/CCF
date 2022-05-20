@@ -62,8 +62,7 @@ namespace loggingapp
           cat);
         return it->second.entries;
       }
-      LOG_TRACE_FMT(
-        "Returning no entries for category {}", cat);
+      LOG_TRACE_FMT("Returning no entries for category {}", cat);
       return {};
     }
 
