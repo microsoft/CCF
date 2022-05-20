@@ -25,7 +25,7 @@ The following command will run a simple one node test network on a single machin
 
     $ cd CCF/build
 
-    $ ../tests/sandbox.sh -p ./liblogging.virtual.so
+    $ /opt/ccf/bin/sandbox.sh -p ./liblogging.virtual.so
     Setting up Python environment...
     Python environment successfully setup
     [16:14:05.294] Starting 1 CCF node...
