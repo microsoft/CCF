@@ -1522,105 +1522,15 @@ namespace loggingapp
 
           auto entries = index_by_contents->get_entries_for_category(category);
 
-          // Process the fetched Stores
+          // Process the fetched Entries
           LoggingGetHistoricalRange::Out response;
-          if (!entries.empty())
+          for (const auto& entry : entries)
           {
-            // End of range must be committed
-
-            const auto final_seqno = entries.back().tx_id.seqno;
-            const auto tx_status = get_tx_status(final_seqno);
-            if (!tx_status.has_value())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Unable to retrieve Tx status");
-              return;
-            }
-
-            if (tx_status.value() != ccf::TxStatus::Committed)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidInput,
-                fmt::format(
-                  "Only committed transactions can be queried. This category "
-                  "includes a transaction at seqno {}, which is {}",
-                  final_seqno,
-                  ccf::tx_status_to_str(tx_status.value())));
-              return;
-            }
-
-            // NB: Currently ignoring pagination
-
-            ccf::historical::RequestHandle handle;
-            ccf::SeqNoCollection seqno_collection;
-            {
-              std::hash<ccf::SeqNo> h;
-              for (const auto& entry : entries)
-              {
-                const auto seqno = entry.tx_id.seqno;
-                ds::hashutils::hash_combine(handle, seqno, h);
-                seqno_collection.insert(seqno);
-              }
-            }
-
-            // Fetch the interesting seqnos
-            auto& historical_cache = context.get_historical_state();
-            auto stores =
-              historical_cache.get_stores_for(handle, seqno_collection);
-            if (stores.empty())
-            {
-              ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-              static constexpr size_t retry_after_seconds = 3;
-              ctx.rpc_ctx->set_response_header(
-                http::headers::RETRY_AFTER, retry_after_seconds);
-              ctx.rpc_ctx->set_response_header(
-                http::headers::CONTENT_TYPE,
-                http::headervalues::contenttype::TEXT);
-              ctx.rpc_ctx->set_response_body(fmt::format(
-                "Historical transactions are not yet available, fetching now"));
-              return;
-            }
-
-            auto store_it = stores.begin();
-            auto entry_it = entries.begin();
-            while (store_it != stores.end())
-            {
-              auto& store = *store_it;
-              auto& entry = *entry_it;
-
-              auto historical_tx = store->create_read_only_tx();
-
-              auto records_handle =
-                historical_tx.template ro<RecordsMap>(public_records(ctx));
-
-              const auto id =
-                RecordsMap::KeySerialiser::from_serialised(entry.key);
-              const auto v = records_handle->get(id);
-
-              if (v.has_value())
-              {
-                LoggingGetHistoricalRange::Entry e;
-                e.seqno = store->get_txid().seqno;
-                e.id = id;
-                e.msg = v.value();
-                response.entries.push_back(e);
-              }
-              else
-              {
-                LOG_TRACE_FMT("No value for {} in {}", id, entry.tx_id.to_str());
-              }
-
-              ++store_it;
-              ++entry_it;
-            }
-          }
-          else
-          {
-            // Index is complete, and tells us that nothing exists for this
-            // category. Send response now
+            LoggingGetHistoricalRange::Entry e;
+            e.seqno = entry.tx_id.seqno;
+            e.id = RecordsMap::KeySerialiser::from_serialised(entry.key);
+            e.msg = RecordsMap::ValueSerialiser::from_serialised(entry.value);
+            response.entries.push_back(e);
           }
 
           // Construct the HTTP response
