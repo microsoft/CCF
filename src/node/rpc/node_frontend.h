@@ -837,6 +837,7 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
+      // TODO: Add test
       auto network_previous_identity = [this](auto& args, nlohmann::json&&) {
         const auto prev_ident =
           this->network_identity.get_previous_identity_cert();
