@@ -221,7 +221,6 @@ extern "C"
     try
     {
       enclave = new ccf::Enclave(
-        ec,
         std::move(circuit),
         std::move(basic_writer_factory),
         std::move(writer_factory),
