@@ -45,5 +45,7 @@ namespace ccf
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;
     virtual crypto::Pem get_self_signed_certificate() = 0;
+    virtual std::optional<std::vector<uint8_t>>
+    get_previous_identity_cert() = 0;
   };
 }

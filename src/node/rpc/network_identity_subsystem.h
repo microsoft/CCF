@@ -30,7 +30,7 @@ namespace ccf
     virtual std::optional<std::vector<uint8_t>> get_previous_identity_cert()
       override
     {
-      return std::nullopt;
+      return node_state.get_previous_identity_cert();
     }
   };
 }

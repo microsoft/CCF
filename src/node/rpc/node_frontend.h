@@ -17,6 +17,7 @@
 #include "frontend.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
+#include "node/rpc/network_identity_interface.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -113,11 +114,24 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     SelfSignedNodeCertificateInfo, self_signed_certificate);
 
+  struct GetNetworkPreviousIdentity
+  {
+    struct Out
+    {
+      crypto::Pem previous_service_identity;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetNetworkPreviousIdentity::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetNetworkPreviousIdentity::Out, previous_service_identity);
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
+    ccf::NetworkIdentitySubsystemInterface& network_identity;
 
     static std::pair<http_status, std::string> quote_verification_error(
       QuoteVerificationResult result)
@@ -351,7 +365,9 @@ namespace ccf
       NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network_),
-      node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>())
+      node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>()),
+      network_identity(
+        *context_.get_subsystem<ccf::NetworkIdentitySubsystemInterface>())
     {
       openapi_info.title = "CCF Public Node API";
       openapi_info.description =
@@ -819,6 +835,34 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, GetNetworkInfo::Out>()
+        .install();
+
+      auto network_previous_identity = [this](auto& args, nlohmann::json&&) {
+        const auto prev_ident =
+          this->network_identity.get_previous_identity_cert();
+        if (prev_ident.has_value())
+        {
+          crypto::Pem pem(prev_ident->data(), prev_ident->size());
+          GetNetworkPreviousIdentity::Out out;
+          out.previous_service_identity = pem;
+          return make_success(out);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "This node was not started in recovery mode.");
+        }
+      };
+      make_read_only_endpoint(
+        "/network/previous_identity",
+        HTTP_GET,
+        json_read_only_adapter(network_previous_identity),
+        no_auth_required)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .set_auto_schema<void, GetNetworkPreviousIdentity::Out>()
         .install();
 
       auto get_nodes = [this](auto& args, nlohmann::json&&) {
