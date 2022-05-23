@@ -3,9 +3,12 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/ds/hex.h"
 #include "ccf/tx.h"
+#include "kv/tx_pimpl.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
+#include "node/rpc/claims.h"
 
 #include <list>
 
@@ -13,6 +16,16 @@ namespace kv
 {
   class CommittableTx : public Tx, public AbstractChangeContainer
   {
+  public:
+    using TxFlags = uint8_t;
+
+    enum class Flag : TxFlags
+    {
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
+      SNAPSHOT_AT_NEXT_SIGNATURE = 0x02,
+      LEDGER_CHUNK_BEFORE_THIS_TX = 0x04,
+    };
+
   protected:
     bool committed = false;
     bool success = false;
@@ -21,13 +34,23 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    std::vector<uint8_t> serialise(bool include_reads = false)
+    TxFlags flags = 0;
+    SerialisedEntryFlags entry_flags = 0;
+
+    std::vector<uint8_t> serialise(
+      crypto::Sha256Hash& commit_evidence_digest,
+      std::string& commit_evidence,
+      const ccf::ClaimsDigest& claims_digest_,
+      bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
 
       if (!success)
         throw std::logic_error("Transaction aborted");
+
+      if (claims_digest_.empty())
+        throw std::logic_error("Missing claims");
 
       // If no transactions made changes, return a zero length vector.
       const bool any_changes =
@@ -40,8 +63,32 @@ namespace kv
         return {};
       }
 
-      auto e = store->get_encryptor();
-      KvStoreSerialiser replicated_serialiser(e, {commit_view, version});
+      auto e = pimpl->store->get_encryptor();
+      if (e == nullptr)
+      {
+        throw KvSerialiserException("No encryptor set");
+      }
+
+      auto commit_nonce = e->get_commit_nonce({pimpl->commit_view, version});
+      commit_evidence = fmt::format(
+        "ce:{}.{}:{}", pimpl->commit_view, version, ds::to_hex(commit_nonce));
+      LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
+      crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
+      commit_evidence_digest = tx_commit_evidence_digest;
+      auto entry_type = EntryType::WriteSetWithCommitEvidenceAndClaims;
+
+      if (flag_enabled(Flag::LEDGER_CHUNK_BEFORE_THIS_TX))
+      {
+        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_BEFORE;
+      }
+
+      KvStoreSerialiser replicated_serialiser(
+        e,
+        {pimpl->commit_view, version},
+        entry_type,
+        entry_flags,
+        tx_commit_evidence_digest,
+        claims_digest_);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -80,9 +127,13 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
+      const ccf::ClaimsDigest& claims = ccf::empty_claims(),
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
-        version_resolver = nullptr)
+        version_resolver = nullptr,
+      std::function<void(
+        const std::vector<uint8_t>& write_set,
+        const std::string& commit_evidence)> write_set_observer = nullptr)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -96,8 +147,8 @@ namespace kv
 
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing maps
-      if (!created_maps.empty())
-        this->store->lock();
+      if (!pimpl->created_maps.empty())
+        this->pimpl->store->lock();
 
       kv::ConsensusHookPtrs hooks;
 
@@ -106,15 +157,17 @@ namespace kv
       auto c = apply_changes(
         all_changes,
         version_resolver == nullptr ?
-          [&](bool has_new_map) { return store->next_version(has_new_map); } :
+          [&](bool has_new_map) {
+            return pimpl->store->next_version(has_new_map);
+          } :
           version_resolver,
         hooks,
-        created_maps,
+        pimpl->created_maps,
         new_maps_conflict_version,
         track_read_versions);
 
-      if (!created_maps.empty())
-        this->store->unlock();
+      if (!pimpl->created_maps.empty())
+        this->pimpl->store->unlock();
 
       success = c.has_value();
 
@@ -130,6 +183,23 @@ namespace kv
         committed = true;
         version = c.value();
 
+        if (flag_enabled(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
+        {
+          pimpl->store->set_flag(
+            AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+          // This transaction indicates to the store that the next signature
+          // should trigger a new ledger chunk, but *this* transaction does not
+          // create a new ledger chunk
+          unset_flag(CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        }
+
+        if (flag_enabled(Flag::SNAPSHOT_AT_NEXT_SIGNATURE))
+        {
+          pimpl->store->set_flag(
+            AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          unset_flag(CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        }
+
         if (version == NoVersion)
         {
           // Read-only transaction
@@ -141,16 +211,30 @@ namespace kv
         // recover.
         try
         {
-          auto data = serialise();
+          crypto::Sha256Hash commit_evidence_digest;
+          std::string commit_evidence;
+          auto data =
+            serialise(commit_evidence_digest, commit_evidence, claims);
 
           if (data.empty())
           {
             return CommitResult::SUCCESS;
           }
 
-          return store->commit(
-            {commit_view, version},
-            std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
+          if (write_set_observer != nullptr)
+          {
+            write_set_observer(data, commit_evidence);
+          }
+
+          auto claims_ = claims;
+
+          return pimpl->store->commit(
+            {pimpl->commit_view, version},
+            std::make_unique<MovePendingTx>(
+              std::move(data),
+              std::move(claims_),
+              std::move(commit_evidence_digest),
+              std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -200,7 +284,7 @@ namespace kv
       if (!success)
         throw std::logic_error("Transaction aborted");
 
-      return commit_view;
+      return pimpl->commit_view;
     }
 
     /** Version for the transaction set
@@ -219,7 +303,7 @@ namespace kv
         throw std::logic_error("Transaction not yet committed");
       }
 
-      if (!read_txid.has_value())
+      if (!pimpl->read_txid.has_value())
       {
         // Transaction did not get a handle on any map.
         return std::nullopt;
@@ -230,12 +314,12 @@ namespace kv
       if (version == NoVersion)
       {
         // Read-only transaction
-        return read_txid.value();
+        return pimpl->read_txid.value();
       }
       else
       {
         // Write transaction
-        return TxID(commit_view, version);
+        return TxID(pimpl->commit_view, version);
       }
     }
 
@@ -244,12 +328,12 @@ namespace kv
       // if all_changes is not empty then any coinciding keys will not be
       // overwritten
       all_changes.merge(change_list_);
-      commit_view = term_;
+      pimpl->commit_view = term_;
     }
 
     void set_view(ccf::View view_)
     {
-      commit_view = view_;
+      pimpl->commit_view = view_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
@@ -264,17 +348,32 @@ namespace kv
 
     void set_read_txid(const TxID& tx_id, Term commit_view_)
     {
-      if (read_txid.has_value())
+      if (pimpl->read_txid.has_value())
       {
         throw std::logic_error("Read TxID already set");
       }
-      read_txid = tx_id;
-      commit_view = commit_view_;
+      pimpl->read_txid = tx_id;
+      pimpl->commit_view = commit_view_;
     }
 
     void set_root_at_read_version(const crypto::Sha256Hash& r)
     {
       root_at_read_version = r;
+    }
+
+    virtual void set_flag(Flag flag)
+    {
+      flags |= static_cast<uint8_t>(flag);
+    }
+
+    virtual void unset_flag(Flag flag)
+    {
+      flags &= ~static_cast<uint8_t>(flag);
+    }
+
+    virtual bool flag_enabled(Flag f) const
+    {
+      return (flags & static_cast<uint8_t>(f)) != 0;
     }
   };
 
@@ -293,8 +392,8 @@ namespace kv
       CommittableTx(_store)
     {
       version = reserved_tx_id.version;
-      commit_view = reserved_tx_id.term;
-      read_txid = TxID(read_term, reserved_tx_id.version - 1);
+      pimpl->commit_view = reserved_tx_id.term;
+      pimpl->read_txid = TxID(read_term, reserved_tx_id.version - 1);
     }
 
     // Used by frontend to commit reserved transactions
@@ -311,15 +410,42 @@ namespace kv
         all_changes,
         [this](bool) { return std::make_tuple(version, version - 1); },
         hooks,
-        created_maps,
+        pimpl->created_maps,
         version);
       success = c.has_value();
 
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
+      crypto::Sha256Hash commit_evidence_digest;
+      std::string commit_evidence;
+
+      // This is a signature and, if the ledger chunking or snapshot flags are
+      // enabled, we want the host to create a chunk when it sees this entry.
+      // version_lock held by Store::commit
+      if (pimpl->store->must_force_ledger_chunk_unsafe(version))
+      {
+        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
+        LOG_DEBUG_FMT(
+          "Forcing ledger chunk for signature at {}.{}",
+          pimpl->commit_view,
+          version);
+      }
+
       committed = true;
-      return {CommitResult::SUCCESS, serialise(), std::move(hooks)};
+      auto claims = ccf::empty_claims();
+      auto data = serialise(commit_evidence_digest, commit_evidence, claims);
+
+      // Reset ledger chunk flag in the store
+      pimpl->store->unset_flag_unsafe(
+        AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+
+      return {
+        CommitResult::SUCCESS,
+        std::move(data),
+        ccf::empty_claims(),
+        std::move(commit_evidence_digest),
+        std::move(hooks)};
     }
   };
 }

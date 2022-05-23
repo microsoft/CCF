@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
+#include "error_reporter.h"
 
 #ifdef ENABLE_HTTP2
 #  include <nghttp2/nghttp2.h>
@@ -14,18 +15,21 @@
 
 namespace http
 {
-  class HTTPEndpoint : public enclave::TLSEndpoint
+  class HTTPEndpoint : public ccf::TLSEndpoint
   {
   protected:
     http::Parser& p;
+    std::shared_ptr<ErrorReporter> error_reporter;
 
     HTTPEndpoint(
       http::Parser& p_,
-      int64_t session_id,
+      tls::ConnID session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
+      std::unique_ptr<tls::Context> ctx,
+      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_)
+      p(p_),
+      error_reporter(error_reporter)
     {}
 
   public:
@@ -35,7 +39,7 @@ namespace http
         ->recv_(msg->data.data.data(), msg->data.data.size());
     }
 
-    void recv(const uint8_t* data, size_t size) override
+    void recv(const uint8_t* data, size_t size, sockaddr) override
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
@@ -74,17 +78,25 @@ namespace http
         }
         catch (const std::exception& e)
         {
-          LOG_FAIL_FMT("Error parsing HTTP request");
+          if (error_reporter)
+          {
+            error_reporter->report_parsing_error(session_id);
+          }
           LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
           auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
           response.set_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          auto body = fmt::format(
-            "Unable to parse data as a HTTP request. Error details are "
-            "below.\n\n{}",
+          // NB: Avoid formatting input data a string, as it may contain null
+          // bytes. Instead insert it at the end of this message, verbatim
+          auto body_s = fmt::format(
+            "Unable to parse data as a HTTP request. Error message is: {}\n"
+            "Error occurred while parsing fragment:\n",
             e.what());
-          response.set_body((const uint8_t*)body.data(), body.size());
+          std::vector<uint8_t> response_body(
+            std::begin(body_s), std::end(body_s));
+          response_body.insert(response_body.end(), data, data + n_read);
+          response.set_body(response_body.data(), response_body.size());
           send_raw(response.build_response());
 
           close();
@@ -99,28 +111,33 @@ namespace http
   private:
     http::RequestParser request_parser;
 
-    std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::shared_ptr<enclave::RpcHandler> handler;
-    std::shared_ptr<enclave::SessionContext> session_ctx;
-    int64_t session_id;
-    enclave::ListenInterfaceID interface_id;
-    size_t request_index = 0;
+    std::shared_ptr<ccf::RPCMap> rpc_map;
+    std::shared_ptr<ccf::RpcHandler> handler;
+    std::shared_ptr<ccf::SessionContext> session_ctx;
+    tls::ConnID session_id;
+    ccf::ListenInterfaceID interface_id;
 
   public:
     HTTPServerEndpoint(
-      std::shared_ptr<enclave::RPCMap> rpc_map,
-      int64_t session_id,
-      const enclave::ListenInterfaceID& interface_id,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
+      tls::ConnID session_id,
+      const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
+      std::unique_ptr<tls::Context> ctx,
+      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
+      HTTPEndpoint(
+        request_parser,
+        session_id,
+        writer_factory,
+        std::move(ctx),
+        error_reporter),
       request_parser(*this),
       rpc_map(rpc_map),
       session_id(session_id),
       interface_id(interface_id)
     {}
 
-    void send(std::vector<uint8_t>&& data) override
+    void send(std::vector<uint8_t>&& data, sockaddr) override
     {
       send_raw(std::move(data));
     }
@@ -142,20 +159,15 @@ namespace http
       {
         if (session_ctx == nullptr)
         {
-          session_ctx = std::make_shared<enclave::SessionContext>(
+          session_ctx = std::make_shared<ccf::SessionContext>(
             session_id, peer_cert(), interface_id);
         }
 
-        std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;
+        std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            request_index++,
-            session_ctx,
-            verb,
-            url,
-            std::move(headers),
-            std::move(body));
+            session_ctx, verb, url, std::move(headers), std::move(body));
         }
         catch (std::exception& e)
         {
@@ -223,7 +235,7 @@ namespace http
   };
 
   class HTTPClientEndpoint : public HTTPEndpoint,
-                             public enclave::ClientEndpoint,
+                             public ccf::ClientEndpoint,
                              public http::ResponseProcessor
   {
   private:
@@ -231,7 +243,7 @@ namespace http
 
   public:
     HTTPClientEndpoint(
-      int64_t session_id,
+      tls::ConnID session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
@@ -244,7 +256,7 @@ namespace http
       send_raw(std::move(data));
     }
 
-    void send(std::vector<uint8_t>&&) override
+    void send(std::vector<uint8_t>&&, sockaddr) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");

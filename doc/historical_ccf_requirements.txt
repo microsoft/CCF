@@ -1,0 +1,4 @@
+# Only used to build documentation for historical versions
+requests_http_signature
+websocket
+httpx

@@ -3,21 +3,25 @@
 #pragma once
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/crypto/base64.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/json_handler.h"
-#include "crypto/base64.h"
-#include "crypto/key_pair.h"
-#include "ds/nonstd.h"
+#include "ccf/node/quote.h"
+#include "ccf/service/tables/gov.h"
+#include "ccf/service/tables/jwt.h"
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
 #include "frontend.h"
 #include "js/wrap.h"
-#include "node/genesis_gen.h"
-#include "node/gov.h"
-#include "node/jwt.h"
-#include "node/members.h"
-#include "node/nodes.h"
-#include "node/quote.h"
-#include "node/secret_share.h"
+#include "node/rpc/call_types.h"
+#include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/node_operation_interface.h"
+#include "node/rpc/serialization.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
+#include "service/genesis_gen.h"
+#include "service/tables/endpoints.h"
 
 #include <charconv>
 #include <exception>
@@ -64,6 +68,15 @@ namespace ccf
   DECLARE_JSON_TYPE(KeyIdInfo)
   DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
 
+  struct FullMemberDetails : public ccf::MemberDetails
+  {
+    crypto::Pem cert;
+    std::optional<crypto::Pem> public_encryption_key;
+  };
+  DECLARE_JSON_TYPE(FullMemberDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    FullMemberDetails, status, member_data, cert, public_encryption_key);
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -76,7 +89,7 @@ namespace ccf
       remove_endpoints(tx);
 
       auto endpoints =
-        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.rw<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
@@ -167,12 +180,7 @@ namespace ccf
       return tx_modules->remove(name);
     }
 
-    void remove_endpoints(kv::Tx& tx)
-    {
-      auto endpoints =
-        tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
-      endpoints->clear();
-    }
+    void remove_endpoints(kv::Tx& tx) {}
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
@@ -180,8 +188,9 @@ namespace ccf
     void remove_all_other_non_open_proposals(
       kv::Tx& tx, const ProposalId& proposal_id)
     {
-      auto p = tx.rw<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
-      auto pi = tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+      auto p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
+      auto pi =
+        tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
       std::vector<ProposalId> to_be_removed;
       pi->foreach(
         [&to_be_removed, &proposal_id](
@@ -205,7 +214,8 @@ namespace ccf
       const std::vector<uint8_t>& proposal,
       const std::string& constitution)
     {
-      auto pi = tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+      auto pi =
+        tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
       auto pi_ = pi->get(proposal_id);
 
       std::vector<std::pair<MemberId, bool>> votes;
@@ -235,16 +245,12 @@ namespace ccf
           fmt::format(
             "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
 
-        JSValue argv[2];
-        auto prop = JS_NewStringLen(
-          context, (const char*)proposal.data(), proposal.size());
-        argv[0] = prop;
-        auto pid = JS_NewStringLen(
-          context, pi_->proposer_id.data(), pi_->proposer_id.size());
-        argv[1] = pid;
+        std::vector<js::JSWrappedValue> argv = {
+          context.new_string_len((const char*)proposal.data(), proposal.size()),
+          context.new_string_len(
+            pi_->proposer_id.data(), pi_->proposer_id.size())};
 
-        auto val =
-          context(JS_Call(context, ballot_func, JS_UNDEFINED, 2, argv));
+        auto val = context.call(ballot_func, argv);
         if (!JS_IsException(val))
         {
           votes.emplace_back(mid, JS_ToBool(context, val));
@@ -258,9 +264,6 @@ namespace ccf
           auto [reason, trace] = js::js_error_message(context);
           vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
         }
-        JS_FreeValue(context, ballot_func);
-        JS_FreeValue(context, prop);
-        JS_FreeValue(context, pid);
       }
 
       {
@@ -282,16 +285,15 @@ namespace ccf
           js_context);
         auto resolve_func = js_context.function(
           constitution, "resolve", "public:ccf.gov.constitution[0]");
-        JSValue argv[3];
-        auto prop = JS_NewStringLen(
-          js_context, (const char*)proposal.data(), proposal.size());
-        argv[0] = prop;
 
-        auto prop_id = JS_NewStringLen(
-          js_context, pi_->proposer_id.data(), pi_->proposer_id.size());
-        argv[1] = prop_id;
+        std::vector<js::JSWrappedValue> argv;
+        argv.push_back(js_context.new_string_len(
+          (const char*)proposal.data(), proposal.size()));
 
-        auto vs = JS_NewArray(js_context);
+        argv.push_back(js_context.new_string_len(
+          pi_->proposer_id.data(), pi_->proposer_id.size()));
+
+        auto vs = js_context.new_array();
         size_t index = 0;
         for (auto& [mid, vote] : votes)
         {
@@ -305,15 +307,9 @@ namespace ccf
           JS_DefinePropertyValueUint32(
             js_context, vs, index++, v, JS_PROP_C_W_E);
         }
-        argv[2] = vs;
+        argv.push_back(vs);
 
-        auto val =
-          js_context(JS_Call(js_context, resolve_func, JS_UNDEFINED, 3, argv));
-
-        JS_FreeValue(js_context, resolve_func);
-        JS_FreeValue(js_context, prop);
-        JS_FreeValue(js_context, prop_id);
-        JS_FreeValue(js_context, vs);
+        auto val = js_context.call(resolve_func, argv);
 
         std::optional<jsgov::Failure> failure = std::nullopt;
         if (JS_IsException(val))
@@ -325,9 +321,7 @@ namespace ccf
         }
         else if (JS_IsString(val))
         {
-          auto s = JS_ToCString(js_context, val);
-          std::string status(s);
-          JS_FreeCString(js_context, s);
+          auto status = js_context.to_str(val).value_or("");
           if (status == "Open")
           {
             pi_.value().state = ProposalState::OPEN;
@@ -382,13 +376,22 @@ namespace ccf
             js::Context js_context(rt);
             rt.add_ccf_classdefs();
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
+
+            auto gov_effects =
+              context.get_subsystem<AbstractGovernanceEffects>();
+            if (gov_effects == nullptr)
+            {
+              throw std::logic_error(
+                "Unexpected: Could not access GovEffects subsytem");
+            }
+
             js::populate_global(
               &txctx,
               nullptr,
               nullptr,
               std::nullopt,
               nullptr,
-              &context.get_node_state(),
+              gov_effects.get(),
               nullptr,
               &network,
               nullptr,
@@ -397,21 +400,13 @@ namespace ccf
             auto apply_func = js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
 
-            JSValue argv[2];
-            auto prop = JS_NewStringLen(
-              js_context, (const char*)proposal.data(), proposal.size());
-            argv[0] = prop;
+            std::vector<js::JSWrappedValue> argv = {
+              js_context.new_string_len(
+                (const char*)proposal.data(), proposal.size()),
+              js_context.new_string_len(
+                proposal_id.c_str(), proposal_id.size())};
 
-            auto prop_id = JS_NewStringLen(
-              js_context, proposal_id.c_str(), proposal_id.size());
-            argv[1] = prop_id;
-
-            auto val = js_context(
-              JS_Call(js_context, apply_func, JS_UNDEFINED, 2, argv));
-
-            JS_FreeValue(js_context, apply_func);
-            JS_FreeValue(js_context, prop);
-            JS_FreeValue(js_context, prop_id);
+            auto val = js_context.call(apply_func, argv);
 
             if (JS_IsException(val))
             {
@@ -469,7 +464,7 @@ namespace ccf
     }
 
     bool get_proposal_id_from_path(
-      const enclave::PathParams& params,
+      const ccf::PathParams& params,
       ProposalId& proposal_id,
       std::string& error)
     {
@@ -477,9 +472,7 @@ namespace ccf
     }
 
     bool get_member_id_from_path(
-      const enclave::PathParams& params,
-      MemberId& member_id,
-      std::string& error)
+      const ccf::PathParams& params, MemberId& member_id, std::string& error)
     {
       return get_path_param(params, "member_id", member_id.value(), error);
     }
@@ -489,18 +482,18 @@ namespace ccf
 
   public:
     MemberEndpoints(
-      NetworkState& network,
+      NetworkState& network_,
       ccfapp::AbstractNodeContext& context_,
-      ShareManager& share_manager) :
+      ShareManager& share_manager_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
-      network(network),
-      share_manager(share_manager)
+      network(network_),
+      share_manager(share_manager_)
     {
       openapi_info.title = "CCF Governance API";
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.3.0";
+      openapi_info.document_version = "2.7.2";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -717,7 +710,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             errors::AuthorizationFailed,
-            "Member is not active");
+            "Member is not active.");
         }
 
         GenesisGenerator g(this->network, ctx.tx);
@@ -727,15 +720,22 @@ namespace ccf
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             errors::ServiceNotWaitingForRecoveryShares,
-            "Service is not waiting for recovery shares");
+            "Service is not waiting for recovery shares.");
         }
 
-        if (context.get_node_state().is_reading_private_ledger())
+        auto node_operation = context.get_subsystem<AbstractNodeOperation>();
+        if (node_operation == nullptr)
+        {
+          throw std::logic_error(
+            "Unexpected: Could not access NodeOperation subsystem");
+        }
+
+        if (node_operation->is_reading_private_ledger())
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             errors::NodeAlreadyRecovering,
-            "Node is already recovering private ledger");
+            "Node is already recovering private ledger.");
         }
 
         const auto in = params.get<SubmitRecoveryShare::In>();
@@ -750,7 +750,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          constexpr auto error_msg = "Error submitting recovery shares";
+          constexpr auto error_msg = "Error submitting recovery shares.";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           return make_error(
@@ -775,13 +775,13 @@ namespace ccf
 
         try
         {
-          context.get_node_state().initiate_private_recovery(ctx.tx);
+          node_operation->initiate_private_recovery(ctx.tx);
         }
         catch (const std::exception& e)
         {
           // Clear the submitted shares if combination fails so that members can
           // start over.
-          constexpr auto error_msg = "Failed to initiate private recovery";
+          constexpr auto error_msg = "Failed to initiate private recovery.";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(ctx.tx);
@@ -791,8 +791,6 @@ namespace ccf
             errors::InternalError,
             error_msg);
         }
-
-        share_manager.clear_submitted_recovery_shares(ctx.tx);
 
         return make_success(SubmitRecoveryShare::Out{fmt::format(
           "{}/{} recovery shares successfully submitted. End of recovery "
@@ -925,14 +923,8 @@ namespace ccf
           reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());
         auto body_len = ctx.rpc_ctx->get_request_body().size();
 
-        auto proposal = JS_NewStringLen(context, body, body_len);
-        JSValueConst* argv = (JSValueConst*)&proposal;
-
-        auto val =
-          context(JS_Call(context, validate_func, JS_UNDEFINED, 1, argv));
-
-        JS_FreeValue(context, proposal);
-        JS_FreeValue(context, validate_func);
+        auto proposal = context.new_string_len(body, body_len);
+        auto val = context.call(validate_func, {proposal});
 
         if (JS_IsException(val))
         {
@@ -957,9 +949,7 @@ namespace ccf
         auto desc = context(JS_GetPropertyStr(context, val, "description"));
         if (JS_IsString(desc))
         {
-          auto cstr = JS_ToCString(context, desc);
-          description = std::string(cstr);
-          JS_FreeCString(context, cstr);
+          description = context.to_str(desc).value_or("");
         }
 
         auto valid = context(JS_GetPropertyStr(context, val, "valid"));
@@ -972,7 +962,7 @@ namespace ccf
           return;
         }
 
-        auto pm = ctx.tx.rw<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
+        auto pm = ctx.tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
         // Introduce a read dependency, so that if identical proposal
         // creations are in-flight and reading at the same version, all except
         // the first conflict and are re-executed. If we ever produce a
@@ -988,7 +978,7 @@ namespace ccf
         pm->put(proposal_id, ctx.rpc_ctx->get_request_body());
 
         auto pi =
-          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
         pi->put(
           proposal_id,
           {caller_identity.member_id, ccf::ProposalState::OPEN, {}});
@@ -1034,62 +1024,63 @@ namespace ccf
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
         .install();
 
-      auto get_proposal_js =
-        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto member_id = get_caller_member_id(ctx);
-          if (!member_id.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is unknown.");
-          }
-          if (!check_member_active(ctx.tx, member_id.value()))
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is not active.");
-          }
+      auto get_proposal_js = [this](
+                               endpoints::ReadOnlyEndpointContext& ctx,
+                               nlohmann::json&&) {
+        const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+        if (!check_member_active(ctx.tx, member_id.value()))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+        }
 
-          // Take expand=ballots, return eg. "ballots": 3 if not set
-          // or "ballots": list of ballots in full if passed
+        // Take expand=ballots, return eg. "ballots": 3 if not set
+        // or "ballots": list of ballots in full if passed
 
-          ProposalId proposal_id;
-          std::string error;
-          if (!get_proposal_id_from_path(
-                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-          }
+        ProposalId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
 
-          auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
-          auto p = pm->get(proposal_id);
+        auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
+        auto p = pm->get(proposal_id);
 
-          if (!p)
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ProposalNotFound,
-              fmt::format("Proposal {} does not exist.", proposal_id));
-          }
+        if (!p)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
+        }
 
-          auto pi =
-            ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
-          auto pi_ = pi->get(proposal_id);
+        auto pi =
+          ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
+        auto pi_ = pi->get(proposal_id);
 
-          if (!pi_)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              fmt::format(
-                "No proposal info associated with {} exists.", proposal_id));
-          }
+        if (!pi_)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "No proposal info associated with {} exists.", proposal_id));
+        }
 
-          return make_success(pi_.value());
-        };
+        return make_success(pi_.value());
+      };
 
       make_read_only_endpoint(
         "/proposals/{proposal_id}",
@@ -1121,7 +1112,7 @@ namespace ccf
         }
 
         auto pi =
-          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
         auto pi_ = pi->get(proposal_id);
 
         if (!pi_)
@@ -1201,7 +1192,8 @@ namespace ccf
             return;
           }
 
-          auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
+          auto pm =
+            ctx.tx.ro<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
           auto p = pm->get(proposal_id);
 
           if (!p)
@@ -1262,7 +1254,7 @@ namespace ccf
         }
 
         auto pi =
-          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
         auto pi_ = pi->get(proposal_id);
         if (!pi_)
         {
@@ -1287,7 +1279,7 @@ namespace ccf
           return;
         }
 
-        auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
+        auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
         auto p = pm->get(proposal_id);
 
         if (!p)
@@ -1316,7 +1308,6 @@ namespace ccf
           js::Context context(rt);
           auto ballot_func =
             context.function(params["ballot"], "vote", "body[\"ballot\"]");
-          JS_FreeValue(context, ballot_func);
         }
 
         pi_->ballots[caller_identity.member_id] = params["ballot"];
@@ -1392,8 +1383,8 @@ namespace ccf
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
-          auto pi =
-            ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
+            jsgov::Tables::PROPOSALS_INFO);
           auto pi_ = pi->get(proposal_id);
           if (!pi_)
           {
@@ -1426,6 +1417,52 @@ namespace ccf
         .install();
 
 #pragma clang diagnostic pop
+
+      using AllMemberDetails = std::map<ccf::MemberId, FullMemberDetails>;
+      auto get_all_members =
+        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          auto members = ctx.tx.ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
+          auto member_certs =
+            ctx.tx.ro<ccf::MemberCerts>(ccf::Tables::MEMBER_CERTS);
+          auto member_public_encryption_keys =
+            ctx.tx.ro<ccf::MemberPublicEncryptionKeys>(
+              ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+          AllMemberDetails response;
+
+          members->foreach(
+            [&response, member_certs, member_public_encryption_keys](
+              const auto& k, const auto& v) {
+              FullMemberDetails md;
+              md.status = v.status;
+              md.member_data = v.member_data;
+
+              const auto cert = member_certs->get(k);
+              if (cert.has_value())
+              {
+                md.cert = cert.value();
+              }
+
+              const auto public_encryption_key =
+                member_public_encryption_keys->get(k);
+              if (public_encryption_key.has_value())
+              {
+                md.public_encryption_key = public_encryption_key.value();
+              }
+
+              response[k] = md;
+              return true;
+            });
+
+          return make_success(response);
+        };
+      make_read_only_endpoint(
+        "/members",
+        HTTP_GET,
+        json_read_only_adapter(get_all_members),
+        ccf::no_auth_required)
+        .set_auto_schema<void, AllMemberDetails>()
+        .install();
     }
   };
 

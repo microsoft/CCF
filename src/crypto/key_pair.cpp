@@ -1,10 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "key_pair.h"
+#include "ccf/crypto/key_pair.h"
 
-#include "mbedtls/key_pair.h"
-#include "mbedtls/public_key.h"
 #include "openssl/key_pair.h"
 #include "openssl/public_key.h"
 
@@ -16,13 +14,8 @@
 
 namespace crypto
 {
-#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-  using PublicKeyImpl = PublicKey_mbedTLS;
-  using KeyPairImpl = KeyPair_mbedTLS;
-#else
   using PublicKeyImpl = PublicKey_OpenSSL;
   using KeyPairImpl = KeyPair_OpenSSL;
-#endif
 
   PublicKeyPtr make_public_key(const Pem& pem)
   {
@@ -39,8 +32,8 @@ namespace crypto
     return std::make_shared<KeyPairImpl>(curve_id);
   }
 
-  KeyPairPtr make_key_pair(const Pem& pem, CBuffer pw)
+  KeyPairPtr make_key_pair(const Pem& pem)
   {
-    return std::make_shared<KeyPairImpl>(pem, pw);
+    return std::make_shared<KeyPairImpl>(pem);
   }
 }

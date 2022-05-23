@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe0.17.5
+    container: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.17.7-1
     pool:
       vmImage: ubuntu-20.04
 
@@ -23,7 +23,7 @@ jobs:
           git checkout -b main $(git rev-parse HEAD)
         displayName: Prepare repo
 
-      # Used to generate setup.py
+      # Used to generate version.py
       - template: .azure-pipelines-templates/cmake.yml
         parameters:
           cmake_args: ""
@@ -35,8 +35,47 @@ jobs:
           pip install wheel
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
-          sphinx-multiversion doc build/html
-        displayName: Sphinx
+          sphinx-build -b linkcheck doc build/html
+        displayName: Link checks
+
+      # Only the main branch builds and publishes the versioned documentation.
+      # This is because the configuration of the docs (e.g. theme) will change
+      # over time and only the main branch should be source of truth and be
+      # kept up to date.
+      #
+      # Only on main and not on PRs
+      # Note: override remote whitelist to detect release branches on remote
+      - script: |
+          set -ex
+          python3.8 -m venv env
+          source env/bin/activate
+          pip install wheel
+          pip install -U -r doc/requirements.txt
+          pip install -U -e ./python
+          pip install -U -r doc/historical_ccf_requirements.txt
+          sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
+        displayName: Sphinx Multi-version
+        condition: |
+          and(
+            not(eq(variables['Build.Reason'], 'PullRequest')),
+            eq(variables['Build.SourceBranch'], 'refs/heads/main')
+          )
+
+      # Only on PRs and not on main (e.g. release branch/tag)
+      - script: |
+          set -ex
+          python3.8 -m venv env
+          source env/bin/activate
+          pip install wheel
+          pip install -U -r doc/requirements.txt
+          pip install -U -e ./python
+          sphinx-build doc build/html
+        displayName: Sphinx Single-version
+        condition: |
+          or(
+            eq(variables['Build.Reason'], 'PullRequest'),
+            not(eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          )
 
       - script: |
           set -ex
@@ -70,10 +109,7 @@ jobs:
         condition: |
           and(
             not(eq(variables['Build.Reason'], 'PullRequest')),
-            or(
-                eq(variables['Build.SourceBranch'], 'refs/heads/main'),
-                startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')
-            )
+            eq(variables['Build.SourceBranch'], 'refs/heads/main')
           )
         workingDirectory: build/html
 

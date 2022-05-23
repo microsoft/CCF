@@ -5,6 +5,7 @@
 #include "../ring_buffer.h"
 
 #include <doctest/doctest.h>
+#include <limits>
 
 using namespace ringbuffer;
 using namespace serializer;
@@ -58,6 +59,11 @@ struct VectorWriter : public AbstractWriter
     REQUIRE(index + size <= payload.size());
     ::memcpy(payload.data() + index, bytes, size);
     return {index + size};
+  }
+
+  size_t get_max_message_size() override
+  {
+    return std::numeric_limits<size_t>::max();
   }
 
   template <typename FnCheckPayload>
@@ -335,9 +341,10 @@ TEST_CASE("roundtrip" * doctest::test_suite("serializer"))
 
     w.write_with<TS>(any_message, br);
 
-    auto [vec] = TS::deserialize(w.payload.data(), w.payload.size());
+    auto [vec_] = TS::deserialize(w.payload.data(), w.payload.size());
+    static_assert(std::is_same_v<decltype(vec_), TV>);
 
-    static_assert(std::is_same_v<decltype(vec), TV>);
+    auto& vec = vec_;
 
     REQUIRE(vec.size() == size);
 
@@ -378,7 +385,8 @@ TEST_CASE("roundtrip" * doctest::test_suite("serializer"))
 
     w.write_with<TS>(any_message, ncbr);
 
-    auto [br] = TS::deserialize(w.payload.data(), w.payload.size());
+    auto [br_] = TS::deserialize(w.payload.data(), w.payload.size());
+    auto& br = br_;
 
     REQUIRE(br.size == size_a + size_b + size_c + size_b);
 

@@ -2,12 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf_global.h"
 
+#include "apps/js_v8/tmpl/crypto.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/sha256.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
 #include "consensus.h"
-#include "crypto.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
-#include "ds/logger.h"
 #include "historical.h"
 #include "historical_state.h"
 #include "kv_store.h"
@@ -54,9 +56,9 @@ namespace ccf::v8_tmpl
       get_internal_field(obj, InternalField::StateCache));
   }
 
-  static enclave::RpcContext* unwrap_rpc_context(v8::Local<v8::Object> obj)
+  static ccf::RpcContext* unwrap_rpc_context(v8::Local<v8::Object> obj)
   {
-    return static_cast<enclave::RpcContext*>(
+    return static_cast<ccf::RpcContext*>(
       get_internal_field(obj, InternalField::RpcContext));
   }
 
@@ -221,7 +223,7 @@ namespace ccf::v8_tmpl
     }
 
     auto data = v8_util::get_array_buffer_data(buffer);
-    auto h = crypto::SHA256(data.p, data.n);
+    auto h = crypto::sha256(data.data(), data.size());
     v8::Local<v8::Value> value =
       v8_util::to_v8_array_buffer_copy(isolate, h.data(), h.size());
 
@@ -309,14 +311,18 @@ namespace ccf::v8_tmpl
     crypto::Pem pub = k->public_key_pem();
 
     v8::Local<v8::Object> value = v8::Object::New(isolate);
-    value->Set(
-      context,
-      v8_util::to_v8_str(isolate, "privateKey"),
-      v8_util::to_v8_str(isolate, prv.str()));
-    value->Set(
-      context,
-      v8_util::to_v8_str(isolate, "publicKey"),
-      v8_util::to_v8_str(isolate, pub.str()));
+    value
+      ->Set(
+        context,
+        v8_util::to_v8_str(isolate, "privateKey"),
+        v8_util::to_v8_str(isolate, prv.str()))
+      .Check();
+    value
+      ->Set(
+        context,
+        v8_util::to_v8_str(isolate, "publicKey"),
+        v8_util::to_v8_str(isolate, pub.str()))
+      .Check();
 
     info.GetReturnValue().Set(value);
   }
@@ -487,7 +493,7 @@ namespace ccf::v8_tmpl
         // in rsa_key_pair.h). wrapping_key is a public RSA key.
 
         v8::Local<v8::Value> label_val;
-        Buffer label;
+        std::span<uint8_t> label;
         if (parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
               .ToLocal(&label_val))
         {
@@ -503,10 +509,16 @@ namespace ccf::v8_tmpl
             v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
         }
 
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (!label.empty())
+        {
+          label_opt = {label.begin(), label.end()};
+        }
+
         auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
           crypto::Pem(wrapping_key),
-          {key.p, key.p + key.n},
-          {label.p, label.p + label.n});
+          {key.data(), key.data() + key.size()},
+          label_opt);
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
           isolate, wrapped_key.data(), wrapped_key.size()));
@@ -515,8 +527,8 @@ namespace ccf::v8_tmpl
       else if (algo_name == "AES-KWP")
       {
         std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
-          {wrapping_key.p, wrapping_key.p + wrapping_key.n},
-          {key.p, key.p + key.n});
+          {wrapping_key.data(), wrapping_key.data() + wrapping_key.size()},
+          {key.data(), key.data() + key.size()});
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
           isolate, wrapped_key.data(), wrapped_key.size()));
@@ -539,7 +551,7 @@ namespace ccf::v8_tmpl
         }
 
         v8::Local<v8::Value> label_val;
-        Buffer label;
+        std::span<uint8_t> label;
         if (parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
               .ToLocal(&label_val))
         {
@@ -555,11 +567,17 @@ namespace ccf::v8_tmpl
             v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
         }
 
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (!label.empty())
+        {
+          label_opt = {label.data(), label.data() + label.size()};
+        }
+
         auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
           aes_key_size,
           crypto::Pem(wrapping_key),
-          {key.p, key.p + key.n},
-          {label.p, label.p + label.n});
+          {key.data(), key.data() + key.size()},
+          label_opt);
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
           isolate, wrapped_key.data(), wrapped_key.size()));
@@ -585,7 +603,7 @@ namespace ccf::v8_tmpl
     TxContext* tx_ctx = unwrap_tx_ctx(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
-    v8::Local<v8::Value> value = KVStore::wrap(context, tx_ctx);
+    v8::Local<v8::Value> value = KVStoreReadWrite::wrap(context, tx_ctx);
     info.GetReturnValue().Set(value);
   }
 
@@ -631,7 +649,7 @@ namespace ccf::v8_tmpl
   static void get_rpc(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    enclave::RpcContext* rpc_ctx = unwrap_rpc_context(info.Holder());
+    ccf::RpcContext* rpc_ctx = unwrap_rpc_context(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> value = Rpc::wrap(context, rpc_ctx);
@@ -708,7 +726,7 @@ namespace ccf::v8_tmpl
     ccf::historical::StatePtr* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
     ccf::historical::AbstractStateCache* state_cache,
-    enclave::RpcContext* rpc_ctx)
+    ccf::RpcContext* rpc_ctx)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);

@@ -39,7 +39,7 @@ class CCFRemoteClient(object):
         self.DEPS = [
             os.path.join(self.common_dir, "user1_cert.pem"),
             os.path.join(self.common_dir, "user1_privk.pem"),
-            os.path.join(self.common_dir, "networkcert.pem"),
+            os.path.join(self.common_dir, "service_cert.pem"),
         ] + [config]
         client_command_args = list(command_args)
 

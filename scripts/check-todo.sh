@@ -9,11 +9,18 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
-TODOS=$(git ls-files "$@" | xargs grep -n TODO)
+DENYLIST="TODO FIXME"
+STATUS=0
 
-if [ "$TODOS" == "" ]; then
-  echo "No TODOs found"
-else
-  echo "$TODOS"
-  exit 1
-fi
+for DENYTERM in $DENYLIST; do
+  FOUND=$(git ls-files "$@" | xargs grep -n "$DENYTERM")
+
+  if [ "$FOUND" == "" ]; then
+    echo "No ${DENYTERM}s found"
+  else
+    echo "$FOUND"
+    STATUS=1
+  fi
+done
+
+exit $STATUS

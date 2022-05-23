@@ -1,0 +1,10 @@
+{
+  "actions": [
+    {
+      "name": "set_user",
+      "args": {
+        "cert": {% filter tojson %}{% include cert %}{% endfilter %}
+      }
+    }
+  ]
+}

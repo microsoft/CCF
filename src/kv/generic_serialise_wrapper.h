@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/buffer.h"
-#include "ds/ccf_assert.h"
+#include "ccf/ccf_assert.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
 #include "kv_types.h"
-#include "serialised_entry.h"
+#include "node/rpc/claims.h"
 #include "serialised_entry_format.h"
 
 #include <optional>
@@ -24,11 +24,15 @@ namespace kv
     W* current_writer;
     TxID tx_id;
     EntryType entry_type;
+    SerialisedEntryFlags header_flags;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
     // must only be set by set_current_domain, since it affects current_writer
     SecurityDomain current_domain;
+
+    // If true, consider historical ledger secrets when encrypting entries
+    bool historical_hint;
 
     template <typename T>
     void serialise_internal(const T& t)
@@ -57,14 +61,30 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
-      EntryType entry_type_ = EntryType::WriteSet) :
+      EntryType entry_type_,
+      SerialisedEntryFlags header_flags_,
+      // The evidence and claims digest must be systematically present
+      // in regular transactions, but absent in snapshots.
+      const crypto::Sha256Hash& commit_evidence_digest_ = {},
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
+      bool historical_hint_ = false) :
       tx_id(tx_id_),
       entry_type(entry_type_),
-      crypto_util(e)
+      header_flags(header_flags_),
+      crypto_util(e),
+      historical_hint(historical_hint_)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
       serialise_internal(tx_id.version);
+      if (has_claims(entry_type))
+      {
+        serialise_internal(claims_digest_.value());
+      }
+      if (has_commit_evidence(entry_type))
+      {
+        serialise_internal(commit_evidence_digest_);
+      }
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);
     }
@@ -143,7 +163,7 @@ namespace kv
 
       SerialisedEntryHeader entry_header;
       entry_header.version = entry_format_v1;
-      entry_header.flags = 0;
+      entry_header.flags = header_flags;
 
       // If no crypto util is set (unit test only), only the header and public
       // domain are serialised
@@ -186,7 +206,8 @@ namespace kv
             serialised_hdr,
             encrypted_private_domain,
             tx_id,
-            entry_type))
+            entry_type,
+            historical_hint))
       {
         throw KvSerialiserException(fmt::format(
           "Could not serialise transaction at seqno {}", tx_id.version));
@@ -222,6 +243,10 @@ namespace kv
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
+    // Present systematically in regular transactions, but absent from snapshots
+    ccf::ClaimsDigest claims_digest = ccf::no_claims();
+    // Present systematically in regular transactions, but absent from snapshots
+    std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -232,6 +257,21 @@ namespace kv
     {
       entry_type = public_reader.template read_next<EntryType>();
       version = public_reader.template read_next<Version>();
+      if (has_claims(entry_type))
+      {
+        auto digest_array =
+          public_reader
+            .template read_next<ccf::ClaimsDigest::Digest::Representation>();
+        claims_digest.set(std::move(digest_array));
+      }
+      if (has_commit_evidence(entry_type))
+      {
+        auto digest_array =
+          public_reader
+            .template read_next<crypto::Sha256Hash::Representation>();
+        commit_evidence_digest =
+          crypto::Sha256Hash::from_representation(digest_array);
+      }
       // max_conflict_version is included for compatibility, but currently
       // ignored
       const auto _ = public_reader.template read_next<Version>();
@@ -244,6 +284,16 @@ namespace kv
       crypto_util(e),
       domain_restriction(domain_restriction)
     {}
+
+    ccf::ClaimsDigest&& consume_claims_digest()
+    {
+      return std::move(claims_digest);
+    }
+
+    std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+    {
+      return std::move(commit_evidence_digest);
+    }
 
     std::optional<Version> init(
       const uint8_t* data,
@@ -258,11 +308,13 @@ namespace kv
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
 
-      CCF_ASSERT_FMT(
-        tx_header.size == size_,
-        "Reported size in entry header {} does not match size of entry {}",
-        tx_header.size,
-        size_);
+      if (tx_header.size != size_)
+      {
+        throw std::logic_error(fmt::format(
+          "Reported size in entry header {} does not match size of entry {}",
+          tx_header.size,
+          size_));
+      }
 
       auto gcm_hdr_data = data_;
 

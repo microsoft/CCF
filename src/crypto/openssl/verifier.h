@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/verifier.h"
 #include "crypto/openssl/openssl_wrappers.h"
-#include "crypto/verifier.h"
 
 #include <openssl/x509.h>
 
@@ -27,7 +27,8 @@ namespace crypto
 
     virtual bool verify_certificate(
       const std::vector<const Pem*>& trusted_certs,
-      const std::vector<const Pem*>& chain = {}) override;
+      const std::vector<const Pem*>& chain = {},
+      bool ignore_time = false) override;
 
     virtual bool is_self_signed() const override;
 
@@ -35,5 +36,7 @@ namespace crypto
 
     virtual std::pair<std::string, std::string> validity_period()
       const override;
+
+    virtual std::string subject() const override;
   };
 }

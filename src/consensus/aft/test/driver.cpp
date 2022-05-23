@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #include "driver.h"
 
-#include "ds/hash.h"
+#include "ccf/ds/hash.h"
 
 #include <cassert>
+#include <fstream>
 #include <iostream>
 #include <regex>
 #include <string>

@@ -66,6 +66,23 @@ export interface ProofElement {
   right?: string;
 }
 
+export interface LeafComponents {
+  /**
+   * Hex-encoded hash of transaction's write set.
+   */
+  write_set_digest: string;
+
+  /**
+   * Raw bytes of commit evidence.
+   */
+  commit_evidence?: string;
+
+  /**
+   * Hex-encoded hash of transaction's claims.
+   */
+  claims_digest?: string;
+}
+
 /**
  * @inheritDoc Receipt.proof
  */
@@ -88,14 +105,19 @@ export interface Receipt {
   proof: Proof;
 
   /**
-   * Hex-encoded Merkle tree leaf hash.
+   * Hex-encoded Merkle tree leaf hash, for pre-2.x transactions.
    */
-  leaf: string;
+  leaf?: string;
+
+  /**
+   * Components of Merkle tree leaf hash, which digest together to replace leaf.
+   */
+  leaf_components?: LeafComponents;
 
   /**
    * ID of the node that signed the Merkle tree root hash.
    */
-  nodeId: string;
+  node_id: string;
 }
 
 /**
@@ -242,6 +264,14 @@ export interface CCFRpc {
    * The default is `false`.
    */
   setApplyWrites(force: boolean): void;
+
+  /**
+   * Set a claims digest to be associated with the transaction if it succeeds. This
+   * digest can later be accessed from the receipt, and expanded into a full claim.
+   *
+   * The `digest` argument must be a sha-256 ArrayBuffer, eg. produced by {@link CCF.digest}
+   */
+  setClaimsDigest(digest: ArrayBuffer): void;
 }
 
 export interface CCFConsensus {

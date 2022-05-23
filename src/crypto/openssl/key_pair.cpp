@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "key_pair.h"
+#include "crypto/openssl/key_pair.h"
 
-#include "crypto/curve.h"
+#include "ccf/crypto/curve.h"
+#include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
-#include "hash.h"
 #include "openssl_wrappers.h"
 #include "x509_time.h"
 
@@ -24,23 +24,6 @@
 namespace crypto
 {
   using namespace OpenSSL;
-
-  static inline int get_openssl_group_id(CurveID gid)
-  {
-    switch (gid)
-    {
-      case CurveID::NONE:
-        return NID_undef;
-      case CurveID::SECP384R1:
-        return NID_secp384r1;
-      case CurveID::SECP256R1:
-        return NID_X9_62_prime256v1;
-      default:
-        throw std::logic_error(
-          fmt::format("unsupported OpenSSL CurveID {}", gid));
-    }
-    return MBEDTLS_ECP_DP_NONE;
-  }
 
   static std::map<std::string, std::string> parse_name(const std::string& name)
   {
@@ -70,10 +53,10 @@ namespace crypto
       throw std::runtime_error("could not generate new EC key");
   }
 
-  KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem, CBuffer pw)
+  KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
+    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, nullptr);
     if (!key)
       throw std::runtime_error("could not parse PEM");
   }
@@ -100,6 +83,17 @@ namespace crypto
     return PublicKey_OpenSSL::public_key_der();
   }
 
+  std::vector<uint8_t> KeyPair_OpenSSL::private_key_der() const
+  {
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(i2d_PrivateKey_bio(buf, key));
+
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {bptr->data, bptr->data + bptr->length};
+  }
+
   bool KeyPair_OpenSSL::verify(
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {
@@ -116,26 +110,30 @@ namespace crypto
       contents, contents_size, signature, signature_size);
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::sign(CBuffer d, MDType md_type) const
+  std::vector<uint8_t> KeyPair_OpenSSL::sign(
+    std::span<const uint8_t> d, MDType md_type) const
   {
     if (md_type == MDType::NONE)
     {
       md_type = get_md_for_ec(get_curve_id());
     }
     OpenSSLHashProvider hp;
-    HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
+    HashBytes hash = hp.Hash(d.data(), d.size(), md_type);
     return sign_hash(hash.data(), hash.size());
   }
 
   int KeyPair_OpenSSL::sign(
-    CBuffer d, size_t* sig_size, uint8_t* sig, MDType md_type) const
+    std::span<const uint8_t> d,
+    size_t* sig_size,
+    uint8_t* sig,
+    MDType md_type) const
   {
     if (md_type == MDType::NONE)
     {
       md_type = get_md_for_ec(get_curve_id());
     }
     OpenSSLHashProvider hp;
-    HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
+    HashBytes hash = hp.Hash(d.data(), d.size(), md_type);
     return sign_hash(hash.data(), hash.size(), sig_size, sig);
   }
 
@@ -165,11 +163,21 @@ namespace crypto
 
   Pem KeyPair_OpenSSL::create_csr(
     const std::string& subject_name,
-    const std::vector<SubjectAltName>& subject_alt_names) const
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
   {
     Unique_X509_REQ req;
 
-    OpenSSL::CHECK1(X509_REQ_set_pubkey(req, key));
+    if (public_key)
+    {
+      Unique_BIO mem(*public_key);
+      Unique_PKEY pubkey(mem);
+      OpenSSL::CHECK1(X509_REQ_set_pubkey(req, pubkey));
+    }
+    else
+    {
+      OpenSSL::CHECK1(X509_REQ_set_pubkey(req, key));
+    }
 
     X509_NAME* subj_name = NULL;
     OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
@@ -220,18 +228,23 @@ namespace crypto
   Pem KeyPair_OpenSSL::sign_csr(
     const Pem& issuer_cert,
     const Pem& signing_request,
+    const std::string& valid_from,
+    const std::string& valid_to,
     bool ca,
-    const std::optional<std::string>& valid_from,
-    const std::optional<std::string>& valid_to) const
+    Signer signer) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
     Unique_X509_REQ csr(mem);
     Unique_X509 crt;
+    EVP_PKEY* req_pubkey = NULL;
 
     // First, verify self-signed CSR
-    EVP_PKEY* req_pubkey = X509_REQ_get0_pubkey(csr);
-    OpenSSL::CHECK1(X509_REQ_verify(csr, req_pubkey));
+    if (signer == Signer::SUBJECT)
+    {
+      req_pubkey = X509_REQ_get0_pubkey(csr);
+      OpenSSL::CHECK1(X509_REQ_verify(csr, req_pubkey));
+    }
 
     // Add version
     OpenSSL::CHECK1(X509_set_version(crt, 2));
@@ -254,6 +267,14 @@ namespace crypto
       Unique_BIO imem(issuer_cert);
       OpenSSL::CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
       OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
+
+      if (signer == Signer::ISSUER)
+      {
+        // Verify issuer-signed CSR
+        req_pubkey = X509_REQ_get0_pubkey(csr);
+        auto issuer_pubkey = X509_get0_pubkey(icrt);
+        OpenSSL::CHECK1(X509_REQ_verify(csr, issuer_pubkey));
+      }
     }
     else
     {
@@ -261,10 +282,8 @@ namespace crypto
         X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
     }
 
-    // Note: 825-day validity range
-    // https://support.apple.com/en-us/HT210176
-    Unique_X509_TIME not_before(valid_from.value_or("20210311000000Z"));
-    Unique_X509_TIME not_after(valid_to.value_or("20230611235959Z"));
+    Unique_X509_TIME not_before(valid_from);
+    Unique_X509_TIME not_after(valid_to);
     if (!validate_chronological_times(not_before, not_after))
     {
       throw std::logic_error(fmt::format(
@@ -342,5 +361,36 @@ namespace crypto
       X509_free(icrt);
 
     return result;
+  }
+
+  CurveID KeyPair_OpenSSL::get_curve_id() const
+  {
+    return PublicKey_OpenSSL::get_curve_id();
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::public_key_raw() const
+  {
+    return PublicKey_OpenSSL::public_key_raw();
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(
+    const PublicKey& peer_key)
+  {
+    crypto::CurveID cid = peer_key.get_curve_id();
+    int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
+    auto pk = key_from_raw_ec_point(peer_key.public_key_raw(), nid);
+
+    std::vector<uint8_t> shared_secret;
+    size_t shared_secret_length = 0;
+    Unique_EVP_PKEY_CTX ctx(key);
+    CHECK1(EVP_PKEY_derive_init(ctx));
+    CHECK1(EVP_PKEY_derive_set_peer(ctx, pk));
+    CHECK1(EVP_PKEY_derive(ctx, NULL, &shared_secret_length));
+    shared_secret.resize(shared_secret_length);
+    CHECK1(EVP_PKEY_derive(ctx, shared_secret.data(), &shared_secret_length));
+
+    EVP_PKEY_free(pk);
+
+    return shared_secret;
   }
 }

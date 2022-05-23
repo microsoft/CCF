@@ -16,7 +16,7 @@ class ProposalNotAccepted(Exception):
         self.proposal = proposal
 
 
-# Values defined in node/proposals.h
+# Values defined in include/ccf/service/tables/proposals.h
 class ProposalState(Enum):
     OPEN = "Open"
     ACCEPTED = "Accepted"

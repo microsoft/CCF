@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/key_pair.h"
 #include "ccf/http_query.h"
-#include "crypto/key_pair.h"
 #include "http/http_accept.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
@@ -100,6 +100,35 @@ DOCTEST_TEST_CASE("Parsing error")
 
   DOCTEST_CHECK(threw_with);
   DOCTEST_CHECK(sp.received.empty());
+}
+
+DOCTEST_TEST_CASE("Parsing fuzzing")
+{
+  std::vector<uint8_t> r;
+
+#define ADD_HTTP_METHOD(NUM, NAME, STRING) HTTP_##NAME,
+  std::vector<llhttp_method> all_methods{HTTP_ALL_METHOD_MAP(ADD_HTTP_METHOD)};
+#undef ADD_HTTP_METHOD
+
+  for (auto method : all_methods)
+  {
+    const auto orig_req = http::build_request(method, r);
+
+    std::vector<char> replacements = {'\0', '\1'};
+    for (auto i : {0, 1, 2})
+    {
+      for (auto c : replacements)
+      {
+        auto req = orig_req;
+        req[i] = c;
+
+        http::SimpleRequestProcessor sp;
+        http::RequestParser p(sp);
+        DOCTEST_CHECK_THROWS(p.execute(req.data(), req.size()));
+        DOCTEST_CHECK(sp.received.empty());
+      }
+    }
+  }
 }
 
 DOCTEST_TEST_CASE("Partial request")
@@ -239,7 +268,8 @@ DOCTEST_TEST_CASE("URL parsing")
   const auto& m = sp.received.front();
   DOCTEST_CHECK(m.method == HTTP_POST);
   DOCTEST_CHECK(m.body == body);
-  const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+  std::string path_, query_, fragment_;
+  std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
   DOCTEST_CHECK(path_ == path);
   DOCTEST_CHECK(query_.find("balance=42") != std::string::npos);
   DOCTEST_CHECK(query_.find("id=100") != std::string::npos);
@@ -334,7 +364,8 @@ DOCTEST_TEST_CASE("Escaping")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
-    const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+    std::string path_, query_, fragment_;
+    std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
     DOCTEST_CHECK(path_ == "/foo/bar");
     DOCTEST_CHECK(
       http::url_decode(query_) ==
@@ -357,7 +388,8 @@ DOCTEST_TEST_CASE("Escaping")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
-    const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+    std::string path_, query_, fragment_;
+    std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
     DOCTEST_CHECK(path_ == "/hello%20world");
     DOCTEST_CHECK(
       http::url_decode(query_) ==

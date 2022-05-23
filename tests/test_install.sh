@@ -5,7 +5,7 @@ set -e
 
 function service_http_status()
 {
-    curl -o /dev/null -s https://127.0.0.1:8000/app/commit -w "%{http_code}" --key ./workspace/sandbox_common/user0_privk.pem --cert ./workspace/sandbox_common/user0_cert.pem --cacert ./workspace/sandbox_common/networkcert.pem
+    curl -o /dev/null -s https://127.0.0.1:8000/app/commit -w "%{http_code}" --key ./workspace/sandbox_common/user0_privk.pem --cert ./workspace/sandbox_common/user0_cert.pem --cacert ./workspace/sandbox_common/service_cert.pem
 }
 
 function poll_for_service_open()
@@ -30,14 +30,6 @@ if [ "$#" -lt 1 ]; then
     exit 1
 fi
 
-# If "release" is passed as second argument to the script, run additional
-# tests at the end of this script
-is_release=false
-if [ "${2}" == "release" ]; then
-    echo "Testing release"
-    is_release=true
-fi
-
 # Setup env
 INSTALL_PREFIX="$1"
 if [ -n "$PYTHON_PACKAGE_PATH" ]; then
@@ -59,15 +51,10 @@ if poll_for_service_open ${network_live_time}; then
     exit 1
 fi
 
-# Issue tutorial transactions to ephemeral network
 python3.8 -m venv env
 # shellcheck source=/dev/null
 source env/bin/activate
 python -m pip install -e ../../../python
-python ../../../python/tutorial.py ./workspace/sandbox_common/
-
-# Test Python package CLI
-../../../tests/test_python_cli.sh > test_python_cli.out
 
 # Poll until service has died
 while [ "$(service_http_status)" == "200" ]; do
@@ -88,19 +75,3 @@ timeout --signal=SIGINT --kill-after=${recovered_network_live_time}s --preserve-
     --recover \
     --ledger-dir 0.ledger \
     --common-dir ./workspace/sandbox_common/
-
-# If the install is a release, run additional tests. Otherwise, exit successfully.
-if [ "$is_release" == false ]; then
-    exit 0
-fi
-
-# In release, running a BFT service should not be possible
-network_live_time=30
-timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
-"$INSTALL_PREFIX"/bin/sandbox.sh -e release --consensus=BFT --verbose &
-
-if ! poll_for_service_open ${network_live_time}; then
-    echo "Error: Experimental BFT consensus should not be allowed in release install"
-    kill "$(jobs -p)"
-    exit 1
-fi

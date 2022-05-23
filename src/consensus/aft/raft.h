@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/tx_id.h"
-#include "ds/logger.h"
+#include "ccf/tx_status.h"
 #include "ds/serialized.h"
 #include "enclave/reconfiguration_type.h"
 #include "impl/state.h"
@@ -12,10 +13,10 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/resharing_tracker.h"
-#include "node/rpc/tx_status.h"
-#include "node/signatures.h"
+#include "node/retired_nodes_cleanup.h"
 #include "orc_requests.h"
 #include "raft_types.h"
+#include "service/tables/signatures.h"
 
 #include <algorithm>
 #include <deque>
@@ -29,7 +30,7 @@ namespace aft
 {
   using Configuration = kv::Configuration;
 
-  template <class LedgerProxy, class SnapshotterProxy>
+  template <class LedgerProxy>
   class Aft : public kv::Consensus
   {
   private:
@@ -43,6 +44,9 @@ namespace aft
       // the highest matching index with the node that was confirmed
       Index match_idx;
 
+      // timeout tracking the last time an ack was received from the node
+      std::chrono::milliseconds last_ack_timeout;
+
       NodeState() = default;
 
       NodeState(
@@ -51,17 +55,17 @@ namespace aft
         Index match_idx_ = 0) :
         node_info(node_info_),
         sent_idx(sent_idx_),
-        match_idx(match_idx_)
+        match_idx(match_idx_),
+        last_ack_timeout(0)
       {}
     };
 
+    // Persistent
     ConsensusType consensus_type;
     std::unique_ptr<Store> store;
 
-    // Persistent
-    std::optional<ccf::NodeId> voted_for = std::nullopt;
-
     // Volatile
+    std::optional<ccf::NodeId> voted_for = std::nullopt;
     std::optional<ccf::NodeId> leader_id = std::nullopt;
     std::unordered_set<ccf::NodeId> votes_for_me;
 
@@ -115,13 +119,14 @@ namespace aft
     ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
-    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
-      network_configurations;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
       orc_sets;
 
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
+
+    // Used to remove retired nodes from store
+    std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -149,8 +154,6 @@ namespace aft
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
-    std::shared_ptr<SnapshotterProxy> snapshotter;
-    std::set<ccf::NodeId> backup_nodes;
 
   public:
     Aft(
@@ -158,7 +161,6 @@ namespace aft
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
-      std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
@@ -181,6 +183,8 @@ namespace aft
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
+      retired_node_cleanup(
+        std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
 
       public_only(public_only_),
 
@@ -188,8 +192,7 @@ namespace aft
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
-      channels(channels_),
-      snapshotter(snapshotter_)
+      channels(channels_)
 
     {
       LOG_DEBUG_FMT(
@@ -233,23 +236,6 @@ namespace aft
       {
         return (leadership_state == kv::LeadershipState::Candidate);
       }
-    }
-
-    std::set<ccf::NodeId> active_nodes() override
-    {
-      // Find all nodes present in any active configuration.
-      if (backup_nodes.empty())
-      {
-        for (auto& conf : configurations)
-        {
-          for (auto node : conf.nodes)
-          {
-            backup_nodes.insert(node.first);
-          }
-        }
-      }
-
-      return backup_nodes;
     }
 
     ccf::NodeId id() override
@@ -359,7 +345,10 @@ namespace aft
     }
 
     void init_as_backup(
-      Index index, Term term, const std::vector<Index>& term_history) override
+      Index index,
+      Term term,
+      const std::vector<Index>& term_history,
+      Index recovery_start_index = 0) override
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -370,8 +359,7 @@ namespace aft
 
       state->view_history.initialise(term_history);
 
-      ledger->init(index);
-      snapshotter->set_last_snapshot_idx(index);
+      ledger->init(index, recovery_start_index);
 
       become_aware_of_new_term(term);
     }
@@ -535,14 +523,30 @@ namespace aft
             }
           }
         }
+
+        if (orc_sets.find(idx) == orc_sets.end())
+        {
+          orc_sets[idx] = {};
+        }
       }
 
       if (conf != configurations.back().nodes)
       {
         uint32_t offset = get_bft_offset(conf);
-        configurations.push_back({idx, std::move(conf), offset, 0});
+        Configuration new_config = {idx, std::move(conf), offset, idx};
+        configurations.push_back(new_config);
 
-        backup_nodes.clear();
+        if (
+          reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
+          resharing_tracker)
+        {
+          resharing_tracker->add_network_configuration(new_config);
+          if (is_primary())
+          {
+            resharing_tracker->reshare(new_config);
+          }
+        }
+
         create_and_remove_node_state();
       }
     }
@@ -553,51 +557,6 @@ namespace aft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
       LOG_INFO_FMT("Election timer has become active");
-    }
-
-    void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const ccf::NodeId& node_id,
-      const crypto::Pem& node_cert) override
-    {
-      snapshotter->record_signature(version, sig, node_id, node_cert);
-    }
-
-    void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) override
-    {
-      snapshotter->record_serialised_tree(version, tree);
-    }
-
-    void reconfigure(
-      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig) override
-    {
-      LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
-
-      assert(!configurations.empty());
-
-      network_configurations[netconfig.rid] = netconfig;
-
-      if (orc_sets.find(netconfig.rid) == orc_sets.end())
-      {
-        orc_sets[netconfig.rid] = {};
-      }
-
-      if (configurations.back().rid == 0)
-      {
-        configurations.back().rid = netconfig.rid;
-      }
-
-      if (resharing_tracker)
-      {
-        assert(resharing_tracker);
-        resharing_tracker->add_network_configuration(netconfig);
-        if (is_primary())
-        {
-          resharing_tracker->reshare(netconfig);
-        }
-      }
     }
 
     void add_resharing_result(
@@ -622,8 +581,17 @@ namespace aft
       }
     }
 
+    void reset_last_ack_timeouts()
+    {
+      for (auto& node : nodes)
+      {
+        using namespace std::chrono_literals;
+        node.second.last_ack_timeout = 0ms;
+      }
+    }
+
     // For more info about Observed Reconfiguration Commits see
-    // https://microsoft.github.io/CCF/main/overview/consensus/2tx-reconfig.html
+    // https://microsoft.github.io/CCF/main/architecture/consensus/2tx-reconfig.html
     //
     // Note that this call is not `const` and that it modifies `orc_sets`. This
     // is safe, despite the fact that the primary may change or a
@@ -633,8 +601,12 @@ namespace aft
     // guaranteed that we will eventually receive all of them, since all
     // nodes keep re-submitting ORCs until they are able to switch to the next
     // pending configuration.
-    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
+
+    std::optional<kv::Configuration::Nodes> orc(
+      kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
+      std::lock_guard<std::mutex> guard(state->lock);
+
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
 
@@ -645,34 +617,44 @@ namespace aft
           fmt::format("Missing ORC set for configuration #{}", rid));
       }
 
-      const auto ncit = network_configurations.find(rid);
-      if (ncit == network_configurations.end())
+      for (auto const& conf : configurations)
       {
-        throw std::logic_error(fmt::format("Unknown configuration #{}", rid));
+        if (conf.rid == rid)
+        {
+          const auto& ncnodes = conf.nodes;
+          if (ncnodes.find(node_id) == ncnodes.end())
+          {
+            LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
+            return std::nullopt;
+          }
+          else
+          {
+            oit->second.insert(node_id);
+            LOG_DEBUG_FMT(
+              "Configurations: have {} ORCs out of {} for configuration #{}",
+              oit->second.size(),
+              ncnodes.size(),
+              rid);
+
+            // Note: Learners in the next configuration become trusted when
+            // there is quorum in the next configuration, i.e. they may become
+            // trusted in the nodes table before they are fully caught up and
+            // have submitted their own ORC.
+
+            if (oit->second.size() >= get_quorum(ncnodes.size()))
+            {
+              return ncnodes;
+            }
+            else
+            {
+              return std::nullopt;
+            }
+          }
+          break;
+        }
       }
 
-      const auto& ncnodes = ncit->second.nodes;
-      if (ncnodes.find(node_id) == ncnodes.end())
-      {
-        LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
-      }
-      else
-      {
-        oit->second.insert(node_id);
-      }
-
-      LOG_DEBUG_FMT(
-        "Configurations: have {} ORCs out of {} for configuration #{}",
-        oit->second.size(),
-        ncnodes.size(),
-        rid);
-
-      // Note: Learners in the next configuration become trusted when there is
-      // quorum in the next configuration, i.e. they may become trusted in the
-      // nodes table before they are fully caught up and have submitted their
-      // own ORC.
-
-      return oit->second.size() >= get_quorum(ncnodes.size());
+      return std::nullopt;
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
@@ -695,6 +677,9 @@ namespace aft
     {
       kv::ConsensusDetails details;
       std::lock_guard<std::mutex> guard(state->lock);
+      details.primary_id = leader_id;
+      details.current_view = state->current_view;
+      details.ticking = ticking;
       details.leadership_state = leadership_state;
       details.membership_state = membership_state;
       if (is_retired())
@@ -707,7 +692,8 @@ namespace aft
       }
       for (auto& [k, v] : nodes)
       {
-        details.acks[k] = v.match_idx;
+        details.acks[k] = {
+          v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
       }
       details.reconfiguration_type = reconfiguration_type;
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
@@ -770,7 +756,6 @@ namespace aft
           hook->call(this);
         }
 
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
           LOG_DEBUG_FMT(
@@ -784,21 +769,12 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
-
-          // Only if globally committable, a snapshot requires a new ledger
-          // chunk to be created
-          force_ledger_chunk = snapshotter->record_committable(index);
-
           start_ticking_if_necessary();
         }
 
         state->last_idx = index;
         ledger->put_entry(
-          *data,
-          globally_committable,
-          force_ledger_chunk,
-          state->current_view,
-          index);
+          *data, globally_committable, state->current_view, index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -889,16 +865,8 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
-      {
-        std::unique_lock<std::mutex> guard(state->lock);
-        timeout_elapsed += elapsed;
-      }
-      do_periodic();
-    }
-
-    void do_periodic()
-    {
       std::unique_lock<std::mutex> guard(state->lock);
+      timeout_elapsed += elapsed;
 
       if (leadership_state == kv::LeadershipState::Leader)
       {
@@ -913,6 +881,11 @@ namespace aft
           {
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
+        }
+
+        for (auto& node : nodes)
+        {
+          node.second.last_ack_timeout += elapsed;
         }
       }
       else if (consensus_type != ConsensusType::BFT)
@@ -1269,12 +1242,10 @@ namespace aft
           continue;
         }
 
-        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
-
         std::vector<uint8_t> entry;
         try
         {
-          entry = ledger->get_entry(data, size);
+          entry = LedgerProxy::get_entry(data, size);
         }
         catch (const std::logic_error& e)
         {
@@ -1317,16 +1288,16 @@ namespace aft
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
-        state->last_idx = i;
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
         kv::ApplyResult apply_success = ds->apply();
         if (apply_success == kv::ApplyResult::FAIL)
         {
-          state->last_idx = i - 1;
-          ledger->truncate(state->last_idx);
+          ledger->truncate(i - 1);
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
+        state->last_idx = i;
 
         for (auto& hook : ds->get_hooks())
         {
@@ -1335,19 +1306,15 @@ namespace aft
 
         bool globally_committable =
           (apply_success == kv::ApplyResult::PASS_SIGNATURE);
-        bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          force_ledger_chunk = snapshotter->record_committable(i);
           start_ticking_if_necessary();
         }
 
+        const auto& entry = ds->get_entry();
+
         ledger->put_entry(
-          ds->get_entry(),
-          globally_committable,
-          force_ledger_chunk,
-          ds->get_term(),
-          ds->get_index());
+          entry, globally_committable, ds->get_term(), ds->get_index());
 
         switch (apply_success)
         {
@@ -1503,7 +1470,11 @@ namespace aft
           from);
         return;
       }
-      else if (state->current_view < r.term)
+
+      using namespace std::chrono_literals;
+      node->second.last_ack_timeout = 0ms;
+
+      if (state->current_view < r.term)
       {
         // We are behind, update our state.
         LOG_DEBUG_FMT(
@@ -1552,14 +1523,23 @@ namespace aft
       }
 
       // Update next and match for the responding node.
+      auto& match_idx = node->second.match_idx;
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        node->second.match_idx =
+        const auto this_match =
           find_highest_possible_match({r.term, r.last_log_idx});
+        if (match_idx == 0)
+        {
+          match_idx = this_match;
+        }
+        else
+        {
+          match_idx = std::min(match_idx, this_match);
+        }
       }
       else
       {
-        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+        match_idx = std::min(r.last_log_idx, state->last_idx);
       }
 
       if (r.success != AppendEntriesResponseType::OK)
@@ -1634,6 +1614,19 @@ namespace aft
         become_aware_of_new_term(r.term);
       }
 
+      if (leader_id.has_value())
+      {
+        // Reply false, since we already know the leader in the current term.
+        LOG_DEBUG_FMT(
+          "Recv request vote to {} from {}: leader {} already known in term {}",
+          state->my_node_id,
+          from,
+          leader_id.value(),
+          state->current_view);
+        send_request_vote_response(from, false);
+        return;
+      }
+
       if ((voted_for.has_value()) && (voted_for.value() != from))
       {
         // Reply false, since we already voted for someone else.
@@ -1702,8 +1695,9 @@ namespace aft
       if (leadership_state != kv::LeadershipState::Candidate)
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {}: we aren't a candidate",
-          state->my_node_id);
+          "Recv request vote response to {} from: {}: we aren't a candidate",
+          state->my_node_id,
+          from);
         return;
       }
 
@@ -1777,6 +1771,7 @@ namespace aft
       state->current_view++;
 
       restart_election_timeout();
+      reset_last_ack_timeouts();
       add_vote_for_me(state->my_node_id);
 
       LOG_INFO_FMT(
@@ -1784,9 +1779,9 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        for (auto const& node : nodes)
         {
-          send_request_vote(it->first);
+          send_request_vote(node.first);
         }
       }
     }
@@ -1824,6 +1819,8 @@ namespace aft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
+      reset_last_ack_timeouts();
+
       LOG_INFO_FMT(
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
@@ -1837,13 +1834,13 @@ namespace aft
       // Reset next, match, and sent indices for all nodes.
       auto next = state->last_idx + 1;
 
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      for (auto& node : nodes)
       {
-        it->second.match_idx = 0;
-        it->second.sent_idx = next - 1;
+        node.second.match_idx = 0;
+        node.second.sent_idx = next - 1;
 
         // Send an empty append_entries to all nodes.
-        send_append_entries(it->first, next);
+        send_append_entries(node.first, next);
       }
     }
 
@@ -1873,6 +1870,7 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
       clear_orc_sets();
+      reset_last_ack_timeouts();
 
       rollback(last_committable_index());
 
@@ -2173,12 +2171,6 @@ namespace aft
       }
 
       LOG_DEBUG_FMT("Compacting...");
-      // Snapshots are not yet supported with BFT
-      snapshotter->commit(
-        idx,
-        leadership_state == kv::LeadershipState::Leader &&
-          consensus_type == ConsensusType::CFT);
-
       store->compact(idx);
       ledger->commit(idx);
 
@@ -2219,8 +2211,12 @@ namespace aft
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
           configurations.pop_front();
-          backup_nodes.clear();
           changed = true;
+
+          if (retired_node_cleanup && is_primary())
+          {
+            retired_node_cleanup->cleanup();
+          }
         }
         else
         {
@@ -2279,6 +2275,11 @@ namespace aft
               }
             }
 
+            if (retired_node_cleanup && is_primary())
+            {
+              retired_node_cleanup->cleanup();
+            }
+
             configurations.pop_front();
           }
           else
@@ -2321,15 +2322,6 @@ namespace aft
       return state->cft_watermark_idx;
     }
 
-    const Configuration::Nodes& get_last_configuration_nodes()
-    {
-      if (configurations.empty())
-      {
-        throw std::logic_error("Configurations is empty");
-      }
-      return configurations.back().nodes;
-    }
-
     bool is_self_in_latest_config()
     {
       bool present = false;
@@ -2362,8 +2354,8 @@ namespace aft
         return;
       }
 
-      snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
+
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;
@@ -2413,7 +2405,6 @@ namespace aft
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         configurations.pop_back();
-        backup_nodes.clear();
         changed = true;
       }
 
@@ -2468,7 +2459,7 @@ namespace aft
       // configuration.
       std::vector<ccf::NodeId> to_remove;
 
-      for (auto& node : nodes)
+      for (const auto& node : nodes)
       {
         if (active_nodes.find(node.first) == active_nodes.end())
         {
@@ -2490,20 +2481,23 @@ namespace aft
           continue;
         }
 
-        if (
-          nodes.find(node_info.first) == nodes.end() ||
-          !channels->have_channel(node_info.first))
+        if (nodes.find(node_info.first) == nodes.end())
         {
-          LOG_DEBUG_FMT(
-            "Configurations: create node channel with {}", node_info.first);
+          if (!channels->have_channel(node_info.first))
+          {
+            LOG_DEBUG_FMT(
+              "Configurations: create node channel with {}", node_info.first);
+
+            channels->associate_node_address(
+              node_info.first,
+              node_info.second.hostname,
+              node_info.second.port);
+          }
 
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
-
-          channels->associate_node_address(
-            node_info.first, node_info.second.hostname, node_info.second.port);
 
           if (leadership_state == kv::LeadershipState::Leader)
           {

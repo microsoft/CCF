@@ -3,13 +3,12 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/service/tables/nodes.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/entities.h"
-#include "node/nodes.h"
-#include "node/signatures.h"
+#include "service/tables/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -18,6 +17,14 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using MapT = kv::Map<size_t, size_t>;
+
+constexpr size_t certificate_validity_period_days = 365;
+using namespace std::literals;
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
 
 class DummyConsensus : public kv::test::StubConsensus
 {
@@ -97,7 +104,7 @@ TEST_CASE("Check signature verification")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp->self_sign("CN=name");
+    ni.cert = kp->self_sign("CN=name", valid_from, valid_to);
     tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
@@ -113,7 +120,7 @@ TEST_CASE("Check signature verification")
     auto txs = primary_store.create_tx();
     auto sigs = txs.rw(signatures);
     ccf::PrimarySignature bogus(kv::test::PrimaryNodeId, 0);
-    bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
+    bogus.sig = std::vector<uint8_t>(256, 1);
     sigs->put(bogus);
     REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
   }
@@ -159,7 +166,7 @@ TEST_CASE("Check signing works across rollback")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp->self_sign("CN=name");
+    ni.cert = kp->self_sign("CN=name", valid_from, valid_to);
     tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
@@ -286,6 +293,8 @@ TEST_CASE(
   "halt replication")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<CompactingConsensus> consensus =
     std::make_shared<CompactingConsensus>(&store);
   store.set_consensus(consensus);
@@ -388,6 +397,8 @@ TEST_CASE(
   "Check that empty rollback during replicate does not cause replication halts")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 2);
   store.set_consensus(consensus);
@@ -426,6 +437,8 @@ TEST_CASE(
   "Check that rollback during replicate does not cause replication halts")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 1);
   store.set_consensus(consensus);

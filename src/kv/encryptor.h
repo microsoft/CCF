@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hmac.h"
 #include "kv/kv_types.h"
 
 #include <algorithm>
@@ -29,7 +30,10 @@ namespace kv
 
       hdr.set_iv_seq(tx_id.version);
       hdr.set_iv_term(tx_id.term);
-      hdr.set_iv_snapshot(entry_type == EntryType::Snapshot);
+      if (entry_type == EntryType::Snapshot)
+      {
+        hdr.set_iv_is_snapshot();
+      }
     }
 
   public:
@@ -37,12 +41,14 @@ namespace kv
 
     size_t get_header_length() override
     {
-      return S::RAW_DATA_SIZE;
+      return S::serialised_size();
     }
 
     uint64_t get_term(const uint8_t* data, size_t size) override
     {
-      return S(data, size).get_term();
+      S s;
+      s.deserialise(data, size);
+      return s.get_term();
     }
 
     /**
@@ -57,6 +63,9 @@ namespace kv
      * corresponding with the plaintext
      * @param[in]   entry_type       Indicates the type of the entry to
      * avoid IV re-use
+     * @param[in]   historical_hint   If true, considers all ledger secrets for
+     * encryption. Otherwise, try to use the latest used secret (defaults to
+     * false)
      *
      * @return Boolean status indicating success of encryption.
      */
@@ -66,21 +75,21 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      EntryType entry_type = EntryType::WriteSet) override
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) override
     {
       S hdr;
-      cipher.resize(plain.size());
 
       set_iv(hdr, tx_id, entry_type);
 
-      auto key = ledger_secrets->get_encryption_key_for(tx_id.version);
+      auto key =
+        ledger_secrets->get_encryption_key_for(tx_id.version, historical_hint);
       if (key == nullptr)
       {
         return false;
       }
 
-      key->encrypt(
-        hdr.get_iv(), plain, additional_data, cipher.data(), hdr.tag);
+      key->encrypt(hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
 
       serialised_header = hdr.serialise();
 
@@ -115,7 +124,6 @@ namespace kv
       S hdr;
       hdr.deserialise(serialised_header);
       term = hdr.get_term();
-      plain.resize(cipher.size());
 
       auto key =
         ledger_secrets->get_encryption_key_for(version, historical_hint);
@@ -124,14 +132,32 @@ namespace kv
         return false;
       }
 
-      auto ret = key->decrypt(
-        hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
+      auto ret =
+        key->decrypt(hdr.get_iv(), hdr.tag, cipher, additional_data, plain);
       if (!ret)
       {
         plain.resize(0);
       }
 
       return ret;
+    }
+
+    crypto::HashBytes get_commit_nonce(
+      const TxID& tx_id, bool historical_hint = false) override
+    {
+      auto secret =
+        ledger_secrets->get_secret_for(tx_id.version, historical_hint);
+      if (secret == nullptr)
+      {
+        throw std::logic_error("Failed to get encryption key");
+      }
+      auto txid_str = tx_id.str();
+      std::vector<uint8_t> txid = {
+        txid_str.data(), txid_str.data() + txid_str.size()};
+
+      auto commit_nonce =
+        crypto::hmac(crypto::MDType::SHA256, secret->get_commit_secret(), txid);
+      return commit_nonce;
     }
 
     void rollback(Version version) override

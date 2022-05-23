@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "rsa_key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
 
 #include "crypto/openssl/hash.h"
 #include "openssl_wrappers.h"
@@ -29,10 +29,10 @@ namespace crypto
     RSAPublicKey_OpenSSL(std::move(k))
   {}
 
-  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem, CBuffer pw)
+  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
+    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, nullptr);
     if (!key)
     {
       throw std::runtime_error("could not parse PEM");
@@ -46,12 +46,16 @@ namespace crypto
 
   std::vector<uint8_t> RSAKeyPair_OpenSSL::rsa_oaep_unwrap(
     const std::vector<uint8_t>& input,
-    std::optional<std::vector<std::uint8_t>> label)
+    const std::optional<std::vector<std::uint8_t>>& label)
   {
     const unsigned char* label_ = NULL;
     size_t label_size = 0;
     if (label.has_value())
     {
+      if (label->empty())
+      {
+        throw std::logic_error("empty wrapping label");
+      }
       label_ = label->data();
       label_size = label->size();
     }
@@ -107,10 +111,11 @@ namespace crypto
     return PublicKey_OpenSSL::public_key_der();
   }
 
-  std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(CBuffer d, MDType md_type) const
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(
+    std::span<const uint8_t> d, MDType md_type) const
   {
     std::vector<uint8_t> r(2048);
-    auto hash = OpenSSLHashProvider().Hash(d.p, d.n, md_type);
+    auto hash = OpenSSLHashProvider().Hash(d.data(), d.size(), md_type);
     Unique_EVP_PKEY_CTX pctx(key);
     OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
     OpenSSL::CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));

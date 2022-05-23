@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../json.h"
+#include "ccf/ds/json.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -213,7 +213,7 @@ namespace custom
         std::string email;
       };
 
-      void fill_json_schema(nlohmann::json& schema, const X&)
+      void fill_json_schema(nlohmann::json& schema, const X*)
       {
         schema["type"] = "string";
         schema["format"] = "email";

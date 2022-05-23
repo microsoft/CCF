@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/serdes.h"
+#include "ccf/service/tables/jwt.h"
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
-#include "node/jwt.h"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -20,18 +20,19 @@ namespace ccf
     size_t refresh_interval_s;
     NetworkState& network;
     std::shared_ptr<kv::Consensus> consensus;
-    std::shared_ptr<enclave::RPCSessions> rpcsessions;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<ccf::RPCSessions> rpcsessions;
+    std::shared_ptr<ccf::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
     crypto::Pem node_cert;
+    std::atomic_size_t attempts;
 
   public:
     JwtKeyAutoRefresh(
       size_t refresh_interval_s,
       NetworkState& network,
       const std::shared_ptr<kv::Consensus>& consensus,
-      const std::shared_ptr<enclave::RPCSessions>& rpcsessions,
-      const std::shared_ptr<enclave::RPCMap>& rpc_map,
+      const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
+      const std::shared_ptr<ccf::RPCMap>& rpc_map,
       const crypto::KeyPairPtr& node_sign_kp,
       const crypto::Pem& node_cert) :
       refresh_interval_s(refresh_interval_s),
@@ -40,7 +41,8 @@ namespace ccf
       rpcsessions(rpcsessions),
       rpc_map(rpc_map),
       node_sign_kp(node_sign_kp),
-      node_cert(node_cert)
+      node_cert(node_cert),
+      attempts(0)
     {}
 
     struct RefreshTimeMsg
@@ -116,9 +118,9 @@ namespace ccf
 
       auto packed = request.build_request();
 
-      auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      auto node_session = std::make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, node_cert.raw());
+      auto ctx = ccf::make_rpc_context(node_session, packed);
 
       const auto actor_opt = http::extract_actor(*ctx);
       if (!actor_opt.has_value())
@@ -243,12 +245,7 @@ namespace ccf
       auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
 
       auto ca_cert = std::make_shared<tls::Cert>(
-        ca,
-        std::nullopt,
-        std::nullopt,
-        nullb,
-        tls::auth_required,
-        jwks_url.host);
+        ca, std::nullopt, std::nullopt, jwks_url.host);
 
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
@@ -287,6 +284,10 @@ namespace ccf
             issuer);
           return true;
         }
+
+        // Increment attempts, only when auto-refresh is enabled.
+        attempts++;
+
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
         auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
@@ -310,12 +311,7 @@ namespace ccf
 
         auto ca = std::make_shared<tls::CA>(ca_cert_bundle_pem.value());
         auto ca_cert = std::make_shared<tls::Cert>(
-          ca,
-          std::nullopt,
-          std::nullopt,
-          nullb,
-          tls::auth_required,
-          metadata_url.host);
+          ca, std::nullopt, std::nullopt, metadata_url.host);
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Requesting OpenID metadata at https://{}:{}{}",
@@ -341,6 +337,11 @@ namespace ccf
         return true;
       });
     }
-  };
 
+    // Returns a copy of the current attempts
+    size_t get_attempts() const
+    {
+      return attempts.load();
+    }
+  };
 }

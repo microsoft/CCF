@@ -39,7 +39,7 @@ private:
   {
     while (entries_list.size() > max_size)
     {
-      const auto least_recent_entry = entries_list.back();
+      const auto& least_recent_entry = entries_list.back();
       iter_map.erase(least_recent_entry.first);
       entries_list.pop_back();
     }
@@ -57,6 +57,11 @@ public:
   {
     max_size = ms;
     cull();
+  }
+
+  size_t get_max_size() const
+  {
+    return max_size;
   }
 
   Iterator begin()
@@ -121,5 +126,11 @@ public:
   {
     auto it = insert(std::forward<K>(k), V{});
     return it->second;
+  }
+
+  void clear()
+  {
+    entries_list.clear();
+    iter_map.clear();
   }
 };

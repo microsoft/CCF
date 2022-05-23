@@ -1,6 +1,13 @@
 {
   "components": {
     "schemas": {
+      "Authority": {
+        "enum": [
+          "Node",
+          "Service"
+        ],
+        "type": "string"
+      },
       "CodeStatus": {
         "enum": [
           "AllowedToJoin"
@@ -16,7 +23,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "nodes": {
-            "$ref": "#/components/schemas/EntityId_to_Configuration__NodeInfo"
+            "$ref": "#/components/schemas/NodeId_to_Configuration__NodeInfo"
           },
           "rid": {
             "$ref": "#/components/schemas/uint64"
@@ -60,31 +67,58 @@
       "ConsensusDetails": {
         "properties": {
           "acks": {
-            "$ref": "#/components/schemas/EntityId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_ConsensusDetails__Ack"
           },
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
+          },
+          "current_view": {
+            "$ref": "#/components/schemas/uint64"
           },
           "leadership_state": {
             "$ref": "#/components/schemas/LeadershipState"
           },
           "learners": {
-            "$ref": "#/components/schemas/EntityId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_uint64"
           },
           "membership_state": {
             "$ref": "#/components/schemas/MembershipState"
+          },
+          "primary_id": {
+            "$ref": "#/components/schemas/NodeId"
           },
           "reconfiguration_type": {
             "$ref": "#/components/schemas/ReconfigurationType"
           },
           "retirement_phase": {
             "$ref": "#/components/schemas/RetirementPhase"
+          },
+          "ticking": {
+            "$ref": "#/components/schemas/boolean"
           }
         },
         "required": [
           "configs",
           "acks",
-          "membership_state"
+          "membership_state",
+          "primary_id",
+          "current_view",
+          "ticking"
+        ],
+        "type": "object"
+      },
+      "ConsensusDetails__Ack": {
+        "properties": {
+          "last_received_ms": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "seqno",
+          "last_received_ms"
         ],
         "type": "object"
       },
@@ -105,6 +139,17 @@
           "BFT"
         ],
         "type": "string"
+      },
+      "Endorsement": {
+        "properties": {
+          "authority": {
+            "$ref": "#/components/schemas/Authority"
+          }
+        },
+        "required": [
+          "authority"
+        ],
+        "type": "object"
       },
       "EndpointMetrics": {
         "properties": {
@@ -153,23 +198,6 @@
           "$ref": "#/components/schemas/EndpointMetricsEntry"
         },
         "type": "array"
-      },
-      "EntityId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
-      "EntityId_to_Configuration__NodeInfo": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Configuration__NodeInfo"
-        },
-        "type": "object"
-      },
-      "EntityId_to_uint64": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/uint64"
-        },
-        "type": "object"
       },
       "GetCode__Out": {
         "properties": {
@@ -220,7 +248,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "service_certificate": {
             "$ref": "#/components/schemas/Pem"
@@ -239,8 +267,14 @@
       },
       "GetNode__NodeInfo": {
         "properties": {
+          "last_written": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "node_data": {
+            "$ref": "#/components/schemas/json"
+          },
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "primary": {
             "$ref": "#/components/schemas/boolean"
@@ -256,7 +290,9 @@
           "node_id",
           "status",
           "primary",
-          "rpc_interfaces"
+          "rpc_interfaces",
+          "node_data",
+          "last_written"
         ],
         "type": "object"
       },
@@ -297,7 +333,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/uint64"
@@ -306,7 +342,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "state": {
-            "$ref": "#/components/schemas/ccf__State"
+            "$ref": "#/components/schemas/ccf__NodeStartupState"
           }
         },
         "required": [
@@ -344,6 +380,21 @@
         "required": [
           "ccf_version",
           "quickjs_version"
+        ],
+        "type": "object"
+      },
+      "JWTMetrics": {
+        "properties": {
+          "attempts": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "successes": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "attempts",
+          "successes"
         ],
         "type": "object"
       },
@@ -398,16 +449,45 @@
         ],
         "type": "object"
       },
+      "NodeId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "NodeId_to_Configuration__NodeInfo": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Configuration__NodeInfo"
+        },
+        "type": "object"
+      },
+      "NodeId_to_ConsensusDetails__Ack": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ConsensusDetails__Ack"
+        },
+        "type": "object"
+      },
+      "NodeId_to_uint64": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/uint64"
+        },
+        "type": "object"
+      },
       "NodeInfoNetwork_v2__NetInterface": {
         "properties": {
           "bind_address": {
             "$ref": "#/components/schemas/string"
+          },
+          "endorsement": {
+            "$ref": "#/components/schemas/Endorsement"
           },
           "max_open_sessions_hard": {
             "$ref": "#/components/schemas/uint64"
           },
           "max_open_sessions_soft": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/string"
           },
           "published_address": {
             "$ref": "#/components/schemas/string"
@@ -454,7 +534,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/NodeId"
           },
           "raw": {
             "$ref": "#/components/schemas/base64string"
@@ -480,52 +560,6 @@
         },
         "type": "array"
       },
-      "Receipt": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/EntityId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/Receipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "proof",
-          "leaf",
-          "node_id"
-        ],
-        "type": "object"
-      },
-      "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "Receipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/Receipt__Element"
-        },
-        "type": "array"
-      },
       "ReconfigurationType": {
         "enum": [
           "OneTransaction",
@@ -542,12 +576,26 @@
         ],
         "type": "string"
       },
+      "SelfSignedNodeCertificateInfo": {
+        "properties": {
+          "self_signed_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "self_signed_certificate"
+        ],
+        "type": "object"
+      },
       "ServiceConfiguration": {
         "properties": {
           "consensus": {
             "$ref": "#/components/schemas/ConsensusType"
           },
           "maximum_node_certificate_validity_days": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "maximum_service_certificate_validity_days": {
             "$ref": "#/components/schemas/uint64"
           },
           "reconfiguration_type": {
@@ -567,7 +615,7 @@
           "Opening",
           "Open",
           "WaitingForRecoveryShares",
-          "Closed"
+          "Recovering"
         ],
         "type": "string"
       },
@@ -590,10 +638,24 @@
         ],
         "type": "object"
       },
+      "SessionMetrics__Errors": {
+        "properties": {
+          "parsing": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "parsing"
+        ],
+        "type": "object"
+      },
       "SessionMetrics__PerInterface": {
         "properties": {
           "active": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "errors": {
+            "$ref": "#/components/schemas/SessionMetrics__Errors"
           },
           "hard_cap": {
             "$ref": "#/components/schemas/uint64"
@@ -609,7 +671,8 @@
           "active",
           "peak",
           "soft_cap",
-          "hard_cap"
+          "hard_cap",
+          "errors"
         ],
         "type": "object"
       },
@@ -633,7 +696,7 @@
       "boolean": {
         "type": "boolean"
       },
-      "ccf__State": {
+      "ccf__NodeStartupState": {
         "enum": [
           "Uninitialized",
           "Initialized",
@@ -683,11 +746,11 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.8.0"
+    "version": "2.17.1"
   },
   "openapi": "3.0.0",
   "paths": {
-    "/api": {
+    "/node/api": {
       "get": {
         "responses": {
           "200": {
@@ -703,7 +766,7 @@
         }
       }
     },
-    "/api/metrics": {
+    "/node/api/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -719,7 +782,7 @@
         }
       }
     },
-    "/code": {
+    "/node/code": {
       "get": {
         "responses": {
           "200": {
@@ -735,7 +798,7 @@
         }
       }
     },
-    "/commit": {
+    "/node/commit": {
       "get": {
         "responses": {
           "200": {
@@ -751,7 +814,7 @@
         }
       }
     },
-    "/config": {
+    "/node/config": {
       "get": {
         "responses": {
           "200": {
@@ -767,7 +830,7 @@
         }
       }
     },
-    "/consensus": {
+    "/node/consensus": {
       "get": {
         "responses": {
           "200": {
@@ -783,7 +846,7 @@
         }
       }
     },
-    "/js_metrics": {
+    "/node/js_metrics": {
       "get": {
         "responses": {
           "200": {
@@ -799,7 +862,23 @@
         }
       }
     },
-    "/local_tx": {
+    "/node/jwt_metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JWTMetrics"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/node/local_tx": {
       "get": {
         "parameters": [
           {
@@ -825,7 +904,7 @@
         }
       }
     },
-    "/memory": {
+    "/node/memory": {
       "get": {
         "responses": {
           "200": {
@@ -841,7 +920,7 @@
         }
       }
     },
-    "/metrics": {
+    "/node/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -857,7 +936,7 @@
         }
       }
     },
-    "/network": {
+    "/node/network": {
       "get": {
         "responses": {
           "200": {
@@ -873,7 +952,7 @@
         }
       }
     },
-    "/network/nodes": {
+    "/node/network/nodes": {
       "get": {
         "parameters": [
           {
@@ -915,7 +994,7 @@
         }
       }
     },
-    "/network/nodes/primary": {
+    "/node/network/nodes/primary": {
       "get": {
         "responses": {
           "200": {
@@ -924,7 +1003,7 @@
         }
       }
     },
-    "/network/nodes/self": {
+    "/node/network/nodes/self": {
       "get": {
         "responses": {
           "200": {
@@ -933,7 +1012,7 @@
         }
       }
     },
-    "/network/nodes/{node_id}": {
+    "/node/network/nodes/{node_id}": {
       "get": {
         "responses": {
           "200": {
@@ -959,7 +1038,7 @@
         }
       ]
     },
-    "/primary": {
+    "/node/primary": {
       "head": {
         "responses": {
           "200": {
@@ -968,7 +1047,7 @@
         }
       }
     },
-    "/quotes": {
+    "/node/quotes": {
       "get": {
         "responses": {
           "200": {
@@ -984,7 +1063,7 @@
         }
       }
     },
-    "/quotes/self": {
+    "/node/quotes/self": {
       "get": {
         "responses": {
           "200": {
@@ -1000,7 +1079,7 @@
         }
       }
     },
-    "/receipt": {
+    "/node/receipt": {
       "get": {
         "parameters": [
           {
@@ -1017,7 +1096,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
@@ -1026,7 +1105,23 @@
         }
       }
     },
-    "/service/configuration": {
+    "/node/self_signed_certificate": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfSignedNodeCertificateInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/node/service/configuration": {
       "get": {
         "responses": {
           "200": {
@@ -1042,7 +1137,7 @@
         }
       }
     },
-    "/state": {
+    "/node/state": {
       "get": {
         "responses": {
           "200": {
@@ -1058,7 +1153,7 @@
         }
       }
     },
-    "/tx": {
+    "/node/tx": {
       "get": {
         "parameters": [
           {
@@ -1084,7 +1179,7 @@
         }
       }
     },
-    "/version": {
+    "/node/version": {
       "get": {
         "responses": {
           "200": {
@@ -1101,9 +1196,5 @@
       }
     }
   },
-  "servers": [
-    {
-      "url": "/node"
-    }
-  ]
+  "servers": []
 }

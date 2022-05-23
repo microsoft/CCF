@@ -1,33 +1,24 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
+#include "ccf/ds/json_schema.h"
+#include "ccf/node_startup_state.h"
+#include "ccf/service/node_info_network.h"
+#include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/service.h"
 #include "common/configuration.h"
-#include "ds/json_schema.h"
 #include "enclave/interface.h"
-#include "node/config.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
-#include "node/members.h"
-#include "node/node_info_network.h"
-#include "node/service.h"
+#include "service/tables/config.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>
 
 namespace ccf
 {
-  enum class State
-  {
-    uninitialized,
-    initialized,
-    pending,
-    partOfPublicNetwork,
-    partOfNetwork,
-    readingPublicLedger,
-    readingPrivateLedger,
-    verifyingSnapshot
-  };
-
   struct GetState
   {
     using In = void;
@@ -35,7 +26,7 @@ namespace ccf
     struct Out
     {
       ccf::NodeId node_id;
-      ccf::State state;
+      ccf::NodeStartupState state;
       kv::Version last_signed_seqno;
       kv::Version startup_seqno;
 
@@ -64,11 +55,12 @@ namespace ccf
       crypto::Pem certificate_signing_request;
       crypto::Pem node_endorsed_certificate;
       crypto::Pem public_key;
-      crypto::Pem network_cert;
+      crypto::Pem service_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
+      nlohmann::json node_data;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;
@@ -85,6 +77,7 @@ namespace ccf
       ConsensusType consensus_type = ConsensusType::CFT;
       std::optional<kv::Version> startup_seqno = std::nullopt;
       std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
+      nlohmann::json node_data = nullptr;
     };
 
     struct Out

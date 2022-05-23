@@ -30,7 +30,9 @@ def run(args):
     documents_valid = True
     all_methods = []
 
-    def fetch_schema(client, prefix):
+    def fetch_schema(client, prefix, file_prefix=None):
+        if file_prefix is None:
+            file_prefix = prefix
         api_response = client.get(f"/{prefix}/api")
         check(
             api_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
@@ -42,7 +44,9 @@ def run(args):
         fetched_version = response_body["info"]["version"]
 
         formatted_schema = json.dumps(response_body, indent=2)
-        openapi_target_file = os.path.join(args.schema_dir, f"{prefix}_openapi.json")
+        openapi_target_file = os.path.join(
+            args.schema_dir, f"{file_prefix}_openapi.json"
+        )
 
         try:
             old_schema.remove(openapi_target_file)
@@ -53,8 +57,12 @@ def run(args):
             f.seek(0)
             previous = f.read()
             if previous != formatted_schema:
-                from_file = json.loads(previous)
-                file_version = from_file["info"]["version"]
+                file_version = "0.0.0"
+                try:
+                    from_file = json.loads(previous)
+                    file_version = from_file["info"]["version"]
+                except (json.JSONDecodeError, KeyError):
+                    pass
                 if version.parse(fetched_version) > version.parse(file_version):
                     LOG.debug(
                         f"Writing schema to {openapi_target_file} - overwriting {file_version} with {fetched_version}"
@@ -67,11 +75,15 @@ def run(args):
                         f"Found differences in {openapi_target_file}, but not overwriting as retrieved version is not newer ({fetched_version} <= {file_version})"
                     )
                     alt_file = os.path.join(
-                        args.schema_dir, f"{prefix}_{fetched_version}_openapi.json"
+                        args.schema_dir, f"{file_prefix}_{fetched_version}_openapi.json"
                     )
                     LOG.error(f"Writing to {alt_file} for comparison")
                     with open(alt_file, "w", encoding="utf-8") as f2:
                         f2.write(formatted_schema)
+                    try:
+                        old_schema.remove(alt_file)
+                    except KeyError:
+                        pass
                 changed_files.append(openapi_target_file)
             else:
                 LOG.debug("Schema matches in {}".format(openapi_target_file))
@@ -88,7 +100,7 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, _ = network.find_primary()
 
         check = infra.checker.Checker()
@@ -141,7 +153,7 @@ def run_nobuiltins(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         nobuiltins.test_nobuiltins_endpoints(network, args)
 
 
@@ -157,11 +169,6 @@ if __name__ == "__main__":
             "--list-all",
             help="List all discovered methods at the end of the run",
             action="store_true",
-        )
-        parser.add_argument(
-            "--client-tutorial",
-            help="Path to client tutorial file",
-            type=str,
         )
         parser.add_argument(
             "--ledger-tutorial",

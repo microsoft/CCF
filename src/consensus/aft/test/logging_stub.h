@@ -23,12 +23,11 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
-    virtual void init(Index idx) {}
+    virtual void init(Index, Index) {}
 
     virtual void put_entry(
       const std::vector<uint8_t>& original,
       bool globally_committable,
-      bool force_chunk,
       kv::Term term,
       kv::Version index)
     {
@@ -64,7 +63,7 @@ namespace aft
       ++skip_count;
     }
 
-    std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
+    static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
       const auto entry_size = serialized::read<size_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_size);
@@ -81,6 +80,21 @@ namespace aft
       }
 
       return std::nullopt;
+    }
+
+    std::optional<std::vector<uint8_t>> get_raw_entry_by_idx(size_t idx)
+    {
+      auto data = get_entry_by_idx(idx);
+      if (data.has_value())
+      {
+        // Remove the View and Index that were written during put_entry
+        data->erase(
+          data->begin(),
+          data->begin() + sizeof(size_t) + sizeof(kv::Term) +
+            sizeof(kv::Version));
+      }
+
+      return data;
     }
 
     std::optional<std::vector<uint8_t>> get_append_entries_payload(
@@ -194,7 +208,7 @@ namespace aft
 
     bool recv_authenticated(
       const ccf::NodeId& from_node,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const uint8_t*& data,
       size_t& size) override
     {
@@ -209,7 +223,7 @@ namespace aft
 
     void initialize(
       const ccf::NodeId& self_id,
-      const crypto::Pem& network_cert,
+      const crypto::Pem& service_cert,
       crypto::KeyPairPtr node_kp,
       const std::optional<crypto::Pem>& node_cert = std::nullopt) override
     {}
@@ -217,7 +231,7 @@ namespace aft
     bool send_encrypted(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const std::vector<uint8_t>& data) override
     {
       return true;
@@ -225,7 +239,7 @@ namespace aft
 
     std::vector<uint8_t> recv_encrypted(
       const ccf::NodeId& fromfpf32,
-      CBuffer cb,
+      std::span<const uint8_t> cb,
       const uint8_t* data,
       size_t size) override
     {
@@ -266,7 +280,8 @@ namespace aft
       aft::Term term;
       kv::Version index;
       std::vector<uint8_t> entry;
-
+      ccf::ClaimsDigest claims_digest;
+      std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
       kv::ApplyResult result;
 
     public:
@@ -290,6 +305,17 @@ namespace aft
             result = kv::ApplyResult::FAIL;
           }
         }
+      }
+
+      ccf::ClaimsDigest&& consume_claims_digest() override
+      {
+        return std::move(claims_digest);
+      }
+
+      std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+        override
+      {
+        return std::move(commit_evidence_digest);
       }
 
       kv::ApplyResult apply() override
@@ -342,6 +368,13 @@ namespace aft
       return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
         data, expected_txid);
     }
+
+    bool flag_enabled(kv::AbstractStore::Flag)
+    {
+      return false;
+    }
+
+    void unset_flag(kv::AbstractStore::Flag) {}
   };
 
   class LoggingStubStoreSig : public LoggingStubStore
@@ -358,6 +391,13 @@ namespace aft
       return std::make_unique<
         ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data, expected_txid);
     }
+
+    bool flag_enabled(kv::AbstractStore::Flag)
+    {
+      return false;
+    }
+
+    void unset_flag(kv::AbstractStore::Flag) {}
   };
 
   class StubSnapshotter
@@ -366,11 +406,6 @@ namespace aft
     void update(Index, bool) {}
 
     void set_last_snapshot_idx(Index idx) {}
-
-    bool record_committable(Index)
-    {
-      return false;
-    }
 
     void commit(Index, bool) {}
 

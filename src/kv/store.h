@@ -3,14 +3,15 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/kv/read_only_store.h"
+#include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
+#include "kv/snapshot.h"
+#include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "node/entities.h"
-#include "node/signatures.h"
-#include "snapshot.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -46,10 +47,13 @@ namespace kv
     Term term_of_last_version = 0;
 
     Version last_replicated = 0;
+    // Version of the latest committable entry committed in this term and by
+    // _this_ store. Always reset on rollback.
     Version last_committable = 0;
+
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>>
+    std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
       pending_txs;
 
   public:
@@ -75,7 +79,8 @@ namespace kv
 
   class Store : public AbstractStore,
                 public StoreState,
-                public ExecutionWrapperStore
+                public ExecutionWrapperStore,
+                public ReadOnlyStore
   {
   private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
@@ -84,9 +89,9 @@ namespace kv
     MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
-
     std::shared_ptr<TxHistory> history = nullptr;
     EncryptorPtr encryptor = nullptr;
+    SnapshotterPtr snapshotter = nullptr;
 
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
@@ -100,6 +105,9 @@ namespace kv
 
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
+
+    // Ledger entry header flags
+    uint8_t flags = 0;
 
     bool commit_deserialised(
       OrderedChanges& changes,
@@ -181,7 +189,7 @@ namespace kv
       return consensus;
     }
 
-    void set_consensus(std::shared_ptr<Consensus> consensus_)
+    void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
       consensus = consensus_;
     }
@@ -191,7 +199,7 @@ namespace kv
       return history;
     }
 
-    void set_history(std::shared_ptr<TxHistory> history_)
+    void set_history(const std::shared_ptr<TxHistory>& history_)
     {
       history = history_;
     }
@@ -204,6 +212,11 @@ namespace kv
     EncryptorPtr get_encryptor() override
     {
       return encryptor;
+    }
+
+    void set_snapshotter(const SnapshotterPtr& snapshotter_)
+    {
+      snapshotter = snapshotter_;
     }
 
     /** Get a map by name, iff it exists at the given version.
@@ -316,7 +329,7 @@ namespace kv
 
     bool should_track_dependencies(const std::string& name) override
     {
-      return name.compare(ccf::Tables::AFT_REQUESTS) != 0;
+      return name.compare(aft::Tables::AFT_REQUESTS) != 0;
     }
 
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
@@ -471,7 +484,11 @@ namespace kv
 
         // Take ownership of the produced change set, store it to be committed
         // later
-        changes[map_name] = {map, std::move(deserialised_snapshot_changes)};
+        changes.emplace_hint(
+          changes_search,
+          std::piecewise_construct,
+          std::forward_as_tuple(map_name),
+          std::forward_as_tuple(map, std::move(deserialised_snapshot_changes)));
       }
 
       for (auto& it : maps)
@@ -504,7 +521,6 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = v;
-        last_committable = v;
       }
 
       if (h)
@@ -528,6 +544,14 @@ namespace kv
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
+
+      if (snapshotter)
+      {
+        auto c = get_consensus();
+        bool generate_snapshot = c && c->is_primary();
+        snapshotter->commit(v, generate_snapshot);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       if (v > current_version())
@@ -576,6 +600,12 @@ namespace kv
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
+
+      if (snapshotter)
+      {
+        snapshotter->rollback(tx_id.version);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       {
@@ -608,7 +638,9 @@ namespace kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        last_committable = tx_id.version;
+        last_committable = 0;
+        unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
@@ -676,6 +708,8 @@ namespace kv
       kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
+      ccf::ClaimsDigest& claims_digest,
+      std::optional<crypto::Sha256Hash>& commit_evidence_digest,
       bool ignore_strict_versions = false) override
     {
       // This will return FAILED if the serialised transaction is being
@@ -697,6 +731,18 @@ namespace kv
         return false;
       }
       v = v_.value();
+
+      claims_digest = std::move(d.consume_claims_digest());
+      LOG_TRACE_FMT(
+        "Deserialised claim digest {} {}",
+        claims_digest.value(),
+        claims_digest.empty());
+
+      commit_evidence_digest = std::move(d.consume_commit_evidence_digest());
+      if (commit_evidence_digest.has_value())
+        LOG_TRACE_FMT(
+          "Deserialised commit evidence digest {}",
+          commit_evidence_digest.value());
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -753,8 +799,11 @@ namespace kv
 
         // Take ownership of the produced change set, store it to be applied
         // later
-        changes[map_name] =
-          kv::MapChanges{map, std::move(deserialised_changes)};
+        changes.emplace_hint(
+          change_search,
+          std::piecewise_construct,
+          std::forward_as_tuple(map_name),
+          std::forward_as_tuple(map, std::move(deserialised_changes)));
       }
 
       if (!d.end())
@@ -762,6 +811,7 @@ namespace kv
         LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
         return false;
       }
+
       return true;
     }
 
@@ -820,11 +870,17 @@ namespace kv
       return version;
     }
 
-    TxID current_txid() override
+    kv::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
       return current_txid_unsafe();
+    }
+
+    ccf::TxID get_txid() override
+    {
+      const auto kv_id = current_txid();
+      return {kv_id.term, kv_id.version};
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
@@ -893,7 +949,7 @@ namespace kv
 
         pending_txs.insert(
           {txid.version,
-           std::make_pair(std::move(pending_tx), globally_committable)});
+           std::make_tuple(std::move(pending_tx), globally_committable)});
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
@@ -917,7 +973,9 @@ namespace kv
           }
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, data_, hooks_] = pending_tx_->call();
+          auto
+            [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
+              pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
@@ -934,7 +992,8 @@ namespace kv
 
           if (h)
           {
-            h->append(*data_shared);
+            h->append_entry(ccf::entry_leaf(
+              *data_shared, commit_evidence_digest_, claims_digest_));
           }
 
           LOG_DEBUG_FMT(
@@ -985,6 +1044,29 @@ namespace kv
       }
     }
 
+    bool must_force_ledger_chunk(Version version) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return must_force_ledger_chunk_unsafe(version);
+    }
+
+    bool must_force_ledger_chunk_unsafe(Version version) override
+    {
+      // Note that snapshotter->record_committable, and therefore this function,
+      // assumes that `version` is a committable entry/signature.
+
+      bool r = flag_enabled_unsafe(
+                 AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
+        flag_enabled_unsafe(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      if (snapshotter)
+      {
+        r |= snapshotter->record_committable(version);
+      }
+
+      return r;
+    }
+
     void lock() override
     {
       maps_lock.lock();
@@ -1023,7 +1105,7 @@ namespace kv
       return {term_of_next_version, version};
     }
 
-    size_t commit_gap() override
+    size_t committable_gap() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
       return version - last_committable;
@@ -1172,7 +1254,7 @@ namespace kv
       }
     }
 
-    ReadOnlyTx create_read_only_tx()
+    ReadOnlyTx create_read_only_tx() override
     {
       return ReadOnlyTx(this);
     }
@@ -1188,5 +1270,40 @@ namespace kv
       // is incremented.
       return ReservedTx(this, term_of_last_version, tx_id);
     }
+
+    virtual void set_flag(Flag f) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      set_flag_unsafe(f);
+    }
+
+    virtual void unset_flag(Flag f) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      unset_flag_unsafe(f);
+    }
+
+    virtual bool flag_enabled(Flag f) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return flag_enabled_unsafe(f);
+    }
+
+    virtual void set_flag_unsafe(Flag f) override
+    {
+      this->flags |= static_cast<uint8_t>(f);
+    }
+
+    virtual void unset_flag_unsafe(Flag f) override
+    {
+      this->flags &= ~static_cast<uint8_t>(f);
+    }
+
+    virtual bool flag_enabled_unsafe(Flag f) const override
+    {
+      return (flags & static_cast<uint8_t>(f)) != 0;
+    }
   };
+
+  using StorePtr = std::shared_ptr<kv::Store>;
 }

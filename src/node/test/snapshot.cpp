@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/key_pair.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/service/tables/nodes.h"
+#include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
-#include "node/nodes.h"
-#include "node/signatures.h"
+#include "service/tables/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -19,6 +20,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
   auto source_consensus = std::make_shared<kv::test::StubConsensus>();
   kv::Store source_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  source_store.set_encryptor(encryptor);
   source_store.set_consensus(source_consensus);
 
   ccf::NodeId source_node_id = kv::test::PrimaryNodeId;
@@ -70,13 +73,14 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     auto tree = serialised_tree->get();
 
     auto serialised_signature = source_consensus->get_latest_data().value();
-    auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
 
     ccf::MerkleTreeHistory target_tree(tree.value());
-
     REQUIRE(source_root_before_signature == target_tree.get_root());
 
-    target_tree.append(serialised_signature_hash);
+    target_tree.append(ccf::entry_leaf(
+      serialised_signature,
+      crypto::Sha256Hash("ce:0.4:"),
+      ccf::empty_claims()));
     REQUIRE(
       target_tree.get_root() == source_history->get_replicated_state_root());
   }
@@ -84,6 +88,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   INFO("Snapshot at signature");
   {
     kv::Store target_store;
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    target_store.set_encryptor(encryptor);
     INFO("Setup target store");
     {
       auto target_node_kp = crypto::make_key_pair();

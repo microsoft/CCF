@@ -30,25 +30,19 @@ if((NOT ${IS_VALID_TARGET}))
 endif()
 
 # Find OpenEnclave package
-find_package(OpenEnclave 0.17.5 CONFIG REQUIRED)
+find_package(OpenEnclave 0.17.6 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
 # OpenEnclave_INCLUDE_DIRS
-set(OE_CRYPTO_LIB
-    mbedtls
-    CACHE STRING "Crypto library used by enclaves."
-)
 
 set(OE_TARGET_LIBC openenclave::oelibc)
-set(OE_TARGET_ENCLAVE_AND_STD
-    openenclave::oeenclave openenclave::oecryptombedtls openenclave::oelibcxx
-    openenclave::oelibc openenclave::oecryptoopenssl
+set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
+                              openenclave::oelibc openenclave::oecryptoopenssl
 )
 # These oe libraries must be linked in specific order
-set(OE_TARGET_ENCLAVE_CORE_LIBS
-    openenclave::oeenclave openenclave::oecryptombedtls openenclave::oesnmalloc
-    openenclave::oecore openenclave::oesyscall
+set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
+                                openenclave::oecore openenclave::oesyscall
 )
 
 option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
@@ -143,15 +137,6 @@ function(enable_quote_code name)
   endif()
 endfunction()
 
-function(use_client_mbedtls name)
-  target_include_directories(${name} PRIVATE ${CLIENT_MBEDTLS_INCLUDE_DIR})
-  target_link_libraries(${name} PRIVATE ${CLIENT_MBEDTLS_LIBRARIES})
-endfunction()
-
-function(use_oe_mbedtls name)
-  target_link_libraries(${name} PRIVATE ${OE_TARGET_ENCLAVE_AND_STD})
-endfunction()
-
 # Enclave library wrapper
 function(add_ccf_app name)
 
@@ -203,6 +188,11 @@ function(add_ccf_app name)
     if(NOT SAN)
       target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
     endif()
+
+    target_link_options(
+      ${virt_name} PRIVATE
+      LINKER:--undefined=enclave_create_node,--undefined=enclave_run
+    )
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 

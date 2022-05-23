@@ -19,8 +19,7 @@ The Logging application simply has:
 
 .. note::
 
-    :cpp:class:`kv::Store` tables are essentially the only interface between CCF
-    and the application, and the sole mechanism for it to have state.
+    :cpp:type:`kv::Map` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
 
     The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 
@@ -44,10 +43,10 @@ The Logging application simply has:
         :lines: 1
         :dedent:
 
-RPC Handler
------------
+Application Endpoints
+~~~~~~~~~~~~~~~~~~~~~
 
-The type returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::RpcFrontend`, passing the base constructor a reference to an implementation of :cpp:class:`ccf::EndpointRegistry`:
+The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::endpoints::EndpointRegistry`, containing the endpoints that constitute the app.
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
@@ -73,9 +72,11 @@ Each function is installed as the handler for a specific HTTP resource, defined 
     :end-before: SNIPPET_END: install_record
     :dedent:
 
-This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning ``POST /app/log/private``.
+This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning :http:POST:`/app/log/private`.
 
-The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``/log/private`` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the ``/api`` endpoint to populate the relevant parts of the OpenAPI document. There are other endpoints installed for the URI path ``/log/private`` with different verbs, to handle ``GET`` and ``DELETE`` requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
+The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for :http:POST:`/app/log/private` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the :http:GET:`/app/api` endpoint to populate the relevant parts of the OpenAPI document. That OpenAPI document in turn is used to generate the entries in this documentation describing :http:POST:`/app/log/private`.
+
+There are other endpoints installed for the URI path ``/app/log/private`` with different verbs, to handle :http:GET:`GET </app/log/private>` and :http:DELETE:`DELETE </app/log/private>` requests. Requests with those verbs will be executed by the appropriate handler. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
@@ -95,7 +96,7 @@ This general signature also allows a handler to see additional caller context. A
     :end-before: SNIPPET_END: log_record_prefix_cert
     :dedent:
 
-This uses mbedTLS to parse the caller's TLS certificate, and prefixes the logged message with the ``Subject`` field extracted from this certificate.
+This parses the caller's TLS certificate, and prefixes the logged message with the ``Subject`` field extracted from this certificate.
 
 If a handler makes no writes to the KV, it may be installed as read-only:
 
@@ -141,7 +142,7 @@ Applications can extend this system by writing their own authentication policies
     :end-before: SNIPPET_END: custom_identity
     :dedent:
 
-Next it defines the policy itself. The core functionality is the implementation of the ``authenticate()`` method, which looks at each request and returns either a valid new identity if it accepts the request, or ``nullptr`` if it doesn't. In this demo case it is looking for a pair of headers and doing some validation of their values:
+Next it defines the policy itself. The core functionality is the implementation of the ``authenticate()`` method, which looks at each request and returns either a valid new identity if it accepts the request, or ``nullptr`` if it does not. In this demo case it is looking for a pair of headers and doing some validation of their values:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
@@ -162,7 +163,7 @@ The final piece is the definition of the endpoint itself, which uses an instance
 Default Endpoints
 ~~~~~~~~~~~~~~~~~
 
-The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as ``/app/tx``, ``/app/commit``, and ``/app/user_id``. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in ``samples/apps/nobuiltins``. Whereas the logging app declares a registry inheriting from :cpp:class:`ccf::CommonEndpointRegistry`, this app inherits from :cpp:class:`ccf::BaseEndpointRegistry` which does not install any default endpoints:
+The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as :http:GET:`/app/tx`, :http:GET:`/app/commit`, and :http:GET:`/app/receipt`. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in ``samples/apps/nobuiltins``. Whereas the logging app declares a registry inheriting from :cpp:class:`ccf::CommonEndpointRegistry`, this app inherits from :cpp:class:`ccf::BaseEndpointRegistry` which does not install any default endpoints:
 
 .. literalinclude:: ../../samples/apps/nobuiltins/nobuiltins.cpp
     :language: cpp
@@ -181,7 +182,10 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
 Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
-This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v2`.
+This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v3`.
+Most endpoints operate over the _current_ state of the KV, but these historical queries operate over _old_ state, specifically over the writes made by a previous transaction.
+The adapter handles extracting the target :term:`Transaction ID` from the user's request, and interacting with the :ref:`Historical Queries API <build_apps/api:Historical Queries>` to asynchronously fetch this entry from the ledger.
+The deserialised and verified transaction is then presented to the handler code below, which performs reads and constructs a response like any other handler.
 
 The handler passed to the adapter is very similar to a read-only endpoint definition, but receives a read-only :cpp:struct:`ccf::historical::State` rather than a transaction.
 
@@ -190,6 +194,36 @@ The handler passed to the adapter is very similar to a read-only endpoint defini
     :start-after: SNIPPET_START: get_historical
     :end-before: SNIPPET_END: get_historical
     :dedent:
+
+Indexing
+~~~~~~~~
+
+The historical endpoint described above must process each target transaction on a specific node, asynchronously, before the result can be served.
+For some use cases, in particular where the response is repeated often rather than dynamically constructed, this may be extremely inefficient.
+Instead, we would prefer to pre-process all committed transactions and construct an efficient index of their contents, geared towards responding to a known pattern of user queries.
+
+For instance, if we want to list every value written to a specific key but know that writes are relatively rare, we could build an index of such writes.
+When this historical query comes in, rather than fetching every transaction - to extract useful writes from a small fraction - the historical query endpoint can first ask the index which transactions should be processed and fetch only those.
+If the response format is known, the index could even pre-construct the response itself.
+
+In CCF, this is achieved by implementing an indexing :cpp:type:`ccf::indexing::Strategy`.
+This is constructed on each node, in-enclave, by processing every committed transaction in-order in the implementation of :cpp:func:`ccf::indexing::Strategy::handle_committed_transaction`.
+The strategy can then return its aggregated results to the calling endpoint in whatever format is appropriate.
+A :cpp:type:`ccf::indexing::Strategy` may offload partial results to disk to avoid infinite memory growth, via the automatically encrypted LFS (Large File Storage) system.
+Since the indexing system and all the strategies it manages exist entirely within the enclave, this has the same trust guarantees as any other in-enclave code - users can trust that the results are accurate and complete, and the query may process private data.
+
+An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
+This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory useage.
+This sample strategy is 
+In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the _interesting_ transactions; those which write to the target key:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: indexing_strategy_use
+    :end-before: SNIPPET_END: indexing_strategy_use
+    :dedent:
+
+See the sample app for full details of how this strategy is installed and used.
 
 Receipts
 ~~~~~~~~
@@ -201,3 +235,76 @@ Historical state always contains a receipt. Users wishing to implement a receipt
     :start-after: SNIPPET_START: get_historical_with_receipt
     :end-before: SNIPPET_END: get_historical_with_receipt
     :dedent:
+
+User-Defined Claims in Receipts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A user wanting to tie transaction-specific values to a receipt can do so by attaching a claims digest to their transaction:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: set_claims_digest
+    :end-before: SNIPPET_END: set_claims_digest
+    :dedent:
+
+CCF will then record this transaction as a leaf in the Merkle tree constructed from the combined digest of the write set, this ``claims_digest``, and the commit evidence.
+
+This ``claims_digest`` will be exposed in receipts under ``leaf_components``. It can then be revealed externally,
+or by the endpoint directly if it has been stored in the ledger. The receipt object deliberately makes the ``claims_digest`` optional,
+to allow the endpoint to remove it when the claims themselves are revealed.
+
+Receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
+``leaf`` that correctly combines with the ``proof`` to form the ``root`` that the signature covers. Receipt verification
+therefore establishes the authenticity of the claims.
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: claims_digest_in_receipt
+    :end-before: SNIPPET_END: claims_digest_in_receipt
+    :dedent:
+
+A client consuming the output of this endpoint must digest the claims themselves, combine the digest with the other leaf components
+(``write_set_digest`` and ``hash(commit_evidence)``) to obtain the equivalent ``leaf``. See :ref:`use_apps/verify_tx:Receipt Verification` for the full set of steps.
+
+As an example, a logging application may register the contents being logged as a claim:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: record_public
+    :end-before: SNIPPET_END: record_public
+    :dedent:
+
+And expose an endpoint returning receipts, with that claim expanded:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: get_historical_with_receipt
+    :end-before: SNIPPET_END: get_historical_with_receipt
+    :dedent:
+
+Receipts from this endpoint will then look like:
+
+.. code-block:: python
+
+    {'msg': 'Public message at idx 5 [0]',
+     'receipt': {'cert': '-----BEGIN CERTIFICATE-----\n'
+                         'MIIBzzCCAVWgAwIBAgIRANKoegKBViucMxSPzftnDB4wCgYIKoZIzj0EAwMwFjEU\n'
+                         'MBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwMzE1MjExODIwWhcNMjIwMzE2MjEx\n'
+                         'ODE5WjATMREwDwYDVQQDDAhDQ0YgTm9kZTB2MBAGByqGSM49AgEGBSuBBAAiA2IA\n'
+                         'BG+RJ5qNPOga8shCF3w64yija/ShW46JxrE0n9kDybyRf+L3810GjCvjxSpzTQhX\n'
+                         '5WEF2dou1dG2ppI/KSNQsSfk081lbaB50NADWw+jDCtrq/fKuZ+w9wQSaoSvE5+0\n'
+                         '1qNqMGgwCQYDVR0TBAIwADAdBgNVHQ4EFgQU7tFQR91U1EDhup1XPS3u0w5+R2Yw\n'
+                         'HwYDVR0jBBgwFoAU3aI0vfJMBdWckvv9dKK2UzNCLU0wGwYDVR0RBBQwEocEfwAA\n'
+                         'AYcEfxoNCocEfwAAAjAKBggqhkjOPQQDAwNoADBlAjAiOmvGpatg4Uq8phQkwj/p\n'
+                         'Wj33fih6SUtRHOpdsIKvbV8TDNHRdSo1RKPArDd1w1wCMQDnw9zziS5G8qwvucP3\n'
+                         'gn3htz+2ZPBJRr98AqmRNmgflhgqLQp+jAVPrJaWtD3fDpw=\n'
+                         '-----END CERTIFICATE-----\n',
+                 'leaf_components': {'commit_evidence': 'ce:2.25:54571ec6d0540b364d8343b74dff055932981fd72a24c1399c39ca9c74d2f713',
+                                     'write_set_digest': '08b044fc5b0e9cd03c68d77c949bb815e3d70bd24ad339519df48758430ac0f7'},
+                 'node_id': '95baf92969b4c9e52b4f8fcde830dea9fa0286a8c3a92cda4cffcf8251c06b39',
+                 'proof': [{'left': '50a1a35a50bd2c5a4725907e77f3b1f96f1f9f37482aa18f8e7292e0542d9d23'},
+                           {'left': 'e2184154ac72b304639b923b3c7a0bc04cecbd305de4f103a174a90210cae0dc'},
+                           {'left': 'abc9bcbeff670930c34ebdab0f2d57b56e9d393e4dccdccf2db59b5e34507422'}],
+                 'signature': 'MGUCMHYBgZ3gySdkJ+STUL13EURVBd8354ULC11l/kjx20IwpXrg/aDYLWYf7tsGwqUxPwIxAMH2wJDd9wpwbQrULpaAx5XEifpUfOriKtYo7XiFr05J+BV10U39xa9GBS49OK47QA=='}}
+                 
+Note that the ``claims_digest`` is deliberately omitted from ``leaf_components``, and must be re-computed by digesting the ``msg``.

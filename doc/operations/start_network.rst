@@ -21,15 +21,15 @@ To create a new CCF network, the first node of the network should be started wit
         Uninitialized-- config -->Initialized;
         Initialized-- start -->PartOfNetwork;
 
-The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest the public key contained in its identity certificate (e.g. ``50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007``). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when :ref:`governance/common_member_operations:Trusting a New Node`).
+The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest of the public key contained in its identity certificate (e.g. ``50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007``). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when :ref:`governance/common_member_operations:Trusting a New Node`).
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then a ``dNSName`` subject alternative name should be specified as part of the ``node_certificate.subject_alt_names`` configuration entry. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
-When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry. The certificate of the freshly-created CCF network is also output at the location specified by the ``network_certificate_file`` configuration entry.
+When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry. The certificate of the freshly-created CCF network is also output at the location specified by the ``service_certificate_file`` configuration entry.
 
-.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
+.. note:: The service certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
 
-The initial constitution scripts, member certificates, public encryption keys and data files as well as the initial service configuration should be set in the :ref:`start configuration` section of the JSON configuration.
+The initial constitution scripts, member certificates, public encryption keys and data files as well as the initial service configuration should be set in the :ref:`operations/configuration:``start``` section of the JSON configuration.
 
 Once the first node is started, the network will be in its opening state and new nodes can join the network.
 
@@ -52,9 +52,9 @@ To add a new node to an existing opening network, other nodes should be started 
         Pending-- poll status -->Pending;
         Pending-- trusted -->PartOfNetwork;
 
-The joining node takes the certificate of the existing network to join via ``network_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
+The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
 
-The join configuration option should be set in the :ref:`join configuration` section of the JSON configuration.
+The join configuration option should be set in the :ref:`operations/configuration:``join``` section of the JSON configuration.
 
 A new node can only join an existing CCF network if its SGX quote is valid  [#remote_attestation]_. and runs an enclave application that is :ref:`trusted by the consortium <governance/common_member_operations:Updating Code Version>`.
 
@@ -62,7 +62,7 @@ If the network has not yet been opened by members (see :ref:`governance/open_net
 
 The ``Pending`` joining node automatically polls the service (interval configurable via ``join.retry_timeout`` configuration entry) until the members have successfully transitioned the node to the ``Trusted`` state. It is only then that the joining node transitions to the ``PartOfNetwork`` state and starts updating its ledger.
 
-.. tip:: After the node has been trusted by members, operators should poll the ``GET /node/state`` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
+.. tip:: After the node has been trusted by members, operators should poll the :http:GET:`/node/state` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
 
 .. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operations/ledger_snapshot:Join/Recover From Snapshot>`.
 
@@ -78,7 +78,7 @@ The following diagram summarises the steps that operators and members should fol
 
         Note over Node 0: Already "PartOfNetwork" (rpc-address=ip0:port0)
 
-        Operators->>+Node 1: cchost join (config: network_certificate_file=Network Certificate target_rpc_address=ip0:port0)
+        Operators->>+Node 1: cchost join (config: service_certificate_file=Service Certificate target_rpc_address=ip0:port0)
 
         Node 1->>+Node 0: Join request (includes quote)
         Node 0->>+Node 0: Verify Node 1 attestation
@@ -128,13 +128,8 @@ Once a CCF network is successfully started and an acceptable number of nodes hav
 Virtual Mode
 ------------
 
-To start a CCF node in ``virtual`` mode, operators should use the ``virtual`` variants of the ``cchost`` binary and enclave application:
-
-.. code-block:: bash
-
-    $ cchost.virtual --config /path/to/config/file
-
-In the JSON configuration file, ``enclave.file`` should specify the path of a ``.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
+To run a CCF node on a system without hardware TEE support, or to debug an application, a ``virtual`` enclave should be used.
+To start a CCF node in ``virtual`` mode, the JSON configuration file should specify the path of a ``*.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
 

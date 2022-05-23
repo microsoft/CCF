@@ -1,16 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
 #include "kv/untyped_map.h"
 #include "kv_module_loader.h"
 #include "named_auth_policies.h"
+#include "node/rpc/rpc_context_impl.h"
+#include "service/tables/endpoints.h"
 #include "tmpl/ccf_global.h"
 #include "tmpl/console_global.h"
 #include "tmpl/request.h"
@@ -33,15 +32,16 @@ namespace ccfapp
    */
   class V8Handlers : public UserEndpointRegistry
   {
-    NetworkTables& network;
+    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
+    {};
+
     ccfapp::AbstractNodeContext& node_context;
-    ::metrics::Tracker metrics_tracker;
 
     void execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint_def,
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      if (props.mode == ccf::endpoints::Mode::Historical)
+      if (endpoint_def->properties.mode == ccf::endpoints::Mode::Historical)
       {
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
@@ -49,25 +49,25 @@ namespace ccfapp
               consensus, view, seqno, error_reason);
           };
 
-        ccf::historical::adapter_v2(
-          [this, &props](
+        ccf::historical::adapter_v3(
+          [this, endpoint_def](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            do_execute_request(props, endpoint_ctx, state);
+            do_execute_request(endpoint_def, endpoint_ctx, state);
           },
-          context.get_historical_state(),
+          context,
           is_tx_committed)(endpoint_ctx);
       }
       else
       {
         // Read/Write mode just execute directly
-        do_execute_request(props, endpoint_ctx, nullptr);
+        do_execute_request(endpoint_def, endpoint_ctx, nullptr);
       }
     }
 
     /// Unpacks the request, load the JavaScript, executes the code
     void do_execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint_def,
       ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::historical::StatePtr historical_state)
     {
@@ -113,8 +113,9 @@ namespace ccfapp
 
       // Call exported function
       v8::Local<v8::Value> request =
-        ccf::v8_tmpl::Request::wrap(context, &endpoint_ctx, this);
+        ccf::v8_tmpl::Request::wrap(context, endpoint_def, &endpoint_ctx, this);
       std::vector<v8::Local<v8::Value>> args{request};
+      const auto& props = endpoint_def->properties;
       v8::Local<v8::Value> val =
         ctx.run(props.js_module, props.js_function, args);
 
@@ -297,17 +298,11 @@ namespace ccfapp
       endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
     }
 
-    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
-    {};
-
   public:
-    V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
+    V8Handlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       node_context(context)
-    {
-      metrics_tracker.install_endpoint(*this);
-    }
+    {}
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
     {
@@ -324,13 +319,13 @@ namespace ccfapp
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
@@ -341,6 +336,8 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
+        endpoint_def->full_uri_path =
+          fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
         instantiate_authn_policies(*endpoint_def);
         return endpoint_def;
       }
@@ -368,10 +365,15 @@ namespace ccfapp
                 {
                   if (matches.empty())
                   {
+                    auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+                    if (ctx_impl == nullptr)
+                    {
+                      throw std::logic_error("Unexpected type of RpcContext");
+                    }
                     // Populate the request_path_params while we have the match,
                     // though this will be discarded on error if we later find
                     // multiple matches
-                    auto& path_params = rpc_ctx.get_request_path_params();
+                    auto& path_params = ctx_impl->path_params;
                     for (size_t i = 0;
                          i < template_spec.template_component_names.size();
                          ++i)
@@ -386,6 +388,8 @@ namespace ccfapp
                   auto endpoint = std::make_shared<JSDynamicEndpoint>();
                   endpoint->dispatch = other_key;
                   endpoint->properties = endpoints->get(other_key).value();
+                  endpoint->full_uri_path = fmt::format(
+                    "/{}{}", method_prefix, endpoint->dispatch.uri_path);
                   instantiate_authn_policies(*endpoint);
                   matches.push_back(endpoint);
                 }
@@ -408,7 +412,7 @@ namespace ccfapp
     }
 
     std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx& tx, const enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
 
@@ -416,7 +420,7 @@ namespace ccfapp
         ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
         const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
@@ -448,7 +452,7 @@ namespace ccfapp
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(endpoint->properties, endpoint_ctx);
+        execute_request(endpoint, endpoint_ctx);
         return;
       }
 
@@ -462,7 +466,7 @@ namespace ccfapp
       UserEndpointRegistry::build_api(document, tx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();
@@ -474,14 +478,19 @@ namespace ccfapp
         if (!properties.openapi_hidden)
         {
           auto& path_op = ds::openapi::path_operation(
-            ds::openapi::path(document, key.uri_path),
+            ds::openapi::path(
+              document,
+              fmt::format(
+                "/{}{}",
+                ccf::get_actor_prefix(ccf::ActorsType::users),
+                key.uri_path)),
             http_verb.value(),
             false);
           if (!properties.openapi.empty())
           {
             for (const auto& [k, v] : properties.openapi.items())
             {
-              LOG_INFO_FMT("Inserting field {}", k);
+              LOG_TRACE_FMT("Inserting field {}", k);
             }
             path_op.insert(
               properties.openapi.cbegin(), properties.openapi.cend());
@@ -491,39 +500,16 @@ namespace ccfapp
         return true;
       });
     }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
-    }
   };
 
-  /**
-   * V8 Frontend for RPC calls
-   */
-  class V8Frontend : public ccf::RpcFrontend
-  {
-  private:
-    V8Handlers handlers;
-
-  public:
-    V8Frontend(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, handlers),
-      handlers(network, context)
-    {}
-  };
-
-  /// Returns a new V8 Rpc Frontend
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+  /// Returns new V8 Endpoints
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
     // V8 initialization needs to move to a more central place
     // once/if V8 is integrated into core CCF.
     v8_initialize();
 
-    return make_shared<V8Frontend>(network, context);
+    return std::make_unique<V8Handlers>(context);
   }
-
 } // namespace ccfapp

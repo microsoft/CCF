@@ -5,16 +5,9 @@ This section describes how CCF applications can be developed and deployed to a C
 
 Applications can be written in JavaScript/TypeScript or C++. An application consists of a collection of endpoints that can be triggered by :term:`Users`. Each endpoint can define an :ref:`build_apps/logging_cpp:API Schema` to validate user requests.
 
-These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :ref:`build_apps/kv/kv_how_to:Creating a Map`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
+These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :doc:`kv/kv_how_to`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
 
 .. panels::
-
-    :fa:`cloud` :doc:`create_vm`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Create a SGX-enabled Azure Virtual Machine.
-
-    ---
 
     :fa:`download` :doc:`install_bin`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -23,34 +16,34 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
 
-    :fa:`laptop-code` :doc:`build_setup`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Setup CCF environment to build CCF apps.
-
-    ---
-
     .. image:: ../img/cpp.svg
-      :width: 22
       :alt: C++
       :align: left
+      :class: ccf-tile-icon
 
     :doc:`example`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^
 
     Sample CCF application written in C++.
 
     ---
 
     .. image:: ../img/ts.svg
-      :width: 22
-      :alt: C++
+      :alt: TypeScript
       :align: left
+      :class: ccf-tile-icon
 
-    :doc:`js_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :doc:`js_app_ts`
+    ^^^^^^^^^^^^^^^
 
-    Sample CCF application written in TypeScript or JavaScript.
+    Sample CCF application written in TypeScript, using the API specified in :typedoc:package:`ccf-app`.
+
+    ---
+
+    :fa:`luggage-cart` :doc:`js_app_bundle`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Description of the bundle format for JS applications in CCF.
 
     ---
 
@@ -61,17 +54,10 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
 
-    :fa:`cogs` :doc:`run_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Running a CCF application in a sandbox environment for development.
-
-    ---
-
-    :fa:`rocket` :doc:`demo`
+    :fa:`rocket` :doc:`run_app`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Running a CCF application demo from scratch.
+    Running a CCF application demo in a sandbox environment.
 
     ---
 
@@ -94,18 +80,25 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     C++ API reference.
 
+    ---
+
+    :fa:`rocket` :doc:`release_policy`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    CCF release cadence and compatibility committments.
+
+
 .. toctree::
     :hidden:
 
-    create_vm
     install_bin
-    build_setup
     example
-    js_app
+    js_app_ts
+    js_app_bundle
     build_app
     run_app
-    demo
     auth/index
     kv/index
     api
     crypto
+    release_policy

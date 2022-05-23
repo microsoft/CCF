@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/ds/logger.h"
 #include "consensus/aft/raft.h"
-#include "ds/logger.h"
 #include "kv/test/stub_consensus.h"
 #include "logging_stub.h"
 
 #include <chrono>
 #include <string>
 
-using TRaft = aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
+using TRaft = aft::Aft<aft::LedgerStubProxy>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -17,8 +17,8 @@ using SigAdaptor = aft::Adaptor<SigStore>;
 
 static std::vector<uint8_t> cert;
 
-static const ds::TimeString request_timeout_ = std::string("10ms");
-static const ds::TimeString election_timeout_ = std::string("100ms");
+static const ds::TimeString request_timeout_ = {"10ms"};
+static const ds::TimeString election_timeout_ = {"100ms"};
 
 static const std::chrono::milliseconds request_timeout = request_timeout_;
 static const std::chrono::milliseconds election_timeout = election_timeout_;

@@ -37,7 +37,7 @@ The CCF unique member identity is the hex-encoded string of the SHA-256 hash of 
     $ identity_cert_path=/path/to/member/cert
     $ openssl x509 -in "$identity_cert_path" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}'
 
-.. note:: See :ref:`overview/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
+.. note:: See :ref:`architecture/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
 
 Registering a New Member
 ------------------------
@@ -51,21 +51,21 @@ Activating a New Member
 
 A new member who gets registered in CCF is not yet able to participate in governance operations. To do so, the new member should first acknowledge that they are satisfied with the state of the service (for example, after auditing the current constitution and the nodes currently trusted).
 
-First, the new member should update and retrieve the latest state digest via the ``/gov/ack/update_state_digest`` endpoint. In doing so, the new member confirms that they are satisfied with the current state of the service.
+First, the new member should update and retrieve the latest state digest via the :http:POST:`/gov/ack/update_state_digest` endpoint. In doing so, the new member confirms that they are satisfied with the current state of the service.
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/gov/ack/update_state_digest  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem
+    $ curl https://<ccf-node-address>/gov/ack/update_state_digest -X POST --cacert service_cert.pem --key new_member_privk.pem --cert new_member_cert.pem
     {
         "state_digest": <...>
     }
 
 
-Then, the new member should sign the state digest returned by the ``/gov/ack/update_state_digest`` via the ``/gov/ack`` endpoint, using the ``scurl.sh`` utility:
+Then, the new member should sign the state digest returned by the :http:POST:`/gov/ack/update_state_digest` via the :http:POST:`/gov/ack` endpoint, using the ``scurl.sh`` utility:
 
 .. code-block:: bash
 
-    $ scurl.sh https://<ccf-node-address>/gov/ack  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem --header "Content-Type: application/json" --data-binary '{"state_digest": <...>}'
+    $ scurl.sh https://<ccf-node-address>/gov/ack  --cacert service_cert.pem --signing-key new_member_privk.pem --signing-cert new_member_cert.pem --header "Content-Type: application/json" --data-binary '{"state_digest": <...>}'
     true
 
 Once the command completes, the new member becomes active and can take part in governance operations (e.g. creating a new proposal or voting for an existing one).

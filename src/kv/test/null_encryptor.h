@@ -16,7 +16,8 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      EntryType entry_type = EntryType::WriteSet) override
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) override
     {
       cipher = plain;
       return true;
@@ -34,6 +35,12 @@ namespace kv
       plain = cipher;
       term = 0;
       return true;
+    }
+
+    crypto::HashBytes get_commit_nonce(
+      const TxID& tx_id, bool historical_hint = false) override
+    {
+      return {};
     }
 
     size_t get_header_length() override

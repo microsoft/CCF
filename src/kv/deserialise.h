@@ -6,7 +6,9 @@
 #include "consensus/aft/request.h"
 #include "kv/committable_tx.h"
 #include "kv_types.h"
-#include "node/signatures.h"
+#include "service/tables/shares.h"
+#include "service/tables/signatures.h"
+#include "service/tables/snapshot_evidence.h"
 
 #include <vector>
 
@@ -22,6 +24,8 @@ namespace kv
       kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
+      ccf::ClaimsDigest& claims_digest,
+      std::optional<crypto::Sha256Hash>& commit_evidence_digest,
       bool ignore_strict_versions = false) = 0;
 
     virtual bool commit_deserialised(
@@ -44,6 +48,8 @@ namespace kv
     OrderedChanges changes;
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
+    ccf::ClaimsDigest claims_digest;
+    std::optional<crypto::Sha256Hash> commit_evidence_digest = {};
 
     const std::optional<TxID> expected_txid;
 
@@ -61,10 +67,29 @@ namespace kv
       expected_txid(expected_txid_)
     {}
 
+    ccf::ClaimsDigest&& consume_claims_digest() override
+    {
+      return std::move(claims_digest);
+    }
+
+    std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+      override
+    {
+      return std::move(commit_evidence_digest);
+    }
+
     ApplyResult apply() override
     {
       if (!store->fill_maps(
-            data, public_only, version, term, changes, new_maps, true))
+            data,
+            public_only,
+            version,
+            term,
+            changes,
+            new_maps,
+            claims_digest,
+            commit_evidence_digest,
+            true))
       {
         return ApplyResult::FAIL;
       }
@@ -131,7 +156,8 @@ namespace kv
 
       if (history)
       {
-        history->append(data);
+        history->append_entry(
+          ccf::entry_leaf(data, commit_evidence_digest, claims_digest));
       }
       return success;
     }

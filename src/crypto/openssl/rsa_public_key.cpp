@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "hash.h"
+#include "crypto/openssl/hash.h"
+#include "crypto/openssl/rsa_key_pair.h"
 #include "openssl_wrappers.h"
-#include "rsa_key_pair.h"
 
 namespace crypto
 {
@@ -38,8 +38,8 @@ namespace crypto
        NULL)) // PKCS#1 structure format
     {
       unsigned long ec = ERR_get_error();
-      const char* msg = ERR_error_string(ec, NULL);
-      throw new std::runtime_error(fmt::format("OpenSSL error: {}", msg));
+      auto msg = OpenSSL::error_string(ec);
+      throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
 
     key = EVP_PKEY_new();
@@ -88,12 +88,16 @@ namespace crypto
 
   std::vector<uint8_t> RSAPublicKey_OpenSSL::rsa_oaep_wrap(
     const std::vector<uint8_t>& input,
-    std::optional<std::vector<std::uint8_t>> label)
+    const std::optional<std::vector<std::uint8_t>>& label)
   {
     const unsigned char* label_ = NULL;
     size_t label_size = 0;
     if (label.has_value())
     {
+      if (label->empty())
+      {
+        throw std::logic_error("empty wrapping label");
+      }
       label_ = label->data();
       label_size = label->size();
     }

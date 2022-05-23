@@ -2,16 +2,19 @@
 # Licensed under the Apache 2.0 License.
 import os
 import time
+
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from ccf.clients import CCFConnectionException, flush_info
+from infra.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
+import infra.service_load
 import infra.node
 import infra.consortium
-from ccf.ledger import NodeStatus, Ledger, COMMITTED_FILE_SUFFIX
-from ccf.tx_status import TxStatus
+import infra.e2e_args
+import ccf.ledger
+from infra.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
 from dataclasses import dataclass
@@ -19,7 +22,10 @@ from math import ceil
 import http
 import pprint
 import functools
+import shutil
 from datetime import datetime, timedelta
+from infra.consortium import slurp_file
+
 
 from loguru import logger as LOG
 
@@ -46,6 +52,7 @@ class NodeRole(Enum):
 class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
+    RECOVERING = "Recovering"
     CLOSED = "Closed"
 
 
@@ -65,12 +72,14 @@ class CodeIdNotFound(Exception):
     pass
 
 
-class StartupSnapshotIsOld(Exception):
+class StartupSeqnoIsOld(Exception):
     pass
 
 
-class NodeShutdownError(Exception):
-    pass
+class NetworkShutdownError(Exception):
+    def __init__(self, msg, errors=None):
+        super().__init__(msg)
+        self.errors = errors
 
 
 def get_common_folder_name(workspace, label):
@@ -81,6 +90,7 @@ def get_common_folder_name(workspace, label):
 class UserInfo:
     local_id: int
     service_id: str
+    cert_path: str
 
 
 class Network:
@@ -106,9 +116,13 @@ class Network:
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",
+        "initial_service_cert_validity_days",
         "maximum_node_certificate_validity_days",
+        "maximum_service_certificate_validity_days",
         "reconfiguration_type",
         "config_file",
+        "ubsan_options",
+        "previous_service_identity_file",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -126,23 +140,33 @@ class Network:
         library_dir=".",
         init_partitioner=False,
         version=None,
+        service_load=None,
     ):
         if existing_network is None:
             self.consortium = None
             self.users = []
+            self.hosts = hosts
             self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
+            self.service_load = service_load
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
+            self.hosts = infra.e2e_args.nodes(
+                existing_network.args, len(existing_network.nodes)
+            )
+            self.service_load = None
+            if existing_network.service_load:
+                self.service_load = existing_network.service_load
+                self.service_load.set_network(self)
 
         self.ignoring_shutdown_errors = False
+        self.ignore_error_patterns = []
         self.nodes = []
-        self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -159,6 +183,8 @@ class Network:
         self.perf_nodes = perf_nodes
         self.version = version
         self.args = None
+        self.service_certificate_valid_from = None
+        self.service_certificate_validity_days = None
 
         # Requires admin privileges
         self.partitioner = (
@@ -170,7 +196,7 @@ class Network:
         except FileNotFoundError:
             pass
 
-        for host in hosts:
+        for host in self.hosts:
             self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
@@ -178,9 +204,7 @@ class Network:
         self.next_node_id += 1
         return next_node_id
 
-    def create_node(
-        self, host, binary_dir=None, library_dir=None, node_port=0, version=None
-    ):
+    def create_node(self, host, binary_dir=None, library_dir=None, **kwargs):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -195,8 +219,7 @@ class Network:
             library_dir or self.library_dir,
             debug,
             perf,
-            node_port=node_port,
-            version=version,
+            **kwargs,
         )
         self.nodes.append(node)
         return node
@@ -211,28 +234,25 @@ class Network:
         ledger_dir=None,
         copy_ledger_read_only=False,
         read_only_ledger_dirs=None,
-        from_snapshot=False,
+        from_snapshot=True,
         snapshots_dir=None,
+        **kwargs,
     ):
         # Contact primary if no target node is set
-        if target_node is None:
-            target_node, _ = self.find_primary(
-                timeout=args.ledger_recovery_timeout if recovery else 3
-            )
+        primary, _ = self.find_primary(
+            timeout=args.ledger_recovery_timeout if recovery else 3
+        )
+        target_node = target_node or primary
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
         committed_ledger_dirs = read_only_ledger_dirs or []
         current_ledger_dir = ledger_dir
 
-        # By default, only copy historical ledger if node is started from snapshot
-        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
-            LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
-            current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
-
+        # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
+        # to produce more ledger entries
         if from_snapshot:
-            # Only retrieve snapshot from target node if the snapshot directory is not
-            # specified
-            snapshots_dir = snapshots_dir or self.get_committed_snapshots(target_node)
+            # Only retrieve snapshot from primary if the snapshot directory is not specified
+            snapshots_dir = snapshots_dir or self.get_committed_snapshots(primary)
             if os.listdir(snapshots_dir):
                 LOG.info(f"Joining from snapshot directory: {snapshots_dir}")
             else:
@@ -244,10 +264,10 @@ class Network:
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
-        forwarded_args = {
-            arg: getattr(args, arg)
-            for arg in infra.network.Network.node_args_to_forward
-        }
+        # By default, only copy historical ledger if node is started from snapshot
+        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
+            LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
+            current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
         node.join(
             lib_name=lib_name,
@@ -260,11 +280,14 @@ class Network:
             snapshots_dir=snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
-            **forwarded_args,
+            **kwargs,
         )
 
-        # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING:
+        # If the network is opening or recovering, nodes are trusted without consortium approval
+        if (
+            self.status == ServiceStatus.OPENING
+            or self.status == ServiceStatus.RECOVERING
+        ):
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
@@ -278,6 +301,7 @@ class Network:
         ledger_dir=None,
         read_only_ledger_dirs=None,
         snapshots_dir=None,
+        **kwargs,
     ):
         self.args = args
         hosts = self.hosts
@@ -285,11 +309,13 @@ class Network:
         if not args.package:
             raise ValueError("A package name must be specified.")
 
-        self.status = ServiceStatus.OPENING
+        self.status = (
+            ServiceStatus.OPENING if not recovery else ServiceStatus.RECOVERING
+        )
         LOG.debug(f"Opening CCF service on {hosts}")
 
         forwarded_args = {
-            arg: getattr(args, arg)
+            arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
 
@@ -304,6 +330,7 @@ class Network:
                             common_dir=self.common_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args,
+                            **kwargs,
                         )
                     else:
                         node.recover(
@@ -315,6 +342,7 @@ class Network:
                             read_only_ledger_dirs=read_only_ledger_dirs,
                             snapshots_dir=snapshots_dir,
                             **forwarded_args,
+                            **kwargs,
                         )
                         self.wait_for_state(
                             node,
@@ -332,9 +360,11 @@ class Network:
                         from_snapshot=snapshots_dir is not None,
                         read_only_ledger_dirs=read_only_ledger_dirs,
                         snapshots_dir=snapshots_dir,
+                        **forwarded_args,
+                        **kwargs,
                     )
             except Exception:
-                LOG.exception("Failed to start node {}".format(node.local_node_id))
+                LOG.exception(f"Failed to start node {node.local_node_id}")
                 raise
 
         self.election_duration = args.election_timeout_ms / 1000
@@ -373,7 +403,7 @@ class Network:
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
 
-    def start_and_join(self, args):
+    def start(self, args, **kwargs):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
@@ -409,20 +439,17 @@ class Network:
             authenticate_session=not args.disable_member_session_auth,
             reconfiguration_type=args.reconfiguration_type,
         )
-        initial_users = [
-            f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
-        ]
-        self.create_users(initial_users, args.participants_curve)
 
-        primary = self._start_all_nodes(args)
+        primary = self._start_all_nodes(args, **kwargs)
         self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined network")
 
+    def open(self, args):
         self.consortium.activate(self.find_random_node())
 
         if args.js_app_bundle:
-            self.consortium.set_js_app(
-                remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
+            self.consortium.set_js_app_from_dir(
+                remote_node=self.find_random_node(), bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:
@@ -433,13 +460,27 @@ class Network:
         if self.jwt_issuer:
             self.jwt_issuer.register(self)
 
+        initial_users = [
+            f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
+        ]
+        self.create_users(initial_users, args.participants_curve)
+
         self.consortium.add_users_and_transition_service_to_open(
             self.find_random_node(), initial_users
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
-        self.verify_service_certificate_validity_period()
+
+        for node in self.get_joined_nodes():
+            self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
+
         LOG.success("***** Network is now open *****")
+        if self.service_load:
+            self.service_load.begin(self)
+
+    def start_and_open(self, args, **kwargs):
+        self.start(args, **kwargs)
+        self.open(args)
 
     def start_in_recovery(
         self,
@@ -448,6 +489,7 @@ class Network:
         committed_ledger_dirs=None,
         snapshots_dir=None,
         common_dir=None,
+        **kwargs,
     ):
         """
         Starts a CCF network in recovery mode.
@@ -468,11 +510,12 @@ class Network:
             ledger_dir=ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
+            **kwargs,
         )
 
         # If a common directory was passed in, initialise the consortium from it
         if not self.consortium and common_dir is not None:
-            ledger = Ledger(ledger_dirs, committed_only=False)
+            ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=False)
             public_state, _ = ledger.get_latest_public_state()
 
             self.consortium = infra.consortium.Consortium(
@@ -498,13 +541,30 @@ class Network:
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         """
+        random_node = self.find_random_node()
+        self.consortium.activate(random_node)
+        expected_status = (
+            ServiceStatus.RECOVERING
+            if random_node.version_after("ccf-2.0.0-rc3")
+            else ServiceStatus.OPENING
+        )
         self.consortium.check_for_service(
-            self.find_random_node(), status=ServiceStatus.OPENING
+            self.find_random_node(), status=expected_status
         )
-        self.consortium.wait_for_all_nodes_to_be_trusted(
-            self.find_random_node(), self.nodes
+        self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
+
+        # The new service may be running a newer version of the constitution,
+        # so we make sure that we're running the right one.
+        self.consortium.set_constitution(random_node, args.constitution)
+
+        prev_service_identity = None
+        if args.previous_service_identity_file:
+            prev_service_identity = slurp_file(args.previous_service_identity_file)
+
+        self.consortium.transition_service_to_open(
+            self.find_random_node(),
+            previous_service_identity=prev_service_identity,
         )
-        self.consortium.transition_service_to_open(self.find_random_node())
         self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
@@ -516,13 +576,89 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.verify_service_certificate_validity_period()
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
+    def ignore_error_pattern_on_shutdown(self, pattern):
+        self.ignore_error_patterns.append(pattern)
+
+    def check_ledger_files_identical(self, read_recovery_ledger_files=False):
+        # Note: Should be called on stopped service
+        # Verify that all ledger files on stopped nodes exist on most up-to-date node
+        # and are identical
+
+        def list_files_in_dirs_with_checksums(dirs):
+            return sorted(
+                [
+                    (f, infra.path.compute_file_checksum(os.path.join(d, f)))
+                    for d in dirs
+                    for f in os.listdir(d)
+                    if f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+                    or (
+                        read_recovery_ledger_files
+                        and f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
+                        and ccf.ledger.COMMITTED_FILE_SUFFIX in f
+                    )
+                ],
+                key=lambda x: ccf.ledger.range_from_filename(x[0])[0],
+            )
+
+        longest_ledger_files = None
+        longest_ledger_node = None
+        longest_ledger_seqno = 0
+        for node in self.nodes:
+            if node.network_state != infra.node.NodeNetworkState.stopped:
+                raise RuntimeError(
+                    f"Node {node.node_id} should be stopped before verifying ledger consistency"
+                )
+
+            if node.remote is None:
+                continue
+
+            ledger_paths = node.remote.ledger_paths()
+
+            # Check that at least the main ledger directory, created by
+            # the node on startup, exists
+            if not os.path.isdir(ledger_paths[0]):
+                return
+
+            ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
+            if not ledger_files:
+                continue
+
+            last_ledger_seqno = ccf.ledger.range_from_filename(ledger_files[-1][0])[1]
+            ledger_files = set(ledger_files)
+
+            if last_ledger_seqno > longest_ledger_seqno:
+                if longest_ledger_files and not longest_ledger_files.issubset(
+                    ledger_files
+                ):
+                    raise Exception(
+                        f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: {ledger_files - longest_ledger_files}"
+                    )
+                longest_ledger_files = ledger_files
+                longest_ledger_node = node
+                longest_ledger_seqno = last_ledger_seqno
+            else:
+                if not ledger_files.issubset(longest_ledger_files):
+                    raise Exception(
+                        f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
+                    )
+
+        if longest_ledger_files:
+            LOG.info(
+                f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
+            )
+
+    def stop_all_nodes(
+        self,
+        skip_verification=False,
+        verbose_verification=False,
+        accept_ledger_diff=False,
+        **kwargs,
+    ):
         if not skip_verification:
             if self.txs is not None:
                 LOG.info("Verifying that all committed txs can be read before shutdown")
@@ -533,74 +669,52 @@ class Network:
 
         fatal_error_found = False
 
+        if len(self.ignore_error_patterns) > 0:
+            LOG.warning("Ignoring error patterns on shutdown:")
+            for pattern in self.ignore_error_patterns:
+                LOG.warning(f"  {pattern}")
+
+        node_errors = {}
         for node in self.nodes:
-            _, fatal_errors = node.stop()
+            _, fatal_errors = node.stop(
+                ignore_error_patterns=self.ignore_error_patterns
+            )
+            node_errors[node.local_node_id] = fatal_errors
             if fatal_errors:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-
-        if not skip_verification:
-            # Verify that all ledger files on stopped nodes exist on most up-to-date node
-            # and are identical
-            longest_ledger_node = None
-            nodes_ledger = {}
-
-            longest_ledger_seqno = 0
-            for node in self.nodes:
-                ledger = node.remote.ledger_paths()
-                last_seqno = Ledger(ledger).get_latest_public_state()[1]
-                nodes_ledger[node.local_node_id] = [ledger, last_seqno]
-                if last_seqno > longest_ledger_seqno:
-                    longest_ledger_seqno = last_seqno
-                    longest_ledger_node = node
-
-            if longest_ledger_node:
-
-                def list_files_in_dirs_with_checksums(dirs):
-                    return [
-                        (f, infra.path.compute_file_checksum(os.path.join(d, f)))
-                        for d in dirs
-                        for f in os.listdir(d)
-                        if f.endswith(COMMITTED_FILE_SUFFIX)
-                    ]
-
-                longest_ledger_dirs, _ = nodes_ledger[longest_ledger_node.local_node_id]
-                longest_ledger_files = list_files_in_dirs_with_checksums(
-                    longest_ledger_dirs
-                )
-                for node_id, (ledger_dirs, _) in nodes_ledger.items():
-                    ledger_files = list_files_in_dirs_with_checksums(ledger_dirs)
-                    if not set(ledger_files).issubset(longest_ledger_files):
-                        raise Exception(
-                            f"Ledger files on node {node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}"
-                        )
-                LOG.success(
-                    f"Verified ledger files consistency on all {len(self.nodes)} stopped nodes"
-                )
+        if not accept_ledger_diff:
+            self.check_ledger_files_identical(**kwargs)
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
                 LOG.warning("Ignoring shutdown errors")
             else:
-                raise NodeShutdownError("Fatal error found during node shutdown")
+                raise NetworkShutdownError(
+                    "Fatal error found during node shutdown", node_errors
+                )
 
     def join_node(
         self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
     ):
-        self._add_node(node, lib_name, args, target_node, **kwargs)
+        forwarded_args = {
+            arg: getattr(args, arg, None)
+            for arg in infra.network.Network.node_args_to_forward
+        }
+        self._add_node(node, lib_name, args, target_node, **forwarded_args, **kwargs)
 
         primary, _ = self.find_primary()
         try:
-            self.consortium.wait_for_node_to_exist_in_store(
+            self.wait_for_node_in_store(
                 primary,
                 node.node_id,
-                timeout=timeout,
                 node_status=(
-                    NodeStatus.PENDING
+                    ccf.ledger.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
-                    else NodeStatus.TRUSTED
+                    else ccf.ledger.NodeStatus.TRUSTED
                 ),
+                timeout=timeout,
             )
         except TimeoutError as e:
             LOG.error(f"New pending node {node.node_id} failed to join the network")
@@ -611,8 +725,8 @@ class Network:
                 for error in errors:
                     if "Quote does not contain known enclave measurement" in error:
                         raise CodeIdNotFound from e
-                    if "StartupSnapshotIsOld" in error:
-                        raise StartupSnapshotIsOld from e
+                    if "StartupSeqnoIsOld" in error:
+                        raise StartupSeqnoIsOld from e
             raise
 
     def trust_node(
@@ -621,15 +735,17 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or str(
-                    infra.crypto.datetime_to_X509time(datetime.now())
-                )
+                valid_from = valid_from or datetime.now()
+                timeout = ceil(args.join_timer_s * 2)
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=ceil(args.join_timer_s * 2),
+                    timeout=timeout,
+                )
+                self.wait_for_node_in_store(
+                    primary, node.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
                 )
             if not no_wait:
                 # Here, quote verification has already been run when the node
@@ -650,7 +766,11 @@ class Network:
             self.wait_for_all_nodes_to_commit(primary=primary)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
-        self.consortium.retire_node(remote_node, node_to_retire, timeout=timeout)
+        self.consortium.retire_node(
+            remote_node,
+            node_to_retire,
+            timeout=timeout,
+        )
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -664,11 +784,10 @@ class Network:
             log_output=False,
         ).check_returncode()
 
-        with open(
-            os.path.join(self.common_dir, f"{local_user_id}_cert.pem"), encoding="utf-8"
-        ) as c:
+        cert_path = os.path.join(self.common_dir, f"{local_user_id}_cert.pem")
+        with open(cert_path, encoding="utf-8") as c:
             service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
-        new_user = UserInfo(local_user_id, service_user_id)
+        new_user = UserInfo(local_user_id, service_user_id, cert_path)
         if record:
             self.users.append(new_user)
 
@@ -695,8 +814,8 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout) as c:
-                    r = c.get("/node/state")
-                    if r.body.json()["state"] == state:
+                    r = c.get("/node/state").body.json()
+                    if r["state"] == state:
                         break
             except ConnectionRefusedError:
                 pass
@@ -788,9 +907,11 @@ class Network:
     def find_random_node(self):
         return random.choice(self.get_joined_nodes())
 
-    def find_nodes(self, timeout=3):
-        primary, _ = self.find_primary(timeout=timeout)
-        backups = self.find_backups(primary=primary, timeout=timeout)
+    def find_nodes(self, timeout=3, log_capture=None):
+        primary, _ = self.find_primary(timeout=timeout, log_capture=log_capture)
+        backups = self.find_backups(
+            primary=primary, timeout=timeout, log_capture=log_capture
+        )
         return primary, backups
 
     def find_primary_and_any_backup(self, timeout=3):
@@ -881,6 +1002,53 @@ class Network:
                     pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
+    def _check_node_status(
+        self,
+        remote_node,
+        node_id,
+        node_status,  # None indicates that the node should not be present
+    ):
+        with remote_node.client() as c:
+            r = c.get(f"/node/network/nodes/{node_id}")
+            resp = r.body.json()
+            return (
+                r.status_code == http.HTTPStatus.NOT_FOUND.value
+                and node_status is None
+                and resp["error"]["message"] == "Node not found"
+            ) or (
+                r.status_code == http.HTTPStatus.OK.value
+                and node_status is not None
+                and resp["status"] == node_status.value
+            )
+
+    def wait_for_node_in_store(
+        self,
+        remote_node,
+        node_id,
+        node_status,
+        timeout=3,
+    ):
+        success = False
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                if self._check_node_status(remote_node, node_id, node_status):
+                    success = True
+                    break
+            except TimeoutError:
+                pass
+            time.sleep(0.5)
+        if not success:
+            raise TimeoutError(
+                f'Node {node_id} is not in expected state: {node_status or "absent"})'
+            )
+
+    def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):
+        for n in self.nodes:
+            self.wait_for_node_in_store(
+                remote_node, n.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
+            )
+
     def wait_for_new_primary(
         self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER
     ):
@@ -915,7 +1083,7 @@ class Network:
                     flush_info(logs, None)
                     delay = time.time() - start_time
                     LOG.info(
-                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay:.2f}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -950,7 +1118,7 @@ class Network:
                     flush_info(logs, None)
                     delay = time.time() - start_time
                     LOG.info(
-                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay:.2f}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -999,7 +1167,7 @@ class Network:
         assert all_good, f"Multiple primaries: {primaries}"
         delay = time.time() - start_time
         LOG.info(
-            f"Primary unanimity after {delay}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
+            f"Primary unanimity after {delay:.2f}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
         )
         return primaries[0]
 
@@ -1039,39 +1207,50 @@ class Network:
         return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
 
     def get_committed_snapshots(self, node):
-        # Wait for all available snapshot files to be committed before
-        # copying snapshot directory, so that we always use the latest snapshot
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=6):
+        # Wait for the snapshot including target_seqno to be committed before
+        # copying snapshot directory
+        target_seqno = None
+        with node.client() as c:
+            r = c.get("/node/commit").body.json()
+            target_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
+            LOG.info(
+                f"Waiting for a snapshot to be committed including seqno {target_seqno}"
+            )
             end_time = time.time() + timeout
-            committed = True
-            uncommitted_snapshots = []
             while time.time() < end_time:
-                committed = True
-                uncommitted_snapshots = []
                 for f in list_src_dir_func(src_dir):
-                    is_committed = infra.node.is_file_committed(f)
-                    if not is_committed:
-                        self.wait_for_commit_proof(
-                            node, infra.node.get_snapshot_seqnos(f)[1]
+                    snapshot_seqno = infra.node.get_snapshot_seqnos(f)[1]
+                    if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
+                        f
+                    ):
+                        LOG.info(
+                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time())}s"
                         )
-                        uncommitted_snapshots.append(f)
-                    committed &= is_committed
-                if committed:
-                    break
+                        return True
+
+                with node.client(self.consortium.get_any_active_member().local_id) as c:
+                    logs = []
+                    for _ in range(self.args.snapshot_tx_interval // 2):
+                        r = c.post("/gov/ack/update_state_digest", log_capture=logs)
+                        assert (
+                            r.status_code == http.HTTPStatus.OK.value
+                        ), f"Error ack/update_state_digest: {r}"
+                    c.wait_for_commit(r)
                 time.sleep(0.1)
-            if not committed:
-                LOG.error(
-                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
-                )
-            return committed
+            LOG.error(
+                f"Could not find committed snapshot for seqno {target_seqno} after {timeout}s in {src_dir}: {list_src_dir_func(src_dir)}"
+            )
+            return False
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout, insecure=False):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                return call(seqno)
+                return call(seqno, insecure=insecure)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
                 self.consortium.create_and_withdraw_large_proposal(node)
@@ -1080,47 +1259,74 @@ class Network:
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
         )
 
-    def get_ledger_public_state_at(self, seqno, timeout=5):
+    def get_ledger_public_state_at(self, seqno, timeout=5, insecure=False):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout
+            primary, primary.get_ledger_public_tables_at, seqno, timeout, insecure
         )
 
-    def get_latest_ledger_public_state(self, timeout=5):
+    def get_latest_ledger_public_state(self, insecure=False, timeout=5):
         primary, _ = self.find_primary()
         with primary.client() as nc:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
+            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout, insecure
         )
 
     @functools.cached_property
     def cert(self):
-        cert_path = os.path.join(self.common_dir, "networkcert.pem")
+        cert_path = os.path.join(self.common_dir, "service_cert.pem")
         with open(cert_path, encoding="utf-8") as c:
-            network_cert = load_pem_x509_certificate(
+            service_cert = load_pem_x509_certificate(
                 c.read().encode("ascii"), default_backend()
             )
-            return network_cert
+            return service_cert
 
-    def verify_service_certificate_validity_period(self):
-        # See https://github.com/microsoft/CCF/issues/3090
-        assert self.cert.not_valid_before == datetime(
-            year=2021, month=3, day=11
-        )  # 20210311000000Z
-        assert self.cert.not_valid_after == datetime(
-            year=2023, month=6, day=11, hour=23, minute=59, second=59
-        )  # 20230611235959Z
-        validity_period = (
-            self.cert.not_valid_after
-            - self.cert.not_valid_before
-            + timedelta(seconds=1)
+    def verify_service_certificate_validity_period(self, expected_validity_days):
+        primary, _ = self.find_primary()
+        if primary.major_version and primary.major_version <= 1:
+            # Service certificate validity period is hardcoded in 1.x
+            LOG.warning("Skipping service certificate validity check for 1.x service")
+            return
+
+        with primary.client() as c:
+            r = c.get("/node/network")
+            valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                r.body.json()["service_certificate"]
+            )
+
+        if self.service_certificate_valid_from is None:
+            # If the service certificate has not been renewed, assume that certificate has
+            # been issued within this test run
+            expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+            if valid_from < expected_valid_from:
+                raise ValueError(
+                    f'Service certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
+                )
+
+        # Note: CCF substracts one second from validity period since x509 specifies
+        # that validity dates are inclusive.
+        expected_valid_to = valid_from + timedelta(
+            days=expected_validity_days, seconds=-1
         )
-        LOG.debug(
-            f"Certificate validity period for service: {self.cert.not_valid_before} - {self.cert.not_valid_after} (for {validity_period})"
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for service certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+            )
+
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
+        LOG.info(
+            f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
+
+    def save_service_identity(self, args):
+        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
+        shutil.copy(current_identity, previous_identity)
+        args.previous_service_identity_file = previous_identity
+        return args
 
 
 @contextmanager
@@ -1135,6 +1341,7 @@ def network(
     library_directory=".",
     init_partitioner=False,
     version=None,
+    service_load=None,
 ):
     """
     Context manager for Network class.
@@ -1163,6 +1370,7 @@ def network(
         jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,
         version=version,
+        service_load=service_load,
     )
     try:
         yield net
@@ -1179,6 +1387,6 @@ def network(
             raise
     finally:
         LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True)
+        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
         if init_partitioner:
             net.partitioner.cleanup()

@@ -1,24 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ds/json.h"
+
+#include "ccf/ds/json.h"
+#include "ccf/service/tables/code_id.h"
 #include "enclave/consensus_type.h"
 #include "enclave/interface.h"
-#include "node/code_id.h"
 #include "node/rpc/call_types.h"
 
 namespace ccf
 {
-  DECLARE_JSON_ENUM(
-    ccf::State,
-    {{ccf::State::uninitialized, "Uninitialized"},
-     {ccf::State::initialized, "Initialized"},
-     {ccf::State::pending, "Pending"},
-     {ccf::State::partOfPublicNetwork, "PartOfPublicNetwork"},
-     {ccf::State::partOfNetwork, "PartOfNetwork"},
-     {ccf::State::readingPublicLedger, "ReadingPublicLedger"},
-     {ccf::State::readingPrivateLedger, "ReadingPrivateLedger"},
-     {ccf::State::verifyingSnapshot, "VerifyingSnapshot"}})
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     GetState::Out, node_id, state, last_signed_seqno, startup_seqno)
@@ -37,7 +28,7 @@ namespace ccf
     consensus_type,
     startup_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::In, certificate_signing_request)
+    JoinNetworkNodeToNode::In, certificate_signing_request, node_data)
 
   DECLARE_JSON_ENUM(
     ccf::IdentityType,
@@ -76,12 +67,13 @@ namespace ccf
     certificate_signing_request,
     node_endorsed_certificate,
     public_key,
-    network_cert,
+    service_cert,
     quote_info,
     public_encryption_key,
     code_digest,
     node_info_network)
-  DECLARE_JSON_OPTIONAL_FIELDS(CreateNetworkNodeToNode::In, genesis_info)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CreateNetworkNodeToNode::In, genesis_info, node_data)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)
@@ -99,7 +91,13 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNode::NodeInfo, node_id, status, primary, rpc_interfaces)
+    GetNode::NodeInfo,
+    node_id,
+    status,
+    primary,
+    rpc_interfaces,
+    node_data,
+    last_written)
 
   DECLARE_JSON_TYPE(GetNodes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)

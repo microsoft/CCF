@@ -7,14 +7,17 @@ import infra.logging_app as app
 import infra.utils
 import infra.github
 import infra.jwt_issuer
+import infra.crypto
 import cimetrics.env
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
 import time
+import datetime
 from e2e_logging import test_random_receipts
-from governance import test_all_nodes_cert_renewal
+from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
+from reconfiguration import test_migration_2tx_reconfiguration
 
 
 from loguru import logger as LOG
@@ -48,7 +51,7 @@ def issue_activity_on_live_service(network, args):
 def get_new_constitution_for_install(args, install_path):
     constitution_directory = os.path.join(
         install_path,
-        "../src/runtime_config/default"
+        "../samples/constitutions/default"
         if install_path == LOCAL_CHECKOUT_DIRECTORY
         else "bin",
     )
@@ -84,11 +87,16 @@ def test_new_service(
     new_constitution = get_new_constitution_for_install(args, install_path)
     network.consortium.set_constitution(primary, new_constitution)
 
+    all_nodes = network.get_joined_nodes()
+
     # Note: Changes to constitution between versions should be tested here
 
     LOG.info(f"Add node to new service [cycle nodes: {cycle_existing_nodes}]")
     nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
     nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
+
+    # Pre-2.0 nodes require X509 time format
+    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.now()))
 
     for _ in range(0, nodes_to_add_count):
         new_node = network.create_node(
@@ -98,10 +106,15 @@ def test_new_service(
             version=version,
         )
         network.join_node(new_node, args.package, args)
-        network.trust_node(new_node, args)
+        network.trust_node(
+            new_node,
+            args,
+            valid_from=valid_from,
+        )
         new_node.verify_certificate_validity_period(
             expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
         )
+        all_nodes.append(new_node)
 
     for node in nodes_to_cycle:
         network.retire_node(primary, node)
@@ -109,7 +122,27 @@ def test_new_service(
             primary, _ = network.wait_for_new_primary(primary)
         node.stop()
 
-    test_all_nodes_cert_renewal(network, args)
+    test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
+    test_service_cert_renewal(network, args, valid_from=valid_from)
+
+    LOG.info("Waiting for retired nodes to be automatically removed")
+    for node in all_nodes:
+        network.wait_for_node_in_store(
+            primary,
+            node.node_id,
+            node_status=ccf.ledger.NodeStatus.TRUSTED if node.is_joined() else None,
+        )
+
+    if args.check_2tx_reconfig_migration:
+        test_migration_2tx_reconfiguration(
+            network,
+            args,
+            initial_is_1tx=False,  # Reconfiguration type added in 2.x
+            binary_dir=binary_dir,
+            library_dir=library_dir,
+            version=version,
+            valid_from=valid_from,
+        )
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -125,7 +158,7 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
     )
 
 
-def set_js_args(args, from_install_path):
+def set_js_args(args, from_install_path, to_install_path=None):
     # Use from_version's app and constitution as new JS features may not be available
     # on older versions, but upgrade to the new constitution once the new network is ready
     js_app_directory = (
@@ -134,6 +167,10 @@ def set_js_args(args, from_install_path):
         else "samples/logging/js"
     )
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
+    if to_install_path:
+        args.new_js_app_bundle = os.path.join(
+            to_install_path, "../samples/apps/logging/js"
+        )
 
     get_new_constitution_for_install(args, from_install_path)
 
@@ -144,6 +181,7 @@ def run_code_upgrade_from(
     to_install_path,
     from_version=None,
     to_version=None,
+    from_container_image=None,
 ):
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
         from_install_path
@@ -152,7 +190,7 @@ def run_code_upgrade_from(
         to_install_path
     )
 
-    set_js_args(args, from_install_path)
+    set_js_args(args, from_install_path, to_install_path)
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
@@ -168,10 +206,11 @@ def run_code_upgrade_from(
             jwt_issuer=jwt_issuer,
             version=from_version,
         ) as network:
-            network.start_and_join(args)
+            network.start_and_open(args, node_container_image=from_container_image)
 
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
+            from_major_version = primary.major_version
 
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
@@ -197,8 +236,14 @@ def run_code_upgrade_from(
                 network.join_node(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
-                network.trust_node(new_node, args)
-                # For 2.x nodes joining a 1.x service before the constitution is update,
+                network.trust_node(
+                    new_node,
+                    args,
+                    valid_from=str(  # Pre-2.0 nodes require X509 time format
+                        infra.crypto.datetime_to_X509time(datetime.datetime.now())
+                    ),
+                )
+                # For 2.x nodes joining a 1.x service before the constitution is updated,
                 # the node certificate validity period is set by the joining node itself
                 # as [node startup time, node startup time + 365 days]
                 new_node.verify_certificate_validity_period(
@@ -232,23 +277,68 @@ def run_code_upgrade_from(
             primary, _ = network.find_primary()
             network.consortium.retire_code(primary, old_code_id)
 
-            for node in old_nodes:
+            for index, node in enumerate(old_nodes):
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
+                    # This block is here to test the transition period from a network that
+                    # does not support custom claims to one that does. It can be removed after
+                    # the transition is complete.
+                    #
+                    # The new build, being unreleased, doesn't have a version at all
+                    if not primary.major_version:
+                        LOG.info("Upgrade to new JS app")
+                        # Upgrade to a version of the app containing an endpoint that
+                        # registers custom claims
+                        network.consortium.set_js_app_from_dir(
+                            primary, args.new_js_app_bundle
+                        )
+                        LOG.info("Run transaction with additional claim")
+                        # With wait_for_sync, the client checks that all nodes, including
+                        # the minority of old ones, have acked the transaction
+                        msg_idx = network.txs.idx + 1
+                        txid = network.txs.issue(
+                            network, number_txs=1, record_claim=True, wait_for_sync=True
+                        )
+                        assert len(network.txs.pub[msg_idx]) == 1
+                        claims = network.txs.pub[msg_idx][-1]["msg"]
+
+                        LOG.info(
+                            "Check receipts are fine, including transaction with claims"
+                        )
+                        test_random_receipts(
+                            network,
+                            args,
+                            lts=True,
+                            additional_seqnos={txid.seqno: claims.encode()},
+                        )
+                        # Also check receipts on an old node
+                        if index + 1 < len(old_nodes):
+                            next_node = old_nodes[index + 1]
+                            test_random_receipts(
+                                network,
+                                args,
+                                lts=True,
+                                additional_seqnos={txid.seqno: None},
+                                node=next_node,
+                            )
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
+            primary, _ = network.find_nodes()
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
-            jwt_issuer.refresh_keys()
-            # Note: /gov/jwt_keys/all endpoint was added in 2.x
-            primary, _ = network.find_nodes()
-            if not primary.major_version or primary.major_version > 1:
-                jwt_issuer.wait_for_refresh(network)
+            if not os.getenv("CONTAINER_NODES"):
+                jwt_issuer.refresh_keys()
+                # Note: /gov/jwt_keys/all endpoint was added in 2.x
+                if not primary.major_version or primary.major_version > 1:
+                    jwt_issuer.wait_for_refresh(network)
+                else:
+                    time.sleep(3)
             else:
-                time.sleep(3)
+                # https://github.com/microsoft/CCF/issues/2608#issuecomment-924785744
+                LOG.warning("Skipping JWT refresh as running nodes in container")
 
             # Code update from 1.x to 2.x requires cycling the freshly-added 2.x nodes
             # once. This is because 2.x nodes will not have an endorsed certificate
@@ -265,55 +355,55 @@ def run_code_upgrade_from(
             )
 
             # Check that the ledger can be parsed
-            network.get_latest_ledger_public_state()
+            # Note: When upgrading from 1.x to 2.x, it is possible that ledger chunk are not
+            # in sync between nodes, which may cause some chunks to differ when starting
+            # from a snapshot. See https://github.com/microsoft/ccf/issues/3613. In such case,
+            # we only verify that the ledger can be parsed, even if some chunks are duplicated.
+            # This can go once 2.0 is released.
+            insecure_ledger_verification = (
+                from_major_version == 1 and primary.version_after("ccf-2.0.0-rc7")
+            )
+            network.get_latest_ledger_public_state(
+                insecure=insecure_ledger_verification
+            )
 
 
 @reqs.description("Run live compatibility with latest LTS")
-def run_live_compatibility_with_latest(args, repo, local_branch):
+def run_live_compatibility_with_latest(
+    args,
+    repo,
+    local_branch,
+    this_release_branch_only=False,
+    lts_install_path=None,
+    lts_container_image=None,
+):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
-    lts_version, lts_install_path = repo.install_latest_lts_for_branch(
-        os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch)
-    )
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
-    LOG.info(
-        f'From LTS {lts_version} to local "{local_branch}" branch (version: {local_major_version})'
-    )
+    if lts_install_path is None:
+        lts_version, lts_install_path = repo.install_latest_lts_for_branch(
+            os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
+            this_release_branch_only,
+        )
+    else:
+        lts_version = infra.github.get_version_from_install(lts_install_path)
+
+    if lts_version is None:
+        LOG.warning(
+            f"Latest LTS not found for {local_branch} branch (this_release_branch_only: {this_release_branch_only})"
+        )
+        return None
+
+    LOG.info(f"From LTS {lts_version} to local {local_branch} branch")
     if not args.dry_run:
         run_code_upgrade_from(
             args,
             from_install_path=lts_install_path,
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
             from_version=lts_version,
-            to_version=local_major_version,
-        )
-    return lts_version
-
-
-@reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_following(args, repo, local_branch):
-    """
-    Tests that a service from the local checkout can be safely upgraded to the version of
-    the next LTS.
-    """
-    lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
-    if lts_version is None:
-        LOG.warning(f"No next LTS for local {local_branch} branch")
-        return None
-
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
-    LOG.info(
-        f'From local "{local_branch}" branch (version: {local_major_version}) to LTS {lts_version}'
-    )
-    if not args.dry_run:
-        run_code_upgrade_from(
-            args,
-            from_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            to_install_path=lts_install_path,
-            from_version=local_major_version,
-            to_version=lts_version,
+            to_version=None,
+            from_container_image=lts_container_image,
         )
     return lts_version
 
@@ -330,7 +420,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
-    lts_releases = repo.get_lts_releases()
+    lts_releases = repo.get_lts_releases(local_branch)
+    has_pre_2_rc7_ledger = False
 
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
@@ -353,6 +444,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
             else:
                 version = args.ccf_version
                 install_path = LOCAL_CHECKOUT_DIRECTORY
+                get_new_constitution_for_install(args, install_path)
 
             binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
                 install_path
@@ -370,7 +462,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 if idx == 0:
                     LOG.info(f"Starting new service (version: {version})")
                     network = infra.network.Network(**network_args)
-                    network.start_and_join(args)
+                    network.start_and_open(args)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
@@ -421,11 +513,30 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
+                # We accept ledger chunk file differences during upgrades
+                # from 1.x to 2.x post rc7 ledger. This is necessary because
+                # the ledger files may not be chunked at the same interval
+                # between those versions (see https://github.com/microsoft/ccf/issues/3613;
+                # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
+                # This can go once 2.0 is released.
+                current_version_past_2_rc7 = primary.version_after("ccf-2.0.0-rc7")
+                has_pre_2_rc7_ledger = (
+                    not current_version_past_2_rc7 or has_pre_2_rc7_ledger
+                )
+                is_ledger_chunk_breaking = (
+                    has_pre_2_rc7_ledger and current_version_past_2_rc7
+                )
+
                 snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
+
+                network.stop_all_nodes(
+                    skip_verification=True,
+                    accept_ledger_diff=is_ledger_chunk_breaking,
+                )
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
-                network.stop_all_nodes(skip_verification=True)
+                network.save_service_identity(args)
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()
@@ -443,8 +554,23 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument("--check-ledger-compatibility", action="store_true")
+        parser.add_argument("--check-2tx-reconfig-migration", action="store_true")
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
+        )
+        # It is only possible to test compatibility with past releases since only the local infra
+        # is able to spawn old nodes
+        parser.add_argument(
+            "--release-install-path",
+            type=str,
+            help='Absolute path to existing CCF release, e.g. "/opt/ccf"',
+            default=None,
+        )
+        parser.add_argument(
+            "--release-install-image",
+            type=str,
+            help="If --release-install-path is set, specify a docker image to run release in (only if CONTAINER_NODES envvar is set) ",
+            default=None,
         )
         parser.add_argument("--dry-run", action="store_true")
 
@@ -463,6 +589,7 @@ if __name__ == "__main__":
     # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
     # current branch on any environment (either local checkout or CI run)
     env = cimetrics.env.get_env()
+    local_branch = env.branch
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
@@ -470,31 +597,51 @@ if __name__ == "__main__":
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
-    following_lts_version = run_live_compatibility_with_following(
-        args, repo, env.branch
-    )
-    compatibility_report["live compatibility"].update(
-        {"with latest": latest_lts_version}
-    )
-    compatibility_report["live compatibility"].update(
-        {"with following": following_lts_version}
-    )
+    if args.release_install_path:
+        version = run_live_compatibility_with_latest(
+            args,
+            repo,
+            local_branch,
+            lts_install_path=args.release_install_path,
+            lts_container_image=args.release_install_image,
+        )
+        compatibility_report["live compatibility"].update(
+            {f"with release ({args.release_install_path})": version}
+        )
+    else:
 
-    if args.check_ledger_compatibility:
-        compatibility_report["data compatibility"] = {}
-        lts_versions = run_ledger_compatibility_since_first(
-            args, env.branch, use_snapshot=False
+        # Compatibility with previous LTS
+        # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=False
         )
-        compatibility_report["data compatibility"].update(
-            {"with previous ledger": lts_versions}
+        compatibility_report["live compatibility"].update(
+            {"with previous LTS": latest_lts_version}
         )
-        lts_versions = run_ledger_compatibility_since_first(
-            args, env.branch, use_snapshot=True
+
+        # Compatibility with latest LTS on the same release branch
+        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=True
         )
-        compatibility_report["data compatibility"].update(
-            {"with previous snapshots": lts_versions}
+        compatibility_report["live compatibility"].update(
+            {"with same LTS": latest_lts_version}
         )
+
+        if args.check_ledger_compatibility:
+            compatibility_report["data compatibility"] = {}
+            lts_versions = run_ledger_compatibility_since_first(
+                args, local_branch, use_snapshot=False
+            )
+            compatibility_report["data compatibility"].update(
+                {"with previous ledger": lts_versions}
+            )
+            lts_versions = run_ledger_compatibility_since_first(
+                args, local_branch, use_snapshot=True
+            )
+            compatibility_report["data compatibility"].update(
+                {"with previous snapshots": lts_versions}
+            )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:

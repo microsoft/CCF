@@ -2,8 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
+
 #define FMT_HEADER_ONLY
-#include <crypto/pem.h>
+#include <chrono>
+#include <ds/x509_time_fmt.h>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
@@ -12,6 +15,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
@@ -23,6 +27,26 @@ namespace crypto
      * Generic OpenSSL error handling
      */
 
+    /// Returns the error string from an error code
+    inline std::string error_string(int ec)
+    {
+      // ERR_error_string doesn't really expect the code could actually be zero
+      // and uses the `static char buf[256]` which is NOT cleaned nor checked
+      // if it has changed. So we use ERR_error_string_n directly.
+      if (ec)
+      {
+        std::string err(256, '\0');
+        ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        // Remove any trailing NULs before returning
+        err.resize(std::strlen(err.c_str()));
+        return err;
+      }
+      else
+      {
+        return "unknown error";
+      }
+    }
+
     /// Throws if rc is 1 and has error
     inline void CHECK1(int rc)
     {
@@ -30,7 +54,7 @@ namespace crypto
       if (rc != 1 && ec != 0)
       {
         throw std::runtime_error(
-          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+          fmt::format("OpenSSL error: {}", error_string(ec)));
       }
     }
 
@@ -41,7 +65,7 @@ namespace crypto
       if (rc == 0 && ec != 0)
       {
         throw std::runtime_error(
-          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+          fmt::format("OpenSSL error: {}", error_string(ec)));
       }
     }
 
@@ -52,12 +76,6 @@ namespace crypto
       {
         throw std::runtime_error("OpenSSL error: missing object");
       }
-    }
-
-    /// Returns the error string from an error code
-    inline std::string error_string(int ec)
-    {
-      return ERR_error_string((unsigned long)ec, NULL);
     }
 
     /*
@@ -100,6 +118,11 @@ namespace crypto
       {
         return p.get();
       }
+      /// Reset pointer, free old if any
+      void reset(T* other)
+      {
+        p.reset(other);
+      }
       /// Release pointer, so it's freed elsewhere (CAUTION!)
       T* release()
       {
@@ -123,6 +146,32 @@ namespace crypto
       Unique_BIO(const Pem& pem) :
         Unique_SSL_OBJECT(
           BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
+      {}
+      Unique_BIO(SSL_CTX* ctx) :
+        Unique_SSL_OBJECT(
+          BIO_new_ssl_connect(ctx), [](auto x) { BIO_free_all(x); })
+      {}
+    };
+
+    struct Unique_SSL_CTX : public Unique_SSL_OBJECT<SSL_CTX, nullptr, nullptr>
+    {
+      Unique_SSL_CTX(const SSL_METHOD* m) :
+        Unique_SSL_OBJECT(SSL_CTX_new(m), SSL_CTX_free)
+      {}
+    };
+
+    struct Unique_SSL : public Unique_SSL_OBJECT<SSL, nullptr, nullptr>
+    {
+      Unique_SSL(SSL_CTX* ctx) : Unique_SSL_OBJECT(SSL_new(ctx), SSL_free) {}
+    };
+
+    struct Unique_PKEY
+      : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_PKEY(BIO* mem) :
+        Unique_SSL_OBJECT(
+          PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
       {}
     };
 
@@ -148,16 +197,29 @@ namespace crypto
       {}
     };
 
+    struct Unique_X509_CRL
+      : public Unique_SSL_OBJECT<X509_CRL, X509_CRL_new, X509_CRL_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_X509_CRL(BIO* mem) :
+        Unique_SSL_OBJECT(
+          PEM_read_bio_X509_CRL(mem, NULL, NULL, NULL), X509_CRL_free)
+      {}
+    };
+
     struct Unique_X509 : public Unique_SSL_OBJECT<X509, X509_new, X509_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
       // p == nullptr is OK (e.g. wrong format)
-      Unique_X509(BIO* mem, bool pem) :
+      Unique_X509(BIO* mem, bool pem, bool check_null = false) :
         Unique_SSL_OBJECT(
           pem ? PEM_read_bio_X509(mem, NULL, NULL, NULL) :
                 d2i_X509_bio(mem, NULL),
           X509_free,
-          /*check_null=*/false)
+          check_null)
+      {}
+      Unique_X509(X509* cert, bool check_null) :
+        Unique_SSL_OBJECT(cert, X509_free, check_null)
       {}
     };
 
@@ -226,12 +288,56 @@ namespace crypto
       Unique_X509_TIME(const std::string& s) :
         Unique_SSL_OBJECT(ASN1_TIME_new(), ASN1_TIME_free, /*check_null=*/false)
       {
-        CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
+        auto t = ds::to_x509_time_string(s);
+        CHECK1(ASN1_TIME_set_string(*this, t.c_str()));
         CHECK1(ASN1_TIME_normalize(*this));
       }
       Unique_X509_TIME(ASN1_TIME* t) :
         Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
       {}
+      Unique_X509_TIME(const std::chrono::system_clock::time_point& t) :
+        Unique_X509_TIME(ds::to_x509_time_string(t))
+      {}
+    };
+
+    struct Unique_BN_CTX
+      : public Unique_SSL_OBJECT<BN_CTX, BN_CTX_new, BN_CTX_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_EC_GROUP
+      : public Unique_SSL_OBJECT<EC_GROUP, nullptr, nullptr>
+    {
+      Unique_EC_GROUP(int nid) :
+        Unique_SSL_OBJECT(
+          EC_GROUP_new_by_curve_name(nid), EC_GROUP_free, /*check_null=*/true)
+      {}
+    };
+
+    struct Unique_EC_POINT
+      : public Unique_SSL_OBJECT<EC_POINT, nullptr, nullptr>
+    {
+      Unique_EC_POINT(EC_GROUP* group) :
+        Unique_SSL_OBJECT(
+          EC_POINT_new(group), EC_POINT_free, /*check_null=*/true)
+      {}
+    };
+
+    struct Unique_EC_KEY : public Unique_SSL_OBJECT<EC_KEY, nullptr, nullptr>
+    {
+      Unique_EC_KEY(int nid) :
+        Unique_SSL_OBJECT(
+          EC_KEY_new_by_curve_name(nid), EC_KEY_free, /*check_null=*/true)
+      {}
+    };
+
+    struct Unique_EVP_ENCODE_CTX : public Unique_SSL_OBJECT<
+                                     EVP_ENCODE_CTX,
+                                     EVP_ENCODE_CTX_new,
+                                     EVP_ENCODE_CTX_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     };
   }
 }

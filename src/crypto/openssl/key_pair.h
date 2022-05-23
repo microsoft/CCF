@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../key_pair.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/public_key.h"
+#include "crypto/openssl/public_key.h"
 #include "openssl_wrappers.h"
-#include "public_key.h"
 
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -16,12 +18,13 @@ namespace crypto
   public:
     KeyPair_OpenSSL(CurveID curve_id);
     KeyPair_OpenSSL(const KeyPair_OpenSSL&) = delete;
-    KeyPair_OpenSSL(const Pem& pem, CBuffer pw = nullb);
+    KeyPair_OpenSSL(const Pem& pem);
     virtual ~KeyPair_OpenSSL() = default;
 
     virtual Pem private_key_pem() const override;
     virtual Pem public_key_pem() const override;
     virtual std::vector<uint8_t> public_key_der() const override;
+    virtual std::vector<uint8_t> private_key_der() const override;
 
     using PublicKey_OpenSSL::verify;
 
@@ -36,10 +39,13 @@ namespace crypto
       size_t signature_size) override;
 
     virtual std::vector<uint8_t> sign(
-      CBuffer d, MDType md_type = {}) const override;
+      std::span<const uint8_t> d, MDType md_type = {}) const override;
 
     int sign(
-      CBuffer d, size_t* sig_size, uint8_t* sig, MDType md_type = {}) const;
+      std::span<const uint8_t> d,
+      size_t* sig_size,
+      uint8_t* sig,
+      MDType md_type = {}) const;
 
     std::vector<uint8_t> sign_hash(
       const uint8_t* hash, size_t hash_size) const override;
@@ -52,13 +58,22 @@ namespace crypto
 
     virtual Pem create_csr(
       const std::string& subject_name,
-      const std::vector<SubjectAltName>& subject_alt_names) const override;
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key = std::nullopt) const override;
 
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
+      const std::string& valid_from,
+      const std::string& valid_to,
       bool ca = false,
-      const std::optional<std::string>& valid_from = std::nullopt,
-      const std::optional<std::string>& valid_to = std::nullopt) const override;
+      Signer signer = Signer::SUBJECT) const override;
+
+    virtual std::vector<uint8_t> derive_shared_secret(
+      const PublicKey& peer_key) override;
+
+    virtual CurveID get_curve_id() const override;
+
+    virtual std::vector<uint8_t> public_key_raw() const override;
   };
 }

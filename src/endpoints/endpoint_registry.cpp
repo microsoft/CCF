@@ -4,6 +4,7 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "node/rpc/rpc_context_impl.h"
 
 namespace ccf::endpoints
 {
@@ -26,8 +27,9 @@ namespace ccf::endpoints
       // Make sure the
       // endpoint exists with minimal documentation, even if there are no more
       // informed schema builders
+
       auto& path_op = ds::openapi::path_operation(
-        ds::openapi::path(document, endpoint->dispatch.uri_path),
+        ds::openapi::path(document, endpoint->full_uri_path),
         http_verb.value());
 
       // Path Operation must contain at least one response - if none has been
@@ -93,6 +95,8 @@ namespace ccf::endpoints
       endpoint.dispatch.uri_path = fmt::format("/{}", method);
     }
     endpoint.dispatch.verb = verb;
+    endpoint.full_uri_path =
+      fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
     endpoint.func = f;
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded
@@ -172,8 +176,6 @@ namespace ccf::endpoints
 
   void EndpointRegistry::build_api(nlohmann::json& document, kv::ReadOnlyTx&)
   {
-    ds::openapi::server(document, fmt::format("/{}", method_prefix));
-
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
@@ -200,7 +202,7 @@ namespace ccf::endpoints
           parameter["required"] = true;
           parameter["schema"] = {{"type", "string"}};
           ds::openapi::add_path_parameter_schema(
-            document, endpoint->dispatch.uri_path, parameter);
+            document, endpoint->full_uri_path, parameter);
         }
       }
     }
@@ -209,7 +211,7 @@ namespace ccf::endpoints
   void EndpointRegistry::init_handlers() {}
 
   EndpointDefinitionPtr EndpointRegistry::find_endpoint(
-    kv::Tx&, enclave::RpcContext& rpc_ctx)
+    kv::Tx&, ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
 
@@ -245,7 +247,12 @@ namespace ccf::endpoints
             // error-reporting
             if (matches.size() == 0)
             {
-              auto& path_params = rpc_ctx.get_request_path_params();
+              auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+              if (ctx_impl == nullptr)
+              {
+                throw std::logic_error("Unexpected type of RpcContext");
+              }
+              auto& path_params = ctx_impl->path_params;
               for (size_t i = 0;
                    i < endpoint->spec.template_component_names.size();
                    ++i)
@@ -295,7 +302,7 @@ namespace ccf::endpoints
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
-    kv::Tx& tx, const enclave::RpcContext& rpc_ctx)
+    kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
 
@@ -346,7 +353,7 @@ namespace ccf::endpoints
   }
 
   // Default implementation does nothing
-  void EndpointRegistry::tick(std::chrono::milliseconds, size_t) {}
+  void EndpointRegistry::tick(std::chrono::milliseconds) {}
 
   void EndpointRegistry::set_consensus(kv::Consensus* c)
   {

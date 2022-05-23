@@ -68,7 +68,7 @@ def test_proposal_validation(network, args):
         assert_invalid_proposal(r)
 
         with open(
-            os.path.join(network.common_dir, "networkcert.pem"), "r", encoding="utf-8"
+            os.path.join(network.common_dir, "service_cert.pem"), "r", encoding="utf-8"
         ) as cert:
             valid_pem = cert.read()
 

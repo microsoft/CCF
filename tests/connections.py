@@ -9,12 +9,13 @@ import infra.interfaces
 import contextlib
 import resource
 import psutil
-from ccf.log_capture import flush_info
-from ccf.clients import CCFConnectionException
+from infra.log_capture import flush_info
+from infra.clients import CCFConnectionException
 import random
 import http
 import functools
 import httpx
+import os
 
 from loguru import logger as LOG
 
@@ -62,11 +63,16 @@ def run(args):
     # Chunk often, so that new fds are regularly requested
     args.ledger_chunk_bytes = "500B"
 
+    supp_file = os.path.join(
+        os.path.abspath(os.path.dirname(__file__)), "connections.supp"
+    )
+    args.ubsan_options = "suppressions=" + str(supp_file)
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, _ = network.find_nodes()
 
         caps = interface_caps(primary.local_node_id)

@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass
 from typing import Optional, Dict
+from enum import Enum, auto
 
 
 def split_address(addr, default_port=0):
@@ -14,11 +15,36 @@ def make_address(host, port=0):
     return f"{host}:{port}"
 
 
+DEFAULT_TRANSPORT_PROTOCOL = "tcp"
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 
+
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
+SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
+
+
+class EndorsementAuthority(Enum):
+    Service = auto()
+    Node = auto()
+
+
+@dataclass
+class Endorsement:
+    authority: EndorsementAuthority = EndorsementAuthority.Service
+
+    @staticmethod
+    def to_json(endorsement):
+        return {
+            "authority": endorsement.authority.name,
+        }
+
+    @staticmethod
+    def from_json(json):
+        endorsement = Endorsement()
+        endorsement.authority = json["authority"]
+        return endorsement
 
 
 @dataclass
@@ -29,24 +55,33 @@ class Interface:
 
 @dataclass
 class RPCInterface(Interface):
+    # How nodes are created (local, ssh, ...)
     protocol: str = "local"
+    # Underlying transport layer protocol (tcp, udp)
+    transport: str = "tcp"
+    # Host name/IP
     public_host: Optional[str] = None
+    # Host port
     public_port: Optional[int] = None
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
+    endorsement: Optional[Endorsement] = Endorsement()
 
     @staticmethod
     def to_json(interface):
         return {
             "bind_address": f"{interface.host}:{interface.port}",
+            "protocol": f"{interface.transport}",
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
+            "endorsement": Endorsement.to_json(interface.endorsement),
         }
 
     @staticmethod
     def from_json(json):
         interface = RPCInterface()
+        interface.transport = json.get("protocol", DEFAULT_TRANSPORT_PROTOCOL)
         interface.host, interface.port = split_address(json.get("bind_address"))
         published_address = json.get("published_address")
         if published_address is not None:
@@ -59,7 +94,17 @@ class RPCInterface(Interface):
         interface.max_open_sessions_hard = json.get(
             "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
         )
+        if "endorsement" in json:
+            interface.endorsement = Endorsement.from_json(json["endorsement"])
         return interface
+
+
+def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTERFACE):
+    return {
+        interface_name: RPCInterface(
+            endorsement=Endorsement(EndorsementAuthority.Node), transport=transport
+        )
+    }
 
 
 @dataclass
@@ -87,12 +132,25 @@ class HostSpec:
 
     @staticmethod
     def from_str(s):
+        # Format: local|ssh(,tcp|udp)://hostname:port
         protocol, address = s.split("://")
+        transport = DEFAULT_TRANSPORT_PROTOCOL
+        if "," in protocol:
+            protocol, transport = protocol.split(",")
+        pub_host, pub_port = None, None
+        if "," in address:
+            address, published_address = address.split(",")
+            pub_host, pub_port = split_address(published_address)
         host, port = split_address(address)
         return HostSpec(
             rpc_interfaces={
                 PRIMARY_RPC_INTERFACE: RPCInterface(
-                    protocol=protocol, host=host, port=port
+                    protocol=protocol,
+                    transport=transport,
+                    host=host,
+                    port=port,
+                    public_host=pub_host,
+                    public_port=pub_port,
                 )
             }
         )

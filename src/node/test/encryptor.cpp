@@ -8,7 +8,6 @@
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
-#include "node/entities.h"
 #include "node/ledger_secrets.h"
 
 #include <doctest/doctest.h>
@@ -228,7 +227,7 @@ TEST_CASE("Additional data")
     version,
     term));
 
-  // mbedtls 2.16+ does not produce plain text if decryption fails
+  // Check we do not produce plain text if decryption fails
   REQUIRE(decrypted_cipher2.empty());
 }
 

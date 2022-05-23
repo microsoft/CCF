@@ -17,7 +17,7 @@ namespace asynchost
   class NodeConnections
   {
   private:
-    class ConnectionBehaviour : public TCPBehaviour
+    class NodeConnectionBehaviour : public SocketBehaviour<TCP>
     {
     private:
     public:
@@ -26,14 +26,16 @@ namespace asynchost
       std::optional<size_t> msg_size = std::nullopt;
       std::vector<uint8_t> pending;
 
-      ConnectionBehaviour(
+      NodeConnectionBehaviour(
+        const char* name,
         NodeConnections& parent,
         std::optional<ccf::NodeId> node = std::nullopt) :
+        SocketBehaviour<TCP>(name, "TCP"),
         parent(parent),
         node(node)
       {}
 
-      void on_read(size_t len, uint8_t*& incoming)
+      void on_read(size_t len, uint8_t*& incoming, sockaddr)
       {
         LOG_DEBUG_FMT(
           "from node {} received {} bytes",
@@ -110,14 +112,14 @@ namespace asynchost
       virtual void associate_incoming(const ccf::NodeId&) {}
     };
 
-    class IncomingBehaviour : public ConnectionBehaviour
+    class NodeIncomingBehaviour : public NodeConnectionBehaviour
     {
     public:
       size_t id;
       std::optional<ccf::NodeId> node_id;
 
-      IncomingBehaviour(NodeConnections& parent, size_t id_) :
-        ConnectionBehaviour(parent),
+      NodeIncomingBehaviour(NodeConnections& parent, size_t id_) :
+        NodeConnectionBehaviour("Node Incoming", parent),
         id(id_)
       {}
 
@@ -159,11 +161,11 @@ namespace asynchost
       }
     };
 
-    class OutgoingBehaviour : public ConnectionBehaviour
+    class NodeOutgoingBehaviour : public NodeConnectionBehaviour
     {
     public:
-      OutgoingBehaviour(NodeConnections& parent, const ccf::NodeId& node) :
-        ConnectionBehaviour(parent, node)
+      NodeOutgoingBehaviour(NodeConnections& parent, const ccf::NodeId& node) :
+        NodeConnectionBehaviour("Node Outgoing", parent, node)
       {}
 
       void on_bind_failed() override
@@ -199,23 +201,21 @@ namespace asynchost
       }
     };
 
-    class NodeServerBehaviour : public TCPServerBehaviour
+    class NodeServerBehaviour : public SocketBehaviour<TCP>
     {
     public:
       NodeConnections& parent;
 
-      NodeServerBehaviour(NodeConnections& parent) : parent(parent) {}
-
-      void on_listening(
-        const std::string& host, const std::string& service) override
-      {
-        LOG_INFO_FMT("Listening for node-to-node on {}:{}", host, service);
-      }
+      NodeServerBehaviour(NodeConnections& parent) :
+        SocketBehaviour<TCP>("Node Server", "TCP"),
+        parent(parent)
+      {}
 
       void on_accept(TCP& peer) override
       {
         auto id = parent.get_next_id();
-        peer->set_behaviour(std::make_unique<IncomingBehaviour>(parent, id));
+        peer->set_behaviour(
+          std::make_unique<NodeIncomingBehaviour>(parent, id));
         parent.unassociated_incoming.emplace(id, peer);
         LOG_DEBUG_FMT("Accepted new incoming node connection ({})", id);
       }
@@ -244,7 +244,7 @@ namespace asynchost
       Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
-      std::string& service,
+      std::string& port,
       const std::optional<std::string>& client_interface = std::nullopt,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
         std::nullopt) :
@@ -254,9 +254,9 @@ namespace asynchost
       client_connection_timeout(client_connection_timeout_)
     {
       listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
-      listener->listen(host, service);
+      listener->listen(host, port);
       host = listener->get_host();
-      service = listener->get_service();
+      port = listener->get_port();
 
       register_message_handlers(disp);
     }
@@ -268,10 +268,10 @@ namespace asynchost
         disp,
         ccf::associate_node_address,
         [this](const uint8_t* data, size_t size) {
-          auto [node_id, hostname, service] =
+          auto [node_id, hostname, port] =
             ringbuffer::read_message<ccf::associate_node_address>(data, size);
 
-          node_addresses[node_id] = {hostname, service};
+          node_addresses[node_id] = {hostname, port};
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -301,8 +301,8 @@ namespace asynchost
                 return;
               }
 
-              const auto& [host, service] = address_it->second;
-              outbound_connection = create_connection(to, host, service);
+              const auto& [host, port] = address_it->second;
+              outbound_connection = create_connection(to, host, port);
               if (outbound_connection.is_null())
               {
                 LOG_FAIL_FMT(
@@ -339,8 +339,7 @@ namespace asynchost
             uint32_t frame = (uint32_t)size_to_send;
             std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
 
-            framed_entries =
-              ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
+            framed_entries = ledger.read_entries(ae.prev_idx + 1, ae.idx);
             if (framed_entries.has_value())
             {
               frame += (uint32_t)framed_entries->size();
@@ -381,21 +380,20 @@ namespace asynchost
     TCP create_connection(
       const ccf::NodeId& node_id,
       const std::string& host,
-      const std::string& service)
+      const std::string& port)
     {
       auto s = TCP(true, client_connection_timeout);
-      s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node_id));
+      s->set_behaviour(std::make_unique<NodeOutgoingBehaviour>(*this, node_id));
 
-      if (!s->connect(host, service, client_interface))
+      if (!s->connect(host, port, client_interface))
       {
-        LOG_FAIL_FMT(
-          "Failed to connect to {} on {}:{}", node_id, host, service);
+        LOG_FAIL_FMT("Failed to connect to {} on {}:{}", node_id, host, port);
         return nullptr;
       }
 
       connections.emplace(node_id, s);
       LOG_DEBUG_FMT(
-        "Added node connection with {} ({}:{})", node_id, host, service);
+        "Added node connection with {} ({}:{})", node_id, host, port);
 
       return s;
     }

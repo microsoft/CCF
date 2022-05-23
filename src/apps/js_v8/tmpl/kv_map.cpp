@@ -64,7 +64,7 @@ namespace ccf::v8_tmpl
 
     auto key = v8_util::get_array_buffer_data(buffer);
 
-    auto has = handle->has({key.p, key.p + key.n});
+    auto has = handle->has({key.data(), key.data() + key.size()});
     v8::Local<v8::Boolean> value = v8::Boolean::New(isolate, has);
     info.GetReturnValue().Set(value);
   }
@@ -91,7 +91,7 @@ namespace ccf::v8_tmpl
 
     auto key = v8_util::get_array_buffer_data(buffer);
 
-    auto val = handle->get({key.p, key.p + key.n});
+    auto val = handle->get({key.data(), key.data() + key.size()});
     v8::Local<v8::Value> value;
     if (!val.has_value())
       value = v8::Undefined(isolate);
@@ -171,7 +171,8 @@ namespace ccf::v8_tmpl
 
     auto key = v8_util::get_array_buffer_data(buffer);
 
-    auto val = handle->get_version_of_previous_write({key.p, key.p + key.n});
+    auto val = handle->get_version_of_previous_write(
+      {key.data(), key.data() + key.size()});
 
     v8::Local<v8::Value> value;
     if (!val.has_value())
@@ -223,7 +224,9 @@ namespace ccf::v8_tmpl
     auto key = v8_util::get_array_buffer_data(key_buffer);
     auto val = v8_util::get_array_buffer_data(val_buffer);
 
-    handle->put({key.p, key.p + key.n}, {val.p, val.p + val.n});
+    handle->put(
+      {key.data(), key.data() + key.size()},
+      {val.data(), val.data() + val.size()});
 
     info.GetReturnValue().Set(info.This());
   }
@@ -250,7 +253,7 @@ namespace ccf::v8_tmpl
 
     auto key = v8_util::get_array_buffer_data(buffer);
 
-    bool val = handle->remove({key.p, key.p + key.n});
+    bool val = handle->remove({key.data(), key.data() + key.size()});
     v8::Local<v8::Boolean> value = v8::Boolean::New(isolate, val);
     info.GetReturnValue().Set(value);
   }
@@ -371,7 +374,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> KVMapReadOnly::wrap(
-    v8::Local<v8::Context> context, KVMapHandle* map_handle)
+    v8::Local<v8::Context> context, KVMapReadOnlyHandle* map_handle)
   {
     return wrap_kv_map<KVMapReadOnly>(context, map_handle);
   }

@@ -93,7 +93,7 @@ if __name__ == "__main__":
         "maximum_node_certificate_validity_days": 365
     }
     output["command"]["join"] = {}
-    output["command"]["type"] = "start" if "start" in config.sections() else "join"
+    output["command"]["type"] = "Start" if "start" in config.sections() else "Join"
 
     LOG.info(f'Command type: {output["command"]["type"]}')
 
@@ -124,7 +124,7 @@ if __name__ == "__main__":
             elif k == "enclave_file":
                 output["enclave"]["file"] = v
             elif k == "enclave_type":
-                output["enclave"]["type"] = v
+                output["enclave"]["type"] = v.title()
 
             # network
             elif k == "rpc_address":
@@ -137,15 +137,15 @@ if __name__ == "__main__":
             elif k == "node_address":
                 output["network"]["node_to_node_interface"]["bind_address"] = v
             elif k == "network_cert_file":
-                output["network_certificate_file"] = v
+                output["command"]["service_certificate_file"] = v
 
             # node certificate
             elif k == "san":
-                output["node_certificate"][k] = json.loads(v)
+                output["node_certificate"]["subject_alt_names"] = json.loads(v)
             elif k == "sn":
-                output["node_certificate"][k] = v
+                output["node_certificate"]["subject_name"] = v
             elif k == "curve_id":
-                output["node_certificate"][k] = v
+                output["node_certificate"][k] = v.title()
 
             # ledger
             elif k == "ledger_dir":
@@ -163,9 +163,9 @@ if __name__ == "__main__":
 
             # logging
             elif k == "log_format_json":
-                output["logging"]["log_format"] = "json" if bool(v) else "text"
+                output["logging"]["format"] = "Json" if v else "Text"
             elif k == "host_log_level":
-                output["logging"]["host_level"] = v
+                output["logging"]["host_level"] = v.title()
 
             # consensus
             elif k == "consensus":

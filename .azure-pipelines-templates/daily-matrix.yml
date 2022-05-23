@@ -8,11 +8,11 @@ parameters:
       pool: 1es-dcv2-focal
     SGXIceLake:
       container: sgx
-      pool: 1es-dcv3-focal
+      pool: 1es-dcdv3-focal
 
   build:
     common:
-      cmake_args: "-DLONG_TESTS=ON"
+      cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON"
     NoSGX:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
@@ -21,6 +21,8 @@ parameters:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     V8Debug:
       cmake_args: "-DENABLE_V8=ON -DV8_DEBUG=ON"
+    unsafe:
+      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
 
 jobs:
   - job: "Make"
@@ -46,7 +48,7 @@ jobs:
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: "600"
+      ctest_timeout: "800"
 
   - template: common.yml
     parameters:
@@ -55,6 +57,15 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
+      ctest_filter: '-LE "benchmark|perf|rotation"'
+
+  - template: common.yml
+    parameters:
+      target: SGX
+      env: "${{ parameters.env.SGX }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
+      suffix: "Unsafe"
+      artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
 
   - template: common.yml

@@ -8,18 +8,24 @@ The CCF team welcome contributions to any part of the framework, including this 
 
 .. panels::
 
+    :fa:`user-check` :doc:`onboarding`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    :fa:`cloud` :doc:`/build_apps/create_vm`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    Getting started as a CCF contributor.
+
+    ---
+
+    :fa:`cloud` :doc:`create_vm`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Create a SGX-enabled Azure Virtual Machine.
 
     ---
 
-    :fa:`laptop-code` :doc:`/build_apps/build_setup`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`laptop-code` :doc:`build_setup`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Setup CCF environment to CCF from source.
+    Setup CCF environment to build CCF from source.
 
     ---
 
@@ -37,13 +43,6 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     ---
 
-    :fa:`map-marked-alt` :doc:`design/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Design documentation.
-
-    ---
-
     :fa:`cogs` :doc:`build_images`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -53,9 +52,9 @@ The CCF team welcome contributions to any part of the framework, including this 
     :maxdepth: 1
     :hidden:
 
-    /build_apps/create_vm
-    /build_apps/build_setup
+    onboarding
+    create_vm
+    build_setup
     build_ccf
     release_ccf
-    design/index
     build_images

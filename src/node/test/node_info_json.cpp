@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ds/logger.h"
-#include "node/node_info_network.h"
+#include "ccf/ds/logger.h"
+#include "ccf/service/node_info_network.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -22,10 +22,10 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
   current.node_to_node_interface.bind_address = node;
   current.rpc_interfaces.emplace(
     first_rpc_name,
-    ccf::NodeInfoNetwork::NetInterface{rpc_a, rpc_a_pub, 100, 200});
+    ccf::NodeInfoNetwork::NetInterface{rpc_a, rpc_a_pub, "tcp", 100, 200});
   current.rpc_interfaces.emplace(
     second_rpc_name,
-    ccf::NodeInfoNetwork::NetInterface{rpc_b, rpc_b_pub, 300, 400});
+    ccf::NodeInfoNetwork::NetInterface{rpc_b, rpc_b_pub, "udp", 300, 400});
 
   ccf::NodeInfoNetwork_v1 v1;
   std::tie(v1.nodehost, v1.nodeport) = ccf::split_net_address(node);
@@ -105,9 +105,10 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     // produced by the current format
     for (const auto& [k, v] : j2.items())
     {
+      auto& v_ = v;
       const auto it = j.find(k);
       REQUIRE(it != j.end());
-      REQUIRE(it.value() == v);
+      REQUIRE(it.value() == v_);
     }
   }
 }

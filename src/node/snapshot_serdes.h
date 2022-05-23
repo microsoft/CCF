@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
+#include "ccf/historical_queries_adapter.h"
+#include "ccf/service/tables/nodes.h"
 #include "ds/serialized.h"
-#include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
-#include "node/nodes.h"
-#include "node/service.h"
-#include "node/tx_receipt.h"
+#include "node/history.h"
+#include "node/tx_receipt_impl.h"
 
 #include <nlohmann/json.hpp>
 
@@ -62,7 +62,8 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
   {
     const auto* data = snapshot.data();
     auto size = snapshot.size();
@@ -78,10 +79,54 @@ namespace ccf
       auto receipt_size = size - store_snapshot_size;
 
       auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
-      auto receipt = j.get<Receipt>();
+      auto receipt_p = j.get<ReceiptPtr>();
+      auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
+      if (receipt == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Unexpected receipt type: missing expanded claims"));
+      }
 
-      auto root = compute_root_from_receipt(receipt);
-      auto raw_sig = crypto::raw_from_b64(receipt.signature);
+      auto snapshot_digest =
+        crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+      auto snapshot_digest_claim =
+        receipt->leaf_components.claims_digest.value();
+      if (snapshot_digest != snapshot_digest_claim)
+      {
+        throw std::logic_error(fmt::format(
+          "Snapshot digest ({}) does not match receipt claim ({})",
+          snapshot_digest,
+          snapshot_digest_claim));
+      }
+
+      auto root = receipt->calculate_root();
+      auto raw_sig = receipt->signature;
+
+      auto v = crypto::make_unique_verifier(receipt->cert);
+      if (!v->verify_hash(
+            root.h.data(),
+            root.h.size(),
+            receipt->signature.data(),
+            receipt->signature.size()))
+      {
+        throw std::logic_error(
+          "Signature verification failed for snapshot receipt");
+      }
+
+      if (prev_service_identity)
+      {
+        crypto::Pem prev_pem(*prev_service_identity);
+        if (!v->verify_certificate(
+              {&prev_pem},
+              {}, /* ignore_time */
+              true))
+        {
+          throw std::logic_error(
+            "Previous service identity does not endorse the node identity that "
+            "signed the snapshot");
+        }
+        LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
+      }
     }
 
     LOG_INFO_FMT(
@@ -99,33 +144,6 @@ namespace ccf
     LOG_INFO_FMT(
       "Snapshot successfully deserialised at seqno {}",
       store->current_version());
-
-    // Snapshots without a snapshot evidence seqno specified by the host should
-    // be self-verifiable with embedded receipt
-    if (!evidence_seqno.has_value())
-    {
-      auto receipt_data = data + store_snapshot_size;
-      auto receipt_size = size - store_snapshot_size;
-
-      auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
-      auto receipt = j.get<Receipt>();
-
-      auto root = compute_root_from_receipt(receipt);
-      auto raw_sig = crypto::raw_from_b64(receipt.signature);
-
-      if (!receipt.cert.has_value())
-      {
-        throw std::logic_error("Missing node certificate in snapshot receipt");
-      }
-
-      auto v = crypto::make_unique_verifier(receipt.cert.value());
-      if (!v->verify_hash(
-            root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
-      {
-        throw std::logic_error(
-          "Signature verification failed for snapshot receipt");
-      }
-    }
   };
 
   static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
@@ -134,10 +152,18 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    std::optional<std::vector<uint8_t>> previous_service_identity =
+      std::nullopt)
   {
     deserialise_snapshot(
-      store, snapshot, hooks, view_history, public_only, evidence_seqno);
+      store,
+      snapshot,
+      hooks,
+      view_history,
+      public_only,
+      evidence_seqno,
+      previous_service_identity);
     return std::make_unique<StartupSnapshotInfo>(
       store, std::move(snapshot), store->current_version(), evidence_seqno);
   }
@@ -147,16 +173,27 @@ namespace ccf
     const std::vector<uint8_t>& tree,
     const NodeId& node_id,
     const crypto::Pem& node_cert,
-    kv::Version seqno)
+    kv::Version seqno,
+    const crypto::Sha256Hash& write_set_digest,
+    const std::string& commit_evidence,
+    crypto::Sha256Hash&& claims_digest)
   {
     ccf::MerkleTreeHistory history(tree);
     auto proof = history.get_proof(seqno);
-    auto tx_receipt = ccf::TxReceipt(
-      sig, proof.get_root(), proof.get_path(), node_id, node_cert);
+    ccf::ClaimsDigest cd;
+    cd.set(std::move(claims_digest));
+    ccf::TxReceiptImpl tx_receipt(
+      sig,
+      proof.get_root(),
+      proof.get_path(),
+      node_id,
+      node_cert,
+      write_set_digest,
+      commit_evidence,
+      cd);
 
-    Receipt receipt;
-    tx_receipt.describe(receipt);
-    const auto receipt_str = nlohmann::json(receipt).dump();
+    auto receipt = ccf::describe_receipt_v1(tx_receipt);
+    const auto receipt_str = receipt.dump();
     return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
   }
 }

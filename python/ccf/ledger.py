@@ -21,6 +21,8 @@ from cryptography.hazmat.primitives.asymmetric import utils, ec
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
 import ccf.receipt
+from hashlib import sha256
+import functools
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -28,13 +30,14 @@ LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
 # Public table names as defined in CCF
-# https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
+RECOVERY_FILE_SUFFIX = ".recovery"
+IGNORED_FILE_SUFFIX = ".ignored"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -51,6 +54,28 @@ class NodeStatus(Enum):
 class EntryType(Enum):
     WRITE_SET = 0
     SNAPSHOT = 1
+    WRITE_SET_WITH_CLAIMS = 2
+    WRITE_SET_WITH_COMMIT_EVIDENCE = 3
+    WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS = 4
+
+    def has_claims(self):
+        return self in (
+            EntryType.WRITE_SET_WITH_CLAIMS,
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
+        )
+
+    def has_commit_evidence(self):
+        return self in (
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
+        )
+
+    def is_deprecated(self):
+        return self in (
+            EntryType.WRITE_SET,
+            EntryType.WRITE_SET_WITH_CLAIMS,
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
+        )
 
 
 def to_uint_64(buffer):
@@ -59,6 +84,12 @@ def to_uint_64(buffer):
 
 def is_ledger_chunk_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
+
+
+def digest(algo, data):
+    h = hashes.Hash(algo)
+    h.update(data)
+    return h.finalize()
 
 
 def unpack(stream, fmt):
@@ -81,6 +112,22 @@ def unpack_array(stream, fmt, length):
         except StopIteration:
             break
     return ret
+
+
+def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
+    elements = (
+        os.path.basename(filename)
+        .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace(RECOVERY_FILE_SUFFIX, "")
+        .replace("ledger_", "")
+        .split("-")
+    )
+    if len(elements) == 2:
+        return (int(elements[0]), int(elements[1]))
+    elif len(elements) == 1:
+        return (int(elements[0]), None)
+    else:
+        raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
 
 class GcmHeader:
@@ -112,6 +159,7 @@ class PublicDomain:
     _buffer: io.BytesIO
     _buffer_size: int
     _entry_type: EntryType
+    _claims_digest: bytes
     _version: int
     _max_conflict_version: int
     _tables: dict
@@ -121,6 +169,10 @@ class PublicDomain:
         self._buffer_size = self._buffer.getbuffer().nbytes
         self._entry_type = self._read_entry_type()
         self._version = self._read_version()
+        if self._entry_type.has_claims():
+            self._claims_digest = self._read_claims_digest()
+        if self._entry_type.has_commit_evidence():
+            self._commit_evidence_digest = self._read_commit_evidence_digest()
         self._max_conflict_version = self._read_version()
 
         if self._entry_type == EntryType.SNAPSHOT:
@@ -129,11 +181,18 @@ class PublicDomain:
         self._tables = {}
         self._read()
 
+    def is_deprecated(self):
+        return self._entry_type.is_deprecated()
+
     def _read_entry_type(self):
         val = unpack(self._buffer, "<B")
-        if val > EntryType.SNAPSHOT.value:
-            raise ValueError(f"Invalid EntryType: {val}")
         return EntryType(val)
+
+    def _read_claims_digest(self):
+        return self._buffer.read(hashes.SHA256.digest_size)
+
+    def _read_commit_evidence_digest(self):
+        return self._buffer.read(hashes.SHA256.digest_size)
 
     def _read_version(self):
         return unpack(self._buffer, "<q")
@@ -239,6 +298,22 @@ class PublicDomain:
         """
         return self._version
 
+    def get_claims_digest(self) -> Optional[bytes]:
+        """
+        Return the claims digest when there is one
+        """
+        return self._claims_digest if self._entry_type.has_claims() else None
+
+    def get_commit_evidence_digest(self) -> Optional[bytes]:
+        """
+        Return the commit evidence digest when there is one
+        """
+        return (
+            self._commit_evidence_digest
+            if self._entry_type.has_commit_evidence()
+            else None
+        )
+
 
 def _byte_read_safe(file, num_of_bytes):
     offset = file.tell()
@@ -290,23 +365,28 @@ class LedgerValidator:
         3) The merkle proof is correct for each set of transactions
     """
 
-    # Constant for the size of a hashed transaction
-    SHA_256_HASH_SIZE = 32
+    accept_deprecated_entry_types: bool = True
+    node_certificates: Dict[str, str] = {}
+    node_activity_status: Dict[str, Tuple[str, int]] = {}
+    signature_count: int = 0
 
-    def __init__(self):
-        self.node_certificates = {}
-        self.node_activity_status = {}
-        self.signature_count = 0
+    def __init__(self, accept_deprecated_entry_types: bool = True):
+        self.accept_deprecated_entry_types = accept_deprecated_entry_types
         self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
 
-        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of it's merkle tree.
+        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
-        empty_bytes_array = bytearray(self.SHA_256_HASH_SIZE)
+        empty_bytes_array = bytearray(hashes.SHA256.digest_size)
         self.merkle.add_leaf(empty_bytes_array, do_hash=False)
 
         self.last_verified_seqno = 0
         self.last_verified_view = 0
+
+        self.service_status = None
+
+    def last_verified_txid(self) -> TxID:
+        return TxID(self.last_verified_view, self.last_verified_seqno)
 
     def add_transaction(self, transaction):
         """
@@ -314,9 +394,12 @@ class LedgerValidator:
         Depending on the tables that were part of the transaction, it does different things.
         When transaction contains signature table, it starts the verification process and verifies that the root of merkle tree was signed by a node which was part of the network.
         It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.
+        Further, it validates all service status transitions.
         If any of the above checks fail, this method throws.
         """
         transaction_public_domain = transaction.get_public_domain()
+        if not self.accept_deprecated_entry_types:
+            assert not transaction_public_domain.is_deprecated()
         tables = transaction_public_domain.get_tables()
 
         # Add contributing nodes certs and update nodes network trust status for verification
@@ -325,6 +408,11 @@ class LedgerValidator:
             node_table = tables[NODES_TABLE_NAME]
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
+                if node_info is None:
+                    # Node has been removed from the store
+                    self.node_activity_status.pop(node_id)
+                    continue
+
                 node_info = json.loads(node_info)
                 # Add the self-signed node certificate (only available in 1.x,
                 # refer to node endorsed certificates table otherwise)
@@ -351,8 +439,12 @@ class LedgerValidator:
                 assert (
                     node_id not in node_certs
                 ), f"Only one of node self-signed certificate and endorsed certificate should be recorded for node {node_id}"
-                node_cert = endorsed_node_cert
-                self.node_certificates[node_id] = node_cert
+
+                if endorsed_node_cert is None:
+                    # Node has been removed from the store
+                    self.node_certificates.pop(node_id)
+                else:
+                    self.node_certificates[node_id] = endorsed_node_cert
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
@@ -383,19 +475,31 @@ class LedgerValidator:
                 # throws if ledger validation failed.
                 self._verify_tx_set(tx_info)
 
-                # Forget about nodes whose retirement has been committed
-                for node_id, (status, seqno) in list(self.node_activity_status.items()):
-                    if (
-                        status == NodeStatus.RETIRED.value
-                        and signature["commit_seqno"] >= seqno
-                    ):
-                        self.node_activity_status.pop(node_id)
-
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
 
+        # Check service status transitions
+        if SERVICE_INFO_TABLE_NAME in tables:
+            service_table = tables[SERVICE_INFO_TABLE_NAME]
+            updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+            updated_service_json = json.loads(updated_service)
+            updated_status = updated_service_json["status"]
+            if self.service_status == updated_status:
+                pass
+            elif self.service_status == "Opening":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Recovering":
+                assert updated_status in ["WaitingForRecoveryShares"]
+            elif self.service_status == "WaitingForRecoveryShares":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Open":
+                assert updated_status in ["Recovering"]
+            else:
+                assert self.service_status == None
+            self.service_status = updated_status
+
         # Checks complete, add this transaction to tree
-        self.merkle.add_leaf(transaction.get_raw_tx())
+        self.merkle.add_leaf(transaction.get_tx_digest(), False)
 
     def _verify_tx_set(self, tx_info: TxBundleInfo):
         """
@@ -556,6 +660,9 @@ class Entry:
             GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
         )
 
+    def get_transaction_header(self) -> TransactionHeader:
+        return self._header
+
 
 class Transaction(Entry):
     """
@@ -601,6 +708,25 @@ class Transaction(Entry):
             pos=self._tx_offset,
         )
 
+    def get_len(self) -> int:
+        return len(self.get_raw_tx())
+
+    def get_offsets(self) -> Tuple[int, int]:
+        return (self._tx_offset, self._next_offset)
+
+    def get_tx_digest(self) -> bytes:
+        claims_digest = self.get_public_domain().get_claims_digest()
+        commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
+        dgst = functools.partial(digest, hashes.SHA256())
+        write_set_digest = dgst(self.get_raw_tx())
+        if claims_digest is None:
+            if commit_evidence_digest is None:
+                return write_set_digest
+            else:
+                return dgst(write_set_digest + commit_evidence_digest)
+        else:
+            return dgst(write_set_digest + commit_evidence_digest + claims_digest)
+
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
         self._public_domain = None
@@ -645,7 +771,24 @@ class Snapshot(Entry):
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
             receipt = json.loads(receipt_bytes.decode("utf-8"))
-            root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+            # Receipts included in snapshots always contain leaf components,
+            # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
+            # This verification code deliberately does not support snapshots
+            # produced by 2.0.0-dev* releases.
+            assert "leaf_components" in receipt
+            write_set_digest = bytes.fromhex(
+                receipt["leaf_components"]["write_set_digest"]
+            )
+            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+            commit_evidence_digest = sha256(
+                receipt["leaf_components"]["commit_evidence"].encode()
+            ).digest()
+            leaf = (
+                sha256(write_set_digest + commit_evidence_digest + claims_digest)
+                .digest()
+                .hex()
+            )
+            root = ccf.receipt.root(leaf, receipt["proof"])
             node_cert = load_pem_x509_certificate(
                 receipt["cert"].encode(), default_backend()
             )
@@ -659,6 +802,9 @@ class Snapshot(Entry):
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+
+    def get_len(self) -> int:
+        return self._file_size
 
 
 class LedgerChunk:
@@ -678,6 +824,7 @@ class LedgerChunk:
         self._current_tx = Transaction(name, ledger_validator)
         self._pos_offset = self._current_tx._pos_offset
         self._filename = name
+        self.start_seqno, self.end_seqno = range_from_filename(name)
 
     def __next__(self) -> Transaction:
         return next(self._current_tx)
@@ -694,6 +841,36 @@ class LedgerChunk:
     def is_complete(self):
         return self._pos_offset > 0
 
+    def get_seqnos(self):
+        return self.start_seqno, self.end_seqno
+
+
+class LedgerIterator:
+    _filenames: list
+    _fileindex: int = -1
+    _current_chunk: LedgerChunk
+    _validator: Optional[LedgerValidator] = None
+
+    def __init__(self, filenames: list, validator: Optional[LedgerValidator] = None):
+        self._filenames = filenames
+        self._validator = validator
+
+    def __next__(self) -> LedgerChunk:
+        self._fileindex += 1
+        if len(self._filenames) > self._fileindex:
+            self._current_chunk = LedgerChunk(
+                self._filenames[self._fileindex], self._validator
+            )
+            return self._current_chunk
+        else:
+            raise StopIteration
+
+    def signature_count(self) -> int:
+        return self._validator.signature_count if self._validator else 0
+
+    def last_verified_txid(self) -> Optional[TxID]:
+        return self._validator.last_verified_txid() if self._validator else None
+
 
 class Ledger:
     """
@@ -703,79 +880,82 @@ class Ledger:
     """
 
     _filenames: list
-    _fileindex: int
-    _current_chunk: LedgerChunk
-    _ledger_validator: LedgerValidator
+    _validator: Optional[LedgerValidator]
 
-    def _reset_iterators(self):
-        self._fileindex = -1
-        # Initialize LedgerValidator instance which will be passed to LedgerChunks.
-        self._ledger_validator = LedgerValidator()
-
-    @classmethod
-    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
-        elements = (
-            os.path.basename(filename)
-            .replace(COMMITTED_FILE_SUFFIX, "")
-            .replace("ledger_", "")
-            .split("-")
-        )
-        if len(elements) == 2:
-            return (int(elements[0]), int(elements[1]))
-        elif len(elements) == 1:
-            return (int(elements[0]), None)
-        else:
-            assert False, elements
-
-    def __init__(self, directories: List[str], committed_only: bool = True):
+    def __init__(
+        self,
+        paths: List[str],
+        committed_only: bool = True,
+        read_recovery_files: bool = False,
+        validator: Optional[LedgerValidator] = None,
+    ):
 
         self._filenames = []
 
         ledger_files: List[str] = []
-        for directory in directories:
-            for path in os.listdir(directory):
-                if committed_only and not path.endswith(COMMITTED_FILE_SUFFIX):
-                    continue
-                chunk = os.path.join(directory, path)
-                # The same ledger file may appear multiple times in different directories
-                # so ignore duplicates
-                if (
-                    os.path.isfile(chunk)
-                    and not path.endswith(".corrupted")
-                    and not path.endswith(".ignored")
-                    and not any(os.path.basename(chunk) in f for f in ledger_files)
-                ):
-                    ledger_files.append(chunk)
+
+        def try_add_chunk(path):
+            sanitised_path = path
+            if path.endswith(RECOVERY_FILE_SUFFIX):
+                sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
+                if not read_recovery_files:
+                    return
+
+            if path.endswith(IGNORED_FILE_SUFFIX):
+                return
+
+            if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
+                return
+
+            # The same ledger file may appear multiple times in different directories
+            # so ignore duplicates
+            if os.path.isfile(path) and not any(
+                os.path.basename(path) in f for f in ledger_files
+            ):
+                ledger_files.append(path)
+
+        for p in paths:
+            if os.path.isdir(p):
+                for path in os.listdir(p):
+                    chunk = os.path.join(p, path)
+                    try_add_chunk(chunk)
+            elif os.path.isfile(p):
+                try_add_chunk(p)
+            else:
+                raise ValueError(f"{p} is not a ledger directory or ledger chunk")
 
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: Ledger._range_from_filename(x)[0],
+            key=lambda x: range_from_filename(x)[0],
         )
 
-        self._reset_iterators()
+        # If we do not have a single contiguous range, report an error
+        for file_a, file_b in zip(self._filenames[:-1], self._filenames[1:]):
+            range_a = range_from_filename(file_a)
+            range_b = range_from_filename(file_b)
+            if range_a[1] is None and range_b[1] is not None:
+                raise ValueError(
+                    f"Ledger cannot parse committed chunk {file_b} following uncommitted chunk {file_a}"
+                )
+            if validator and range_a[1] is not None and range_a[1] + 1 != range_b[0]:
+                raise ValueError(
+                    f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
+                )
+
+        self._validator = validator
 
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
         last_chunk_name = self._filenames[-1]
-        return Ledger._range_from_filename(last_chunk_name)
-
-    def __next__(self) -> LedgerChunk:
-        self._fileindex += 1
-        if len(self._filenames) > self._fileindex:
-            self._current_chunk = LedgerChunk(
-                self._filenames[self._fileindex], self._ledger_validator
-            )
-            return self._current_chunk
-        else:
-            raise StopIteration
+        return range_from_filename(last_chunk_name)
 
     def __len__(self):
         return len(self._filenames)
 
     def __iter__(self):
-        return self
+        return LedgerIterator(self._filenames, self._validator)
 
     def get_transaction(self, seqno: int) -> Transaction:
         """
@@ -791,19 +971,15 @@ class Ledger:
         if seqno < 1:
             raise ValueError("Ledger first seqno is 1")
 
-        self._reset_iterators()
-
         transaction = None
-        try:
-            # Note: This is slower than it really needs to as this will walk through
-            # all transactions from the start of the ledger.
-            for chunk in self:
-                for tx in chunk:
-                    public_transaction = tx.get_public_domain()
-                    if public_transaction.get_seqno() == seqno:
-                        return tx
-        finally:
-            self._reset_iterators()
+        for chunk in self:
+            _, chunk_end = chunk.get_seqnos()
+            for tx in chunk:
+                if chunk_end and chunk_end < seqno:
+                    continue
+                public_transaction = tx.get_public_domain()
+                if public_transaction.get_seqno() == seqno:
+                    return tx
 
         if transaction is None:
             raise UnknownTransaction(
@@ -820,7 +996,6 @@ class Ledger:
 
         :return: Tuple[Dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.
         """
-        self._reset_iterators()
 
         public_tables: Dict[str, Dict] = {}
         latest_seqno = 0
@@ -841,28 +1016,8 @@ class Ledger:
 
         return public_tables, latest_seqno
 
-    def signature_count(self) -> int:
-        """
-        Return the number of verified signature transactions in the *parsed* ledger.
-
-        Note: The ledger should first be parsed before calling this function.
-
-        :return int: Number of verified signature transactions.
-        """
-        return self._ledger_validator.signature_count
-
-    def last_verified_txid(self) -> TxID:
-        """
-        Return the :py:class:`ccf.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
-
-        Note: The ledger should first be parsed before calling this function.
-
-        :return: :py:class:`ccf.tx_id.TxID`
-        """
-        return TxID(
-            self._ledger_validator.last_verified_view,
-            self._ledger_validator.last_verified_seqno,
-        )
+    def validator(self):
+        return self._validator
 
 
 class InvalidRootException(Exception):

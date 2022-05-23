@@ -7,8 +7,9 @@
 
 #include "node/historical_queries.h"
 
-#include "crypto/rsa_key_pair.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ds/messaging.h"
+#include "ds/test/stub_writer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
@@ -24,52 +25,13 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 using NumToString = kv::Map<size_t, std::string>;
 
-struct StubWriter : public ringbuffer::AbstractWriter
-{
-public:
-  struct Write
-  {
-    ringbuffer::Message m;
-    bool finished;
-    std::vector<uint8_t> contents;
-  };
-  std::mutex writes_mutex;
-  std::vector<Write> writes;
+constexpr size_t certificate_validity_period_days = 365;
+using namespace std::literals;
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
-  Write& get_write(const WriteMarker& marker)
-  {
-    REQUIRE(marker.has_value());
-    REQUIRE(marker.value() < writes.size());
-    return writes[marker.value()];
-  }
-
-  WriteMarker prepare(
-    ringbuffer::Message m,
-    size_t size,
-    bool wait = true,
-    size_t* identifier = nullptr) override
-  {
-    std::lock_guard<std::mutex> guard(writes_mutex);
-    const auto seqno = writes.size();
-    writes.push_back(Write{m, false, {}});
-    return seqno;
-  }
-
-  void finish(const WriteMarker& marker) override
-  {
-    std::lock_guard<std::mutex> guard(writes_mutex);
-    get_write(marker).finished = true;
-  }
-
-  WriteMarker write_bytes(
-    const WriteMarker& marker, const uint8_t* bytes, size_t size) override
-  {
-    std::lock_guard<std::mutex> guard(writes_mutex);
-    auto& write = get_write(marker);
-    write.contents.insert(write.contents.end(), bytes, bytes + size);
-    return marker;
-  }
-};
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
 
 struct TestState
 {
@@ -84,6 +46,8 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
 
   ts.kv_store = std::make_shared<kv::Store>();
   ts.kv_store->set_consensus(std::make_shared<kv::test::StubConsensus>());
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ts.kv_store->set_encryptor(encryptor);
 
   ts.node_kp = crypto::make_key_pair();
 
@@ -99,7 +63,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto tx = ts.kv_store->create_tx();
     auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
     ccf::NodeInfo ni;
-    ni.cert = ts.node_kp->self_sign("CN=Test node");
+    ni.cert = ts.node_kp->self_sign("CN=Test node", valid_from, valid_to);
     ni.status = ccf::NodeStatus::TRUSTED;
     nodes->put(node_id, ni);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
@@ -128,7 +92,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
     auto kp = crypto::make_key_pair();
-    auto cert = kp->self_sign("CN=member");
+    auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
 
@@ -204,8 +168,7 @@ kv::Version rekey(
   return tx_version;
 }
 
-void validate_business_transaction(
-  ccf::historical::StorePtr store, ccf::SeqNo seqno)
+void validate_business_transaction(kv::ReadOnlyStorePtr store, ccf::SeqNo seqno)
 {
   REQUIRE(store != nullptr);
 
@@ -240,9 +203,9 @@ void validate_business_transaction(
   REQUIRE(state->receipt != nullptr);
 
   const auto state_txid = state->transaction_id;
-  const auto store_txid = state->store->current_txid();
-  REQUIRE(state_txid.view == store_txid.term);
-  REQUIRE(state_txid.seqno == store_txid.version);
+  const auto store_txid = state->store->get_txid();
+  REQUIRE(state_txid.view == store_txid.view);
+  REQUIRE(state_txid.seqno == store_txid.seqno);
 }
 
 std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
@@ -321,8 +284,11 @@ TEST_CASE("StateCache point queries")
       const uint8_t* data = write.contents.data();
       size_t size = write.contents.size();
       REQUIRE(write.m == consensus::ledger_get_range);
-      auto [from_seqno, to_seqno, purpose] =
+      auto [from_seqno_, to_seqno_, purpose_] =
         ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+      auto& purpose = purpose_;
+      auto& from_seqno = from_seqno_;
+      auto& to_seqno = to_seqno_;
       REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
       REQUIRE(from_seqno == to_seqno);
       actual.insert(from_seqno);
@@ -685,6 +651,14 @@ TEST_CASE("StateCache get store vs get state")
       cache.drop_cached_states(default_handle);
     }
   }
+
+  {
+    INFO("Empty ranges are an error");
+
+    const ccf::SeqNoCollection empty{};
+    REQUIRE_THROWS(cache.get_stores_for(default_handle, empty));
+    REQUIRE_THROWS(cache.get_states_for(default_handle, empty));
+  }
 }
 
 TEST_CASE("StateCache range queries")
@@ -766,7 +740,7 @@ TEST_CASE("StateCache range queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->current_version();
+        const auto seqno = store->get_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -853,59 +827,58 @@ TEST_CASE("StateCache sparse queries")
   std::random_device rd;
   std::mt19937 g(rd());
   auto next_handle = 0;
-  auto fetch_and_validate_sparse_set =
-    [&](const ccf::historical::SeqNoCollection& seqnos) {
-      const auto this_handle = next_handle++;
-      {
-        auto stores = cache.get_stores_for(this_handle, seqnos);
-        REQUIRE(stores.empty());
-      }
+  auto fetch_and_validate_sparse_set = [&](const ccf::SeqNoCollection& seqnos) {
+    const auto this_handle = next_handle++;
+    {
+      auto stores = cache.get_stores_for(this_handle, seqnos);
+      REQUIRE(stores.empty());
+    }
 
-      // Cache is robust to receiving these out-of-order, so stress that by
-      // submitting out-of-order
-      std::vector<ccf::SeqNo> to_provide;
-      for (auto it = seqnos.begin(); it != seqnos.end(); ++it)
-      {
-        to_provide.emplace_back(*it);
-      }
-      std::shuffle(to_provide.begin(), to_provide.end(), g);
+    // Cache is robust to receiving these out-of-order, so stress that by
+    // submitting out-of-order
+    std::vector<ccf::SeqNo> to_provide;
+    for (auto it = seqnos.begin(); it != seqnos.end(); ++it)
+    {
+      to_provide.emplace_back(*it);
+    }
+    std::shuffle(to_provide.begin(), to_provide.end(), g);
 
-      for (const auto seqno : to_provide)
-      {
-        // Some of these may be unrequested since they overlapped with the
-        // previous range so are already known. Provide them all blindly for
-        // simplicity, and make no assertion on the return code.
-        provide_ledger_entry(seqno);
-      }
+    for (const auto seqno : to_provide)
+    {
+      // Some of these may be unrequested since they overlapped with the
+      // previous range so are already known. Provide them all blindly for
+      // simplicity, and make no assertion on the return code.
+      provide_ledger_entry(seqno);
+    }
 
-      {
-        auto stores = cache.get_stores_for(this_handle, seqnos);
-        REQUIRE(!stores.empty());
+    {
+      auto stores = cache.get_stores_for(this_handle, seqnos);
+      REQUIRE(!stores.empty());
 
-        const auto range_size = to_provide.size();
-        REQUIRE(stores.size() == range_size);
-        for (auto& store : stores)
+      const auto range_size = to_provide.size();
+      REQUIRE(stores.size() == range_size);
+      for (auto& store : stores)
+      {
+        REQUIRE(store != nullptr);
+        const auto seqno = store->get_txid().seqno;
+
+        // Don't validate anything about signature transactions, just the
+        // business transactions between them
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), seqno) ==
+          signature_versions.end())
         {
-          REQUIRE(store != nullptr);
-          const auto seqno = store->current_version();
-
-          // Don't validate anything about signature transactions, just the
-          // business transactions between them
-          if (
-            std::find(
-              signature_versions.begin(), signature_versions.end(), seqno) ==
-            signature_versions.end())
-          {
-            validate_business_transaction(store, seqno);
-          }
+          validate_business_transaction(store, seqno);
         }
       }
-    };
+    }
+  };
 
   {
     INFO("Fetch a single explicit sparse set");
 
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(4);
     seqnos.insert(5);
     seqnos.insert(7);
@@ -924,7 +897,7 @@ TEST_CASE("StateCache sparse queries")
       "signatures");
     for (size_t n = 0; n < 10; ++n)
     {
-      ccf::historical::SeqNoCollection seqnos;
+      ccf::SeqNoCollection seqnos;
       for (auto seqno = begin_seqno; seqno < end_seqno; ++seqno)
       {
         if (rand() % 3 == 0)
@@ -993,8 +966,9 @@ TEST_CASE("StateCache concurrent access")
         auto size = write.contents.size();
         if (write.m == consensus::ledger_get_range)
         {
-          const auto [from_seqno, to_seqno, purpose] =
+          const auto [from_seqno, to_seqno, purpose_] =
             ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+          auto& purpose = purpose_;
           REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
 
           std::vector<uint8_t> combined;
@@ -1070,11 +1044,11 @@ TEST_CASE("StateCache concurrent access")
     };
 
   auto validate_all_stores =
-    [&](const std::vector<ccf::historical::StorePtr>& stores) {
+    [&](const std::vector<kv::ReadOnlyStorePtr>& stores) {
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->current_version();
+        const auto seqno = store->get_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
@@ -1090,7 +1064,7 @@ TEST_CASE("StateCache concurrent access")
       for (auto& state : states)
       {
         REQUIRE(state != nullptr);
-        const auto seqno = state->store->current_version();
+        const auto seqno = state->store->get_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
@@ -1103,7 +1077,7 @@ TEST_CASE("StateCache concurrent access")
 
   auto query_random_point_store =
     [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
-      ccf::historical::StorePtr store;
+      kv::ReadOnlyStorePtr store;
       auto fetch_result = [&]() {
         store = cache.get_store_at(handle, target_seqno);
       };
@@ -1130,7 +1104,7 @@ TEST_CASE("StateCache concurrent access")
                                      ccf::SeqNo range_end,
                                      size_t handle,
                                      const auto& error_printer) {
-    std::vector<ccf::historical::StorePtr> stores;
+    std::vector<kv::ReadOnlyStorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_store_range(handle, range_start, range_end);
     };
@@ -1155,35 +1129,33 @@ TEST_CASE("StateCache concurrent access")
     validate_all_states(states);
   };
 
-  auto query_random_sparse_set_stores =
-    [&](
-      const ccf::historical::SeqNoCollection& seqnos,
-      size_t handle,
-      const auto& error_printer) {
-      std::vector<ccf::historical::StorePtr> stores;
-      auto fetch_result = [&]() {
-        stores = cache.get_stores_for(handle, seqnos);
-      };
-      auto check_result = [&]() { return !stores.empty(); };
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-      REQUIRE(stores.size() == seqnos.size());
-      validate_all_stores(stores);
+  auto query_random_sparse_set_stores = [&](
+                                          const ccf::SeqNoCollection& seqnos,
+                                          size_t handle,
+                                          const auto& error_printer) {
+    std::vector<kv::ReadOnlyStorePtr> stores;
+    auto fetch_result = [&]() {
+      stores = cache.get_stores_for(handle, seqnos);
     };
+    auto check_result = [&]() { return !stores.empty(); };
+    REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+    REQUIRE(stores.size() == seqnos.size());
+    validate_all_stores(stores);
+  };
 
-  auto query_random_sparse_set_states =
-    [&](
-      const ccf::historical::SeqNoCollection& seqnos,
-      size_t handle,
-      const auto& error_printer) {
-      std::vector<ccf::historical::StatePtr> states;
-      auto fetch_result = [&]() {
-        states = cache.get_states_for(handle, seqnos);
-      };
-      auto check_result = [&]() { return !states.empty(); };
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-      REQUIRE(states.size() == seqnos.size());
-      validate_all_states(states);
+  auto query_random_sparse_set_states = [&](
+                                          const ccf::SeqNoCollection& seqnos,
+                                          size_t handle,
+                                          const auto& error_printer) {
+    std::vector<ccf::historical::StatePtr> states;
+    auto fetch_result = [&]() {
+      states = cache.get_states_for(handle, seqnos);
     };
+    auto check_result = [&]() { return !states.empty(); };
+    REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+    REQUIRE(states.size() == seqnos.size());
+    validate_all_states(states);
+  };
 
   auto run_n_queries = [&](size_t handle) {
     std::vector<std::string> previously_requested;
@@ -1246,7 +1218,7 @@ TEST_CASE("StateCache concurrent access")
           {
             std::swap(range_start, range_end);
           }
-          ccf::historical::SeqNoCollection seqnos;
+          ccf::SeqNoCollection seqnos;
           seqnos.insert(range_start);
           for (auto i = range_start; i != range_end; ++i)
           {
@@ -1294,7 +1266,7 @@ TEST_CASE("StateCache concurrent access")
     };
     previously_requested.push_back("A");
     query_random_range_states(9, 12, handle, error_printer);
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(3);
     seqnos.insert(9);
     seqnos.insert(12);
@@ -1320,7 +1292,7 @@ TEST_CASE("StateCache concurrent access")
     auto error_printer = [&]() {
       default_error_printer(handle, i, previously_requested);
     };
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(4);
     seqnos.insert(5);
     seqnos.insert(7);
@@ -1341,7 +1313,7 @@ TEST_CASE("StateCache concurrent access")
       default_error_printer(handle, i, previously_requested);
     };
     {
-      ccf::historical::SeqNoCollection seqnos;
+      ccf::SeqNoCollection seqnos;
       seqnos.insert(14);
       seqnos.insert(16);
       seqnos.insert(17);
@@ -1352,7 +1324,7 @@ TEST_CASE("StateCache concurrent access")
       query_random_sparse_set_states(seqnos, handle, error_printer);
     }
     {
-      ccf::historical::SeqNoCollection seqnos;
+      ccf::SeqNoCollection seqnos;
       seqnos.insert(6);
       seqnos.insert(7);
       seqnos.insert(8);
@@ -1377,7 +1349,7 @@ TEST_CASE("StateCache concurrent access")
     auto error_printer = [&]() {
       default_error_printer(handle, i, previously_requested);
     };
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(22);
     seqnos.insert(23);
     previously_requested.push_back("A");

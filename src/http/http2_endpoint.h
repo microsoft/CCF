@@ -2,15 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
 #include "http2.h"
 #include "http_rpc_context.h"
+#include "error_reporter.h"
 
 namespace http
 {
-  class HTTP2Endpoint : public enclave::TLSEndpoint
+  class HTTP2Endpoint : public ccf::TLSEndpoint
   {
   protected:
     http2::Session& session;
@@ -31,7 +32,7 @@ namespace http
         ->recv_(msg->data.data.data(), msg->data.data.size());
     }
 
-    void recv(const uint8_t* data, size_t size) override
+    void recv(const uint8_t* data, size_t size, sockaddr) override
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
@@ -96,20 +97,21 @@ namespace http
   private:
     http2::ServerSession server_session;
 
-    std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::shared_ptr<enclave::RpcHandler> handler;
-    std::shared_ptr<enclave::SessionContext> session_ctx;
+    std::shared_ptr<ccf::RPCMap> rpc_map;
+    std::shared_ptr<ccf::RpcHandler> handler;
+    std::shared_ptr<ccf::SessionContext> session_ctx;
     int64_t session_id;
-    enclave::ListenInterfaceID interface_id;
-    size_t request_index = 0;
+    ccf::ListenInterfaceID interface_id;
 
   public:
     HTTP2ServerEndpoint(
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       int64_t session_id,
-      const enclave::ListenInterfaceID& interface_id,
+      const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
+      std::unique_ptr<tls::Context> ctx,
+      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) // TODO: Store
+        :
       HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
       server_session(*this, *this), // TODO: Ugly! but currently necessary to be
                                     // able to write back to the ring buffer
@@ -118,7 +120,7 @@ namespace http
       interface_id(interface_id)
     {}
 
-    void send(std::vector<uint8_t>&& data) override
+    void send(std::vector<uint8_t>&& data, sockaddr) override
     {
       send_raw(std::move(data));
     }
@@ -141,14 +143,13 @@ namespace http
         if (session_ctx == nullptr)
         {
           session_ctx =
-            std::make_shared<enclave::SessionContext>(session_id, peer_cert());
+            std::make_shared<ccf::SessionContext>(session_id, peer_cert());
         }
 
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            request_index++,
             session_ctx,
             verb,
             url,
@@ -227,7 +228,7 @@ namespace http
   };
 
   class HTTP2ClientEndpoint : public HTTP2Endpoint,
-                              public enclave::ClientEndpoint,
+                              public ccf::ClientEndpoint,
                               public http::ResponseProcessor
   {
   private:
@@ -247,7 +248,7 @@ namespace http
       send_raw(std::move(data));
     }
 
-    void send(std::vector<uint8_t>&&) override
+    void send(std::vector<uint8_t>&&, sockaddr) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");

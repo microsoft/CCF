@@ -115,19 +115,6 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 
 **Value** Node service-endorsed certificate, represented as a PEM-encoded string.
 
-``nodes.network.configurations``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The currently valid and in-flight network configurations of the network. The entry at 0 contains a dummy configuration that holds the largest ID used so far.
-
-**Key** Reconfiguration ID: a unique identifier of a configuration, represented as a little-endian 64-bit unsigned integer.
-
-**Value** A set of node IDs of the nodes in the respective configuration, represented as a JSON array.
-
-.. doxygenstruct:: kv::NetworkConfiguration
-   :project: CCF
-   :members:
-
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
@@ -170,8 +157,9 @@ Service identity and status.
 
     graph TB;
         Opening-- transition_service_to_open -->Open;
-        Opening-- "transition_service_to_open (recovery)"-->WaitingForRecoveryShares;
+        Recovering-- "transition_service_to_open (recovery)"-->WaitingForRecoveryShares;
         WaitingForRecoveryShares -- member shares reassembly--> Open;
+        Open-- "start in recovery"-->Recovering;
 
 ``service.config``
 ~~~~~~~~~~~~~~~~~~

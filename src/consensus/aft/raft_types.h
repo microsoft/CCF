@@ -4,12 +4,10 @@
 
 #include "ccf/entity_id.h"
 #include "consensus/consensus_types.h"
-#include "crypto/hash.h"
+#include "crypto/ecdsa.h"
 #include "ds/ring_buffer_types.h"
-#include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
-#include "mbedtls/ecdsa.h"
 
 #include <array>
 #include <chrono>
@@ -149,44 +147,6 @@ namespace aft
     Term term;
     Index last_log_idx;
     AppendEntriesResponseType success;
-  };
-
-  struct SignedAppendEntriesResponse : RaftHeader
-  {
-    Term term;
-    Index last_log_idx;
-    Nonce hashed_nonce;
-    uint32_t signature_size;
-    std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
-  };
-
-  struct SignaturesReceivedAck : RaftHeader
-  {
-    Term term;
-    Index idx;
-  };
-
-  struct NonceRevealMsg : RaftHeader
-  {
-    Term term;
-    Index idx;
-    Nonce nonce;
-  };
-
-  struct RequestViewChangeMsg : RaftHeader
-  {
-    ccf::View view = 0;
-    ccf::SeqNo seqno = 0;
-  };
-
-  struct ViewChangeEvidenceMsg : RaftHeader
-  {
-    ccf::View view = 0;
-  };
-
-  struct SkipViewMsg : RaftHeader
-  {
-    ccf::View view = 0;
   };
 
   struct RequestVote : RaftHeader

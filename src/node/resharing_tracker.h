@@ -12,8 +12,7 @@ namespace ccf
   class ResharingTracker
   {
   public:
-    virtual void add_network_configuration(
-      const kv::NetworkConfiguration& config) = 0;
+    virtual void add_network_configuration(const kv::Configuration& config) = 0;
     virtual void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
@@ -22,7 +21,7 @@ namespace ccf
       kv::ReconfigurationId rid, ccf::SeqNo idx) const = 0;
     virtual ResharingResult get_resharing_result(
       kv::ReconfigurationId rid) const = 0;
-    virtual void reshare(const kv::NetworkConfiguration& config) = 0;
+    virtual void reshare(const kv::Configuration& config) = 0;
     virtual std::optional<kv::ReconfigurationId> find_reconfiguration(
       const kv::Configuration::Nodes& nodes) const = 0;
 

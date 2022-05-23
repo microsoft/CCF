@@ -27,6 +27,7 @@ def map_azure_devops_docker_workspace_dir(workspace_dir):
 
 
 # Docker image name prefix
+# To update when runtime images are pushed to ACR
 DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
 
 # Network name
@@ -131,11 +132,15 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Deduce container tag from node version
         repo = infra.github.Repository()
-        image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
-        if ccf_version is not None:
-            image_name += ccf_version
-        else:
-            image_name += infra.github.strip_release_tag_name(repo.get_latest_dev_tag())
+        image_name = kwargs.get("node_container_image")
+        if image_name is None:
+            image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
+            if ccf_version is not None:
+                image_name += ccf_version
+            else:
+                image_name += infra.github.strip_release_tag_name(
+                    repo.get_latest_dev_tag()
+                )
 
         try:
             self.docker_client.images.get(image_name)
@@ -193,16 +198,24 @@ class DockerShim(infra.remote.CCFRemote):
     def get_host(self):
         return self.container_ip
 
-    def stop(self):
+    def stop(self, *args, **kwargs):
         try:
             self.container.stop()
             LOG.info(f"Stopped container {self.container.name}")
         except docker.errors.NotFound:
             pass
-        return self.remote.get_logs()
+        return self.remote.get_logs(*args, **kwargs)
 
     def suspend(self):
         self.container.pause()
 
     def resume(self):
         self.container.unpause()
+
+    def check_done(self):
+        try:
+            self.container.reload()
+            LOG.debug(self.container.attrs["State"])
+            return self.container.attrs["State"]["Status"] != "running"
+        except docker.errors.NotFound:
+            return True

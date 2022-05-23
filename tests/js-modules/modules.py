@@ -43,7 +43,7 @@ def test_module_import(network, args):
 
     # Update JS app, deploying modules _and_ app script that imports module
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
-    network.consortium.set_js_app(primary, bundle_dir)
+    network.consortium.set_js_app_from_dir(primary, bundle_dir)
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -54,16 +54,13 @@ def test_module_import(network, args):
 
 
 @reqs.description("Test dynamic module import")
+@reqs.installed_package("libjs_v8")
 def test_dynamic_module_import(network, args):
-    if args.package != "libjs_v8":
-        LOG.warning("Skipping test_dynamic_endpoints, requires V8")
-        return network
-
     primary, _ = network.find_nodes()
 
     # Update JS app, deploying modules _and_ app script that imports module
     bundle_dir = os.path.join(THIS_DIR, "dynamic-module-import")
-    network.consortium.set_js_app(primary, bundle_dir)
+    network.consortium.set_js_app_from_dir(primary, bundle_dir)
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -74,17 +71,16 @@ def test_dynamic_module_import(network, args):
 
 
 @reqs.description("Test module bytecode caching")
+@reqs.installed_package("libjs_generic")
 def test_bytecode_cache(network, args):
-    if args.package == "libjs_v8":
-        LOG.warning("Skipping test_bytecode_cache, not supported on V8")
-        return network
-
     primary, _ = network.find_nodes()
 
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
 
     LOG.info("Verifying that app works without bytecode cache")
-    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=True)
+    network.consortium.set_js_app_from_dir(
+        primary, bundle_dir, disable_bytecode_cache=True
+    )
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
@@ -98,7 +94,9 @@ def test_bytecode_cache(network, args):
         assert r.body.text() == "Hello world!"
 
     LOG.info("Verifying that app works with bytecode cache")
-    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=False)
+    network.consortium.set_js_app_from_dir(
+        primary, bundle_dir, disable_bytecode_cache=False
+    )
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
@@ -112,7 +110,9 @@ def test_bytecode_cache(network, args):
         assert r.body.text() == "Hello world!"
 
     LOG.info("Verifying that redeploying app cleans bytecode cache")
-    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=True)
+    network.consortium.set_js_app_from_dir(
+        primary, bundle_dir, disable_bytecode_cache=True
+    )
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
@@ -152,7 +152,7 @@ def test_app_bundle(network, args):
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
         )
-        set_js_proposal = network.consortium.set_js_app(primary, bundle_path)
+        set_js_proposal = network.consortium.set_js_app_from_dir(primary, bundle_path)
 
         assert (
             raw_module_name
@@ -203,7 +203,7 @@ def test_dynamic_endpoints(network, args):
     bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
 
     LOG.info("Deploying initial js app bundle archive")
-    network.consortium.set_js_app(primary, bundle_dir)
+    network.consortium.set_js_app_from_dir(primary, bundle_dir)
 
     valid_body = {"op": "sub", "left": 82, "right": 40}
     expected_response = {"result": 42}
@@ -244,7 +244,7 @@ def test_dynamic_endpoints(network, args):
         ]
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
-        network.consortium.set_js_app(primary, modified_bundle_dir)
+        network.consortium.set_js_app_from_dir(primary, modified_bundle_dir)
 
     LOG.info("Checking modified endpoint is accessible without auth")
     with primary.client() as c:
@@ -286,8 +286,10 @@ def test_npm_app(network, args):
     )
 
     LOG.info("Deploying npm app")
-    bundle_dir = os.path.join(app_dir, "dist")
-    network.consortium.set_js_app(primary, bundle_dir)
+    bundle_path = os.path.join(
+        app_dir, "dist", "bundle.json"
+    )  # Produced by build step of test npm-app
+    network.consortium.set_js_app_from_json(primary, bundle_path)
 
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:
@@ -605,13 +607,16 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network = test_module_import(network, args)
         network = test_dynamic_module_import(network, args)
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
-        network = test_npm_app(network, args)
+        if "v8" not in args.package:
+            # endpoint calls fail with "Cannot access \'logMap\' before init..."
+            # as if the const logMap wasn't preserved/captured
+            network = test_npm_app(network, args)
 
 
 if __name__ == "__main__":

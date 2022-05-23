@@ -4,8 +4,7 @@
 #include "kv_module_loader.h"
 
 #include "ccf/tx.h"
-#include "node/entities.h"
-#include "node/modules.h"
+#include "service/network_tables.h"
 
 namespace ccf
 {

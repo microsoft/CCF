@@ -51,6 +51,14 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
+file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+     HOST_CONFIG_SCHEMA
+)
+configure_file(
+  ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h
+  @ONLY
+)
+
 if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))
   set(CONSENSUSES cft bft)
   set(CONSENSUS_FILTER all)
@@ -70,6 +78,7 @@ add_custom_target(ccf ALL)
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/js/wrap.cpp
+    ${CCF_DIR}/src/node/quote.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -93,7 +102,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
-                       sss.enclave ccf_endpoints.enclave
+                       sss.enclave ccf_endpoints.enclave ccf_kv.enclave
   )
 
   if(ENABLE_HTTP2)
@@ -145,6 +154,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            quickjs.host
            sss.host
            ccf_endpoints.host
+           ccf_kv.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -181,10 +191,10 @@ install(
   PATTERN "*.hpp"
 )
 
-# Install all CCF headers
+# Install all private CCF headers, which may still be needed
 install(
   DIRECTORY src/
-  DESTINATION include/ccf
+  DESTINATION include/ccf/_private
   FILES_MATCHING
   PATTERN "*.h"
   PATTERN "*/test*" EXCLUDE
@@ -208,10 +218,10 @@ install(
 )
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
-install(FILES src/runtime_config/default/actions.js DESTINATION bin)
-install(FILES src/runtime_config/default/validate.js DESTINATION bin)
-install(FILES src/runtime_config/sandbox/resolve.js DESTINATION bin)
-install(FILES src/runtime_config/default/apply.js DESTINATION bin)
+install(FILES samples/constitutions/default/actions.js DESTINATION bin)
+install(FILES samples/constitutions/default/validate.js DESTINATION bin)
+install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
+install(FILES samples/constitutions/default/apply.js DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
 
@@ -262,7 +272,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     target_link_libraries(
-      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_kv.host
     )
 
     add_unit_test(
@@ -314,7 +324,9 @@ if(BUILD_TESTS)
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_link_libraries(history_test PRIVATE ccfcrypto.host http_parser.host)
+    target_link_libraries(
+      history_test PRIVATE ccfcrypto.host http_parser.host ccf_kv.host
+    )
 
     add_unit_test(
       secret_sharing_test
@@ -325,26 +337,38 @@ if(BUILD_TESTS)
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
-    target_link_libraries(encryptor_test PRIVATE ccfcrypto.host)
+    target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
 
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser.host sss.host
+      historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
+    )
+
+    add_unit_test(
+      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
+    )
+    target_link_libraries(
+      indexing_test PRIVATE ccf_endpoints.host sss.host ccf_kv.host
     )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE)
+    target_link_libraries(snapshot_test PRIVATE ccf_kv.host)
 
     add_unit_test(
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE)
+    target_link_libraries(
+      snapshotter_test PRIVATE ccf_kv.host ccf_endpoints.host
+    )
 
     add_unit_test(
       node_info_json_test
@@ -381,7 +405,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-                            ccf_endpoints.host quickjs.host
+                            ccf_endpoints.host ccf_kv.host quickjs.host
     )
 
     add_unit_test(
@@ -394,8 +418,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(
-      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                               sss.host ccf_endpoints.host quickjs.host
+      proposal_id_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
+              ccf_endpoints.host quickjs.host ccf_kv.host
     )
 
     add_unit_test(
@@ -404,7 +429,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 sss.host ccf_endpoints.host
+                                 sss.host ccf_endpoints.host ccf_kv.host
     )
 
     add_unit_test(
@@ -442,9 +467,16 @@ if(BUILD_TESTS)
       PROPERTY LABELS unit_test
     )
 
-    add_test(NAME versionifier_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
-    )
+    if(NOT UNSAFE_VERSION)
+      # Unsafe builds do not follow normal version conventions
+      add_test(NAME versionifier_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+      )
+
+      add_test(NAME github_version_lts_test
+               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
+      )
+    endif()
   endif()
 
   # Picobench benchmarks
@@ -458,11 +490,17 @@ if(BUILD_TESTS)
     SRCS src/crypto/test/bench.cpp
     LINK_LIBS
   )
-  add_picobench(history_bench SRCS src/node/test/history_bench.cpp)
+  add_picobench(
+    history_bench
+    SRCS src/node/test/history_bench.cpp
+    LINK_LIBS ccf_kv.host
+  )
 
   if(LONG_TESTS)
     add_picobench(
-      kv_bench SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+      kv_bench
+      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+      LINK_LIBS ccf_kv.host
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
@@ -470,21 +508,26 @@ if(BUILD_TESTS)
 
   set(CONSTITUTION_ARGS
       --constitution
-      ${CCF_DIR}/src/runtime_config/default/actions.js
+      ${CCF_DIR}/samples/constitutions/default/actions.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/test/test_actions.js
+      ${CCF_DIR}/samples/constitutions/test/test_actions.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/default/validate.js
+      ${CCF_DIR}/samples/constitutions/default/validate.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/test/resolve.js
+      ${CCF_DIR}/samples/constitutions/test/resolve.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/default/apply.js
+      ${CCF_DIR}/samples/constitutions/default/apply.js
   )
+
+  if(LONG_TESTS)
+    set(ADDITIONAL_RECOVERY_ARGS --with-load)
+  endif()
 
   add_e2e_test(
     NAME recovery_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   if(LONG_TESTS)
@@ -575,8 +618,20 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests
+    ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests
   )
+
+  if(ENABLE_V8)
+    add_e2e_test(
+      NAME auth_v8
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --package libjs_v8 --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/tests
+    )
+  endif()
 
   add_e2e_test(
     NAME launch_host_process_test
@@ -592,7 +647,9 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
     CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+    ADDITIONAL_ARGS
+      --oe-binary ${OE_BINDIR} --initial-operator-count 1
+      --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
   )
 
   add_e2e_test(
@@ -614,11 +671,15 @@ if(BUILD_TESTS)
   endif()
 
   if(TLS_TEST)
-    add_custom_target(
-      testssl ALL
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
-        test -d testssl || git clone https://github.com/drwetter/testssl.sh
+        rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
+        --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
+    )
+    add_custom_target(
+      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
     )
   endif()
 
@@ -635,11 +696,13 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     CONSENSUS cft
   )
-
-  # Higher snapshot interval as the test currently assumes that no transactions
-  # are emitted while partitions are up. To be removed when
-  # https://github.com/microsoft/CCF/issues/2577 is implemented
-  set(PARTITIONS_TEST_ARGS --snapshot-tx-interval 10000)
+  set(PARTITIONS_TEST_ARGS
+      # Higher snapshot interval as the test currently assumes that no
+      # transactions
+      # are emitted while partitions are up. To be removed when
+      # https://github.com/microsoft/CCF/issues/2577 is implemented
+      --snapshot-tx-interval 10000
+  )
   if(ENABLE_2TX_RECONFIG)
     list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
   endif()
@@ -653,13 +716,11 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
   )
 
-  if(NOT SAN)
-    add_e2e_test(
-      NAME connections_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-      CONSENSUS cft
-    )
-  endif()
+  add_e2e_test(
+    NAME connections_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+    CONSENSUS cft
+  )
 
   if(TLS_TEST)
     add_e2e_test(
@@ -677,8 +738,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --schema-dir
       ${CMAKE_SOURCE_DIR}/doc/schemas
-      --client-tutorial
-      ${CMAKE_SOURCE_DIR}/python/tutorial.py
       --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
       --config-samples-dir
@@ -691,25 +750,21 @@ if(BUILD_TESTS)
        ${CCF_VERSION}
   )
   if(LONG_TESTS)
-    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
-  endif()
-
-  set(LTS_ITERATIONS "compatibility")
-  if(LONG_TESTS)
-    set(LTS_ITERATIONS
-        "compatibility_a;compatibility_b;compatibility_c;compatibility_d"
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility
+         --check-2tx-reconfig-migration
     )
   endif()
 
-  foreach(ITERATION ${LTS_ITERATIONS})
+  if(NOT UNSAFE_VERSION)
+    # Unsafe builds do not follow normal version conventions
     add_e2e_test(
-      NAME lts_${ITERATION}
+      NAME lts_compatibility
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
       CONSENSUS cft
       LABEL e2e
       ADDITIONAL_ARGS ${LTS_TEST_ARGS}
     )
-  endforeach()
+  endif()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)

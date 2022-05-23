@@ -5,7 +5,7 @@ import infra.network
 import infra.proc
 import time
 import http
-from ccf.tx_status import TxStatus
+from infra.tx_status import TxStatus
 
 from loguru import logger as LOG
 
@@ -42,7 +42,7 @@ def run(args):
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, backups = network.find_nodes()
 
         # Suspend three of the backups to prevent commit

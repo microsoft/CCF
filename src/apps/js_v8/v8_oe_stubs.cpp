@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 
 #include <pthread.h>
 #include <semaphore.h>

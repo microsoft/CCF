@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/hex.h"
+#include "ccf/ds/hex.h"
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 #include "http_proc.h"
@@ -225,11 +225,10 @@ namespace http
       else if (err_no != HPE_OK)
       {
         throw std::runtime_error(fmt::format(
-          "HTTP parsing failed ({}: {}) around byte {} of fragment:\n{}",
+          "HTTP parsing failed ({}: {}) around byte {}",
           llhttp_errno_name(err_no),
           llhttp_get_error_reason(&parser),
-          llhttp_get_error_pos(&parser) - data_char,
-          std::string((char const*)data, size)));
+          llhttp_get_error_pos(&parser) - data_char));
       }
     }
 

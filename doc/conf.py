@@ -18,11 +18,14 @@ import os
 import sys
 import subprocess
 import pathlib
-
+import re
 
 from docutils import nodes
 
-sys.path.insert(0, os.path.abspath("../python"))
+# To import generate_config_rst
+sys.path.insert(0, os.path.abspath("."))
+
+import generate_config_rst
 
 
 # -- Project information -----------------------------------------------------
@@ -60,6 +63,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
     "sphinx_panels",
+    "sphinx.ext.extlinks",
 ]
 
 autosectionlabel_prefix_document = True
@@ -81,7 +85,7 @@ master_doc = "index"
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -89,7 +93,16 @@ language = None
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "colorful"
+pygments_style = "zenburn"
+
+# Ignore main index file that has clickable images, JS/Doxygen output and
+# github anchors https://github.com/sphinx-doc/sphinx/issues/9016)
+linkcheck_exclude_documents = [r"^index$"]
+linkcheck_ignore = [
+    r"https://github.com/.*#",
+    r"../js/ccf-app.*",
+    r"../doxygen/index.html",
+]
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -103,7 +116,7 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -126,6 +139,7 @@ html_css_files = [
 
 html_js_files = ["https://kit.fontawesome.com/c75a35380d.js"]
 
+html_extra_path = []
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
@@ -198,13 +212,35 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-# Build tags from ccf-1.0.1x
-smv_tag_whitelist = r"^ccf-(1\.\d+\.1\d+|2.*)$"
-smv_branch_whitelist = r"^main$"
+smv_tag_whitelist = None
+smv_branch_whitelist = r"^(main)|(release\/\d+\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
-# PyData theme options
+assert re.match(smv_branch_whitelist, "main")
+assert re.match(smv_branch_whitelist, "release/1.x")
+assert re.match(smv_branch_whitelist, "release/2.x")
+assert re.match(smv_branch_whitelist, "release/100.x")
+assert not re.match(smv_branch_whitelist, "release/1.x_feature")
+
+# Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
+# This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`
+# envvar should be used for further versions (release pending).
+docs_version = "main"
+for arg in sys.argv:
+    if "smv_current_version=" in arg:
+        docs_version = arg.split("=")[1]
+
+
+# :ccf_repo: directive can be used to create a versioned link to GitHub repo
+extlinks = {
+    "ccf_repo": (
+        f"https://github.com/microsoft/CCF/tree/{docs_version}/%s",
+        "%s",
+    )
+}
+
+# Theme options
 
 html_logo = "_static/ccf.svg"
 html_favicon = "_static/favicon.ico"
@@ -316,10 +352,10 @@ def typedoc_role(
 def config_inited(app, config):
     # anything that needs to access app.config goes here
 
-    srcdir = pathlib.Path(app.srcdir)
+    doc_dir = pathlib.Path(app.srcdir)
     outdir = pathlib.Path(app.outdir)
 
-    js_pkg_dir = srcdir / ".." / "js" / "ccf-app"
+    js_pkg_dir = doc_dir / ".." / "js" / "ccf-app"
     js_docs_dir = outdir / "js" / "ccf-app"
     if js_pkg_dir.exists():
         # make versions.json from sphinx-multiversion available
@@ -333,6 +369,11 @@ def config_inited(app, config):
         )
         subprocess.run(
             ["sed", "-i", 's/"\^14\.14\.35"/"14\.17\.27"/g', "package.json"],
+            cwd=js_pkg_dir,
+            check=True,
+        )
+        subprocess.run(
+            ["npm", "install", "--save-exact", "colors@1.4.0"],
             cwd=js_pkg_dir,
             check=True,
         )
@@ -360,11 +401,33 @@ def config_inited(app, config):
 
 
 def setup(app):
-    app.connect("config-inited", config_inited)
+    if not os.environ.get("SKIP_JS"):
+        app.connect("config-inited", config_inited)
 
-    srcdir = pathlib.Path(app.srcdir)
+    doc_dir = pathlib.Path(app.srcdir)  # CCF/doc/
+    root_dir = pathlib.Path(os.path.abspath(doc_dir / ".."))  # CCF/
+    out_dir = pathlib.Path(app.outdir)  # CCF/build/html
+
+    # import ccf python package to generate docs for this version
+    python_path = os.path.abspath(doc_dir / "../python")
+    sys.path.insert(0, python_path)
 
     # doxygen
-    breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
+    breathe_projects["CCF"] = str(doc_dir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
-        subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
+        subprocess.run(["doxygen"], cwd=root_dir, check=True)
+        doxygen_html_src = root_dir / "doxygen/html"
+        if doxygen_html_src.exists() and doxygen_html_src.is_dir():
+            doxygen_html_dest = str(out_dir / "doxygen")
+            subprocess.run(
+                ["cp", "-r", str(doxygen_html_src), doxygen_html_dest], check=True
+            )
+
+    # configuration generator
+    input_file_path = doc_dir / "host_config_schema/cchost_config.json"
+    output_file_path = doc_dir / "operations/generated_config.rst"
+
+    if os.path.exists(input_file_path):
+        generate_config_rst.generate_configuration_docs(
+            input_file_path, output_file_path
+        )

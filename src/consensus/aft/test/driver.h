@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "consensus/aft/raft.h"
-#include "ds/logger.h"
 #include "logging_stub.h"
 
 #include <chrono>
@@ -40,7 +40,6 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
   void put_entry(
     const std::vector<uint8_t>& data,
     bool globally_committable,
-    bool force_chunk,
     kv::Term term,
     kv::Version index) override
   {
@@ -52,8 +51,7 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
                          index,
                          stringify(data))
                     << std::endl;
-    aft::LedgerStubProxy::put_entry(
-      data, globally_committable, force_chunk, term, index);
+    aft::LedgerStubProxy::put_entry(data, globally_committable, term, index);
   }
 
   void truncate(aft::Index idx) override
@@ -97,10 +95,17 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
                     << std::endl;
     aft::LoggingStubStoreSig::initialise_term(t);
   }
+
+  bool flag_enabled(kv::AbstractStore::Flag)
+  {
+    return false;
+  }
+
+  void unset_flag(kv::AbstractStore::Flag) {}
 };
 
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid, aft::StubSnapshotter>;
+using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -132,13 +137,12 @@ public:
 
       auto kv = std::make_shared<Store>(node_id);
       const consensus::Configuration settings{
-        ConsensusType::CFT, std::string("10ms"), std::string("100ms")};
+        ConsensusType::CFT, {"10ms"}, {"100ms"}};
       auto raft = std::make_shared<TRaft>(
         settings,
         std::make_unique<Adaptor>(kv),
         std::make_unique<LedgerStubProxy_Mermaid>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
-        std::make_shared<aft::StubSnapshotter>(),
         std::make_shared<aft::State>(node_id),
         nullptr,
         nullptr);

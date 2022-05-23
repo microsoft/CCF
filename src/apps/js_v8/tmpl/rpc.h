@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpc_context.h"
-#include "v8.h"
+#include "ccf/rpc_context.h"
+
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {
@@ -14,7 +15,7 @@ namespace ccf::v8_tmpl
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
     static v8::Local<v8::Object> wrap(
-      v8::Local<v8::Context> context, enclave::RpcContext* rpc_ctx);
+      v8::Local<v8::Context> context, ccf::RpcContext* rpc_ctx);
   };
 
 } // namespace ccf::v8_tmpl

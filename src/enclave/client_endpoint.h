@@ -5,7 +5,7 @@
 #include "http/http_builder.h"
 #include "tls/msg_types.h"
 
-namespace enclave
+namespace ccf
 {
   class ClientEndpoint
   {

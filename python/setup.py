@@ -39,7 +39,6 @@ setup(
     python_requires=">=3.8",
     install_requires=requirements,
     scripts=[
-        path.join(PACKAGE_NAME, "proposal_generator.py"),
         path.join(PACKAGE_NAME, "read_ledger.py"),
         path.join(PACKAGE_NAME, "ledger_viz.py"),
         path.join(PACKAGE_NAME, "split_ledger.py"),
@@ -49,13 +48,5 @@ setup(
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),
         path.join(UTILITIES_PATH, "verify_quote.sh"),
     ],
-    package_data={
-        "jinja_templates": [
-            path.join(TEMPLATES_PATH, "ballot_script.json.jinja"),
-            path.join(TEMPLATES_PATH, "ballots.json.jinja"),
-            path.join(TEMPLATES_PATH, "macros.jinja"),
-            path.join(TEMPLATES_PATH, "proposals.json.jinja"),
-        ]
-    },
     include_package_data=True,
 )

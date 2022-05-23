@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #include "../channels.h"
 
-#include "crypto/verifier.h"
-#include "ds/hex.h"
-#include "node/entities.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
+#include "crypto/certs.h"
+#include "crypto/openssl/x509_time.h"
+#include "ds/ring_buffer.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/node_types.h"
 
@@ -16,7 +18,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-namespace enclave
+namespace ccf
 {
   std::atomic<std::chrono::microseconds>* host_time = nullptr;
   std::chrono::microseconds last_value(0);
@@ -55,6 +57,39 @@ static NodeId nid2 = std::string("nid2");
 
 static constexpr auto default_curve = crypto::CurveID::SECP384R1;
 
+static crypto::Pem generate_self_signed_cert(
+  const crypto::KeyPairPtr& kp, const std::string& name)
+{
+  constexpr size_t certificate_validity_period_days = 365;
+  using namespace std::literals;
+  auto valid_from =
+    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+
+  return crypto::create_self_signed_cert(
+    kp, name, {}, valid_from, certificate_validity_period_days);
+}
+
+static crypto::Pem generate_endorsed_cert(
+  const crypto::KeyPairPtr& kp,
+  const std::string& name,
+  const crypto::KeyPairPtr& issuer_kp,
+  const crypto::Pem& issuer_cert)
+{
+  constexpr size_t certificate_validity_period_days = 365;
+  using namespace std::literals;
+  auto valid_from =
+    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+
+  return crypto::create_endorsed_cert(
+    kp,
+    name,
+    {},
+    valid_from,
+    certificate_validity_period_days,
+    issuer_kp->private_key_pem(),
+    issuer_cert);
+}
+
 template <typename T>
 struct NodeOutboundMsg
 {
@@ -75,11 +110,11 @@ struct NodeOutboundMsg
   std::vector<uint8_t> unauthenticated_data() const
   {
     auto r = data();
-    auto type_hdr_bytes = std::vector<uint8_t>(r.begin(), r.begin() + 8);
-    CBuffer type_hdr(type_hdr_bytes.data(), type_hdr_bytes.size());
+    static_assert(sizeof(ChannelMsg) == 8);
+    size_t hdr_size = sizeof(ChannelMsg);
     ChannelMsg channel_msg_type =
-      serialized::read<ChannelMsg>(type_hdr.p, type_hdr.n);
-    auto data = std::vector<uint8_t>(r.begin() + 8, r.end());
+      serialized::read<ChannelMsg>(r.data(), hdr_size);
+    auto data = std::vector<uint8_t>(r.begin() + sizeof(ChannelMsg), r.end());
     return data;
   }
 };
@@ -173,27 +208,27 @@ NodeOutboundMsg<MsgType> get_first(
 TEST_CASE("Client/Server key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
   auto v = crypto::make_verifier(channel1_cert);
-  REQUIRE(v->verify_certificate({&network_cert}));
+  REQUIRE(v->verify_certificate({&service_cert}));
   v = crypto::make_verifier(channel2_cert);
-  REQUIRE(v->verify_certificate({&network_cert}));
+  REQUIRE(v->verify_certificate({&service_cert}));
 
   REQUIRE(!make_verifier(channel2_cert)->is_self_signed());
 
   auto channels1 = NodeToNodeChannelManager(wf1);
-  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
   auto channels2 = NodeToNodeChannelManager(wf2);
-  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType msg;
   msg.fill(0x42);
@@ -267,7 +302,7 @@ TEST_CASE("Client/Server key exchange")
     initiator_signature = msgs[0].data();
 
     auto md = msgs[1].data();
-    REQUIRE(md.size() == msg.size() + sizeof(GcmHdr));
+    REQUIRE(md.size() == msg.size() + GcmHdr::serialised_size());
     REQUIRE(memcmp(md.data(), msg.data(), msg.size()) == 0);
 
     queued_msg = msgs[1]; // save for later
@@ -383,20 +418,20 @@ TEST_CASE("Client/Server key exchange")
 TEST_CASE("Replay and out-of-order")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
   auto channels1 = NodeToNodeChannelManager(wf1);
-  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
   auto channels2 = NodeToNodeChannelManager(wf2);
-  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType msg;
   msg.fill(0x42);
@@ -558,14 +593,14 @@ TEST_CASE("Replay and out-of-order")
 TEST_CASE("Host connections")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel_kp = crypto::make_key_pair(default_curve);
-  auto channel_csr = channel_kp->create_csr("CN=Node");
-  auto channel_cert = network_kp->sign_csr(network_cert, channel_csr, {});
+  auto channel_cert =
+    generate_endorsed_cert(channel_kp, "CN=Node", network_kp, service_cert);
 
   auto channel_manager = NodeToNodeChannelManager(wf1);
-  channel_manager.initialize(nid1, network_cert, channel_kp, channel_cert);
+  channel_manager.initialize(nid1, service_cert, channel_kp, channel_cert);
 
   INFO("New node association is sent as ringbuffer message");
   {
@@ -607,20 +642,20 @@ static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
 TEST_CASE("Concurrent key exchange init")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
   auto channels1 = NodeToNodeChannelManager(wf1);
-  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
   auto channels2 = NodeToNodeChannelManager(wf2);
-  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType msg;
   msg.fill(0x42);
@@ -732,17 +767,17 @@ TEST_CASE("Full NodeToNode test")
     LOG_DEBUG_FMT("Iteration: {}", i++);
 
     auto network_kp = crypto::make_key_pair(curves.network);
-    auto network_cert = network_kp->self_sign("CN=Network");
+    auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
     auto ni1 = std::string("N1");
     auto channel1_kp = crypto::make_key_pair(curves.node_1);
-    auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-    auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+    auto channel1_cert =
+      generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
     auto ni2 = std::string("N2");
     auto channel2_kp = crypto::make_key_pair(curves.node_2);
-    auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-    auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+    auto channel2_cert =
+      generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
     size_t message_limit = 32;
 
@@ -752,9 +787,9 @@ TEST_CASE("Full NodeToNode test")
     INFO("Set up channels");
     NodeToNodeChannelManager n2n1(wf1), n2n2(wf2);
 
-    n2n1.initialize(ni1, network_cert, channel1_kp, channel1_cert);
+    n2n1.initialize(ni1, service_cert, channel1_kp, channel1_cert);
     n2n1.set_message_limit(message_limit);
-    n2n2.initialize(ni2, network_cert, channel2_kp, channel2_cert);
+    n2n2.initialize(ni2, service_cert, channel2_kp, channel2_cert);
     n2n2.set_message_limit(message_limit);
 
     srand(0); // keep it deterministic
@@ -825,20 +860,20 @@ TEST_CASE("Full NodeToNode test")
 TEST_CASE("Interrupted key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
   auto channels1 = NodeToNodeChannelManager(wf1);
-  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
   auto channels2 = NodeToNodeChannelManager(wf2);
-  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   std::vector<uint8_t> msg;
   msg.push_back(0x1);
@@ -974,22 +1009,22 @@ TEST_CASE("Interrupted key exchange")
 TEST_CASE("Robust key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
   const NodeId nid3 = std::string("nid3");
 
   auto channels1 = NodeToNodeChannelManager(wf1);
-  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
   auto channels2 = NodeToNodeChannelManager(wf2);
-  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType aad;
   aad.fill(0x10);

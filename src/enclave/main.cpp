@@ -1,23 +1,22 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/ds/json.h"
+#include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "ds/ccf_exception.h"
-#include "ds/json.h"
-#include "ds/logger.h"
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
+#include "ringbuffer_logger.h"
 
 #include <chrono>
 #include <thread>
 
 // the central enclave object
 static std::mutex create_lock;
-static std::atomic<enclave::Enclave*> e;
+static std::atomic<ccf::Enclave*> e;
 
-std::atomic<std::chrono::microseconds> logger::config::us =
-  std::chrono::microseconds::zero();
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
@@ -29,6 +28,36 @@ std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
 
 extern "C"
 {
+  void open_enclave_logging_callback(
+    void* context,
+    oe_log_level_t level,
+    uint64_t thread_id,
+    const char* message)
+  {
+    switch (level)
+    {
+      case OE_LOG_LEVEL_FATAL:
+        LOG_FATAL_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_ERROR:
+        LOG_FAIL_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_WARNING:
+        LOG_FAIL_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_INFO:
+        LOG_INFO_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_VERBOSE:
+        LOG_DEBUG_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_MAX:
+      case OE_LOG_LEVEL_NONE:
+        LOG_TRACE_FMT("OE: {}", message);
+        break;
+    }
+  }
+
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
     char* ccf_config,
@@ -36,9 +65,9 @@ extern "C"
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
-    uint8_t* network_cert,
-    size_t network_cert_size,
-    size_t* network_cert_len,
+    uint8_t* service_cert,
+    size_t service_cert_size,
+    size_t* service_cert_len,
     uint8_t* enclave_version,
     size_t enclave_version_size,
     size_t* enclave_version_len,
@@ -53,66 +82,99 @@ extern "C"
       return CreateNodeStatus::NodeAlreadyCreated;
     }
 
-    // Report enclave version to host
-    auto ccf_version_string = std::string(ccf::ccf_version);
-    if (ccf_version_string.size() > enclave_version_size)
-    {
-      return CreateNodeStatus::InternalError;
-    }
-
-    ::memcpy(
-      enclave_version, ccf_version_string.data(), ccf_version_string.size());
-    *enclave_version_len = ccf_version_string.size();
-
-    num_pending_threads = (uint16_t)num_worker_threads + 1;
-
-    if (
-      num_pending_threads >
-      threading::ThreadMessaging::thread_messaging.max_num_threads)
-    {
-      return CreateNodeStatus::TooManyThreads;
-    }
-
-    // Check that where we expect arguments to be in host-memory, they really
-    // are. lfence after these checks to prevent speculative execution
-    if (!oe_is_outside_enclave(time_location, sizeof(enclave::host_time)))
-    {
-      return CreateNodeStatus::MemoryNotOutsideEnclave;
-    }
-
-    enclave::host_time =
-      static_cast<decltype(enclave::host_time)>(time_location);
-
     if (!oe_is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
     {
+      LOG_FAIL_FMT("Memory outside enclave: enclave_config");
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 
+    // Setup logger to allow enclave logs to reach the host before node is
+    // actually created
+    auto circuit = std::make_unique<ringbuffer::Circuit>(
+      ringbuffer::BufferDef{
+        ec.to_enclave_buffer_start,
+        ec.to_enclave_buffer_size,
+        ec.to_enclave_buffer_offsets},
+      ringbuffer::BufferDef{
+        ec.from_enclave_buffer_start,
+        ec.from_enclave_buffer_size,
+        ec.from_enclave_buffer_offsets});
+    auto basic_writer_factory =
+      std::make_unique<ringbuffer::WriterFactory>(*circuit);
+    auto writer_factory = std::make_unique<oversized::WriterFactory>(
+      *basic_writer_factory, ec.writer_config);
+
+    auto new_logger = std::make_unique<ccf::RingbufferLogger>(
+      writer_factory->create_writer_to_outside());
+    auto ringbuffer_logger = new_logger.get();
+    logger::config::loggers().push_back(std::move(new_logger));
+
+    oe_enclave_log_set_callback(nullptr, &open_enclave_logging_callback);
+
     {
+      // Report enclave version to host
+      auto ccf_version_string = std::string(ccf::ccf_version);
+      if (ccf_version_string.size() > enclave_version_size)
+      {
+        LOG_FAIL_FMT(
+          "Version mismatch: host {}, enclave {}",
+          ccf_version_string,
+          enclave_version);
+        return CreateNodeStatus::VersionMismatch;
+      }
+
+      ::memcpy(
+        enclave_version, ccf_version_string.data(), ccf_version_string.size());
+      *enclave_version_len = ccf_version_string.size();
+
+      num_pending_threads = (uint16_t)num_worker_threads + 1;
+
+      if (
+        num_pending_threads >
+        threading::ThreadMessaging::thread_messaging.max_num_threads)
+      {
+        LOG_FAIL_FMT("Too many threads: {}", num_pending_threads);
+        return CreateNodeStatus::TooManyThreads;
+      }
+
+      // Check that where we expect arguments to be in host-memory, they really
+      // are. lfence after these checks to prevent speculative execution
+      if (!oe_is_outside_enclave(time_location, sizeof(ccf::host_time)))
+      {
+        LOG_FAIL_FMT("Memory outside enclave: time_location");
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
+      }
+
+      ccf::host_time = static_cast<decltype(ccf::host_time)>(time_location);
+
       // Check that ringbuffer memory ranges are entirely outside of the enclave
       if (!oe_is_outside_enclave(
             ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
       {
+        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer start");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
       {
+        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer start");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
+        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer offset");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
+        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer offset");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
@@ -121,6 +183,7 @@ extern "C"
 
     if (!oe_is_outside_enclave(ccf_config, ccf_config_size))
     {
+      LOG_FAIL_FMT("Memory outside enclave: ccf_config");
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
@@ -134,6 +197,7 @@ extern "C"
     // enclaves
     if (cc.consensus.type != ConsensusType::CFT)
     {
+      LOG_FAIL_FMT("BFT consensus disabled in release mode");
       return CreateNodeStatus::ConsensusNotAllowed;
     }
 #endif
@@ -146,16 +210,22 @@ extern "C"
       cc.start.service_configuration.reconfiguration_type.value() !=
         ReconfigurationType::ONE_TRANSACTION)
     {
+      LOG_FAIL_FMT(
+        "2TX reconfiguration is experimental, disabled in release mode");
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 #endif
 
-    enclave::Enclave* enclave;
+    ccf::Enclave* enclave = nullptr;
 
     try
     {
-      enclave = new enclave::Enclave(
+      enclave = new ccf::Enclave(
         ec,
+        std::move(circuit),
+        std::move(basic_writer_factory),
+        std::move(writer_factory),
+        ringbuffer_logger,
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,
@@ -178,17 +248,30 @@ extern "C"
       return CreateNodeStatus::EnclaveInitFailed;
     }
 
-    if (!enclave->create_new_node(
-          start_type,
-          std::move(cc),
-          node_cert,
-          node_cert_size,
-          node_cert_len,
-          network_cert,
-          network_cert_size,
-          network_cert_len))
+    CreateNodeStatus status = EnclaveInitFailed;
+
+    try
     {
-      return CreateNodeStatus::InternalError;
+      status = enclave->create_new_node(
+        start_type,
+        std::move(cc),
+        node_cert,
+        node_cert_size,
+        node_cert_len,
+        service_cert,
+        service_cert_size,
+        service_cert_len);
+    }
+    catch (...)
+    {
+      delete enclave;
+      throw;
+    }
+
+    if (status != CreateNodeStatus::OK)
+    {
+      delete enclave;
+      return status;
     }
 
     e.store(enclave);

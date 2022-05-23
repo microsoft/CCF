@@ -13,7 +13,7 @@ A client can verify the validity of the SGX quote of the CCF node that it connec
 
 The script verifies the target CCF node's SGX quote by:
 
-1. Retrieving the node's SGX quote via the ``/node/quote`` endpoint.
+1. Retrieving the node's SGX quote via the :http:GET:`/node/quotes/self` endpoint.
 2. Verifying that the cryptographic hash of the node's identity public key (as presented in the node's certificate in the TLS session) matches the quote's report data.
 3. Verifying that the quote's measurement (``MRENCLAVE``) matches one of the trusted enclave measurements.
 
@@ -26,15 +26,15 @@ A specific trusted SGX enclave measurement can be specified ``--mrenclave <mrenc
     mrenclave: 3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9
     Quote verification successful.
 
-If no code measurement is specified, the ``verify_quote.sh`` script automatically verifies it against the code versions currently trusted by the CCF service, as returned by the ``/node/code`` endpoint.
+If no code measurement is specified, the ``verify_quote.sh`` script automatically verifies it against the code versions currently trusted by the CCF service, as returned by the :http:GET:`/node/code` endpoint.
 
 .. note:: The ``verify_quote.sh`` script uses the ``oeverify`` CLI included in the Open Enclave ``hostverify`` package available on the `Open Enclave release page <https://github.com/openenclave/openenclave/releases>`_.
 
-Alternatively, the SGX quotes of all currently trusted nodes can be retrieved via the ``/node/quotes`` endpoint:
+Alternatively, the SGX quotes of all currently trusted nodes can be retrieved via the :http:GET:`/node/quotes` endpoint:
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/node/quotes --cacert networkcert.pem
+    $ curl https://<ccf-node-address>/node/quotes --cacert service_cert.pem
     {"quotes": [
     {"mrenclave":"<measurement_hash>, "node_id":<node_id>, "raw":"<hex_encoded_raw_quote>"},
     {"mrenclave":"<measurement_hash>, "node_id":<node_id>, "raw":"<hex_encoded_raw_quote>"}]}

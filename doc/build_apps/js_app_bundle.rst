@@ -13,12 +13,7 @@ This page documents the components of a bundle and the JavaScript API available 
     `TypeScript <https://www.typescriptlang.org/>`_.
     CCF provides an example app built with these tools.
     They involve a `build` step that generates an app bundle suitable for CCF.
-    See the following for more details:
-
-    .. toctree::
-      :maxdepth: 1
-
-      js_app_ts
+    See the :ref:`TypeScript Application <build_apps/js_app_ts:TypeScript Application>` section for more details
 
 Folder Layout
 -------------
@@ -36,9 +31,7 @@ A bundle has the following folder structure:
 It consists of :ref:`metadata <build_apps/js_app_bundle:Metadata>` (``app.json``) and one or more :ref:`JavaScript modules <build_apps/js_app_bundle:JavaScript API>` (``src/``).
 JavaScript modules can `import <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import>`_ other modules using relative path names.
 
-You can find an example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
-folder of the CCF git repository.
+You can find an example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository.
 
 Metadata
 --------
@@ -74,14 +67,14 @@ Each endpoint object contains the following information:
   the ``js_module``.
 - ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth/index:User Authentication>` to be applied before the endpoint
   is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
-  
+
   - ``"user_cert"``
   - ``"user_signature"``
   - ``"member_cert"``
   - ``"member_signature"``
   - ``"jwt"``
   - ``"no_auth"``
-  
+
 - ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
 
   - ``"always"``
@@ -94,14 +87,12 @@ Each endpoint object contains the following information:
   - ``"readonly"``
   - ``"historical"``
 
-- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ 
+- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
   without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
   enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
   types of the endpoint's requests or responses.
 
-You can find an example metadata file at
-`tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle/app.json>`_
-in the CCF git repository.
+You can find an example metadata file at :ccf_repo:`tests/js-app-bundle/app.json` in the CCF git repository.
 
 JavaScript API
 --------------
@@ -123,10 +114,7 @@ Endpoint handlers
 
 An endpoint handler is an exported function that receives a :typedoc:interface:`Request <ccf-app/endpoints/Request>` object, returns a :typedoc:interface:`Response <ccf-app/endpoints/Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
-See the following handler from the example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
-folder of the CCF git repository.
-It validates the request body and returns the result of a mathematical operation:
+See the following handler from the example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository. It validates the request body and returns the result of a mathematical operation:
 
 .. literalinclude:: ../../tests/js-app-bundle/src/math.js
    :language: js
@@ -134,25 +122,196 @@ It validates the request body and returns the result of a mathematical operation
 Deployment
 ----------
 
-An app bundle can be wrapped into a governance proposal with the Python client for deployment:
+An app bundle must be wrapped into a JSON object for submission as a ``set_js_app`` proposal to deploy the application code onto a CCF service.
+For instance a proposal which deploys the example app above would look like:
 
-.. code-block:: bash
+.. code-block:: json
 
-    $ python -m ccf.proposal_generator set_js_app my-app/
-    SUCCESS | Writing proposal to ./set_js_app_proposal.json
-    SUCCESS | Wrote vote to ./set_js_app_vote_for.json
+    {
+      "actions": [
+        {
+          "name": "set_js_app",
+          "args": {
+            "bundle": {
+              "metadata": {
+                "endpoints": {
+                  "/compute": {
+                    "post": {
+                      "js_module": "math.js",
+                      "js_function": "compute",
+                      "forwarding_required": "never",
+                      "authn_policies": [
+                        "user_cert"
+                      ],
+                      "mode": "readonly",
+                      "openapi": {
+                        "requestBody": {
+                          "required": true,
+                          "content": {
+                            "application/json": {
+                              "schema": {
+                                "properties": {
+                                  "op": {
+                                    "type": "string",
+                                    "enum": [
+                                      "add",
+                                      "sub",
+                                      "mul"
+                                    ]
+                                  },
+                                  "left": {
+                                    "type": "number"
+                                  },
+                                  "right": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "op",
+                                  "left",
+                                  "right"
+                                ],
+                                "type": "object",
+                                "additionalProperties": false
+                              }
+                            }
+                          }
+                        },
+                        "responses": {
+                          "200": {
+                            "description": "Compute result",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "properties": {
+                                    "result": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "result"
+                                  ],
+                                  "type": "object",
+                                  "additionalProperties": false
+                                }
+                              }
+                            }
+                          },
+                          "400": {
+                            "description": "Client-side error",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "properties": {
+                                    "error": {
+                                      "description": "Error message",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "error"
+                                  ],
+                                  "type": "object",
+                                  "additionalProperties": false
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "/compute2/{op}/{left}/{right}": {
+                    "get": {
+                      "js_module": "math.js",
+                      "js_function": "compute2",
+                      "forwarding_required": "never",
+                      "authn_policies": [
+                        "user_cert"
+                      ],
+                      "mode": "readonly",
+                      "openapi": {
+                        "parameters": [
+                          {
+                            "name": "op",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                              "type": "string",
+                              "enum": [
+                                "add",
+                                "sub",
+                                "mul"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "left",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                              "type": "number"
+                            }
+                          },
+                          {
+                            "name": "right",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                              "type": "number"
+                            }
+                          }
+                        ],
+                        "responses": {
+                          "default": {
+                            "description": "Default response"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "modules": [
+                {
+                  "name": "math.js",
+                  "module": "function compute_impl(op, left, right) {\n  let result;\n  if (op == \"add\") result = left + right;\n  else if (op == \"sub\") result = left - right;\n  else if (op == \"mul\") result = left * right;\n  else {\n    return {\n      statusCode: 400,\n      body: {\n        error: \"unknown op\",\n      },\n    };\n  }\n\n  return {\n    body: {\n      result: result,\n    },\n  };\n}\n\nexport function compute(request) {\n  const body = request.body.json();\n\n  if (typeof body.left != \"number\" || typeof body.right != \"number\") {\n    return {\n      statusCode: 400,\n      body: {\n        error: \"invalid operand type\",\n      },\n    };\n  }\n\n  return compute_impl(body.op, body.left, body.right);\n}\n\nexport function compute2(request) {\n  const params = request.params;\n\n  // Type of params is always string. Try to parse as float\n  let left = parseFloat(params.left);\n  if (isNaN(left)) {\n    return {\n      statusCode: 400,\n      body: {\n        error: \"left operand is not a parseable number\",\n      },\n    };\n  }\n\n  let right = parseFloat(params.right);\n  if (isNaN(right)) {\n    return {\n      statusCode: 400,\n      body: {\n        error: \"right operand is not a parseable number\",\n      },\n    };\n  }\n\n  return compute_impl(params.op, left, right);\n}\n"
+                }
+              ]
+            },
+            "disable_bytecode_cache": false
+          }
+        }
+      ]
+    }
+
+The key fields are:
+
+- ``args.bundle.metadata``: The object contained in ``app.json``, defining the HTTP endpoints that access the app.
+- ``args.bundle.modules``: The contents of all JS files (including scripts and any modules they depend on) which define the app's functionality.
+- ``args.disable_bytecode_cache``: Whether the bytecode cache should be enabled for this app. See below for more detail.
 
 Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``set_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.
 
-By default, the source code is pre-compiled into bytecode and both the source code and the bytecode are stored in the Key Value store. To disable precompilation and remove any existing cached bytecode, add ``--disable-bytecode-cache`` to the above command. See :ref:`Resource Usage <operations/resource_usage:Memory>` for a discussion on latency vs. memory usage.
+If you are using ``npm`` or similar to build your app it may make sense to convert your app into a proposal-ready JSON bundle during packaging.
+For an example of how this could be done, see :ccf_repo:`tests/npm-app/build_bundle.js` from one of CCF's test applications, called by ``npm build`` from the corresponding :ccf_repo:`tests/npm-app/package.json`.
+
+Bytecode cache
+~~~~~~~~~~~~~~
+
+By default, the source code is pre-compiled into bytecode and both the source code and the bytecode are stored in the Key Value store. To disable precompilation and remove any existing cached bytecode, set ``"args.disable_bytecode_cache": true`` in the above proposal. See :ref:`Resource Usage <operations/resource_usage:Memory>` for a discussion on latency vs. memory usage.
 
 If CCF is updated and introduces a newer JavaScript engine version, then any pre-compiled bytecode is not used anymore and must be re-compiled by either re-deploying the JavaScript application or issuing a proposal for re-compilation:
 
-.. code-block:: bash
+.. code-block:: json
 
-    $ python -m ccf.proposal_generator refresh_js_app_bytecode_cache
-    SUCCESS | Writing proposal to ./refresh_js_app_bytecode_cache_proposal.json
-    SUCCESS | Wrote vote to ./refresh_js_app_bytecode_cache_vote_for.json
+    {
+      "actions": [
+        {
+          "name": "refresh_js_app_bytecode_cache"
+        }
+      ]
+    }
 
-.. note:: The operator RPC ``/node/js_metrics`` returns the size of the bytecode and whether it is used. If it is not used, then either no bytecode is stored or it needs to be re-compiled due to a CCF update.
+.. note:: The operator RPC :http:GET:`/node/js_metrics` returns the size of the bytecode and whether it is used. If it is not used, then either no bytecode is stored or it needs to be re-compiled due to a CCF update.

@@ -108,7 +108,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("release", "debug", "virtual"),
     )
     parser.add_argument(
-        "-l",
         "--host-log-level",
         help="Runtime host log level",
         default="info",
@@ -203,7 +202,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Subject Name in node certificate, eg. CN=CCF Node",
     )
     parser.add_argument(
-        "--subject_alt_names",
+        "--subject-alt-names",
         help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
         action="append",
         default=[],
@@ -309,8 +308,20 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=1,
     )
     parser.add_argument(
+        "--initial-service-cert-validity-days",
+        help="Initial validity period in days for service certificate before the first certificate renewal",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
         "--maximum-node-certificate-validity-days",
         help="Maximum allowed validity period in days for certificates of trusted nodes",
+        type=int,
+        default=365,
+    )
+    parser.add_argument(
+        "--maximum-service-certificate-validity-days",
+        help="Maximum allowed validity period in days for service certificate",
         type=int,
         default=365,
     )
@@ -319,6 +330,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Reconfiguration type",
         default="OneTransaction",
         choices=("OneTransaction", "TwoTransaction"),
+    )
+    parser.add_argument(
+        "--previous-service-identity-file",
+        help="Path to previous service identity file",
+        type=str,
+        default="",
     )
     parser.add_argument(
         "--config-file",

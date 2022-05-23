@@ -3,11 +3,11 @@
 #include "ccf/app_interface.h"
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/ds/json.h"
 #include "ccf/json_handler.h"
-#include "ds/json.h"
-#include "enclave/node_context.h"
-#include "node/network_tables.h"
-#include "node/rpc/frontend.h"
+#include "ccf/node_context.h"
+#include "node/rpc/call_types.h"
+#include "node/rpc/serialization.h"
 
 #include <charconv>
 
@@ -327,26 +327,13 @@ namespace nobuiltins
         .install();
     }
   };
-
-  class NoBuiltinsFrontend : public ccf::RpcFrontend
-  {
-  private:
-    NoBuiltinsRegistry nbr;
-
-  public:
-    NoBuiltinsFrontend(
-      ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, nbr),
-      nbr(context)
-    {}
-  };
 }
 
 namespace ccfapp
 {
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-    return std::make_shared<nobuiltins::NoBuiltinsFrontend>(nwt, context);
+    return std::make_unique<nobuiltins::NoBuiltinsRegistry>(context);
   }
 }

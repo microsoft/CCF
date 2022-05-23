@@ -3,8 +3,7 @@
 #pragma once
 
 #include "ccf/entity_id.h"
-#include "crypto/hash.h"
-#include "kv/map.h"
+#include "ccf/service/map.h"
 
 #include <string>
 #include <vector>
@@ -40,4 +39,8 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(RevealedNonces, tx_id, nonces)
 
   using RevealedNoncesMap = ccf::ServiceValue<RevealedNonces>;
+  namespace Tables
+  {
+    static constexpr auto NONCES = "public:ccf.internal.consensus.nonces";
+  }
 }

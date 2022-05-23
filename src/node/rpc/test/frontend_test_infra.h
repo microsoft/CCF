@@ -3,18 +3,18 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 #include "ccf/app_interface.h"
-#include "ccf/user_frontend.h"
-#include "crypto/rsa_key_pair.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/ds/logger.h"
+#include "ccf/serdes.h"
+#include "ccf/service/signed_req.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/client_signatures.h"
-#include "node/genesis_gen.h"
 #include "node/history.h"
 #include "node/rpc/member_frontend.h"
-#include "node/rpc/serdes.h"
+#include "node/rpc/user_frontend.h"
 #include "node_stub.h"
+#include "service/genesis_gen.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -29,25 +29,22 @@ using namespace nlohmann;
 using TResponse = http::SimpleResponseProcessor::Response;
 
 // used throughout
+constexpr size_t certificate_validity_period_days = 365;
+using namespace std::literals;
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
+
 auto kp = crypto::make_key_pair();
-auto member_cert = kp -> self_sign("CN=name_member");
+auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
 auto verifier_mem = crypto::make_verifier(member_cert);
-auto member_caller = verifier_mem -> cert_der();
-auto user_cert = kp -> self_sign("CN=name_user");
+auto user_cert = kp -> self_sign("CN=name_user", valid_from, valid_to);
 auto dummy_enc_pubk = crypto::make_rsa_key_pair() -> public_key_pem();
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 constexpr auto default_pack = serdes::Pack::Text;
-
-string get_script_path(string name)
-{
-  auto default_dir = "../src/runtime_config";
-  auto dir = getenv("RUNTIME_CONFIG_DIR");
-  stringstream ss;
-  ss << (dir ? dir : default_dir) << "/" << name;
-  return ss.str();
-}
 
 template <typename T>
 T parse_response_body(const TResponse& r)
@@ -113,9 +110,9 @@ auto frontend_process(
   const std::vector<uint8_t>& serialized_request,
   const crypto::Pem& caller)
 {
-  auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, crypto::make_verifier(caller)->cert_der());
-  auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, crypto::make_verifier(caller)->cert_der());
+  auto rpc_ctx = ccf::make_rpc_context(session, serialized_request);
   http::extract_actor(*rpc_ctx);
   auto serialized_response = frontend.process(rpc_ctx);
 
@@ -128,21 +125,6 @@ auto frontend_process(
   DOCTEST_REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
-}
-
-auto get_vote(
-  MemberRpcFrontend& frontend,
-  ProposalId proposal_id,
-  const MemberId& voter,
-  const crypto::Pem& caller)
-{
-  const auto getter = create_request(
-    nullptr,
-    fmt::format("proposals/{}/ballots/{}", proposal_id, voter),
-    HTTP_GET);
-
-  return parse_response_body<Script>(
-    frontend_process(frontend, getter, caller));
 }
 
 auto activate(
@@ -163,7 +145,8 @@ auto activate(
 
 auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
 {
-  return kp_mem->self_sign("CN=new member" + to_string(member_id));
+  return kp_mem->self_sign(
+    "CN=new member" + to_string(member_id), valid_from, valid_to);
 }
 
 auto init_frontend(

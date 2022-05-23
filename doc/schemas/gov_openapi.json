@@ -87,29 +87,6 @@
         },
         "type": "array"
       },
-      "EntityId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
-      "EntityId_to_Failure": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Failure"
-        },
-        "type": "object"
-      },
-      "EntityId_to_boolean": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/boolean"
-        },
-        "type": "object"
-      },
-      "EntityId_to_string": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/string"
-        },
-        "type": "object"
-      },
       "Failure": {
         "properties": {
           "reason": {
@@ -121,6 +98,29 @@
         },
         "required": [
           "reason"
+        ],
+        "type": "object"
+      },
+      "FullMemberDetails": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "member_data": {
+            "$ref": "#/components/schemas/json"
+          },
+          "public_encryption_key": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemberStatus"
+          }
+        },
+        "required": [
+          "status",
+          "member_data",
+          "cert",
+          "public_encryption_key"
         ],
         "type": "object"
       },
@@ -208,6 +208,42 @@
         ],
         "type": "object"
       },
+      "MemberId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "MemberId_to_Failure": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Failure"
+        },
+        "type": "object"
+      },
+      "MemberId_to_FullMemberDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/FullMemberDetails"
+        },
+        "type": "object"
+      },
+      "MemberId_to_boolean": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/boolean"
+        },
+        "type": "object"
+      },
+      "MemberId_to_string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "object"
+      },
+      "MemberStatus": {
+        "enum": [
+          "Accepted",
+          "Active"
+        ],
+        "type": "string"
+      },
       "Pem": {
         "type": "string"
       },
@@ -225,22 +261,22 @@
       "ProposalInfo": {
         "properties": {
           "ballots": {
-            "$ref": "#/components/schemas/EntityId_to_string"
+            "$ref": "#/components/schemas/MemberId_to_string"
           },
           "failure": {
             "$ref": "#/components/schemas/Failure"
           },
           "final_votes": {
-            "$ref": "#/components/schemas/EntityId_to_boolean"
+            "$ref": "#/components/schemas/MemberId_to_boolean"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/MemberId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
           },
           "vote_failures": {
-            "$ref": "#/components/schemas/EntityId_to_Failure"
+            "$ref": "#/components/schemas/MemberId_to_Failure"
           }
         },
         "required": [
@@ -262,16 +298,16 @@
             "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/EntityId"
+            "$ref": "#/components/schemas/MemberId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
           },
           "vote_failures": {
-            "$ref": "#/components/schemas/EntityId_to_Failure"
+            "$ref": "#/components/schemas/MemberId_to_Failure"
           },
           "votes": {
-            "$ref": "#/components/schemas/EntityId_to_boolean"
+            "$ref": "#/components/schemas/MemberId_to_boolean"
           }
         },
         "required": [
@@ -292,52 +328,6 @@
           "Dropped"
         ],
         "type": "string"
-      },
-      "Receipt": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/EntityId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/Receipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "proof",
-          "leaf",
-          "node_id"
-        ],
-        "type": "object"
-      },
-      "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "Receipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/Receipt__Element"
-        },
-        "type": "array"
       },
       "StateDigest": {
         "properties": {
@@ -415,11 +405,11 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.3.0"
+    "version": "2.7.2"
   },
   "openapi": "3.0.0",
   "paths": {
-    "/ack": {
+    "/gov/ack": {
       "post": {
         "requestBody": {
           "content": {
@@ -443,7 +433,7 @@
         ]
       }
     },
-    "/ack/update_state_digest": {
+    "/gov/ack/update_state_digest": {
       "post": {
         "responses": {
           "200": {
@@ -464,7 +454,7 @@
         ]
       }
     },
-    "/api": {
+    "/gov/api": {
       "get": {
         "responses": {
           "200": {
@@ -480,7 +470,7 @@
         }
       }
     },
-    "/api/metrics": {
+    "/gov/api/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -496,7 +486,7 @@
         }
       }
     },
-    "/code": {
+    "/gov/code": {
       "get": {
         "responses": {
           "200": {
@@ -512,7 +502,7 @@
         }
       }
     },
-    "/commit": {
+    "/gov/commit": {
       "get": {
         "responses": {
           "200": {
@@ -528,7 +518,7 @@
         }
       }
     },
-    "/jwt_keys/all": {
+    "/gov/jwt_keys/all": {
       "get": {
         "responses": {
           "200": {
@@ -544,7 +534,7 @@
         }
       }
     },
-    "/local_tx": {
+    "/gov/local_tx": {
       "get": {
         "parameters": [
           {
@@ -570,7 +560,23 @@
         }
       }
     },
-    "/proposals": {
+    "/gov/members": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_FullMemberDetails"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/gov/proposals": {
       "post": {
         "requestBody": {
           "content": {
@@ -601,7 +607,7 @@
         ]
       }
     },
-    "/proposals/{proposal_id}": {
+    "/gov/proposals/{proposal_id}": {
       "get": {
         "responses": {
           "200": {
@@ -632,7 +638,7 @@
         }
       ]
     },
-    "/proposals/{proposal_id}/actions": {
+    "/gov/proposals/{proposal_id}/actions": {
       "get": {
         "responses": {
           "200": {
@@ -663,7 +669,7 @@
         }
       ]
     },
-    "/proposals/{proposal_id}/ballots": {
+    "/gov/proposals/{proposal_id}/ballots": {
       "parameters": [
         {
           "in": "path",
@@ -704,7 +710,7 @@
         ]
       }
     },
-    "/proposals/{proposal_id}/ballots/{member_id}": {
+    "/gov/proposals/{proposal_id}/ballots/{member_id}": {
       "get": {
         "responses": {
           "200": {
@@ -743,7 +749,7 @@
         }
       ]
     },
-    "/proposals/{proposal_id}/withdraw": {
+    "/gov/proposals/{proposal_id}/withdraw": {
       "parameters": [
         {
           "in": "path",
@@ -774,7 +780,7 @@
         ]
       }
     },
-    "/receipt": {
+    "/gov/receipt": {
       "get": {
         "parameters": [
           {
@@ -791,7 +797,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
@@ -800,7 +806,7 @@
         }
       }
     },
-    "/recovery_share": {
+    "/gov/recovery_share": {
       "get": {
         "responses": {
           "200": {
@@ -850,7 +856,7 @@
         ]
       }
     },
-    "/tx": {
+    "/gov/tx": {
       "get": {
         "parameters": [
           {
@@ -877,9 +883,5 @@
       }
     }
   },
-  "servers": [
-    {
-      "url": "/gov"
-    }
-  ]
+  "servers": []
 }

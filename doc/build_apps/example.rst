@@ -9,7 +9,7 @@ The repository contains a C++ implementation of a simple example application for
 
 The Logging application implements a trivial protocol, made up of four transaction types:
 
-- ``POST /app/log/private``, which writes a private log message at a given index. Note that the log message will be encrypted on the ledger and only readable by nodes on the network.
+- :http:POST:`/app/log/private`, which writes a private log message at a given index. Note that the log message will be encrypted on the ledger and only readable by nodes on the network.
 
     Log a private message:
 
@@ -20,7 +20,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "msg": "A sample private log message"
         }
 
-- ``GET /app/log/private``, which retrieves a private log message from a given index written by a previous ``POST /app/log/private`` call.
+- :http:GET:`/app/log/private`, which retrieves a private log message from a given index written by a previous :http:POST:`/app/log/private` call.
 
     Get a private message:
 
@@ -30,7 +30,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "id": 42
         }
 
-- ``POST /app/log/public``, which writes a public log message at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
+- :http:POST:`/app/log/public`, which writes a public log message at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
 
     Log a public message:
 
@@ -41,7 +41,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "msg": "A sample public log message"
         }
 
-- ``GET /app/log/public``, which retrieves a public public log from a given index written by a previous ``POST /app/log/public`` call.
+- :http:GET:`/app/log/public`, which retrieves a public log from a given index written by a previous :http:POST:`/app/log/public` call.
 
     Get a public message:
 
@@ -51,7 +51,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "id": 100
         }
 
-The C++ implementation of the Logging application is located in the `src/apps <https://github.com/microsoft/CCF/tree/main/src/apps>`_ folder. It is discussed in detail on the following pages:
+The C++ implementation of the Logging application is located in the :ccf_repo:`samples/apps/logging/` folder. It is discussed in detail on the following pages:
 
 .. toctree::
    :maxdepth: 2

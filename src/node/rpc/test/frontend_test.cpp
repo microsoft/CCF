@@ -5,23 +5,22 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
-#include "ccf/user_frontend.h"
+#include "ccf/kv/map.h"
+#include "ccf/serdes.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
-#include "ds/logger.h"
-#include "kv/map.h"
+#include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/entities.h"
-#include "node/genesis_gen.h"
 #include "node/history.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
+#include "service/genesis_gen.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -33,7 +32,18 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using namespace ccf;
 using namespace std;
 
-static constexpr auto default_pack = serdes::Pack::MsgPack;
+class SimpleUserRpcFrontend : public RpcFrontend
+{
+protected:
+  UserEndpointRegistry common_handlers;
+
+public:
+  SimpleUserRpcFrontend(
+    kv::Store& tables, ccfapp::AbstractNodeContext& context) :
+    RpcFrontend(tables, common_handlers),
+    common_handlers(context)
+  {}
+};
 
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {
@@ -303,7 +313,7 @@ public:
   void record_ctx(ccf::endpoints::EndpointContext& ctx)
   {
     last_caller_cert =
-      crypto::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
+      crypto::cert_der_to_pem(ctx.rpc_ctx->get_session_context()->caller_cert);
     if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
     {
       last_caller_id = uci->user_id;
@@ -374,7 +384,6 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    kv::Store& tables,
     ccf::NetworkState& network,
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
@@ -394,10 +403,6 @@ public:
       .install();
   }
 };
-
-// used throughout
-auto kp = crypto::make_key_pair();
-auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 NetworkState bft_network(ConsensusType::BFT);
 auto history_kp = crypto::make_key_pair();
@@ -450,31 +455,30 @@ nlohmann::json parse_response_body(
 }
 
 // callers used throughout
-auto user_caller = kp -> self_sign("CN=name");
+auto user_caller = kp -> self_sign("CN=name", valid_from, valid_to);
 auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
 
-auto member_caller = kp -> self_sign("CN=name_member");
-auto member_caller_der = crypto::make_verifier(member_caller) -> cert_der();
+auto member_caller_der = crypto::make_verifier(member_cert) -> cert_der();
 
-auto node_caller = kp -> self_sign("CN=node");
+auto node_caller = kp -> self_sign("CN=node", valid_from, valid_to);
 auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
 
 auto kp_other = crypto::make_key_pair();
-auto invalid_caller = kp_other -> self_sign("CN=name");
+auto invalid_caller = kp_other -> self_sign("CN=name", valid_from, valid_to);
 auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 
-auto user_session = make_shared<enclave::SessionContext>(
-  enclave::InvalidSessionId, user_caller_der);
-auto backup_user_session = make_shared<enclave::SessionContext>(
-  enclave::InvalidSessionId, user_caller_der);
-auto invalid_session = make_shared<enclave::SessionContext>(
-  enclave::InvalidSessionId, invalid_caller_der);
-auto member_session = make_shared<enclave::SessionContext>(
-  enclave::InvalidSessionId, member_caller_der);
-auto anonymous_session = make_shared<enclave::SessionContext>(
-  enclave::InvalidSessionId, anonymous_caller_der);
+auto user_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
+auto backup_user_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
+auto invalid_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, invalid_caller_der);
+auto member_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, member_caller_der);
+auto anonymous_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, anonymous_caller_der);
 
 UserId user_id;
 
@@ -495,7 +499,7 @@ void prepare_callers(NetworkState& network)
   GenesisGenerator g(network, tx);
   g.create_service({});
   user_id = g.add_user({user_caller});
-  member_id = g.add_member(member_caller);
+  member_id = g.add_member(member_cert);
   invalid_member_id = g.add_member(invalid_caller);
   CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 }
@@ -539,7 +543,7 @@ TEST_CASE("process with signatures")
     constexpr auto rpc_name = "/this_rpc_doesnt_exist";
     const auto invalid_call = create_simple_request(rpc_name);
     const auto serialized_call = invalid_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -554,9 +558,9 @@ TEST_CASE("process with signatures")
     const auto serialized_signed_call = signed_call.build_request();
 
     auto simple_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      ccf::make_rpc_context(user_session, serialized_simple_call);
     auto signed_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      ccf::make_rpc_context(user_session, serialized_signed_call);
 
     INFO("Unsigned RPC");
     {
@@ -581,9 +585,9 @@ TEST_CASE("process with signatures")
     const auto serialized_signed_call = signed_call.build_request();
 
     auto simple_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      ccf::make_rpc_context(user_session, serialized_simple_call);
     auto signed_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      ccf::make_rpc_context(user_session, serialized_signed_call);
 
     INFO("Unsigned RPC");
     {
@@ -615,11 +619,11 @@ TEST_CASE("process with caller")
     const auto simple_call = create_simple_request("/empty_function_no_auth");
     const auto serialized_simple_call = simple_call.build_request();
     auto authenticated_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      ccf::make_rpc_context(user_session, serialized_simple_call);
     auto invalid_rpc_ctx =
-      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+      ccf::make_rpc_context(invalid_session, serialized_simple_call);
     auto anonymous_rpc_ctx =
-      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
+      ccf::make_rpc_context(anonymous_session, serialized_simple_call);
 
     INFO("Valid authentication");
     {
@@ -654,11 +658,11 @@ TEST_CASE("process with caller")
     const auto simple_call = create_simple_request("/empty_function");
     const auto serialized_simple_call = simple_call.build_request();
     auto authenticated_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      ccf::make_rpc_context(user_session, serialized_simple_call);
     auto invalid_rpc_ctx =
-      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+      ccf::make_rpc_context(invalid_session, serialized_simple_call);
     auto anonymous_rpc_ctx =
-      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
+      ccf::make_rpc_context(anonymous_session, serialized_simple_call);
 
     INFO("Valid authentication");
     {
@@ -687,9 +691,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(
-        error_msg.find("Could not find matching user certificate") !=
-        std::string::npos);
+      CHECK(error_msg.find("No caller user certificate") != std::string::npos);
     }
   }
 }
@@ -704,7 +706,7 @@ TEST_CASE("No certs table")
 
   INFO("Authenticated caller");
   {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -713,8 +715,7 @@ TEST_CASE("No certs table")
 
   INFO("Anonymous caller");
   {
-    auto rpc_ctx =
-      enclave::make_rpc_context(anonymous_session, serialized_call);
+    auto rpc_ctx = ccf::make_rpc_context(anonymous_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -737,7 +738,7 @@ TEST_CASE("Member caller")
   SUBCASE("valid caller")
   {
     auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
+      ccf::make_rpc_context(member_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -746,7 +747,7 @@ TEST_CASE("Member caller")
 
   SUBCASE("invalid caller")
   {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -770,7 +771,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
       echo_call.set_body(serialized_body.data(), serialized_body.size());
       const auto serialized_call = echo_call.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -793,7 +794,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
 
       const auto serialized_call = echo_call.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -807,7 +808,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
       const auto get_caller = create_simple_request("/get_caller", pack_type);
       const auto serialized_call = get_caller.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -821,7 +822,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
     auto dont_fail = create_simple_request("/failable");
     const auto serialized_call = dont_fail.build_request();
 
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -842,7 +843,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
       fail.set_body(serialized_body.data(), serialized_body.size());
       const auto serialized_call = fail.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == err);
       CHECK(
@@ -873,7 +874,7 @@ TEST_CASE("Restricted verbs")
     {
       http::Request get("get_only", verb);
       const auto serialized_get = get.build_request();
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_get);
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_get);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_GET)
@@ -893,7 +894,7 @@ TEST_CASE("Restricted verbs")
     {
       http::Request post("post_only", verb);
       const auto serialized_post = post.build_request();
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_post);
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_post);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_POST)
@@ -914,7 +915,7 @@ TEST_CASE("Restricted verbs")
       http::Request put_or_delete("put_or_delete", verb);
       const auto serialized_put_or_delete = put_or_delete.build_request();
       auto rpc_ctx =
-        enclave::make_rpc_context(user_session, serialized_put_or_delete);
+        ccf::make_rpc_context(user_session, serialized_put_or_delete);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_PUT || verb == HTTP_DELETE)
@@ -980,8 +981,7 @@ TEST_CASE("Explicit commitability")
       request.set_body(&serialized_body);
 
       const auto serialized_request = request.build_request();
-      auto rpc_ctx =
-        enclave::make_rpc_context(user_session, serialized_request);
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
 
@@ -1016,8 +1016,7 @@ TEST_CASE("Explicit commitability")
         request.set_body(&serialized_body);
 
         const auto serialized_request = request.build_request();
-        auto rpc_ctx =
-          enclave::make_rpc_context(user_session, serialized_request);
+        auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
         const auto serialized_response = frontend.process(rpc_ctx).value();
         const auto response = parse_response(serialized_response);
 
@@ -1050,7 +1049,7 @@ TEST_CASE("Alternative endpoints")
     auto command = create_simple_request("/command");
     const auto serialized_command = command.build_request();
 
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_command);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_command);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -1060,8 +1059,7 @@ TEST_CASE("Alternative endpoints")
     http::Request read_only("read_only", verb);
     const auto serialized_read_only = read_only.build_request();
 
-    auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_read_only);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_read_only);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -1077,7 +1075,7 @@ TEST_CASE("Templated paths")
     auto request = create_simple_request("/fin/fang/foom");
     const auto serialized_request = request.build_request();
 
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_request);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1096,7 +1094,7 @@ TEST_CASE("Templated paths")
     auto request = create_simple_request("/users/1/address");
     const auto serialized_request = request.build_request();
 
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_request);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1123,8 +1121,7 @@ TEST_CASE("Signed read requests can be executed on backup")
 
   auto signed_call = create_signed_request(user_caller);
   auto serialized_signed_call = signed_call.build_request();
-  auto rpc_ctx =
-    enclave::make_rpc_context(user_session, serialized_signed_call);
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
   CHECK(response.status == HTTP_STATUS_OK);
 }
@@ -1143,17 +1140,18 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   network_primary.tables->set_consensus(primary_consensus);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
+  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
 
-  auto backup_ctx =
-    enclave::make_rpc_context(backup_user_session, serialized_call);
-  auto ctx = enclave::make_rpc_context(user_session, serialized_call);
+  auto backup_ctx = ccf::make_rpc_context(backup_user_session, serialized_call);
+  auto ctx = ccf::make_rpc_context(user_session, serialized_call);
 
   {
     INFO("Backup frontend without forwarder does not forward");
@@ -1168,7 +1166,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  backup_ctx->session->is_forwarding = false;
+  backup_ctx->get_session_context()->is_forwarding = false;
 
   {
     INFO("Read command is not forwarded to primary");
@@ -1256,7 +1254,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto signed_call = create_signed_request(user_caller);
     auto serialized_signed_call = signed_call.build_request();
     auto signed_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      ccf::make_rpc_context(user_session, serialized_signed_call);
     const auto r = user_frontend_backup.process(signed_ctx);
     REQUIRE(!r.has_value());
     REQUIRE(channel_stub->size() == 1);
@@ -1272,7 +1270,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   // On a session that was previously forwarded, and is now primary,
   // commands should still succeed
-  ctx->session->is_forwarding = true;
+  ctx->get_session_context()->is_forwarding = true;
   {
     INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());
@@ -1303,8 +1301,10 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
+  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
@@ -1312,9 +1312,9 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  auto node_session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, node_caller.raw());
-  auto ctx = enclave::make_rpc_context(node_session, serialized_call);
+  auto node_session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, node_caller.raw());
+  auto ctx = ccf::make_rpc_context(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -1347,8 +1347,10 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
+  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
@@ -1356,7 +1358,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  auto ctx = enclave::make_rpc_context(user_session, serialized_call);
+  auto ctx = ccf::make_rpc_context(user_session, serialized_call);
   const auto r = user_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -1385,16 +1387,18 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network_primary.tables, network_primary, context, share_manager);
+    network_primary, context, share_manager);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network_backup.tables, network_backup, context, share_manager);
+    network_backup, context, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
+  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
+  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    nullptr, channel_stub, nullptr, ConsensusType::CFT);
+    rpc_responder, channel_stub, rpc_map, ConsensusType::CFT);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
   auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
@@ -1402,7 +1406,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  auto ctx = enclave::make_rpc_context(member_session, serialized_call);
+  auto ctx = ccf::make_rpc_context(member_session, serialized_call);
   const auto r = member_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -1415,7 +1419,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));
   CHECK(response.status == HTTP_STATUS_OK);
 
-  CHECK(member_frontend_primary.last_caller_cert == member_caller);
+  CHECK(member_frontend_primary.last_caller_cert == member_cert);
   CHECK(member_frontend_primary.last_caller_id.value() == member_id.value());
 }
 
@@ -1482,7 +1486,7 @@ TEST_CASE("Retry on conflict")
     size_t retry_count = ccf_max_attempts - 1;
     req.set_header("test-retry-count", fmt::format("{}", retry_count));
     auto serialized_call = req.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
@@ -1498,7 +1502,7 @@ TEST_CASE("Retry on conflict")
     size_t retry_count = ccf_max_attempts + 1;
     req.set_header("test-retry-count", fmt::format("{}", retry_count));
     auto serialized_call = req.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);

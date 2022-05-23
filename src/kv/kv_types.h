@@ -2,16 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/claims_digest.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
+#include "ccf/kv/get_name.h"
+#include "ccf/kv/hooks.h"
+#include "ccf/kv/version.h"
 #include "ccf/tx_id.h"
-#include "crypto/hash.h"
-#include "crypto/pem.h"
-#include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
-#include "node/resharing_types.h"
 #include "serialiser_declare.h"
+#include "service/tables/resharing_types.h"
 
 #include <array>
 #include <chrono>
@@ -36,10 +39,6 @@ namespace aft
 
 namespace kv
 {
-  // Version indexes modifications to the local kv store.
-  using Version = uint64_t;
-  static constexpr Version NoVersion = 0u;
-
   // DeletableVersion describes the version of an individual key within each
   // table, which may be negative to indicate a deletion
   using DeletableVersion = int64_t;
@@ -73,9 +72,14 @@ namespace kv
       return {term, version};
     }
 
-    bool operator==(const TxID& other)
+    bool operator==(const TxID& other) const
     {
       return term == other.term && version == other.version;
+    }
+
+    std::string str() const
+    {
+      return fmt::format("{}.{}", term, version);
     }
   };
   DECLARE_JSON_TYPE(TxID);
@@ -124,13 +128,13 @@ namespace kv
     ni.port = p;
   }
 
-  inline std::string schema_name(const Configuration::NodeInfo&)
+  inline std::string schema_name(const Configuration::NodeInfo*)
   {
     return "Configuration__NodeInfo";
   }
 
   inline void fill_json_schema(
-    nlohmann::json& schema, const Configuration::NodeInfo&)
+    nlohmann::json& schema, const Configuration::NodeInfo*)
   {
     schema["type"] = "object";
     schema["required"] = nlohmann::json::array();
@@ -189,38 +193,43 @@ namespace kv
 
   struct ConsensusDetails
   {
+    struct Ack
+    {
+      ccf::SeqNo seqno;
+      size_t last_received_ms;
+    };
+
     std::vector<Configuration> configs = {};
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
+    std::unordered_map<ccf::NodeId, Ack> acks = {};
     MembershipState membership_state;
-    std::optional<LeadershipState> leadership_state;
-    std::optional<RetirementPhase> retirement_phase;
-    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
-    std::optional<ReconfigurationType> reconfiguration_type;
+    std::optional<LeadershipState> leadership_state = std::nullopt;
+    std::optional<RetirementPhase> retirement_phase = std::nullopt;
+    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
+      std::nullopt;
+    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
+    std::optional<ccf::NodeId> primary_id = std::nullopt;
+    ccf::View current_view = 0;
+    bool ticking = false;
   };
+
+  DECLARE_JSON_TYPE(ConsensusDetails::Ack);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails::Ack, seqno, last_received_ms);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
-    ConsensusDetails, configs, acks, membership_state);
+    ConsensusDetails,
+    configs,
+    acks,
+    membership_state,
+    primary_id,
+    current_view,
+    ticking);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ConsensusDetails,
     reconfiguration_type,
     learners,
     leadership_state,
     retirement_phase);
-
-  struct NetworkConfiguration
-  {
-    ReconfigurationId rid;
-    std::unordered_set<NodeId> nodes;
-
-    bool operator<(const NetworkConfiguration& other) const
-    {
-      return rid < other.rid;
-    }
-  };
-
-  DECLARE_JSON_TYPE(kv::NetworkConfiguration);
-  DECLARE_JSON_REQUIRED_FIELDS(kv::NetworkConfiguration, rid, nodes);
 
   struct ConsensusParameters
   {
@@ -238,32 +247,14 @@ namespace kv
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
-    virtual void reconfigure(
-      ccf::SeqNo seqno, const NetworkConfiguration& config) = 0;
     virtual void add_resharing_result(
       ccf::SeqNo seqno,
       ReconfigurationId rid,
       const ccf::ResharingResult& result) = 0;
-    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) = 0;
-    virtual void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const NodeId& node_id,
-      const crypto::Pem& node_cert) = 0;
-    virtual void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) = 0;
+    virtual std::optional<Configuration::Nodes> orc(
+      kv::ReconfigurationId rid, const NodeId& node_id) = 0;
     virtual void update_parameters(ConsensusParameters& params) = 0;
   };
-
-  class ConsensusHook
-  {
-  public:
-    virtual void call(ConfigurableConsensus*) = 0;
-    virtual ~ConsensusHook(){};
-  };
-
-  using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
-  using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
 
   using BatchVector = std::vector<std::tuple<
     Version,
@@ -295,8 +286,24 @@ namespace kv
   enum class EntryType : uint8_t
   {
     WriteSet = 0,
-    Snapshot = 1
+    Snapshot = 1,
+    WriteSetWithClaims = 2,
+    WriteSetWithCommitEvidence = 3,
+    WriteSetWithCommitEvidenceAndClaims = 4,
+    MAX = WriteSetWithCommitEvidenceAndClaims
   };
+
+  static bool has_claims(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithClaims ||
+      et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
+
+  static bool has_commit_evidence(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithCommitEvidence ||
+      et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
 
   // EntryType must be backwards compatible with the older
   // bool is_snapshot field
@@ -439,14 +446,15 @@ namespace kv
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
-
     virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void append_entry(const crypto::Sha256Hash& digest) = 0;
     virtual void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
     virtual void set_endorsed_certificate(const crypto::Pem& cert) = 0;
+    virtual void start_signature_emit_timer() = 0;
   };
 
   class Consensus : public ConfigurableConsensus
@@ -463,7 +471,7 @@ namespace kv
     virtual void force_become_primary(
       ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
     virtual void init_as_backup(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) = 0;
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
 
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
@@ -483,7 +491,6 @@ namespace kv
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
     virtual bool view_change_in_progress() = 0;
-    virtual std::set<NodeId> active_nodes() = 0;
 
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
@@ -500,14 +507,20 @@ namespace kv
   {
     CommitResult success;
     std::vector<uint8_t> data;
+    ccf::ClaimsDigest claims_digest;
+    crypto::Sha256Hash commit_evidence_digest;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
       std::vector<uint8_t>&& data_,
+      ccf::ClaimsDigest&& claims_digest_,
+      crypto::Sha256Hash&& commit_evidence_digest_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       data(std::move(data_)),
+      claims_digest(claims_digest_),
+      commit_evidence_digest(commit_evidence_digest_),
       hooks(std::move(hooks_))
     {}
   };
@@ -523,18 +536,30 @@ namespace kv
   {
   private:
     std::vector<uint8_t> data;
+    ccf::ClaimsDigest claims_digest;
+    crypto::Sha256Hash commit_evidence_digest;
     ConsensusHookPtrs hooks;
 
   public:
-    MovePendingTx(std::vector<uint8_t>&& data_, ConsensusHookPtrs&& hooks_) :
+    MovePendingTx(
+      std::vector<uint8_t>&& data_,
+      ccf::ClaimsDigest&& claims_digest_,
+      crypto::Sha256Hash&& commit_evidence_digest_,
+      ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
+      claims_digest(std::move(claims_digest_)),
+      commit_evidence_digest(std::move(commit_evidence_digest_)),
       hooks(std::move(hooks_))
     {}
 
     PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitResult::SUCCESS, std::move(data), std::move(hooks));
+        CommitResult::SUCCESS,
+        std::move(data),
+        std::move(claims_digest),
+        std::move(commit_evidence_digest),
+        std::move(hooks));
     }
   };
 
@@ -549,7 +574,8 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      EntryType entry_type = EntryType::WriteSet) = 0;
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -563,9 +589,22 @@ namespace kv
 
     virtual size_t get_header_length() = 0;
     virtual uint64_t get_term(const uint8_t* data, size_t size) = 0;
-  };
 
+    virtual crypto::HashBytes get_commit_nonce(
+      const TxID& tx_id, bool historical_hint = false) = 0;
+  };
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
+
+  class AbstractSnapshotter
+  {
+  public:
+    virtual ~AbstractSnapshotter(){};
+
+    virtual bool record_committable(kv::Version v) = 0;
+    virtual void commit(kv::Version v, bool generate_snapshot) = 0;
+    virtual void rollback(kv::Version v) = 0;
+  };
+  using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
   class AbstractChangeSet
   {
@@ -586,30 +625,9 @@ namespace kv
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
-  class AbstractHandle
-  {
-  public:
-    virtual ~AbstractHandle() = default;
-  };
-
-  struct NamedHandleMixin
-  {
-  protected:
-    std::string name;
-
-  public:
-    NamedHandleMixin(const std::string& s) : name(s) {}
-    virtual ~NamedHandleMixin() = default;
-
-    const std::string& get_name() const
-    {
-      return name;
-    }
-  };
-
   class AbstractStore;
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
-                      public NamedHandleMixin
+                      public GetName
   {
   public:
     class Snapshot
@@ -620,7 +638,7 @@ namespace kv
       virtual SecurityDomain get_security_domain() = 0;
     };
 
-    using NamedHandleMixin::NamedHandleMixin;
+    using GetName::GetName;
     virtual ~AbstractMap() {}
 
     virtual std::unique_ptr<AbstractCommitter> create_committer(
@@ -658,6 +676,9 @@ namespace kv
     virtual kv::Version get_index() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
+    virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
+    virtual std::optional<crypto::Sha256Hash>&&
+    consume_commit_evidence_digest() = 0;
 
     // Setting a short rollback is a work around that should be fixed
     // shortly. In BFT mode when we deserialize and realize we need to
@@ -735,8 +756,23 @@ namespace kv
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
+    virtual bool must_force_ledger_chunk(Version version) = 0;
+    virtual bool must_force_ledger_chunk_unsafe(Version version) = 0;
 
-    virtual size_t commit_gap() = 0;
+    virtual size_t committable_gap() = 0;
+
+    enum class Flag : uint8_t
+    {
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
+      SNAPSHOT_AT_NEXT_SIGNATURE = 0x02
+    };
+
+    virtual void set_flag(Flag f) = 0;
+    virtual void unset_flag(Flag f) = 0;
+    virtual bool flag_enabled(Flag f) = 0;
+    virtual void set_flag_unsafe(Flag f) = 0;
+    virtual void unset_flag_unsafe(Flag f) = 0;
+    virtual bool flag_enabled_unsafe(Flag f) const = 0;
   };
 }
 
@@ -761,24 +797,6 @@ struct formatter<kv::Configuration::Nodes>
       node_ids.insert(nid);
     }
     return format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
-  }
-};
-
-template <>
-struct formatter<kv::NetworkConfiguration>
-{
-  template <typename ParseContext>
-  auto parse(ParseContext& ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const kv::NetworkConfiguration& config, FormatContext& ctx)
-    -> decltype(ctx.out())
-  {
-    return format_to(
-      ctx.out(), "{}:{{{}}}", config.rid, fmt::join(config.nodes, " "));
   }
 };
 

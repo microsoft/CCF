@@ -3,9 +3,11 @@
 
 #include "ccf/base_endpoint_registry.h"
 
+#include "ccf/service/tables/members.h"
+#include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/users.h"
 #include "enclave/enclave_time.h"
-#include "node/members.h"
-#include "node/users.h"
+#include "kv/kv_types.h"
 
 namespace ccf
 {
@@ -93,7 +95,7 @@ namespace ccf
   {
     try
     {
-      const auto node_id = context.get_node_state().get_node_id();
+      const auto node_id = context.get_node_id();
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       const auto node_info = nodes->get(node_id);
 
@@ -117,7 +119,7 @@ namespace ccf
   {
     try
     {
-      node_id = context.get_node_state().get_node_id();
+      node_id = context.get_node_id();
       return ApiResult::OK;
     }
     catch (const std::exception& e)
@@ -272,7 +274,7 @@ namespace ccf
 
   ApiResult BaseEndpointRegistry::get_untrusted_host_time_v1(::timespec& time)
   {
-    const std::chrono::microseconds now_us = enclave::get_enclave_time();
+    const std::chrono::microseconds now_us = ccf::get_enclave_time();
 
     constexpr auto us_per_s = 1'000'000;
     time.tv_sec = now_us.count() / us_per_s;

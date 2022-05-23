@@ -2,13 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/tx.h"
-#include "crypto/entropy.h"
-#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "ledger_secret.h"
-#include "secrets.h"
-#include "shares.h"
+#include "service/tables/secrets.h"
+#include "service/tables/shares.h"
 
 #include <algorithm>
 #include <map>
@@ -47,7 +46,7 @@ namespace ccf
       if (!historical_hint && last_used_secret_it.has_value())
       {
         // Fast path for non-historical queries as both primary and backup nodes
-        // encryt/decrypt transactions in order, it is sufficient to keep an
+        // encrypt/decrypt transactions in order, it is sufficient to keep an
         // iterator on the last used secret to access ledger secrets in constant
         // time.
         auto& last_used_secret_it_ = last_used_secret_it.value();
@@ -230,7 +229,7 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
 
       if (
-        !ledger_secrets.empty() &&
+        !ledger_secrets.empty() && !restored_ledger_secrets.empty() &&
         restored_ledger_secrets.rbegin()->first >=
           ledger_secrets.begin()->first)
       {
@@ -254,6 +253,13 @@ namespace ccf
         return nullptr;
       }
       return ls->key;
+    }
+
+    LedgerSecretPtr get_secret_for(
+      kv::Version version, bool historical_hint = false)
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      return get_secret_for_version(version, historical_hint);
     }
 
     void set_secret(kv::Version version, LedgerSecretPtr&& secret)

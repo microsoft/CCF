@@ -1,1 +1,1 @@
-../../src/runtime_config/default/validate.js
+../../samples/constitutions/default/validate.js

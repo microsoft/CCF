@@ -15,19 +15,21 @@ parameters:
 
   build:
     common:
-      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DENABLE_2TX_RECONFIG=ON'
+      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     NoSGX:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
     debug:
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     v8:
       cmake_args: "-DENABLE_V8=ON"
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DBUILD_TPCC=ON -DDISTRIBUTE_PERF_TESTS="-n local://localhost -n local://localhost"'
     release:
-      cmake_args: "-DTLS_TEST=ON -DLONG_TESTS=ON -DENABLE_BFT=OFF -DENABLE_2TX_RECONFIG=OFF"
+      cmake_args: "-DTLS_TEST=ON -DLONG_TESTS=ON -DENABLE_BFT=OFF"
+    unsafe:
+      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
 
   test:
     NoSGX:
@@ -37,7 +39,7 @@ parameters:
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
-      ctest_args: ""
+      ctest_args: '-LE "benchmark|perf"'
 
 jobs:
   # Debug
@@ -92,9 +94,20 @@ jobs:
           artifact_name: "SGX_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
 
+      # Build that produces unsafe binaries for troubleshooting purposes
+      - template: common.yml
+        parameters:
+          target: SGX
+          env: ${{ parameters.env.SGX }}
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
+          suffix: "Unsafe"
+          artifact_name: "SGX_Unsafe"
+          ctest_filter: "${{ parameters.test.release.ctest_args }}"
+
       - template: release.yml
         parameters:
           env: ${{ parameters.env.Hosted }}
           depends_on:
             - Checks
             - SGX_Release
+            - SGX_Unsafe

@@ -38,7 +38,8 @@ namespace rb
         _rgt(rgt)
       {
         total_size = 1;
-        total_serialized_size = map::get_size_with_padding(key, val);
+        total_serialized_size =
+          map::get_size_with_padding(key) + map::get_size_with_padding(val);
         if (lft)
         {
           total_size += lft->size();
@@ -290,7 +291,6 @@ namespace rb
   {
   private:
     const Map<K, V> map;
-    CBuffer serialized_buffer;
 
   public:
     Snapshot(const Map<K, V>& map_) : map(map_) {}
@@ -300,15 +300,9 @@ namespace rb
       return map.get_serialized_size();
     }
 
-    CBuffer& get_serialized_buffer()
-    {
-      return serialized_buffer;
-    }
-
     void serialize(uint8_t* data)
     {
       size_t size = map.get_serialized_size();
-      serialized_buffer = CBuffer(data, size);
 
       map.foreach([&data, &size](const K& k, const V& v) {
         // Serialize the key

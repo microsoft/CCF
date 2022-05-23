@@ -27,33 +27,21 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     ---
 
     .. image:: ../img/python.svg
-      :width: 22
-      :alt: C++
+      :alt: Python
       :align: left
+      :class: ccf-tile-icon
 
     :doc:`python_tutorial`
     ^^^^^^^^^^^^^^^^^^^^^^
 
-    Common user operations from a Python client.
-
-    ---
-
-    .. image:: ../img/python.svg
-      :width: 22
-      :alt: C++
-      :align: left
-
-    :doc:`python_api`
-    ^^^^^^^^^^^^^^^^^
-
-    Python client API reference.
+    **[Removed]** Common user operations from a Python client.
 
     ---
 
     :fa:`terminal` :doc:`rpc_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    OpenAPI schema for user RPC API.
+    OpenAPI schema for user-facing API exposed by sample app, including common default endpoints.
 
 
 .. toctree::
@@ -63,5 +51,4 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     verify_tx
     verify_quote
     python_tutorial
-    python_api
     rpc_api

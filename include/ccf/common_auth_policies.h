@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "http/authentication/cert_auth.h"
-#include "http/authentication/jwt_auth.h"
-#include "http/authentication/sig_auth.h"
+#include "ccf/endpoints/authentication/cert_auth.h"
+#include "ccf/endpoints/authentication/empty_auth.h"
+#include "ccf/endpoints/authentication/jwt_auth.h"
+#include "ccf/endpoints/authentication/sig_auth.h"
 
 #include <memory>
 
@@ -19,23 +20,28 @@ namespace ccf
   /** Perform no authentication */
   static std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
     std::make_shared<EmptyAuthnPolicy>();
+
   /** Authenticate using TLS session identity, and @c public:ccf.gov.users.certs
    * table */
   static std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
     std::make_shared<UserCertAuthnPolicy>();
+
   /** Authenticate using HTTP request signature, and
    * @c public:ccf.gov.users.certs table */
   static std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
     std::make_shared<UserSignatureAuthnPolicy>();
+
   /** Authenticate using TLS session identity, and
    * @c public:ccf.gov.members.certs table */
   static std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
     std::make_shared<MemberCertAuthnPolicy>();
+
   /** Authenticate using HTTP request signature, and
    * @c public:ccf.gov.members.certs table */
   static std::shared_ptr<MemberSignatureAuthnPolicy>
     member_signature_auth_policy =
       std::make_shared<MemberSignatureAuthnPolicy>();
+
   /** Authenticate using JWT, validating the token using the
    * @c public:ccf.gov.jwt.public_signing_key_issuer and
    * @c public:ccf.gov.jwt.public_signing_keys tables */

@@ -1,16 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
+#include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
-#include "crypto/entropy.h"
-#include "crypto/key_wrap.h"
-#include "crypto/rsa_key_pair.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
+#include "node/rpc/rpc_context_impl.h"
+#include "service/tables/endpoints.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -30,46 +30,34 @@ namespace ccfapp
   class JSHandlers : public UserEndpointRegistry
   {
   private:
-    NetworkTables& network;
+    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
+    {};
+
     ccfapp::AbstractNodeContext& context;
-    metrics::Tracker metrics_tracker;
 
-    static JSValue create_json_obj(const nlohmann::json& j, JSContext* ctx)
-    {
-      const auto buf = j.dump();
-      return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
-    }
-
-    JSValue create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
+    js::JSWrappedValue create_caller_obj(
+      ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
     {
       if (endpoint_ctx.caller == nullptr)
       {
-        return JS_NULL;
+        return ctx.null();
       }
 
-      auto caller = JS_NewObject(ctx);
+      auto caller = ctx.new_obj();
 
       if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
       {
-        JS_SetPropertyStr(
-          ctx,
-          caller,
-          "policy",
-          JS_NewString(ctx, get_policy_name_from_ident(jwt_ident)));
+        caller.set(
+          "policy", ctx.new_string(get_policy_name_from_ident(jwt_ident)));
 
-        auto jwt = JS_NewObject(ctx);
-        JS_SetPropertyStr(
-          ctx,
-          jwt,
+        auto jwt = ctx.new_obj();
+        jwt.set(
           "keyIssuer",
-          JS_NewStringLen(
-            ctx, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
-        JS_SetPropertyStr(
-          ctx, jwt, "header", create_json_obj(jwt_ident->header, ctx));
-        JS_SetPropertyStr(
-          ctx, jwt, "payload", create_json_obj(jwt_ident->payload, ctx));
-        JS_SetPropertyStr(ctx, caller, "jwt", jwt);
+          ctx.new_string_len(
+            jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
+        jwt.set("header", ctx.parse_json(jwt_ident->header));
+        jwt.set("payload", ctx.parse_json(jwt_ident->payload));
+        caller.set("jwt", jwt);
 
         return caller;
       }
@@ -77,11 +65,8 @@ namespace ccfapp
         auto empty_ident =
           endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
       {
-        JS_SetPropertyStr(
-          ctx,
-          caller,
-          "policy",
-          JS_NewString(ctx, get_policy_name_from_ident(empty_ident)));
+        caller.set(
+          "policy", ctx.new_string(get_policy_name_from_ident(empty_ident)));
         return caller;
       }
 
@@ -162,69 +147,97 @@ namespace ccfapp
           fmt::format("Failed to get certificate for caller {}", id));
       }
 
-      JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
-      JS_SetPropertyStr(
-        ctx, caller, "id", JS_NewStringLen(ctx, id.data(), id.size()));
-      JS_SetPropertyStr(ctx, caller, "data", create_json_obj(data, ctx));
-      JS_SetPropertyStr(
-        ctx,
-        caller,
-        "cert",
-        JS_NewStringLen(ctx, cert.str().data(), cert.size()));
+      caller.set("policy", ctx.new_string(policy_name));
+      caller.set("id", ctx.new_string_len(id.data(), id.size()));
+      caller.set("data", ctx.parse_json(data));
+      caller.set("cert", ctx.new_string_len(cert.str().data(), cert.size()));
 
       return caller;
     }
 
-    JSValue create_request_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
+    js::JSWrappedValue create_request_obj(
+      const JSDynamicEndpoint* endpoint,
+      ccf::endpoints::EndpointContext& endpoint_ctx,
+      js::Context& ctx)
     {
-      auto request = JS_NewObject(ctx);
+      auto request = ctx.new_obj();
 
-      auto headers = JS_NewObject(ctx);
-      for (auto& [header_name, header_value] :
-           endpoint_ctx.rpc_ctx->get_request_headers())
+      const auto& r_headers = endpoint_ctx.rpc_ctx->get_request_headers();
+      auto headers = ctx.new_obj();
+      for (auto& [header_name, header_value] : r_headers)
       {
-        JS_SetPropertyStr(
-          ctx,
-          headers,
-          header_name.c_str(),
-          JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
+        headers.set(
+          header_name,
+          ctx.new_string_len(header_value.c_str(), header_value.size()));
       }
-      JS_SetPropertyStr(ctx, request, "headers", headers);
+      request.set("headers", headers);
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
       auto query_str =
-        JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
-      JS_SetPropertyStr(ctx, request, "query", query_str);
+        ctx.new_string_len(request_query.c_str(), request_query.size());
+      request.set("query", query_str);
 
-      auto params = JS_NewObject(ctx);
+      const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
+      auto path_str =
+        ctx.new_string_len(request_path.c_str(), request_path.size());
+      request.set("path", path_str);
+
+      const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
+      auto method_str = ctx.new_string(request_method.c_str());
+      request.set("method", method_str);
+
+      const auto host_it = r_headers.find(http::headers::HOST);
+      if (host_it != r_headers.end())
+      {
+        const auto& request_hostname = host_it->second;
+        auto hostname_str =
+          ctx.new_string_len(request_hostname.c_str(), request_hostname.size());
+        request.set("hostname", hostname_str);
+      }
+      else
+      {
+        request.set("hostname", JS_NULL);
+      }
+
+      const auto request_route = endpoint->full_uri_path;
+      auto route_str =
+        ctx.new_string_len(request_route.c_str(), request_route.size());
+      request.set("route", route_str);
+
+      auto request_url = request_path;
+      if (!request_query.empty())
+      {
+        request_url = fmt::format("{}?{}", request_url, request_query);
+      }
+      auto url_str =
+        ctx.new_string_len(request_url.c_str(), request_url.size());
+      request.set("url", url_str);
+
+      auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
       {
-        JS_SetPropertyStr(
-          ctx,
-          params,
-          param_name.c_str(),
-          JS_NewStringLen(ctx, param_value.c_str(), param_value.size()));
+        params.set(
+          param_name,
+          ctx.new_string_len(param_value.c_str(), param_value.size()));
       }
-      JS_SetPropertyStr(ctx, request, "params", params);
+      request.set("params", params);
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
-      auto body_ = JS_NewObjectClass(ctx, js::body_class_id);
+      auto body_ = ctx.new_obj_class(js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
-      JS_SetPropertyStr(ctx, request, "body", body_);
+      request.set("body", body_);
 
-      JS_SetPropertyStr(
-        ctx, request, "caller", create_caller_obj(endpoint_ctx, ctx));
+      request.set("caller", create_caller_obj(endpoint_ctx, ctx));
 
       return request;
     }
 
     void execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      if (props.mode == ccf::endpoints::Mode::Historical)
+      if (endpoint->properties.mode == ccf::endpoints::Mode::Historical)
       {
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
@@ -232,31 +245,32 @@ namespace ccfapp
               consensus, view, seqno, error_reason);
           };
 
-        ccf::historical::adapter_v2(
-          [this, &props](
+        ccf::historical::adapter_v3(
+          [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            auto tx = state->store->create_tx();
+            auto tx = state->store->create_read_only_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
             assert(receipt);
-            do_execute_request(props, endpoint_ctx, &tx, tx_id, receipt);
+            do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
           },
-          context.get_historical_state(),
+          context,
           is_tx_committed)(endpoint_ctx);
       }
       else
       {
-        do_execute_request(props, endpoint_ctx, nullptr, std::nullopt, nullptr);
+        do_execute_request(
+          endpoint, endpoint_ctx, nullptr, std::nullopt, nullptr);
       }
     }
 
     void do_execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      kv::Tx* historical_tx,
+      kv::ReadOnlyTx* historical_tx,
       const std::optional<ccf::TxID>& transaction_id,
-      ccf::TxReceiptPtr receipt)
+      ccf::TxReceiptImplPtr receipt)
     {
       js::Runtime rt;
       rt.add_ccf_classdefs();
@@ -266,7 +280,7 @@ namespace ccfapp
 
       js::Context ctx(rt);
       js::TxContext txctx{&endpoint_ctx.tx, js::TxAccess::APP};
-      js::TxContext historical_txctx{historical_tx, js::TxAccess::APP};
+      js::ReadOnlyTxContext historical_txctx{historical_tx, js::TxAccess::APP};
 
       js::register_request_body_class(ctx);
       js::populate_global(
@@ -276,15 +290,16 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
-        &context.get_node_state(),
+        context.get_subsystem<ccf::AbstractHostProcesses>().get(),
         nullptr,
         &context.get_historical_state(),
         this,
         ctx);
 
-      JSValue export_func;
+      js::JSWrappedValue export_func;
       try
       {
+        const auto& props = endpoint->properties;
         auto module_val =
           js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
         export_func =
@@ -300,12 +315,8 @@ namespace ccfapp
       }
 
       // Call exported function
-      auto request = create_request_obj(endpoint_ctx, ctx);
-      int argc = 1;
-      JSValueConst* argv = (JSValueConst*)&request;
-      auto val = ctx(JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv));
-      JS_FreeValue(ctx, request);
-      JS_FreeValue(ctx, export_func);
+      auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
+      auto val = ctx.call(export_func, {request});
 
       if (JS_IsException(val))
       {
@@ -329,15 +340,14 @@ namespace ccfapp
 
       // Response body (also sets a default response content-type header)
       {
-        auto response_body_js = ctx(JS_GetPropertyStr(ctx, val, "body"));
-
+        auto response_body_js = val["body"];
         if (!JS_IsUndefined(response_body_js))
         {
           std::vector<uint8_t> response_body;
           size_t buf_size;
           size_t buf_offset;
-          JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
-            ctx, response_body_js, &buf_offset, &buf_size, nullptr);
+          auto typed_array_buffer = ctx.get_typed_array_buffer(
+            response_body_js, &buf_offset, &buf_size, nullptr);
           uint8_t* array_buffer;
           if (!JS_IsException(typed_array_buffer))
           {
@@ -345,7 +355,6 @@ namespace ccfapp
             array_buffer =
               JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
             array_buffer += buf_offset;
-            JS_FreeValue(ctx, typed_array_buffer);
           }
           else
           {
@@ -361,21 +370,20 @@ namespace ccfapp
           }
           else
           {
-            const char* cstr = nullptr;
+            std::optional<std::string> str;
             if (JS_IsString(response_body_js))
             {
               endpoint_ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::TEXT);
-              cstr = JS_ToCString(ctx, response_body_js);
+              str = ctx.to_str(response_body_js);
             }
             else
             {
               endpoint_ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::JSON);
-              JSValue rval =
-                JS_JSONStringify(ctx, response_body_js, JS_NULL, JS_NULL);
+              auto rval = ctx.json_stringify(response_body_js);
               if (JS_IsException(rval))
               {
                 js::js_dump_error(ctx);
@@ -386,10 +394,10 @@ namespace ccfapp
                   "conversion of body).");
                 return;
               }
-              cstr = JS_ToCString(ctx, rval);
-              JS_FreeValue(ctx, rval);
+              str = ctx.to_str(rval);
             }
-            if (!cstr)
+
+            if (!str)
             {
               js::js_dump_error(ctx);
               endpoint_ctx.rpc_ctx->set_error(
@@ -399,35 +407,33 @@ namespace ccfapp
                 "conversion of body).");
               return;
             }
-            std::string str(cstr);
-            JS_FreeCString(ctx, cstr);
 
-            response_body = std::vector<uint8_t>(str.begin(), str.end());
+            response_body = std::vector<uint8_t>(str->begin(), str->end());
           }
           endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
         }
       }
       // Response headers
       {
-        auto response_headers_js = ctx(JS_GetPropertyStr(ctx, val, "headers"));
+        auto response_headers_js = val["headers"];
         if (JS_IsObject(response_headers_js))
         {
-          uint32_t prop_count = 0;
-          JSPropertyEnum* props = nullptr;
-          JS_GetOwnPropertyNames(
-            ctx,
-            &props,
-            &prop_count,
-            response_headers_js,
-            JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
-          for (size_t i = 0; i < prop_count; i++)
+          js::JSWrappedPropertyEnum prop_enum(ctx, response_headers_js);
+          for (size_t i = 0; i < prop_enum.size(); i++)
           {
-            auto prop_name = props[i].atom;
-            auto prop_name_cstr = ctx(JS_AtomToCString(ctx, prop_name));
-            auto prop_val =
-              ctx(JS_GetProperty(ctx, response_headers_js, prop_name));
-            auto prop_val_cstr = JS_ToCString(ctx, prop_val);
-            if (!prop_val_cstr)
+            auto prop_name = prop_enum[i];
+            auto prop_name_str = ctx.to_str(prop_name);
+            if (!prop_name_str)
+            {
+              endpoint_ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Invalid endpoint function return value (header type).");
+              return;
+            }
+            auto prop_val = response_headers_js.get_property(prop_name);
+            auto prop_val_str = ctx.to_str(prop_val);
+            if (!prop_val_str)
             {
               endpoint_ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -436,12 +442,8 @@ namespace ccfapp
               return;
             }
             endpoint_ctx.rpc_ctx->set_response_header(
-              prop_name_cstr, prop_val_cstr);
-            JS_FreeCString(ctx, prop_val_cstr);
+              *prop_name_str, *prop_val_str);
           }
-          for (uint32_t i = 0; i < prop_count; i++)
-            JS_FreeAtom(ctx, props[i].atom);
-          js_free(ctx, props);
         }
       }
 
@@ -467,17 +469,11 @@ namespace ccfapp
       return;
     }
 
-    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
-    {};
-
   public:
-    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+    JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       context(context)
-    {
-      metrics_tracker.install_endpoint(*this);
-    }
+    {}
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
     {
@@ -494,13 +490,13 @@ namespace ccfapp
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
@@ -511,6 +507,8 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
+        endpoint_def->full_uri_path =
+          fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
         instantiate_authn_policies(*endpoint_def);
         return endpoint_def;
       }
@@ -538,10 +536,15 @@ namespace ccfapp
                 {
                   if (matches.empty())
                   {
+                    auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+                    if (ctx_impl == nullptr)
+                    {
+                      throw std::logic_error("Unexpected type of RpcContext");
+                    }
                     // Populate the request_path_params while we have the match,
                     // though this will be discarded on error if we later find
                     // multiple matches
-                    auto& path_params = rpc_ctx.get_request_path_params();
+                    auto& path_params = ctx_impl->path_params;
                     for (size_t i = 0;
                          i < template_spec.template_component_names.size();
                          ++i)
@@ -555,6 +558,8 @@ namespace ccfapp
 
                   auto endpoint = std::make_shared<JSDynamicEndpoint>();
                   endpoint->dispatch = other_key;
+                  endpoint->full_uri_path = fmt::format(
+                    "/{}{}", method_prefix, endpoint->dispatch.uri_path);
                   endpoint->properties = endpoints->get(other_key).value();
                   instantiate_authn_policies(*endpoint);
                   matches.push_back(endpoint);
@@ -578,7 +583,7 @@ namespace ccfapp
     }
 
     std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx& tx, const enclave::RpcContext& rpc_ctx) override
+      kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
 
@@ -586,7 +591,7 @@ namespace ccfapp
         ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
         const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
@@ -618,7 +623,7 @@ namespace ccfapp
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(endpoint->properties, endpoint_ctx);
+        execute_request(endpoint, endpoint_ctx);
         return;
       }
 
@@ -632,7 +637,7 @@ namespace ccfapp
       UserEndpointRegistry::build_api(document, tx);
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();
@@ -644,7 +649,12 @@ namespace ccfapp
         if (!properties.openapi_hidden)
         {
           auto& path_op = ds::openapi::path_operation(
-            ds::openapi::path(document, key.uri_path),
+            ds::openapi::path(
+              document,
+              fmt::format(
+                "/{}{}",
+                ccf::get_actor_prefix(ccf::ActorsType::users),
+                key.uri_path)),
             http_verb.value(),
             false);
           if (!properties.openapi.empty())
@@ -661,32 +671,14 @@ namespace ccfapp
         return true;
       });
     }
-
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
-    {
-      metrics_tracker.tick(elapsed, tx_count);
-
-      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
-    }
   };
 
 #pragma clang diagnostic pop
 
-  class JS : public ccf::RpcFrontend
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
-  private:
-    JSHandlers js_handlers;
-
-  public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, context)
-    {}
-  };
-
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
-  {
-    return make_shared<JS>(network, context);
+    return std::make_unique<JSHandlers>(context);
   }
+
 } // namespace ccfapp

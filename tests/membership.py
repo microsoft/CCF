@@ -8,6 +8,7 @@ import infra.consortium
 import random
 from infra.runner import ConcurrentRunner
 import memberclient
+import infra.proposal
 
 import suite.test_requirements as reqs
 
@@ -121,17 +122,18 @@ def service_startups(args):
     args.initial_member_count = 2
     args.initial_recovery_member_count = 0
     args.initial_operator_count = 1
+    args.ledger_recovery_timeout = 5
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
         try:
-            network.start_and_join(args)
+            network.start_and_open(args)
             assert False, "Service cannot be opened with no recovery members"
-        except AssertionError:
+        except infra.proposal.ProposalNotAccepted:
             primary, _ = network.find_primary()
             network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.OPENING
             )
             LOG.success(
-                "Service could not be opened with insufficient number of recovery mmebers"
+                "Service could not be opened with insufficient number of recovery members"
             )
 
     LOG.info(
@@ -141,7 +143,7 @@ def service_startups(args):
     args.initial_recovery_member_count = 1
     args.initial_operator_count = 2
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
     LOG.info(
         "Starting service with a recovery operator member, a recovery non-operator member and a non-recovery non-operator member"
@@ -150,7 +152,7 @@ def service_startups(args):
     args.initial_recovery_member_count = 2
     args.initial_operator_count = 1
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
 
 def recovery_shares_scenario(args):
@@ -163,7 +165,7 @@ def recovery_shares_scenario(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with CFT

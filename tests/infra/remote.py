@@ -19,7 +19,12 @@ import json
 from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
-FILE_TIMEOUT = 60
+
+# Duration after which unresponsive node is declared as crashed on startup
+REMOTE_STARTUP_TIMEOUT_S = 5
+
+
+FILE_TIMEOUT_S = 60
 
 _libc = ctypes.CDLL("libc.so.6")
 
@@ -52,7 +57,12 @@ def sftp_session(hostname):
 DEFAULT_TAIL_LINES_LEN = 10
 
 
-def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+def log_errors(
+    out_path,
+    err_path,
+    tail_lines_len=DEFAULT_TAIL_LINES_LEN,
+    ignore_error_patterns=None,
+):
     error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
     error_lines = []
     try:
@@ -62,8 +72,15 @@ def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
-                    LOG.error("{}: {}".format(out_path, stripped_line))
-                    error_lines.append(stripped_line)
+                    ignore = False
+                    if ignore_error_patterns is not None:
+                        for pattern in ignore_error_patterns:
+                            if pattern in stripped_line:
+                                ignore = True
+                                break
+                    if not ignore:
+                        LOG.error("{}: {}".format(out_path, stripped_line))
+                        error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
                 "{} errors found, printing end of output for context:", len(error_lines)
@@ -198,7 +215,7 @@ class SSHRemote(CmdMixin):
         self,
         file_name,
         dst_path,
-        timeout=FILE_TIMEOUT,
+        timeout=FILE_TIMEOUT_S,
         target_name=None,
         pre_condition_func=lambda src_dir, _: True,
     ):
@@ -249,7 +266,7 @@ class SSHRemote(CmdMixin):
             else:
                 raise ValueError(file_name)
 
-    def list_files(self, timeout=FILE_TIMEOUT):
+    def list_files(self, timeout=FILE_TIMEOUT_S):
         files = []
         with sftp_session(self.hostname) as session:
             end_time = time.time() + timeout
@@ -265,7 +282,9 @@ class SSHRemote(CmdMixin):
                 raise ValueError(self.root)
         return files
 
-    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+    def get_logs(
+        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
+    ):
         with sftp_session(self.hostname) as session:
             for filepath in (self.err, self.out):
                 try:
@@ -285,6 +304,7 @@ class SSHRemote(CmdMixin):
             os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
             os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
             tail_lines_len=tail_lines_len,
+            ignore_error_patterns=ignore_error_patterns,
         )
 
     def start(self):
@@ -325,7 +345,7 @@ class SSHRemote(CmdMixin):
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume remote {self.name} from suspension!")
 
-    def stop(self):
+    def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
@@ -333,7 +353,7 @@ class SSHRemote(CmdMixin):
         (
             errors,
             fatal_errors,
-        ) = self.get_logs()
+        ) = self.get_logs(ignore_error_patterns=ignore_error_patterns)
         self.client.close()
         self.proc_client.close()
         return errors, fatal_errors
@@ -436,7 +456,7 @@ class LocalRemote(CmdMixin):
         self,
         src_path,
         dst_path,
-        timeout=FILE_TIMEOUT,
+        timeout=FILE_TIMEOUT_S,
         target_name=None,
         pre_condition_func=lambda src_dir, _: True,
     ):
@@ -478,10 +498,17 @@ class LocalRemote(CmdMixin):
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
 
-    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
-        return log_errors(self.out, self.err, tail_lines_len=tail_lines_len)
+    def get_logs(
+        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
+    ):
+        return log_errors(
+            self.out,
+            self.err,
+            tail_lines_len=tail_lines_len,
+            ignore_error_patterns=ignore_error_patterns,
+        )
 
-    def stop(self):
+    def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
@@ -497,7 +524,7 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            return self.get_logs()
+            return self.get_logs(ignore_error_patterns=ignore_error_patterns)
 
     def setup(self):
         """
@@ -516,7 +543,7 @@ class LocalRemote(CmdMixin):
         return f"cd {self.root} && {DBG} --args {cmd}"
 
     def check_done(self):
-        return self.proc.poll() is not None
+        return self.proc is not None and self.proc.poll() is not None
 
     def get_result(self, line_count):
         with open(self.out, "rb") as out:
@@ -558,6 +585,7 @@ class CCFRemote(object):
         constitution=None,
         curve_id=None,
         version=None,
+        host_log_level="Info",
         major_version=None,
         include_addresses=True,
         config_file=None,
@@ -565,6 +593,7 @@ class CCFRemote(object):
         sig_ms_interval=None,
         jwt_key_refresh_interval_s=None,
         election_timeout_ms=None,
+        node_data_json_file=None,
         **kwargs,
     ):
         """
@@ -577,9 +606,15 @@ class CCFRemote(object):
         self.pem = f"{local_node_id}.pem"
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
-        self.BIN = infra.path.build_bin_path(
-            self.BIN, enclave_type, binary_dir=binary_dir
-        )
+
+        # 1.x releases have a separate cchost.virtual binary for virtual enclaves
+        if enclave_type == "virtual" and (
+            (major_version is not None and major_version <= 1)
+            # This is still present in 2.0.0-rc0
+            or (version == "ccf-2.0.0-rc0")
+        ):
+            self.BIN = "cchost.virtual"
+        self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
@@ -631,9 +666,9 @@ class CCFRemote(object):
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
-                start_type=start_type.name,
+                start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,
-                enclave_type=enclave_type,
+                enclave_type=enclave_type.title(),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
@@ -642,11 +677,13 @@ class CCFRemote(object):
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
                 snapshots_dir=self.snapshot_dir_name,
                 constitution=constitution,
-                curve_id=curve_id.name,
+                curve_id=curve_id.name.title(),
+                host_log_level=host_log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
                 election_timeout=f"{election_timeout_ms}ms",
+                node_data_json_file=node_data_json_file,
                 **kwargs,
             )
 
@@ -673,19 +710,17 @@ class CCFRemote(object):
         if major_version is None or major_version > 1:
             cmd = [bin_path, "--config", config_file]
             if start_type == StartType.join:
-                data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
         else:
             consensus = kwargs.get("consensus")
             node_address = kwargs.get("node_address")
-            host_log_level = kwargs.get("host_log_level")
             worker_threads = kwargs.get("worker_threads")
             ledger_chunk_bytes = kwargs.get("ledger_chunk_bytes")
             subject_alt_names = kwargs.get("subject_alt_names")
             snapshot_tx_interval = kwargs.get("snapshot_tx_interval")
             max_open_sessions = kwargs.get("max_open_sessions")
             max_open_sessions_hard = kwargs.get("max_open_sessions_hard")
-            curve_id = kwargs.get("curve_id")
             initial_node_cert_validity_days = kwargs.get(
                 "initial_node_cert_validity_days"
             )
@@ -772,7 +807,7 @@ class CCFRemote(object):
                     cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
 
             if start_type == StartType.start:
-                cmd += ["start", "--network-cert-file=networkcert.pem"]
+                cmd += ["start", "--network-cert-file=service_cert.pem"]
                 for fragment in constitution:
                     cmd.append(f"--constitution={os.path.basename(fragment)}")
                     data_files += [
@@ -806,14 +841,14 @@ class CCFRemote(object):
             elif start_type == StartType.join:
                 cmd += [
                     "join",
-                    "--network-cert-file=networkcert.pem",
+                    "--network-cert-file=service_cert.pem",
                     f"--target-rpc-address={target_rpc_address}",
                     f"--join-timer={join_timer_s * 1000}",
                 ]
-                data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
             elif start_type == StartType.recover:
-                cmd += ["recover", "--network-cert-file=networkcert.pem"]
+                cmd += ["recover", "--network-cert-file=service_cert.pem"]
 
             else:
                 raise ValueError(
@@ -821,8 +856,11 @@ class CCFRemote(object):
                 )
 
         env = {}
-        if kwargs.get("enclave_type") == "virtual":
+        if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            ubsan_opts = kwargs.get("ubsan_options")
+            if ubsan_opts:
+                env["UBSAN_OPTIONS"] += ":" + ubsan_opts
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
@@ -851,22 +889,22 @@ class CCFRemote(object):
     def resume(self):
         self.remote.resume()
 
-    def get_startup_files(self, dst_path):
-        self.remote.get(self.pem, dst_path)
+    def get_startup_files(self, dst_path, timeout=FILE_TIMEOUT_S):
+        self.remote.get(self.pem, dst_path, timeout=REMOTE_STARTUP_TIMEOUT_S)
         if self.node_address_file is not None:
-            self.remote.get(self.node_address_file, dst_path)
+            self.remote.get(self.node_address_file, dst_path, timeout=timeout)
         if self.rpc_addresses_file is not None:
-            self.remote.get(self.rpc_addresses_file, dst_path)
+            self.remote.get(self.rpc_addresses_file, dst_path, timeout=timeout)
         if self.start_type in {StartType.start, StartType.recover}:
-            self.remote.get("networkcert.pem", dst_path)
+            self.remote.get("service_cert.pem", dst_path, timeout=timeout)
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()
 
-    def stop(self):
+    def stop(self, *args, **kwargs):
         errors, fatal_errors = [], []
         try:
-            errors, fatal_errors = self.remote.stop()
+            errors, fatal_errors = self.remote.stop(*args, **kwargs)
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
         return errors, fatal_errors
@@ -897,11 +935,25 @@ class CCFRemote(object):
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        self.remote.get(
-            self.snapshot_dir_name,
-            self.common_dir,
-            pre_condition_func=pre_condition_func,
-        )
+        # It is possible that snapshots are committed while the copy is happening
+        # so retry a reasonable number of times.
+        max_retry_count = 5
+        retry_count = 0
+        while retry_count < max_retry_count:
+            try:
+                self.remote.get(
+                    self.snapshot_dir_name,
+                    self.common_dir,
+                    pre_condition_func=pre_condition_func,
+                )
+                break
+            except Exception as e:
+                LOG.warning(
+                    f"Error copying committed snapshots from {self.snapshot_dir_name}: {e}. Retrying..."
+                )
+                retry_count += 1
+                time.sleep(0.1)
+
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def log_path(self):
@@ -913,8 +965,12 @@ class CCFRemote(object):
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
         return paths
 
-    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
-        return self.remote.get_logs(tail_lines_len=tail_lines_len)
+    def get_logs(
+        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
+    ):
+        return self.remote.get_logs(
+            tail_lines_len=tail_lines_len, ignore_error_patterns=ignore_error_patterns
+        )
 
     def get_host(self):
         return self.pub_host

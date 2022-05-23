@@ -2,13 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
+#include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "forwarder_types.h"
 #include "http/http2_endpoint.h"
 #include "http/http_endpoint.h"
-#include "node/node_info_network.h"
 #include "node/session_metrics.h"
+// NB: This should be HTTP3 including QUIC, but this is
+// ok for now, as we only have an echo service for now
+#include "quic/quic_endpoint.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -16,17 +19,25 @@
 #include "tls/server.h"
 
 #include <limits>
+#include <map>
 #include <unordered_map>
 
-namespace enclave
+namespace ccf
 {
   using ServerEndpointImpl = http::HTTP2ServerEndpoint;
   using ClientEndpointImpl = http::HTTP2ClientEndpoint;
+  // using ServerEndpointImpl = http::HTTPServerEndpoint;
+  // using ClientEndpointImpl = http::HTTPClientEndpoint;
+  using QUICEndpointImpl = quic::QUICEchoEndpoint;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
+  static constexpr ccf::Endorsement endorsement_default =
+    ccf::Endorsement{ccf::Authority::SERVICE};
 
-  class RPCSessions : public AbstractRPCResponder
+  class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
+                      public AbstractRPCResponder,
+                      public http::ErrorReporter
   {
   private:
     struct ListenInterface
@@ -35,33 +46,35 @@ namespace enclave
       size_t peak_sessions;
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
+      ccf::Endorsement endorsement;
+      ccf::SessionMetrics::Errors errors;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<tls::Cert> cert;
+    std::unordered_map<ListenInterfaceID, std::shared_ptr<tls::Cert>> certs;
 
     std::mutex lock;
     std::unordered_map<
       tls::ConnID,
       std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
       sessions;
-    size_t sessions_peak;
+    size_t sessions_peak = 0;
 
     // Negative sessions are reserved for those originating from
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
-    class NoMoreSessionsEndpointImpl : public enclave::TLSEndpoint
+    class NoMoreSessionsEndpointImpl : public ccf::TLSEndpoint
     {
     public:
       NoMoreSessionsEndpointImpl(
         tls::ConnID session_id,
         ringbuffer::AbstractWriterFactory& writer_factory,
         std::unique_ptr<tls::Context> ctx) :
-        enclave::TLSEndpoint(session_id, writer_factory, std::move(ctx))
+        ccf::TLSEndpoint(session_id, writer_factory, std::move(ctx))
       {}
 
       static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
@@ -70,7 +83,7 @@ namespace enclave
           ->recv_(msg->data.data.data(), msg->data.data.size());
       }
 
-      void recv(const uint8_t* data, size_t size) override
+      void recv(const uint8_t* data, size_t size, sockaddr) override
       {
         auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
         msg->data.self = this->shared_from_this();
@@ -88,20 +101,24 @@ namespace enclave
         {
           // Send HTTP response describing soft session limit
           auto http_response = http::Response(HTTP_STATUS_SERVICE_UNAVAILABLE);
+
           http_response.set_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          const auto response_body = fmt::format(
-            "Service is currently busy and unable to serve new connections");
-          http_response.set_body(
-            (const uint8_t*)response_body.data(), response_body.size());
-          send(http_response.build_response());
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+          nlohmann::json body = ccf::ODataErrorResponse{ccf::ODataError{
+            ccf::errors::SessionCapExhausted,
+            "Service is currently busy and unable to serve new connections"}};
+          const auto s = body.dump();
+          http_response.set_body((const uint8_t*)s.data(), s.size());
+
+          send(http_response.build_response(), {});
 
           // Close connection
           close();
         }
       }
 
-      void send(std::vector<uint8_t>&& data) override
+      void send(std::vector<uint8_t>&& data, sockaddr) override
       {
         send_raw(std::move(data));
       }
@@ -142,7 +159,23 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
-    void update_listening_interface_caps(const ccf::NodeInfoNetwork& node_info)
+    void report_parsing_error(tls::ConnID id) override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+
+      auto search = sessions.find(id);
+      if (search != sessions.end())
+      {
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          it->second.errors.parsing++;
+        }
+      }
+    }
+
+    void update_listening_interface_options(
+      const ccf::NodeInfoNetwork& node_info)
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -156,13 +189,16 @@ namespace enclave
         li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
           max_open_sessions_hard_default);
 
+        li.endorsement = interface.endorsement.value_or(endorsement_default);
+
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
-          "{}]",
+          "{}] and endorsement authority to {}",
           name,
           interface.bind_address,
           li.max_open_sessions_soft,
-          li.max_open_sessions_hard);
+          li.max_open_sessions_hard,
+          li.endorsement.authority);
       }
     }
 
@@ -180,25 +216,48 @@ namespace enclave
           interface.open_sessions,
           interface.peak_sessions,
           interface.max_open_sessions_soft,
-          interface.max_open_sessions_hard};
+          interface.max_open_sessions_hard,
+          interface.errors};
       }
 
       return sm;
     }
 
-    void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      std::lock_guard<std::mutex> guard(lock);
-
-      // Caller authentication is done by each frontend by looking up
-      // the caller's certificate in the relevant store table. The caller
-      // certificate does not have to be signed by a known CA (nullptr,
-      // tls::auth_optional).
-      cert = std::make_shared<tls::Cert>(
-        nullptr, cert_, pk, nullb, tls::auth_optional);
+      set_cert(ccf::Authority::NODE, cert_, pk);
     }
 
-    void accept(tls::ConnID id, const ListenInterfaceID& listen_interface_id)
+    void set_network_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    {
+      set_cert(ccf::Authority::SERVICE, cert_, pk);
+    }
+
+    void set_cert(
+      ccf::Authority authority, const crypto::Pem& cert_, const crypto::Pem& pk)
+    {
+      // Caller authentication is done by each frontend by looking up
+      // the caller's certificate in the relevant store table. The caller
+      // certificate does not have to be signed by a known CA (nullptr) and
+      // verification is not required here.
+      auto cert = std::make_shared<tls::Cert>(
+        nullptr, cert_, pk, std::nullopt, /*auth_required ==*/false);
+
+      std::lock_guard<std::mutex> guard(lock);
+
+      for (auto& [listen_interface_id, interface] : listening_interfaces)
+      {
+        if (interface.endorsement.authority == authority)
+        {
+          certs.insert_or_assign(listen_interface_id, cert);
+        }
+      }
+    }
+
+    void accept(
+      tls::ConnID id,
+      const ListenInterfaceID& listen_interface_id,
+      bool udp = false)
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -220,7 +279,18 @@ namespace enclave
 
       auto& per_listen_interface = it->second;
 
-      if (
+      if (certs.find(listen_interface_id) == certs.end())
+      {
+        LOG_DEBUG_FMT(
+          "Refusing TLS session {} inside the enclave - interface {} "
+          "has no TLS certificate yet",
+          id,
+          listen_interface_id);
+
+        RINGBUFFER_WRITE_MESSAGE(
+          tls::tls_stop, to_host, id, std::string("Session refused"));
+      }
+      else if (
         per_listen_interface.open_sessions >=
         per_listen_interface.max_open_sessions_hard)
       {
@@ -247,7 +317,7 @@ namespace enclave
           listen_interface_id,
           per_listen_interface.max_open_sessions_soft);
 
-        auto ctx = std::make_unique<tls::Server>(cert);
+        auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
         auto capped_session = std::make_shared<NoMoreSessionsEndpointImpl>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(
@@ -263,16 +333,37 @@ namespace enclave
           "Accepting a session {} inside the enclave from interface \"{}\"",
           id,
           listen_interface_id);
-        auto ctx = std::make_unique<tls::Server>(cert);
 
-        auto session = std::make_shared<ServerEndpointImpl>(
-          rpc_map, id, listen_interface_id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(
-          id, std::make_pair(listen_interface_id, std::move(session))));
-        per_listen_interface.open_sessions++;
-        per_listen_interface.peak_sessions = std::max(
-          per_listen_interface.peak_sessions,
-          per_listen_interface.open_sessions);
+        if (udp)
+        {
+          LOG_DEBUG_FMT("New UDP endpoint at {}", id);
+          auto session = std::make_shared<QUICEndpointImpl>(
+            rpc_map, id, listen_interface_id, writer_factory);
+          sessions.insert(std::make_pair(
+            id, std::make_pair(listen_interface_id, std::move(session))));
+          per_listen_interface.open_sessions++;
+          per_listen_interface.peak_sessions = std::max(
+            per_listen_interface.peak_sessions,
+            per_listen_interface.open_sessions);
+        }
+        else
+        {
+          auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+
+          auto session = std::make_shared<ServerEndpointImpl>(
+            rpc_map,
+            id,
+            listen_interface_id,
+            writer_factory,
+            std::move(ctx),
+            shared_from_this());
+          sessions.insert(std::make_pair(
+            id, std::make_pair(listen_interface_id, std::move(session))));
+          per_listen_interface.open_sessions++;
+          per_listen_interface.peak_sessions = std::max(
+            per_listen_interface.peak_sessions,
+            per_listen_interface.open_sessions);
+        }
       }
 
       sessions_peak = std::max(sessions_peak, sessions.size());
@@ -291,7 +382,7 @@ namespace enclave
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second.second->send(std::move(data));
+      search->second.second->send(std::move(data), {});
       return true;
     }
 
@@ -356,13 +447,39 @@ namespace enclave
             return;
           }
 
-          search->second.second->recv(body.data, body.size);
+          search->second.second->recv(body.data, body.size, {});
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, tls::tls_close, [this](const uint8_t* data, size_t size) {
           auto [id] = ringbuffer::read_message<tls::tls_close>(data, size);
           remove_session(id);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, quic::quic_start, [this](const uint8_t* data, size_t size) {
+          auto [new_id, listen_interface_name] =
+            ringbuffer::read_message<quic::quic_start>(data, size);
+          accept(new_id, listen_interface_name, true);
+          // UDP sessions are never removed because there is no connection
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, quic::quic_inbound, [this](const uint8_t* data, size_t size) {
+          auto [id, addr_family, addr_data, body] =
+            ringbuffer::read_message<quic::quic_inbound>(data, size);
+
+          LOG_DEBUG_FMT("rpc udp read from ring buffer {}: {}", id, size);
+
+          auto search = sessions.find(id);
+          if (search == sessions.end())
+          {
+            LOG_DEBUG_FMT(
+              "Ignoring quic_inbound for unknown or refused session: {}", id);
+            return;
+          }
+          auto addr = quic::sockaddr_decode(addr_family, addr_data);
+          search->second.second->recv(body.data, body.size, addr);
         });
     }
   };

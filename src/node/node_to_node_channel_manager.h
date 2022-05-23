@@ -19,7 +19,7 @@ namespace ccf
     struct ThisNode
     {
       NodeId node_id;
-      const crypto::Pem& network_cert;
+      const crypto::Pem& service_cert;
       crypto::KeyPairPtr node_kp;
       std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     };
@@ -51,7 +51,7 @@ namespace ccf
         peer_id,
         std::make_shared<Channel>(
           writer_factory,
-          this_node->network_cert,
+          this_node->service_cert,
           this_node->node_kp,
           this_node->endorsed_node_cert.value(),
           this_node->node_id,
@@ -69,7 +69,7 @@ namespace ccf
 
     void initialize(
       const NodeId& self_id,
-      const crypto::Pem& network_cert,
+      const crypto::Pem& service_cert,
       crypto::KeyPairPtr node_kp,
       const std::optional<crypto::Pem>& node_cert) override
     {
@@ -90,7 +90,7 @@ namespace ccf
       }
 
       this_node = std::unique_ptr<ThisNode>(
-        new ThisNode{self_id, network_cert, node_kp, node_cert});
+        new ThisNode{self_id, service_cert, node_kp, node_cert});
     }
 
     void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert) override
@@ -142,13 +142,13 @@ namespace ccf
         this_node != nullptr,
         "Calling send_authenticated before channel manager is initialized");
 
-      return get_channel(to)->send(type, {data, size});
+      return get_channel(to)->send(type, std::span<const uint8_t>(data, size));
     }
 
     bool send_encrypted(
       const NodeId& to,
       NodeMsgType type,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const std::vector<uint8_t>& data) override
     {
       CCF_ASSERT_FMT(
@@ -161,7 +161,7 @@ namespace ccf
 
     bool recv_authenticated(
       const NodeId& from,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const uint8_t*& data,
       size_t& size) override
     {
@@ -188,7 +188,7 @@ namespace ccf
 
     std::vector<uint8_t> recv_encrypted(
       const NodeId& from,
-      CBuffer header,
+      std::span<const uint8_t> header,
       const uint8_t* data,
       size_t size) override
     {

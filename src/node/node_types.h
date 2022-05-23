@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash.h"
+#include "ccf/crypto/sha256_hash.h"
+#include "ccf/frame_format.h"
 #include "ds/ring_buffer_types.h"
-#include "entities.h"
 
 #include <cstdint>
 #include <limits>
@@ -48,7 +48,7 @@ namespace ccf
   struct ForwardedHeader
   {
     ForwardedMsg msg;
-    enclave::FrameFormat frame_format = enclave::FrameFormat::http;
+    ccf::FrameFormat frame_format = ccf::FrameFormat::http;
   };
 
   struct MessageHash

@@ -7,7 +7,6 @@ import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
-import ccf.proposal_generator
 import json
 
 from loguru import logger as LOG
@@ -25,7 +24,9 @@ def test_cert_store(network, args):
         f.write("foo")
         f.flush()
         try:
-            ccf.proposal_generator.set_ca_cert_bundle(cert_name, f.name)
+            network.consortium.set_ca_cert_bundle(
+                primary, cert_name, f.name, skip_checks=False
+            )
         except ValueError:
             pass
         else:

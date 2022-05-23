@@ -309,10 +309,10 @@ namespace http2
   {
   private:
     http::RequestProcessor& proc;
-    enclave::Endpoint& endpoint;
+    ccf::Endpoint& endpoint;
 
   public:
-    ServerSession(http::RequestProcessor& proc_, enclave::Endpoint& endpoint_) :
+    ServerSession(http::RequestProcessor& proc_, ccf::Endpoint& endpoint_) :
       proc(proc_),
       endpoint(endpoint_)
     {
@@ -377,7 +377,7 @@ namespace http2
 
       std::vector<uint8_t> resp = {
         data, data + length}; // TODO: Remove extra copy
-      endpoint.send(std::move(resp));
+      endpoint.send(std::move(resp), sockaddr());
     }
 
     virtual void handle_request(StreamData* stream_data) override

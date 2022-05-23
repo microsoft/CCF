@@ -45,13 +45,50 @@ export interface Request<T extends JsonCompatible<T> = any> {
 
   /**
    * An object mapping URL path parameter names to their values.
+   *
+   * For example `GET /app/person/bob?fields=all` matched to `/app/person/{name}` becomes `{"name": "bob"}`
    */
   params: { [key: string]: string };
 
   /**
-   * The query string of the requested URL.
+   * The full original requested URL.
+   *
+   * For example `GET /app/person/bob?fields=all` becomes `"/app/person/bob?fields=all"`
+   */
+  url: string;
+
+  /**
+   * The path component of the requested URL.
+   *
+   * For example `GET /app/person/bob?fields=all` becomes `"/app/person/bob"`
+   */
+  path: string;
+
+  /**
+   * The endpoint name which matched requested URL, potentially containing path parameters.
+   *
+   * For example `GET /app/person/bob?fields=all` becomes `"/app/person/{name}"`
+   */
+  route: string;
+
+  /**
+   * The query component of the requested URL.
+   *
+   * For example `GET /app/person/bob?fields=all` becomes `"fields=all"`
    */
   query: string;
+
+  /**
+   * The HTTP method of the request.
+   *
+   * For example `GET /app/person/bob?fields=all` becomes `"GET"`
+   */
+  method: string;
+
+  /**
+   * Hostname extracted from Host header, or null if header is missing
+   */
+  hostname: string;
 
   /**
    * An object to access the request body in various ways.
@@ -229,3 +266,8 @@ export type EndpointFn<
  * @inheritDoc CCF.rpc.setApplyWrites
  */
 export const setApplyWrites = ccf.rpc.setApplyWrites.bind(ccf.rpc);
+
+/**
+ * @inheritDoc CCF.rpc.setClaimsDigest
+ */
+export const setClaimsDigest = ccf.rpc.setClaimsDigest.bind(ccf.rpc);

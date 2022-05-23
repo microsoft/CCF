@@ -1,18 +1,18 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
+#include "ccf/kv/map.h"
+#include "ccf/kv/set.h"
+#include "ccf/kv/value.h"
+#include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
-#include "kv/map.h"
-#include "kv/set.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/value.h"
-#include "node/entities.h"
 #include "node/history.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
 #include <random>
@@ -58,6 +58,8 @@ TEST_CASE("Map name parsing")
 TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   MapTypes::StringString map("public:map");
 
@@ -169,6 +171,8 @@ TEST_CASE("Reads/writes and deletions")
 TEST_CASE("sets and values")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   {
     INFO("kv::Set");
@@ -408,31 +412,37 @@ TEST_CASE("sets and values")
       {
         INFO("Local hook");
 
-        auto tx = kv_store.create_tx();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-        REQUIRE(local_writes.size() == 0); // Commit without puts
+        {
+          auto tx = kv_store.create_tx();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+          REQUIRE(local_writes.size() == 0); // Commit without puts
+        }
 
-        tx = kv_store.create_tx();
-        auto h1 = tx.rw(val1);
-        h1->put(v1);
-        h1->put(v2); // Override previous value
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->put(v1);
+          h1->put(v2); // Override previous value
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(global_writes.size() == 0);
-        REQUIRE(local_writes.size() == 1);
-        auto latest_writes = local_writes.front();
-        REQUIRE(latest_writes.value() == v2);
-        local_writes.clear();
+          REQUIRE(global_writes.size() == 0);
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(latest_writes.value() == v2);
+          local_writes.clear();
+        }
 
-        tx = kv_store.create_tx();
-        h1 = tx.rw(val1);
-        h1->clear();
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        {
+          auto tx = kv_store.create_tx();
+          auto h1 = tx.rw(val1);
+          h1->clear();
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-        REQUIRE(local_writes.size() == 1);
-        latest_writes = local_writes.front();
-        REQUIRE(!latest_writes.has_value());
-        local_writes.clear();
+          REQUIRE(local_writes.size() == 1);
+          auto latest_writes = local_writes.front();
+          REQUIRE(!latest_writes.has_value());
+          local_writes.clear();
+        }
       }
 
       {
@@ -567,6 +577,8 @@ TEST_CASE("serialisation of Unit type")
     using TSetEquivalent = kv::RawCopySerialisedMap<std::string, size_t>;
 
     kv::Store kv_store;
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    kv_store.set_encryptor(encryptor);
 
     {
       auto tx = kv_store.create_tx();
@@ -632,6 +644,8 @@ TEST_CASE("serialisation of Unit type")
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
       kv::Store kv_store;
+      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueA>(value_name);
@@ -650,6 +664,8 @@ TEST_CASE("serialisation of Unit type")
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
       kv::Store kv_store;
+      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueB>(value_name);
@@ -668,6 +684,8 @@ TEST_CASE("serialisation of Unit type")
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
       kv::Store kv_store;
+      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueC>(value_name);
@@ -687,6 +705,8 @@ TEST_CASE("serialisation of Unit type")
 TEST_CASE("multiple handles")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   MapTypes::NumString map("public:map");
 
@@ -721,6 +741,8 @@ TEST_CASE("multiple handles")
 TEST_CASE("clear")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   const auto k1 = "k1";
@@ -787,6 +809,8 @@ TEST_CASE("clear")
 TEST_CASE("get_version_of_previous_write")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   const auto k1 = "k1";
@@ -911,6 +935,8 @@ TEST_CASE("get_version_of_previous_write")
 TEST_CASE("size")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   const auto k1 = "k1";
@@ -1008,6 +1034,8 @@ TEST_CASE("size")
 TEST_CASE("foreach")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   std::map<std::string, std::string> iterated_entries;
@@ -1203,6 +1231,8 @@ struct NoDeserialise
 TEST_CASE("foreach_key")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   kv::MapSerialisedWith<
     std::string,
@@ -1238,6 +1268,8 @@ TEST_CASE("foreach_key")
 TEST_CASE("foreach_value")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   kv::MapSerialisedWith<
     std::string,
@@ -1272,6 +1304,8 @@ TEST_CASE("foreach_value")
 TEST_CASE("Modifications during foreach iteration")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::NumString map("public:map");
 
   const auto value1 = "foo";
@@ -1533,6 +1567,8 @@ TEST_CASE("Modifications during foreach iteration")
 TEST_CASE("Read-only tx")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
@@ -1606,6 +1642,8 @@ TEST_CASE("Read-only tx")
 TEST_CASE("Rollback and compact")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
@@ -1671,6 +1709,8 @@ TEST_CASE("Local commit hooks")
   };
 
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   constexpr auto map_name = "public:map";
   MapTypes::StringString map(map_name);
   kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
@@ -1776,6 +1816,8 @@ TEST_CASE("Global commit hooks")
   };
 
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   using MapT = kv::Map<std::string, std::string>;
   MapT map_with_hook("public:map_with_hook");
   kv_store.set_global_hook(
@@ -1918,7 +1960,10 @@ TEST_CASE("Deserialising from other Store")
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
-  auto [success, data, hooks] = tx1.commit_reserved();
+  auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+    tx1.commit_reserved();
+  auto& success = success_;
+  auto& data = data_;
   REQUIRE(success == kv::CommitResult::SUCCESS);
 
   kv::Store clone;
@@ -1932,6 +1977,8 @@ TEST_CASE("Deserialising from other Store")
 TEST_CASE("Deserialise return status")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
 
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
   ccf::SerialisedMerkleTree serialised_tree(
@@ -1951,7 +1998,10 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_txid());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1966,7 +2016,10 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     tree_handle->put({});
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1982,7 +2035,10 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     data_handle->put(43, 43);
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -2206,6 +2262,8 @@ TEST_CASE("Private recovery map swap")
 TEST_CASE("Conflict resolution")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   {
@@ -2304,6 +2362,8 @@ std::string rand_string(size_t i)
 TEST_CASE("Mid-tx compaction")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringNum map_a("public:A");
   MapTypes::StringNum map_b("public:B");
 
@@ -2411,6 +2471,8 @@ TEST_CASE("Mid-tx compaction")
 TEST_CASE("Store clear")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   kv_store.initialise_term(42);
 
   auto map_a_name = "public:A";
@@ -2464,6 +2526,8 @@ TEST_CASE("Store clear")
 TEST_CASE("Reported TxID after commit")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   kv_store.set_consensus(consensus);
 
@@ -2489,8 +2553,8 @@ TEST_CASE("Reported TxID after commit")
     }
 
     REQUIRE(kv_store.current_version() == store_last_seqno);
-    REQUIRE(
-      kv_store.current_txid() == kv::TxID(store_read_term, store_last_seqno));
+    REQUIRE_EQ(
+      kv_store.current_txid(), kv::TxID(store_read_term, store_last_seqno));
   }
 
   INFO("Empty committed tx");
@@ -2526,7 +2590,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.has_value());
     REQUIRE(tx_id->term == store_read_term);
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("Rollback while read-only tx is in progress");
@@ -2546,7 +2610,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id->term == store_read_term); // Read in term in which
                                              // last entry was committed
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("Read-only tx after rollback");
@@ -2564,7 +2628,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id->term == store_read_term); // Read in term in which
                                              // last entry was committed
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("More rollbacks");
@@ -2580,7 +2644,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.has_value());
     REQUIRE(tx_id->term == store_read_term);
     REQUIRE(tx_id->version == store_last_seqno);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
   INFO("Commit tx in new term and no-op rollback");
@@ -2611,7 +2675,7 @@ TEST_CASE("Reported TxID after commit")
       REQUIRE(tx_id.has_value());
       REQUIRE(tx_id->term == store_read_term);
       REQUIRE(tx_id->version == store_last_seqno);
-      REQUIRE(tx_id.value() == kv_store.current_txid());
+      REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
     }
 
     {
@@ -2625,7 +2689,7 @@ TEST_CASE("Reported TxID after commit")
       REQUIRE(tx_id.has_value());
       REQUIRE(tx_id->term == store_read_term);
       REQUIRE(tx_id->version == store_last_seqno);
-      REQUIRE(tx_id.value() == kv_store.current_txid());
+      REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
     }
   }
 
@@ -2644,7 +2708,7 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.has_value());
     REQUIRE(tx_id->term == store_read_term);
     REQUIRE(tx_id->version == store_last_seqno - 1);
-    REQUIRE(tx_id.value() == kv_store.current_txid());
+    REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 }
 
@@ -2699,6 +2763,8 @@ TEST_CASE("Range")
   const ValueType empty_value = {};
 
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   RefMap ref;
 
   INFO("Populate map randomly");
@@ -2811,4 +2877,199 @@ TEST_CASE("Range")
     REQUIRE(std_range == kv_range);
     REQUIRE(kv_range.at(existing_key) == well_known_value);
   }
+}
+
+TEST_CASE("Ledger entry chunk request")
+{
+  kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  store.set_encryptor(encryptor);
+  store.set_consensus(consensus);
+
+  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::SerialisedMerkleTree serialised_tree(
+    ccf::Tables::SERIALISED_MERKLE_TREE);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  MapTypes::NumNum data("public:data");
+
+  constexpr auto default_curve = crypto::CurveID::SECP384R1;
+  auto kp = crypto::make_key_pair(default_curve);
+
+  auto history =
+    std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
+  store.set_history(history);
+
+  SUBCASE("Chunk at next signature")
+  {
+    // Ledger chunk flag is not set in the store
+    REQUIRE(!store.flag_enabled(
+      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+
+    INFO("Add a transaction with the chunking flag enabled");
+    {
+      MapTypes::StringString map("public:map");
+      auto tx = store.create_tx();
+
+      // Request a ledger chunk at the next signature
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+
+      auto h1 = tx.rw(map);
+      h1->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    // Flag is now set in the store
+    REQUIRE(store.flag_enabled(
+      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+
+    INFO("Roll back the last transaction");
+    {
+      // Dummy rollback to the current TxID, which doesn't clear the chunking
+      // flag
+      store.rollback(store.current_txid(), store.commit_view());
+
+      // Ledger chunk flag is still set in the store
+      REQUIRE(store.flag_enabled(
+        kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+
+      // Roll the last transaction back to clear the flag in the store
+      store.rollback(
+        {store.commit_view(), store.current_version() - 1},
+        store.commit_view());
+
+      // Ledger chunk flag is not set in the store anymore
+      REQUIRE(!store.flag_enabled(
+        kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+    }
+
+    INFO("Add another transaction with the chunking flag enabled");
+    {
+      MapTypes::StringString map("public:map");
+      auto tx = store.create_tx();
+
+      // Request a ledger chunk at the next signature again
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+
+      auto h1 = tx.rw(map);
+      h1->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    // Ledger chunk flag is now set in the store
+    REQUIRE(store.flag_enabled(
+      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+
+    INFO(
+      "Add a signature transaction which triggers chunk via entry header flag");
+    {
+      auto txid = store.next_txid();
+      auto tx = store.create_reserved_tx(txid);
+      auto sig_handle = tx.rw(signatures);
+      auto tree_handle = tx.rw(serialised_tree);
+      ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+      sig_handle->put(sigv);
+      tree_handle->put({});
+      auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+        tx.commit_reserved();
+      auto& success = success_;
+      auto& data = data_;
+      REQUIRE(success == kv::CommitResult::SUCCESS);
+
+      REQUIRE(
+        store.deserialize(data, ConsensusType::CFT)->apply() ==
+        kv::ApplyResult::PASS_SIGNATURE);
+
+      // Header flag is set in the last entry
+      const uint8_t* entry_data = data.data();
+      size_t entry_data_size = data.size();
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+        entry_data, entry_data_size);
+      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
+    }
+
+    // Ledger chunk flag is not set in the store anymore
+    REQUIRE(!store.flag_enabled(
+      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+  }
+
+  SUBCASE("Chunk before this transaction")
+  {
+    REQUIRE(!consensus->get_latest_data().has_value());
+
+    INFO("Add a transaction with the chunking flag enabled");
+    {
+      MapTypes::StringString map("public:map");
+      auto tx = store.create_tx();
+
+      // Request a ledger chunk before tx
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+
+      auto h1 = tx.rw(map);
+      h1->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Verify that flag is included in serialised entry");
+    {
+      auto data_ = consensus->get_latest_data();
+      REQUIRE(data_.has_value());
+      auto& data = data_.value();
+
+      const uint8_t* entry_data = data.data();
+      size_t entry_data_size = data.size();
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+        entry_data, entry_data_size);
+      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0);
+    }
+  }
+
+  SUBCASE("Chunk when the snapshotter requires one")
+  {
+    store.set_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+    INFO("Add a signature that triggers a snapshot");
+    {
+      auto txid = store.next_txid();
+      auto tx = store.create_reserved_tx(txid);
+
+      // The store must know that we need a new ledger chunk at this version
+      REQUIRE(store.must_force_ledger_chunk(txid.version));
+
+      // Add the signature
+      auto sig_handle = tx.rw(signatures);
+      auto tree_handle = tx.rw(serialised_tree);
+      ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+      sig_handle->put(sigv);
+      tree_handle->put({});
+      auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+        tx.commit_reserved();
+      auto& success = success_;
+      auto& data = data_;
+      REQUIRE(success == kv::CommitResult::SUCCESS);
+
+      REQUIRE(
+        store.deserialize(data, ConsensusType::CFT)->apply() ==
+        kv::ApplyResult::PASS_SIGNATURE);
+
+      // Check that the ledger chunk header flag is set in the last entry
+      const uint8_t* entry_data = data.data();
+      size_t entry_data_size = data.size();
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+        entry_data, entry_data_size);
+      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
+    }
+  }
+}
+
+int main(int argc, char** argv)
+{
+  logger::config::default_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

@@ -3,7 +3,7 @@
 
 #include "v8_runner.h"
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "libplatform/libplatform.h"
 #include "v8_util.h"
 
@@ -333,6 +333,9 @@ namespace ccf
     v8::HandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = v8::Context::New(isolate_);
     context->SetAlignedPointerInEmbedderData(kContextEmbedderDataField, this);
+    context->SetAlignedPointerInEmbedderData(
+      kFinalizerEmbedderDataField, nullptr);
+    context->SetAlignedPointerInEmbedderData(kModuleEmbedderDataField, nullptr);
     context->Enter();
     context_.Reset(isolate_, context);
   }
@@ -378,7 +381,7 @@ namespace ccf
     v8::Local<v8::Context> context = get_context();
     context->Global()
       ->Set(context, v8_util::to_v8_istr(isolate_, name), value)
-      .FromJust();
+      .Check();
   }
 
   v8::Local<v8::Value> V8Context::run(

@@ -5,7 +5,8 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/historical_queries_interface.h"
 #include "kv_store.h"
-#include "v8.h"
+
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {
@@ -21,7 +22,7 @@ namespace ccf::v8_tmpl
       ccf::historical::StatePtr* historical_state,
       ccf::BaseEndpointRegistry* endpoint_registry,
       ccf::historical::AbstractStateCache* state_cache,
-      enclave::RpcContext* rpc_ctx);
+      ccf::RpcContext* rpc_ctx);
   };
 
 } // namespace ccf::v8_tmpl

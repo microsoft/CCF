@@ -2,18 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
+#include "ccf/serdes.h"
+#include "ccf/service/map.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/impl/state.h"
-#include "crypto/pem.h"
-#include "crypto/verifier.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
 #include "node/identity.h"
 #include "node/resharing_tracker.h"
 #include "node/rpc/call_types.h"
-#include "node/rpc/serdes.h"
 #include "node/rpc/serialization.h"
-#include "service_map.h"
 
 #include <optional>
 #include <vector>
@@ -21,7 +20,6 @@
 namespace ccf
 {
   using Index = uint64_t;
-  using Resharings = ServiceMap<kv::ReconfigurationId, ResharingResult>;
 
   class ResharingsHook : public kv::ConsensusHook
   {
@@ -65,16 +63,14 @@ namespace ccf
     {
     public:
       SessionState state = SessionState::STARTED;
-      kv::NetworkConfiguration config;
+      kv::Configuration config;
 
-      ResharingSession(const kv::NetworkConfiguration& config_) :
-        config(config_)
-      {}
+      ResharingSession(const kv::Configuration& config_) : config(config_) {}
     };
 
     SplitIdentityResharingTracker(
       std::shared_ptr<aft::State> shared_state_,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::shared_ptr<ccf::RPCMap> rpc_map_,
       crypto::KeyPairPtr node_sign_kp_,
       const crypto::Pem& self_signed_node_cert_,
       const std::optional<crypto::Pem>& endorsed_node_cert_) :
@@ -88,12 +84,12 @@ namespace ccf
     virtual ~SplitIdentityResharingTracker() {}
 
     virtual void add_network_configuration(
-      const kv::NetworkConfiguration& config) override
+      const kv::Configuration& config) override
     {
       configs[config.rid] = config;
     }
 
-    virtual void reshare(const kv::NetworkConfiguration& config) override
+    virtual void reshare(const kv::Configuration& config) override
     {
       auto rid = config.rid;
       LOG_DEBUG_FMT("Resharings: start resharing for configuration #{}", rid);
@@ -117,12 +113,12 @@ namespace ccf
       // We're searching for a configuration with the same set of nodes as
       // `nodes`. We currently don't have an easy way to look up the
       // reconfiguration ID, which would make this unnecessary.
-      for (auto& [rid, nc] : configs)
+      for (auto& [rid, config] : configs)
       {
         bool have_all = true;
-        for (auto& [nid, byid] : nodes)
+        for (auto& [nid, _] : nodes)
         {
-          if (nc.nodes.find(nid) == nc.nodes.end())
+          if (config.nodes.find(nid) == config.nodes.end())
           {
             have_all = false;
             break;
@@ -200,7 +196,7 @@ namespace ccf
     {
       UpdateResharingTaskMsg(
         kv::ReconfigurationId rid_,
-        std::shared_ptr<enclave::RPCMap> rpc_map_,
+        std::shared_ptr<ccf::RPCMap> rpc_map_,
         crypto::KeyPairPtr node_sign_kp_,
         const crypto::Pem& node_cert_,
         size_t retries_ = 10) :
@@ -212,7 +208,7 @@ namespace ccf
       {}
 
       kv::ReconfigurationId rid;
-      std::shared_ptr<enclave::RPCMap> rpc_map;
+      std::shared_ptr<ccf::RPCMap> rpc_map;
       crypto::KeyPairPtr node_sign_kp;
       const crypto::Pem& node_cert;
       size_t retries;
@@ -220,17 +216,17 @@ namespace ccf
 
   protected:
     std::shared_ptr<aft::State> shared_state;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<ccf::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
     const crypto::Pem& self_signed_node_cert;
     const std::optional<crypto::Pem>& endorsed_node_cert;
     std::unordered_map<kv::ReconfigurationId, ResharingSession> sessions;
     std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
-    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration> configs;
+    std::unordered_map<kv::ReconfigurationId, kv::Configuration> configs;
 
     static inline bool make_request(
       http::Request& request,
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert)
     {
@@ -239,9 +235,9 @@ namespace ccf
 
       http::sign_request(request, node_sign_kp, key_id);
       std::vector<uint8_t> packed = request.build_request();
-      auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      auto node_session = std::make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, node_cert.raw());
+      auto ctx = ccf::make_rpc_context(node_session, packed);
 
       const auto actor_opt = http::extract_actor(*ctx);
       if (!actor_opt.has_value())
@@ -274,7 +270,7 @@ namespace ccf
 
     static inline bool request_update_resharing(
       kv::ReconfigurationId rid,
-      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert)
     {

@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
+#include "ccf/ds/openapi.h"
 #include "ccf/endpoint_context.h"
-#include "ds/json.h"
-#include "ds/openapi.h"
-#include "kv/serialise_entry_blit.h"
-#include "node/service_map.h"
+#include "ccf/http_consts.h"
+#include "ccf/rest_verb.h"
+#include "ccf/service/map.h"
 
 #include <string>
 #include <utility>
@@ -103,6 +104,10 @@ namespace ccf::endpoints
     virtual ~EndpointDefinition() = default;
 
     EndpointKey dispatch;
+
+    /// Full URI path to endpoint, including method prefix
+    URI full_uri_path;
+
     EndpointProperties properties;
 
     /** List of authentication policies which will be checked before executing
@@ -132,6 +137,10 @@ namespace ccf::endpoints
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
   using EndpointsMap = ccf::ServiceMap<EndpointKey, EndpointProperties>;
+  namespace Tables
+  {
+    static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
+  }
 
   /** An Endpoint represents a user-defined resource that can be invoked by
    * authorised users via HTTP requests, over TLS. An Endpoint is accessible
@@ -220,10 +229,7 @@ namespace ccf::endpoints
             }
 
             ds::openapi::add_request_body_schema<In>(
-              document,
-              endpoint.dispatch.uri_path,
-              http_verb.value(),
-              http::headervalues::contenttype::JSON);
+              document, endpoint.full_uri_path, http_verb.value());
           });
       }
       else
@@ -247,10 +253,9 @@ namespace ccf::endpoints
 
             ds::openapi::add_response_schema<Out>(
               document,
-              endpoint.dispatch.uri_path,
+              endpoint.full_uri_path,
               http_verb.value(),
-              endpoint.success_status,
-              http::headervalues::contenttype::JSON);
+              endpoint.success_status);
           });
       }
       else
@@ -318,7 +323,7 @@ namespace ccf::endpoints
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(
-            document, endpoint.dispatch.uri_path, http_verb.value(), parameter);
+            document, endpoint.full_uri_path, http_verb.value(), parameter);
         });
 
       return *this;
@@ -357,7 +362,7 @@ namespace ccf::endpoints
         LOG_FATAL_FMT(
           "Can't install this endpoint ({}) - it is not associated with an "
           "installer",
-          dispatch.uri_path);
+          full_uri_path);
       }
       else
       {
@@ -367,33 +372,4 @@ namespace ccf::endpoints
   };
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
-}
-
-namespace kv::serialisers
-{
-  template <>
-  struct BlitSerialiser<ccf::endpoints::EndpointKey>
-  {
-    static SerialisedEntry to_serialised(
-      const ccf::endpoints::EndpointKey& endpoint_key)
-    {
-      auto str =
-        fmt::format("{} {}", endpoint_key.verb.c_str(), endpoint_key.uri_path);
-      return SerialisedEntry(str.begin(), str.end());
-    }
-
-    static ccf::endpoints::EndpointKey from_serialised(
-      const SerialisedEntry& data)
-    {
-      std::string str{data.begin(), data.end()};
-      auto i = str.find(' ');
-      if (i == std::string::npos)
-      {
-        throw std::logic_error("invalid encoding of endpoint key");
-      }
-      auto verb = str.substr(0, i);
-      auto uri_path = str.substr(i + 1);
-      return {uri_path, verb};
-    }
-  };
 }

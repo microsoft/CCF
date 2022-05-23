@@ -4,13 +4,15 @@
 #include "ccf/common_endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/http_consts.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
-#include "ds/nonstd.h"
-#include "enclave/node_context.h"
-#include "http/http_consts.h"
-#include "node/code_id.h"
+#include "ccf/node_context.h"
+#include "ccf/service/tables/code_id.h"
+#include "node/rpc/call_types.h"
+#include "node/rpc/serialization.h"
 
 namespace ccf
 {
@@ -233,9 +235,8 @@ namespace ccf
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
-        ccf::Receipt out;
         assert(historical_state->receipt);
-        historical_state->receipt->describe(out);
+        auto out = ccf::describe_receipt_v1(*historical_state->receipt);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
       };
@@ -243,15 +244,12 @@ namespace ccf
     make_endpoint(
       "/receipt",
       HTTP_GET,
-      ccf::historical::adapter_v2(
-        get_receipt,
-        context.get_historical_state(),
-        is_tx_committed,
-        txid_from_query_string),
+      ccf::historical::adapter_v3(
+        get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
-      .set_auto_schema<void, ccf::Receipt>()
+      .set_auto_schema<void, nlohmann::json>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .install();
   }

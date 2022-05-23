@@ -13,15 +13,15 @@ namespace host
 {
   enum class EnclaveType
   {
-    RELEASE,
-    DEBUG,
-    VIRTUAL
+    SGX_RELEASE,
+    SGX_DEBUG,
+    VIRTUAL,
   };
   DECLARE_JSON_ENUM(
     EnclaveType,
-    {{EnclaveType::RELEASE, "release"},
-     {EnclaveType::DEBUG, "debug"},
-     {EnclaveType::VIRTUAL, "virtual"}});
+    {{EnclaveType::SGX_RELEASE, "Release"},
+     {EnclaveType::SGX_DEBUG, "Debug"},
+     {EnclaveType::VIRTUAL, "Virtual"}});
 
   enum class LogFormat
   {
@@ -29,7 +29,7 @@ namespace host
     JSON
   };
   DECLARE_JSON_ENUM(
-    LogFormat, {{LogFormat::TEXT, "text"}, {LogFormat::JSON, "json"}});
+    LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
 
   struct ParsedMemberInfo
   {
@@ -50,15 +50,16 @@ namespace host
     struct Enclave
     {
       std::string file;
-      EnclaveType type = EnclaveType::RELEASE;
+      EnclaveType type;
     };
     Enclave enclave = {};
 
     // Other
-    ds::TimeString tick_interval = std::string("10ms");
-    ds::TimeString slow_io_logging_threshold = std::string("10ms");
+    ds::TimeString tick_interval = {"10ms"};
+    ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
-    ds::TimeString client_connection_timeout = std::string("2000ms");
+    ds::TimeString client_connection_timeout = {"2000ms"};
+    std::optional<std::string> node_data_json_file = std::nullopt;
 
     struct OutputFiles
     {
@@ -77,7 +78,7 @@ namespace host
     {
       std::string directory = "ledger";
       std::vector<std::string> read_only_directories = {};
-      ds::SizeString chunk_size = std::string("5MB");
+      ds::SizeString chunk_size = {"5MB"};
 
       bool operator==(const Ledger&) const = default;
     };
@@ -103,9 +104,9 @@ namespace host
 
     struct Memory
     {
-      ds::SizeString circuit_size = std::string("4MB");
-      ds::SizeString max_msg_size = std::string("16MB");
-      ds::SizeString max_fragment_size = std::string("64KB");
+      ds::SizeString circuit_size = {"4MB"};
+      ds::SizeString max_msg_size = {"16MB"};
+      ds::SizeString max_fragment_size = {"64KB"};
 
       bool operator==(const Memory&) const = default;
     };
@@ -114,13 +115,14 @@ namespace host
     struct Command
     {
       StartType type = StartType::Start;
-      std::string network_certificate_file = "networkcert.pem";
+      std::string service_certificate_file = "service_cert.pem";
 
       struct Start
       {
         std::vector<ParsedMemberInfo> members = {};
         std::vector<std::string> constitution_files = {};
         ccf::ServiceConfiguration service_configuration;
+        size_t initial_service_certificate_validity_days = 1;
 
         bool operator==(const Start&) const = default;
       };
@@ -129,11 +131,19 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-        ds::TimeString retry_timeout = std::string("1000ms");
+        ds::TimeString retry_timeout = {"1000ms"};
 
         bool operator==(const Join&) const = default;
       };
       Join join = {};
+
+      struct Recover
+      {
+        size_t initial_service_certificate_validity_days = 1;
+        std::string previous_service_identity_file;
+        bool operator==(const Recover&) const = default;
+      };
+      Recover recover = {};
     };
     Command command = {};
   };
@@ -172,16 +182,25 @@ namespace host
   DECLARE_JSON_REQUIRED_FIELDS(
     CCHostConfig::Command::Start, members, constitution_files);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::Start, service_configuration);
+    CCHostConfig::Command::Start,
+    service_configuration,
+    initial_service_certificate_validity_days);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
   DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, retry_timeout);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::Command::Recover,
+    initial_service_certificate_validity_days,
+    previous_service_identity_file);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command, network_certificate_file, start, join);
+    CCHostConfig::Command, service_certificate_file, start, join, recover);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
@@ -191,6 +210,7 @@ namespace host
     slow_io_logging_threshold,
     node_client_interface,
     client_connection_timeout,
+    node_data_json_file,
     output_files,
     ledger,
     snapshots,

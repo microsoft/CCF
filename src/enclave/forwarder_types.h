@@ -2,12 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "rpc_context.h"
+#include "ccf/entity_id.h"
 
 #include <vector>
 
-namespace enclave
+namespace ccf
 {
+  class RpcContextImpl;
+
   class AbstractRPCResponder
   {
   public:
@@ -21,7 +23,7 @@ namespace enclave
     virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
-      std::shared_ptr<enclave::RpcContext> rpc_ctx,
+      std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,
       const ccf::NodeId& to,
       const std::vector<uint8_t>& caller_cert) = 0;
   };

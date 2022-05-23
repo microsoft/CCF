@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ds/buffer.h"
+
+#include "ccf/crypto/pem.h"
+#include "ccf/tx.h"
 #include "forwarder_types.h"
 
 #include <chrono>
@@ -14,8 +16,10 @@ namespace kv
   class CommittableTx;
 }
 
-namespace enclave
+namespace ccf
 {
+  class RpcContextImpl;
+
   class RpcHandler
   {
   public:
@@ -29,9 +33,10 @@ namespace enclave
     virtual void tick(std::chrono::milliseconds) {}
     virtual void open(std::optional<crypto::Pem*> identity = std::nullopt) = 0;
     virtual bool is_open(kv::Tx& tx) = 0;
+    virtual bool is_open() = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(
-      std::shared_ptr<RpcContext> ctx) = 0;
+      std::shared_ptr<RpcContextImpl> ctx) = 0;
   };
 }

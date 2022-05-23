@@ -2,8 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/hash.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 
 #include <charconv>
 #include <cstdint>
@@ -88,15 +87,6 @@ namespace ccf
     {
       return view == other.view && seqno == other.seqno;
     }
-
-    struct TxIDHasher
-    {
-      std::size_t operator()(const ccf::TxID& t) const
-      {
-        return ds::hashutils::hash_container<std::vector<uint64_t>>(
-          {t.view, t.seqno});
-      }
-    };
   };
 
   // ADL-found functions used during JSON conversion and OpenAPI/JSON schema
@@ -123,12 +113,12 @@ namespace ccf
     tx_id = opt.value();
   }
 
-  inline std::string schema_name(const TxID&)
+  inline std::string schema_name(const TxID*)
   {
     return "TransactionId";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const TxID&)
+  inline void fill_json_schema(nlohmann::json& schema, const TxID*)
   {
     schema["type"] = "string";
     schema["pattern"] = "^[0-9]+\\.[0-9]+$";

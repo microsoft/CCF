@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #include <doctest/doctest.h>
-#include <msgpack/msgpack.hpp>
 #undef FAIL
 #include <string>
 #include <vector>
@@ -31,8 +30,11 @@ TEST_CASE(
 
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   kv_store.set_consensus(consensus);
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   kv::Store kv_store_target;
+  kv_store_target.set_encryptor(encryptor);
 
   MapTypes::StringString map("public:pub_map");
 
@@ -313,9 +315,6 @@ struct CustomClass
 {
   std::string s;
   size_t n;
-
-  // This macro allows custom msgpack serialisation (optional)
-  MSGPACK_DEFINE(s, n);
 };
 
 // These macros allow the default nlohmann JSON serialiser to be used
@@ -429,37 +428,6 @@ struct CustomJsonSerialiser
   }
 };
 
-struct CustomMsgPackSerialiser
-{
-  using Bytes = kv::serialisers::SerialisedEntry;
-
-  struct SerialisedEntryWriter
-  {
-    Bytes& b;
-
-    void write(const char* d, size_t n)
-    {
-      b.insert(b.end(), d, d + n);
-    }
-  };
-
-  static Bytes to_serialised(const CustomClass& c)
-  {
-    Bytes b;
-    SerialisedEntryWriter w{b};
-    msgpack::pack(w, c);
-    return b;
-  }
-
-  static CustomClass from_serialised(const Bytes& b)
-  {
-    msgpack::object_handle oh =
-      msgpack::unpack(reinterpret_cast<const char*>(b.data()), b.size());
-    auto object = oh.get();
-    return object.as<CustomClass>();
-  }
-};
-
 struct KPrefix
 {
   static constexpr auto prefix = "This is a key:";
@@ -507,21 +475,11 @@ struct CustomVerboseDumbSerialiser
 
 using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
 using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
-using MixSerialisedMapA = kv::TypedMap<
-  CustomClass,
-  CustomClass,
-  CustomMsgPackSerialiser,
-  kv::serialisers::JsonSerialiser<CustomClass>>;
 using MixSerialisedMapB = kv::TypedMap<
   CustomClass,
   CustomClass,
   kv::serialisers::JsonSerialiser<CustomClass>,
   kv::serialisers::BlitSerialiser<CustomClass>>;
-using MixSerialisedMapC = kv::TypedMap<
-  CustomClass,
-  CustomClass,
-  kv::serialisers::BlitSerialiser<CustomClass>,
-  CustomMsgPackSerialiser>;
 
 // SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
@@ -544,14 +502,14 @@ TEST_CASE_TEMPLATE(
   MapType,
   JsonSerialisedMap,
   RawCopySerialisedMap,
-  MixSerialisedMapA,
   MixSerialisedMapB,
-  MixSerialisedMapC,
   CustomSerialisedMap,
   CustomJsonMap,
   VerboseSerialisedMap)
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   MapType map("public:map");
 
@@ -564,6 +522,8 @@ TEST_CASE_TEMPLATE(
   INFO("Serialise/Deserialise 2 kv stores");
   {
     kv::Store kv_store2;
+    kv_store2.set_encryptor(encryptor);
+
     MapType map2("public:map");
 
     auto tx = kv_store.create_reserved_tx(kv_store.next_txid());
@@ -571,7 +531,10 @@ TEST_CASE_TEMPLATE(
     handle->put(k1, v1);
     handle->put(k2, v2);
 
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
@@ -609,6 +572,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     using Table = kv::Map<std::vector<int>, std::string>;
     kv::Store s0, s1;
     s0.set_consensus(consensus);
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    s0.set_encryptor(encryptor);
+    s1.set_encryptor(encryptor);
+
     Table t("public:t");
 
     auto tx = s0.create_tx();
@@ -628,6 +595,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     using Table = kv::Map<nlohmann::json, nlohmann::json>;
     kv::Store s0, s1;
     s0.set_consensus(consensus);
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    s0.set_encryptor(encryptor);
+    s1.set_encryptor(encryptor);
+
     Table t("public:t");
 
     auto tx = s0.create_tx();
@@ -675,7 +646,10 @@ TEST_CASE(
     data_handle_d->put(46, 46);
     data_handle_d_p->put(47, 47);
 
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
+    auto& success = success_;
+    auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
     REQUIRE(
       store.deserialize(data, ConsensusType::CFT)->apply() ==
@@ -757,5 +731,56 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
     auto tx = store.create_tx();
     auto bad_handle = tx.rw(bad_map_v);
     REQUIRE_THROWS(bad_handle->put(0, {}));
+  }
+}
+
+TEST_CASE(
+  "Serialise/deserialise maps with claims" *
+  doctest::test_suite("serialisation"))
+{
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+
+  kv::Store kv_store;
+  kv_store.set_consensus(consensus);
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto priv_map = "priv_map";
+  constexpr auto pub_map = "public:pub_map";
+
+  kv::Store kv_store_target;
+  kv_store_target.set_encryptor(encryptor);
+
+  ccf::ClaimsDigest claims_digest;
+  claims_digest.set(crypto::Sha256Hash("claim text"));
+
+  INFO("Commit to source store, including claims");
+  {
+    auto tx = kv_store.create_tx();
+    auto handle_priv = tx.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx.rw<MapTypes::StringString>(pub_map);
+
+    handle_priv->put("privk1", "privv1");
+    handle_pub->put("pubk1", "pubv1");
+
+    REQUIRE(tx.commit(claims_digest) == kv::CommitResult::SUCCESS);
+  }
+
+  INFO("Deserialise transaction in target store and extract claims");
+  {
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    auto wrapper =
+      kv_store_target.deserialize(latest_data.value(), ConsensusType::CFT);
+    REQUIRE(wrapper->apply() != kv::ApplyResult::FAIL);
+    auto deserialised_claims = wrapper->consume_claims_digest();
+    REQUIRE(claims_digest == deserialised_claims);
+
+    auto tx_target = kv_store_target.create_tx();
+    auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx_target.rw<MapTypes::StringString>(pub_map);
+
+    REQUIRE(handle_priv->get("privk1") == "privv1");
+    REQUIRE(handle_pub->get("pubk1") == "pubv1");
   }
 }

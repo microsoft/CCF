@@ -5,7 +5,7 @@ from enum import Enum
 import infra.proc
 import infra.proposal
 import infra.crypto
-import ccf.clients
+import infra.clients
 import http
 import os
 import base64
@@ -106,7 +106,8 @@ class Member:
             os.path.join(self.common_dir, self.member_info["certificate_file"]),
             encoding="utf-8",
         ) as c:
-            self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
+            self.cert = c.read()
+            self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(self.cert)
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
@@ -214,8 +215,8 @@ class Member:
             "--key",
             os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
             "--cacert",
-            os.path.join(self.common_dir, "networkcert.pem"),
+            os.path.join(self.common_dir, "service_cert.pem"),
             log_output=True,
         )
         res.check_returncode()
-        return ccf.clients.Response.from_raw(res.stdout)
+        return infra.clients.Response.from_raw(res.stdout)

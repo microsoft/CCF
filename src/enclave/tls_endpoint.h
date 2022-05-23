@@ -2,23 +2,24 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
 #include "enclave/endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
+#include "tls/tls.h"
 
 #include <exception>
 
-namespace enclave
+namespace ccf
 {
   class TLSEndpoint : public Endpoint
   {
   protected:
     ringbuffer::WriterPtr to_host;
-    int64_t session_id;
+    tls::ConnID session_id;
     size_t execution_thread;
 
     enum Status
@@ -50,7 +51,7 @@ namespace enclave
   private:
     std::vector<uint8_t> pending_write;
     std::vector<uint8_t> pending_read;
-    // Decrypted data, read through mbedtls
+    // Decrypted data
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
@@ -68,7 +69,7 @@ namespace enclave
     {
       execution_thread =
         threading::ThreadMessaging::get_execution_thread(session_id);
-      ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
+      ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
     ~TLSEndpoint()
@@ -88,19 +89,7 @@ namespace enclave
 
     std::vector<uint8_t> peer_cert()
     {
-      if (status != ready)
-      {
-        return {};
-      }
-
-      auto client_cert = ctx->peer_cert();
-      if (client_cert == nullptr)
-      {
-        return {};
-      }
-
-      return std::vector<uint8_t>(
-        client_cert->raw.p, client_cert->raw.p + client_cert->raw.len);
+      return ctx->peer_cert();
     }
 
     // Returns count N of bytes read, which will be the first N bytes of data,
@@ -150,11 +139,10 @@ namespace enclave
       switch (r)
       {
         case 0:
-        case MBEDTLS_ERR_NET_CONN_RESET:
-        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+        case TLS_ERR_CONN_CLOSE_NOTIFY:
         {
           LOG_TRACE_FMT(
-            "TLS {} on read: {}", session_id, crypto::error_string(r));
+            "TLS {} close on read: {}", session_id, tls::error_string(r));
 
           stop(closed);
 
@@ -168,8 +156,8 @@ namespace enclave
           return 0;
         }
 
-        case MBEDTLS_ERR_SSL_WANT_READ:
-        case MBEDTLS_ERR_SSL_WANT_WRITE:
+        case TLS_ERR_WANT_READ:
+        case TLS_ERR_WANT_WRITE:
         {
           if (!exact)
           {
@@ -190,7 +178,7 @@ namespace enclave
       if (r < 0)
       {
         LOG_TRACE_FMT(
-          "TLS {} on read: {}", session_id, crypto::error_string(r));
+          "TLS {} error on read: {}", session_id, tls::error_string(r));
         stop(error);
         return 0;
       }
@@ -198,7 +186,7 @@ namespace enclave
       auto total = r + offset;
 
       // We read _some_ data but not enough, and didn't get
-      // MBEDTLS_ERR_SSL_WANT_READ. Probably hit an internal size limit - try
+      // TLS_ERR_WANT_READ. Probably hit an internal size limit - try
       // again
       if (exact && (total < size))
       {
@@ -306,7 +294,7 @@ namespace enclave
         else
         {
           LOG_TRACE_FMT(
-            "TLS {} on flush: {}", session_id, crypto::error_string(r));
+            "TLS {} on flush: {}", session_id, tls::error_string(r));
           stop(error);
         }
       }
@@ -353,13 +341,14 @@ namespace enclave
 
           switch (r)
           {
-            case 0:
-            case MBEDTLS_ERR_SSL_WANT_READ:
-            case MBEDTLS_ERR_SSL_WANT_WRITE:
+            case TLS_ERR_WANT_READ:
+            case TLS_ERR_WANT_WRITE:
             {
-              // mbedtls may return 0 when a close notify has not been
-              // sent. This can't be disambiguated from a successful
-              // close notify, so treat them the same.
+              LOG_TRACE_FMT("TLS {} has pending data ({})", session_id, r);
+              // FALLTHROUGH
+            }
+            case 0:
+            {
               LOG_TRACE_FMT("TLS {} closed ({})", session_id, r);
               stop(closed);
               break;
@@ -368,7 +357,7 @@ namespace enclave
             default:
             {
               LOG_TRACE_FMT(
-                "TLS {} on_close: {}", session_id, crypto::error_string(r));
+                "TLS {} error on_close: {}", session_id, tls::error_string(r));
               stop(error);
               break;
             }
@@ -400,46 +389,39 @@ namespace enclave
           break;
         }
 
-        case MBEDTLS_ERR_SSL_WANT_READ:
-        case MBEDTLS_ERR_SSL_WANT_WRITE:
+        case TLS_ERR_WANT_READ:
+        case TLS_ERR_WANT_WRITE:
           break;
 
-        case MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE:
-        case MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED:
+        case TLS_ERR_NEED_CERT:
         {
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
+            "TLS {} verify error on handshake: {}",
+            session_id,
+            tls::error_string(rc));
           stop(authfail);
           break;
         }
 
-        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+        case TLS_ERR_CONN_CLOSE_NOTIFY:
         {
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
+            "TLS {} closed on handshake: {}",
+            session_id,
+            tls::error_string(rc));
           stop(closed);
           break;
         }
 
-        case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED:
+        case TLS_ERR_X509_VERIFY:
         {
-          std::vector<char> buf(512);
-          auto r = mbedtls_x509_crt_verify_info(
-            buf.data(),
-            buf.size(),
-            "Cert verify failed: ",
-            ctx->verify_result());
-
-          if (r > 0)
-          {
-            buf.resize(r);
-            LOG_TRACE_FMT(
-              "Certificate verify failed: {}",
-              std::string(buf.data(), buf.size()));
-          }
+          auto err = ctx->get_verify_error();
 
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
+            "TLS {} invalid cert on handshake: {} [{}]",
+            session_id,
+            err,
+            tls::error_string(rc));
           stop(authfail);
           return;
         }
@@ -447,7 +429,7 @@ namespace enclave
         default:
         {
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
+            "TLS {} error on handshake: {}", session_id, tls::error_string(rc));
           stop(error);
           break;
         }
@@ -460,8 +442,8 @@ namespace enclave
 
       switch (r)
       {
-        case MBEDTLS_ERR_SSL_WANT_READ:
-        case MBEDTLS_ERR_SSL_WANT_WRITE:
+        case TLS_ERR_WANT_READ:
+        case TLS_ERR_WANT_WRITE:
           return 0;
 
         default:
@@ -525,7 +507,7 @@ namespace enclave
         serializer::ByteRange{buf, len});
 
       if (!wrote)
-        return MBEDTLS_ERR_SSL_WANT_WRITE;
+        return TLS_WRITING;
 
       return (int)len;
     }
@@ -555,7 +537,7 @@ namespace enclave
         return (int)rd;
       }
 
-      return MBEDTLS_ERR_SSL_WANT_READ;
+      return TLS_READING;
     }
 
     static int send_callback(void* ctx, const unsigned char* buf, size_t len)
@@ -568,10 +550,124 @@ namespace enclave
       return reinterpret_cast<TLSEndpoint*>(ctx)->handle_recv(buf, len);
     }
 
-    static void dbg_callback(
-      void*, int, const char* file, int line, const char* str)
+    // These callbacks below are complex, using the callbacks above and
+    // manipulating OpenSSL's BIO objects accordingly. This is just so we can
+    // emulate what MbedTLS used to do.
+    // Now that we have removed it from the code, we can move the callbacks
+    // above to handle BIOs directly and hopefully remove the complexity below.
+    // This work will be carried out in #3429.
+    static long send_callback_openssl(
+      BIO* b,
+      int oper,
+      const char* argp,
+      size_t len,
+      int argi,
+      long argl,
+      int ret,
+      size_t* processed)
     {
-      LOG_DEBUG_FMT("{}:{}: {}", file, line, str);
+      // Unused arguments
+      (void)argi;
+      (void)argl;
+      (void)argp;
+
+      if (ret && len > 0 && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
+      {
+        // Flush BIO so the "pipe doesn't clog", but we don't use the
+        // data here, because 'argp' already has it.
+        BIO_flush(b);
+        size_t pending = BIO_pending(b);
+        if (pending)
+          BIO_reset(b);
+
+        // Pipe object
+        void* ctx = (BIO_get_callback_arg(b));
+        int put = send_callback(ctx, (const uint8_t*)argp, len);
+
+        // WANTS_WRITE
+        if (put == TLS_WRITING)
+        {
+          LOG_TRACE_FMT("TLS Endpoint::send_cb() : WANTS_WRITE");
+          *processed = 0;
+          return -1;
+        }
+        else
+        {
+          LOG_TRACE_FMT("TLS Endpoint::send_cb() : Put {} bytes", put);
+        }
+
+        // Update the number of bytes to external users
+        *processed = put;
+      }
+
+      // Unless we detected an error, the return value is always the same as the
+      // original operation.
+      return ret;
+    }
+
+    static long recv_callback_openssl(
+      BIO* b,
+      int oper,
+      const char* argp,
+      size_t len,
+      int argi,
+      long argl,
+      int ret,
+      size_t* processed)
+    {
+      // Unused arguments
+      (void)argi;
+      (void)argl;
+
+      if (ret && oper == (BIO_CB_READ | BIO_CB_RETURN))
+      {
+        // Pipe object
+        void* ctx = (BIO_get_callback_arg(b));
+        int got = recv_callback(ctx, (uint8_t*)argp, len);
+
+        // WANTS_READ
+        if (got == TLS_READING)
+        {
+          LOG_TRACE_FMT("TLS Endpoint::recv_cb() : WANTS_READ");
+          *processed = 0;
+          return -1;
+        }
+        else
+        {
+          LOG_TRACE_FMT(
+            "TLS Endpoint::recv_cb() : Got {} bytes of {}", got, len);
+        }
+
+        // If got less than requested, return WANT_READ
+        if ((size_t)got < len)
+        {
+          *processed = got;
+          return 1;
+        }
+
+        // Write to the actual BIO so SSL can use it
+        BIO_write_ex(b, argp, got, processed);
+
+        // The buffer should be enough, we can't return WANT_WRITE here
+        if ((size_t)got != *processed)
+        {
+          LOG_TRACE_FMT("TLS Endpoint::recv_cb() : BIO error");
+          *processed = got;
+          return -1;
+        }
+
+        // If original return was -1 because it didn't find anything to read,
+        // return 1 to say we actually read something. This is common when the
+        // buffer is empty and needs an external read, so let's not log this.
+        if (got > 0 && ret < 0)
+        {
+          return 1;
+        }
+      }
+
+      // Unless we detected an error, the return value is always the same as the
+      // original operation.
+      return ret;
     }
   };
 }

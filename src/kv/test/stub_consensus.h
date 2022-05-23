@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/symmetric_key.h"
 #include "consensus/aft/impl/state.h"
-#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
-#include "node/resharing_types.h"
+#include "service/tables/resharing_types.h"
 
 #include <algorithm>
 #include <iostream>
@@ -82,7 +82,10 @@ namespace kv::test
     }
 
     virtual void init_as_backup(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) override
+      ccf::SeqNo,
+      ccf::View,
+      const std::vector<ccf::SeqNo>&,
+      ccf::SeqNo) override
     {
       state = Backup;
     }
@@ -174,11 +177,6 @@ namespace kv::test
       return false;
     }
 
-    std::set<NodeId> active_nodes() override
-    {
-      return {PrimaryNodeId};
-    }
-
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);
@@ -211,25 +209,11 @@ namespace kv::test
       const std::unordered_set<NodeId>& retired_nodes = {}) override
     {}
 
-    void reconfigure(
-      ccf::SeqNo seqno, const NetworkConfiguration& config) override
-    {}
-
-    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) override
+    virtual std::optional<kv::Configuration::Nodes> orc(
+      kv::ReconfigurationId rid, const NodeId& node_id) override
     {
-      return false;
+      return std::nullopt;
     }
-
-    void record_signature(
-      kv::Version version,
-      const std::vector<uint8_t>& sig,
-      const NodeId& node_id,
-      const crypto::Pem& node_cert) override
-    {}
-
-    void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) override
-    {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {

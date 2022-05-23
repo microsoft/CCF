@@ -23,18 +23,10 @@ else()
   unset(NODES)
 endif()
 
-option(VERBOSE_LOGGING "Enable verbose logging" OFF)
+option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
   add_compile_definitions(VERBOSE_LOGGING)
-  set(TEST_HOST_LOGGING_LEVEL "debug")
-endif()
-
-option(NO_STRICT_TLS_CIPHERSUITES
-       "Disable strict list of valid TLS ciphersuites" OFF
-)
-if(NO_STRICT_TLS_CIPHERSUITES)
-  add_compile_definitions(NO_STRICT_TLS_CIPHERSUITES)
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
@@ -72,6 +64,12 @@ if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
 endif()
 
+# This option controls whether to link virtual builds against snmalloc rather
+# than use the system allocator. In builds using Open Enclave, enclave
+# allocation is managed separately and enabling snmalloc is done by linking
+# openenclave::oesnmalloc
+option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
+
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -83,11 +81,6 @@ set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
 
 include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
 include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
-
-find_package(MbedTLS REQUIRED)
-
-set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
-set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
@@ -125,14 +118,8 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES
-    tests.sh
-    cimetrics_env.sh
-    upload_pico_metrics.py
-    test_install.sh
-    test_python_cli.sh
-    docker_wrap.sh
-    config.jinja
+set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
+                       test_install.sh docker_wrap.sh config.jinja
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -174,10 +161,22 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/json_handler.cpp
+    ${CCF_DIR}/src/endpoints/authentication/authentication_types.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/sig_auth.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
+    ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
+    ${CCF_DIR}/src/node/historical_queries_adapter.cpp
+    ${CCF_DIR}/src/node/receipt.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
+find_library(TLS_LIBRARY ssl)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
@@ -225,79 +224,64 @@ function(add_test_bin name)
   add_san(${name})
 endfunction()
 
+# Host Executable
+if(SAN OR NOT USE_SNMALLOC)
+  set(SNMALLOC_LIB)
+else()
+  set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+  # Remove the following two lines once we upgrade to snmalloc 0.5.4
+  set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+  set(USE_POSIX_COMMIT_CHECKS off)
+  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
+  set(SNMALLOC_LIB snmalloc_lib)
+  list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
+endif()
+
+list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp)
+
 if("sgx" IN_LIST COMPILE_TARGETS)
-  # Host Executable
-  add_executable(
-    cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
-  )
-
-  add_warning_checks(cchost)
-  target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
-  target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
-  add_san(cchost)
-
-  target_link_libraries(
-    cchost
-    PRIVATE uv
-            ${CRYPTO_LIBRARY}
-            ${CMAKE_DL_LIBS}
-            ${CMAKE_THREAD_LIBS_INIT}
-            ${LINK_LIBCXX}
-            openenclave::oehost
-            ccfcrypto.host
-  )
-  enable_quote_code(cchost)
-
-  install(TARGETS cchost DESTINATION bin)
+  list(APPEND CCHOST_SOURCES ${CCF_GENERATED_DIR}/ccf_u.cpp)
 endif()
 
-# This option controls whether to link virtual builds against snmalloc rather
-# than use the system allocator. In builds using Open Enclave, enclave
-# allocation is managed separately and enabling snmalloc is done by linking
-# openenclave::oesnmalloc
-option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
+add_executable(cchost ${CCHOST_SOURCES})
 
+add_warning_checks(cchost)
+add_san(cchost)
+enable_quote_code(cchost)
+
+target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
+target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
+
+# Host is always built with verbose logging enabled, regardless of CMake option
+target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
+
+if("sgx" IN_LIST COMPILE_TARGETS)
+  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_SGX)
+endif()
 if("virtual" IN_LIST COMPILE_TARGETS)
-  if(SAN OR NOT USE_SNMALLOC)
-    set(SNMALLOC_LIB)
-    set(SNMALLOC_CPP)
-  else()
-
-    set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-    # Remove the following two lines once we upgrade to snmalloc 0.5.4
-    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-    set(USE_POSIX_COMMIT_CHECKS off)
-    add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
-    set(SNMALLOC_LIB snmalloc_lib)
-    set(SNMALLOC_CPP src/enclave/snmalloc.cpp)
-  endif()
-
-  # Virtual Host Executable
-  add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
-  target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
-  target_compile_options(cchost.virtual PRIVATE ${COMPILE_LIBCXX})
-  target_include_directories(
-    cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
-  )
-  add_warning_checks(cchost.virtual)
-  add_san(cchost.virtual)
-  target_link_libraries(
-    cchost.virtual
-    PRIVATE uv
-            ${SNMALLOC_LIB}
-            ${CRYPTO_LIBRARY}
-            ${CMAKE_DL_LIBS}
-            ${CMAKE_THREAD_LIBS_INIT}
-            ${LINK_LIBCXX}
-            ccfcrypto.host
-  )
-
-  install(TARGETS cchost.virtual DESTINATION bin)
+  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_VIRTUAL)
+  target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
 endif()
+
+target_link_libraries(
+  cchost
+  PRIVATE uv
+          ${SNMALLOC_LIB}
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
+)
+if("sgx" IN_LIST COMPILE_TARGETS)
+  target_link_libraries(cchost PRIVATE openenclave::oehost)
+endif()
+
+install(TARGETS cchost DESTINATION bin)
 
 # Perf scenario executable
 add_executable(
-  scenario_perf_client ${CCF_DIR}/src/perf_client/scenario_perf_client.cpp
+  scenario_perf_client ${CCF_DIR}/src/clients/perf/scenario_perf_client.cpp
 )
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(
@@ -313,12 +297,14 @@ endif()
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
-add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
-install(
-  TARGETS http_parser.enclave
-  EXPORT ccf
-  DESTINATION lib
-)
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
+  install(
+    TARGETS http_parser.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
@@ -327,17 +313,40 @@ install(
   DESTINATION lib
 )
 
-# CCF endpoints libs
-add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
-use_oe_mbedtls(ccf_endpoints.enclave)
-add_warning_checks(ccf_endpoints.enclave)
+# CCF kv libs
+set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
+                   ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+)
+
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")
+  add_warning_checks(ccf_kv.enclave)
+  install(
+    TARGETS ccf_kv.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
+add_san(ccf_kv.host)
+add_warning_checks(ccf_kv.host)
 install(
-  TARGETS ccf_endpoints.enclave
+  TARGETS ccf_kv.host
   EXPORT ccf
   DESTINATION lib
 )
+
+# CCF endpoints libs
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+  add_warning_checks(ccf_endpoints.enclave)
+  install(
+    TARGETS ccf_endpoints.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
-use_client_mbedtls(ccf_endpoints.host)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 install(
@@ -354,21 +363,20 @@ set(WORKER_THREADS
 
 set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/actions.js
+    ${CCF_DIR}/samples/constitutions/default/actions.js
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/validate.js
+    ${CCF_DIR}/samples/constitutions/default/validate.js
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/resolve.js
+    ${CCF_DIR}/samples/constitutions/default/resolve.js
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/apply.js
+    ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
-                          ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
+                          --worker-threads ${WORKER_THREADS}
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
-  use_oe_mbedtls(js_openenclave.enclave)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_openenclave.enclave)
   install(
@@ -389,7 +397,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
-  use_client_mbedtls(js_openenclave.virtual)
   install(
     TARGETS js_openenclave.virtual
     EXPORT ccf
@@ -401,7 +408,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
-  use_oe_mbedtls(js_generic_base.enclave)
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_generic_base.enclave)
   install(
@@ -426,7 +432,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
-  use_client_mbedtls(js_generic_base.virtual)
   install(
     TARGETS js_generic_base.virtual
     EXPORT ccf
@@ -468,7 +473,7 @@ function(add_client_exe name)
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host
   )
   target_include_directories(
-    ${name} PRIVATE ${CCF_DIR}/src/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
+    ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
 
 endfunction()

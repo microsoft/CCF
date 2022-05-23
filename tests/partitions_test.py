@@ -2,13 +2,15 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.network
+import infra.net
+import infra.interfaces
 import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
 from infra.checker import check_can_progress, check_does_not_progress
 import pprint
-from ccf.tx_status import TxStatus
+from infra.tx_status import TxStatus
 import time
 import http
 import contextlib
@@ -85,36 +87,87 @@ def test_partition_majority(network, args):
 
 
 @reqs.description("Isolate primary from one backup")
+@reqs.exactly_n_nodes(3)
 def test_isolate_primary_from_one_backup(network, args):
-    primary, backups = network.find_nodes()
+    p, backups = network.find_nodes()
+    b_0, b_1 = backups
 
     # Issue one transaction, waiting for all nodes to be have reached
     # the same level of commit, so that nodes outside of partition can
     # become primary after this one is dropped
     # Note: Because of https://github.com/microsoft/CCF/issues/2224, we need to
     # issue a write transaction instead of just reading the TxID of the latest entry
-    network.txs.issue(network)
+    initial_txid = network.txs.issue(network)
 
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
     # Note: Managed manually
-    rules = network.partitioner.isolate_node(primary, backups[0])
+    rules = network.partitioner.isolate_node(p, b_0)
 
-    new_primary, new_view = network.wait_for_new_primary(
-        primary, nodes=backups, timeout_multiplier=6
+    LOG.info(
+        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id}"
     )
+    last_ack = 0
+    while True:
+        with p.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            ack = r["acks"][b_0.node_id]["last_received_ms"]
+        if r["primary_id"] is not None:
+            assert (
+                ack >= last_ack
+            ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
+            last_ack = ack
+        else:
+            LOG.debug(f"Node {p.local_node_id} is no longer primary")
+            break
+        time.sleep(0.1)
 
+    # Now wait for several elections to occur. We expect:
+    # - b_0 to call and win an election with b_1's help
+    # - b_0 to produce a new signature, and commit it with b_1's help
+    # - p to call its own election, and lose because it doesn't have this signature
+    # - In the resulting election race:
+    #   - If p calls first, it loses and we're in the same situation
+    #   - If b_0 calls first, it wins, but then p calls its election and we've returned to the same situation
+    #   - If b_1 calls first, it can win and then bring _both_ nodes up-to-date, becoming a _stable_ primary
+    # So we repeat elections until b_1 is primary
+
+    new_primary = network.wait_for_primary_unanimity(
+        min_view=initial_txid.view, timeout_multiplier=30
+    )
+    assert new_primary == b_1
+
+    new_view = network.txs.issue(network).view
+
+    # The partition is now between 2 backups, but both can talk to the new primary
     # Explicitly drop rules before continuing
     rules.drop()
 
-    # Old primary should now report of the new primary
-    new_primary_, new_view_ = network.wait_for_new_primary(primary, nodes=[primary])
+    LOG.info(f"Check that new primary {new_primary.local_node_id} reports stable acks")
+    last_ack = 0
+    end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
+    while time.time() < end_time:
+        with new_primary.client() as c:
+            acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
+                "acks"
+            ]
+            delayed_acks = [
+                ack
+                for ack in acks.values()
+                if ack["last_received_ms"] > args.election_timeout_ms
+            ]
+            if delayed_acks:
+                raise RuntimeError(f"New primary reported some delayed acks: {acks}")
+        time.sleep(0.1)
+
+    # Original primary should now, or very soon, report the new primary
+    new_primary_, new_view_ = network.wait_for_new_primary(p, nodes=[p])
     assert (
         new_primary == new_primary_
     ), f"New primary {new_primary_.local_node_id} after partition is dropped is different than before {new_primary.local_node_id}"
     assert (
         new_view == new_view_
-    ), f"Consensus view {new_view} should not changed after partition is dropped: no {new_view_}"
+    ), f"Consensus view {new_view} should not have changed after partition is dropped: now {new_view_}"
 
     return network
 
@@ -213,7 +266,26 @@ def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
     f_backups = backups[: network.get_f() + 1]
 
-    new_node = network.create_node("local://localhost")
+    # Note: host is supplied explicitly to avoid having differently
+    # assigned IPs for the interfaces, something which the test infra doesn't
+    # support widely yet.
+    operator_rpc_interface = "operator_rpc_interface"
+    host = infra.net.expand_localhost()
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=host
+                ),
+                operator_rpc_interface: infra.interfaces.RPCInterface(
+                    host=host,
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    ),
+                ),
+            }
+        )
+    )
     network.join_node(new_node, args.package, args, from_snapshot=False)
 
     LOG.info("Wait for all nodes to have committed join of new pending node")
@@ -236,7 +308,7 @@ def test_learner_does_not_take_part(network, args):
                 primary,
                 new_node.node_id,
                 timeout=ceil(args.join_timer_s * 2),
-                valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
+                valid_from=datetime.now(),
             )
         except TimeoutError:
             LOG.info("Trust node proposal did not commit as expected")
@@ -246,11 +318,13 @@ def test_learner_does_not_take_part(network, args):
         check_does_not_progress(primary, timeout=5)
 
         LOG.info("Majority partition can make progress")
-        parition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
-        check_can_progress(parition_primary)
+        partition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
+        check_can_progress(partition_primary)
 
         LOG.info("New joiner is not promoted to Trusted without f other backups")
-        with new_node.client(self_signed_ok=True) as c:
+        with new_node.client(
+            interface_name=operator_rpc_interface, verify_ca=False
+        ) as c:
             r = c.get("/node/network/nodes/self")
             assert r.body.json()["status"] == "Learner"
             r = c.get("/node/consensus")
@@ -286,7 +360,7 @@ def run_2tx_reconfig_tests(args):
         pdb=local_args.pdb,
         init_partitioner=True,
     ) as network:
-        network.start_and_join(local_args)
+        network.start_and_open(local_args)
 
         test_learner_does_not_take_part(network, local_args)
 
@@ -303,7 +377,7 @@ def run(args):
         txs=txs,
         init_partitioner=True,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)

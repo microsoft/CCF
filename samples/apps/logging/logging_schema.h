@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ccf/ds/json.h"
 #include "ccf/receipt.h"
-#include "ds/json.h"
 
 namespace loggingapp
 {
@@ -15,6 +15,7 @@ namespace loggingapp
     {
       size_t id;
       std::string msg;
+      bool record_claim = false;
     };
   };
 
@@ -41,12 +42,13 @@ namespace loggingapp
     struct Out
     {
       std::string msg;
-      ccf::Receipt receipt;
+      nlohmann::json receipt;
     };
   };
 
-  DECLARE_JSON_TYPE(LoggingRecord::In);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
+  DECLARE_JSON_OPTIONAL_FIELDS(LoggingRecord::In, record_claim);
 
   DECLARE_JSON_TYPE(LoggingGet::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
@@ -55,6 +57,7 @@ namespace loggingapp
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::In, id);
   DECLARE_JSON_TYPE(LoggingGetReceipt::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::Out, msg, receipt);
+
   // SNIPPET_END: macro_validation_macros
 
   using LoggingGetHistorical = LoggingGet;

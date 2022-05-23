@@ -25,7 +25,7 @@ def test_verify_quotes(network, args):
 
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
-        cafile = os.path.join(network.common_dir, "networkcert.pem")
+        cafile = os.path.join(network.common_dir, "service_cert.pem")
         assert (
             infra.proc.ccall(
                 "verify_quote.sh",
@@ -182,7 +182,7 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         test_verify_quotes(network, args)
         test_add_node_with_bad_code(network, args)

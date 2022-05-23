@@ -9,7 +9,6 @@ import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
-import infra.rates
 import cimetrics.upload
 import threading
 import copy
@@ -88,13 +87,14 @@ def run(get_command, args):
 
     args.initial_user_count = 3
     args.sig_ms_interval = 1000  # Set to cchost default value
+    args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, backups = network.find_nodes()
 
         command_args = get_command_args(args, get_command)
@@ -141,10 +141,10 @@ def run(get_command, args):
                 remote_client.start()
 
             hard_stop_timeout = 90
+            format_width = len(str(hard_stop_timeout)) + 3
 
             try:
                 with cimetrics.upload.metrics(complete=False) as metrics:
-                    tx_rates = infra.rates.TxRates(primary)
                     start_time = time.time()
                     while True:
                         stop_waiting = True
@@ -152,7 +152,7 @@ def run(get_command, args):
                             done = remote_client.check_done()
                             # all the clients need to be done
                             LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:.2f}s / {hard_stop_timeout}s)"
+                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
                             )
                             stop_waiting = stop_waiting and done
                         if stop_waiting:
@@ -163,8 +163,6 @@ def run(get_command, args):
                             )
 
                         time.sleep(5)
-
-                    tx_rates.get_metrics()
 
                     for remote_client in clients:
                         perf_result = remote_client.get_result()
@@ -184,7 +182,6 @@ def run(get_command, args):
                         assert r.status_code == http.HTTPStatus.OK.value
 
                         results = r.body.json()
-                        tx_rates.insert_metrics(**results)
 
                         # Construct name for heap metric, removing ^ suffix if present
                         heap_peak_metric = args.label
@@ -194,9 +191,6 @@ def run(get_command, args):
 
                         peak_value = results["peak_allocated_heap_size"]
                         metrics.put(heap_peak_metric, peak_value)
-
-                    LOG.info(f"Rates:\n{tx_rates}")
-                    tx_rates.save_results(args.metrics_file)
 
                     for remote_client in clients:
                         remote_client.stop()

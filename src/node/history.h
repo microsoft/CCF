@@ -2,48 +2,43 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash.h"
-#include "crypto/verifier.h"
+#include "ccf/ds/logger.h"
+#include "ccf/service/tables/nodes.h"
 #include "ds/dl_list.h"
-#include "ds/logger.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
-#include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node_signature_verify.h"
-#include "nodes.h"
-#include "signatures.h"
+#include "service/tables/signatures.h"
 
 #include <array>
 #include <deque>
 #include <string.h>
 
 #define HAVE_OPENSSL
-#define HAVE_MBEDTLS
 // merklecpp traces are off by default, even when CCF tracing is enabled
 // #include "merklecpp_trace.h"
 #include <merklecpp/merklecpp.h>
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<kv::TxHistory::RequestID>
 {
-  template <>
-  struct formatter<kv::TxHistory::RequestID>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
+  {
+    return format_to(
+      ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
+  }
+};
+FMT_END_NAMESPACE
 
 namespace ccf
 {
@@ -87,7 +82,7 @@ namespace ccf
 
   static inline void log_hash(const crypto::Sha256Hash& h, HashOp flag)
   {
-    LOG_DEBUG_FMT("History [{}] {}", flag, h);
+    LOG_TRACE_FMT("History [{}] {}", flag, h);
   }
 
   class NullTxHistoryPendingTx : public kv::PendingTx
@@ -139,6 +134,11 @@ namespace ccf
       version++;
     }
 
+    void append_entry(const crypto::Sha256Hash& digest) override
+    {
+      version++;
+    }
+
     kv::TxHistory::Result verify_and_sign(
       PrimarySignature&, kv::Term*, kv::Configuration::Nodes&) override
     {
@@ -185,6 +185,8 @@ namespace ccf
 
     void try_emit_signature() override {}
 
+    void start_signature_emit_timer() override {}
+
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return crypto::Sha256Hash(std::to_string(version));
@@ -195,7 +197,7 @@ namespace ccf
     {
       return {
         {term_of_last_version, version},
-        crypto::Sha256Hash(CBuffer(std::to_string(version))),
+        crypto::Sha256Hash(std::to_string(version)),
         term_of_next_version};
     }
 
@@ -369,7 +371,7 @@ namespace ccf
       tree = new HistoryTree(serialised);
     }
 
-    void append(crypto::Sha256Hash& hash)
+    void append(const crypto::Sha256Hash& hash)
     {
       tree->insert(merkle::Hash(hash.h));
     }
@@ -506,7 +508,7 @@ namespace ccf
       }
     }
 
-    void start_signature_emit_timer()
+    void start_signature_emit_timer() override
     {
       struct EmitSigMsg
       {
@@ -538,7 +540,8 @@ namespace ccf
             auto consensus = self->store.get_consensus();
             if (
               (consensus != nullptr) && consensus->can_replicate() &&
-              self->store.commit_gap() > 0 && time > time_of_last_signature &&
+              self->store.committable_gap() > 0 &&
+              time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
               should_emit_signature = true;
@@ -723,12 +726,12 @@ namespace ccf
     void try_emit_signature() override
     {
       std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
-      if (store.commit_gap() < sig_tx_interval || !mguard.try_lock())
+      if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;
       }
 
-      if (store.commit_gap() >= sig_tx_interval)
+      if (store.committable_gap() >= sig_tx_interval)
       {
         mguard.unlock();
         emit_signature();
@@ -752,6 +755,12 @@ namespace ccf
         return;
       }
 
+      if (!endorsed_cert.has_value())
+      {
+        throw std::logic_error(
+          fmt::format("No endorsed certificate set to emit signature"));
+      }
+
       auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
 
@@ -766,8 +775,6 @@ namespace ccf
         commit_txid.term,
         commit_txid.version,
         commit_txid.previous_version);
-
-      assert(endorsed_cert.has_value());
 
       store.commit(
         txid,
@@ -798,10 +805,17 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& data) override
     {
-      crypto::Sha256Hash rh({data.data(), data.size()});
+      crypto::Sha256Hash rh(data);
       log_hash(rh, APPEND);
       std::lock_guard<std::mutex> guard(state_lock);
       replicated_state_tree.append(rh);
+    }
+
+    void append_entry(const crypto::Sha256Hash& digest) override
+    {
+      log_hash(digest, APPEND);
+      std::lock_guard<std::mutex> guard(state_lock);
+      replicated_state_tree.append(digest);
     }
 
     void set_endorsed_certificate(const crypto::Pem& cert) override

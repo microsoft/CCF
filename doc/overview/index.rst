@@ -3,17 +3,10 @@ Overview
 
 .. panels::
 
-    :fa:`lightbulb` :doc:`concepts`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF in a hundred words, and the fundamental concepts it implements. Start Here.
-
-    ---
-
-    :fa:`rocket` :doc:`release_policy`
+    :fa:`lightbulb` :doc:`what_is_ccf`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    CCF release cadence and compatibility committments.
+    CCF in a hundred words, and the fundamental concepts it implements. Start Here.
 
     ---
     
@@ -24,19 +17,6 @@ Overview
 
     ---
 
-    :fa:`book` :doc:`consensus/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Different consensus protocols can be used to replicate state in a CCF network.
-
-    ---
-
-    :fa:`key` :doc:`cryptography`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF leverages a number of cryptographic techniques and primitives.
-
-    ---
 
     :fa:`tachometer-alt` :doc:`performance`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -45,20 +25,17 @@ Overview
 
     ---
 
-    :fa:`stream` :doc:`threading`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`book` :doc:`glossary`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    CCF threading model.
+    Common terms used throughout the documentation and their definitions.
 
 
 .. toctree::
     :hidden:
     :maxdepth: 1
 
-    concepts
-    release_policy
+    what_is_ccf
     governance
-    consensus/index
-    cryptography
     performance
-    threading
+    glossary

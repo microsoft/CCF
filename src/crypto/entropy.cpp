@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "entropy.h"
+#include "ccf/crypto/entropy.h"
 
-#include "mbedtls/entropy.h"
+#include "openssl/entropy.h"
 
 namespace crypto
 {
@@ -16,6 +16,6 @@ namespace crypto
       return intel_drng_ptr;
     }
 
-    return std::make_shared<Entropy_mbedTLS>();
+    return std::make_shared<Entropy_OpenSSL>();
   }
 }

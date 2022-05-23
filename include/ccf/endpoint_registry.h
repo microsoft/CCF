@@ -2,15 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json_schema.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/rpc_context.h"
 #include "ccf/tx.h"
-#include "ds/ccf_deprecated.h"
-#include "ds/json_schema.h"
-#include "ds/openapi.h"
-#include "http/http_consts.h"
-#include "node/endpoint_metrics.h"
-#include "node/rpc/serialization.h"
 
 #include <charconv>
 #include <functional>
@@ -18,6 +14,12 @@
 #include <nlohmann/json.hpp>
 #include <regex>
 #include <set>
+
+namespace kv
+{
+  class Consensus;
+  class TxHistory;
+}
 
 namespace ccf::endpoints
 {
@@ -52,8 +54,8 @@ namespace ccf::endpoints
       const auto template_end = regex_s.find_first_of('}', template_start);
       if (template_end == std::string::npos)
       {
-        throw std::logic_error(
-          fmt::format("Invalid templated path - missing closing '}': {}", uri));
+        throw std::logic_error(fmt::format(
+          "Invalid templated path - missing closing curly bracket: {}", uri));
       }
 
       spec.template_component_names.push_back(
@@ -108,7 +110,7 @@ namespace ccf::endpoints
 
     template <typename T>
     bool get_path_param(
-      const enclave::PathParams& params,
+      const ccf::PathParams& params,
       const std::string& param_name,
       T& value,
       std::string& error)
@@ -135,7 +137,7 @@ namespace ccf::endpoints
 
     template <>
     bool get_path_param(
-      const enclave::PathParams& params,
+      const ccf::PathParams& params,
       const std::string& param_name,
       std::string& value,
       std::string& error)
@@ -243,27 +245,27 @@ namespace ccf::endpoints
     virtual void init_handlers();
 
     virtual EndpointDefinitionPtr find_endpoint(
-      kv::Tx&, enclave::RpcContext& rpc_ctx);
+      kv::Tx&, ccf::RpcContext& rpc_ctx);
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args);
 
     virtual std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx&, const enclave::RpcContext& rpc_ctx);
+      kv::Tx&, const ccf::RpcContext& rpc_ctx);
 
     virtual void report_ambiguous_templated_path(
       const std::string& path,
       const std::vector<EndpointDefinitionPtr>& matches);
 
-    virtual void tick(std::chrono::milliseconds, size_t);
+    virtual void tick(std::chrono::milliseconds);
 
     void set_consensus(kv::Consensus* c);
 
     void set_history(kv::TxHistory* h);
 
-    void increment_metrics_calls(const EndpointDefinitionPtr& e);
-    void increment_metrics_errors(const EndpointDefinitionPtr& e);
-    void increment_metrics_failures(const EndpointDefinitionPtr& e);
-    void increment_metrics_retries(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_calls(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_errors(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_failures(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_retries(const EndpointDefinitionPtr& e);
   };
 }

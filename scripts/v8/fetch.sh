@@ -5,6 +5,8 @@
 # Fetches the Universal Artifact from Azure that was built and published with
 # build.sh. Doesn't fetch if the tarball already exists.
 
+# NB: No way to list available artifacts/versions with the CLI.
+# View https://dev.azure.com/MSRC-CCF/CCF/_packaging?_a=feed&feed=V8 for current artifacts.
 SYNTAX="fetch.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [-f(orce)]"
 if [ "$1" == "" ]; then
   echo "ERROR: Missing expected argument 'version'"
@@ -49,6 +51,14 @@ if command -v az > /dev/null; then
 else
   echo " + Installing the Azure Client..."
   sudo apt update && sudo apt install azure-cli -y
+fi
+
+## Check for the Azure DevOps extension
+if az extension show --name azure-devops > /dev/null; then
+  echo " + Azure DevOps extension already installed"
+else
+  echo " + Installing the Azure DevOps extension..."
+  az extension add --name azure-devops
 fi
 
 ## Login into Azure

@@ -2,8 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/tables/nodes.h"
+#include "ccf/tx_id.h"
 #include "ds/unit_strings.h"
-#include "node/nodes.h"
+#include "enclave/consensus_type.h"
 
 #include <stdint.h>
 
@@ -12,8 +14,8 @@ namespace consensus
   struct Configuration
   {
     ConsensusType type = ConsensusType::CFT;
-    ds::TimeString message_timeout = std::string("100ms");
-    ds::TimeString election_timeout = std::string("5000ms");
+    ds::TimeString message_timeout = {"100ms"};
+    ds::TimeString election_timeout = {"5000ms"};
 
     bool operator==(const Configuration&) const = default;
     bool operator!=(const Configuration&) const = default;

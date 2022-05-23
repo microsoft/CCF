@@ -1,14 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/pem.h"
-#include "crypto/verifier.h"
-#include "ds/logger.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
+#include "ccf/serdes.h"
+#include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
-#include "node/genesis_gen.h"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
 #include "node_stub.h"
+#include "service/genesis_gen.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -19,8 +20,15 @@ using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
+constexpr size_t certificate_validity_period_days = 365;
+using namespace std::literals;
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
+
 auto kp = crypto::make_key_pair();
-auto member_cert = kp -> self_sign("CN=name_member");
+auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
 auto node_id = 0;
 
 void check_error(const TResponse& r, http_status expected)
@@ -47,9 +55,9 @@ TResponse frontend_process(
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
-  auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, caller.raw());
-  auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
+  auto session =
+    std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, caller.raw());
+  auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
   CHECK(serialised_response.has_value());
@@ -84,6 +92,8 @@ void require_ledger_secrets_equal(
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_configuration({0, ConsensusType::CFT, std::nullopt});
@@ -104,7 +114,7 @@ TEST_CASE("Add a node to an opening service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign("CN=Joiner");
+  const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
   const auto node_public_encryption_key =
     crypto::make_key_pair()->public_key_pem();
 
@@ -199,7 +209,8 @@ TEST_CASE("Add a node to an opening service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(kp->self_sign("CN=Other Joiner"));
+    auto v = crypto::make_verifier(
+      kp->self_sign("CN=Other Joiner", valid_from, valid_to));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -217,11 +228,13 @@ TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
   auto gen_tx = network.tables->create_tx();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   GenesisGenerator gen(network, gen_tx);
 
   ShareManager share_manager(network);
   StubNodeContext context;
-  context.get_node_state().set_is_public(true);
+  context.node_operation->is_public = true;
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
@@ -244,7 +257,7 @@ TEST_CASE("Add a node to an open service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign("CN=Joiner");
+  const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
 
   std::optional<NodeInfo> node_info;
   auto tx = network.tables->create_tx();
@@ -275,7 +288,8 @@ TEST_CASE("Add a node to an open service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(kp->self_sign("CN=Joiner"));
+    auto v =
+      crypto::make_verifier(kp->self_sign("CN=Joiner", valid_from, valid_to));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -305,8 +319,8 @@ TEST_CASE("Add a node to an open service")
     GenesisGenerator g(network, tx);
     auto joining_node_id = ccf::compute_node_id_from_kp(kp);
     g.trust_node(joining_node_id, network.ledger_secrets->get_latest(tx).first);
-    const auto dummy_endorsed_certificate =
-      crypto::make_key_pair()->self_sign("CN=dummy endorsed certificate");
+    const auto dummy_endorsed_certificate = crypto::make_key_pair()->self_sign(
+      "CN=dummy endorsed certificate", valid_from, valid_to);
     auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);
     endorsed_certificate->put(joining_node_id, {dummy_endorsed_certificate});
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);

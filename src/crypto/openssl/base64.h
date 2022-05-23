@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/openssl_wrappers.h"
-#include "ds/logger.h"
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -26,8 +26,12 @@ namespace crypto
       if (size == 0)
         return {};
 
+      // Make sure the error queue is clean before we start
+      // Trying to ameliorate #3677 and #3368
+      ERR_clear_error();
+
       // Initialise the encode context
-      auto ctx = EVP_ENCODE_CTX_new();
+      OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_DecodeInit(ctx);
       int encoded_len = 0;
 
@@ -43,7 +47,12 @@ namespace crypto
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
         throw std::invalid_argument(fmt::format(
-          "OSSL: Could not decode update from base64 string: {}", err_str));
+          "OSSL: Could not decode update from base64 string: {} [{} bytes out "
+          "of {}, chunk_len = {}]",
+          err_str,
+          size,
+          max_size,
+          chunk_len));
       }
       encoded_len = chunk_len;
 
@@ -52,13 +61,16 @@ namespace crypto
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
         throw std::logic_error(fmt::format(
-          "OSSL: Could not decode final from base64 string: {}", err_str));
+          "OSSL: Could not decode final from base64 string: {} [{} bytes out "
+          "of {}, chunk_len = {}]",
+          err_str,
+          size,
+          max_size,
+          chunk_len));
       }
       encoded_len += chunk_len;
 
       std::vector<uint8_t> ret(output, output + encoded_len);
-
-      EVP_ENCODE_CTX_free(ctx);
 
       return ret;
     }
@@ -69,8 +81,12 @@ namespace crypto
       if (size == 0)
         return "";
 
+      // Make sure the error queue is clean before we start
+      // Trying to ameliorate #3677 and #3368
+      ERR_clear_error();
+
       // Initialise the encode context
-      auto ctx = EVP_ENCODE_CTX_new();
+      OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_EncodeInit(ctx);
       int encoded_len = 0;
 
@@ -81,26 +97,33 @@ namespace crypto
 
       // Encode Main Block (if size > 48)
       int chunk_len = 0;
-      EVP_EncodeUpdate(ctx, output, &chunk_len, data, size);
-      auto err = ERR_get_error();
-      if (err != 0)
+      int rc = EVP_EncodeUpdate(ctx, output, &chunk_len, data, size);
+      if (rc < 0)
       {
-        char err_str[256];
-        ERR_error_string(err, err_str);
+        auto err_str = OpenSSL::error_string(ERR_get_error());
         throw std::logic_error(fmt::format(
-          "OSSL: Could not encode update to base64 string: {}", err_str));
+          "OSSL: Could not encode update to base64 string: {} [{} bytes out of "
+          "{}, chunk_len = {}]",
+          err_str,
+          size,
+          max_size,
+          chunk_len));
       }
       encoded_len = chunk_len;
 
       // Encode Final Line (after previous lines, if any)
       EVP_EncodeFinal(ctx, output + chunk_len, &chunk_len);
-      err = ERR_get_error();
+      auto err = ERR_get_error();
       if (err != 0)
       {
-        char err_str[256];
-        ERR_error_string(err, err_str);
+        auto err_str = OpenSSL::error_string(err);
         throw std::logic_error(fmt::format(
-          "OSSL: Could not encode final to base64 string: {}", err_str));
+          "OSSL: Could not encode final to base64 string: {} [{} bytes out of "
+          "{}, chunk_len = {}]",
+          err_str,
+          size,
+          max_size,
+          chunk_len));
       }
       encoded_len += chunk_len;
 
@@ -108,8 +131,6 @@ namespace crypto
       std::string ret = (const char*)output;
       ret.pop_back();
       ret.erase(std::remove(ret.begin(), ret.end(), '\n'), ret.end());
-
-      EVP_ENCODE_CTX_free(ctx);
 
       return ret;
     }

@@ -11,6 +11,7 @@ import membership
 import governance_history
 import jwt_test
 import governance
+import e2e_operations
 
 from inspect import signature, Parameter
 
@@ -20,20 +21,20 @@ suites = {}
 # This suite tests that rekeying, network configuration changes, recoveries and
 # curve changes can be interleaved
 suite_rekey_recovery = [
-    recovery.test,
+    recovery.test_recover_service,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
-    recovery.test,
+    recovery.test_recover_service,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
     reconfiguration.test_change_curve,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
     e2e_logging.test_rekey,
-    recovery.test,
+    recovery.test_recover_service,
     e2e_logging.test_rekey,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
@@ -41,13 +42,13 @@ suites["rekey_recovery"] = suite_rekey_recovery
 # This suite tests that membership changes and recoveries can be interleaved
 suite_membership_recovery = [
     membership.test_add_member,
-    recovery.test,
+    recovery.test_recover_service,
     membership.test_remove_member,
-    recovery.test,
+    recovery.test_recover_service,
     membership.test_set_recovery_threshold,
-    recovery.test,
+    recovery.test_recover_service,
     membership.test_update_recovery_shares,
-    recovery.test,
+    recovery.test_recover_service,
 ]
 suites["membership_recovery"] = suite_membership_recovery
 
@@ -100,8 +101,10 @@ all_tests_suite = [
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_retire_backup,
     reconfiguration.test_node_certificates_validity_period,
+    reconfiguration.test_retire_primary,
     # recovery:
-    recovery.test,
+    recovery.test_recover_service,
+    recovery.test_recover_service_aborted,
     # rekey:
     e2e_logging.test_rekey,
     # election:
@@ -112,11 +115,15 @@ all_tests_suite = [
     code_update.test_add_node_with_bad_code,
     # curve migration:
     reconfiguration.test_change_curve,
-    recovery.test,
+    recovery.test_recover_service,
     # jwt
     jwt_test.test_refresh_jwt_issuer,
     # governance
     governance.test_each_node_cert_renewal,
+    governance.test_service_cert_renewal,
+    # e2e_operations:
+    e2e_operations.test_forced_ledger_chunk,
+    e2e_operations.test_forced_snapshot,
     #
     #
     #

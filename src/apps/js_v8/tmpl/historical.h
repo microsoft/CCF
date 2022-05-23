@@ -3,7 +3,8 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
-#include "v8.h"
+
+#include <v8.h>
 
 namespace ccf::v8_tmpl
 {

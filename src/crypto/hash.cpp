@@ -1,20 +1,21 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "hash.h"
 
-#include "mbedtls/hash.h"
-#include "openssl/hash.h"
+#include "crypto/openssl/hash.h"
+
+#include "ccf/crypto/hkdf.h"
+#include "ccf/crypto/sha256.h"
 
 #include <openssl/sha.h>
 
 namespace crypto
 {
-  void default_sha256(const CBuffer& data, uint8_t* h)
+  void default_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
     return openssl_sha256(data, h);
   }
 
-  std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data)
+  std::vector<uint8_t> sha256(const std::vector<uint8_t>& data)
   {
     size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
     std::vector<uint8_t> r(hash_size);
@@ -22,9 +23,9 @@ namespace crypto
     return r;
   }
 
-  std::vector<uint8_t> SHA256(const uint8_t* data, size_t len)
+  std::vector<uint8_t> sha256(const uint8_t* data, size_t len)
   {
-    CBuffer buf(data, len);
+    std::span<const uint8_t> buf(data, len);
     size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
     std::vector<uint8_t> r(hash_size);
     openssl_sha256(buf, r.data());
@@ -48,10 +49,6 @@ namespace crypto
     const std::vector<uint8_t>& salt,
     const std::vector<uint8_t>& info)
   {
-#if defined(CRYPTO_PROVIDER_IS_MBEDTLS)
-    return mbedtls::hkdf(md_type, length, ikm, salt, info);
-#else
     return OpenSSL::hkdf(md_type, length, ikm, salt, info);
-#endif
   }
 }
