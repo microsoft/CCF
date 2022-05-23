@@ -26,7 +26,6 @@
 
 namespace ACME
 {
-
   struct ClientConfig
   {
     // Certificate of the ACME server we will connect to (to avoid certificate

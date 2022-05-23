@@ -20,11 +20,9 @@
 #include <limits>
 #include <map>
 #include <unordered_map>
-#include <map>
 
 namespace ccf
 {
-
   using ServerEndpointImpl = http::HTTPServerEndpoint;
   using ClientEndpointImpl = http::HTTPClientEndpoint;
   using QUICEndpointImpl = quic::QUICEchoEndpoint;
