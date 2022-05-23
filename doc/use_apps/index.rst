@@ -38,5 +38,4 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     issue_commands
     verify_tx
     verify_quote
-    python_tutorial
     rpc_api
