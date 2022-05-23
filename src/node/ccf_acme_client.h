@@ -15,11 +15,10 @@ namespace ccf
   public:
     ACMEClient(
       const ACME::ClientConfig& config,
-      const std::string& node_id,
       std::shared_ptr<RPCSessions> rpc_sessions,
       std::shared_ptr<kv::Store> store,
       ringbuffer::WriterPtr to_host) :
-      ACME::Client(config, node_id),
+      ACME::Client(config),
       rpc_sessions(rpc_sessions),
       store(store),
       to_host(to_host)
@@ -39,7 +38,7 @@ namespace ccf
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) override
     {
-      auto ca = std::make_shared<tls::CA>(config.ca_cert);
+      auto ca = std::make_shared<tls::CA>(config.ca_certs);
       auto ca_cert = std::make_shared<tls::Cert>(ca);
       auto client = rpc_sessions->create_client(ca_cert);
 

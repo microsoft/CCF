@@ -71,7 +71,7 @@ namespace tls
         int opts = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
         auto cb = [](int ok, x509_store_ctx_st*) {
           LOG_DEBUG_FMT("peer certificate verified: {}", ok);
-          return 1;
+          return ok;
         };
         SSL_CTX_set_verify(ssl_ctx, opts, cb);
         SSL_set_verify(ssl, opts, cb);

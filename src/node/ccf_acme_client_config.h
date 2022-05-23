@@ -19,7 +19,7 @@ namespace ACME
   DECLARE_JSON_TYPE(ClientConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
     ClientConfig,
-    ca_cert,
+    ca_certs,
     directory_url,
     service_dns_name,
     contact,

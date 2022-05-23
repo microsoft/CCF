@@ -20,7 +20,6 @@
 #include <list>
 #include <optional>
 #include <string>
-#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -28,9 +27,9 @@ namespace ACME
 {
   struct ClientConfig
   {
-    // Certificate of the ACME server we will connect to (to avoid certificate
-    // verification failures)
-    std::string ca_cert;
+    // Certificate(s) of the ACME server we will connect to (to satisfy
+    // certificate verification for HTTPS requests)
+    std::vector<std::string> ca_certs;
 
     // URL of the ACME server's directory
     std::string directory_url;
@@ -57,9 +56,7 @@ namespace ACME
   class Client
   {
   public:
-    Client(const ClientConfig& config, const std::string& node_id) :
-      config(config),
-      node_id(node_id)
+    Client(const ClientConfig& config) : config(config)
     {
       account_key_pair = crypto::make_key_pair();
 
@@ -279,16 +276,15 @@ namespace ACME
     const ClientConfig& config;
     std::shared_ptr<crypto::KeyPair> service_key;
     std::shared_ptr<crypto::KeyPair> account_key_pair;
-    const std::string node_id;
+
     nlohmann::json identifiers;
-
-    std::mutex req_lock;
-    std::mutex finalize_lock;
-
     nlohmann::json directory;
     nlohmann::json account;
     std::list<std::string> nonces;
     std::unordered_set<std::string> pending_authorizations;
+
+    std::mutex req_lock;
+    std::mutex finalize_lock;
 
     static http::URL with_default_port(
       const std::string& url, const std::string& default_port = "443")

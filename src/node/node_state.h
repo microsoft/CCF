@@ -411,12 +411,6 @@ namespace ccf
 
           LOG_INFO_FMT("Created new node {}", self);
 
-          if (acme_client)
-          {
-            acme_client->get_certificate(
-              make_key_pair(network.identity->priv_key));
-          }
-
           return {self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
@@ -2448,7 +2442,7 @@ namespace ccf
       }
 
       acme_client = std::make_shared<ccf::ACMEClient>(
-        *aconfig, get_node_id(), rpcsessions, network.tables, to_host);
+        *aconfig, rpcsessions, network.tables, to_host);
 
       using namespace std::chrono;
       using namespace threading;
@@ -2470,29 +2464,28 @@ namespace ccf
             return;
           }
 
+          bool renew = false;
           auto tx = state.network.tables->create_read_only_tx();
           auto service = tx.ro<Service>(Tables::SERVICE);
           auto service_info = service->get();
           if (service_info->tls_cert)
           {
             auto v = crypto::make_verifier(*service_info->tls_cert);
-            if (acme_client)
+            size_t rem_sec = v->remaining_seconds();
+            LOG_TRACE_FMT(
+              "ACME: remaining seconds of certificate validity: {}", rem_sec);
+            if (rem_sec < duration_cast<seconds>(hours(1)).count())
             {
-              size_t rem_sec = v->remaining_seconds();
-              LOG_TRACE_FMT(
-                "ACME: remaining seconds of certificate validity: {}", rem_sec);
-              if (rem_sec < duration_cast<seconds>(hours(1)).count())
-              {
-                acme_client->get_certificate(
-                  make_key_pair(state.network.identity->priv_key));
-              }
+              renew = true;
             }
           }
-          else
+
+          if (renew || !service_info->tls_cert)
           {
             acme_client->get_certificate(
               make_key_pair(state.network.identity->priv_key));
           }
+
           auto delay = minutes(1);
           ThreadMessaging::thread_messaging.add_task_after(
             std::move(msg), delay);
@@ -2500,7 +2493,7 @@ namespace ccf
         *this);
 
       ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg), seconds(10));
+        std::move(msg), seconds(2));
     }
 
   public:
