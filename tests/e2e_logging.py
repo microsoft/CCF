@@ -1298,11 +1298,11 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()

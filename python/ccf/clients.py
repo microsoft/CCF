@@ -481,7 +481,7 @@ class RequestClient:
                 url=f"https://{self.host}:{self.port}{request.path}",
                 auth=auth,
                 headers=extra_headers,
-                allow_redirects=request.allow_redirects,
+                follow_redirects=request.allow_redirects,
                 timeout=timeout,
                 content=request_body,
             )
@@ -490,7 +490,7 @@ class RequestClient:
         except httpx.NetworkError as exc:
             raise CCFConnectionException from exc
         except Exception as exc:
-            raise RuntimeError("Request client failed with unexpected error") from exc
+            raise RuntimeError(f"Request client failed with unexpected error: {exc}") from exc
 
         return Response.from_requests_response(response)
 

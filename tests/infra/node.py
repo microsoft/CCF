@@ -118,7 +118,7 @@ class Node:
         self.certificate_valid_from = None
         self.certificate_validity_days = None
 
-        if os.getenv("CONTAINER_NODES"):
+        if False: # os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim
