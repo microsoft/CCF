@@ -233,25 +233,33 @@ extern "C"
     }
     catch (const ccf::ccf_oe_attester_init_error& e)
     {
-      LOG_TRACE_FMT(
+      LOG_FAIL_FMT(
         "ccf_oe_attester_init_error during enclave init: {}", e.what());
       return CreateNodeStatus::OEAttesterInitFailed;
     }
     catch (const ccf::ccf_oe_verifier_init_error& e)
     {
-      LOG_TRACE_FMT(
+      LOG_FAIL_FMT(
         "ccf_oe_verifier_init_error during enclave init: {}", e.what());
       return CreateNodeStatus::OEVerifierInitFailed;
     }
     catch (const ccf::ccf_openssl_rdrand_init_error& e)
     {
-      LOG_TRACE_FMT(
+      LOG_FAIL_FMT(
         "ccf_openssl_rdrand_init_error during enclave init: {}", e.what());
       return CreateNodeStatus::OpenSSLRDRANDInitFailed;
     }
     catch (const std::exception& e)
     {
-      LOG_TRACE_FMT("exception during enclave init: {}", e.what());
+      // In most places, logging exception messages directly is unsafe because
+      // they may contain confidential information. In this instance the chance
+      // of confidential information is extremely low - this is early during
+      // node startup, when it has not communicated with any other nodes to
+      // retrieve confidential state, and any secrets it may have generated are
+      // about to be discarded as this node terminates. The debugging benefit is
+      // substantial, while the risk is low, so in this case we promote the
+      // generic exception message to FAIL.
+      LOG_FAIL_FMT("exception during enclave init: {}", e.what());
       return CreateNodeStatus::EnclaveInitFailed;
     }
 
