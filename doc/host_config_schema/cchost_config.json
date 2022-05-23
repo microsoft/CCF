@@ -474,39 +474,39 @@
         "ca_cert": {
           "type": "string",
           "default": "",
-          "description": ""
+          "description": "Certificate of the ACME server we will connect to (to avoid certificate verification failures)"
         },
         "directory_url": {
           "type": "string",
           "default": "",
-          "description": ""
+          "description": "URL of the ACME server's directory"
         },
         "service_dns_name": {
           "type": "string",
           "default": "",
-          "description": ""
-        },
-        "node_dns_name": {
-          "type": "string",
-          "default": "",
-          "description": ""
+          "description": "DNS name of the service we represent"
         },
         "contact": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": ""
+          "description": "Contact address(es)"
         },
         "terms_of_service_agreed": {
           "type": "boolean",
           "default": false,
-          "description": ""
+          "description": "Indication that the user/operator is aware of the latest terms and conditions"
         },
         "challenge_type": {
           "type": "string",
           "default": "http-01",
-          "description": ""
+          "description": "Type of the ACME challenge (currently only http-01 supported)"
+        },
+        "challenge_server_interface": {
+          "type": "string",
+          "default": "0.0.0.0:80",
+          "description": "Interface for the (http) challenge server to listen on"
         }
       }
     }

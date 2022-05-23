@@ -14,7 +14,7 @@
 #include "ds/unit_strings.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
-#include "node/acme_client_config.h"
+#include "node/ccf_acme_client_config.h"
 #include "service/tables/config.h"
 
 #include <optional>

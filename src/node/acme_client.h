@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 #pragma once
 
 #include "ccf/crypto/base64.h"
@@ -12,40 +12,55 @@
 #include "ccf/http_status.h"
 #include "ds/messaging.h"
 #include "ds/thread_messaging.h"
-#include "enclave/interface.h"
-#include "enclave/rpc_sessions.h"
-#include "http/http_builder.h"
-#include "http/http_rpc_context.h"
-#include "node/acme_client_config.h"
-#include "node/identity.h"
-#include "node/rpc/node_frontend.h"
-#include "tls/cert.h"
+#include "http/http_parser.h"
 
 #include <cctype>
 #include <chrono>
 #include <cstddef>
+#include <list>
+#include <optional>
+#include <string>
 #include <thread>
 #include <unordered_set>
 #include <vector>
 
-namespace ccf
+namespace ACME
 {
-  class ACMEClient
+
+  struct ClientConfig
+  {
+    // Certificate of the ACME server we will connect to (to avoid certificate
+    // verification failures)
+    std::string ca_cert;
+
+    // URL of the ACME server's directory
+    std::string directory_url;
+
+    // DNS name of the service we represent
+    std::string service_dns_name;
+
+    // Contact address(es)
+    std::vector<std::string> contact;
+
+    // Indication that the user/operator is aware of the latest terms and
+    // conditions
+    bool terms_of_service_agreed = false;
+
+    // Type of the ACME challenge (currently only http-01 supported)
+    std::string challenge_type = "http-01";
+
+    // Interface for the (http) challenge server to listen on
+    std::string challenge_server_interface = "0.0.0.0:80";
+
+    bool operator==(const ClientConfig& other) const = default;
+  };
+
+  class Client
   {
   public:
-    ACMEClient(
-      const ACMEClientConfig& config,
-      const std::unique_ptr<ccf::NetworkIdentity>& service_identity,
-      const std::string& node_id,
-      const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
-      ringbuffer::WriterPtr& to_host,
-      std::function<void(const crypto::Pem&)> cert_callback) :
+    Client(const ClientConfig& config, const std::string& node_id) :
       config(config),
-      service_identity(service_identity),
-      node_id(node_id),
-      cert_callback(cert_callback),
-      rpcsessions(rpcsessions),
-      to_host(to_host)
+      node_id(node_id)
     {
       account_key_pair = crypto::make_key_pair();
 
@@ -54,27 +69,40 @@ namespace ccf
       });
     }
 
-    virtual ~ACMEClient()
+    virtual ~Client() {}
+
+    void get_certificate(std::shared_ptr<crypto::KeyPair> service_key)
     {
-      // Be nice and delete keys/accounts?
+      this->service_key = service_key;
+      request_directory();
     }
 
-    void start()
+    void start_challenge(const std::string& token)
     {
-      if (!busy)
+      auto cit = active_challenges.find(token);
+      if (cit != active_challenges.end())
       {
-        busy = true;
-        request_directory();
+        threading::ThreadMessaging::thread_messaging.add_task_after(
+          schedule_check_challenge(cit->second), std::chrono::milliseconds(0));
       }
     }
 
   protected:
+    virtual void on_challenge(const std::string& key_authorization) = 0;
+    virtual void on_certificate(const std::string& certificate) = 0;
+    virtual void make_http_request(
+      const http::URL& url,
+      std::vector<uint8_t>&& req,
+      std::function<
+        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+        callback) = 0;
+
     void make_request(
       llhttp_method method,
       const http::URL& url,
       const std::vector<uint8_t>& body,
       http_status expected_status,
-      std::function<bool(http::HeaderMap&, const std::vector<uint8_t>&)>
+      std::function<bool(const http::HeaderMap&, const std::vector<uint8_t>&)>
         ok_callback)
     {
       std::unique_lock<std::mutex> guard(req_lock);
@@ -84,13 +112,22 @@ namespace ccf
         auto port = url.port.empty() ? "443" : url.port;
         LOG_INFO_FMT(
           "ACME: Requesting https://{}:{}{}", url.host, port, url.path);
-        auto ca = std::make_shared<tls::CA>(config.ca_cert);
-        auto ca_cert = std::make_shared<tls::Cert>(ca);
-        auto http_client = rpcsessions->create_client(ca_cert);
 
-        http_client->connect(
-          url.host,
-          url.port,
+        http::Request r(url.path, method);
+        r.set_header(http::headers::ACCEPT, "*/*");
+        r.set_header(http::headers::HOST, url.host);
+        if (!body.empty())
+        {
+          r.set_header(http::headers::CONTENT_TYPE, "application/jose+json");
+          r.set_body(&body);
+        }
+        auto req = r.build_request();
+        std::string reqs(req.begin(), req.end());
+        LOG_TRACE_FMT("ACME: Request:\n{}", reqs);
+
+        make_http_request(
+          url,
+          std::move(req),
           [this, expected_status, ok_callback](
             http_status status,
             http::HeaderMap&& headers,
@@ -126,19 +163,6 @@ namespace ccf
             }
             return true;
           });
-
-        http::Request r(url.path, method);
-        r.set_header(http::headers::ACCEPT, "*/*");
-        r.set_header(http::headers::HOST, url.host);
-        if (!body.empty())
-        {
-          r.set_header(http::headers::CONTENT_TYPE, "application/jose+json");
-          r.set_body(&body);
-        }
-        auto req = r.build_request();
-        std::string reqs(req.begin(), req.end());
-        LOG_TRACE_FMT("ACME: Request:\n{}", reqs);
-        http_client->send_request(std::move(req));
       }
       catch (const std::exception& ex)
       {
@@ -151,7 +175,7 @@ namespace ccf
       const http::URL& url,
       const std::vector<uint8_t>& body,
       http_status expected_status,
-      std::function<void(http::HeaderMap& headers, const nlohmann::json&)>
+      std::function<void(const http::HeaderMap& headers, const nlohmann::json&)>
         ok_callback)
     {
       make_request(
@@ -160,7 +184,7 @@ namespace ccf
         body,
         expected_status,
         [ok_callback](
-          http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+          const http::HeaderMap& headers, const std::vector<uint8_t>& data) {
           nlohmann::json jr;
 
           if (!data.empty())
@@ -185,7 +209,7 @@ namespace ccf
     void post_as_get(
       const std::string& account_url,
       const std::string& resource_url,
-      std::function<bool(http::HeaderMap&, const std::vector<uint8_t>&)>
+      std::function<bool(const http::HeaderMap&, const std::vector<uint8_t>&)>
         ok_callback)
     {
       if (nonces.empty())
@@ -208,7 +232,8 @@ namespace ccf
     void post_as_get_json(
       const std::string& account_url,
       const std::string& resource_url,
-      std::function<bool(http::HeaderMap&, const nlohmann::json&)> ok_callback,
+      std::function<bool(const http::HeaderMap&, const nlohmann::json&)>
+        ok_callback,
       bool empty_payload = false)
     {
       if (nonces.empty())
@@ -237,7 +262,7 @@ namespace ccf
           json_to_bytes(jws),
           HTTP_STATUS_OK,
           [ok_callback](
-            http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+            const http::HeaderMap& headers, const std::vector<uint8_t>& data) {
             try
             {
               ok_callback(headers, nlohmann::json::parse(data));
@@ -252,17 +277,12 @@ namespace ccf
       }
     }
 
-  protected:
-    const ACMEClientConfig& config;
-    const std::unique_ptr<ccf::NetworkIdentity>& service_identity;
+    const ClientConfig& config;
+    std::shared_ptr<crypto::KeyPair> service_key;
     std::shared_ptr<crypto::KeyPair> account_key_pair;
     const std::string node_id;
     nlohmann::json identifiers;
-    std::function<void(const crypto::Pem&)> cert_callback;
-    bool busy = false;
 
-    std::shared_ptr<ccf::RPCSessions> rpcsessions;
-    ringbuffer::WriterPtr to_host;
     std::mutex req_lock;
     std::mutex finalize_lock;
 
@@ -271,12 +291,13 @@ namespace ccf
     std::list<std::string> nonces;
     std::unordered_set<std::string> pending_authorizations;
 
-    static http::URL with_default_port(const std::string& url)
+    static http::URL with_default_port(
+      const std::string& url, const std::string& default_port = "443")
     {
       http::URL r = http::parse_url_full(url);
       if (r.port.empty())
       {
-        r.port = "443";
+        r.port = default_port;
       }
       return r;
     }
@@ -394,7 +415,7 @@ namespace ccf
     };
 
     static std::optional<std::string> get_header_value(
-      http::HeaderMap& headers, const std::string& name)
+      const http::HeaderMap& headers, const std::string& name)
     {
       for (const auto& [k, v] : headers)
       {
@@ -438,7 +459,7 @@ namespace ccf
         url,
         {},
         HTTP_STATUS_OK,
-        [this](http::HeaderMap&, const nlohmann::json& j) {
+        [this](const http::HeaderMap&, const nlohmann::json& j) {
           directory = j;
           request_new_account();
         });
@@ -452,7 +473,8 @@ namespace ccf
         url,
         {},
         HTTP_STATUS_NO_CONTENT,
-        [this, ok_callback](http::HeaderMap& headers, const nlohmann::json& j) {
+        [this,
+         ok_callback](const http::HeaderMap& headers, const nlohmann::json& j) {
           ok_callback();
           return true;
         });
@@ -527,7 +549,7 @@ namespace ccf
           url,
           json_to_bytes(jws),
           HTTP_STATUS_CREATED,
-          [this](http::HeaderMap& headers, const nlohmann::json& j) {
+          [this](const http::HeaderMap& headers, const nlohmann::json& j) {
             expect_string(j, "status", "valid");
             // expect(j, "orders"); // CHECK: Isn't this mandatory?
             account = j;
@@ -584,14 +606,9 @@ namespace ccf
 
         nlohmann::json payload = {{"identifiers", identifiers}};
 
-        if (config.not_before)
-        {
-          payload["notBefore"] = *config.not_before;
-        }
-        if (config.not_after)
-        {
-          payload["notAfter"] = *config.not_after;
-        }
+        // Let's encrypt does not support custom dates
+        // payload["notBefore"] = *config.not_before;
+        // payload["notAfter"] = *config.not_after;
 
         JWS jws(header, true, payload, *account_key_pair);
 
@@ -601,8 +618,8 @@ namespace ccf
           url,
           json_to_bytes(jws),
           HTTP_STATUS_CREATED,
-          [this,
-           account_url](http::HeaderMap& headers, const nlohmann::json& j) {
+          [this, account_url](
+            const http::HeaderMap& headers, const nlohmann::json& j) {
             expect(j, "status");
 
             if (j["status"] == "pending" && j.contains("authorizations"))
@@ -635,7 +652,7 @@ namespace ccf
         account_url,
         authz_url,
         [this, account_url, authz_url, finalize_url](
-          http::HeaderMap& headers, const nlohmann::json& j) {
+          const http::HeaderMap& headers, const nlohmann::json& j) {
           LOG_TRACE_FMT("ACME: authorization reply: {}", j.dump());
           expect_string(j, "status", "pending");
           expect(j, "challenges");
@@ -714,18 +731,17 @@ namespace ccf
       auto thumbprint = crypto::sha256(s2v(nlohmann::json(jwk).dump()));
       std::string key_authorization =
         token + "." + crypto::b64url_from_raw(thumbprint, false);
-      RINGBUFFER_WRITE_MESSAGE(
-        ACMEMessage::acme_challenge_response, to_host, key_authorization);
+      on_challenge(key_authorization);
     }
 
     struct ChallengeWaitMsg
     {
-      ChallengeWaitMsg(Challenge challenge, ACMEClient* client) :
+      ChallengeWaitMsg(Challenge challenge, Client* client) :
         challenge(challenge),
         client(client)
       {}
       Challenge challenge;
-      ACMEClient* client;
+      Client* client;
     };
 
     bool is_challenge_in_progress(const std::string& token) const
@@ -733,12 +749,13 @@ namespace ccf
       return active_challenges.find(token) != active_challenges.end();
     }
 
-    auto schedule_check_challenge(const Challenge& challenge)
+    std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> schedule_check_challenge(
+      const Challenge& challenge)
     {
       return std::make_unique<threading::Tmsg<ChallengeWaitMsg>>(
         [](std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> msg) {
           const Challenge& challenge = msg->data.challenge;
-          ACMEClient* client = msg->data.client;
+          Client* client = msg->data.client;
 
           if (client->check_challenge(challenge))
           {
@@ -749,16 +766,6 @@ namespace ccf
         },
         challenge,
         this);
-    }
-
-    void start_challenge(const std::string& token)
-    {
-      auto cit = active_challenges.find(token);
-      if (cit != active_challenges.end())
-      {
-        threading::ThreadMessaging::thread_messaging.add_task_after(
-          schedule_check_challenge(cit->second), std::chrono::milliseconds(0));
-      }
     }
 
     bool check_challenge(const Challenge& challenge)
@@ -773,7 +780,7 @@ namespace ccf
           challenge.account_url,
           challenge.challenge_url,
           [this, token = challenge.token](
-            http::HeaderMap& headers, const nlohmann::json& j) {
+            const http::HeaderMap& headers, const nlohmann::json& j) {
             LOG_TRACE_FMT("ACME: challenge result: {}", j.dump());
             expect(j, "status");
 
@@ -854,10 +861,8 @@ namespace ccf
 
         auto header = mk_kid_header(account_url, nonce, finalize_url);
 
-        auto csr = crypto::make_key_pair(service_identity->priv_key)
-                     ->create_csr_der(
-                       "CN=" + config.service_dns_name,
-                       {{config.service_dns_name, false}});
+        auto csr = service_key->create_csr_der(
+          "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
 
         nlohmann::json payload = {{"csr", crypto::b64url_from_raw(csr, false)}};
 
@@ -869,8 +874,8 @@ namespace ccf
           url,
           json_to_bytes(jws),
           HTTP_STATUS_OK,
-          [this,
-           account_url](http::HeaderMap& headers, const nlohmann::json& j) {
+          [this, account_url](
+            const http::HeaderMap& headers, const nlohmann::json& j) {
             expect(j, "certificate");
             LOG_TRACE_FMT("ACME: finalize successful");
             download_certificate(account_url, j["certificate"]);
@@ -885,38 +890,12 @@ namespace ccf
       post_as_get(
         account_url,
         certificate_url,
-        [this](http::HeaderMap& headers, const std::vector<uint8_t>& data) {
-          crypto::Pem pem(data);
-          LOG_TRACE_FMT("Obtained certificate (chain): {}", pem.str());
-          cert_callback(pem);
-          busy = false;
-
-          RINGBUFFER_WRITE_MESSAGE(
-            ACMEMessage::acme_challenge_server_stop, to_host);
+        [this](
+          const http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+          std::string c(data.data(), data.data() + data.size());
+          LOG_TRACE_FMT("Obtained certificate (chain): {}", c);
+          on_certificate(c);
           return true;
-        });
-    }
-
-  public:
-    void register_message_handlers(
-      messaging::Dispatcher<ringbuffer::Message>& dispatcher)
-    {
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        dispatcher,
-        ACMEMessage::acme_challenge_response_ack,
-        [this](const uint8_t* data, size_t size) {
-          try
-          {
-            auto [token] = ringbuffer::read_message<
-              ACMEMessage::acme_challenge_response_ack>(data, size);
-            start_challenge(token);
-          }
-          catch (const std::exception& ex)
-          {
-            LOG_FAIL_FMT(
-              "ACME: acme_challenge_response_ack handler failed: {}",
-              ex.what());
-          }
         });
     }
   };
