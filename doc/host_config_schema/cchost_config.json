@@ -471,10 +471,13 @@
     "acme_client_config": {
       "type": "object",
       "properties": {
-        "ca_cert": {
-          "type": "string",
-          "default": "",
-          "description": "Certificate of the ACME server we will connect to (to avoid certificate verification failures)"
+        "ca_certs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Certificate of the ACME server we will connect to (for TLS connections to the ACME server)"
         },
         "directory_url": {
           "type": "string",
@@ -491,7 +494,8 @@
           "items": {
             "type": "string"
           },
-          "description": "Contact address(es)"
+          "default": [],
+          "description": "Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)"
         },
         "terms_of_service_agreed": {
           "type": "boolean",
@@ -508,7 +512,9 @@
           "default": "0.0.0.0:80",
           "description": "Interface for the (http) challenge server to listen on"
         }
-      }
+      },
+      "description": "This section includes configuration for the ACME client to obtain globally valid TLS certificates, e.g. from Let's Encrypt.",
+      "additionalProperties": false
     }
   },
   "required": ["enclave", "network", "command"],
