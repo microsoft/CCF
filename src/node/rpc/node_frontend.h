@@ -838,7 +838,6 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      // TODO: Add test
       auto network_previous_identity = [this](auto& args, nlohmann::json&&) {
         auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);

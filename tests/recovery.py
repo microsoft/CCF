@@ -45,6 +45,13 @@ def test_recover_service(network, args, from_snapshot=True):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
+    prev_ident = open(args.previous_service_identity_file).read()
+    # Strip trailing null byte
+    prev_ident = prev_ident.strip("\x00")
+    with old_primary.client() as c:
+        r = c.get("/node/network/previous_identity")
+        assert r.status_code in (200, 404), r.status_code
+
     snapshots_dir = None
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
@@ -77,6 +84,18 @@ def test_recover_service(network, args, from_snapshot=True):
     recovered_network.verify_service_certificate_validity_period(
         args.initial_service_cert_validity_days
     )
+
+    new_nodes = recovered_network.find_primary_and_any_backup()
+    for n in new_nodes:
+        with n.client() as c:
+            r = c.get("/node/network/previous_identity")
+            assert r.status_code == 200, r.status_code
+            body = r.body.json()
+            assert "previous_service_identity" in body, body
+            received_prev_ident = body["previous_service_identity"]
+            assert (
+                received_prev_ident == prev_ident
+            ), f"Response doesn't match previous identity: {received_prev_ident} != {prev_ident}"
 
     recovered_network.recover(args)
 
