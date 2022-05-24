@@ -45,7 +45,7 @@ def test_recover_service(network, args, from_snapshot=True):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
-    prev_ident = open(args.previous_service_identity_file).read()
+    prev_ident = open(args.previous_service_identity_file, "r", encoding="utf-8").read()
     # Strip trailing null byte
     prev_ident = prev_ident.strip("\x00")
     with old_primary.client() as c:

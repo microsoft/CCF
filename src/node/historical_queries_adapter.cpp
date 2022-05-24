@@ -315,7 +315,8 @@ namespace ccf::historical
     auto& ctx,
     ccf::historical::StatePtr& state,
     AbstractStateCache& state_cache,
-    std::shared_ptr<NetworkIdentitySubsystemInterface> network_identity_subsystem)
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem)
   {
     try
     {

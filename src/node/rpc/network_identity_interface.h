@@ -25,6 +25,6 @@ namespace ccf
     virtual const std::unique_ptr<NetworkIdentity>& get() = 0;
 
     virtual std::optional<std::vector<uint8_t>>
-      get_previous_identity_cert() = 0;
+    get_previous_identity_cert() = 0;
   };
 }
