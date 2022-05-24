@@ -496,7 +496,7 @@
         "terms_of_service_agreed": {
           "type": "boolean",
           "default": false,
-          "description": "Indication that the user/operator is aware of the latest terms and conditions"
+          "description": "Indication that the user/operator is aware of the latest terms and conditions for the CA"
         },
         "challenge_type": {
           "type": "string",
