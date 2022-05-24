@@ -72,6 +72,10 @@ function cleanup() {
 }
 trap cleanup EXIT
 
+if [ -n "$PYTHON_PACKAGE_PATH" ]; then
+    PYTHON_PACKAGE_PATH=$(realpath -s "${PYTHON_PACKAGE_PATH}")
+fi
+
 echo "** Start original service"
 "${ccf_install_path}"/bin/sandbox.sh -e release --sig-tx-interval "${signature_tx_interval}" & 
 sandbox_pid=$!
