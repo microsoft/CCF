@@ -2,8 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# This script 
-# Note that this benchmark is crude.
+# This script measures how long the recovery procedure takes.
+# Note that the script makes uses of the sandbox and as such, 
+# the timing results are rough (+/- a few seconds).
+
+# Usage: $ recovery_benchmark.sh /opt/ccf [--with-snapshot] [--sig-tx-interval 100] [--load-run-time-s 30]
 
 if [ -z "$1" ]; then
     echo "Error: First argument should be CCF install path"
