@@ -22,6 +22,7 @@
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"
+#include "service/tables/previous_service_identity.h"
 
 namespace ccf
 {
@@ -373,7 +374,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.17.1";
+      openapi_info.document_version = "2.18.0";
     }
 
     void init_handlers() override
@@ -839,13 +840,13 @@ namespace ccf
 
       // TODO: Add test
       auto network_previous_identity = [this](auto& args, nlohmann::json&&) {
-        const auto prev_ident =
-          this->network_identity.get_previous_identity_cert();
-        if (prev_ident.has_value())
+        auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
+        const auto psi = psi_handle->get();
+        if (psi.has_value())
         {
-          crypto::Pem pem(prev_ident->data(), prev_ident->size());
           GetNetworkPreviousIdentity::Out out;
-          out.previous_service_identity = pem;
+          out.previous_service_identity = psi.value();
           return make_success(out);
         }
         else
@@ -853,7 +854,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            "This node was not started in recovery mode.");
+            "This service is not a recovery of a previous service.");
         }
       };
       make_read_only_endpoint(
@@ -1378,16 +1379,6 @@ namespace ccf
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
 
-        NodeInfo node_info = {
-          in.node_info_network,
-          {in.quote_info},
-          in.public_encryption_key,
-          NodeStatus::TRUSTED,
-          std::nullopt,
-          ds::to_hex(in.code_digest.data),
-          in.certificate_signing_request,
-          in.public_key};
-
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {
@@ -1425,12 +1416,32 @@ namespace ccf
             throw std::logic_error("Could not cast tx to CommittableTx");
           }
           tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+
+          const auto prev_ident =
+            this->network_identity.get_previous_identity_cert();
+          if (prev_ident.has_value())
+          {
+            crypto::Pem pem(prev_ident->data(), prev_ident->size());
+            auto previous_service_identity =
+              ctx.tx.template wo<ccf::PreviousServiceIdentity>(
+                ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
+            previous_service_identity->put(pem);
+          }
         }
 
         auto endorsed_certificates =
           ctx.tx.rw(network.node_endorsed_certificates);
         endorsed_certificates->put(in.node_id, in.node_endorsed_certificate);
 
+        NodeInfo node_info = {
+          in.node_info_network,
+          {in.quote_info},
+          in.public_encryption_key,
+          NodeStatus::TRUSTED,
+          std::nullopt,
+          ds::to_hex(in.code_digest.data),
+          in.certificate_signing_request,
+          in.public_key};
         g.add_node(in.node_id, node_info);
 
 #ifdef GET_QUOTE
