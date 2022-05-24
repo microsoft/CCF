@@ -15,11 +15,15 @@ namespace tls
   {
   private:
     std::vector<Unique_X509> cas;
+    bool partial_ok = false;
 
   public:
     CA(const std::string& ca_ = "") : CA(std::vector<std::string>({ca_})) {}
 
-    CA(const std::vector<std::string>& ca_strings = {})
+    CA(
+      const std::vector<std::string>& ca_strings = {},
+      bool partial_ok = false) :
+      partial_ok(partial_ok)
     {
       for (const auto& ca_string : ca_strings)
       {
@@ -42,6 +46,10 @@ namespace tls
     void use(SSL_CTX* ssl_ctx)
     {
       X509_STORE* store = X509_STORE_new();
+      if (partial_ok)
+      {
+        CHECK1(X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN));
+      }
       for (const auto& ca : cas)
       {
         CHECK1(X509_STORE_add_cert(store, ca));
