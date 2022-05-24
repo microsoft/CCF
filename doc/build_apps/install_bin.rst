@@ -64,7 +64,7 @@ The CCF install notably contains:
 - The ``ansible`` playbooks required for :doc:`/contribute/build_setup` (under ``getting_started/``)
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing
-- Various utility scripts (see :doc:`/build_apps/demo`)
+- Various utility scripts (see :doc:`/build_apps/run_app`)
 
 Uninstall
 ---------

@@ -54,17 +54,10 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
 
-    :fa:`cogs` :doc:`run_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Running a CCF application in a sandbox environment for development.
-
-    ---
-
-    :fa:`rocket` :doc:`demo`
+    :fa:`rocket` :doc:`run_app`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Running a CCF application demo from scratch.
+    Running a CCF application demo in a sandbox environment.
 
     ---
 
@@ -104,7 +97,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     js_app_bundle
     build_app
     run_app
-    demo
     auth/index
     kv/index
     api

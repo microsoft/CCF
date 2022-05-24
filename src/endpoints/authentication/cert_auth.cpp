@@ -16,6 +16,12 @@ namespace ccf
     std::string& error_reason)
   {
     const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    if (caller_cert.empty())
+    {
+      error_reason = "No caller user certificate";
+      return nullptr;
+    }
+
     auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
     auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
@@ -36,6 +42,12 @@ namespace ccf
     std::string& error_reason)
   {
     const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    if (caller_cert.empty())
+    {
+      error_reason = "No caller member certificate";
+      return nullptr;
+    }
+
     auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
     auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
@@ -55,8 +67,14 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    auto node_caller_id =
-      compute_node_id_from_cert_der(ctx->get_session_context()->caller_cert);
+    const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    if (caller_cert.empty())
+    {
+      error_reason = "No caller node certificate";
+      return nullptr;
+    }
+
+    auto node_caller_id = compute_node_id_from_cert_der(caller_cert);
 
     auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
     auto node = nodes->get(node_caller_id);
