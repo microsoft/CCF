@@ -49,7 +49,7 @@ def test_recover_service(network, args, from_snapshot=True):
     # Strip trailing null byte
     prev_ident = prev_ident.strip("\x00")
     with old_primary.client() as c:
-        r = c.get("/node/network/previous_identity")
+        r = c.get("/node/service/previous_identity")
         assert r.status_code in (200, 404), r.status_code
 
     snapshots_dir = None
@@ -88,7 +88,7 @@ def test_recover_service(network, args, from_snapshot=True):
     new_nodes = recovered_network.find_primary_and_any_backup()
     for n in new_nodes:
         with n.client() as c:
-            r = c.get("/node/network/previous_identity")
+            r = c.get("/node/service/previous_identity")
             assert r.status_code == 200, r.status_code
             body = r.body.json()
             assert "previous_service_identity" in body, body

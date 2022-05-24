@@ -115,7 +115,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     SelfSignedNodeCertificateInfo, self_signed_certificate);
 
-  struct GetNetworkPreviousIdentity
+  struct GetServicePreviousIdentity
   {
     struct Out
     {
@@ -123,9 +123,9 @@ namespace ccf
     };
   };
 
-  DECLARE_JSON_TYPE(GetNetworkPreviousIdentity::Out);
+  DECLARE_JSON_TYPE(GetServicePreviousIdentity::Out);
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNetworkPreviousIdentity::Out, previous_service_identity);
+    GetServicePreviousIdentity::Out, previous_service_identity);
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -838,13 +838,13 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto network_previous_identity = [this](auto& args, nlohmann::json&&) {
+      auto service_previous_identity = [this](auto& args, nlohmann::json&&) {
         auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         const auto psi = psi_handle->get();
         if (psi.has_value())
         {
-          GetNetworkPreviousIdentity::Out out;
+          GetServicePreviousIdentity::Out out;
           out.previous_service_identity = psi.value();
           return make_success(out);
         }
@@ -857,13 +857,13 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "/network/previous_identity",
+        "/service/previous_identity",
         HTTP_GET,
-        json_read_only_adapter(network_previous_identity),
+        json_read_only_adapter(service_previous_identity),
         no_auth_required)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
-        .set_auto_schema<void, GetNetworkPreviousIdentity::Out>()
+        .set_auto_schema<void, GetServicePreviousIdentity::Out>()
         .install();
 
       auto get_nodes = [this](auto& args, nlohmann::json&&) {

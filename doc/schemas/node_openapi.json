@@ -265,17 +265,6 @@
         ],
         "type": "object"
       },
-      "GetNetworkPreviousIdentity__Out": {
-        "properties": {
-          "previous_service_identity": {
-            "$ref": "#/components/schemas/Pem"
-          }
-        },
-        "required": [
-          "previous_service_identity"
-        ],
-        "type": "object"
-      },
       "GetNode__NodeInfo": {
         "properties": {
           "last_written": {
@@ -332,6 +321,17 @@
         },
         "required": [
           "quotes"
+        ],
+        "type": "object"
+      },
+      "GetServicePreviousIdentity__Out": {
+        "properties": {
+          "previous_service_identity": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "previous_service_identity"
         ],
         "type": "object"
       },
@@ -1049,22 +1049,6 @@
         }
       ]
     },
-    "/node/network/previous_identity": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNetworkPreviousIdentity__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/node/primary": {
       "head": {
         "responses": {
@@ -1156,6 +1140,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServiceConfiguration"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/node/service/previous_identity": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetServicePreviousIdentity__Out"
                 }
               }
             },
