@@ -1415,17 +1415,6 @@ namespace ccf
             throw std::logic_error("Could not cast tx to CommittableTx");
           }
           tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
-
-          const auto prev_ident =
-            this->network_identity.get_previous_identity_cert();
-          if (prev_ident.has_value())
-          {
-            crypto::Pem pem(prev_ident->data(), prev_ident->size());
-            auto previous_service_identity =
-              ctx.tx.template wo<ccf::PreviousServiceIdentity>(
-                ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
-            previous_service_identity->put(pem);
-          }
         }
 
         auto endorsed_certificates =
