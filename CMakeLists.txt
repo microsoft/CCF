@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
 
 project(
-  ccf
+  ${CCF_PROJECT}
   VERSION ${CCF_RELEASE_VERSION}
   LANGUAGES C CXX
 )
@@ -25,7 +25,7 @@ include(${CCF_DIR}/cmake/cpack_settings.cmake)
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf"
+      "/opt/${CCF_PROJECT}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -177,9 +177,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 endif()
 
 install(
-  EXPORT ccf
+  EXPORT ${CCF_PROJECT}
   DESTINATION cmake
-  FILE ccf-targets.cmake
+  FILE ${CCF_PROJECT}-targets.cmake
 )
 
 # Install exported 3rd-party library includes
