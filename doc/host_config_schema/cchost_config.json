@@ -477,7 +477,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Certificate of the ACME server we will connect to (for TLS connections to the ACME server)"
+          "description": "Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let's Encrypt's ISRG Root X1)"
         },
         "directory_url": {
           "type": "string",

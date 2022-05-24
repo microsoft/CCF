@@ -27,8 +27,8 @@ namespace ACME
 {
   struct ClientConfig
   {
-    // Certificate(s) of the ACME server we will connect to (to satisfy
-    // certificate verification for HTTPS requests)
+    // Root certificate(s) of the CA to connect to in PEM format (for TLS
+    // connections to the CA, e.g. Let's Encrypt's ISRG Root X1)
     std::vector<std::string> ca_certs;
 
     // URL of the ACME server's directory
@@ -37,11 +37,11 @@ namespace ACME
     // DNS name of the service we represent
     std::string service_dns_name;
 
-    // Contact address(es)
+    // Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)
     std::vector<std::string> contact;
 
     // Indication that the user/operator is aware of the latest terms and
-    // conditions
+    // conditions for the CA
     bool terms_of_service_agreed = false;
 
     // Type of the ACME challenge (currently only http-01 supported)
