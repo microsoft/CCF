@@ -249,9 +249,6 @@ JavaScript endpoint definitions.
 .. doxygenenum:: ccf::endpoints::ForwardingRequired
    :project: CCF
 
-.. doxygenenum:: ccf::endpoints::ExecuteOutsideConsensus
-   :project: CCF
-
 ``tls.ca_cert_bundles``
 ~~~~~~~~~~~~~~~~~~~~~~~
 
