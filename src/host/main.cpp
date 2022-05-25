@@ -528,7 +528,8 @@ int main(int argc, char** argv)
 #endif
     }
 
-    if (config.acme) {
+    if (config.acme)
+    {
       startup_config.acme_configurations = config.acme->configurations;
     }
 
@@ -615,8 +616,10 @@ int main(int argc, char** argv)
     std::unique_ptr<ACMEChallengeServer> acs;
     if (config.acme)
     {
-        acs = std::make_unique<ACMEChallengeServer>(
-          config.acme->challenge_server_interface, bp.get_dispatcher(), writer_factory);      
+      acs = std::make_unique<ACMEChallengeServer>(
+        config.acme->challenge_server_interface,
+        bp.get_dispatcher(),
+        writer_factory);
     }
 
     LOG_INFO_FMT("Entering event loop");

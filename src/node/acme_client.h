@@ -27,7 +27,7 @@
 namespace ACME
 {
   struct ClientConfig
-  {    
+  {
     // Root certificate(s) of the CA to connect to in PEM format (for TLS
     // connections to the CA, e.g. Let's Encrypt's ISRG Root X1)
     std::vector<std::string> ca_certs;
@@ -46,7 +46,7 @@ namespace ACME
     bool terms_of_service_agreed = false;
 
     // Type of the ACME challenge (currently only http-01 supported)
-    std::string challenge_type = "http-01";    
+    std::string challenge_type = "http-01";
 
     bool operator==(const ClientConfig& other) const = default;
   };
