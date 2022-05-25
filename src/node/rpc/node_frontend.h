@@ -833,8 +833,6 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(network_status),
         no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
@@ -952,8 +950,6 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_nodes),
         no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Primary)
         .set_auto_schema<void, GetNodes::Out>()
         .add_query_parameter<std::string>(
           "host", ccf::endpoints::OptionalParameter)
@@ -974,8 +970,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, SelfSignedNodeCertificateInfo>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
@@ -1026,8 +1020,6 @@ namespace ccf
         json_read_only_adapter(get_node_info),
         no_auth_required)
         .set_auto_schema<void, GetNode::Out>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_self_node = [this](auto& args) {
@@ -1065,8 +1057,6 @@ namespace ccf
       make_read_only_endpoint(
         "/network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_primary_node = [this](auto& args) {
@@ -1120,8 +1110,6 @@ namespace ccf
       make_read_only_endpoint(
         "/network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto is_primary = [this](auto& args) {
@@ -1170,8 +1158,6 @@ namespace ccf
       make_read_only_endpoint(
         "/primary", HTTP_HEAD, is_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto consensus_config = [this](auto& args, nlohmann::json&&) {
@@ -1205,8 +1191,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ConsensusConfig>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto consensus_state = [this](auto& args, nlohmann::json&&) {
@@ -1230,8 +1214,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ConsensusConfigDetails>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto memory_usage = [](auto& args) {
@@ -1258,8 +1240,6 @@ namespace ccf
 
       make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<MemoryUsage>()
         .install();
 
@@ -1276,8 +1256,6 @@ namespace ccf
       make_command_endpoint(
         "/metrics", HTTP_GET, node_metrics, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, NodeMetrics>()
         .install();
 
@@ -1303,8 +1281,6 @@ namespace ccf
         json_read_only_adapter(js_metrics),
         no_auth_required)
         .set_auto_schema<void, JavaScriptMetrics>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto jwt_metrics = [this](auto&, nlohmann::json&&) {
@@ -1326,8 +1302,6 @@ namespace ccf
         json_read_only_adapter(jwt_metrics),
         no_auth_required)
         .set_auto_schema<void, JWTMetrics>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto version = [this](auto&, nlohmann::json&&) {
@@ -1341,8 +1315,6 @@ namespace ccf
         "/version", HTTP_GET, json_command_adapter(version), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<GetVersion>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto create = [this](auto& ctx, nlohmann::json&& params) {
@@ -1666,8 +1638,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ServiceConfiguration>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
     }
   };
