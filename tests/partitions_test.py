@@ -200,7 +200,6 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
             # arbitrarily allow 3 time periods to avoid being too brittle when
             # raft timeouts line up badly.
             c.wait_for_commit(new_tx_resp, timeout=(network.election_duration * 4))
-            r = c.get("/node/consensus").body.json()["details"]
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
             assert (
