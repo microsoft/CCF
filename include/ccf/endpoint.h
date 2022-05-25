@@ -373,3 +373,44 @@ namespace ccf::endpoints
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::endpoints::ForwardingRequired>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx)
+  {
+    char const* s;
+    switch (v)
+    {
+      case ccf::endpoints::ForwardingRequired::Sometimes:
+      {
+        s = "sometimes";
+        break;
+      }
+      case ccf::endpoints::ForwardingRequired::Always:
+      {
+        s = "always";
+        break;
+      }
+      case ccf::endpoints::ForwardingRequired::Never:
+      {
+        s = "never";
+        break;
+      }
+      default:
+      {
+        throw std::logic_error("Unhandled value for ForwardingRequired");
+      }
+    }
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE

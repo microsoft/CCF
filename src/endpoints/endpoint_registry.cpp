@@ -68,6 +68,12 @@ namespace ccf::endpoints
           }
         }
       }
+
+      auto schema_ref_object = nlohmann::json::object();
+      schema_ref_object["$ref"] = fmt::format(
+        "#/components/x-ccf-forwarding/{}",
+        endpoint->properties.forwarding_required);
+      ds::openapi::extension(path_op, "x-ccf-forwarding") = schema_ref_object;
     }
   }
 
@@ -176,6 +182,38 @@ namespace ccf::endpoints
 
   void EndpointRegistry::build_api(nlohmann::json& document, kv::ReadOnlyTx&)
   {
+    // Add common components:
+    // - Descriptions of each kind of forwarding
+    LOG_INFO_FMT("AAA");
+    auto& forwarding_component = document["components"]["x-ccf-forwarding"];
+    LOG_INFO_FMT("BBB");
+    auto& always = forwarding_component["always"];
+    LOG_INFO_FMT("CCC");
+    always["value"] = ccf::endpoints::ForwardingRequired::Always;
+    LOG_INFO_FMT("DDD");
+    always["description"] =
+      "If this call is made to a backup, it will be forwarded to a primary "
+      "node for execution. Should only be used for operations which must "
+      "execute on a primary.";
+    LOG_INFO_FMT("EEE");
+    auto& sometimes = forwarding_component["sometimes"];
+    sometimes["value"] = ccf::endpoints::ForwardingRequired::Sometimes;
+    sometimes["description"] =
+      "If this call is made to a backup, it may be forwarded to a primary "
+      "node for execution. Specifically, if this call attempts to make any "
+      "writes, or is sent as part of a session which was already forwarded, "
+      "then it will also be forwarded. This is the default value, and should "
+      "be used for most operations.";
+    auto& never = forwarding_component["never"];
+    never["value"] = ccf::endpoints::ForwardingRequired::Never;
+    never["description"] =
+      "This call will never be forwarded, and is always executed on the node "
+      "it was sent to. If this attempts to write on a backup, this will fail. "
+      "This will be executed by the receiving node even if earlier requests on "
+      "the same connection were forwarded, potentially breaking session "
+      "consistency. This should be used for operations which want to read "
+      "node-local state, rather than replicated state.";
+
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
