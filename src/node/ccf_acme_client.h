@@ -14,12 +14,14 @@ namespace ccf
   {
   public:
     ACMEClient(
+      const std::string& config_name,
       const ACME::ClientConfig& config,
       std::shared_ptr<RPCSessions> rpc_sessions,
       std::shared_ptr<kv::Store> store,
       ringbuffer::WriterPtr to_host,
       std::shared_ptr<crypto::KeyPair> account_key_pair = nullptr) :
       ACME::Client(config, account_key_pair),
+      config_name(config_name),
       rpc_sessions(rpc_sessions),
       store(store),
       to_host(to_host)
@@ -35,6 +37,7 @@ namespace ccf
     }
 
   protected:
+    std::string config_name;
     std::shared_ptr<RPCSessions> rpc_sessions;
     std::shared_ptr<kv::Store> store;
     ringbuffer::WriterPtr to_host;
@@ -79,16 +82,24 @@ namespace ccf
     virtual void on_certificate(const std::string& certificate) override
     {
       // Write the endorsed certificate to the service table; all nodes
-      // will install it in the global hook on this table.
+      // will install it later, in the global hook on the service table.
       auto tx = store->create_tx();
       auto service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
-      service_info->tls_cert = crypto::Pem(certificate);
-      service->put(service_info.value());
+      if (!service_info)
+      {
+        LOG_DEBUG_FMT("ACME: no service info!");
+        return;
+      }
+      if (!service_info->acme_certificates)
+      {
+        service_info->acme_certificates = std::map<std::string, crypto::Pem>();
+      }
+      assert(service_info && service_info->acme_certificates);
+      service_info->acme_certificates->emplace(
+        config_name, crypto::Pem(certificate));
+      service->put(*service_info);
       tx.commit();
-
-      RINGBUFFER_WRITE_MESSAGE(
-        ACMEMessage::acme_challenge_server_stop, to_host);
     }
   };
 }

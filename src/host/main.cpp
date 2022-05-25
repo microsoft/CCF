@@ -528,7 +528,9 @@ int main(int argc, char** argv)
 #endif
     }
 
-    startup_config.acme_client_config = config.acme_client_config;
+    if (config.acme) {
+      startup_config.acme_configurations = config.acme->configurations;
+    }
 
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -611,12 +613,10 @@ int main(int argc, char** argv)
     }
 
     std::unique_ptr<ACMEChallengeServer> acs;
-    if (config.acme_client_config)
+    if (config.acme)
     {
-      acs = std::make_unique<ACMEChallengeServer>(
-        config.acme_client_config->challenge_server_interface,
-        bp.get_dispatcher(),
-        writer_factory);
+        acs = std::make_unique<ACMEChallengeServer>(
+          config.acme->challenge_server_interface, bp.get_dispatcher(), writer_factory);      
     }
 
     LOG_INFO_FMT("Entering event loop");

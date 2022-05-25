@@ -155,7 +155,8 @@ struct StartupConfig : CCFConfig
   };
   Recover recover = {};
 
-  std::optional<ccf::ACMEClientConfig> acme_client_config = std::nullopt;
+  std::optional<std::map<std::string, ccf::ACMEClientConfig>>
+    acme_configurations = std::nullopt;
 };
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
@@ -181,4 +182,4 @@ DECLARE_JSON_REQUIRED_FIELDS(
   join,
   recover);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  StartupConfig, startup_snapshot_evidence_seqno_for_1_x, acme_client_config);
+  StartupConfig, startup_snapshot_evidence_seqno_for_1_x, acme_configurations);

@@ -13,10 +13,14 @@ namespace ccf
   enum class Authority
   {
     NODE,
-    SERVICE
+    SERVICE,
+    ACME
   };
   DECLARE_JSON_ENUM(
-    Authority, {{Authority::NODE, "Node"}, {Authority::SERVICE, "Service"}});
+    Authority,
+    {{Authority::NODE, "Node"},
+     {Authority::SERVICE, "Service"},
+     {Authority::ACME, "ACME"}});
 
   struct Endorsement
   {
@@ -62,6 +66,8 @@ namespace ccf
 
       std::optional<Endorsement> endorsement = std::nullopt;
 
+      std::optional<std::string> acme_configuration;
+
       bool operator==(const NetInterface& other) const
       {
         return bind_address == other.bind_address &&
@@ -69,7 +75,8 @@ namespace ccf
           protocol == other.protocol &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
-          endorsement == other.endorsement;
+          endorsement == other.endorsement &&
+          acme_configuration == other.acme_configuration;
       }
     };
 
@@ -86,7 +93,8 @@ namespace ccf
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address,
-    protocol);
+    protocol,
+    acme_configuration);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
@@ -191,6 +199,10 @@ struct formatter<ccf::Authority>
       case (ccf::Authority::SERVICE):
       {
         return format_to(ctx.out(), "Service");
+      }
+      case (ccf::Authority::ACME):
+      {
+        return format_to(ctx.out(), "ACME");
       }
     }
   }

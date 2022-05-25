@@ -45,6 +45,7 @@ namespace ccf
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
       ccf::SessionMetrics::Errors errors;
+      std::optional<std::string> acme_configuration;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
@@ -188,6 +189,8 @@ namespace ccf
 
         li.endorsement = interface.endorsement.value_or(endorsement_default);
 
+        li.acme_configuration = interface.acme_configuration;
+
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
           "{}] and endorsement authority to {}",
@@ -231,7 +234,10 @@ namespace ccf
     }
 
     void set_cert(
-      ccf::Authority authority, const crypto::Pem& cert_, const crypto::Pem& pk)
+      ccf::Authority authority,
+      const crypto::Pem& cert_,
+      const crypto::Pem& pk,
+      const std::string& acme_configuration = "")
     {
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
@@ -246,7 +252,13 @@ namespace ccf
       {
         if (interface.endorsement.authority == authority)
         {
-          certs.insert_or_assign(listen_interface_id, cert);
+          if (
+            interface.endorsement.authority != Authority::ACME ||
+            (interface.acme_configuration &&
+             *interface.acme_configuration == acme_configuration))
+          {
+            certs.insert_or_assign(listen_interface_id, cert);
+          }
         }
       }
     }

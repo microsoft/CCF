@@ -76,13 +76,18 @@
                 "properties": {
                   "authority": {
                     "type": "string",
-                    "enum": ["Node", "Service"],
+                    "enum": ["Node", "Service", "ACME"],
                     "default": "Service",
                     "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed."
                   }
                 },
                 "required": ["authority"],
                 "additionalProperties": false
+              },
+              "acme_configuration": {
+                "type": "string",
+                "default": "",
+                "description": "Name of the ACME configuration"
               }
             },
             "required": ["bind_address"]
@@ -111,7 +116,11 @@
       "allOf": [
         {
           "if": {
-            "properties": { "type": { "const": "Start" } }
+            "properties": {
+              "type": {
+                "const": "Start"
+              }
+            }
           },
           "then": {
             "properties": {
@@ -193,7 +202,11 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "Join" } }
+            "properties": {
+              "type": {
+                "const": "Join"
+              }
+            }
           },
           "then": {
             "properties": {
@@ -219,7 +232,11 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "Recover" } }
+            "properties": {
+              "type": {
+                "const": "Recover"
+              }
+            }
           },
           "then": {
             "properties": {
@@ -468,44 +485,55 @@
       "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care!)",
       "additionalProperties": false
     },
-    "acme_client_config": {
+    "acme": {
       "type": "object",
       "properties": {
-        "ca_certs": {
-          "type": "array",
-          "items": {
-            "type": "string"
+        "configurations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "ca_certs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let's Encrypt's ISRG Root X1)"
+              },
+              "directory_url": {
+                "type": "string",
+                "default": "",
+                "description": "URL of the ACME server's directory"
+              },
+              "service_dns_name": {
+                "type": "string",
+                "default": "",
+                "description": "DNS name of the service we represent"
+              },
+              "contact": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)"
+              },
+              "terms_of_service_agreed": {
+                "type": "boolean",
+                "default": false,
+                "description": "Indication that the user/operator is aware of the latest terms and conditions for the CA"
+              },
+              "challenge_type": {
+                "type": "string",
+                "default": "http-01",
+                "description": "Type of the ACME challenge (currently only http-01 supported)"
+              }
+            },
+            "description": "ACME Configuration",
+            "additionalProperties": false
           },
-          "default": [],
-          "description": "Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let's Encrypt's ISRG Root X1)"
-        },
-        "directory_url": {
-          "type": "string",
-          "default": "",
-          "description": "URL of the ACME server's directory"
-        },
-        "service_dns_name": {
-          "type": "string",
-          "default": "",
-          "description": "DNS name of the service we represent"
-        },
-        "contact": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)"
-        },
-        "terms_of_service_agreed": {
-          "type": "boolean",
-          "default": false,
-          "description": "Indication that the user/operator is aware of the latest terms and conditions for the CA"
-        },
-        "challenge_type": {
-          "type": "string",
-          "default": "http-01",
-          "description": "Type of the ACME challenge (currently only http-01 supported)"
+          "description": "ACME Configurations"
         },
         "challenge_server_interface": {
           "type": "string",
@@ -513,7 +541,7 @@
           "description": "Interface for the (http) challenge server to listen on"
         }
       },
-      "description": "This section includes configuration for the ACME client to obtain globally valid TLS certificates, e.g. from Let's Encrypt.",
+      "description": "This section includes configurations for the ACME client to obtain globally valid TLS certificates, e.g. from Let's Encrypt",
       "additionalProperties": false
     }
   },

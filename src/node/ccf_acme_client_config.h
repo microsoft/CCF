@@ -24,6 +24,5 @@ namespace ACME
     service_dns_name,
     contact,
     terms_of_service_agreed,
-    challenge_type,
-    challenge_server_interface);
+    challenge_type);
 }

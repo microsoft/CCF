@@ -199,7 +199,7 @@ namespace ccf
     kv::Version startup_seqno = 0;
 
     // ACME certificate endorsement client
-    std::shared_ptr<ACMEClient> acme_client = nullptr;
+    std::map<std::string, std::shared_ptr<ACMEClient>> acme_clients;
 
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -365,7 +365,7 @@ namespace ccf
       setup_snapshotter();
       setup_encryptor();
 
-      setup_acme_client();
+      setup_acme_clients();
 
       switch (start_type)
       {
@@ -474,14 +474,8 @@ namespace ccf
     {
       sm.expect(NodeStartupState::pending);
 
-      std::vector<std::string> network_cas;
-      if (config.acme_client_config)
-      {
-        network_cas = config.acme_client_config->ca_certs;
-      }
-      network_cas.push_back(std::string(
+      auto network_ca = std::make_shared<tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
-      auto network_ca = std::make_shared<tls::CA>(network_cas, true);
 
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca,
@@ -2171,48 +2165,71 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.service.get_name(),
-        network.service.wrap_commit_hook([this](
-                                           kv::Version hook_version,
-                                           const Service::Write& w) {
-          if (!w.has_value())
-          {
-            throw std::logic_error("Unexpected deletion in service value");
-          }
-
-          // Service open on historical service has no effect
-          auto hook_pubk_pem =
-            crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(w->cert));
-          auto current_pubk_pem =
-            crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
-          if (hook_pubk_pem != current_pubk_pem)
-          {
-            LOG_TRACE_FMT(
-              "Ignoring historical service open at seqno {} for {}",
-              hook_version,
-              w->cert.str());
-            return;
-          }
-
-          network.identity->set_certificate(w->cert);
-          if (w->status == ServiceStatus::OPEN)
-          {
-            open_user_frontend();
-
-            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
-            LOG_INFO_FMT("Service open at seqno {}", hook_version);
-          }
-
-          if (w->tls_cert)
-          {
-            rpcsessions->set_network_cert(
-              *w->tls_cert, network.identity->priv_key);
-            if (acme_client)
+        network.service.wrap_commit_hook(
+          [this](kv::Version hook_version, const Service::Write& w) {
+            if (!w.has_value())
             {
-              acme_client->set_account_key(
-                make_key_pair(network.identity->priv_key));
+              throw std::logic_error("Unexpected deletion in service value");
             }
-          }
-        }));
+
+            // Service open on historical service has no effect
+            auto hook_pubk_pem = crypto::public_key_pem_from_cert(
+              crypto::cert_pem_to_der(w->cert));
+            auto ni_key_pair = make_key_pair(network.identity->priv_key);
+            auto current_pubk_pem = ni_key_pair->public_key_pem();
+            if (hook_pubk_pem != current_pubk_pem)
+            {
+              LOG_TRACE_FMT(
+                "Ignoring historical service open at seqno {} for {}",
+                hook_version,
+                w->cert.str());
+              return;
+            }
+
+            network.identity->set_certificate(w->cert);
+            if (w->status == ServiceStatus::OPEN)
+            {
+              open_user_frontend();
+
+              RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
+              LOG_INFO_FMT("Service open at seqno {}", hook_version);
+            }
+
+            for (auto& [_, acme_client] : acme_clients)
+            {
+              acme_client->set_account_key(node_sign_kp);
+            }
+
+            if (w->acme_certificates)
+            {
+              for (auto& [iface_id, iface] : config.network.rpc_interfaces)
+              {
+                LOG_DEBUG_FMT(
+                  "ACME: potential update to interface cert for {}", iface_id);
+                if (
+                  iface.endorsement &&
+                  iface.endorsement->authority == Authority::ACME &&
+                  iface.acme_configuration)
+                {
+                  auto cit =
+                    w->acme_certificates->find(*iface.acme_configuration);
+                  if (cit != w->acme_certificates->end())
+                  {
+                    LOG_DEBUG_FMT(
+                      "ACME: new certificate for interface '{}' with "
+                      "configuration '{}'",
+                      iface_id,
+                      *iface.acme_configuration);
+                    rpcsessions->set_cert(
+                      Authority::ACME,
+                      cit->second,
+                      network.identity->priv_key,
+                      cit->first);
+                  }
+                }
+              }
+            }
+          }));
     }
 
     kv::Version get_last_recovered_signed_idx() override
@@ -2445,21 +2462,48 @@ namespace ccf
         consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
 
-    void setup_acme_client()
+    void setup_acme_clients()
     {
-      const auto& aconfig = config.acme_client_config;
-      if (!aconfig || acme_client)
+      if (!config.acme_configurations)
       {
         return;
       }
 
-      acme_client = std::make_shared<ccf::ACMEClient>(
-        *aconfig, rpcsessions, network.tables, to_host);
+      for (const auto& [iname, interface] : config.network.rpc_interfaces)
+      {
+        if (
+          interface.endorsement->authority != Authority::ACME ||
+          !interface.acme_configuration)
+        {
+          continue;
+        }
+
+        const std::string& cfg_name = *interface.acme_configuration;
+        auto cit = config.acme_configurations->find(cfg_name);
+        if (cit == config.acme_configurations->end())
+        {
+          LOG_INFO_FMT("Unknown ACME configuration '{}'", cfg_name);
+          continue;
+        }
+
+        if (acme_clients.find(cfg_name) != acme_clients.end())
+        {
+          continue;
+        }
+
+        const auto& aconfig = cit->second;
+
+        acme_clients.emplace(
+          cfg_name,
+          std::make_shared<ccf::ACMEClient>(
+            cfg_name, aconfig, rpcsessions, network.tables, to_host));
+      }
 
       using namespace std::chrono;
       using namespace threading;
 
-      // Start task to periodically check whether the cert is expired.
+      // Start task to periodically check whether any of the certs are
+      // expired.
       auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
           auto& state = msg->data.self;
@@ -2470,40 +2514,42 @@ namespace ccf
             return;
           }
 
-          auto acme_client = state.acme_client;
-          if (!acme_client)
+          for (auto& [cfg_name, client] : state.acme_clients)
           {
-            return;
-          }
-
-          bool renew = false;
-          auto tx = state.network.tables->create_read_only_tx();
-          auto service = tx.ro<Service>(Tables::SERVICE);
-          auto service_info = service->get();
-          if (service_info && service_info->tls_cert)
-          {
-            auto v = crypto::make_verifier(*service_info->tls_cert);
-            double rem_pct = v->remaining_percentage();
-            LOG_TRACE_FMT(
-              "ACME: remaining percentage of certificate validity: {}% ({} "
-              "seconds)",
-              100.0 * rem_pct,
-              v->remaining_seconds());
-            if (rem_pct < 0.25)
+            bool renew = false;
+            auto tx = state.network.tables->create_read_only_tx();
+            auto service = tx.ro<Service>(Tables::SERVICE);
+            auto service_info = service->get();
+            if (service_info && service_info->acme_certificates)
             {
-              renew = true;
+              auto cit = service_info->acme_certificates->find(cfg_name);
+              if (cit != service_info->acme_certificates->end())
+              {
+                auto v = crypto::make_verifier(cit->second);
+                double rem_pct = v->remaining_percentage();
+                LOG_TRACE_FMT(
+                  "ACME: remaining certificate for '{}' validity: {}%, {} "
+                  "seconds",
+                  cfg_name,
+                  100.0 * rem_pct,
+                  v->remaining_seconds());
+                if (rem_pct < 0.25)
+                {
+                  renew = true;
+                }
+              }
             }
-          }
 
-          if (renew || !service_info || !service_info->tls_cert)
-          {
-            acme_client->get_certificate(
-              make_key_pair(state.network.identity->priv_key));
-          }
+            if (renew || !service_info || !service_info->acme_certificates)
+            {
+              client->get_certificate(
+                make_key_pair(state.network.identity->priv_key));
+            }
 
-          auto delay = minutes(1);
-          ThreadMessaging::thread_messaging.add_task_after(
-            std::move(msg), delay);
+            auto delay = minutes(1);
+            ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), delay);
+          }
         },
         *this);
 
@@ -2514,9 +2560,9 @@ namespace ccf
   public:
     void acme_challenge_response_ack(const std::string& token)
     {
-      if (acme_client)
+      for (auto& [_, client] : acme_clients)
       {
-        acme_client->start_challenge(token);
+        client->start_challenge(token);
       }
     }
   };
