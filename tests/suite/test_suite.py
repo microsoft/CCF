@@ -21,7 +21,6 @@ suites = {}
 # This suite tests that rekeying, network configuration changes, recoveries and
 # curve changes can be interleaved
 suite_rekey_recovery = [
-    recovery.test_recover_service_with_wrong_identity,
     recovery.test_recover_service,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
@@ -37,6 +36,7 @@ suite_rekey_recovery = [
     e2e_logging.test_rekey,
     recovery.test_recover_service,
     e2e_logging.test_rekey,
+    recovery.test_recover_service_with_wrong_identity,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 
