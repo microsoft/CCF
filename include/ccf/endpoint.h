@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ccf_deprecated.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/openapi.h"
 #include "ccf/endpoint_context.h"
