@@ -137,9 +137,7 @@ namespace ccf::endpoints
   {
     return make_endpoint(
              method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_execute_outside_consensus(
-        ccf::endpoints::ExecuteOutsideConsensus::Primary);
+      .set_forwarding_required(ForwardingRequired::Sometimes);
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)
