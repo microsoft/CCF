@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Node and service PEM certificates no longer contain a trailing null byte.
+
 ### Added
 
 - The node-to-node interface configuration now supports a `published_address` to enable networks with nodes running in different (virtual) subnets (#3867).
