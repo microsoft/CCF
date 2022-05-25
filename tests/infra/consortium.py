@@ -716,7 +716,7 @@ class Consortium:
             )
 
             assert (
-                current_cert == expected_cert[:-1]
+                current_cert == expected_cert
             ), "Current service certificate did not match with service_cert.pem"
             assert (
                 current_status == status.value
