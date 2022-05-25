@@ -264,8 +264,6 @@ class Network:
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
-        LOG.error(f"From snapshot {from_snapshot}")
-        LOG.error(f"copy_ledger {copy_ledger}")
         if not committed_ledger_dirs and copy_ledger:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
