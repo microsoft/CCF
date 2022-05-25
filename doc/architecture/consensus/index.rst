@@ -25,7 +25,7 @@ Extensions for Omission Faults
 
 .. warning:: Support for these extensions is work-in-progress. See https://github.com/microsoft/CCF/issues/2577. 
 
-The CFT consensus variant also supports some extensions for omission faults, i.e. dropped node-to-node consensus messages.
+The CFT consensus variant also supports some extensions for :term:`omission fault`.
 This may happen when the network is unreliable and may lead to one or more nodes being isolated from the rest of the network.
 
 Supported extensions include:
