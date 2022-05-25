@@ -177,9 +177,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 endif()
 
 install(
-  EXPORT ${CCF_PROJECT}
+  EXPORT ccf
   DESTINATION cmake
-  FILE ${CCF_PROJECT}-targets.cmake
+  FILE ccf-targets.cmake
 )
 
 # Install exported 3rd-party library includes
