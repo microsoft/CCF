@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/sha256.h"
@@ -56,13 +57,12 @@ namespace ACME
   class Client
   {
   public:
-    Client(const ClientConfig& config) : config(config)
+    Client(
+      const ClientConfig& config,
+      std::shared_ptr<crypto::KeyPair> account_key_pair = nullptr) :
+      config(config)
     {
-      account_key_pair = crypto::make_key_pair();
-
-      identifiers = nlohmann::json::array({
-        {{"type", "dns"}, {"value", config.service_dns_name}},
-      });
+      set_account_key(account_key_pair);
     }
 
     virtual ~Client() {}
@@ -83,10 +83,18 @@ namespace ACME
       }
     }
 
+    virtual void set_account_key(
+      std::shared_ptr<crypto::KeyPair> new_account_key_pair)
+    {
+      account_key_pair = new_account_key_pair != nullptr ?
+        new_account_key_pair :
+        crypto::make_key_pair();
+    }
+
   protected:
     virtual void on_challenge(const std::string& key_authorization) = 0;
     virtual void on_certificate(const std::string& certificate) = 0;
-    virtual void make_http_request(
+    virtual void on_http_request(
       const http::URL& url,
       std::vector<uint8_t>&& req,
       std::function<
@@ -121,7 +129,7 @@ namespace ACME
         std::string reqs(req.begin(), req.end());
         LOG_TRACE_FMT("ACME: Request:\n{}", reqs);
 
-        make_http_request(
+        on_http_request(
           url,
           std::move(req),
           [this, expected_status, ok_callback](
@@ -277,7 +285,6 @@ namespace ACME
     std::shared_ptr<crypto::KeyPair> service_key;
     std::shared_ptr<crypto::KeyPair> account_key_pair;
 
-    nlohmann::json identifiers;
     nlohmann::json directory;
     nlohmann::json account;
     std::list<std::string> nonces;
@@ -599,7 +606,11 @@ namespace ACME
         auto header =
           mk_kid_header(account_url, nonce, directory.at("newOrder"));
 
-        nlohmann::json payload = {{"identifiers", identifiers}};
+        nlohmann::json payload = {
+          {"identifiers",
+           nlohmann::json::array({
+             {{"type", "dns"}, {"value", config.service_dns_name}},
+           })}};
 
         // Let's encrypt does not support custom dates
         // payload["notBefore"] = *config.not_before;
@@ -697,11 +708,7 @@ namespace ACME
 
     std::map<std::string, Challenge> active_challenges;
 
-    void add_challenge(
-      const std::string& account_url,
-      const std::string& token,
-      const std::string& challenge_url,
-      const std::string& finalize_url)
+    std::string make_challenge_response() const
     {
       auto crv_alg = get_crv_alg(account_key_pair);
       auto key_coords = account_key_pair->coordinates();
@@ -720,12 +727,22 @@ namespace ACME
         crypto::b64url_from_raw(key_coords.x, false),
         crypto::b64url_from_raw(key_coords.y, false));
 
+      auto thumbprint = crypto::sha256(s2v(nlohmann::json(jwk).dump()));
+      return crypto::b64url_from_raw(thumbprint, false);
+    }
+
+    void add_challenge(
+      const std::string& account_url,
+      const std::string& token,
+      const std::string& challenge_url,
+      const std::string& finalize_url)
+    {
+      auto response = make_challenge_response();
+
       active_challenges.emplace(
         token, Challenge{account_url, token, challenge_url, finalize_url});
 
-      auto thumbprint = crypto::sha256(s2v(nlohmann::json(jwk).dump()));
-      std::string key_authorization =
-        token + "." + crypto::b64url_from_raw(thumbprint, false);
+      std::string key_authorization = token + "." + response;
       on_challenge(key_authorization);
     }
 

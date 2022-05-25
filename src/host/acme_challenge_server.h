@@ -99,31 +99,45 @@ protected:
             {
               std::unique_lock<std::mutex> guard(lock);
 
+              std::string response;
+
               auto tit = prepared_responses.find(token);
               if (tit == prepared_responses.end())
               {
-                LOG_DEBUG_FMT(
-                  "ACME: token response for token '{}' not found (requested by "
-                  "{})",
-                  token,
-                  socket->get_peer_name());
-                http::Response r(HTTP_STATUS_NOT_FOUND);
-                reply(
-                  r, fmt::format("No response for token '{}' found", token));
+                auto prit = prepared_responses.find("");
+                if (prit != prepared_responses.end())
+                {
+                  LOG_TRACE_FMT("ACME: using blanket response");
+                  response = token + "." + prit->second;
+                }
+                else
+                {
+                  LOG_DEBUG_FMT(
+                    "ACME: challenge response for token '{}' not found "
+                    "(requested "
+                    "by {})",
+                    token,
+                    socket->get_peer_name());
+                  http::Response r(HTTP_STATUS_NOT_FOUND);
+                  reply(
+                    r, fmt::format("No response for token '{}' found", token));
+                }
               }
               else
               {
-                auto rbody = fmt::format("{}.{}", tit->first, tit->second);
-                LOG_DEBUG_FMT(
-                  "ACME: challenge response for token '{}': {} (requested by "
-                  "{})",
-                  token,
-                  rbody,
-                  socket->get_peer_name());
-                http::Response r(HTTP_STATUS_OK);
-                r.set_header("Content-Type", "application/octet-stream");
-                reply(r, rbody);
+                response = tit->second;
               }
+
+              auto rbody = fmt::format("{}.{}", token, response);
+              LOG_DEBUG_FMT(
+                "ACME: challenge response for token '{}': {} (requested by "
+                "{})",
+                token,
+                rbody,
+                socket->get_peer_name());
+              http::Response r(HTTP_STATUS_OK);
+              r.set_header("Content-Type", "application/octet-stream");
+              reply(r, rbody);
             }
           }
         }
@@ -202,17 +216,27 @@ public:
               data, size);
 
           auto dotidx = response.find(".");
-          auto token = response.substr(0, dotidx);
-          auto key_authentication = response.substr(dotidx + 1);
+
+          std::string token, token_response;
+          if (dotidx != std::string::npos)
+          {
+            token = response.substr(0, dotidx);
+            token_response = response.substr(dotidx + 1);
+          }
+          else
+          {
+            token = "";
+            token_response = response;
+          }
 
           LOG_TRACE_FMT(
             "ACME: challenge server received response for token '{}' ({})",
             token,
-            key_authentication);
+            token_response);
 
           {
             std::unique_lock<std::mutex> guard(lock);
-            prepared_responses.emplace(token, key_authentication);
+            prepared_responses.emplace(token, token_response);
           }
 
           if (listener.is_null())

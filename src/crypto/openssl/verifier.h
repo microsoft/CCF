@@ -39,6 +39,8 @@ namespace crypto
 
     virtual size_t remaining_seconds() const override;
 
+    virtual double remaining_percentage() const override;
+
     virtual std::string subject() const override;
   };
 }

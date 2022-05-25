@@ -202,9 +202,12 @@ namespace crypto
     /** The validity period of the certificate */
     virtual std::pair<std::string, std::string> validity_period() const = 0;
 
-    /** The number of seconds remaining of the validity period of the
-     * certificate */
+    /** The number of seconds of the validity period of the
+     * certificate remaining */
     virtual size_t remaining_seconds() const = 0;
+
+    /** The percentage of the validity period of the certificate remaining */
+    virtual double remaining_percentage() const = 0;
 
     /** The subject name of the certificate */
     virtual std::string subject() const = 0;

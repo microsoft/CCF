@@ -17,8 +17,9 @@ namespace ccf
       const ACME::ClientConfig& config,
       std::shared_ptr<RPCSessions> rpc_sessions,
       std::shared_ptr<kv::Store> store,
-      ringbuffer::WriterPtr to_host) :
-      ACME::Client(config),
+      ringbuffer::WriterPtr to_host,
+      std::shared_ptr<crypto::KeyPair> account_key_pair = nullptr) :
+      ACME::Client(config, account_key_pair),
       rpc_sessions(rpc_sessions),
       store(store),
       to_host(to_host)
@@ -26,12 +27,27 @@ namespace ccf
 
     virtual ~ACMEClient() {}
 
+    virtual void set_account_key(
+      std::shared_ptr<crypto::KeyPair> new_account_key_pair) override
+    {
+      ACME::Client::set_account_key(new_account_key_pair);
+      install_wildcard_response();
+    }
+
   protected:
     std::shared_ptr<RPCSessions> rpc_sessions;
     std::shared_ptr<kv::Store> store;
     ringbuffer::WriterPtr to_host;
 
-    virtual void make_http_request(
+    void install_wildcard_response()
+    {
+      // Register a wildcard-response for all challenge tokens. If we use a
+      // shared account key, we can use this response on all nodes without
+      // further communication.
+      on_challenge(make_challenge_response());
+    }
+
+    virtual void on_http_request(
       const http::URL& url,
       std::vector<uint8_t>&& req,
       std::function<

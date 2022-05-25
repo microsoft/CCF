@@ -18,7 +18,9 @@ namespace tls
     bool partial_ok = false;
 
   public:
-    CA(const std::string& ca_ = "") : CA(std::vector<std::string>({ca_})) {}
+    CA(const std::string& ca_ = "", bool partial_ok = false) :
+      CA(std::vector<std::string>({ca_}), partial_ok)
+    {}
 
     CA(
       const std::vector<std::string>& ca_strings = {},

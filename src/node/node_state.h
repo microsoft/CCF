@@ -474,8 +474,15 @@ namespace ccf
     {
       sm.expect(NodeStartupState::pending);
 
-      auto network_ca = std::make_shared<tls::CA>(std::string(
+      std::vector<std::string> network_cas;
+      if (config.acme_client_config)
+      {
+        network_cas = config.acme_client_config->ca_certs;
+      }
+      network_cas.push_back(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
+      auto network_ca = std::make_shared<tls::CA>(network_cas, true);
+
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca,
         self_signed_node_cert,
@@ -2199,6 +2206,11 @@ namespace ccf
           {
             rpcsessions->set_network_cert(
               *w->tls_cert, network.identity->priv_key);
+            if (acme_client)
+            {
+              acme_client->set_account_key(
+                make_key_pair(network.identity->priv_key));
+            }
           }
         }));
     }
@@ -2435,7 +2447,7 @@ namespace ccf
 
     void setup_acme_client()
     {
-      auto& aconfig = config.acme_client_config;
+      const auto& aconfig = config.acme_client_config;
       if (!aconfig || acme_client)
       {
         return;
@@ -2453,7 +2465,7 @@ namespace ccf
           auto& state = msg->data.self;
           auto& config = state.config;
 
-          if (!state.consensus->can_replicate())
+          if (!state.consensus || !state.consensus->can_replicate())
           {
             return;
           }
@@ -2468,19 +2480,22 @@ namespace ccf
           auto tx = state.network.tables->create_read_only_tx();
           auto service = tx.ro<Service>(Tables::SERVICE);
           auto service_info = service->get();
-          if (service_info->tls_cert)
+          if (service_info && service_info->tls_cert)
           {
             auto v = crypto::make_verifier(*service_info->tls_cert);
-            size_t rem_sec = v->remaining_seconds();
+            double rem_pct = v->remaining_percentage();
             LOG_TRACE_FMT(
-              "ACME: remaining seconds of certificate validity: {}", rem_sec);
-            if (rem_sec < duration_cast<seconds>(hours(1)).count())
+              "ACME: remaining percentage of certificate validity: {}% ({} "
+              "seconds)",
+              100.0 * rem_pct,
+              v->remaining_seconds());
+            if (rem_pct < 0.25)
             {
               renew = true;
             }
           }
 
-          if (renew || !service_info->tls_cert)
+          if (renew || !service_info || !service_info->tls_cert)
           {
             acme_client->get_certificate(
               make_key_pair(state.network.identity->priv_key));
