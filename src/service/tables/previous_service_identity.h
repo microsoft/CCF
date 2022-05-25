@@ -15,6 +15,6 @@ namespace ccf
   namespace Tables
   {
     static constexpr auto PREVIOUS_SERVICE_IDENTITY =
-      "public:ccf.internal.previous_service_identity";
+      "public:ccf.gov.service.previous_service_identity";
   }
 }
