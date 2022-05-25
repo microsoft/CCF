@@ -189,7 +189,6 @@ namespace ccf::endpoints
       "If this request is made to a backup, it will be forwarded to a primary "
       "node for execution. Should be used for operations which may produce "
       "writes.";
-    LOG_INFO_FMT("EEE");
     auto& sometimes = forwarding_component["sometimes"];
     sometimes["value"] = ccf::endpoints::ForwardingRequired::Sometimes;
     sometimes["description"] =
