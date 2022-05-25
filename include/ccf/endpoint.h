@@ -337,6 +337,9 @@ namespace ccf::endpoints
      */
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
+    CCF_DEPRECATED("Will be removed in 3.0, has no effect in 2.0.")
+    Endpoint& set_execute_outside_consensus(ExecuteOutsideConsensus v);
+
     void install()
     {
       if (installer == nullptr)

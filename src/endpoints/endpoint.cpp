@@ -68,4 +68,11 @@ namespace ccf::endpoints
     properties.forwarding_required = fr;
     return *this;
   }
+
+  Endpoint& Endpoint::set_execute_outside_consensus(
+    endpoints::ExecuteOutsideConsensus v)
+  {
+    properties.execute_outside_consensus = v;
+    return *this;
+  }
 }
