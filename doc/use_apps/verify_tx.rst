@@ -4,8 +4,6 @@ Verifying Transactions
 Checking for Commit
 -------------------
 
-.. note:: As part of the :doc:`CCF Python package <python_tutorial>`, the ``wait_for_commit()`` method can be used to verify that a transaction has successfully been committed.
-
 Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.
 
 To guarantee that their request is successfully committed to the ledger, a user should issue a :http:GET:`/app/tx` request, specifying the version received in the response. This version is constructed from a view and a sequence number.
@@ -120,14 +118,14 @@ Application Claims
 CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`enclave::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
 
 This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
-For example, a logging application may choose to set the digest of the payload being logged as `claims_digest`.
+For example, a logging application may choose to set the digest of the payload being logged as ``claims_digest``.
 A user who logs a payload can then present the receipt and the payload to a third party, who can confirm that they match, having verified the receipt. They can perform this verification without access to the service.
 
-Multiple claims can be registered by storing them in a collection or object whose digest is set as `claims_digest`. It is possible to reveal them selectively, by capturing their digest in turn, rather than their raw value directly, eg:
+Multiple claims can be registered by storing them in a collection or object whose digest is set as ``claims_digest``. It is possible to reveal them selectively, by capturing their digest in turn, rather than their raw value directly, eg:
 
-`claims_digest = hash( hash(claim_a) + hash(claim_b) )`
+``claims_digest = hash( hash(claim_a) + hash(claim_b) )``
 
-Revealing `hash(claim_a)` and `claim_b` allows verification without revealing `claim_a` in this case.
+Revealing ``hash(claim_a)`` and ``claim_b`` allows verification without revealing ``claim_a`` in this case.
 
 Although CCF takes the approach of concatenating leaf components to keep its implementation simple and format-agnostic, an application may choose to encode its claims in a structured way for convenience, for example as JSON, CBOR etc.
 
@@ -137,10 +135,10 @@ If some claims must stay confidential, applications should encrypt them rather t
 Commit Evidence
 ---------------
 
-The `commit_evidence` field in receipts fulfills two purposes:
+The ``commit_evidence`` field in receipts fulfills two purposes:
 
 1. It exposes the full :term:`Transaction ID` in a format that is easy for a user to extract, and does not require parsing the ledger entry.
 2. Because it cannot be extracted from the ledger without access to the ledger secrets, it guarantees the transaction is committed.
 
 Entries are written out to the ledger as early as possible, to relieve memory pressure inside the enclave. If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
-By including a committment to the digest of `commit_evidence` as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.
+By including a committment to the digest of ``commit_evidence`` as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.
