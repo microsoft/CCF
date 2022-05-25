@@ -1694,11 +1694,6 @@ namespace ccf
       return self_signed_node_cert;
     }
 
-    std::optional<std::vector<uint8_t>> get_previous_identity_cert() override
-    {
-      return config.recover.previous_service_identity;
-    }
-
   private:
     bool is_ip(const std::string_view& hostname)
     {

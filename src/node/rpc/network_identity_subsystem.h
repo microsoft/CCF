@@ -26,11 +26,5 @@ namespace ccf
     {
       return network_identity;
     }
-
-    virtual std::optional<std::vector<uint8_t>> get_previous_identity_cert()
-      override
-    {
-      return node_state.get_previous_identity_cert();
-    }
   };
 }
