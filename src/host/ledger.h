@@ -366,7 +366,11 @@ namespace asynchost
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
-        LOG_FAIL_FMT("Unknown entries range: {} - {}", from, to);
+        LOG_FAIL_FMT(
+          "Unknown entries range: {} - {} in ledger file {}",
+          from,
+          to,
+          file_name);
         return std::nullopt;
       }
 
@@ -743,6 +747,7 @@ namespace asynchost
         auto f_from = get_file_from_idx(idx, read_cache_only);
         if (f_from == nullptr)
         {
+          LOG_FAIL_FMT("Cannot find ledger file for seqno {}", idx);
           return std::nullopt;
         }
         auto to_ = std::min(f_from->get_last_idx(), to);
