@@ -2204,8 +2204,6 @@ namespace ccf
             {
               for (auto& [iface_id, iface] : config.network.rpc_interfaces)
               {
-                LOG_DEBUG_FMT(
-                  "ACME: potential update to interface cert for {}", iface_id);
                 if (
                   iface.endorsement &&
                   iface.endorsement->authority == Authority::ACME &&
