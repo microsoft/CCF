@@ -715,6 +715,10 @@ class Consortium:
                 os.path.join(self.common_dir, "service_cert.pem")
             )
 
+            # Certs previously contained a terminating null byte. Strip it for comparison.
+            current_cert = current_cert.strip("\x00")
+            expected_cert = expected_cert.strip("\x00")
+
             assert (
                 current_cert == expected_cert
             ), "Current service certificate did not match with service_cert.pem"
