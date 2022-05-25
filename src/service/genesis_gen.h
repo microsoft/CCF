@@ -9,6 +9,7 @@
 #include "ccf/tx.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
+#include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
 #include <fstream>
@@ -294,9 +295,8 @@ namespace ccf
       if (service->has())
       {
         const auto prev_service_info = service->get();
-        auto previous_service_identity =
-          ctx.tx.template wo<ccf::PreviousServiceIdentity>(
-            ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
+        auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
       }
 

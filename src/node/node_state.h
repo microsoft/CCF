@@ -1405,17 +1405,30 @@ namespace ccf
         return;
       }
 
-      if (
-        service_info->status == ServiceStatus::RECOVERING &&
-        (!config.recover.previous_service_identity ||
-         !identities.previous.has_value()))
+      if (service_info->status == ServiceStatus::RECOVERING)
       {
-        throw std::logic_error(
-          "Recovery with service certificates requires both, a previous "
-          "service identity certificate during node startup and a "
-          "transition_service_to_open proposal that contains previous and "
-          "next "
-          "service certificates");
+        const auto prev_ident = tx.ro<ccf::PreviousServiceIdentity>(
+                                    ccf::Tables::PREVIOUS_SERVICE_IDENTITY)
+                                  ->get();
+        if (!prev_ident.has_value() || !identities.previous.has_value())
+        {
+          throw std::logic_error(
+            "Recovery with service certificates requires both, a previous "
+            "service identity written to the KV during recovery genesis and a "
+            "transition_service_to_open proposal that contains previous and "
+            "next service certificates");
+        }
+
+        const crypto::Pem from_proposal(
+          identities.previous->data(), identities.previous->size());
+        if (prev_ident.value() != from_proposal)
+        {
+          throw std::logic_error(fmt::format(
+            "Previous service identity does not match.\nActual:\n{}\nIn "
+            "proposal:\n{}",
+            prev_ident->str(),
+            from_proposal.str()));
+        }
       }
 
       if (identities.next != service_info->cert)
