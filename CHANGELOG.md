@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout (#3685).
+- Node and service PEM certificates no longer contain a trailing null byte (#3885).
+
+### Removed
+
+- Removed deprecated `set_execute_outside_consensus()` API (#3886, #3673).
 
 ## [2.0.0]
 
