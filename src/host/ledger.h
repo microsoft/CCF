@@ -367,7 +367,7 @@ namespace asynchost
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
         LOG_FAIL_FMT(
-          "Unknown entries range: {} - {} in ledger file {}",
+          "Cannot find entries: {} - {} in ledger file {}",
           from,
           to,
           file_name);
