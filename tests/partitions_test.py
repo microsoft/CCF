@@ -280,9 +280,6 @@ def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
     f_backups = backups[: network.get_f() + 1]
 
-    with primary.client() as c:
-        primary_view = c.get("/node/consensus").body.json()["details"]["current_view"]
-
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
