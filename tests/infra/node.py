@@ -731,7 +731,6 @@ class Node:
                     and r["leadership_state"] == leadership_state
                 ):
                     return
-
             time.sleep(0.1)
         raise TimeoutError(
             f"Node {self.local_node_id} was not in leadership state {leadership_state} in view > {min_view} after {timeout}s: {r}"

@@ -330,12 +330,6 @@ def test_learner_does_not_take_part(network, args):
         else:
             raise Exception("Trust node proposal committed unexpectedly")
 
-        # CheckQuorum: the primary node should automatically step
-        # down if it has not heard back from a majority of backups.
-        primary.wait_for_leadership_state(
-            primary_view, "Follower", timeout=2 * args.election_timeout_ms / 1000
-        )
-
         LOG.info("Majority partition can make progress")
         partition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
         check_can_progress(partition_primary)
