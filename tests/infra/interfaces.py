@@ -28,6 +28,7 @@ NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 class EndorsementAuthority(Enum):
     Service = auto()
     Node = auto()
+    ACME = auto()
 
 
 @dataclass
@@ -66,10 +67,11 @@ class RPCInterface(Interface):
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
     endorsement: Optional[Endorsement] = Endorsement()
+    acme_configuration: Optional[str] = None
 
     @staticmethod
     def to_json(interface):
-        return {
+        r = {
             "bind_address": f"{interface.host}:{interface.port}",
             "protocol": f"{interface.transport}",
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
@@ -77,6 +79,9 @@ class RPCInterface(Interface):
             "max_open_sessions_hard": interface.max_open_sessions_hard,
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
+        if interface.acme_configuration:
+            r["acme_configuration"] = interface.acme_configuration
+        return r
 
     @staticmethod
     def from_json(json):
@@ -96,6 +101,8 @@ class RPCInterface(Interface):
         )
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
+        if "acme_configuration" in json:
+            interface.acme_configuration = json.get("acme_configuration")
         return interface
 
 

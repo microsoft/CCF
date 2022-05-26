@@ -125,6 +125,8 @@ class Network:
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
+        "acme_configurations",
+        "acme_challenge_interface",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
