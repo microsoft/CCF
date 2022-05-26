@@ -17,7 +17,6 @@
 #include "frontend.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
-#include "node/rpc/network_identity_interface.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -132,7 +131,6 @@ namespace ccf
   private:
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
-    ccf::NetworkIdentitySubsystemInterface& network_identity;
 
     static std::pair<http_status, std::string> quote_verification_error(
       QuoteVerificationResult result)
@@ -366,9 +364,7 @@ namespace ccf
       NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network_),
-      node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>()),
-      network_identity(
-        *context_.get_subsystem<ccf::NetworkIdentitySubsystemInterface>())
+      node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>())
     {
       openapi_info.title = "CCF Public Node API";
       openapi_info.description =
