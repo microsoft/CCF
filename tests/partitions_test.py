@@ -332,12 +332,8 @@ def test_learner_does_not_take_part(network, args):
 
         # CheckQuorum: the primary node should automatically step
         # down if it has not heard back from a majority of backups.
-        # However, it is not guaranteed that the transient follower state
-        # will be observed, so wait for candidate state instead.
-        # The isolated primary will stay in follower state once Pre-Vote
-        # is implemented. https://github.com/microsoft/CCF/issues/2577
         primary.wait_for_leadership_state(
-            primary_view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
+            primary_view, "Follower", timeout=2 * args.election_timeout_ms / 1000
         )
 
         LOG.info("Majority partition can make progress")
