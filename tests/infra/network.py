@@ -1322,9 +1322,14 @@ class Network:
         )
 
     def save_service_identity(self, args):
-        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        n = random.choice(self.nodes)
+        with n.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            current_ident = r.body.json()["service_certificate"]
         previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
-        shutil.copy(current_identity, previous_identity)
+        with open(previous_identity, 'w', encoding='utf-8') as f:
+            f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
 

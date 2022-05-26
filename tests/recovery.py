@@ -109,10 +109,10 @@ def test_recover_service_with_wrong_identity(network, args):
 
     snapshots_dir = network.get_committed_snapshots(old_primary)
 
-    network.stop_all_nodes()
-
     network.save_service_identity(args)
     first_service_identity_file = args.previous_service_identity_file
+
+    network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
