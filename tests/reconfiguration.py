@@ -225,11 +225,11 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
     except infra.logging_app.LoggingTxsVerifyException:
         assert (
             not copy_ledger
-        ), f"New node {new_node.local_node_id} without ledger shoud not be able to serve historical entries"
+        ), f"New node {new_node.local_node_id} without ledger should not be able to serve historical entries"
     else:
         assert (
             copy_ledger
-        ), f"New node {new_node.local_node_id} with ledger shoud be able to serve historical entries"
+        ), f"New node {new_node.local_node_id} with ledger should be able to serve historical entries"
 
     return network
 
