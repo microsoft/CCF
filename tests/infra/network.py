@@ -1321,7 +1321,7 @@ class Network:
         )
 
     def save_service_identity(self, args):
-        n = random.choice(self.nodes)
+        n = self.find_random_node()
         with n.client() as c:
             r = c.get("/node/network")
             assert r.status_code == 200, r
