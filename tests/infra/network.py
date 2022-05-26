@@ -360,6 +360,7 @@ class Network:
                         from_snapshot=snapshots_dir is not None,
                         read_only_ledger_dirs=read_only_ledger_dirs,
                         snapshots_dir=snapshots_dir,
+                        service_cert_file="/home/jumaffre/git/CCF/build/service_cert.pem",
                         **forwarded_args,
                         **kwargs,
                     )

@@ -7,6 +7,9 @@
 
 namespace ccf
 {
+  // TODO: Remove duplication
+  using ErrorCallback = std::function<void(const std::string& error_msg)>;
+
   class ClientEndpoint
   {
   protected:
@@ -27,7 +30,8 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside())
     {}
 
-    virtual void send_request(std::vector<uint8_t>&& data) = 0;
+    virtual void send_request(
+      std::vector<uint8_t>&& data, const ErrorCallback error_cb = nullptr) = 0;
 
     void connect(
       const std::string& hostname,

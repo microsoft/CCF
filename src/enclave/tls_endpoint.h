@@ -206,32 +206,41 @@ namespace ccf
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
       pending_read.insert(pending_read.end(), data, data + size);
+
+      LOG_FAIL_FMT("recv_buffered");
       do_handshake();
     }
+
+    // TODO: Remove duplication with http_endpoint.h
+    using ErrorCallback = std::function<void(const std::string& error_msg)>;
 
     struct SendRecvMsg
     {
       std::vector<uint8_t> data;
       std::shared_ptr<Endpoint> self;
+      ErrorCallback error_cb = nullptr;
     };
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
-        ->send_raw_thread(msg->data.data);
+        ->send_raw_thread(msg->data.data, msg->data.error_cb);
     }
 
-    void send_raw(std::vector<uint8_t>&& data)
+    void send_raw(
+      std::vector<uint8_t>&& data, const ErrorCallback error_cb = nullptr)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
       msg->data.data = std::move(data);
+      msg->data.error_cb = error_cb;
 
       threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
-    void send_raw_thread(const std::vector<uint8_t>& data)
+    void send_raw_thread(
+      const std::vector<uint8_t>& data, const ErrorCallback error_cb = nullptr)
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
@@ -241,7 +250,12 @@ namespace ccf
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
       // will try to send pending writes again whenever write() is called.
-      do_handshake();
+      LOG_FAIL_FMT("send_raw_thread");
+      auto error_msg = do_handshake();
+      if (error_msg.has_value() && error_cb)
+      {
+        error_cb(error_msg.value());
+      }
 
       if (status == handshake)
       {
@@ -273,6 +287,8 @@ namespace ccf
       {
         throw std::runtime_error("Called flush from incorrect thread");
       }
+
+      LOG_FAIL_FMT("flush");
 
       do_handshake();
 
@@ -372,12 +388,14 @@ namespace ccf
     }
 
   private:
-    void do_handshake()
+    std::optional<std::string> do_handshake()
     {
       // This should be called when additional data is written to the
       // input buffer, until the handshake is complete.
       if (status != handshake)
-        return;
+      {
+        return std::nullopt;
+      }
 
       auto rc = ctx->handshake();
 
@@ -416,24 +434,29 @@ namespace ccf
         case TLS_ERR_X509_VERIFY:
         {
           auto err = ctx->get_verify_error();
-
-          LOG_TRACE_FMT(
+          auto error_msg = fmt::format(
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
             tls::error_string(rc));
+
+          LOG_TRACE_FMT("{}", error_msg);
+
           stop(authfail);
-          return;
+          return error_msg;
         }
 
         default:
         {
-          LOG_TRACE_FMT(
+          auto error_msg = fmt::format(
             "TLS {} error on handshake: {}", session_id, tls::error_string(rc));
+          LOG_TRACE_FMT("{}", error_msg);
           stop(error);
-          break;
+          return error_msg;
         }
       }
+
+      return std::nullopt;
     }
 
     int write_some(const std::vector<uint8_t>& data)
