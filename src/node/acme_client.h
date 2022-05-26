@@ -48,6 +48,10 @@ namespace ACME
     // Type of the ACME challenge (currently only http-01 supported)
     std::string challenge_type = "http-01";
 
+    // Validity range (Note: not supported by Let's Encrypt)
+    std::optional<std::string> not_before;
+    std::optional<std::string> not_after;
+
     bool operator==(const ClientConfig& other) const = default;
   };
 
@@ -72,11 +76,22 @@ namespace ACME
 
     void start_challenge(const std::string& token)
     {
-      auto cit = active_challenges.find(token);
-      if (cit != active_challenges.end())
+      for (auto& order : active_orders)
       {
-        threading::ThreadMessaging::thread_messaging.add_task_after(
-          schedule_check_challenge(cit->second), std::chrono::milliseconds(0));
+        auto cit = order.challenges.find(token);
+        if (cit != order.challenges.end())
+        {
+          post_as_get_json(
+            order.account_url,
+            cit->second.challenge_url,
+            [this, &order, &challenge = cit->second](
+              const http::HeaderMap& headers, const nlohmann::json& j) {
+              threading::ThreadMessaging::thread_messaging.add_task_after(
+                schedule_check_challenge(order, challenge),
+                std::chrono::milliseconds(0));
+              return true;
+            });
+        }
       }
     }
 
@@ -116,7 +131,8 @@ namespace ACME
 
         http::Request r(url.path, method);
         r.set_header(http::headers::ACCEPT, "*/*");
-        r.set_header(http::headers::HOST, url.host);
+        r.set_header(
+          http::headers::HOST, fmt::format("{}:{}", url.host, url.port));
         if (!body.empty())
         {
           r.set_header(http::headers::CONTENT_TYPE, "application/jose+json");
@@ -285,10 +301,36 @@ namespace ACME
     nlohmann::json directory;
     nlohmann::json account;
     std::list<std::string> nonces;
-    std::unordered_set<std::string> pending_authorizations;
 
     std::mutex req_lock;
     std::mutex finalize_lock;
+
+    struct Challenge
+    {
+      std::string token;
+      std::string authorization_url;
+      std::string challenge_url;
+    };
+
+    enum OrderStatus
+    {
+      ACTIVE,
+      FINISHED,
+      FAILED
+    };
+
+    struct Order
+    {
+      OrderStatus status = ACTIVE;
+      std::string account_url;
+      std::string order_url;
+      std::string finalize_url;
+      std::string certificate_url;
+      std::unordered_set<std::string> authorizations;
+      std::map<std::string, Challenge> challenges;
+    };
+
+    std::list<Order> active_orders;
 
     static http::URL with_default_port(
       const std::string& url, const std::string& default_port = "443")
@@ -578,13 +620,11 @@ namespace ACME
       return r;
     }
 
-    void authorize_next_challenge(
-      const std::string& account_url, std::string finalize_url)
+    void authorize_next_challenge(Order& order)
     {
-      if (!pending_authorizations.empty())
+      if (!order.authorizations.empty())
       {
-        submit_authorization(
-          account_url, *pending_authorizations.begin(), finalize_url);
+        submit_authorization(order, *order.authorizations.begin());
       }
     }
 
@@ -609,9 +649,14 @@ namespace ACME
              {{"type", "dns"}, {"value", config.service_dns_name}},
            })}};
 
-        // Let's encrypt does not support custom dates
-        // payload["notBefore"] = *config.not_before;
-        // payload["notAfter"] = *config.not_after;
+        if (config.not_before)
+        {
+          payload["notBefore"] = *config.not_before;
+        }
+        if (config.not_after)
+        {
+          payload["notAfter"] = *config.not_after;
+        }
 
         JWS jws(header, true, payload, *account_key_pair);
 
@@ -624,37 +669,47 @@ namespace ACME
           [this, account_url](
             const http::HeaderMap& headers, const nlohmann::json& j) {
             expect(j, "status");
+            expect(j, "finalize");
+
+            auto order_url_opt = get_header_value(headers, "location");
+            if (!order_url_opt)
+            {
+              throw std::runtime_error("missing order location");
+            }
+
+            active_orders.emplace_back(Order{
+              ACTIVE, account_url, *order_url_opt, j["finalize"], "", {}, {}});
+
+            Order& order = active_orders.back();
 
             if (j["status"] == "pending" && j.contains("authorizations"))
             {
               expect(j, "authorizations");
-              pending_authorizations =
+              order.authorizations =
                 j["authorizations"].get<std::unordered_set<std::string>>();
-              authorize_next_challenge(account_url, j["finalize"]);
+              authorize_next_challenge(order);
             }
             else if (j["status"] == "ready")
             {
               expect(j, "finalize");
-              submit_finalize(account_url, j["finalize"]);
+              submit_finalize(order);
             }
             else if (j["status"] == "valid")
             {
               expect(j, "certificate");
-              download_certificate(account_url, j["certificate"]);
+              order.certificate_url = j["certificate"];
+              download_certificate(order);
             }
           });
       }
     }
 
-    void submit_authorization(
-      const std::string& account_url,
-      const std::string& authz_url,
-      const std::string& finalize_url)
+    void submit_authorization(Order& order, const std::string& authz_url)
     {
       post_as_get_json(
-        account_url,
+        order.account_url,
         authz_url,
-        [this, account_url, authz_url, finalize_url](
+        [this, &order, authz_url](
           const http::HeaderMap& headers, const nlohmann::json& j) {
           LOG_TRACE_FMT("ACME: authorization reply: {}", j.dump());
           expect_string(j, "status", "pending");
@@ -672,15 +727,15 @@ namespace ACME
               expect(challenge, "url");
 
               std::string token = challenge["token"];
-              std::string url = challenge["url"];
+              std::string challenge_url = challenge["url"];
 
-              add_challenge(account_url, token, url, finalize_url);
+              add_challenge(order, token, authz_url, challenge_url);
               found_match = true;
               break;
             }
           }
 
-          pending_authorizations.erase(authz_url);
+          order.authorizations.erase(authz_url);
 
           if (!found_match)
           {
@@ -688,22 +743,12 @@ namespace ACME
               "challenge type '{}' not offered", config.challenge_type));
           }
 
-          authorize_next_challenge(account_url, finalize_url);
+          authorize_next_challenge(order);
 
           return true;
         },
         true);
     }
-
-    struct Challenge
-    {
-      std::string account_url;
-      std::string token;
-      std::string challenge_url;
-      std::string finalize_url;
-    };
-
-    std::map<std::string, Challenge> active_challenges;
 
     std::string make_challenge_response() const
     {
@@ -729,15 +774,15 @@ namespace ACME
     }
 
     void add_challenge(
-      const std::string& account_url,
+      Order& order,
       const std::string& token,
-      const std::string& challenge_url,
-      const std::string& finalize_url)
+      const std::string& authorization_url,
+      const std::string& challenge_url)
     {
       auto response = make_challenge_response();
 
-      active_challenges.emplace(
-        token, Challenge{account_url, token, challenge_url, finalize_url});
+      order.challenges.emplace(
+        token, Challenge{token, authorization_url, challenge_url});
 
       std::string key_authorization = token + "." + response;
       on_challenge(key_authorization);
@@ -745,82 +790,140 @@ namespace ACME
 
     struct ChallengeWaitMsg
     {
-      ChallengeWaitMsg(Challenge challenge, Client* client) :
+      ChallengeWaitMsg(Order order, Challenge challenge, Client* client) :
+        order(order),
         challenge(challenge),
         client(client)
       {}
+      Order order;
       Challenge challenge;
       Client* client;
     };
 
-    bool is_challenge_in_progress(const std::string& token) const
-    {
-      return active_challenges.find(token) != active_challenges.end();
-    }
-
     std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> schedule_check_challenge(
-      const Challenge& challenge)
+      Order& order, Challenge& challenge)
     {
       return std::make_unique<threading::Tmsg<ChallengeWaitMsg>>(
         [](std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> msg) {
-          const Challenge& challenge = msg->data.challenge;
+          Order& order = msg->data.order;
+          Challenge& challenge = msg->data.challenge;
           Client* client = msg->data.client;
 
-          if (client->check_challenge(challenge))
+          if (client->check_challenge(order, challenge))
           {
             LOG_TRACE_FMT("ACME: scheduling next challenge check");
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), std::chrono::seconds(5));
           }
         },
+        order,
         challenge,
         this);
     }
 
-    bool check_challenge(const Challenge& challenge)
+    bool check_challenge(Order& order, const Challenge& challenge)
     {
-      if (is_challenge_in_progress(challenge.token))
+      if (order.challenges.find(challenge.token) == order.challenges.end())
       {
-        LOG_TRACE_FMT(
-          "ACME: Requesting challenge status for token '{}' ...",
-          challenge.token);
+        return false;
+      }
 
-        post_as_get_json(
-          challenge.account_url,
-          challenge.challenge_url,
-          [this, token = challenge.token](
-            const http::HeaderMap& headers, const nlohmann::json& j) {
-            LOG_TRACE_FMT("ACME: challenge result: {}", j.dump());
-            expect(j, "status");
+      LOG_TRACE_FMT(
+        "ACME: Requesting challenge status for token '{}' ...",
+        challenge.token);
 
-            if (j["status"] == "valid")
+      // This post-as-get with empty body ("", not "{}"), but json response.
+      post_as_get(
+        order.account_url,
+        challenge.authorization_url,
+        [this, &order, &challenge](
+          const http::HeaderMap& headers, const std::vector<uint8_t>& body) {
+          auto j = nlohmann::json::parse(body);
+          LOG_TRACE_FMT("ACME: authorization status: {}", j.dump());
+          expect(j, "status");
+
+          if (j["status"] == "valid")
+          {
+            finalize_challenge(order, challenge);
+          }
+          else if (j["status"] == "pending" || j["status"] == "processing")
+          {
+            if (j.contains("error"))
             {
-              finalize_challenge(token);
-            }
-            else if (j["status"] == "pending")
-            {
-              if (j.contains("error"))
-              {
-                LOG_FAIL_FMT(
-                  "ACME: Challenge for token '{}' failed with the "
-                  "following error: {}",
-                  token,
-                  j["error"].dump());
-              }
-              else
-              {
-                return true;
-              }
+              LOG_FAIL_FMT(
+                "ACME: Challenge for token '{}' failed with the "
+                "following error: {}",
+                challenge.token,
+                j["error"].dump());
             }
             else
             {
-              LOG_FAIL_FMT(
-                "ACME: Challenge for token '{}' failed with status '{}' ",
-                token,
-                j["status"]);
+              return true;
             }
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "ACME: Challenge for token '{}' failed with status '{}' ",
+              challenge.token,
+              j["status"]);
+          }
 
-            return false;
+          return false;
+        });
+
+      return true;
+    }
+
+    void finalize_challenge(Order& order, const Challenge& challenge)
+    {
+      std::unique_lock<std::mutex> guard(finalize_lock);
+
+      auto cit = order.challenges.find(challenge.token);
+      if (cit == order.challenges.end())
+      {
+        throw std::runtime_error(
+          fmt::format("No active challenge for token '{}'", challenge.token));
+      }
+
+      order.challenges.erase(cit);
+
+      if (order.challenges.empty())
+      {
+        submit_finalize(order);
+      }
+    }
+
+    bool check_finalization(Order& order)
+    {
+      auto oit = std::find_if(
+        active_orders.begin(),
+        active_orders.end(),
+        [&order](const Order& other) {
+          return order.order_url == other.order_url;
+        });
+
+      if (oit != active_orders.end())
+      {
+        LOG_TRACE_FMT("ACME: checking finalization");
+
+        // This post-as-get with empty body ("", not "{}"), but json response.
+        post_as_get(
+          order.account_url,
+          order.order_url,
+          [this, &order](
+            const http::HeaderMap& headers, const std::vector<uint8_t>& body) {
+            auto j = nlohmann::json::parse(body);
+            LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
+            expect(j, "status");
+            if (j["status"] == "valid")
+            {
+              expect(j, "certificate");
+              order.certificate_url = j["certificate"];
+              download_certificate(order);
+              return false;
+            }
+            return true;
           });
 
         return true;
@@ -829,46 +932,52 @@ namespace ACME
       return false;
     }
 
-    void finalize_challenge(const std::string& token)
+    struct FinalizationWaitMsg
     {
-      std::unique_lock<std::mutex> guard(finalize_lock);
+      FinalizationWaitMsg(Order& order, Client* client) :
+        order(order),
+        client(client)
+      {}
+      Order order;
+      Client* client;
+    };
 
-      auto cit = active_challenges.find(token);
-      if (cit == active_challenges.end())
-      {
-        throw std::runtime_error(
-          fmt::format("No active challenge for token '{}'", token));
-      }
+    std::unique_ptr<threading::Tmsg<FinalizationWaitMsg>>
+    schedule_check_finalization(Order& order)
+    {
+      return std::make_unique<threading::Tmsg<FinalizationWaitMsg>>(
+        [](std::unique_ptr<threading::Tmsg<FinalizationWaitMsg>> msg) {
+          Client* client = msg->data.client;
 
-      Challenge challenge = cit->second;
-
-      active_challenges.erase(cit);
-
-      if (active_challenges.empty())
-      {
-        submit_finalize(challenge.account_url, challenge.finalize_url);
-      }
+          if (client->check_finalization(msg->data.order))
+          {
+            LOG_TRACE_FMT("ACME: scheduling next finalization check");
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), std::chrono::seconds(5));
+          }
+        },
+        order,
+        this);
     }
 
-    void submit_finalize(
-      const std::string& account_url, const std::string& finalize_url)
+    void submit_finalize(Order& order)
     {
-      if (!active_challenges.empty())
+      if (!order.challenges.empty())
       {
         return;
       }
 
       if (nonces.empty())
       {
-        request_new_nonce(
-          [=]() { submit_finalize(account_url, finalize_url); });
+        request_new_nonce([this, &order]() { submit_finalize(order); });
       }
       else
       {
         auto nonce = nonces.front();
         nonces.pop_front();
 
-        auto header = mk_kid_header(account_url, nonce, finalize_url);
+        auto header =
+          mk_kid_header(order.account_url, nonce, order.finalize_url);
 
         auto csr = service_key->create_csr_der(
           "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
@@ -877,36 +986,51 @@ namespace ACME
 
         JWS jws(header, true, payload, *account_key_pair);
 
-        http::URL url = with_default_port(finalize_url);
+        http::URL url = with_default_port(order.finalize_url);
         make_json_request(
           HTTP_POST,
           url,
           json_to_bytes(jws),
           HTTP_STATUS_OK,
-          [this, account_url](
-            const http::HeaderMap& headers, const nlohmann::json& j) {
-            expect(j, "certificate");
-            LOG_TRACE_FMT("ACME: finalize successful");
-            download_certificate(account_url, j["certificate"]);
+          [this,
+           &order](const http::HeaderMap& headers, const nlohmann::json& j) {
+            LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
+            expect(j, "status");
+            if (j["status"] == "valid")
+            {
+              expect(j, "certificate");
+              order.certificate_url = j["certificate"];
+              download_certificate(order);
+            }
+            else
+            {
+              LOG_TRACE_FMT("ACME: scheduling finalization check");
+              threading::ThreadMessaging::thread_messaging.add_task_after(
+                schedule_check_finalization(order),
+                std::chrono::milliseconds(0));
+            }
           });
       }
     }
 
-    void download_certificate(
-      const std::string& account_url, const std::string& certificate_url)
+    void download_certificate(Order& order)
     {
-      http::URL url = with_default_port(certificate_url);
+      http::URL url = with_default_port(order.certificate_url);
       post_as_get(
-        account_url,
-        certificate_url,
-        [this](
+        order.account_url,
+        order.certificate_url,
+        [this, &order](
           const http::HeaderMap& headers, const std::vector<uint8_t>& data) {
           std::string c(data.data(), data.data() + data.size());
           LOG_TRACE_FMT("Obtained certificate (chain): {}", c);
+
           on_certificate(c);
+
+          active_orders.remove_if([&order](const Order& other) {
+            return other.order_url == order.order_url;
+          });
           return true;
         });
     }
   };
-
 }
