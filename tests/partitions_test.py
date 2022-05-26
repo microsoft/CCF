@@ -356,7 +356,7 @@ def test_learner_does_not_take_part(network, args):
     LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
     # Note: Because trusting the new node failed, the new node is not considered
     # in the primary unanimity. Indeed, its transition to Trusted may have been rolled back.
-    primary = network.wait_for_primary_unanimity(timeout_multiplier=6)
+    primary = network.wait_for_primary_unanimity(timeout_multiplier=30)
     network.wait_for_all_nodes_to_commit(primary=primary)
 
     LOG.info("Trust new joiner again")
