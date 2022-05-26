@@ -22,7 +22,6 @@ from math import ceil
 import http
 import pprint
 import functools
-import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 
@@ -1328,7 +1327,7 @@ class Network:
             assert r.status_code == 200, r
             current_ident = r.body.json()["service_certificate"]
         previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
-        with open(previous_identity, 'w', encoding='utf-8') as f:
+        with open(previous_identity, "w", encoding="utf-8") as f:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
