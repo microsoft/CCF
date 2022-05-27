@@ -47,11 +47,12 @@ Glossary
   Observed Reconfiguration Commit (ORC)
     A particular kind of remote procedure call submitted by a replica when it has observed the commit of a transaction that changes the network configuration. See :ref:`Two-transaction Reconfiguration <architecture/consensus/2tx-reconfig:Two-transaction Reconfiguration>`.
 
+  Omission Fault
+    Type of failure where consensus messages exchanged between nodes are lost due to unreliable network. This may cause one or more nodes to be isolated from the rest of the network.
+  
   Open Enclave
     `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
 
-  Open Enclave Engine
-    `Open Enclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
 
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
