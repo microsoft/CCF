@@ -2462,7 +2462,7 @@ namespace ccf
 
     void setup_acme_clients()
     {
-      if (!config.acme_configurations)
+      if (!config.acme_configurations || config.acme_configurations->empty())
       {
         return;
       }

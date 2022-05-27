@@ -31,7 +31,7 @@ namespace ccf
     ServiceStatus status = ServiceStatus::OPENING;
     /// Version of previous service identity (before the last recovery)
     std::optional<kv::Version> previous_service_identity_version = std::nullopt;
-    /// ACME certificates
+    /// ACME interface certificates
     std::optional<std::map<std::string, crypto::Pem>> acme_certificates;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);

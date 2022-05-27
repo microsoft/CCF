@@ -117,6 +117,7 @@ def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTER
 @dataclass
 class HostSpec:
     rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
+    acme_challenge_server_interface: Optional[str] = None
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]

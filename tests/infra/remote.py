@@ -651,6 +651,12 @@ class CCFRemote(object):
             os.path.join(self.common_dir, os.path.basename(f)) for f in constitution
         ]
 
+        # ACME
+        if "acme" in kwargs:
+            kwargs["acme"][
+                "challenge_server_interface"
+            ] = host.acme_challenge_server_interface
+
         # Configuration file
         if config_file:
             LOG.info(

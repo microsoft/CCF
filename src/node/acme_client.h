@@ -844,7 +844,7 @@ namespace ACME
 
           if (j["status"] == "valid")
           {
-            finalize_challenge(order, challenge);
+            finish_challenge(order, challenge);
           }
           else if (j["status"] == "pending" || j["status"] == "processing")
           {
@@ -855,6 +855,7 @@ namespace ACME
                 "following error: {}",
                 challenge.token,
                 j["error"].dump());
+              finish_challenge(order, challenge);
             }
             else
             {
@@ -867,6 +868,7 @@ namespace ACME
               "ACME: Challenge for token '{}' failed with status '{}' ",
               challenge.token,
               j["status"]);
+            finish_challenge(order, challenge);
           }
 
           return false;
@@ -875,7 +877,7 @@ namespace ACME
       return true;
     }
 
-    void finalize_challenge(Order& order, const Challenge& challenge)
+    void finish_challenge(Order& order, const Challenge& challenge)
     {
       std::unique_lock<std::mutex> guard(finalize_lock);
 
@@ -921,7 +923,13 @@ namespace ACME
               expect(j, "certificate");
               order.certificate_url = j["certificate"];
               download_certificate(order);
-              return false;
+            }
+            else if (j["status"] == "invalid")
+            {
+              LOG_TRACE_FMT("ACME: removing failed order");
+              active_orders.remove_if([&order](const Order& other) {
+                return other.order_url == order.order_url;
+              });
             }
             return true;
           });

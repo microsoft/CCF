@@ -614,7 +614,7 @@ int main(int argc, char** argv)
     }
 
     std::unique_ptr<ACMEChallengeServer> acs;
-    if (config.acme)
+    if (config.acme && !config.acme->challenge_server_interface.empty())
     {
       acs = std::make_unique<ACMEChallengeServer>(
         config.acme->challenge_server_interface,
