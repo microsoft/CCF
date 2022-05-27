@@ -18,7 +18,6 @@ from infra.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
 from dataclasses import dataclass
-from math import ceil
 import http
 import pprint
 import functools
@@ -232,7 +231,7 @@ class Network:
         target_node=None,
         recovery=False,
         ledger_dir=None,
-        copy_ledger_read_only=False,
+        copy_ledger=True,
         read_only_ledger_dirs=None,
         from_snapshot=True,
         snapshots_dir=None,
@@ -264,8 +263,7 @@ class Network:
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
-        # By default, only copy historical ledger if node is started from snapshot
-        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
+        if not committed_ledger_dirs and copy_ledger:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
@@ -736,22 +734,20 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 valid_from = valid_from or datetime.now()
-                timeout = ceil(args.join_timer_s * 2)
+                # Note: Timeout is function of the ledger size here since
+                # the commit of the trust_node proposal may rely on the new node
+                # catching up (e.g. adding 1 node to a 1-node network).
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=timeout,
-                )
-                self.wait_for_node_in_store(
-                    primary, node.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
+                    timeout=args.ledger_recovery_timeout,
                 )
             if not no_wait:
-                # Here, quote verification has already been run when the node
-                # was added as pending. Only wait for the join timer for the
-                # joining node to retrieve network secrets.
-                node.wait_for_node_to_join(timeout=ceil(args.join_timer_s * 2))
+                # The main endorsed RPC interface is only open once the node
+                # has caught up and observed commit on the service open transaction.
+                node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()
