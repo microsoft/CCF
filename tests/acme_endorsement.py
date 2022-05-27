@@ -70,17 +70,19 @@ def run(args):
     with open(ca_cert_filename, "w", encoding="ascii") as f:
         f.write(ca_cert)
 
-    args.acme_configurations = {
-        "pebble": {
-            "ca_certs": [ca_cert],
-            "directory_url": f"https://{listen_address}/dir",
-            "service_dns_name": "localhost",
-            "contact": ["mailto:nobody@example.com"],
-            "terms_of_service_agreed": True,
-            "challenge_type": "http-01",
-        }
+    args.acme = {
+        "configurations": {
+            "pebble": {
+                "ca_certs": [ca_cert],
+                "directory_url": f"https://{listen_address}/dir",
+                "service_dns_name": "localhost",
+                "contact": ["mailto:nobody@example.com"],
+                "terms_of_service_agreed": True,
+                "challenge_type": "http-01",
+            }
+        },
+        "challenge_server_interface": "0.0.0.0:5002",
     }
-    args.acme_challenge_interface = "0.0.0.0:5002"
 
     for node in args.nodes:
         host = infra.net.expand_localhost()

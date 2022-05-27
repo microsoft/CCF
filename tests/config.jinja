@@ -87,9 +87,8 @@
     "circuit_size": "4MB",
     "max_msg_size": "16MB",
     "max_fragment_size": "64KB"
-  },
-  "acme": {
-    "configurations": {{ acme_configurations|tojson }},
-    "challenge_server_interface": "{{ acme_challenge_interface }}"
   }
+  {% if acme %}
+  , "acme": {{ acme|tojson }}
+  {% endif %}
 }
