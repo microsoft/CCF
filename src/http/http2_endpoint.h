@@ -5,9 +5,9 @@
 #include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
+#include "error_reporter.h"
 #include "http2.h"
 #include "http_rpc_context.h"
-#include "error_reporter.h"
 
 namespace http
 {
@@ -110,8 +110,9 @@ namespace http
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
-      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) // TODO: Store
-        :
+      const std::shared_ptr<ErrorReporter>& error_reporter =
+        nullptr) // TODO: Store
+      :
       HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
       server_session(*this, *this), // TODO: Ugly! but currently necessary to be
                                     // able to write back to the ring buffer
@@ -150,11 +151,7 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session_ctx,
-            verb,
-            url,
-            std::move(headers),
-            std::move(body));
+            session_ctx, verb, url, std::move(headers), std::move(body));
         }
         catch (std::exception& e)
         {
@@ -240,18 +237,21 @@ namespace http
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTP2Endpoint(client_session, session_id, writer_factory, std::move(ctx)),
-      ClientEndpoint(session_id, writer_factory)
+      ClientEndpoint(session_id, writer_factory),
+      client_session(*this)
     {}
 
     void send_request(std::vector<uint8_t>&& data) override
     {
-      send_raw(std::move(data));
+      // TODO:
+      // Call client_session.send()
+      client_session.send_request();
+      // send_raw(std::move(data));
     }
 
-    void send(std::vector<uint8_t>&&, sockaddr) override
+    void send(std::vector<uint8_t>&& data, sockaddr) override
     {
-      throw std::logic_error(
-        "send() should not be called directly on HTTPClient");
+      send_raw(std::move(data));
     }
 
     void handle_response(

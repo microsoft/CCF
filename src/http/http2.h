@@ -15,11 +15,7 @@
 //
 // - HTTP works up to service opening (and a little more)
 // - Overall flow is sound and most callback are correctly set
-// - What isn't clear is how http2::Session fits with HTTPEndpoint, in
-// particular, many fields are copied in StreamData but are also in the
-// `rpc_ctx` object (which should really be created in http2.h and passed to
-// handle_request() but it seems to break compilation, probably because of
-// nested includes).
+// - What isn't clear is how http2::Session fits with HTTPEndpoint.
 // - A larger refactoring is required as HTTP/1 is easy enough that
 // ctx->serialised_response() is called very early on (frontend.h), but we
 // cannot serialise the response early with HTTP/2 (as response headers and body
@@ -40,7 +36,11 @@ namespace http2
     void* user_data);
   static int on_frame_recv_callback(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
+  static int on_frame_recv_callback_client(
+    nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
   static int on_begin_headers_callback(
+    nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
+  static int on_begin_headers_callback_client(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
   static int on_header_callback(
     nghttp2_session* session,
@@ -51,7 +51,23 @@ namespace http2
     size_t valuelen,
     uint8_t flags,
     void* user_data);
+  static int on_header_callback_client(
+    nghttp2_session* session,
+    const nghttp2_frame* frame,
+    const uint8_t* name,
+    size_t namelen,
+    const uint8_t* value,
+    size_t valuelen,
+    uint8_t flags,
+    void* user_data);
   static int on_data_callback(
+    nghttp2_session* session,
+    uint8_t flags,
+    StreamId stream_id,
+    const uint8_t* data,
+    size_t len,
+    void* user_data);
+  static int on_data_callback_client(
     nghttp2_session* session,
     uint8_t flags,
     StreamId stream_id,
@@ -92,29 +108,44 @@ namespace http2
   protected:
     nghttp2_session* session;
     std::list<std::shared_ptr<StreamData>> streams;
+    ccf::Endpoint& endpoint;
 
   public:
-    Session()
+    Session(ccf::Endpoint& endpoint, bool is_client = false) :
+      endpoint(endpoint)
     {
       LOG_TRACE_FMT("Created HTTP2 session");
       nghttp2_session_callbacks* callbacks;
       nghttp2_session_callbacks_new(&callbacks);
       nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
-      nghttp2_session_callbacks_set_on_frame_recv_callback(
-        callbacks, on_frame_recv_callback);
-      nghttp2_session_callbacks_set_on_begin_headers_callback(
-        callbacks, on_begin_headers_callback);
-
-      nghttp2_session_callbacks_set_on_header_callback(
-        callbacks, on_header_callback);
-
-      nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
-        callbacks, on_data_callback);
-
       nghttp2_session_callbacks_set_on_stream_close_callback(
         callbacks, on_stream_close_callback);
 
-      nghttp2_session_server_new(&session, callbacks, this);
+      if (is_client)
+      {
+        nghttp2_session_client_new(&session, callbacks, this);
+        nghttp2_session_callbacks_set_on_frame_recv_callback(
+          callbacks, on_frame_recv_callback_client);
+        nghttp2_session_callbacks_set_on_begin_headers_callback(
+          callbacks, on_begin_headers_callback_client);
+        nghttp2_session_callbacks_set_on_header_callback(
+          callbacks, on_header_callback_client);
+        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
+          callbacks, on_data_callback_client);
+      }
+      else
+      {
+        nghttp2_session_callbacks_set_on_frame_recv_callback(
+          callbacks, on_frame_recv_callback);
+        nghttp2_session_callbacks_set_on_begin_headers_callback(
+          callbacks, on_begin_headers_callback);
+        nghttp2_session_callbacks_set_on_header_callback(
+          callbacks, on_header_callback);
+        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
+          callbacks, on_data_callback);
+
+        nghttp2_session_server_new(&session, callbacks, this);
+      }
 
       nghttp2_session_callbacks_del(callbacks);
     }
@@ -124,7 +155,14 @@ namespace http2
       streams.push_back(stream_data);
     }
 
-    virtual void send(const uint8_t* data, size_t length) {}
+    void send(const uint8_t* data, size_t length)
+    {
+      LOG_TRACE_FMT("http2::Session send: {}", length);
+
+      std::vector<uint8_t> resp = {
+        data, data + length}; // TODO: Remove extra copy
+      endpoint.send(std::move(resp), sockaddr());
+    }
 
     void recv(const uint8_t* data, size_t size)
     {
@@ -132,7 +170,8 @@ namespace http2
       auto readlen = nghttp2_session_mem_recv(session, data, size);
       if (readlen < 0)
       {
-        return;
+        throw std::logic_error(fmt::format(
+          "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
       }
 
       auto rc = nghttp2_session_send(session);
@@ -197,27 +236,58 @@ namespace http2
       {
         LOG_TRACE_FMT("Headers/Data frame");
         // For DATA and HEADERS frame, this callback may be called after
-        // on_stream_close_callback. Check that stream_data still alive.
-        if (!stream_data)
+        // on_stream_close_callback so check that stream_data still alive.
+        if (stream_data == nullptr)
         {
           LOG_FAIL_FMT("No stream_data");
           return 0;
         }
 
-        /* Check that the client request has finished */
+        // If the request is complete, process it
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
         {
-          LOG_FAIL_FMT("End of stream_data flag");
           s->handle_request(stream_data);
         }
         break;
       }
       default:
       {
+        // TODO: Support other frame types
         break;
       }
     }
 
+    return 0;
+  }
+
+  static int on_frame_recv_callback_client(
+    nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
+  {
+    LOG_TRACE_FMT("on_frame_recv_callback_client, type: {}", frame->hd.type);
+
+    auto* s = reinterpret_cast<Session*>(user_data);
+    auto* stream_data = reinterpret_cast<StreamData*>(
+      nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+
+    switch (frame->hd.type)
+    {
+      case NGHTTP2_DATA:
+      {
+        LOG_TRACE_FMT("Headers frame");
+        if (
+          frame->headers.cat == NGHTTP2_HCAT_RESPONSE &&
+          stream_data->id == frame->hd.stream_id)
+        {
+          LOG_FAIL_FMT("All headers received");
+        }
+        break;
+      }
+      default:
+      {
+        // TODO: Support other frame types
+        break;
+      }
+    }
     return 0;
   }
 
@@ -234,9 +304,18 @@ namespace http2
     if (rc != 0)
     {
       throw std::logic_error(fmt::format(
-        "Could not set stream_data user data: {}", frame->hd.stream_id));
+        "HTTP/2: Could not set user data for stream {}: {}",
+        frame->hd.stream_id,
+        nghttp2_strerror(rc)));
     }
 
+    return 0;
+  }
+
+  static int on_begin_headers_callback_client(
+    nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
+  {
+    LOG_TRACE_FMT("on_begin_headers_callback_client: {}", frame->hd.type);
     return 0;
   }
 
@@ -274,6 +353,23 @@ namespace http2
     return 0;
   }
 
+  static int on_header_callback_client(
+    nghttp2_session* session,
+    const nghttp2_frame* frame,
+    const uint8_t* name,
+    size_t namelen,
+    const uint8_t* value,
+    size_t valuelen,
+    uint8_t flags,
+    void* user_data)
+  {
+    auto k = std::string(name, name + namelen);
+    auto v = std::string(value, value + valuelen);
+    LOG_TRACE_FMT("on_header_callback_client: {}:{}", k, v);
+
+    return 0;
+  }
+
   static int on_data_callback(
     nghttp2_session* session,
     uint8_t flags,
@@ -293,13 +389,32 @@ namespace http2
     return 0;
   }
 
+  static int on_data_callback_client(
+    nghttp2_session* session,
+    uint8_t flags,
+    StreamId stream_id,
+    const uint8_t* data,
+    size_t len,
+    void* user_data)
+  {
+    LOG_TRACE_FMT("on_data_callback_client: {}", stream_id);
+
+    // auto* stream_data = reinterpret_cast<StreamData*>(
+    //   nghttp2_session_get_stream_user_data(session, stream_id));
+
+    // stream_data->request_body.insert(
+    //   stream_data->request_body.end(), data, data + len);
+
+    return 0;
+  }
+
   static int on_stream_close_callback(
     nghttp2_session* session,
     StreamId stream_id,
     uint32_t error_code,
     void* user_data)
   {
-    LOG_TRACE_FMT("on_stream_close_callback: {}", stream_id);
+    LOG_TRACE_FMT("on_stream_close_callback: {}, {}", stream_id, error_code);
 
     // TODO: Close stream_data correctly
     return 0;
@@ -309,21 +424,26 @@ namespace http2
   {
   private:
     http::RequestProcessor& proc;
-    ccf::Endpoint& endpoint;
 
   public:
     ServerSession(http::RequestProcessor& proc_, ccf::Endpoint& endpoint_) :
-      proc(proc_),
-      endpoint(endpoint_)
+      Session(endpoint_, false),
+      proc(proc_)
     {
       LOG_TRACE_FMT("Initialising HTTP2 Server Session");
 
-      // TODO: Should be configurable by operator
+      // TODO: Configurable by operator
       std::vector<nghttp2_settings_entry> settings = {
         {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100}};
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
+      if (rv != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Error submitting settings for HTTP2 session: {}",
+          nghttp2_strerror(rv)));
+      }
     }
 
     void send_response(
@@ -371,15 +491,6 @@ namespace http2
       }
     }
 
-    virtual void send(const uint8_t* data, size_t length) override
-    {
-      LOG_TRACE_FMT("http2::ServerSession send: {}", length);
-
-      std::vector<uint8_t> resp = {
-        data, data + length}; // TODO: Remove extra copy
-      endpoint.send(std::move(resp), sockaddr());
-    }
-
     virtual void handle_request(StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ServerSession: handle_request");
@@ -396,9 +507,56 @@ namespace http2
 
   class ClientSession : public Session
   {
-    // TODO: Unimplemented
+    // TODO: WIP
+
   public:
-    ClientSession() = default;
+    ClientSession(ccf::Endpoint& endpoint_) : Session(endpoint_, true)
+    {
+      LOG_TRACE_FMT("Initialising HTTP2 Client Session");
+    }
+
+    void send_request()
+    {
+      // TODO: Refactor with ServerSession
+      std::vector<nghttp2_settings_entry> settings = {
+        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100}};
+
+      auto rv = nghttp2_submit_settings(
+        session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
+      if (rv != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Error submitting settings for HTTP2 session: {}",
+          nghttp2_strerror(rv)));
+      }
+
+      std::vector<nghttp2_nv> hdrs;
+      hdrs.emplace_back(make_nv(http2::headers::METHOD, "GET"));
+      hdrs.emplace_back(make_nv(http2::headers::PATH, "/node/join"));
+      hdrs.emplace_back(make_nv(":scheme", "https"));
+      hdrs.emplace_back(
+        make_nv(http::headers::CONTENT_LENGTH, fmt::format("{}", 0)));
+
+      auto stream_data = std::make_shared<StreamData>(0);
+      add_stream(stream_data);
+      auto stream_id = nghttp2_submit_request(
+        session, nullptr, hdrs.data(), hdrs.size(), NULL, stream_data.get());
+      if (stream_id < 0)
+      {
+        LOG_FAIL_FMT(
+          "Could not submit HTTP request: {}", nghttp2_strerror(stream_id));
+      }
+
+      stream_data->id = stream_id;
+
+      auto rc = nghttp2_session_send(session);
+      if (rc < 0)
+      {
+        throw std::logic_error(fmt::format("nghttp2_session_send: {}", rc));
+      }
+
+      LOG_FAIL_FMT("Successfully sent request with stream id: {}", stream_id);
+    }
 
     virtual void handle_request(StreamData* stream_data) override
     {
