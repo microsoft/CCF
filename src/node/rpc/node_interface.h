@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/quote_info.h"
 #include "ccf/service/tables/code_id.h"
@@ -35,14 +36,14 @@ namespace ccf
     virtual kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
     virtual ExtendedState state() = 0;
-    virtual void open_user_frontend() = 0;
     virtual QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest) = 0;
-    virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
+    virtual kv::Version get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;
+    virtual crypto::Pem get_self_signed_certificate() = 0;
   };
 }

@@ -37,6 +37,7 @@ SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
 RECOVERY_FILE_SUFFIX = ".recovery"
+IGNORED_FILE_SUFFIX = ".ignored"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -67,6 +68,13 @@ class EntryType(Enum):
         return self in (
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
+        )
+
+    def is_deprecated(self):
+        return self in (
+            EntryType.WRITE_SET,
+            EntryType.WRITE_SET_WITH_CLAIMS,
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
         )
 
 
@@ -172,6 +180,9 @@ class PublicDomain:
 
         self._tables = {}
         self._read()
+
+    def is_deprecated(self):
+        return self._entry_type.is_deprecated()
 
     def _read_entry_type(self):
         val = unpack(self._buffer, "<B")
@@ -354,10 +365,13 @@ class LedgerValidator:
         3) The merkle proof is correct for each set of transactions
     """
 
-    def __init__(self):
-        self.node_certificates = {}
-        self.node_activity_status = {}
-        self.signature_count = 0
+    accept_deprecated_entry_types: bool = True
+    node_certificates: Dict[str, str] = {}
+    node_activity_status: Dict[str, Tuple[str, int]] = {}
+    signature_count: int = 0
+
+    def __init__(self, accept_deprecated_entry_types: bool = True):
+        self.accept_deprecated_entry_types = accept_deprecated_entry_types
         self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
 
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
@@ -369,15 +383,23 @@ class LedgerValidator:
         self.last_verified_seqno = 0
         self.last_verified_view = 0
 
+        self.service_status = None
+
+    def last_verified_txid(self) -> TxID:
+        return TxID(self.last_verified_view, self.last_verified_seqno)
+
     def add_transaction(self, transaction):
         """
         To validate the ledger, ledger transactions need to be added via this method.
         Depending on the tables that were part of the transaction, it does different things.
         When transaction contains signature table, it starts the verification process and verifies that the root of merkle tree was signed by a node which was part of the network.
         It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.
+        Further, it validates all service status transitions.
         If any of the above checks fail, this method throws.
         """
         transaction_public_domain = transaction.get_public_domain()
+        if not self.accept_deprecated_entry_types:
+            assert not transaction_public_domain.is_deprecated()
         tables = transaction_public_domain.get_tables()
 
         # Add contributing nodes certs and update nodes network trust status for verification
@@ -455,6 +477,26 @@ class LedgerValidator:
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
+
+        # Check service status transitions
+        if SERVICE_INFO_TABLE_NAME in tables:
+            service_table = tables[SERVICE_INFO_TABLE_NAME]
+            updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+            updated_service_json = json.loads(updated_service)
+            updated_status = updated_service_json["status"]
+            if self.service_status == updated_status:
+                pass
+            elif self.service_status == "Opening":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Recovering":
+                assert updated_status in ["WaitingForRecoveryShares"]
+            elif self.service_status == "WaitingForRecoveryShares":
+                assert updated_status in ["Open"]
+            elif self.service_status == "Open":
+                assert updated_status in ["Recovering"]
+            else:
+                assert self.service_status == None
+            self.service_status = updated_status
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_tx_digest(), False)
@@ -827,14 +869,7 @@ class LedgerIterator:
         return self._validator.signature_count if self._validator else 0
 
     def last_verified_txid(self) -> Optional[TxID]:
-        return (
-            TxID(
-                self._validator.last_verified_view,
-                self._validator.last_verified_seqno,
-            )
-            if self._validator
-            else None
-        )
+        return self._validator.last_verified_txid() if self._validator else None
 
 
 class Ledger:
@@ -865,6 +900,9 @@ class Ledger:
                 sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
                 if not read_recovery_files:
                     return
+
+            if path.endswith(IGNORED_FILE_SUFFIX):
+                return
 
             if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
                 return
@@ -897,7 +935,11 @@ class Ledger:
         for file_a, file_b in zip(self._filenames[:-1], self._filenames[1:]):
             range_a = range_from_filename(file_a)
             range_b = range_from_filename(file_b)
-            if range_a[1] is None or range_a[1] + 1 != range_b[0]:
+            if range_a[1] is None and range_b[1] is not None:
+                raise ValueError(
+                    f"Ledger cannot parse committed chunk {file_b} following uncommitted chunk {file_a}"
+                )
+            if validator and range_a[1] is not None and range_a[1] + 1 != range_b[0]:
                 raise ValueError(
                     f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
                 )
@@ -932,9 +974,9 @@ class Ledger:
         transaction = None
         for chunk in self:
             _, chunk_end = chunk.get_seqnos()
-            if chunk_end and chunk_end < seqno:
-                continue
             for tx in chunk:
+                if chunk_end and chunk_end < seqno:
+                    continue
                 public_transaction = tx.get_public_domain()
                 if public_transaction.get_seqno() == seqno:
                     return tx
@@ -959,8 +1001,19 @@ class Ledger:
         latest_seqno = 0
         for chunk in self:
             for tx in chunk:
-                latest_seqno = tx.get_public_domain().get_seqno()
-                for table_name, records in tx.get_public_domain().get_tables().items():
+                # If a transaction cannot be read (e.g. because it was only partially written to disk
+                # before a crash), return public state so far. This is consistent with CCF's behaviour
+                # which discards the incomplete transaction on recovery.
+                try:
+                    public_domain = tx.get_public_domain()
+                except Exception:
+                    print(
+                        f"Error reading ledger entry. Latest read seqno: {latest_seqno}"
+                    )
+                    return public_tables, latest_seqno
+
+                latest_seqno = public_domain.get_seqno()
+                for table_name, records in public_domain.get_tables().items():
                     if table_name in public_tables:
                         public_tables[table_name].update(records)
                         # Remove deleted keys

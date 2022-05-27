@@ -22,8 +22,7 @@ The quickest way to get started building CCF applications is to use the CCF buil
 
 .. code-block:: bash
 
-    $ docker pull ccfciteam/ccf-app-ci:latest # Latest CCF release
-    $ docker pull ccfciteam/ccf-app-ci:X.YZ   # Specific CCF release
+    $ docker pull mcr.microsoft.com/ccf/app/dev:X.Y.Z-sgx
 
 The container contains the latest release of CCF along with a complete build toolchain, and startup scripts.
 
@@ -38,7 +37,7 @@ Visual Studio Code Setup
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you use `Visual Studio Code`_ you can install the `Remote Container`_ extension and use the sample `devcontainer.json`_ config.
-`More details on that process <https://code.visualstudio.com/docs/remote/containers#_quick-start-open-a-public-git-repository-in-an-isolated-container-volume>`_.
+`More details on that process <https://code.visualstudio.com/docs/remote/containers#_quick-start-open-a-git-repository-or-github-pr-in-an-isolated-container-volume>`_.
 
 
 .. _`Visual Studio Code`: https://code.visualstudio.com/

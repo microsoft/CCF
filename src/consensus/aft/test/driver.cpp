@@ -141,6 +141,14 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->assert_state_sync();
         break;
+      case shash("assert_is_backup"):
+        assert(items.size() == 2);
+        driver->assert_is_backup(items[1]);
+        break;
+      case shash("assert_is_primary"):
+        assert(items.size() == 2);
+        driver->assert_is_primary(items[1]);
+        break;
       case shash(""):
         // Ignore empty lines
         break;

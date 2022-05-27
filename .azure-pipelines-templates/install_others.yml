@@ -26,18 +26,6 @@ steps:
     workingDirectory: js/ccf-app
     displayName: Build npm package
 
-  - script: |
-      set -ex
-      sudo apt -y install ./$(pkgname)
-      cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
-    workingDirectory: build
-    displayName: Test installed CCF
-
-  - script: |
-      set -ex
-      ./tests/test_install_build.sh
-    displayName: Test building a sample against installed CCF
-
   - task: PublishPipelineArtifact@1
     inputs:
       path: $(Build.ArtifactStagingDirectory)/$(wheel)

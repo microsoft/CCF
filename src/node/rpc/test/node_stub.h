@@ -57,11 +57,6 @@ namespace ccf
       return kv::NoVersion;
     }
 
-    std::optional<kv::Version> get_startup_snapshot_seqno() override
-    {
-      return std::nullopt;
-    }
-
     SessionMetrics get_session_metrics() override
     {
       return {};
@@ -81,9 +76,19 @@ namespace ccf
       return QuoteVerificationResult::Verified;
     }
 
+    kv::Version get_startup_snapshot_seqno() override
+    {
+      return 0;
+    }
+
     void initiate_private_recovery(kv::Tx& tx) override
     {
       throw std::logic_error("Unimplemented");
+    }
+
+    crypto::Pem get_self_signed_node_certificate() override
+    {
+      return {};
     }
   };
 

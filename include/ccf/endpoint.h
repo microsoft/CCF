@@ -34,13 +34,6 @@ namespace ccf::endpoints
     Never
   };
 
-  enum class ExecuteOutsideConsensus
-  {
-    Never,
-    Locally,
-    Primary
-  };
-
   enum class Mode
   {
     ReadWrite,
@@ -61,12 +54,6 @@ namespace ccf::endpoints
      {ForwardingRequired::Never, "never"}});
 
   DECLARE_JSON_ENUM(
-    ExecuteOutsideConsensus,
-    {{ExecuteOutsideConsensus::Never, "never"},
-     {ExecuteOutsideConsensus::Locally, "locally"},
-     {ExecuteOutsideConsensus::Primary, "primary"}});
-
-  DECLARE_JSON_ENUM(
     Mode,
     {{Mode::ReadWrite, "readwrite"},
      {Mode::ReadOnly, "readonly"},
@@ -78,9 +65,6 @@ namespace ccf::endpoints
     Mode mode = Mode::ReadWrite;
     /// Endpoint forwarding policy
     ForwardingRequired forwarding_required = ForwardingRequired::Always;
-    /// Execution policy
-    ExecuteOutsideConsensus execute_outside_consensus =
-      ExecuteOutsideConsensus::Never;
     /// Authentication policies
     std::vector<std::string> authn_policies = {};
     /// OpenAPI schema for endpoint
@@ -229,10 +213,7 @@ namespace ccf::endpoints
             }
 
             ds::openapi::add_request_body_schema<In>(
-              document,
-              endpoint.full_uri_path,
-              http_verb.value(),
-              http::headervalues::contenttype::JSON);
+              document, endpoint.full_uri_path, http_verb.value());
           });
       }
       else
@@ -258,8 +239,7 @@ namespace ccf::endpoints
               document,
               endpoint.full_uri_path,
               http_verb.value(),
-              endpoint.success_status,
-              http::headervalues::contenttype::JSON);
+              endpoint.success_status);
           });
       }
       else
@@ -340,24 +320,6 @@ namespace ccf::endpoints
      * @return This Endpoint for further modification
      */
     Endpoint& set_forwarding_required(ForwardingRequired fr);
-
-    /** Indicates that the execution of the Endpoint does not require
-     * consensus from other nodes in the network.
-     *
-     * By default, endpoints are not executed locally.
-     *
-     * \verbatim embed:rst:leading-asterisk
-     * .. warning::
-     *  Use with caution. This should only be used for non-critical endpoints
-     *  that do not read or mutate the state of the key-value store.
-     * \endverbatim
-     *
-     * @param v Enum indicating whether the Endpoint is executed locally,
-     * on the node receiving the request, locally on the primary or via the
-     * consensus.
-     * @return This Endpoint for further modification
-     */
-    Endpoint& set_execute_outside_consensus(ExecuteOutsideConsensus v);
 
     void install()
     {

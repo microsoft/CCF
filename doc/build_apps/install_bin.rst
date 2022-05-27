@@ -27,7 +27,7 @@ These dependencies can be conveniently installed using the ``ansible`` playbooks
 Install
 -------
 
-CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases/latest>`_.
+CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases/latest>`_. The documentation you are currently reading describes the `main` branch and behaviour available in the 2.x release candidates.
 
 The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
@@ -64,7 +64,7 @@ The CCF install notably contains:
 - The ``ansible`` playbooks required for :doc:`/contribute/build_setup` (under ``getting_started/``)
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing
-- Various utility scripts (see :doc:`/build_apps/demo`)
+- Various utility scripts (see :doc:`/build_apps/run_app`)
 
 Uninstall
 ---------

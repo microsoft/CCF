@@ -157,8 +157,9 @@ Service identity and status.
 
     graph TB;
         Opening-- transition_service_to_open -->Open;
-        Opening-- "transition_service_to_open (recovery)"-->WaitingForRecoveryShares;
+        Recovering-- "transition_service_to_open (recovery)"-->WaitingForRecoveryShares;
         WaitingForRecoveryShares -- member shares reassembly--> Open;
+        Open-- "start in recovery"-->Recovering;
 
 ``service.config``
 ~~~~~~~~~~~~~~~~~~
@@ -246,9 +247,6 @@ JavaScript endpoint definitions.
    :project: CCF
 
 .. doxygenenum:: ccf::endpoints::ForwardingRequired
-   :project: CCF
-
-.. doxygenenum:: ccf::endpoints::ExecuteOutsideConsensus
    :project: CCF
 
 ``tls.ca_cert_bundles``

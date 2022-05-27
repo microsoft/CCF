@@ -214,8 +214,6 @@ namespace nobuiltins
         HTTP_GET,
         ccf::json_command_adapter(get_commit),
         ccf::no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, ccf::GetCommit::Out>()
         .install();
 
@@ -277,8 +275,6 @@ namespace nobuiltins
         HTTP_GET,
         ccf::json_command_adapter(get_txid),
         ccf::no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, TransactionIDResponse>()
         .install();
 
@@ -321,8 +317,6 @@ namespace nobuiltins
         HTTP_GET,
         ccf::json_command_adapter(get_time),
         ccf::no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, TimeResponse>()
         .install();
     }

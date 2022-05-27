@@ -5,7 +5,6 @@
 #include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
-#include "enclave/rpc_sessions.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
 
@@ -46,7 +45,7 @@ namespace http
         ->recv_(msg->data.data.data(), msg->data.data.size());
     }
 
-    void recv(const uint8_t* data, size_t size) override
+    void recv(const uint8_t* data, size_t size, sockaddr) override
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
@@ -144,7 +143,7 @@ namespace http
       interface_id(interface_id)
     {}
 
-    void send(std::vector<uint8_t>&& data) override
+    void send(std::vector<uint8_t>&& data, sockaddr) override
     {
       send_raw(std::move(data));
     }
@@ -262,7 +261,7 @@ namespace http
       send_raw(std::move(data));
     }
 
-    void send(std::vector<uint8_t>&&) override
+    void send(std::vector<uint8_t>&&, sockaddr) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");

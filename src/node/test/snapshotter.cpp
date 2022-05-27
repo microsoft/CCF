@@ -7,6 +7,7 @@
 #include "ds/ring_buffer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/encryptor.h"
 #include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -45,6 +46,35 @@ auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
     });
 
   return idx;
+}
+
+auto read_snapshot_out(ringbuffer::Circuit& circuit)
+{
+  std::optional<std::vector<uint8_t>> snapshot = std::nullopt;
+  circuit.read_from_inside().read(
+    -1, [&snapshot](ringbuffer::Message m, const uint8_t* data, size_t size) {
+      switch (m)
+      {
+        case consensus::snapshot:
+        {
+          serialized::read<consensus::Index>(data, size);
+          serialized::read<consensus::Index>(data, size);
+          snapshot = std::vector<uint8_t>(data, data + size);
+          break;
+        }
+        case consensus::snapshot_commit:
+        {
+          REQUIRE(false);
+          break;
+        }
+        default:
+        {
+          REQUIRE(false);
+        }
+      }
+    });
+
+  return snapshot;
 }
 
 void issue_transactions(ccf::NetworkState& network, size_t tx_count)
@@ -299,5 +329,94 @@ TEST_CASE("Rollback before snapshot is committed")
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
 
     threading::ThreadMessaging::thread_messaging.run_one();
+  }
+}
+
+// https://github.com/microsoft/CCF/issues/3796
+TEST_CASE("Rekey ledger while snapshot is in progress")
+{
+  logger::config::default_init();
+
+  ccf::NetworkState network;
+
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    *network.tables.get(), kv::test::PrimaryNodeId, *kp);
+  network.tables->set_history(history);
+  network.tables->set_consensus(consensus);
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ledger_secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
+  network.tables->set_encryptor(encryptor);
+
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
+    std::make_unique<ringbuffer::WriterFactory>(eio);
+
+  size_t snapshot_tx_interval = 10;
+
+  issue_transactions(network, snapshot_tx_interval);
+
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, snapshot_tx_interval);
+
+  size_t snapshot_idx = snapshot_tx_interval + 1;
+
+  INFO("Trigger snapshot");
+  {
+    // It is necessary to record a signature for the snapshot to be
+    // deserialisable by the backup store
+    auto tx = network.tables->create_tx();
+    auto sigs = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+    auto trees =
+      tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
+    sigs->put({kv::test::PrimaryNodeId, 0, 0, 0, 0, {}, {}, {}, {}});
+    auto tree = history->serialise_tree(1, snapshot_idx - 1);
+    trees->put(tree);
+    tx.commit();
+
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
+
+    // Do not schedule task just yet so that we can interleave ledger rekey
+  }
+
+  INFO("Rekey ledger and commit new transactions");
+  {
+    ledger_secrets->set_secret(snapshot_idx + 1, ccf::make_ledger_secret());
+
+    // Issue new transactions that make use of new ledger secret
+    issue_transactions(network, snapshot_tx_interval);
+  }
+
+  INFO("Finally, schedule snapshot creation");
+  {
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    auto snapshot = read_snapshot_out(eio);
+    REQUIRE(snapshot.has_value());
+    REQUIRE(!snapshot->empty());
+
+    // Snapshot can be deserialised to backup store
+    ccf::NetworkState backup_network;
+    auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
+      *backup_network.tables.get(), kv::test::FirstBackupNodeId, *kp);
+    backup_network.tables->set_history(backup_history);
+    auto tx = network.tables->create_read_only_tx();
+
+    auto backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+    backup_ledger_secrets->init_from_map(ledger_secrets->get(tx));
+    auto backup_encryptor =
+      std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);
+    backup_network.tables->set_encryptor(backup_encryptor);
+
+    kv::ConsensusHookPtrs hooks;
+    std::vector<kv::Version> view_history;
+    REQUIRE(
+      backup_network.tables->deserialise_snapshot(
+        snapshot->data(), snapshot->size(), hooks, &view_history) ==
+      kv::ApplyResult::PASS);
   }
 }

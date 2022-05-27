@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 from enum import Enum, auto
+import infra.concurrency
 from collections import Counter
 import time
-import threading
 
 from loguru import logger as LOG
 
@@ -25,6 +25,7 @@ class HealthState(Enum):
     stable = auto()  # Network can commit new transactions
     unavailable = auto()  # The primary or majority of nodes are unreachable
     election = auto()  # An election is in progress
+    partition = auto()  # Primary node is partitioned from a f backups
 
 
 def get_primary(
@@ -39,11 +40,11 @@ def get_primary(
             logs = None if verbose else []
             r = c.get(
                 "/node/consensus", timeout=client_node_timeout_s, log_capture=logs
-            ).body.json()
-            return (r["details"]["primary_id"], r["details"]["current_view"])
+            ).body.json()["details"]
+            return (r["primary_id"], r["current_view"])
     except Exception as e:
         LOG.warning(f"Could not connect to node {node.local_node_id}: {e}")
-        return None
+        return (None, None)
 
 
 def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose=True):
@@ -51,7 +52,7 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
     nodes = network.nodes
 
     # Number of nodes required for network to commit new transactions
-    majority = (len(nodes) + 1) // 2
+    majority = (len(nodes) // 2) + 1
 
     primaries = {}
     for node in nodes:
@@ -83,23 +84,14 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
         # about to lose its primaryship
         return HealthState.election
 
+    # Note: No longer need to check for backups' "last_received_ms" acks
+    # as the primary node will automatically step down as follower if
+    # it is isolated from a majority of backups (CheckQuorum extension)
+
     return HealthState.stable if most_common_count >= majority else HealthState.election
 
 
-class StoppableThread(threading.Thread):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.daemon = True
-        self._stop_event = threading.Event()
-
-    def stop(self):
-        self._stop_event.set()
-
-    def is_stopped(self):
-        return self._stop_event.is_set()
-
-
-class NetworkHealthWatcher(StoppableThread):
+class NetworkHealthWatcher(infra.concurrency.StoppableThread):
     def __init__(
         self,
         network,
@@ -119,13 +111,16 @@ class NetworkHealthWatcher(StoppableThread):
         self.verbose = verbose
 
     def wait_for_recovery(self, timeout=None):
-        timeout = timeout or self.unstable_threshold_s
+        timeout = timeout or 2 * self.unstable_threshold_s
+        LOG.info(f"Waiting {timeout}s for recovery to be detected")
         self.join(timeout=timeout)
+        # Stop thread manually if it does not terminate in time
         if self.is_alive():
             self.stop()
             raise TimeoutError(
                 f"Health watcher did not detect recovery after {timeout}s"
             )
+        LOG.info("Recovery successfully detected")
 
     def run(self):
         """
@@ -133,7 +128,7 @@ class NetworkHealthWatcher(StoppableThread):
         a specific period (election_timeout * election_timeout_factor), the health
         watcher automatically stops and a disaster recovery procedure should be staged.
         """
-        election_start_time = None
+        unstable_start_time = None
 
         # Note: this currently does not detect one-way partitions backups -> primary
         # See https://github.com/microsoft/CCF/issues/3688 for fix.
@@ -148,12 +143,12 @@ class NetworkHealthWatcher(StoppableThread):
                 verbose=self.verbose,
             )
             if health_state == HealthState.stable:
-                election_start_time = None
+                unstable_start_time = None
             else:
-                LOG.info("Network is unstable")
-                if election_start_time is None:
-                    election_start_time = time.time()
-                if time.time() - election_start_time > self.unstable_threshold_s:
+                LOG.info(f"Network is unstable: {health_state.name}")
+                if unstable_start_time is None:
+                    unstable_start_time = time.time()
+                if time.time() - unstable_start_time > self.unstable_threshold_s:
                     LOG.error(
                         f"Network has been unstable for more than {self.unstable_threshold_s}s. Exiting"
                     )

@@ -12,7 +12,7 @@
 \* - https://github.com/ongardie/raft.tla/blob/master/raft.tla
 \*   (base spec, modified)
 \* - https://github.com/jinlmsft/raft.tla/blob/master/raft.tla
-\*   (e.g. clientRequests, committedLog, committedLogDecrease)
+\*   (e.g. clientRequests, committedLog)
 \* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
 \*   (e.g. certain invariants)
 
@@ -75,9 +75,9 @@ VARIABLE log
 VARIABLE commitIndex
 \* The index that gets committed
 VARIABLE committedLog
-\* Does the commited Index decrease
-VARIABLE committedLogDecrease
-logVars == <<log, commitIndex, clientRequests, committedLog, committedLogDecrease >>
+\* Have conflicting log entries ever been committed?
+VARIABLE committedLogConflict
+logVars == <<log, commitIndex, clientRequests, committedLog, committedLogConflict>>
 
 \* The following variables are used only on candidates:
 \* The set of servers from which the candidate has received a RequestVote
@@ -176,7 +176,7 @@ InitLogVars == /\ log          = [i \in Server |-> << >>]
                /\ commitIndex  = [i \in Server |-> 0]
                /\ clientRequests = 1
                /\ committedLog = << >>
-               /\ committedLogDecrease = FALSE
+               /\ committedLogConflict = FALSE
 Init == /\ messages = {}
         /\ messagesSent = [i \in Server |-> [j \in Server |-> << >>] ]
         /\ InitServerVars
@@ -268,7 +268,7 @@ BecomeLeader(i) ==
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
     /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,MaxCommittableIndex(log[i]))]
-    /\ UNCHANGED <<messages, messagesSent, currentTerm, votedFor, votesRequested, candidateVars, commitIndex, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<messages, messagesSent, currentTerm, votedFor, votesRequested, candidateVars, commitIndex, clientRequests, committedLog, committedLogConflict>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -281,7 +281,7 @@ ClientRequest(i) ==
            \* Make sure that each request is unique, reduce state space to be explored
            /\ clientRequests' = clientRequests + 1
     /\ UNCHANGED <<messages, messagesSent, serverVars, candidateVars,
-                   leaderVars, commitIndex, committedLog, committedLogDecrease>>
+                   leaderVars, commitIndex, committedLog, committedLogConflict>>
 
 \* CCF extension: Signed commits
 \* Leader i signs the previous messages in its log to make them committable
@@ -304,7 +304,7 @@ SignCommittableMessages(i) ==
             newLog == Append(log[i], entry)
             IN log' = [log EXCEPT ![i] = newLog]
         /\ UNCHANGED <<messages, messagesSent, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog, committedLogDecrease>>
+                    leaderVars, commitIndex, committedLog, committedLogConflict>>
 
 \* Leader i advances its commitIndex.
 \* This is done as a separate step from handling AppendEntries responses,
@@ -334,9 +334,12 @@ AdvanceCommitIndex(i) ==
                    << >>
        IN /\ commitIndex[i] < newCommitIndex \* only advance if necessary
           /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
-          /\ committedLogDecrease' = \/ ( newCommitIndex < Len(committedLog) )
-                                     \/ \E j \in 1..Len(committedLog) : committedLog[j] /= newCommittedLog[j]
-          /\ committedLog' = newCommittedLog
+          /\ IF newCommitIndex <= Len(committedLog) THEN
+                /\ committedLogConflict' = \E j \in 1..newCommitIndex : committedLog[j] /= newCommittedLog[j]
+                /\ UNCHANGED committedLog
+             ELSE
+                /\ committedLogConflict' = \E j \in 1..Len(committedLog) : committedLog[j] /= newCommittedLog[j]
+                /\ committedLog' = newCommittedLog
     /\ UNCHANGED <<messages, messagesSent, serverVars, candidateVars, leaderVars, log, clientRequests>>
 
 ----
@@ -417,7 +420,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<messagesSent, serverVars, log, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<messagesSent, serverVars, log, clientRequests, committedLog, committedLogConflict>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.mentries /= << >>
@@ -431,7 +434,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
                 |-> [n \in 1..Min({Len(messagesSent[i][j]) - 1, index - 1}) 
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
-    /\ UNCHANGED <<serverVars, commitIndex, messages, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<serverVars, commitIndex, messages, clientRequests, committedLog, committedLogConflict>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
@@ -444,7 +447,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<messagesSent, serverVars, commitIndex, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<messagesSent, serverVars, commitIndex, clientRequests, committedLog, committedLogConflict>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -553,7 +556,7 @@ BothLeader( i, j ) ==
 MoreThanOneLeaderInv ==
     \lnot \E i, j \in Server :  BothLeader( i, j ) 
     
-LogInv == \lnot committedLogDecrease
+LogInv == \lnot committedLogConflict
 
 \* The following are a set of invariants by
 \* https://github.com/dricketts/raft.tla/blob/master/raft.tla
@@ -587,8 +590,11 @@ CommittedTermPrefix(i, x) ==
     IF Len(log[i]) /= 0 /\ \E y \in DOMAIN log[i] : log[i][y].term <= x 
     THEN 
       \* then, we use the subsequence up to the maximum committed term of the leader
-      LET maxTerm == (CHOOSE y \in DOMAIN log[i] : \A z \in DOMAIN log[i] : log[i][y].term >= log[i][z].term /\ y >= z)
-      IN SubSeq(log[i], 1, Min({maxTerm, commitIndex[i]}))
+      LET maxTermIndex == 
+          CHOOSE y \in DOMAIN log[i] : 
+            /\ log[i][y].term <= x 
+            /\ \A z \in DOMAIN log[i] : log[i][z].term <= x  => y >= z
+      IN SubSeq(log[i], 1, Min({maxTermIndex, commitIndex[i]}))
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 ----

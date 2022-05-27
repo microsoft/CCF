@@ -27,6 +27,7 @@ def map_azure_devops_docker_workspace_dir(workspace_dir):
 
 
 # Docker image name prefix
+# To update when runtime images are pushed to ACR
 DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
 
 # Network name
@@ -210,3 +211,11 @@ class DockerShim(infra.remote.CCFRemote):
 
     def resume(self):
         self.container.unpause()
+
+    def check_done(self):
+        try:
+            self.container.reload()
+            LOG.debug(self.container.attrs["State"])
+            return self.container.attrs["State"]["Status"] != "running"
+        except docker.errors.NotFound:
+            return True

@@ -40,7 +40,6 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
   void put_entry(
     const std::vector<uint8_t>& data,
     bool globally_committable,
-    bool force_chunk,
     kv::Term term,
     kv::Version index) override
   {
@@ -52,8 +51,7 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
                          index,
                          stringify(data))
                     << std::endl;
-    aft::LedgerStubProxy::put_entry(
-      data, globally_committable, force_chunk, term, index);
+    aft::LedgerStubProxy::put_entry(data, globally_committable, term, index);
   }
 
   void truncate(aft::Index idx) override
@@ -107,7 +105,7 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
 };
 
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid, aft::StubSnapshotter>;
+using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -145,7 +143,6 @@ public:
         std::make_unique<Adaptor>(kv),
         std::make_unique<LedgerStubProxy_Mermaid>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
-        std::make_shared<aft::StubSnapshotter>(),
         std::make_shared<aft::State>(node_id),
         nullptr,
         nullptr);
@@ -630,6 +627,30 @@ public:
     for (auto& [to, _] : _nodes)
     {
       drop_pending_to(from, to);
+    }
+  }
+
+  void assert_is_backup(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_backup())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: backup", node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state backup");
+    }
+  }
+
+  void assert_is_primary(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_primary())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: primary", node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state primary");
     }
   }
 

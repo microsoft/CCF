@@ -16,8 +16,6 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
-include(${CCF_DIR}/cmake/cpack_settings.cmake)
-
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -29,6 +27,8 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
+
+include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
@@ -342,6 +342,8 @@ if(BUILD_TESTS)
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
@@ -372,6 +374,14 @@ if(BUILD_TESTS)
       node_info_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )
+
+    if(ENABLE_QUICTLS)
+      add_unit_test(
+        quic_test ${CMAKE_CURRENT_SOURCE_DIR}/src/quic/test/main.cpp
+      )
+      target_include_directories(quic_test PUBLIC ${QUICTLS_INCLUDE_DIRS})
+      target_link_libraries(quic_test PUBLIC ${QUICTLS_LIBRARIES})
+    endif()
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
@@ -517,10 +527,15 @@ if(BUILD_TESTS)
       ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
+  if(LONG_TESTS)
+    set(ADDITIONAL_RECOVERY_ARGS --with-load)
+  endif()
+
   add_e2e_test(
     NAME recovery_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   if(LONG_TESTS)
@@ -668,7 +683,7 @@ if(BUILD_TESTS)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
         rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-        https://github.com/drwetter/testssl.sh
+        --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
     )
     add_custom_target(

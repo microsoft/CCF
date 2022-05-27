@@ -3,72 +3,196 @@
 
 #pragma once
 
+#include "ccf/claims_digest.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/json.h"
+#include "ccf/ds/openapi.h"
 #include "ccf/entity_id.h"
 
 #include <optional>
+#include <string>
 
 namespace ccf
 {
-  struct Receipt
+  class Receipt
   {
-    struct Element
-    {
-      std::optional<std::string> left = std::nullopt;
-      std::optional<std::string> right = std::nullopt;
-    };
+  public:
+    virtual ~Receipt() = default;
 
-    struct LeafComponents
-    {
-      std::optional<std::string> write_set_digest = std::nullopt;
-      std::optional<std::string> commit_evidence = std::nullopt;
-      std::optional<std::string> claims_digest = std::nullopt;
+    // Signature over the root digest, signed by the identity described in cert
+    std::vector<uint8_t> signature = {};
+    virtual crypto::Sha256Hash calculate_root() = 0;
 
-      LeafComponents() {}
-      LeafComponents(
-        const std::optional<std::string>& write_set_digest_,
-        const std::optional<std::string>& commit_evidence_,
-        const std::optional<std::string>& claims_digest_) :
-        write_set_digest(write_set_digest_),
-        commit_evidence(commit_evidence_),
-        claims_digest(claims_digest_)
-      {}
+    ccf::NodeId node_id = {};
+    crypto::Pem cert = {};
 
-      bool operator==(const LeafComponents& other) const = default;
-    };
+    std::vector<crypto::Pem> service_endorsements = {};
 
-    /// Signature over the root of the Merkle Tree, by the node private key
-    std::string signature;
-    /// Root of the Merkle Tree
-    std::optional<std::string> root = std::nullopt;
-    /// Merkle proof from the signed root to the leaf components
-    std::vector<Element> proof = {};
-    /// Node identity that produced the signature at the time
-    ccf::NodeId node_id;
-    /// Node identity as a PEM certificate
-    std::optional<std::string> cert = std::nullopt;
-    // In practice, either leaf or leaf_components is set
-    /// Leaf of the Merkle proof, only set on transactions emitted by 1.x
-    /// networks. Corresponds to the write set digest.
-    std::optional<std::string> leaf = std::nullopt;
-    /// Leaf components in transactions emitted by 2.x networks.
-    std::optional<LeafComponents> leaf_components = std::nullopt;
-
-    std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
+    virtual bool is_signature_transaction() const = 0;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::Element)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt::Element)
-  DECLARE_JSON_OPTIONAL_FIELDS(Receipt::Element, left, right)
+  // Most transactions produce a receipt constructed from a combination of 3
+  // digests. Note that transactions emitted by old code versions may not
+  // include a claims_digest or a commit_evidence_digest, but from 2.0 onwards
+  // every transaction will contain a (potentially default-zero'd) claims digest
+  // and a commit evidence digest.
+  class ProofReceipt : public Receipt
+  {
+  public:
+    struct Components
+    {
+      crypto::Sha256Hash write_set_digest;
+      std::string commit_evidence;
+      ccf::ClaimsDigest claims_digest;
+    };
+    Components leaf_components;
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::LeafComponents)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt::LeafComponents)
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    Receipt::LeafComponents, write_set_digest, commit_evidence, claims_digest)
+    struct ProofStep
+    {
+      enum
+      {
+        Left,
+        Right
+      } direction;
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id)
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    Receipt, root, cert, leaf, leaf_components, service_endorsements)
+      crypto::Sha256Hash hash = {};
+
+      bool operator==(const ProofStep& other) const
+      {
+        return direction == other.direction && hash == other.hash;
+      }
+    };
+    using Proof = std::vector<ProofStep>;
+
+    // A merkle-tree path from the leaf digest to the signed root
+    Proof proof = {};
+
+    crypto::Sha256Hash calculate_root() override
+    {
+      auto current = get_leaf_digest();
+
+      for (const auto& element : proof)
+      {
+        if (element.direction == ProofStep::Left)
+        {
+          current = crypto::Sha256Hash(element.hash, current);
+        }
+        else
+        {
+          current = crypto::Sha256Hash(current, element.hash);
+        }
+      }
+
+      return current;
+    }
+
+    crypto::Sha256Hash get_leaf_digest()
+    {
+      crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
+      if (!leaf_components.claims_digest.empty())
+      {
+        return crypto::Sha256Hash(
+          leaf_components.write_set_digest,
+          ce_dgst,
+          leaf_components.claims_digest.value());
+      }
+      else
+      {
+        return crypto::Sha256Hash(leaf_components.write_set_digest, ce_dgst);
+      }
+    }
+
+    bool is_signature_transaction() const override
+    {
+      return false;
+    }
+  };
+
+  // Signature transactions are special, as they contain no proof. They contain
+  // a single root, which is directly signed.
+  class SignatureReceipt : public Receipt
+  {
+  public:
+    crypto::Sha256Hash signed_root = {};
+
+    crypto::Sha256Hash calculate_root() override
+    {
+      return signed_root;
+    };
+
+    bool is_signature_transaction() const override
+    {
+      return true;
+    }
+  };
+
+  using ReceiptPtr = std::shared_ptr<Receipt>;
+
+  // This is an opaque, incomplete type, but can be summarised to a JSON object
+  // by describe_receipt_v1, or a ccf::ReceiptPtr by describe_receipt_v2
+  struct TxReceiptImpl;
+  using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
+  nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);
+  ReceiptPtr describe_receipt_v2(const TxReceiptImpl& receipt);
+
+  // Manual JSON serializers are specified for these types as they are not
+  // trivial POD structs
+
+  void to_json(nlohmann::json& j, const ProofReceipt::Components& step);
+  void from_json(const nlohmann::json& j, ProofReceipt::Components& step);
+  std::string schema_name(const ProofReceipt::Components*);
+  void fill_json_schema(
+    nlohmann::json& schema, const ProofReceipt::Components*);
+
+  void to_json(nlohmann::json& j, const ProofReceipt::ProofStep& step);
+  void from_json(const nlohmann::json& j, ProofReceipt::ProofStep& step);
+  std::string schema_name(const ProofReceipt::ProofStep*);
+  void fill_json_schema(nlohmann::json& schema, const ProofReceipt::ProofStep*);
+
+  void to_json(nlohmann::json& j, const ReceiptPtr& receipt);
+  void from_json(const nlohmann::json& j, ReceiptPtr& receipt);
+  std::string schema_name(const ReceiptPtr*);
+  void fill_json_schema(nlohmann::json& schema, const ReceiptPtr*);
+
+  template <typename T>
+  void add_schema_components(
+    T& helper, nlohmann::json& schema, const ProofReceipt::Components* comp)
+  {
+    helper.template add_schema_component<decltype(
+      ProofReceipt::Components::write_set_digest)>();
+    helper.template add_schema_component<decltype(
+      ProofReceipt::Components::claims_digest)>();
+
+    fill_json_schema(schema, comp);
+  }
+
+  template <typename T>
+  void add_schema_components(
+    T& helper, nlohmann::json& schema, const ProofReceipt::ProofStep* ps)
+  {
+    helper
+      .template add_schema_component<decltype(ProofReceipt::ProofStep::hash)>();
+
+    fill_json_schema(schema, ps);
+  }
+
+  template <typename T>
+  void add_schema_components(
+    T& helper, nlohmann::json& schema, const ReceiptPtr* r)
+  {
+    helper.template add_schema_component<decltype(Receipt::cert)>();
+    helper.template add_schema_component<decltype(Receipt::node_id)>();
+    helper
+      .template add_schema_component<decltype(Receipt::service_endorsements)>();
+    helper.template add_schema_component<decltype(Receipt::signature)>();
+
+    helper.template add_schema_component<decltype(ProofReceipt::proof)>();
+    helper
+      .template add_schema_component<decltype(ProofReceipt::leaf_components)>();
+    helper
+      .template add_schema_component<decltype(SignatureReceipt::signed_root)>();
+
+    fill_json_schema(schema, r);
+  }
 }

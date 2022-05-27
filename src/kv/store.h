@@ -8,10 +8,10 @@
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
+#include "kv/snapshot.h"
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "snapshot.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -47,10 +47,13 @@ namespace kv
     Term term_of_last_version = 0;
 
     Version last_replicated = 0;
+    // Version of the latest committable entry committed in this term and by
+    // _this_ store. Always reset on rollback.
     Version last_committable = 0;
+
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>>
+    std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
       pending_txs;
 
   public:
@@ -86,9 +89,9 @@ namespace kv
     MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
-
     std::shared_ptr<TxHistory> history = nullptr;
     EncryptorPtr encryptor = nullptr;
+    SnapshotterPtr snapshotter = nullptr;
 
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
@@ -186,7 +189,7 @@ namespace kv
       return consensus;
     }
 
-    void set_consensus(std::shared_ptr<Consensus> consensus_)
+    void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
       consensus = consensus_;
     }
@@ -196,7 +199,7 @@ namespace kv
       return history;
     }
 
-    void set_history(std::shared_ptr<TxHistory> history_)
+    void set_history(const std::shared_ptr<TxHistory>& history_)
     {
       history = history_;
     }
@@ -209,6 +212,11 @@ namespace kv
     EncryptorPtr get_encryptor() override
     {
       return encryptor;
+    }
+
+    void set_snapshotter(const SnapshotterPtr& snapshotter_)
+    {
+      snapshotter = snapshotter_;
     }
 
     /** Get a map by name, iff it exists at the given version.
@@ -513,7 +521,6 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = v;
-        last_committable = v;
       }
 
       if (h)
@@ -537,6 +544,14 @@ namespace kv
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
+
+      if (snapshotter)
+      {
+        auto c = get_consensus();
+        bool generate_snapshot = c && c->is_primary();
+        snapshotter->commit(v, generate_snapshot);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       if (v > current_version())
@@ -585,6 +600,12 @@ namespace kv
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
+
+      if (snapshotter)
+      {
+        snapshotter->rollback(tx_id.version);
+      }
+
       std::lock_guard<std::mutex> mguard(maps_lock);
 
       {
@@ -617,7 +638,7 @@ namespace kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        last_committable = tx_id.version;
+        last_committable = 0;
         unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
@@ -790,6 +811,7 @@ namespace kv
         LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
         return false;
       }
+
       return true;
     }
 
@@ -927,7 +949,7 @@ namespace kv
 
         pending_txs.insert(
           {txid.version,
-           std::make_pair(std::move(pending_tx), globally_committable)});
+           std::make_tuple(std::move(pending_tx), globally_committable)});
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
@@ -1022,6 +1044,29 @@ namespace kv
       }
     }
 
+    bool must_force_ledger_chunk(Version version) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return must_force_ledger_chunk_unsafe(version);
+    }
+
+    bool must_force_ledger_chunk_unsafe(Version version) override
+    {
+      // Note that snapshotter->record_committable, and therefore this function,
+      // assumes that `version` is a committable entry/signature.
+
+      bool r = flag_enabled_unsafe(
+                 AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
+        flag_enabled_unsafe(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      if (snapshotter)
+      {
+        r |= snapshotter->record_committable(version);
+      }
+
+      return r;
+    }
+
     void lock() override
     {
       maps_lock.lock();
@@ -1060,7 +1105,7 @@ namespace kv
       return {term_of_next_version, version};
     }
 
-    size_t commit_gap() override
+    size_t committable_gap() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
       return version - last_committable;

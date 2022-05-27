@@ -142,7 +142,9 @@ def run(
             dump_entry(snapshot, table_filter, tables_format_rules)
         return True
     else:
-        validator = ccf.ledger.LedgerValidator() if insecure_skip_verification else None
+        validator = (
+            ccf.ledger.LedgerValidator() if not insecure_skip_verification else None
+        )
         ledger_paths = paths
         ledger = ccf.ledger.Ledger(
             ledger_paths, committed_only=not uncommitted, validator=validator
@@ -169,7 +171,7 @@ def run(
                 LOG.warning("Skipped ledger integrity verification")
             else:
                 LOG.info(
-                    f"Found {validator.signature_count()} signatures, and verified until {validator.last_verified_txid()}"
+                    f"Found {validator.signature_count} signatures, and verified until {validator.last_verified_txid()}"
                 )
         return not has_error
 

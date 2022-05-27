@@ -40,13 +40,17 @@ namespace crypto
     std::string hex_str() const;
 
     static Sha256Hash from_hex_string(const std::string& str);
-    static Sha256Hash from_span(const std::span<uint8_t, SIZE>& sp);
+    static Sha256Hash from_span(const std::span<const uint8_t, SIZE>& sp);
     static Sha256Hash from_representation(const Representation& r);
   };
 
   void to_json(nlohmann::json& j, const Sha256Hash& hash);
 
   void from_json(const nlohmann::json& j, Sha256Hash& hash);
+
+  std::string schema_name(const Sha256Hash*);
+
+  void fill_json_schema(nlohmann::json& schema, const Sha256Hash*);
 
   bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs);
 

@@ -47,11 +47,12 @@ Glossary
   Observed Reconfiguration Commit (ORC)
     A particular kind of remote procedure call submitted by a replica when it has observed the commit of a transaction that changes the network configuration. See :ref:`Two-transaction Reconfiguration <architecture/consensus/2tx-reconfig:Two-transaction Reconfiguration>`.
 
+  Omission Fault
+    Type of failure where consensus messages exchanged between nodes are lost due to unreliable network. This may cause one or more nodes to be isolated from the rest of the network.
+  
   Open Enclave
     `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
 
-  Open Enclave Engine
-    `Open Enclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
 
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
@@ -63,7 +64,7 @@ Glossary
     The ring buffer is a data structure that allows communication between the (unprotected) host and the enclave. Data that is written to one side can be read on the other. Only specific types of messages are supported to make sure each package that goes across is read by the right process in the right way.
 
   REST
-    `Representational state transfer <Representational state transfer>`_ is a set of constraints on web APIs, usually implemented over HTTP using JSON as request and response objects exchanged between a requesting client and an implementation server.
+    `Representational state transfer <https://en.wikipedia.org/wiki/Representational_state_transfer>`_ is a set of constraints on web APIs, usually implemented over HTTP using JSON as request and response objects exchanged between a requesting client and an implementation server.
 
   RPC
     `Remote Procedure Call <https://en.wikipedia.org/wiki/Remote_procedure_call>`_ is a way to execute functions in remote machines. CCF uses :term:`REST` host services to allow clients to execute programs inside the :term:`enclave` via the :term:`ring buffer`.

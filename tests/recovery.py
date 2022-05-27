@@ -15,6 +15,8 @@ from infra.consortium import slurp_file
 import infra.health_watcher
 import time
 from e2e_logging import verify_receipt
+import infra.service_load
+import ccf.tx_id
 
 from loguru import logger as LOG
 
@@ -39,7 +41,7 @@ def get_and_verify_historical_receipt(network, ref_msg):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=False):
+def test_recover_service(network, args, from_snapshot=True):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -57,9 +59,6 @@ def test_recover_service(network, args, from_snapshot=False):
 
     watcher.wait_for_recovery()
 
-    # Stop remaining nodes
-    network.stop_all_nodes()
-
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     recovered_network = infra.network.Network(
@@ -74,6 +73,9 @@ def test_recover_service(network, args, from_snapshot=False):
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
         snapshots_dir=snapshots_dir,
+    )
+    recovered_network.verify_service_certificate_validity_period(
+        args.initial_service_cert_validity_days
     )
 
     recovered_network.recover(args)
@@ -109,14 +111,11 @@ def test_recover_service_with_wrong_identity(network, args):
 
     exception = None
     try:
-        # The first remote.get() will fail because the node aborts before it
-        # writes its node cert, so we want a short file_timeout.
         broken_network.start_in_recovery(
             args,
             ledger_dir=current_ledger_dir,
             committed_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
-            file_timeout=3,
         )
     except Exception as ex:
         exception = ex
@@ -321,6 +320,8 @@ def test_share_resilience(network, args, from_snapshot=False):
         new_primary,
         infra.network.ServiceStatus.OPEN,
     )
+    if recovered_network.service_load:
+        recovered_network.service_load.set_network(recovered_network)
     return recovered_network
 
 
@@ -441,6 +442,49 @@ def run_corrupted_ledger(args):
         )
 
 
+def find_recovery_tx_seqno(node):
+    min_recovery_seqno = 0
+    with node.client() as c:
+        r = c.get("/node/state").body.json()
+        if "last_recovered_seqno" not in r:
+            return None
+        min_recovery_seqno = r["last_recovered_seqno"]
+
+    ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
+    for chunk in ledger:
+        _, chunk_end_seqno = chunk.get_seqnos()
+        if chunk_end_seqno < min_recovery_seqno:
+            continue
+        for tx in chunk:
+            tables = tx.get_public_domain().get_tables()
+            seqno = tx.get_public_domain().get_seqno()
+            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
+                service_status = json.loads(
+                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                    ]
+                )["status"]
+                if service_status == "Open":
+                    return seqno
+    return None
+
+
+def check_snapshots(args, network):
+    primary, _ = network.find_primary()
+    seqno = find_recovery_tx_seqno(primary)
+
+    if seqno:
+        # Check that primary node has produced a snapshot. The wait timeout is larger than the
+        # signature interval, so the snapshots should become available within the timeout.
+        assert args.sig_ms_interval < 3000
+        if not network.wait_for_snapshot_committed_for(
+            seqno, timeout=3, on_all_nodes=True
+        ):
+            raise ValueError(
+                f"No snapshot found after seqno={seqno} on primary {primary.local_node_id}"
+            )
+
+
 def run(args):
     recoveries_count = 5
 
@@ -454,6 +498,21 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
+
+        if args.with_load:
+            # See https://github.com/microsoft/CCF/issues/3788 for justification
+            LOG.info("Loading service before recovery...")
+            primary, _ = network.find_primary()
+            with infra.service_load.load() as load:
+                load.begin(network, rate=infra.service_load.DEFAULT_REQUEST_RATE_S * 10)
+                while True:
+                    with primary.client() as c:
+                        r = c.get("/node/commit", log_capture=[]).body.json()
+                        tx_id = ccf.tx_id.TxID.from_str(r["transaction_id"])
+                        if tx_id.seqno > args.sig_tx_interval:
+                            LOG.info(f"Loaded service successfully: tx_id, {tx_id}")
+                            break
+                    time.sleep(0.1)
 
         ref_msg = get_and_verify_historical_receipt(network, None)
 
@@ -480,14 +539,20 @@ def run(args):
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
 
-            primary, _ = network.find_primary()
-
+            check_snapshots(args, network)
             ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
             LOG.success("Recovery complete on all nodes")
 
+        primary, _ = network.find_primary()
+        network.stop_all_nodes()
+
     # Verify that a new ledger chunk was created at the start of each recovery
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
+    ledger = ccf.ledger.Ledger(
+        primary.remote.ledger_paths(),
+        committed_only=False,
+        validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
+    )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()
         for tx in chunk:
@@ -499,11 +564,13 @@ def run(args):
                         ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
-                if service_status == "Opening":
-                    LOG.info(f"New ledger chunk found for service opening at {seqno}")
+                if service_status == "Opening" or service_status == "Recovering":
+                    LOG.info(
+                        f"New ledger chunk found for service {service_status.lower()} at {seqno}"
+                    )
                     assert (
                         chunk_start_seqno == seqno
-                    ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
+                    ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_with_expired_cert(args)
 
@@ -512,7 +579,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.description = """
-This test_recover_service executes multiple recoveries (as specified by the "--recovery" arg),
+This test_recover_service executes multiple recoveries,
 with a fixed number of messages applied between each network crash (as
 specified by the "--msgs-per-recovery" arg). After the network is recovered
 and before applying new transactions, all transactions previously applied are
@@ -524,10 +591,16 @@ checked. Note that the key for each logging message is unique (per table).
             type=int,
             default=5,
         )
+        parser.add_argument(
+            "--with-load",
+            help="If set, the service is loaded before being recovered",
+            action="store_true",
+            default=False,
+        )
 
     args = infra.e2e_args.cli_args(add)
 
-    cr = ConcurrentRunner()
+    cr = ConcurrentRunner(add)
 
     cr.add(
         "recovery",

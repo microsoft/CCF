@@ -7,9 +7,7 @@
 #include <CLI11/CLI11.hpp>
 
 constexpr size_t certificate_validity_period_days = 365;
-auto valid_from =
-  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-    std::chrono::system_clock::now())); // now
+auto valid_from = ds::to_x509_time_string(std::chrono::system_clock::now());
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 

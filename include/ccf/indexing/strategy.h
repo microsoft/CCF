@@ -10,6 +10,15 @@
 
 namespace ccf::indexing
 {
+  /** The base class for all indexing strategies.
+   *
+   * Sub-class this and override handle_committed_transaction to implement your
+   * own indexing strategy. Create an instance of this on each node, and then
+   * install it with context.get_indexing_strategies().install_strategy(). It
+   * will then be given each committed transaction shortly after commit. You
+   * should build some aggregate/summary from these transactions, and return
+   * that to endpoint handlers in an efficient format.
+   */
   class Strategy
   {
     const std::string name;
@@ -23,15 +32,16 @@ namespace ccf::indexing
       return name;
     }
 
-    // Receives every committed transaction, in-order
+    /** Receives every committed transaction, in-order, shortly after commit
+     */
     virtual void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) = 0;
 
     virtual void tick() {}
 
-    // Returns next tx for which this index should be populated, or
-    // nullopt if it wants none. Allows indexes to be populated
-    // lazily on-demand, or out-of-order, or reset
+    /** Returns next tx for which this index should be populated, or
+     * nullopt if it wants none. Allows indexes to be populated
+     * lazily on-demand, or out-of-order, or reset */
     virtual std::optional<ccf::SeqNo> next_requested() = 0;
   };
 
@@ -41,7 +51,7 @@ namespace ccf::indexing
   class LazyStrategy : public Base
   {
   protected:
-    ccf::SeqNo requested_seqno = 0;
+    ccf::SeqNo max_requested_seqno = 0;
 
   public:
     using Base::Base;
@@ -51,18 +61,7 @@ namespace ccf::indexing
       const auto base = Base::next_requested();
       if (base.has_value())
       {
-        if (requested_seqno < *base)
-        {
-          if (requested_seqno > 0)
-          {
-            return requested_seqno;
-          }
-          else
-          {
-            return std::nullopt;
-          }
-        }
-        else
+        if (*base <= max_requested_seqno)
         {
           return base;
         }
@@ -73,9 +72,9 @@ namespace ccf::indexing
 
     void extend_index_to(ccf::TxID to_txid)
     {
-      if (to_txid.seqno > requested_seqno)
+      if (to_txid.seqno > max_requested_seqno)
       {
-        requested_seqno = to_txid.seqno;
+        max_requested_seqno = to_txid.seqno;
       }
     }
   };

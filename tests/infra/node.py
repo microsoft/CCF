@@ -29,6 +29,8 @@ from loguru import logger as LOG
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
+NODE_STARTUP_RETRY_COUNT = 5
+
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -84,11 +86,12 @@ def strip_version(full_version):
 
 
 def version_rc(full_version):
-    if full_version is None:
-        return (None, 0)
-    tokens = full_version.split("-")
-    rc_tkn = tokens[2] if len(tokens) > 2 else None
-    return (int(rc_tkn[2:]), len(tokens)) if rc_tkn else (None, 0)
+    if full_version is not None:
+        tokens = full_version.split("-")
+        if len(tokens) > 2 and "rc" in tokens[2]:
+            rc_tkn = tokens[2]
+            return (int(rc_tkn[2:]), len(tokens))
+    return (None, 0)
 
 
 class Node:
@@ -131,6 +134,7 @@ class Node:
         self.certificate_valid_from = None
         self.certificate_validity_days = None
         self.initial_node_data_json_file = node_data_json_file
+        self.label = None
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -257,6 +261,7 @@ class Node:
         )
         self.common_dir = common_dir
         members_info = members_info or []
+        self.label = label
 
         self.remote = self.remote_shim(
             start_type,
@@ -304,15 +309,19 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
-        try:
-            file_timeout = kwargs.get("file_timeout")
-            self.remote.get_startup_files(
-                self.common_dir, timeout=file_timeout or infra.remote.FILE_TIMEOUT
-            )
-        except Exception as e:
-            LOG.exception(e)
-            self.remote.get_logs(tail_lines_len=None)
-            raise
+        # Detect whether node started up successfully
+        for _ in range(NODE_STARTUP_RETRY_COUNT):
+            try:
+                if self.remote.check_done():
+                    raise RuntimeError("Node crashed at startup")
+                self.remote.get_startup_files(self.common_dir)
+                break
+            except Exception as e:
+                if self.remote.check_done():
+                    self.remote.get_logs(tail_lines_len=None)
+                    raise RuntimeError(
+                        f"Error starting node {self.local_node_id}"
+                    ) from e
 
         self.consensus = kwargs.get("consensus")
 
@@ -325,7 +334,10 @@ class Node:
 
         self._read_ports()
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
-        LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
+        start_msg = f"Node {self.local_node_id} started: {self.node_id}"
+        if self.version is not None:
+            start_msg += f" [version: {self.version}]"
+        LOG.info(start_msg)
 
     def _resolve_address(self, address_file_path, interfaces):
         with open(address_file_path, "r", encoding="utf-8") as f:
@@ -440,14 +452,16 @@ class Node:
                 f"Node {self.local_node_id} failed to join the network"
             ) from e
 
-    def get_ledger_public_tables_at(self, seqno):
-        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+    def get_ledger_public_tables_at(self, seqno, insecure=False):
+        validator = ccf.ledger.LedgerValidator() if not insecure else None
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths(), validator=validator)
         assert ledger.last_committed_chunk_range[1] >= seqno
         tx = ledger.get_transaction(seqno)
         return tx.get_public_domain().get_tables()
 
-    def get_ledger_public_state_at(self, seqno):
-        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+    def get_ledger_public_state_at(self, seqno, insecure=False):
+        validator = ccf.ledger.LedgerValidator() if not insecure else None
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths(), validator=validator)
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
 
@@ -502,17 +516,36 @@ class Node:
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
-    def get_public_rpc_host(self):
-        return self.remote.get_host()
+    def get_public_rpc_host(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
+        return self.host.rpc_interfaces[interface_name].public_host
 
     def get_public_rpc_port(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
-        return self.host.rpc_interfaces[interface_name].port
+        return self.host.rpc_interfaces[interface_name].public_port
 
-    def session_ca(self, self_signed_ok):
-        if self_signed_ok:
-            return {"ca": ""}
+    def retrieve_self_signed_cert(self, *args, **kwargs):
+        # Retrieve and overwrite node self-signed certificate in common directory
+        with self.client(*args, **kwargs) as c:
+            new_self_signed_cert = c.get("/node/self_signed_certificate").body.json()[
+                "self_signed_certificate"
+            ]
+            with open(
+                os.path.join(self.common_dir, f"{self.local_node_id}.pem"),
+                "w",
+                encoding="utf-8",
+            ) as self_signed_cert_file:
+                self_signed_cert_file.write(new_self_signed_cert)
+            return new_self_signed_cert
+
+    def session_ca(self, self_signed=False, verify_ca=True):
+        if not verify_ca:
+            return {"ca": None}
+
+        if self_signed:
+            return {"ca": os.path.join(self.common_dir, f"{self.local_node_id}.pem")}
         else:
             return {"ca": os.path.join(self.common_dir, "service_cert.pem")}
 
@@ -521,7 +554,7 @@ class Node:
         identity=None,
         signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
-        self_signed_ok=False,
+        verify_ca=True,
         **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
@@ -529,7 +562,19 @@ class Node:
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
             )
 
-        akwargs = self.session_ca(self_signed_ok)
+        try:
+            rpc_interface = self.host.rpc_interfaces[interface_name]
+        except KeyError:
+            LOG.error(
+                f'Cannot create client on interface "{interface_name}" - available interfaces: {self.host.rpc_interfaces.keys()}'
+            )
+            raise
+
+        akwargs = self.session_ca(
+            self_signed=rpc_interface.endorsement.authority
+            == infra.interfaces.EndorsementAuthority.Node,
+            verify_ca=verify_ca,
+        )
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
@@ -540,14 +585,6 @@ class Node:
         if self.curl:
             akwargs["curl"] = True
 
-        try:
-            rpc_interface = self.host.rpc_interfaces[interface_name]
-        except KeyError:
-            LOG.error(
-                f'Cannot create client on interface "{interface_name}" - available interfaces: {self.host.rpc_interfaces.keys()}'
-            )
-            raise
-
         return infra.clients.client(
             rpc_interface.public_host, rpc_interface.public_port, **akwargs
         )
@@ -557,7 +594,7 @@ class Node:
     ):
         return ssl.get_server_certificate(
             (
-                self.get_public_rpc_host(),
+                self.get_public_rpc_host(interface_name=interface_name),
                 self.get_public_rpc_port(interface_name=interface_name),
             )
         )
@@ -603,12 +640,17 @@ class Node:
                     f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
                 )
         else:
-            if (
-                infra.crypto.datetime_to_X509time(valid_from)
-                != self.certificate_valid_from
-            ):
+            # Does this check provide any more precision than the check for valid+from + timedelta below?
+            normalized_from = infra.crypto.datetime_to_X509time(valid_from)
+            normalized_expected = (
+                self.certificate_valid_from
+                if isinstance(self.certificate_valid_from, str)
+                else infra.crypto.datetime_to_X509time(self.certificate_valid_from)
+            )
+
+            if normalized_from != normalized_expected:
                 raise ValueError(
-                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{infra.crypto.datetime_to_X509time(valid_from)}", but expected "{self.certificate_valid_from}"'
+                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{normalized_from}", but expected "{normalized_expected}"'
                 )
 
         # Note: CCF substracts one second from validity period since x509 specifies
@@ -619,7 +661,7 @@ class Node:
         )
         if valid_to != expected_valid_to:
             raise ValueError(
-                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+                f'Validity period for node {self.local_node_id} certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
             )
 
         validity_period = valid_to - valid_from + timedelta(seconds=1)
@@ -678,6 +720,21 @@ class Node:
             raise ValueError(
                 f"Unable to retrieve entry at TxID {view}.{seqno} on node {node.local_node_id} after {timeout}s"
             )
+
+    def wait_for_leadership_state(self, min_view, leadership_state, timeout=3):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            with self.client() as c:
+                r = c.get("/node/consensus").body.json()["details"]
+                if (
+                    r["current_view"] > min_view
+                    and r["leadership_state"] == leadership_state
+                ):
+                    return
+            time.sleep(0.1)
+        raise TimeoutError(
+            f"Node {self.local_node_id} was not in leadership state {leadership_state} in view > {min_view} after {timeout}s: {r}"
+        )
 
 
 @contextmanager

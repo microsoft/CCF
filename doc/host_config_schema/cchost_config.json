@@ -19,7 +19,8 @@
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
-      "required": ["file"]
+      "required": ["file"],
+      "additionalProperties": false
     },
     "network": {
       "type": "object",
@@ -30,10 +31,16 @@
             "bind_address": {
               "type": "string",
               "description": "Local address the node binds to and listens on"
+            },
+            "published_address": {
+              "type": "string",
+              "default": "Value of 'bind_address'",
+              "description": "The published node address advertised to other nodes"
             }
           },
           "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
-          "required": ["bind_address"]
+          "required": ["bind_address"],
+          "additionalProperties": false
         },
         "rpc_interfaces": {
           "type": "object",
@@ -48,6 +55,11 @@
                 "type": "string",
                 "default": "Value of 'bind_address'",
                 "description": "The published RPC address advertised to clients"
+              },
+              "protocol": {
+                "type": "string",
+                "default": "tcp",
+                "description": "The RPC protocol used (udp | tcp)"
               },
               "max_open_sessions_soft": {
                 "type": "integer",
@@ -69,7 +81,8 @@
                     "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed."
                   }
                 },
-                "required": ["authority"]
+                "required": ["authority"],
+                "additionalProperties": false
               }
             },
             "required": ["bind_address"]
@@ -78,7 +91,8 @@
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
-      "required": ["node_to_node_interface", "rpc_interfaces"]
+      "required": ["node_to_node_interface", "rpc_interfaces"],
+      "additionalProperties": false
     },
     "command": {
       "type": "object",
@@ -91,7 +105,7 @@
         "service_certificate_file": {
           "type": "string",
           "default": "service_cert.pem",
-          "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing network to join"
+          "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing service to join."
         }
       },
       "allOf": [
@@ -127,15 +141,16 @@
                           "description": "Path to member x509 identity certificate (PEM)"
                         },
                         "encryption_public_key_file": {
-                          "type": "string",
+                          "type": ["string", "null"],
                           "description": "Path to member encryption public key (PEM)"
                         },
                         "data_json_file": {
-                          "type": "string",
+                          "type": ["string", "null"],
                           "description": "Path to member data file (JSON)"
                         }
                       },
-                      "required": ["certificate_file"]
+                      "required": ["certificate_file"],
+                      "additionalProperties": false
                     },
                     "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
                   },
@@ -153,16 +168,24 @@
                         "description": "The maximum number of days allowed for node certificate validity period",
                         "minimum": 1
                       },
+                      "maximum_service_certificate_validity_days": {
+                        "type": "integer",
+                        "default": 365,
+                        "description": "The maximum number of days allowed for service certificate validity period",
+                        "minimum": 1
+                      },
                       "reconfiguration_type": {
                         "type": "string",
                         "default": "OneTransaction",
                         "enum": ["OneTransaction", "TwoTransaction"]
                       }
                     },
-                    "required": ["recovery_threshold"]
+                    "required": ["recovery_threshold"],
+                    "additionalProperties": false
                   }
                 },
-                "required": ["constitution_files", "members"]
+                "required": ["constitution_files", "members"],
+                "additionalProperties": false
               }
             },
             "required": ["start"]
@@ -184,10 +207,11 @@
                   "retry_timeout": {
                     "type": "string",
                     "default": "1000ms",
-                    "description": "Interval (time string) at which the node sends join requests to the existing network"
+                    "description": "Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of 'consensus.election_timeout' set on the primary node of the existing service to join."
                   }
                 },
-                "required": ["target_rpc_address"]
+                "required": ["target_rpc_address"],
+                "additionalProperties": false
               }
             },
             "required": ["join"]
@@ -213,7 +237,8 @@
                     "description": "Path to the previous service certificate (PEM) file"
                   }
                 },
-                "required": ["previous_service_identity_file"]
+                "required": ["previous_service_identity_file"],
+                "additionalProperties": false
               }
             }
           }
@@ -250,10 +275,11 @@
           "minimum": 1
         }
       },
-      "description": "This section includes configuration for the node x509 identity certificate"
+      "description": "This section includes configuration for the node x509 identity certificate",
+      "additionalProperties": false
     },
     "node_data_json_file": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier."
     },
     "ledger": {
@@ -277,7 +303,8 @@
           "description": "Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created"
         }
       },
-      "description": "This section includes configuration for the ledger directories and files"
+      "description": "This section includes configuration for the ledger directories and files",
+      "additionalProperties": false
     },
     "snapshots": {
       "type": "object",
@@ -294,7 +321,8 @@
           "minimum": 1
         }
       },
-      "description": "This section includes configuration for the snapshot directory and files"
+      "description": "This section includes configuration for the snapshot directory and files",
+      "additionalProperties": false
     },
     "logging": {
       "type": "object",
@@ -312,7 +340,8 @@
           "description": "If 'json', node logs will be formatted as JSON"
         }
       },
-      "description": "This section includes configuration for the logging of the node process"
+      "description": "This section includes configuration for the logging of the node process",
+      "additionalProperties": false
     },
     "consensus": {
       "type": "object",
@@ -331,10 +360,11 @@
         "election_timeout": {
           "type": "string",
           "default": "5000ms",
-          "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than 'message_timeout'"
+          "description": "Maximum timeout (time string) after which backup nodes that have not received any message from the primary node (or voted for a candidate) will trigger a new election. This timeout is also used by candidates to restart unsuccessful elections. This should be set to a significantly greater value than 'message_timeout' plus the expected network delay."
         }
       },
-      "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)"
+      "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)",
+      "additionalProperties": false
     },
     "ledger_signatures": {
       "type": "object",
@@ -351,7 +381,8 @@
           "description": "Maximum duration after which a signature transaction is automatically generated"
         }
       },
-      "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput."
+      "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.",
+      "additionalProperties": false
     },
     "jwt": {
       "type": "object",
@@ -362,7 +393,8 @@
           "description": "Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed"
         }
       },
-      "description": "This section includes configuration for JWT issuers automatic refresh"
+      "description": "This section includes configuration for JWT issuers automatic refresh",
+      "additionalProperties": false
     },
     "output_files": {
       "type": "object",
@@ -386,7 +418,8 @@
           "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
         }
       },
-      "description": "This section includes configuration for additional files output by the node"
+      "description": "This section includes configuration for additional files output by the node",
+      "additionalProperties": false
     },
     "tick_interval": {
       "type": "string",
@@ -399,7 +432,7 @@
       "description": "Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log"
     },
     "node_client_interface": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes)"
     },
     "client_connection_timeout": {
@@ -432,8 +465,10 @@
           "description": "Maximum size (size string) of individual ringbuffer message fragments. Messages larger than this will be split into multiple fragments"
         }
       },
-      "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care!)"
+      "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care!)",
+      "additionalProperties": false
     }
   },
-  "required": ["enclave", "network", "command"]
+  "required": ["enclave", "network", "command"],
+  "additionalProperties": false
 }

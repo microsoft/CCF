@@ -124,6 +124,21 @@ namespace ccf::indexing::strategies
         "{}: {} -> {} for {}", name, range.first, range.second, hex_key);
     }
 
+    void store_empty_buckets(
+      const ccf::ByteVector& k, Range begin, const Range& end)
+    {
+      while (begin != end)
+      {
+        LOG_TRACE_FMT(
+          "Storing empty bucket for range [{}, {}) for key {:02x}",
+          begin.first,
+          begin.second,
+          fmt::join(k, ""));
+        store_to_disk(k, begin, {});
+        begin = get_range_for(begin.second);
+      }
+    }
+
     void store_to_disk(
       const ccf::ByteVector& k, const Range& range, SeqNoCollection&& seqnos)
     {
@@ -142,25 +157,37 @@ namespace ccf::indexing::strategies
     std::optional<SeqNoCollection> get_write_txs_impl(
       const ccf::ByteVector& serialised_key, ccf::SeqNo from, ccf::SeqNo to)
     {
+      if (to < from)
+      {
+        throw std::logic_error(
+          fmt::format("Range goes backwards: {} -> {}", from, to));
+      }
+
+      if (to > current_txid.seqno)
+      {
+        // If the requested range hasn't been populated yet, indicate
+        // that with nullopt
+        return std::nullopt;
+      }
+
       auto from_range = get_range_for(from);
       const auto to_range = get_range_for(to);
 
       // Check that once the entire requested range is fetched, it will fit
       // into the LRU at the same time
-      if ((to - from) > max_requestable_range())
+      const auto range_len = to - from;
+      if (range_len > max_requestable_range())
       {
-        const auto num_buckets_required =
-          1 + (to_range.first - from_range.first) / seqnos_per_bucket;
-        if (num_buckets_required > old_results.get_max_size())
-        {
-          throw std::logic_error(fmt::format(
-            "Fetching {} to {} would require {} buckets, but we can only store "
-            "{} in-memory at once",
-            from,
-            to,
-            num_buckets_required,
-            old_results.get_max_size()));
-        }
+        throw std::logic_error(fmt::format(
+          "Requesting transactions from {} to {} requires buckets covering "
+          "[{}, {}). These {} transactions are larger than the maximum "
+          "requestable {}",
+          from,
+          to,
+          from_range.first,
+          to_range.second,
+          range_len,
+          max_requestable_range()));
       }
 
       SeqNoCollection result;
@@ -268,10 +295,14 @@ namespace ccf::indexing::strategies
           // Another possibility is that the requested range is _after_ the
           // current_results for this key. That means, assuming we have
           // constructed a complete index up to to_range, that there are no
-          // later buckets to fetch - we have constructed a complete result
+          // later buckets to fetch - we have constructed a complete result.
+          // Similarly, if we have _no_ current_results for this key, then
+          // (assuming we have a complete index), there are no writes to this
+          // key, and we have constructed a complete result.
           else if (
-            current_it != current_results.end() &&
-            current_it->second.first.first < to_range.first)
+            (current_it != current_results.end() &&
+             current_it->second.first.first < from_range.first) ||
+            current_it == current_results.end())
           {
             break;
           }
@@ -304,9 +335,13 @@ namespace ccf::indexing::strategies
       return std::nullopt;
     }
 
+    // This returns the max range which may be requested. This accounts for the
+    // case where the range is not aligned with a bucket start, in which case we
+    // will have unrequested entries sharing a bucket with the requested entries
+    // at the beginning and end, essentially wasting some space.
     size_t max_requestable_range() const
     {
-      return (old_results.get_max_size() * seqnos_per_bucket) - 1;
+      return ((old_results.get_max_size() - 1) * seqnos_per_bucket);
     }
   };
 
@@ -324,7 +359,20 @@ namespace ccf::indexing::strategies
       const auto current_range = current_result.first;
       if (range != current_range)
       {
+        LOG_TRACE_FMT(
+          "Storing {} entries from real range [{}, {}) for key {:02x}",
+          current_result.second.size(),
+          current_range.first,
+          current_range.second,
+          fmt::join(k, ""));
         impl->store_to_disk(k, current_range, std::move(current_result.second));
+
+        const auto next_range = impl->get_range_for(current_range.second);
+        if (next_range != range)
+        {
+          impl->store_empty_buckets(k, next_range, range);
+        }
+
         current_result.first = range;
         current_result.second.clear();
       }
@@ -332,6 +380,7 @@ namespace ccf::indexing::strategies
     else
     {
       // This key has never been seen before. Insert a new bucket for it
+      impl->store_empty_buckets(k, impl->get_range_for(0), range);
       it = impl->current_results
              .emplace(k, std::make_pair(range, SeqNoCollection()))
              .first;
@@ -359,8 +408,9 @@ namespace ccf::indexing::strategies
     if (kv::get_security_domain(map_name_) != kv::SecurityDomain::PUBLIC)
     {
       throw std::logic_error(fmt::format(
-        "This Strategy is currently only implemented for public tables, so "
-        "cannot be used for '{}'",
+        "This Strategy ({}) is currently only implemented for public tables, "
+        "so cannot be used for '{}'",
+        get_name(),
         map_name_));
     }
 

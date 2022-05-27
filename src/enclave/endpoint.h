@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <sys/socket.h>
 #include <vector>
 
 namespace ccf
@@ -11,7 +12,7 @@ namespace ccf
   public:
     virtual ~Endpoint() {}
 
-    virtual void recv(const uint8_t* data, size_t size) = 0;
-    virtual void send(std::vector<uint8_t>&& data) = 0;
+    virtual void recv(const uint8_t* data, size_t size, sockaddr) = 0;
+    virtual void send(std::vector<uint8_t>&& data, sockaddr) = 0;
   };
 }

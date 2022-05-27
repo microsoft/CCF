@@ -80,7 +80,7 @@ namespace ccf
     ERROR(InvalidQuote)
     ERROR(InvalidNodeState)
     ERROR(NodeAlreadyExists)
-    ERROR(StartupSnapshotIsOld)
+    ERROR(StartupSeqnoIsOld)
     ERROR(CSRPublicKeyInvalid)
 
     ERROR(ResharingAlreadyCompleted)

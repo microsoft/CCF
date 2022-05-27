@@ -49,7 +49,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         max_num_configs = 0
         all_same_rid = True
         for node in network.get_joined_nodes():
-            with node.client(self_signed_ok=True) as c:
+            with node.client(verify_ca=False) as c:
                 try:
                     r = c.get("/node/consensus")
                     rj = r.body.json()
@@ -68,8 +68,8 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
             raise Exception("Reconfiguration did not complete in time")
 
 
-@reqs.description("Adding a valid node without snapshot")
-def test_add_node(network, args):
+@reqs.description("Adding a valid node")
+def test_add_node(network, args, from_snapshot=True):
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
@@ -83,12 +83,14 @@ def test_add_node(network, args):
                 ),
                 operator_rpc_interface: infra.interfaces.RPCInterface(
                     host=host,
-                    endorsement=infra.interfaces.Endorsement(authority="Node"),
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    ),
                 ),
             }
         )
     )
-    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.join_node(new_node, args.package, args, from_snapshot=from_snapshot)
 
     # Verify self-signed node certificate validity period
     new_node.verify_certificate_validity_period(interface_name=operator_rpc_interface)
@@ -98,12 +100,14 @@ def test_add_node(network, args):
         args,
         validity_period_days=args.maximum_node_certificate_validity_days // 2,
     )
-    with new_node.client() as c:
-        s = c.get("/node/state")
-        assert s.body.json()["node_id"] == new_node.node_id
-        assert (
-            s.body.json()["startup_seqno"] == 0
-        ), "Node started without snapshot but reports startup seqno != 0"
+
+    if not from_snapshot:
+        with new_node.client() as c:
+            s = c.get("/node/state")
+            assert s.body.json()["node_id"] == new_node.node_id
+            assert (
+                s.body.json()["startup_seqno"] == 0
+            ), "Node started without snapshot but reports startup seqno != 0"
 
     # Now that the node is trusted, verify endorsed certificate validity period
     new_node.verify_certificate_validity_period()
@@ -162,7 +166,10 @@ def test_change_curve(network, args):
 def test_add_node_from_backup(network, args):
     new_node = network.create_node("local://localhost")
     network.join_node(
-        new_node, args.package, args, target_node=network.find_any_backup()
+        new_node,
+        args.package,
+        args,
+        target_node=network.find_any_backup(),
     )
     network.trust_node(new_node, args)
     return network
@@ -170,35 +177,25 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-def test_add_node_from_snapshot(
-    network, args, copy_ledger_read_only=True, from_backup=False
-):
+def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=False):
     # Before adding the node from a snapshot, override at least one app entry
     # and wait for a new committed snapshot covering that entry, so that there
     # is at least one historical entry to verify.
     network.txs.issue(network, number_txs=1)
+    idx, historical_entry = network.txs.get_last_tx(priv=True)
     for _ in range(1, args.snapshot_tx_interval):
         network.txs.issue(network, number_txs=1, repeat=True)
         last_tx = network.txs.get_last_tx(priv=True)
         if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
             break
 
-    target_node = None
-    snapshots_dir = None
-    if from_backup:
-        primary, target_node = network.find_primary_and_any_backup()
-        # Retrieve snapshot from primary as only primary node
-        # generates snapshots
-        snapshots_dir = network.get_committed_snapshots(primary)
-
     new_node = network.create_node("local://localhost")
     network.join_node(
         new_node,
         args.package,
         args,
-        copy_ledger_read_only=copy_ledger_read_only,
-        target_node=target_node,
-        snapshots_dir=snapshots_dir,
+        copy_ledger=copy_ledger,
+        target_node=network.find_any_backup() if from_backup else None,
         from_snapshot=True,
     )
     network.trust_node(new_node, args)
@@ -210,8 +207,29 @@ def test_add_node_from_snapshot(
         ), "Node started from snapshot but reports startup seqno of 0"
 
     # Finally, verify all app entries on the new node, including historical ones
-    # from the historical ledger
-    network.txs.verify(node=new_node, include_historical=copy_ledger_read_only)
+    # from the historical ledger and skip historical entries if ledger
+    # was not copied to node.
+    network.txs.verify(node=new_node, include_historical=copy_ledger)
+
+    # Check that historical entry can be retrieved (or not, if new node does not
+    # have access to historical ledger files).
+    try:
+        network.txs.verify_tx(
+            node=new_node,
+            idx=idx,
+            msg=historical_entry["msg"],
+            seqno=historical_entry["seqno"],
+            view=historical_entry["view"],
+            historical=True,
+        )
+    except infra.logging_app.LoggingTxsVerifyException:
+        assert (
+            not copy_ledger
+        ), f"New node {new_node.local_node_id} without ledger should not be able to serve historical entries"
+    else:
+        assert (
+            copy_ledger
+        ), f"New node {new_node.local_node_id} with ledger should be able to serve historical entries"
 
     return network
 
@@ -229,7 +247,7 @@ def test_add_as_many_pending_nodes(network, args):
     new_nodes = []
     for _ in range(number_new_nodes):
         new_node = network.create_node("local://localhost")
-        network.join_node(new_node, args.package, args, from_snapshot=False)
+        network.join_node(new_node, args.package, args)
         new_nodes.append(new_node)
 
     for new_node in new_nodes:
@@ -357,7 +375,7 @@ def test_node_replacement(network, args):
         f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
         node_port=node_to_replace.n2n_interface.port,
     )
-    network.join_node(replacement_node, args.package, args, from_snapshot=False)
+    network.join_node(replacement_node, args.package, args)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
@@ -400,9 +418,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(
-                        infra.crypto.datetime_to_X509time(datetime.now())
-                    ),
+                    "valid_from": str(datetime.now()),
                 },
             },
             {
@@ -487,7 +503,7 @@ def test_learner_catches_up(network, args):
         num_nodes_before = len(c0)
 
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
 
     with new_node.client() as c:
@@ -530,7 +546,7 @@ def test_add_node_with_read_only_ledger(network, args):
 
     new_node = network.create_node("local://localhost")
     network.join_node(
-        new_node, args.package, args, from_snapshot=False, copy_ledger_read_only=True
+        new_node, args.package, args, from_snapshot=False, copy_ledger=True
     )
     network.trust_node(new_node, args)
     return network
@@ -560,20 +576,20 @@ def run(args):
         test_version(network, args)
 
         if args.consensus != "BFT":
+            test_add_node(network, args, from_snapshot=False)
+            test_add_node_with_read_only_ledger(network, args)
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
-            test_add_node(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
             test_retire_primary(network, args)
-            test_add_node_with_read_only_ledger(network, args)
 
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)
-            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            test_add_node_from_snapshot(network, args, copy_ledger=False)
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
@@ -642,8 +658,33 @@ def run_join_old_snapshot(args):
                     snapshots_dir=tmp_dir,
                     timeout=3,
                 )
-            except infra.network.StartupSnapshotIsOld:
-                pass
+            except infra.network.StartupSeqnoIsOld:
+                LOG.info(
+                    f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
+                )
+            else:
+                raise RuntimeError(
+                    f"Node {new_node.local_node_id} started from old snapshot unexpectedly joined the service"
+                )
+
+            # Start new node from no snapshot
+            try:
+                new_node = network.create_node("local://localhost")
+                network.join_node(
+                    new_node,
+                    args.package,
+                    args,
+                    from_snapshot=False,
+                    timeout=3,
+                )
+            except infra.network.StartupSeqnoIsOld:
+                LOG.info(
+                    f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
+                )
+            else:
+                raise RuntimeError(
+                    f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
+                )
 
 
 def get_current_nodes_table(network):
@@ -682,7 +723,9 @@ def check_2tx_ledger(ledger_paths, learner_id):
 
 
 @reqs.description("Migrate from 1tx to 2tx reconfiguration scheme")
-def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwargs):
+def test_migration_2tx_reconfiguration(
+    network, args, initial_is_1tx=True, valid_from=None, **kwargs
+):
     primary, _ = network.find_primary()
 
     # Check that the service config agrees that this is a 1tx network
@@ -709,7 +752,7 @@ def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwa
 
     new_node = network.create_node("local://localhost", **kwargs)
     network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
+    network.trust_node(new_node, args, valid_from=valid_from)
 
     # Check that the new node has the right consensus parameter
     with new_node.client() as c:
@@ -745,7 +788,7 @@ def run_migration_tests(args):
 def run_all(args):
     run(args)
     if cr.args.consensus != "BFT":
-        run_join_old_snapshot(all)
+        run_join_old_snapshot(args)
 
 
 if __name__ == "__main__":
@@ -762,7 +805,7 @@ if __name__ == "__main__":
 
     cr.add(
         "1tx_reconfig",
-        run,
+        run_all,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         reconfiguration_type="OneTransaction",

@@ -7,7 +7,9 @@
 
 namespace ccf
 {
-  struct TxReceipt
+  // Representation of receipt used by internal framework code. Mirrored in
+  // public interface by ccf::Receipt
+  struct TxReceiptImpl
   {
     std::vector<uint8_t> signature = {};
     HistoryTree::Hash root = {};
@@ -19,14 +21,16 @@ namespace ccf
     ccf::ClaimsDigest claims_digest = {};
     std::optional<std::vector<crypto::Pem>> service_endorsements = std::nullopt;
 
-    TxReceipt(
+    TxReceiptImpl(
       const std::vector<uint8_t>& signature_,
       const HistoryTree::Hash& root_,
       std::shared_ptr<ccf::HistoryTree::Path> path_,
       const NodeId& node_id_,
       const std::optional<crypto::Pem>& node_cert_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
+      // Optional to support historical transactions, where it may be absent
       const std::optional<std::string>& commit_evidence_ = std::nullopt,
+      // May not be set on historical transactions
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       const std::optional<std::vector<crypto::Pem>>& service_endorsements_ =
         std::nullopt) :
@@ -42,5 +46,5 @@ namespace ccf
     {}
   };
 
-  using TxReceiptPtr = std::shared_ptr<TxReceipt>;
+  using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
 }

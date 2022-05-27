@@ -90,7 +90,7 @@ namespace ccf::indexing
 
       if (min_requested.has_value())
       {
-        if (*min_requested < committed.seqno)
+        if (*min_requested <= committed.seqno)
         {
           // Request a prefix of the missing entries. Cap the requested range,
           // so we don't overload the node with a huge historical request

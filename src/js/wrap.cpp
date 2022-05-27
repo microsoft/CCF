@@ -8,7 +8,6 @@
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
-#include "crypto/openssl/x509_time.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
@@ -658,6 +657,7 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       LOG_FAIL_FMT("Unable to open service: {}", e.what());
+      return JS_ThrowInternalError(ctx, "Unable to open service: %s", e.what());
     }
 
     return JS_UNDEFINED;
@@ -751,10 +751,17 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    auto renewed_cert =
-      network->identity->issue_certificate(valid_from, validity_period_days);
+    try
+    {
+      auto renewed_cert =
+        network->identity->issue_certificate(valid_from, validity_period_days);
 
-    return JS_NewString(ctx, renewed_cert.str().c_str());
+      return JS_NewString(ctx, renewed_cert.str().c_str());
+    }
+    catch (std::exception& exc)
+    {
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+    }
   }
 
   JSValue js_network_latest_ledger_secret_seqno(
@@ -895,14 +902,14 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "issuer argument is not a string");
     }
 
-    JSValue metadata_val = JS_JSONStringify(ctx, argv[1], JS_NULL, JS_NULL);
+    auto metadata_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[1]));
     if (JS_IsException(metadata_val))
     {
       return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
     }
     auto metadata_json = jsctx.to_str(metadata_val);
 
-    JSValue jwks_val = JS_JSONStringify(ctx, argv[2], JS_NULL, JS_NULL);
+    auto jwks_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[2]));
     if (JS_IsException(jwks_val))
     {
       return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");
@@ -1504,7 +1511,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
@@ -1797,7 +1804,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
@@ -1830,7 +1837,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,

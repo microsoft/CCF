@@ -74,8 +74,7 @@ namespace crypto
 
     size_t size() const
     {
-      // +1 for null termination
-      return s.size() + 1;
+      return s.size();
     }
 
     bool empty() const
@@ -117,12 +116,12 @@ namespace crypto
     }
   }
 
-  inline std::string schema_name(const Pem&)
+  inline std::string schema_name(const Pem*)
   {
     return "Pem";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const Pem&)
+  inline void fill_json_schema(nlohmann::json& schema, const Pem*)
   {
     schema["type"] = "string";
   }

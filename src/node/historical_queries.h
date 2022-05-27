@@ -10,7 +10,7 @@
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/rpc/node_interface.h"
-#include "node/tx_receipt.h"
+#include "node/tx_receipt_impl.h"
 #include "service/tables/node_signature.h"
 
 #include <list>
@@ -132,7 +132,7 @@ namespace ccf::historical
       ccf::ClaimsDigest claims_digest = {};
       kv::StorePtr store = nullptr;
       bool is_signature = false;
-      TxReceiptPtr receipt = nullptr;
+      TxReceiptImplPtr receipt = nullptr;
       ccf::TxID transaction_id;
       bool has_commit_evidence = false;
 
@@ -332,7 +332,7 @@ namespace ccf::historical
                 {
                   auto proof = tree.get_proof(seqno);
                   details->transaction_id = {sig->view, seqno};
-                  details->receipt = std::make_shared<TxReceipt>(
+                  details->receipt = std::make_shared<TxReceiptImpl>(
                     sig->sig,
                     proof.get_root(),
                     proof.get_path(),
@@ -419,7 +419,7 @@ namespace ccf::historical
                       {
                         auto proof = tree.get_proof(new_seqno);
                         new_details->transaction_id = {sig->view, new_seqno};
-                        new_details->receipt = std::make_shared<TxReceipt>(
+                        new_details->receipt = std::make_shared<TxReceiptImpl>(
                           sig->sig,
                           proof.get_root(),
                           proof.get_path(),
@@ -466,7 +466,7 @@ namespace ccf::historical
                     {
                       auto proof = tree.get_proof(new_seqno);
                       new_details->transaction_id = {sig->view, new_seqno};
-                      new_details->receipt = std::make_shared<TxReceipt>(
+                      new_details->receipt = std::make_shared<TxReceiptImpl>(
                         sig->sig,
                         proof.get_root(),
                         proof.get_path(),
@@ -665,7 +665,7 @@ namespace ccf::historical
             const auto sig = get_signature(details->store);
             assert(sig.has_value());
             details->transaction_id = {sig->view, sig->seqno};
-            details->receipt = std::make_shared<TxReceipt>(
+            details->receipt = std::make_shared<TxReceiptImpl>(
               sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
           }
 
@@ -741,6 +741,12 @@ namespace ccf::historical
       ExpiryDuration seconds_until_expiry,
       bool include_receipts)
     {
+      if (seqnos.empty())
+      {
+        throw std::logic_error(
+          "Invalid range for historical query: Cannot request empty range");
+      }
+
       std::lock_guard<std::mutex> guard(requests_lock);
 
       const auto ms_until_expiry =

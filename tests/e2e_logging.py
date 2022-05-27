@@ -111,28 +111,23 @@ def verify_receipt(
             .hex()
         )
     else:
-        if "leaf" in receipt:
-            leaf = receipt["leaf"]
-        else:
-            assert "leaf_components" in receipt
-            assert "write_set_digest" in receipt["leaf_components"]
-            write_set_digest = bytes.fromhex(
-                receipt["leaf_components"]["write_set_digest"]
-            )
-            assert "commit_evidence" in receipt["leaf_components"]
-            commit_evidence_digest = sha256(
-                receipt["leaf_components"]["commit_evidence"].encode()
-            ).digest()
-            claims_digest = (
-                bytes.fromhex(receipt["leaf_components"]["claims_digest"])
-                if "claims_digest" in receipt["leaf_components"]
-                else b""
-            )
-            leaf = (
-                sha256(write_set_digest + commit_evidence_digest + claims_digest)
-                .digest()
-                .hex()
-            )
+        assert "leaf_components" in receipt, receipt
+        assert "write_set_digest" in receipt["leaf_components"]
+        write_set_digest = bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+        assert "commit_evidence" in receipt["leaf_components"]
+        commit_evidence_digest = sha256(
+            receipt["leaf_components"]["commit_evidence"].encode()
+        ).digest()
+        claims_digest = (
+            bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+            if "claims_digest" in receipt["leaf_components"]
+            else b""
+        )
+        leaf = (
+            sha256(write_set_digest + commit_evidence_digest + claims_digest)
+            .digest()
+            .hex()
+        )
     root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
@@ -1417,10 +1412,11 @@ def test_random_receipts(
         last_sig_seqno = max_seqno
         interesting_prefix = [genesis_seqno, likely_first_sig_seqno]
         seqnos = range(len(interesting_prefix) + 1, max_seqno)
+        random_sample_count = 20 if lts else 50
         for s in (
             interesting_prefix
             + sorted(
-                random.sample(seqnos, min(50, len(seqnos)))
+                random.sample(seqnos, min(random_sample_count, len(seqnos)))
                 + list(additional_seqnos.keys())
             )
             + [last_sig_seqno]
@@ -1430,18 +1426,24 @@ def test_random_receipts(
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
-                    if lts and not receipt.get("cert"):
-                        receipt["cert"] = certs[receipt["node_id"]]
-                    verify_receipt(
-                        receipt,
-                        network.cert,
-                        claims=additional_seqnos.get(s),
-                        generic=True,
-                        skip_endorsement_check=lts,
-                    )
-                    if s == max_seqno:
-                        # Always a signature receipt
-                        assert receipt["proof"] == [], receipt
+                    if "leaf" in receipt:
+                        if not lts:
+                            assert "proof" in receipt, receipt
+                            assert len(receipt["proof"]) == 0, receipt
+                        # Legacy signature receipt
+                        LOG.warning(
+                            f"Skipping verification of signature receipt at {view}.{s}"
+                        )
+                    else:
+                        if lts and not receipt.get("cert"):
+                            receipt["cert"] = certs[receipt["node_id"]]
+                        verify_receipt(
+                            receipt,
+                            network.cert,
+                            claims=additional_seqnos.get(s),
+                            generic=True,
+                            skip_endorsement_check=lts,
+                        )
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
                     time.sleep(0.5)
@@ -1471,6 +1473,54 @@ def test_rekey(network, args):
     primary, _ = network.find_primary()
     network.consortium.trigger_ledger_rekey(primary)
     return network
+
+
+@reqs.description("Test UDP echo endpoint")
+@reqs.at_least_n_nodes(1)
+def test_udp_echo(network, args):
+    # For now, only test UDP on primary
+    primary, _ = network.find_primary()
+    udp_interface = primary.host.rpc_interfaces["udp_interface"]
+    host = udp_interface.public_host
+    port = udp_interface.public_port
+    LOG.info(f"Testing UDP echo server at {host}:{port}")
+
+    server_address = (host, port)
+    buffer_size = 1024
+    test_string = b"Some random text"
+    attempts = 10
+    attempt = 1
+
+    while attempt <= attempts:
+        LOG.info(f"Testing UDP echo server sending '{test_string}'")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(3)
+            s.sendto(test_string, server_address)
+            recv = s.recvfrom(buffer_size)
+        text = recv[0]
+        LOG.info(f"Testing UDP echo server received '{text}'")
+        assert text == test_string
+        attempt = attempt + 1
+
+
+def run_udp_tests(args):
+    # Register secondary interface as an UDP socket on all nodes
+    udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
+    for node in args.nodes:
+        node.rpc_interfaces.update(udp_interface)
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start(args)
+
+        test_udp_echo(network, args)
 
 
 def run(args):
@@ -1569,6 +1619,8 @@ if __name__ == "__main__":
             nodes=infra.e2e_args.max_nodes(cr.args, f=0),
             initial_user_count=4,
             initial_member_count=2,
+            election_timeout_ms=cr.args.election_timeout_ms
+            * 2,  # Larger election timeout as some large payloads may cause an election with v8
         )
 
     cr.add(
@@ -1599,6 +1651,14 @@ if __name__ == "__main__":
     cr.add(
         "cpp_illegal",
         run_parsing_errors,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    # This is just for the UDP echo test for now
+    cr.add(
+        "udp",
+        run_udp_tests,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )

@@ -8,6 +8,9 @@
 #include "forwarder_types.h"
 #include "http/http_endpoint.h"
 #include "node/session_metrics.h"
+// NB: This should be HTTP3 including QUIC, but this is
+// ok for now, as we only have an echo service for now
+#include "quic/quic_endpoint.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -15,12 +18,14 @@
 #include "tls/server.h"
 
 #include <limits>
+#include <map>
 #include <unordered_map>
 
 namespace ccf
 {
   using ServerEndpointImpl = http::HTTPServerEndpoint;
   using ClientEndpointImpl = http::HTTPClientEndpoint;
+  using QUICEndpointImpl = quic::QUICEchoEndpoint;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
@@ -75,7 +80,7 @@ namespace ccf
           ->recv_(msg->data.data.data(), msg->data.data.size());
       }
 
-      void recv(const uint8_t* data, size_t size) override
+      void recv(const uint8_t* data, size_t size, sockaddr) override
       {
         auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
         msg->data.self = this->shared_from_this();
@@ -103,14 +108,14 @@ namespace ccf
           const auto s = body.dump();
           http_response.set_body((const uint8_t*)s.data(), s.size());
 
-          send(http_response.build_response());
+          send(http_response.build_response(), {});
 
           // Close connection
           close();
         }
       }
 
-      void send(std::vector<uint8_t>&& data) override
+      void send(std::vector<uint8_t>&& data, sockaddr) override
       {
         send_raw(std::move(data));
       }
@@ -246,7 +251,10 @@ namespace ccf
       }
     }
 
-    void accept(tls::ConnID id, const ListenInterfaceID& listen_interface_id)
+    void accept(
+      tls::ConnID id,
+      const ListenInterfaceID& listen_interface_id,
+      bool udp = false)
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -322,21 +330,37 @@ namespace ccf
           "Accepting a session {} inside the enclave from interface \"{}\"",
           id,
           listen_interface_id);
-        auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
 
-        auto session = std::make_shared<ServerEndpointImpl>(
-          rpc_map,
-          id,
-          listen_interface_id,
-          writer_factory,
-          std::move(ctx),
-          shared_from_this());
-        sessions.insert(std::make_pair(
-          id, std::make_pair(listen_interface_id, std::move(session))));
-        per_listen_interface.open_sessions++;
-        per_listen_interface.peak_sessions = std::max(
-          per_listen_interface.peak_sessions,
-          per_listen_interface.open_sessions);
+        if (udp)
+        {
+          LOG_DEBUG_FMT("New UDP endpoint at {}", id);
+          auto session = std::make_shared<QUICEndpointImpl>(
+            rpc_map, id, listen_interface_id, writer_factory);
+          sessions.insert(std::make_pair(
+            id, std::make_pair(listen_interface_id, std::move(session))));
+          per_listen_interface.open_sessions++;
+          per_listen_interface.peak_sessions = std::max(
+            per_listen_interface.peak_sessions,
+            per_listen_interface.open_sessions);
+        }
+        else
+        {
+          auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+
+          auto session = std::make_shared<ServerEndpointImpl>(
+            rpc_map,
+            id,
+            listen_interface_id,
+            writer_factory,
+            std::move(ctx),
+            shared_from_this());
+          sessions.insert(std::make_pair(
+            id, std::make_pair(listen_interface_id, std::move(session))));
+          per_listen_interface.open_sessions++;
+          per_listen_interface.peak_sessions = std::max(
+            per_listen_interface.peak_sessions,
+            per_listen_interface.open_sessions);
+        }
       }
 
       sessions_peak = std::max(sessions_peak, sessions.size());
@@ -355,7 +379,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second.second->send(std::move(data));
+      search->second.second->send(std::move(data), {});
       return true;
     }
 
@@ -420,13 +444,39 @@ namespace ccf
             return;
           }
 
-          search->second.second->recv(body.data, body.size);
+          search->second.second->recv(body.data, body.size, {});
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, tls::tls_close, [this](const uint8_t* data, size_t size) {
           auto [id] = ringbuffer::read_message<tls::tls_close>(data, size);
           remove_session(id);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, quic::quic_start, [this](const uint8_t* data, size_t size) {
+          auto [new_id, listen_interface_name] =
+            ringbuffer::read_message<quic::quic_start>(data, size);
+          accept(new_id, listen_interface_name, true);
+          // UDP sessions are never removed because there is no connection
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, quic::quic_inbound, [this](const uint8_t* data, size_t size) {
+          auto [id, addr_family, addr_data, body] =
+            ringbuffer::read_message<quic::quic_inbound>(data, size);
+
+          LOG_DEBUG_FMT("rpc udp read from ring buffer {}: {}", id, size);
+
+          auto search = sessions.find(id);
+          if (search == sessions.end())
+          {
+            LOG_DEBUG_FMT(
+              "Ignoring quic_inbound for unknown or refused session: {}", id);
+            return;
+          }
+          auto addr = quic::sockaddr_decode(addr_family, addr_data);
+          search->second.second->recv(body.data, body.size, addr);
         });
     }
   };
