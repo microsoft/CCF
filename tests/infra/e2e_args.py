@@ -218,7 +218,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--join-timer-s",
         help="Timer period when trying to join an existing network",
         type=int,
-        default=4,  # Set higher than cchost default to avoid swamping joinee with requests during slow quote verification
+        default=1,
     )
     parser.add_argument(
         "--initial-member-count",

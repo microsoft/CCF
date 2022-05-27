@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- The node-to-node interface configuration now supports a `published_address` to enable networks with nodes running in different (virtual) subnets (#3867).
+
+### Changed
+
+- Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout (#3685).
+- Node and service PEM certificates no longer contain a trailing null byte (#3885).
+
+### Removed
+
+- Removed deprecated `set_execute_outside_consensus()` API (#3886, #3673).
+
 ## [2.0.0]
 
 See [documentation for code upgrade 1.x to 2.0](https://microsoft.github.io/CCF/main/operations/code_upgrade_1x.html) to upgrade an existing 1.x CCF service to 2.0

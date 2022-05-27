@@ -275,17 +275,6 @@ namespace aft
       return membership_state == kv::MembershipState::RetirementInitiated;
     }
 
-    ccf::NodeId get_primary(ccf::View view)
-    {
-      CCF_ASSERT_FMT(
-        consensus_type == ConsensusType::BFT,
-        "Computing primary id from view is only supported with BFT consensus");
-
-      assert(configurations.size() > 0);
-      const auto& config = configurations.back();
-      return get_primary_at_config(view, config.bft_offset, config.nodes);
-    }
-
     Index last_committable_index() const
     {
       return committable_indices.empty() ? state->commit_idx :
@@ -883,9 +872,27 @@ namespace aft
           }
         }
 
+        size_t backup_ack_timeout_count = 0;
         for (auto& node : nodes)
         {
           node.second.last_ack_timeout += elapsed;
+          if (node.second.last_ack_timeout >= election_timeout)
+          {
+            backup_ack_timeout_count++;
+          }
+        }
+
+        if (backup_ack_timeout_count >= get_quorum(nodes.size()))
+        {
+          // CheckQuorum: The primary automatically steps down if it has not
+          // heard back from a majority of backups during an election timeout.
+          LOG_INFO_FMT(
+            "Stepping down as follower {}: No ack received from a majority {} "
+            "of backups in last {}",
+            state->my_node_id,
+            backup_ack_timeout_count,
+            election_timeout);
+          become_follower();
         }
       }
       else if (consensus_type != ConsensusType::BFT)
@@ -948,19 +955,6 @@ namespace aft
       // balance out total batch size across batch window
       batch_window_sum += (batch_size - batch_avg);
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
-    }
-
-    ccf::NodeId get_primary_at_config(
-      ccf::View view, uint32_t offset, const Configuration::Nodes& conf) const
-    {
-      CCF_ASSERT_FMT(
-        consensus_type == ConsensusType::BFT,
-        "Computing primary id from view is only supported with BFT consensus");
-
-      assert(conf.size() > 0);
-      auto it = conf.begin();
-      std::advance(it, (view - starting_view_change + offset) % conf.size());
-      return it->first;
     }
 
     Term get_term_internal(Index idx)
@@ -1457,6 +1451,10 @@ namespace aft
 
       if (leadership_state != kv::LeadershipState::Leader)
       {
+        LOG_FAIL_FMT(
+          "Recv append entries response to {} from {}: no longer leader",
+          state->my_node_id,
+          from);
         return;
       }
 
@@ -1857,24 +1855,16 @@ namespace aft
     }
 
   public:
-    // Called when a replica becomes aware of the existence of a new term
-    // If retired already, state remains unchanged, but the replica otherwise
-    // becomes a follower in the new term.
-    void become_aware_of_new_term(Term term)
+    // Called when a replica becomes follower in the same term, e.g. when the
+    // primary node has not received a majority of acks (CheckQuorum)
+    void become_follower()
     {
-      LOG_DEBUG_FMT("Becoming aware of new term {}", term);
       leader_id.reset();
       restart_election_timeout();
-
-      state->current_view = term;
-      voted_for.reset();
-      votes_for_me.clear();
       clear_orc_sets();
       reset_last_ack_timeouts();
 
       rollback(last_committable_index());
-
-      is_new_follower = true;
 
       if (
         can_endorse_primary() &&
@@ -1887,6 +1877,20 @@ namespace aft
           state->current_view,
           state->commit_idx);
       }
+    }
+
+    // Called when a replica becomes aware of the existence of a new term
+    // If retired already, state remains unchanged, but the replica otherwise
+    // becomes a follower in the new term.
+    void become_aware_of_new_term(Term term)
+    {
+      LOG_DEBUG_FMT("Becoming aware of new term {}", term);
+
+      state->current_view = term;
+      voted_for.reset();
+      votes_for_me.clear();
+      become_follower();
+      is_new_follower = true;
     }
 
     std::string leadership_state_string()
@@ -2134,16 +2138,6 @@ namespace aft
         default:
           return -1;
       }
-    }
-
-    bool have_quorum(size_t n, const kv::Configuration& c) const
-    {
-      return n >= get_quorum(c.nodes.size());
-    }
-
-    bool enough_trusted(const kv::Configuration& c) const
-    {
-      return have_quorum(num_trusted(c), c);
     }
 
     void commit(Index idx)
