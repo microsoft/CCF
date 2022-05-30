@@ -245,17 +245,19 @@ namespace http
     {
       // TODO:
       // Call client_session.send()
-      client_session.send_request();
+      // client_session.send_request();
       // send_raw(std::move(data));
     }
 
-    void send_structured_request(
-      const std::string& route,
-      HeaderMap&& headers,
-      std::vector<uint8_t>&& body) override
+    void send_request(const http::Request& request) override
     {
+      // TODO: Add verb
+      // TODO: Avoid copy?
+      std::vector<uint8_t> request_body = {
+        request.get_content_data(),
+        request.get_content_data() + request.get_content_length()};
       client_session.send_structured_request(
-        route, std::move(headers), std::move(body));
+        request.get_path(), request.get_headers(), std::move(request_body));
     }
 
     void send(std::vector<uint8_t>&& data, sockaddr) override

@@ -692,18 +692,13 @@ namespace ccf
 
       auto body = serdes::pack(join_params, serdes::Pack::Text);
 
-      auto route =
-        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join");
-      http::Request r(route);
-      http::HeaderMap headers;
-      headers[http::headers::CONTENT_TYPE] =
-        http::headervalues::contenttype::JSON;
-      // r.set_header(
-      //   http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      http::Request r(
+        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
+      r.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_structured_request(
-        route, std::move(headers), std::move(body));
+      join_client->send_request(r);
     }
 
     // Note: _unsafe() pattern can be simplified once 2.x has been released

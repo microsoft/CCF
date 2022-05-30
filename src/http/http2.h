@@ -567,7 +567,7 @@ namespace http2
 
     void send_structured_request(
       const std::string& route,
-      http::HeaderMap&& headers,
+      const http::HeaderMap& headers,
       std::vector<uint8_t>&& body)
     {
       std::vector<nghttp2_settings_entry> settings = {

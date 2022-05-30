@@ -6,7 +6,9 @@
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "forwarder_types.h"
-#include "http/http2_endpoint.h"
+#ifdef ENABLE_HTTP2
+#  include "http/http2_endpoint.h"
+#endif
 #include "http/http_endpoint.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
@@ -24,10 +26,13 @@
 
 namespace ccf
 {
+#ifdef ENABLE_HTTP2
   using ServerEndpointImpl = http::HTTP2ServerEndpoint;
   using ClientEndpointImpl = http::HTTP2ClientEndpoint;
-  // using ServerEndpointImpl = http::HTTPServerEndpoint;
-  // using ClientEndpointImpl = http::HTTPClientEndpoint;
+#else
+  using ServerEndpointImpl = http::HTTPServerEndpoint;
+  using ClientEndpointImpl = http::HTTPClientEndpoint;
+#endif
   using QUICEndpointImpl = quic::QUICEchoEndpoint;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;

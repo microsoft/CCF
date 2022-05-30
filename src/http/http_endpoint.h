@@ -5,9 +5,9 @@
 #include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
+#include "error_reporter.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
-#include "error_reporter.h"
 
 #ifdef ENABLE_HTTP2
 #  include <nghttp2/nghttp2.h>
@@ -254,6 +254,11 @@ namespace http
     void send_request(std::vector<uint8_t>&& data) override
     {
       send_raw(std::move(data));
+    }
+
+    void send_request(const http::Request& request) override
+    {
+      send_raw(request.build_request());
     }
 
     void send(std::vector<uint8_t>&&, sockaddr) override
