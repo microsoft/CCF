@@ -150,6 +150,11 @@ namespace ACME
         crypto::make_key_pair();
     }
 
+    bool has_active_orders() const
+    {
+      return !active_orders.empty();
+    }
+
   protected:
     virtual void on_challenge(const std::string& key_authorization) = 0;
     virtual void on_certificate(const std::string& certificate) = 0;
@@ -351,6 +356,7 @@ namespace ACME
 
     std::mutex req_lock;
     std::mutex finalize_lock;
+    std::mutex orders_lock;
 
     std::optional<std::chrono::system_clock::time_point> last_request =
       std::nullopt;
@@ -948,6 +954,9 @@ namespace ACME
 
     bool check_finalization(Order& order)
     {
+      std::unique_lock<std::mutex> guard(finalize_lock);
+      std::unique_lock<std::mutex> guard2(orders_lock);
+
       auto oit = std::find_if(
         active_orders.begin(),
         active_orders.end(),
@@ -977,6 +986,7 @@ namespace ACME
             else if (j["status"] == "invalid")
             {
               LOG_TRACE_FMT("ACME: removing failed order");
+              std::unique_lock<std::mutex> guard(orders_lock);
               active_orders.remove_if([&order](const Order& other) {
                 return other.order_url == order.order_url;
               });
@@ -985,6 +995,7 @@ namespace ACME
             {
               LOG_DEBUG_FMT(
                 "ACME: unknown order status '{}'; aborting order", j["status"]);
+              std::unique_lock<std::mutex> guard(orders_lock);
               active_orders.remove_if([&order](const Order& other) {
                 return other.order_url == order.order_url;
               });
@@ -1000,29 +1011,42 @@ namespace ACME
 
     struct FinalizationWaitMsg
     {
-      FinalizationWaitMsg(Order& order, Client* client) :
-        order(order),
+      FinalizationWaitMsg(const std::string& order_url, Client* client) :
+        order_url(order_url),
         client(client)
       {}
-      Order order;
+      std::string order_url;
       Client* client;
     };
 
     std::unique_ptr<threading::Tmsg<FinalizationWaitMsg>>
-    schedule_check_finalization(Order& order)
+    schedule_check_finalization(const std::string& order_url)
     {
       return std::make_unique<threading::Tmsg<FinalizationWaitMsg>>(
         [](std::unique_ptr<threading::Tmsg<FinalizationWaitMsg>> msg) {
           Client* client = msg->data.client;
+          std::string& order_url = msg->data.order_url;
 
-          if (client->check_finalization(msg->data.order))
+          std::unique_lock<std::mutex> guard(client->orders_lock);
+
+          auto oit = std::find_if(
+            client->active_orders.begin(),
+            client->active_orders.end(),
+            [&order_url](const Order& other) {
+              return order_url == other.order_url;
+            });
+
+          if (oit != client->active_orders.end())
           {
-            LOG_TRACE_FMT("ACME: scheduling next finalization check");
-            threading::ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg), std::chrono::seconds(5));
+            if (client->check_finalization(*oit))
+            {
+              LOG_TRACE_FMT("ACME: scheduling next finalization check");
+              threading::ThreadMessaging::thread_messaging.add_task_after(
+                std::move(msg), std::chrono::seconds(5));
+            }
           }
         },
-        order,
+        order_url,
         this);
     }
 
@@ -1058,21 +1082,32 @@ namespace ACME
           url,
           json_to_bytes(jws),
           HTTP_STATUS_OK,
-          [this,
-           &order](const http::HeaderMap& headers, const nlohmann::json& j) {
+          [this, order_url = order.order_url](
+            const http::HeaderMap& headers, const nlohmann::json& j) {
             LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
             expect(j, "status");
             if (j["status"] == "valid")
             {
               expect(j, "certificate");
-              order.certificate_url = j["certificate"];
-              download_certificate(order);
+
+              std::unique_lock<std::mutex> guard(orders_lock);
+              auto oit = std::find_if(
+                active_orders.begin(),
+                active_orders.end(),
+                [&order_url](const Order& other) {
+                  return order_url == other.order_url;
+                });
+              if (oit != active_orders.end())
+              {
+                oit->certificate_url = j["certificate"];
+                download_certificate(*oit);
+              }
             }
             else
             {
               LOG_TRACE_FMT("ACME: scheduling finalization check");
               threading::ThreadMessaging::thread_messaging.add_task_after(
-                schedule_check_finalization(order),
+                schedule_check_finalization(order_url),
                 std::chrono::milliseconds(0));
             }
           });
@@ -1092,6 +1127,7 @@ namespace ACME
 
           on_certificate(c);
 
+          std::unique_lock<std::mutex> guard(orders_lock);
           active_orders.remove_if([&order](const Order& other) {
             return other.order_url == order.order_url;
           });

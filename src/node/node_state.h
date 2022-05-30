@@ -200,6 +200,7 @@ namespace ccf
 
     // ACME certificate endorsement client
     std::map<std::string, std::shared_ptr<ACMEClient>> acme_clients;
+    size_t num_acme_interfaces = 0;
 
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -1390,6 +1391,11 @@ namespace ccf
       const std::optional<std::vector<std::string>>& interfaces =
         std::nullopt) override
     {
+      if (!network.identity)
+      {
+        return;
+      }
+
       for (const auto& [iname, interface] : config.network.rpc_interfaces)
       {
         if (
@@ -1422,10 +1428,9 @@ namespace ccf
                 cfg_name, aconfig, rpcsessions, network.tables, to_host));
           }
 
-          if (network.identity)
-          {
-            acme_clients[cfg_name]->get_certificate(
-              make_key_pair(network.identity->priv_key), true);
+          auto client = acme_clients[cfg_name];
+          if (!client->has_active_orders()) {
+            acme_clients[cfg_name]->get_certificate(make_key_pair(network.identity->priv_key), true);
           }
         }
       }
@@ -2513,65 +2518,83 @@ namespace ccf
         return;
       }
 
-      auto tx = network.tables->create_tx();
-      trigger_acme_refresh(tx);
+      num_acme_interfaces = 0;
+      for (const auto& [iname, interface] : config.network.rpc_interfaces)
+      {
+        if (interface.endorsement->authority == Authority::ACME)
+        {
+          num_acme_interfaces++;
+        }
+      }
 
-      using namespace std::chrono;
-      using namespace threading;
+      if (num_acme_interfaces > 0)
+      {
+        using namespace std::chrono;
+        using namespace threading;
 
-      // Start task to periodically check whether any of the certs are
-      // expired.
-      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-          auto& state = msg->data.self;
-          auto& config = state.config;
+        // Start task to periodically check whether any of the certs are
+        // expired.
+        auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+          [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+            auto& state = msg->data.self;
+            auto& config = state.config;
 
-          if (!state.consensus || !state.consensus->can_replicate())
-          {
-            return;
-          }
-
-          for (auto& [cfg_name, client] : state.acme_clients)
-          {
-            bool renew = false;
-            auto tx = state.network.tables->create_read_only_tx();
-            auto service = tx.ro<Service>(Tables::SERVICE);
-            auto service_info = service->get();
-            if (service_info && service_info->acme_certificates)
+            if (!state.consensus || !state.consensus->can_replicate())
             {
-              auto cit = service_info->acme_certificates->find(cfg_name);
-              if (cit != service_info->acme_certificates->end())
+              return;
+            }
+
+            if (state.acme_clients.size() != state.num_acme_interfaces)
+            {
+              auto tx = state.network.tables->create_tx();
+              state.trigger_acme_refresh(tx);
+              tx.commit();
+            }
+            else 
+            {
+              for (auto& [cfg_name, client] : state.acme_clients)
               {
-                auto v = crypto::make_verifier(cit->second);
-                double rem_pct = v->remaining_percentage();
-                LOG_TRACE_FMT(
-                  "ACME: remaining certificate for '{}' validity: {}%, {} "
-                  "seconds",
-                  cfg_name,
-                  100.0 * rem_pct,
-                  v->remaining_seconds());
-                if (rem_pct < 0.33)
+                bool renew = false;
+                auto tx = state.network.tables->create_read_only_tx();
+                auto service = tx.ro<Service>(Tables::SERVICE);
+                auto service_info = service->get();
+                if (service_info && service_info->acme_certificates)
                 {
-                  renew = true;
+                  auto cit = service_info->acme_certificates->find(cfg_name);
+                  if (cit != service_info->acme_certificates->end())
+                  {
+                    auto v = crypto::make_verifier(cit->second);
+                    double rem_pct = v->remaining_percentage();
+                    LOG_TRACE_FMT(
+                      "ACME: remaining certificate for '{}' validity: {}%, {} "
+                      "seconds",
+                      cfg_name,
+                      100.0 * rem_pct,
+                      v->remaining_seconds());
+                    if (rem_pct < 0.33)
+                    {
+                      renew = true;
+                    }
+                  }
                 }
+
+                if (renew || !service_info || !service_info->acme_certificates)
+                {
+                  client->get_certificate(
+                    make_key_pair(state.network.identity->priv_key));
+                }
+
+                auto delay = minutes(1);
+                ThreadMessaging::thread_messaging.add_task_after(
+                  std::move(msg), delay);
               }
             }
+          },
+          *this);
 
-            if (renew || !service_info || !service_info->acme_certificates)
-            {
-              client->get_certificate(
-                make_key_pair(state.network.identity->priv_key));
-            }
-
-            auto delay = minutes(1);
-            ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg), delay);
-          }
-        },
-        *this);
-
-      ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg), seconds(2));
+        ThreadMessaging::thread_messaging.add_task_after(
+          std::move(msg), seconds(2));
+      }
     }
 
   public:
