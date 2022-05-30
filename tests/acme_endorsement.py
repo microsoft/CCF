@@ -19,7 +19,6 @@ import ssl
 from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from infra.consortium import slurp_file
 
 from loguru import logger as LOG
 
@@ -49,7 +48,7 @@ def test_with_pebble(args, network_name, ca_certs, timeout=60):
         num_ok = 0
         while num_ok != len(args.nodes):
             if time.time() > end_time:
-                raise Exception(
+                raise TimeoutError(
                     f"Not all nodes had the correct ACME-endorsed TLS certificate installed after {timeout} seconds"
                 )
 
@@ -252,7 +251,7 @@ def run(args):
                     mock_dns_mgmt_address,
                     out,
                     err,
-                ) as _:
+                ) as mock_dns_proc:
 
                     register_endorsed_hosts(args, network_name, mock_dns_mgmt_address)
 
@@ -262,10 +261,13 @@ def run(args):
                         mock_dns_listen_address,
                         out,
                         err,
-                    ) as _:
+                    ) as pebble_proc:
 
                         ca_certs = get_pebble_ca_certs(mgmt_address)
                         test_with_pebble(args, network_name, ca_certs)
+                        pebble_proc.kill()
+
+                mock_dns_proc.kill()
 
     except Exception as ex:
         LOG.error(f"Exception: {ex}")

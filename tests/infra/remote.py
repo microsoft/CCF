@@ -652,7 +652,7 @@ class CCFRemote(object):
         ]
 
         # ACME
-        if "acme" in kwargs:
+        if "acme" in kwargs and host.acme_challenge_server_interface:
             kwargs["acme"][
                 "challenge_server_interface"
             ] = host.acme_challenge_server_interface
