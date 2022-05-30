@@ -11,9 +11,12 @@
 #include <memory>
 #include <nghttp2/nghttp2.h>
 
-// TODO: State of things as of 21/12/2021
+// TODO: State of things as of 30/05/22:
+//
+// Next: Cleanup and forwarding.
 //
 // - HTTP works up to service opening (and a little more)
+// - Join protocol working
 // - Overall flow is sound and most callback are correctly set
 // - What isn't clear is how http2::Session fits with HTTPEndpoint.
 // - A larger refactoring is required as HTTP/1 is easy enough that
