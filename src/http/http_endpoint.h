@@ -251,11 +251,6 @@ namespace http
       response_parser(*this)
     {}
 
-    void send_request(std::vector<uint8_t>&& data) override
-    {
-      send_raw(std::move(data));
-    }
-
     void send_request(const http::Request& request) override
     {
       send_raw(request.build_request());

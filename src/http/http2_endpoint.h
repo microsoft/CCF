@@ -241,14 +241,6 @@ namespace http
       client_session(*this, *this)
     {}
 
-    void send_request(std::vector<uint8_t>&& data) override
-    {
-      // TODO:
-      // Call client_session.send()
-      // client_session.send_request();
-      // send_raw(std::move(data));
-    }
-
     void send_request(const http::Request& request) override
     {
       // TODO: Add verb
