@@ -238,7 +238,7 @@ namespace http
       std::unique_ptr<tls::Context> ctx) :
       HTTP2Endpoint(client_session, session_id, writer_factory, std::move(ctx)),
       ClientEndpoint(session_id, writer_factory),
-      client_session(*this)
+      client_session(*this, *this)
     {}
 
     void send_request(std::vector<uint8_t>&& data) override

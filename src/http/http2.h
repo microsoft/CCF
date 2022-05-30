@@ -98,6 +98,8 @@ namespace http2
     std::string url;
     ccf::RESTVerb verb;
     std::vector<uint8_t> request_body;
+
+    http_status status;
     std::vector<uint8_t> response_body;
 
     StreamData(StreamId id_) : id(id_) {}
@@ -182,6 +184,7 @@ namespace http2
     }
 
     virtual void handle_request(StreamData* stream_data) = 0;
+    virtual void handle_response(StreamData* stream_data) = 0;
   };
 
   static ssize_t send_callback(
@@ -298,12 +301,12 @@ namespace http2
     {
       case NGHTTP2_DATA:
       {
-        LOG_TRACE_FMT("Headers frame");
-        if (
-          frame->headers.cat == NGHTTP2_HCAT_RESPONSE &&
-          stream_data->id == frame->hd.stream_id)
+        LOG_TRACE_FMT("Data frame: {}", frame->headers.cat);
+        if (stream_data->id == frame->hd.stream_id)
         {
+          // TODO: Is this the right place to this?
           LOG_FAIL_FMT("All headers received");
+          s->handle_response(stream_data);
         }
         break;
       }
@@ -341,6 +344,7 @@ namespace http2
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
     LOG_TRACE_FMT("on_begin_headers_callback_client: {}", frame->hd.type);
+
     return 0;
   }
 
@@ -392,6 +396,19 @@ namespace http2
     auto v = std::string(value, value + valuelen);
     LOG_TRACE_FMT("on_header_callback_client: {}:{}", k, v);
 
+    auto* stream_data = reinterpret_cast<StreamData*>(
+      nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+
+    if (k == http2::headers::STATUS)
+    {
+      stream_data->status =
+        HTTP_STATUS_OK; // TODO: Status conversion from string to http_status
+    }
+    else
+    {
+      stream_data->headers.emplace(k, v);
+    }
+
     return 0;
   }
 
@@ -424,11 +441,11 @@ namespace http2
   {
     LOG_TRACE_FMT("on_data_callback_client: {}", stream_id);
 
-    // auto* stream_data = reinterpret_cast<StreamData*>(
-    //   nghttp2_session_get_stream_user_data(session, stream_id));
+    auto* stream_data = reinterpret_cast<StreamData*>(
+      nghttp2_session_get_stream_user_data(session, stream_id));
 
-    // stream_data->request_body.insert(
-    //   stream_data->request_body.end(), data, data + len);
+    stream_data->response_body.insert(
+      stream_data->response_body.end(), data, data + len);
 
     return 0;
   }
@@ -528,14 +545,22 @@ namespace http2
         std::move(stream_data->headers),
         std::move(stream_data->request_body));
     }
+
+    void handle_response(StreamData* stream_data) override
+    {
+      throw std::logic_error("Not implemented");
+    }
   };
 
   class ClientSession : public Session
   {
-    // TODO: WIP
+  private:
+    http::ResponseProcessor& proc;
 
   public:
-    ClientSession(ccf::Endpoint& endpoint_) : Session(endpoint_, true)
+    ClientSession(http::ResponseProcessor& proc_, ccf::Endpoint& endpoint_) :
+      Session(endpoint_, true),
+      proc(proc_)
     {
       LOG_TRACE_FMT("Initialising HTTP2 Client Session");
     }
@@ -597,11 +622,17 @@ namespace http2
       LOG_FAIL_FMT("Successfully sent request with stream id: {}", stream_id);
     }
 
-    void send_request() {}
-
     virtual void handle_request(StreamData* stream_data) override
     {
-      throw std::logic_error("Unimplemented");
+      throw std::logic_error("Not implemented");
+    }
+
+    void handle_response(StreamData* stream_data) override
+    {
+      proc.handle_response(
+        stream_data->status,
+        std::move(stream_data->headers),
+        std::move(stream_data->response_body));
     }
   };
 }

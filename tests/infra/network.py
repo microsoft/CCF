@@ -445,16 +445,17 @@ class Network:
         LOG.success("All nodes joined network")
 
     def open(self, args):
-        self.consortium.activate(self.find_random_node())
+        target_node, _ = self.find_primary()
+        self.consortium.activate(target_node)
 
         if args.js_app_bundle:
             self.consortium.set_js_app_from_dir(
-                remote_node=self.find_random_node(), bundle_path=args.js_app_bundle
+                remote_node=target_node, bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:
             self.consortium.set_jwt_issuer(
-                remote_node=self.find_random_node(), json_path=path
+                remote_node=target_node, json_path=path
             )
 
         if self.jwt_issuer:
@@ -466,7 +467,7 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         self.consortium.add_users_and_transition_service_to_open(
-            self.find_random_node(), initial_users
+            target_node, initial_users
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
