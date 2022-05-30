@@ -68,10 +68,57 @@ namespace ACME
 
     virtual ~Client() {}
 
-    void get_certificate(std::shared_ptr<crypto::KeyPair> service_key)
+    void get_certificate(
+      std::shared_ptr<crypto::KeyPair> service_key, bool override_time = false)
     {
-      this->service_key = service_key;
-      request_directory();
+      using namespace std::chrono_literals;
+      using namespace std::chrono;
+
+      bool ok = true;
+      system_clock::duration delta(0);
+
+      if (last_request && !override_time)
+      {
+        // Let's encrypt recommends this retry strategy in their integration
+        // guide
+
+        delta = system_clock::now() - *last_request;
+        ok = false;
+        switch (num_failed_attempts)
+        {
+          case 0:
+            ok = true;
+            break;
+          case 1:
+            ok = delta < 1min;
+            break;
+          case 2:
+            ok = delta < 10min;
+            break;
+          case 3:
+            ok = delta < 100min;
+            break;
+          default:
+            ok = delta < 24h;
+            break;
+        }
+      }
+
+      if (ok)
+      {
+        this->service_key = service_key;
+        last_request = system_clock::now();
+        num_failed_attempts++;
+        request_directory();
+      }
+      else
+      {
+        LOG_INFO_FMT(
+          "ACME: Ignoring certificate request due to {} recent failured "
+          "attempts within {} minutes",
+          num_failed_attempts,
+          duration_cast<minutes>(delta).count());
+      }
     }
 
     void start_challenge(const std::string& token)
@@ -304,6 +351,10 @@ namespace ACME
 
     std::mutex req_lock;
     std::mutex finalize_lock;
+
+    std::optional<std::chrono::system_clock::time_point> last_request =
+      std::nullopt;
+    size_t num_failed_attempts = 0;
 
     struct Challenge
     {
@@ -592,7 +643,6 @@ namespace ACME
           HTTP_STATUS_CREATED,
           [this](const http::HeaderMap& headers, const nlohmann::json& j) {
             expect_string(j, "status", "valid");
-            // expect(j, "orders"); // CHECK: Isn't this mandatory?
             account = j;
             auto loc_opt = get_header_value(headers, "location");
             submit_new_order(loc_opt.value_or(""));
@@ -931,6 +981,14 @@ namespace ACME
                 return other.order_url == order.order_url;
               });
             }
+            else if (j["status"] != "pending" && j["status"] != "processing")
+            {
+              LOG_DEBUG_FMT(
+                "ACME: unknown order status '{}'; aborting order", j["status"]);
+              active_orders.remove_if([&order](const Order& other) {
+                return other.order_url == order.order_url;
+              });
+            }
             return true;
           });
 
@@ -1037,6 +1095,13 @@ namespace ACME
           active_orders.remove_if([&order](const Order& other) {
             return other.order_url == order.order_url;
           });
+
+          if (num_failed_attempts > 0)
+          {
+            last_request = std::chrono::system_clock::now();
+            num_failed_attempts = 0;
+          }
+
           return true;
         });
     }

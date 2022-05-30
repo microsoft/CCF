@@ -29,5 +29,6 @@ namespace ccf
     virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(kv::Tx& tx) = 0;
     virtual void trigger_snapshot(kv::Tx& tx) = 0;
+    virtual void trigger_acme_refresh(kv::Tx& tx, const std::optional<std::vector<std::string>> &interfaces = std::nullopt) = 0;
   };
 }

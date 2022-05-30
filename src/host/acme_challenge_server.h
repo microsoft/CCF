@@ -129,15 +129,13 @@ protected:
               }
 
               auto rbody = fmt::format("{}.{}", token, response);
-              LOG_DEBUG_FMT(
-                "ACME: challenge response for token '{}': {} (requested by "
-                "{})",
-                token,
-                rbody,
-                socket->get_peer_name());
               http::Response r(HTTP_STATUS_OK);
               r.set_header("Content-Type", "application/octet-stream");
               reply(r, rbody);
+              LOG_DEBUG_FMT(
+                "ACME: challenge response for token '{}' provided to {}",
+                token,
+                socket->get_peer_name());
             }
           }
         }
@@ -175,7 +173,7 @@ public:
   void on_listening(
     const std::string& host, const std::string& service) override
   {
-    LOG_DEBUG_FMT("Listening for ACME connections on {}:{}", host, service);
+    LOG_DEBUG_FMT("ACME: challenge server listening on {}:{}", host, service);
   }
 
   void on_accept(asynchost::TCP& peer) override
@@ -245,7 +243,6 @@ public:
             listener->set_behaviour(std::make_unique<ACMEServerBehaviour>(
               *this, lock, prepared_responses, to_enclave));
             listener->listen(host, port);
-            LOG_DEBUG_FMT("ACME: challenge server listening");
           }
 
           RINGBUFFER_WRITE_MESSAGE(

@@ -1385,6 +1385,52 @@ namespace ccf
         kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
     }
 
+    void trigger_acme_refresh(
+      kv::Tx& tx,
+      const std::optional<std::vector<std::string>>& interfaces =
+        std::nullopt) override
+    {
+      for (const auto& [iname, interface] : config.network.rpc_interfaces)
+      {
+        if (
+          interface.endorsement->authority != Authority::ACME ||
+          !interface.acme_configuration)
+        {
+          continue;
+        }
+
+        if (
+          !interfaces ||
+          std::find(interfaces->begin(), interfaces->end(), iname) !=
+            interfaces->end())
+        {
+          const std::string& cfg_name = *interface.acme_configuration;
+          auto cit = config.acme_configurations->find(cfg_name);
+          if (cit == config.acme_configurations->end())
+          {
+            LOG_INFO_FMT("Unknown ACME configuration '{}'", cfg_name);
+            continue;
+          }
+
+          if (acme_clients.find(cfg_name) == acme_clients.end())
+          {
+            const auto& aconfig = cit->second;
+
+            acme_clients.emplace(
+              cfg_name,
+              std::make_shared<ccf::ACMEClient>(
+                cfg_name, aconfig, rpcsessions, network.tables, to_host));
+          }
+
+          if (network.identity)
+          {
+            acme_clients[cfg_name]->get_certificate(
+              make_key_pair(network.identity->priv_key), true);
+          }
+        }
+      }
+    }
+
     void trigger_host_process_launch(
       const std::vector<std::string>& args) override
     {
@@ -2213,7 +2259,7 @@ namespace ccf
                     w->acme_certificates->find(*iface.acme_configuration);
                   if (cit != w->acme_certificates->end())
                   {
-                    LOG_DEBUG_FMT(
+                    LOG_INFO_FMT(
                       "ACME: new certificate for interface '{}' with "
                       "configuration '{}'",
                       iface_id,
@@ -2467,35 +2513,8 @@ namespace ccf
         return;
       }
 
-      for (const auto& [iname, interface] : config.network.rpc_interfaces)
-      {
-        if (
-          interface.endorsement->authority != Authority::ACME ||
-          !interface.acme_configuration)
-        {
-          continue;
-        }
-
-        const std::string& cfg_name = *interface.acme_configuration;
-        auto cit = config.acme_configurations->find(cfg_name);
-        if (cit == config.acme_configurations->end())
-        {
-          LOG_INFO_FMT("Unknown ACME configuration '{}'", cfg_name);
-          continue;
-        }
-
-        if (acme_clients.find(cfg_name) != acme_clients.end())
-        {
-          continue;
-        }
-
-        const auto& aconfig = cit->second;
-
-        acme_clients.emplace(
-          cfg_name,
-          std::make_shared<ccf::ACMEClient>(
-            cfg_name, aconfig, rpcsessions, network.tables, to_host));
-      }
+      auto tx = network.tables->create_tx();
+      trigger_acme_refresh(tx);
 
       using namespace std::chrono;
       using namespace threading;
@@ -2531,7 +2550,7 @@ namespace ccf
                   cfg_name,
                   100.0 * rem_pct,
                   v->remaining_seconds());
-                if (rem_pct < 0.25)
+                if (rem_pct < 0.33)
                 {
                   renew = true;
                 }
