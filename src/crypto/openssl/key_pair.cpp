@@ -4,7 +4,6 @@
 #include "crypto/openssl/key_pair.h"
 
 #include "ccf/crypto/curve.h"
-#include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
 #include "openssl_wrappers.h"

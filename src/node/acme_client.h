@@ -733,6 +733,8 @@ namespace ACME
               throw std::runtime_error("missing order location");
             }
 
+            std::unique_lock<std::mutex> guard(orders_lock);
+
             active_orders.emplace_back(Order{
               ACTIVE, account_url, *order_url_opt, j["finalize"], "", {}, {}});
 
