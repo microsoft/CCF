@@ -690,15 +690,20 @@ namespace ccf
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
 
-      const auto body = serdes::pack(join_params, serdes::Pack::Text);
+      auto body = serdes::pack(join_params, serdes::Pack::Text);
 
-      http::Request r(
-        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
-      r.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      auto route =
+        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join");
+      http::Request r(route);
+      http::HeaderMap headers;
+      headers[http::headers::CONTENT_TYPE] =
+        http::headervalues::contenttype::JSON;
+      // r.set_header(
+      //   http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_request(r.build_request());
+      join_client->send_structured_request(
+        route, std::move(headers), std::move(body));
     }
 
     // Note: _unsafe() pattern can be simplified once 2.x has been released

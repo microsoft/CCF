@@ -249,6 +249,15 @@ namespace http
       // send_raw(std::move(data));
     }
 
+    void send_structured_request(
+      const std::string& route,
+      HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
+    {
+      client_session.send_structured_request(
+        route, std::move(headers), std::move(body));
+    }
+
     void send(std::vector<uint8_t>&& data, sockaddr) override
     {
       send_raw(std::move(data));

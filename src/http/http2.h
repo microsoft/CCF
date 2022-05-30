@@ -123,7 +123,6 @@ namespace http2
 
       if (is_client)
       {
-        nghttp2_session_client_new(&session, callbacks, this);
         nghttp2_session_callbacks_set_on_frame_recv_callback(
           callbacks, on_frame_recv_callback_client);
         nghttp2_session_callbacks_set_on_begin_headers_callback(
@@ -132,6 +131,7 @@ namespace http2
           callbacks, on_header_callback_client);
         nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
           callbacks, on_data_callback_client);
+        nghttp2_session_client_new(&session, callbacks, this);
       }
       else
       {
@@ -218,6 +218,31 @@ namespace http2
     memcpy(buf, response_body.data(), response_body.size());
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     return response_body.size();
+  }
+
+  static ssize_t read_callback_client(
+    nghttp2_session* session,
+    StreamId stream_id,
+    uint8_t* buf,
+    size_t length,
+    uint32_t* data_flags,
+    nghttp2_data_source* source,
+    void* user_data)
+  {
+    LOG_TRACE_FMT("read_callback client: {}", length);
+
+    auto* stream_data = reinterpret_cast<StreamData*>(
+      nghttp2_session_get_stream_user_data(session, stream_id));
+
+    auto& request_body = stream_data->request_body;
+    LOG_FAIL_FMT("Request body size: {}", request_body.size());
+
+    // TODO: Explore zero-copy alternative
+    // TODO: Also bump maximum size for SGX enclave and join protocol
+    // https://nghttp2.org/documentation/types.html#c.nghttp2_data_source_read_length_callback
+    memcpy(buf, request_body.data(), request_body.size());
+    *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    return request_body.size();
   }
 
   static int on_frame_recv_callback(
@@ -515,9 +540,11 @@ namespace http2
       LOG_TRACE_FMT("Initialising HTTP2 Client Session");
     }
 
-    void send_request()
+    void send_structured_request(
+      const std::string& route,
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body)
     {
-      // TODO: Refactor with ServerSession
       std::vector<nghttp2_settings_entry> settings = {
         {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100}};
 
@@ -531,16 +558,28 @@ namespace http2
       }
 
       std::vector<nghttp2_nv> hdrs;
-      hdrs.emplace_back(make_nv(http2::headers::METHOD, "GET"));
-      hdrs.emplace_back(make_nv(http2::headers::PATH, "/node/join"));
-      hdrs.emplace_back(make_nv(":scheme", "https"));
       hdrs.emplace_back(
-        make_nv(http::headers::CONTENT_LENGTH, fmt::format("{}", 0)));
+        make_nv(http2::headers::METHOD, "POST")); // TODO: Make configurable
+      hdrs.emplace_back(make_nv(http2::headers::PATH, route));
+      hdrs.emplace_back(make_nv(":scheme", "https"));
+      hdrs.emplace_back(make_nv(":authority", "localhost:8080"));
+      for (auto const& [k, v] : headers)
+      {
+        hdrs.emplace_back(make_nv(k, v));
+      }
 
       auto stream_data = std::make_shared<StreamData>(0);
       add_stream(stream_data);
+
+      stream_data->request_body = std::move(body);
+
+      // Note: response body is currently stored in StreamData, accessible from
+      // read_callback
+      nghttp2_data_provider prov;
+      prov.read_callback = read_callback_client;
+
       auto stream_id = nghttp2_submit_request(
-        session, nullptr, hdrs.data(), hdrs.size(), NULL, stream_data.get());
+        session, nullptr, hdrs.data(), hdrs.size(), &prov, stream_data.get());
       if (stream_id < 0)
       {
         LOG_FAIL_FMT(
@@ -557,6 +596,8 @@ namespace http2
 
       LOG_FAIL_FMT("Successfully sent request with stream id: {}", stream_id);
     }
+
+    void send_request() {}
 
     virtual void handle_request(StreamData* stream_data) override
     {

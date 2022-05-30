@@ -29,6 +29,11 @@ namespace ccf
 
     virtual void send_request(std::vector<uint8_t>&& data) = 0;
 
+    virtual void send_structured_request(
+      const std::string& route,
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) = 0;
+
     void connect(
       const std::string& hostname,
       const std::string& service,
