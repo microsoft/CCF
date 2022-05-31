@@ -68,6 +68,35 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
             raise Exception("Reconfiguration did not complete in time")
 
 
+@reqs.description("Adding a node with invalid target service certificate")
+def test_add_node_invalid_service_cert(network, args):
+    primary, _ = network.find_primary()
+
+    # Incorrect target service certificate file, in this case the primary's node
+    # identity
+    service_cert_file = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    new_node = network.create_node("local://localhost")
+    try:
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            service_cert_file=service_cert_file,
+            timeout=3,
+            stop_on_error=True,
+        )
+    except infra.network.ServiceCertificateInvalid:
+        LOG.info(
+            f"Node {new_node.local_node_id} with invalid service certificate failed to start, as expected"
+        )
+    else:
+        assert (
+            False
+        ), f"Node {new_node.local_node_id} with invalid service certificate unexpectedly started"
+
+    return network
+
+
 @reqs.description("Adding a valid node")
 def test_add_node(network, args, from_snapshot=True):
     # Note: host is supplied explicitly to avoid having differently
@@ -565,6 +594,7 @@ def run(args):
         test_version(network, args)
 
         if args.consensus != "BFT":
+            test_add_node_invalid_service_cert(network, args)
             test_add_node(network, args, from_snapshot=False)
             test_add_node_with_read_only_ledger(network, args)
             test_join_straddling_primary_replacement(network, args)
