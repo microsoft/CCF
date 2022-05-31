@@ -673,7 +673,14 @@ namespace ccf
         },
         [this](const std::string& error_msg) {
           std::lock_guard<std::mutex> guard(lock);
-          LOG_FAIL_FMT("Shutdown node gracefully!");
+          auto long_error_msg = fmt::format(
+            "Early error when joining existing network at {}: {}. Shutting "
+            "down node gracefully...",
+            config.join.target_rpc_address,
+            error_msg);
+          LOG_FAIL_FMT("{}", long_error_msg);
+          RINGBUFFER_WRITE_MESSAGE(
+            AdminMessage::fatal_error_msg, to_host, long_error_msg);
         });
 
       // Send RPC request to remote node to join the network.

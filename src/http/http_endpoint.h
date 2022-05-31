@@ -269,10 +269,13 @@ namespace http
 
     void on_handshake_error(const std::string& error_msg) override
     {
-      LOG_FAIL_FMT("{}", error_msg);
       if (handle_error_cb)
       {
         handle_error_cb(error_msg);
+      }
+      else
+      {
+        LOG_FAIL_FMT("{}", error_msg);
       }
     }
 
