@@ -32,7 +32,7 @@ def get_network_public_key(network):
 
 
 @reqs.description("Start network and wait for ACME certificates")
-def wait_for_certificates(args, network_name, ca_certs, timeout=60):
+def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -96,7 +96,7 @@ def get_binary(url, filename):
         os.chmod(filename, 0o744)
 
 
-def start_mock_dns(filename, listen_address, mgmt_address, out, err):
+def start_mock_dns(filename, listen_address, mgmt_address, out, err, env=None):
     p = subprocess.Popen(
         [
             "./" + filename,
@@ -113,6 +113,8 @@ def start_mock_dns(filename, listen_address, mgmt_address, out, err):
         ],
         stdout=out,
         stderr=err,
+        close_fds=True,
+        env=env,
     )
     time.sleep(1)
     return p
@@ -139,7 +141,7 @@ def register_endorsed_hosts(args, network_name, dns_mgmt_address):
     )
 
 
-def start_pebble(filename, config_filename, dns_address, out, err):
+def start_pebble(filename, config_filename, dns_address, out, err, env):
     p = subprocess.Popen(
         [
             "./" + filename,
@@ -150,8 +152,10 @@ def start_pebble(filename, config_filename, dns_address, out, err):
         ],
         stdout=out,
         stderr=err,
+        close_fds=True,
+        env=env,
     )
-    time.sleep(1)
+    time.sleep(2)
     return p
 
 
@@ -244,40 +248,48 @@ def run_pebble(args):
             endorsed_interface.host + ":" + str(http_port)
         )
 
+    out = err = None
+    mock_dns_proc = pebble_proc = None
+
+    out = open(output_filename, "w", encoding="ascii")
+    err = open(error_filename, "w", encoding="ascii")
+    mock_dns_proc = start_mock_dns(
+        mock_dns_filename,
+        mock_dns_listen_address,
+        mock_dns_mgmt_address,
+        out,
+        err,
+    )
+
+    register_endorsed_hosts(args, network_name, mock_dns_mgmt_address)
+
+    pebble_proc = start_pebble(
+        binary_filename,
+        config_filename,
+        mock_dns_listen_address,
+        out,
+        err,
+        env={"PEBBLE_WFE_NONCEREJECT": "0", "PEBBLE_VA_NOSLEEP": "1"},
+    )
+
+    exception_seen = None
     try:
-        with open(output_filename, "w", encoding="ascii") as out:
-            with open(error_filename, "w", encoding="ascii") as err:
-                with start_mock_dns(
-                    mock_dns_filename,
-                    mock_dns_listen_address,
-                    mock_dns_mgmt_address,
-                    out,
-                    err,
-                ) as mock_dns_proc:
-
-                    register_endorsed_hosts(args, network_name, mock_dns_mgmt_address)
-
-                    with start_pebble(
-                        binary_filename,
-                        config_filename,
-                        mock_dns_listen_address,
-                        out,
-                        err,
-                    ) as pebble_proc:
-
-                        ca_certs = get_pebble_ca_certs(mgmt_address)
-                        wait_for_certificates(args, network_name, ca_certs)
-                        pebble_proc.kill()
-
-                mock_dns_proc.kill()
-
+        ca_certs = get_pebble_ca_certs(mgmt_address)
+        wait_for_certificates(args, network_name, ca_certs)
     except Exception as ex:
-        LOG.error(f"Exception: {ex}")
+        exception_seen = ex
+    finally:
+        if pebble_proc:
+            pebble_proc.kill()
+        if mock_dns_proc:
+            mock_dns_proc.kill()
 
-    LOG.info("Pebble stdout:")
-    LOG.info(open(output_filename, "r", encoding="ascii").read())
-    LOG.info("Pebble err:")
-    LOG.info(open(error_filename, "r", encoding="ascii").read())
+    if exception_seen:
+        LOG.info("Pebble out:")
+        LOG.info(open(output_filename, "r", encoding="ascii").read())
+        LOG.info("Pebble err:")
+        LOG.info(open(error_filename, "r", encoding="ascii").read())
+        raise exception_seen
 
 
 @reqs.description("Test against Let's Encrypt's staging environment")

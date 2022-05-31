@@ -114,10 +114,10 @@ namespace ACME
       else
       {
         LOG_INFO_FMT(
-          "ACME: Ignoring certificate request due to {} recent failured "
-          "attempts within {} minutes",
+          "ACME: Ignoring certificate request due to {} recent failed "
+          "attempt(s) within {} seconds",
           num_failed_attempts,
-          duration_cast<minutes>(delta).count());
+          duration_cast<seconds>(delta).count());
       }
     }
 
@@ -1203,7 +1203,6 @@ namespace ACME
 
             remove_order(order_url);
 
-            last_request = std::chrono::system_clock::now();
             num_failed_attempts = 0;
 
             return true;

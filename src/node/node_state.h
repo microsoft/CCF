@@ -2585,12 +2585,12 @@ namespace ccf
                       make_key_pair(state.network.identity->priv_key));
                   }
                 }
-
-                auto delay = minutes(1);
-                ThreadMessaging::thread_messaging.add_task_after(
-                  std::move(msg), delay);
               }
             }
+
+            auto delay = minutes(1);
+            ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), delay);
           },
           *this);
 
