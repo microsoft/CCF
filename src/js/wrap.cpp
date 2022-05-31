@@ -1076,8 +1076,9 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  JSValue get_string_array(JSContext *ctx, JSValueConst& argv, std::vector<std::string> &out) 
-  {        
+  JSValue get_string_array(
+    JSContext* ctx, JSValueConst& argv, std::vector<std::string>& out)
+  {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto args = JSWrappedValue(ctx, argv);
 
@@ -1134,19 +1135,22 @@ namespace ccf::js
     }
 
     try
-    {   
+    {
       std::optional<std::vector<std::string>> opt_interfaces = std::nullopt;
 
-      if (argc > 0) 
-      {  
+      if (argc > 0)
+      {
         std::vector<std::string> interfaces;
         JSValue r = get_string_array(ctx, argv[0], interfaces);
-        
-        if (JS_IsUndefined(r)) { return r; }
+
+        if (JS_IsUndefined(r))
+        {
+          return r;
+        }
 
         opt_interfaces = interfaces;
-      }      
-       
+      }
+
       gov_effects->trigger_acme_refresh(*tx_ctx_ptr->tx, opt_interfaces);
     }
     catch (const std::exception& e)
@@ -1167,10 +1171,13 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
     }
 
-    std::vector<std::string> process_args;      
+    std::vector<std::string> process_args;
     JSValue r = get_string_array(ctx, argv[0], process_args);
-    
-    if (JS_IsUndefined(r)) { return r; }
+
+    if (JS_IsUndefined(r))
+    {
+      return r;
+    }
 
     auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
       JS_GetOpaque(this_val, host_class_id));

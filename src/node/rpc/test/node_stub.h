@@ -120,7 +120,10 @@ namespace ccf
       return;
     }
 
-    void trigger_acme_refresh(kv::Tx& tx, const std::optional<std::vector<std::string>> &interfaces = std::nullopt) override
+    void trigger_acme_refresh(
+      kv::Tx& tx,
+      const std::optional<std::vector<std::string>>& interfaces =
+        std::nullopt) override
     {
       return;
     }
