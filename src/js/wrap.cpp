@@ -1143,7 +1143,7 @@ namespace ccf::js
         std::vector<std::string> interfaces;
         JSValue r = get_string_array(ctx, argv[0], interfaces);
 
-        if (JS_IsUndefined(r))
+        if (!JS_IsUndefined(r))
         {
           return r;
         }
@@ -1174,7 +1174,7 @@ namespace ccf::js
     std::vector<std::string> process_args;
     JSValue r = get_string_array(ctx, argv[0], process_args);
 
-    if (JS_IsUndefined(r))
+    if (!JS_IsUndefined(r))
     {
       return r;
     }
