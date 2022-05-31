@@ -207,7 +207,6 @@ namespace ccf
       }
       pending_read.insert(pending_read.end(), data, data + size);
 
-      LOG_FAIL_FMT("recv_buffered");
       do_handshake();
     }
 
@@ -275,8 +274,6 @@ namespace ccf
       {
         throw std::runtime_error("Called flush from incorrect thread");
       }
-
-      LOG_FAIL_FMT("flush");
 
       do_handshake();
 
@@ -422,12 +419,12 @@ namespace ccf
         case TLS_ERR_X509_VERIFY:
         {
           auto err = ctx->get_verify_error();
+
           LOG_TRACE_FMT(
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
             tls::error_string(rc));
-
           stop(authfail);
           return;
         }
@@ -437,8 +434,7 @@ namespace ccf
           LOG_TRACE_FMT(
             "TLS {} error on handshake: {}", session_id, tls::error_string(rc));
           stop(error);
-          return;
-          ;
+          break;
         }
       }
     }
