@@ -43,7 +43,7 @@ class Member:
     ):
         self.common_dir = common_dir
         self.local_id = local_id
-        self.status_code = MemberStatus.ACCEPTED
+        self.status = MemberStatus.ACCEPTED
         self.share_script = share_script
         self.member_data = member_data
         self.is_recovery_member = is_recovery_member
@@ -121,11 +121,11 @@ class Member:
             return (None, self.local_id)
 
     def is_active(self):
-        return self.status_code == MemberStatus.ACTIVE and not self.is_retired
+        return self.status == MemberStatus.ACTIVE and not self.is_retired
 
     def set_active(self):
         # Use this with caution (i.e. only when the network is opening)
-        self.status_code = MemberStatus.ACTIVE
+        self.status = MemberStatus.ACTIVE
 
     def set_retired(self):
         # Members should be marked as retired once they have been removed
@@ -179,7 +179,8 @@ class Member:
                 raise UnauthenticatedMember(
                     f"Failed to ack member {self.local_id}: {r.status_code}"
                 )
-            self.status_code = MemberStatus.ACTIVE
+            assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+            self.status = MemberStatus.ACTIVE
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node):
