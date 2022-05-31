@@ -90,16 +90,16 @@ namespace ACME
             ok = true;
             break;
           case 1:
-            ok = delta < 1min;
+            ok = delta >= 1min;
             break;
           case 2:
-            ok = delta < 10min;
+            ok = delta >= 10min;
             break;
           case 3:
-            ok = delta < 100min;
+            ok = delta >= 100min;
             break;
           default:
-            ok = delta < 24h;
+            ok = delta >= 24h;
             break;
         }
       }
