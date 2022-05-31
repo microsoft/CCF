@@ -4,7 +4,8 @@
       "Authority": {
         "enum": [
           "Node",
-          "Service"
+          "Service",
+          "ACME"
         ],
         "type": "string"
       },
@@ -485,6 +486,9 @@
       },
       "NodeInfoNetwork_v2__NetInterface": {
         "properties": {
+          "acme_configuration": {
+            "$ref": "#/components/schemas/string"
+          },
           "bind_address": {
             "$ref": "#/components/schemas/string"
           },
