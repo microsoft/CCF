@@ -18,6 +18,13 @@ jobs:
         || (github.event.action == 'closed')
       )
     steps:
+      - name: Local canary file always wins
+        uses: actions/checkout@v3
+        run: |
+          git config --local include.path .gitconfig
+          git config --global merge.keeplocal.name "Always keep local file during merge"
+          git config --global merge.keeplocal.driver true
+
       - name: Backport Action
         uses: sqren/backport-github-action@v8.4.2
         with:
