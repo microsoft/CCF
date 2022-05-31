@@ -248,41 +248,39 @@ def run_pebble(args):
             endorsed_interface.host + ":" + str(http_port)
         )
 
-    out = err = None
-    mock_dns_proc = pebble_proc = None
-
-    out = open(output_filename, "w", encoding="ascii")
-    err = open(error_filename, "w", encoding="ascii")
-    mock_dns_proc = start_mock_dns(
-        mock_dns_filename,
-        mock_dns_listen_address,
-        mock_dns_mgmt_address,
-        out,
-        err,
-    )
-
-    register_endorsed_hosts(args, network_name, mock_dns_mgmt_address)
-
-    pebble_proc = start_pebble(
-        binary_filename,
-        config_filename,
-        mock_dns_listen_address,
-        out,
-        err,
-        env={"PEBBLE_WFE_NONCEREJECT": "0", "PEBBLE_VA_NOSLEEP": "1"},
-    )
-
     exception_seen = None
-    try:
-        ca_certs = get_pebble_ca_certs(mgmt_address)
-        wait_for_certificates(args, network_name, ca_certs)
-    except Exception as ex:
-        exception_seen = ex
-    finally:
-        if pebble_proc:
-            pebble_proc.kill()
-        if mock_dns_proc:
-            mock_dns_proc.kill()
+
+    with open(output_filename, "w", encoding="ascii") as out:
+        with open(error_filename, "w", encoding="ascii") as err:
+            mock_dns_proc = start_mock_dns(
+                mock_dns_filename,
+                mock_dns_listen_address,
+                mock_dns_mgmt_address,
+                out,
+                err,
+            )
+
+            register_endorsed_hosts(args, network_name, mock_dns_mgmt_address)
+
+            pebble_proc = start_pebble(
+                binary_filename,
+                config_filename,
+                mock_dns_listen_address,
+                out,
+                err,
+                env={"PEBBLE_WFE_NONCEREJECT": "0", "PEBBLE_VA_NOSLEEP": "1"},
+            )
+
+            try:
+                ca_certs = get_pebble_ca_certs(mgmt_address)
+                wait_for_certificates(args, network_name, ca_certs)
+            except Exception as ex:
+                exception_seen = ex
+            finally:
+                if pebble_proc:
+                    pebble_proc.kill()
+                if mock_dns_proc:
+                    mock_dns_proc.kill()
 
     if exception_seen:
         LOG.info("Pebble out:")
