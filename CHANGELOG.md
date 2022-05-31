@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Node and service PEM certificates no longer contain a trailing null byte.
+- Node and service PEM certificates no longer contain a trailing null byte (#3885).
+- New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
 
 ### Added
 
