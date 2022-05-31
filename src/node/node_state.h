@@ -698,11 +698,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_request(
-        r.build_request(), [this](const std::string& error_msg) {
-          LOG_FAIL_FMT("Error during join protocol: {}", error_msg);
-          // TODO: Stop node gracefully
-        });
+      join_client->send_request(r.build_request());
     }
 
     // Note: _unsafe() pattern can be simplified once 2.x has been released

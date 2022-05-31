@@ -211,36 +211,29 @@ namespace ccf
       do_handshake();
     }
 
-    // TODO: Remove duplication with http_endpoint.h
-    using ErrorCallback = std::function<void(const std::string& error_msg)>;
-
     struct SendRecvMsg
     {
       std::vector<uint8_t> data;
       std::shared_ptr<Endpoint> self;
-      ErrorCallback error_cb = nullptr;
     };
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
-        ->send_raw_thread(msg->data.data, msg->data.error_cb);
+        ->send_raw_thread(msg->data.data);
     }
 
-    void send_raw(
-      std::vector<uint8_t>&& data, const ErrorCallback error_cb = nullptr)
+    void send_raw(std::vector<uint8_t>&& data)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
       msg->data.data = std::move(data);
-      msg->data.error_cb = error_cb;
 
       threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
-    void send_raw_thread(
-      const std::vector<uint8_t>& data, const ErrorCallback error_cb = nullptr)
+    void send_raw_thread(const std::vector<uint8_t>& data)
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
@@ -250,12 +243,7 @@ namespace ccf
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
       // will try to send pending writes again whenever write() is called.
-      LOG_FAIL_FMT("send_raw_thread");
-      auto error_msg = do_handshake();
-      if (error_msg.has_value() && error_cb)
-      {
-        error_cb(error_msg.value());
-      }
+      do_handshake();
 
       if (status == handshake)
       {
@@ -388,13 +376,13 @@ namespace ccf
     }
 
   private:
-    std::optional<std::string> do_handshake()
+    void do_handshake()
     {
       // This should be called when additional data is written to the
       // input buffer, until the handshake is complete.
       if (status != handshake)
       {
-        return std::nullopt;
+        return;
       }
 
       auto rc = ctx->handshake();
@@ -434,29 +422,25 @@ namespace ccf
         case TLS_ERR_X509_VERIFY:
         {
           auto err = ctx->get_verify_error();
-          auto error_msg = fmt::format(
+          LOG_TRACE_FMT(
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
             tls::error_string(rc));
 
-          LOG_TRACE_FMT("{}", error_msg);
-
           stop(authfail);
-          return error_msg;
+          return;
         }
 
         default:
         {
-          auto error_msg = fmt::format(
+          LOG_TRACE_FMT(
             "TLS {} error on handshake: {}", session_id, tls::error_string(rc));
-          LOG_TRACE_FMT("{}", error_msg);
           stop(error);
-          return error_msg;
+          return;
+          ;
         }
       }
-
-      return std::nullopt;
     }
 
     int write_some(const std::vector<uint8_t>& data)

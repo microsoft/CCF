@@ -256,11 +256,9 @@ namespace http
       response_parser(*this)
     {}
 
-    void send_request(
-      std::vector<uint8_t>&& data,
-      const ccf::ErrorCallback error_cb = nullptr) override
+    void send_request(std::vector<uint8_t>&& data) override
     {
-      send_raw(std::move(data), error_cb);
+      send_raw(std::move(data));
     }
 
     void send(std::vector<uint8_t>&&, sockaddr) override
