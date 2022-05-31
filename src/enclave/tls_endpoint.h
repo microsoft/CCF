@@ -79,7 +79,7 @@ namespace ccf
 
     virtual void on_handshake_error(const std::string& error_msg)
     {
-      LOG_TRACE_FMT("error_msg");
+      LOG_TRACE_FMT("{}", error_msg);
     }
 
     std::string hostname()
