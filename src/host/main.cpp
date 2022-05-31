@@ -12,7 +12,6 @@
 #include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
-#include "host/acme_challenge_server.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "load_monitor.h"

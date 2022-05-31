@@ -1425,12 +1425,19 @@ namespace ccf
             acme_clients.emplace(
               cfg_name,
               std::make_shared<ccf::ACMEClient>(
-                cfg_name, aconfig, rpcsessions, network.tables, to_host));
+                cfg_name,
+                aconfig,
+                rpcsessions,
+                network.tables,
+                to_host,
+                node_sign_kp));
           }
 
           auto client = acme_clients[cfg_name];
-          if (!client->has_active_orders()) {
-            acme_clients[cfg_name]->get_certificate(make_key_pair(network.identity->priv_key), true);
+          if (!client->has_active_orders())
+          {
+            acme_clients[cfg_name]->get_certificate(
+              make_key_pair(network.identity->priv_key), true);
           }
         }
       }
@@ -2246,11 +2253,6 @@ namespace ccf
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
             }
 
-            for (auto& [_, acme_client] : acme_clients)
-            {
-              acme_client->set_account_key(node_sign_kp);
-            }
-
             if (w->acme_certificates)
             {
               for (auto& [iface_id, iface] : config.network.rpc_interfaces)
@@ -2539,49 +2541,49 @@ namespace ccf
             auto& state = msg->data.self;
             auto& config = state.config;
 
-            if (!state.consensus || !state.consensus->can_replicate())
+            if (state.consensus && state.consensus->can_replicate())
             {
-              return;
-            }
-
-            if (state.acme_clients.size() != state.num_acme_interfaces)
-            {
-              auto tx = state.network.tables->create_tx();
-              state.trigger_acme_refresh(tx);
-              tx.commit();
-            }
-            else 
-            {
-              for (auto& [cfg_name, client] : state.acme_clients)
+              if (state.acme_clients.size() != state.num_acme_interfaces)
               {
-                bool renew = false;
-                auto tx = state.network.tables->create_read_only_tx();
-                auto service = tx.ro<Service>(Tables::SERVICE);
-                auto service_info = service->get();
-                if (service_info && service_info->acme_certificates)
+                auto tx = state.network.tables->create_tx();
+                state.trigger_acme_refresh(tx);
+                tx.commit();
+              }
+              else
+              {
+                for (auto& [cfg_name, client] : state.acme_clients)
                 {
-                  auto cit = service_info->acme_certificates->find(cfg_name);
-                  if (cit != service_info->acme_certificates->end())
+                  bool renew = false;
+                  auto tx = state.network.tables->create_read_only_tx();
+                  auto service = tx.ro<Service>(Tables::SERVICE);
+                  auto service_info = service->get();
+                  if (service_info && service_info->acme_certificates)
                   {
-                    auto v = crypto::make_verifier(cit->second);
-                    double rem_pct = v->remaining_percentage();
-                    LOG_TRACE_FMT(
-                      "ACME: remaining certificate for '{}' validity: {}%, {} "
-                      "seconds",
-                      cfg_name,
-                      100.0 * rem_pct,
-                      v->remaining_seconds());
-                    if (rem_pct < 0.33)
+                    auto cit = service_info->acme_certificates->find(cfg_name);
+                    if (cit != service_info->acme_certificates->end())
                     {
-                      renew = true;
+                      auto v = crypto::make_verifier(cit->second);
+                      double rem_pct = v->remaining_percentage();
+                      LOG_TRACE_FMT(
+                        "ACME: remaining certificate for '{}' validity: {}%, "
+                        "{} "
+                        "seconds",
+                        cfg_name,
+                        100.0 * rem_pct,
+                        v->remaining_seconds());
+                      if (rem_pct < 0.33)
+                      {
+                        renew = true;
+                      }
                     }
                   }
-                }
 
-                if (renew || !service_info || !service_info->acme_certificates)
-                {
-                  client->get_certificate(
-                    make_key_pair(state.network.identity->priv_key));
+                  if (
+                    renew || !service_info || !service_info->acme_certificates)
+                  {
+                    client->get_certificate(
+                      make_key_pair(state.network.identity->priv_key));
+                  }
                 }
 
                 auto delay = minutes(1);

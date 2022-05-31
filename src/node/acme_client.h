@@ -131,10 +131,10 @@ namespace ACME
           post_as_get_json(
             order.account_url,
             cit->second.challenge_url,
-            [this, &order, &challenge = cit->second](
+            [this, order_url = order.order_url, &challenge = cit->second](
               const http::HeaderMap& headers, const nlohmann::json& j) {
               threading::ThreadMessaging::thread_messaging.add_task_after(
-                schedule_check_challenge(order, challenge),
+                schedule_check_challenge(order_url, challenge),
                 std::chrono::milliseconds(0));
               return true;
             });
@@ -148,6 +148,9 @@ namespace ACME
       account_key_pair = new_account_key_pair != nullptr ?
         new_account_key_pair :
         crypto::make_key_pair();
+      LOG_DEBUG_FMT(
+        "ACME: new account public key: {}",
+        ds::to_hex(account_key_pair->public_key_der()));
     }
 
     bool has_active_orders() const
@@ -355,7 +358,6 @@ namespace ACME
     std::list<std::string> nonces;
 
     std::mutex req_lock;
-    std::mutex finalize_lock;
     std::mutex orders_lock;
 
     std::optional<std::chrono::system_clock::time_point> last_request =
@@ -479,10 +481,6 @@ namespace ACME
         (*this)[header_is_protected ? "protected" : "header"] = header_b64;
         (*this)["payload"] = payload_b64;
         (*this)["signature"] = sig_b64;
-
-        // LOG_TRACE_FMT("ACME: private key: {}:",
-        // signer.private_key_pem().str()); LOG_TRACE_FMT("ACME: public key:
-        // {}:", signer.public_key_pem().str());
       }
     };
 
@@ -549,6 +547,75 @@ namespace ACME
       }
     }
 
+    static std::pair<std::string, std::string> get_crv_alg(
+      const std::shared_ptr<crypto::KeyPair>& key_pair)
+    {
+      std::string crv, alg;
+      if (key_pair->get_curve_id() == crypto::CurveID::SECP256R1)
+      {
+        crv = "P-256";
+        alg = "ES256";
+      }
+      else if (key_pair->get_curve_id() == crypto::CurveID::SECP384R1)
+      {
+        crv = "P-384";
+        alg = "ES384";
+      }
+      else
+        throw std::runtime_error("Unsupported curve");
+
+      return std::make_pair(crv, alg);
+    }
+
+    Order* get_order(const std::string& order_url)
+    {
+      auto oit = std::find_if(
+        active_orders.begin(),
+        active_orders.end(),
+        [&order_url](const Order& other) {
+          return order_url == other.order_url;
+        });
+
+      if (oit != active_orders.end())
+      {
+        return &(*oit);
+      }
+
+      LOG_DEBUG_FMT("ACME: no such order {}", order_url);
+
+      return nullptr;
+    }
+
+    void remove_order(const std::string& order_url)
+    {
+      LOG_TRACE_FMT("ACME: removing order {}", order_url);
+
+      std::unique_lock<std::mutex> guard(orders_lock);
+      active_orders.remove_if([&order_url](const Order& other) {
+        return order_url == other.order_url;
+      });
+    }
+
+    nlohmann::json mk_kid_header(
+      const std::string& account_url,
+      const std::string& nonce,
+      const std::string& resource_url)
+    {
+      //  For all other requests, the request is signed using an existing
+      //  account, and there MUST be a "kid" field.  This field MUST contain the
+      //  account URL received by POSTing to the newAccount resource.
+
+      auto crv_alg = get_crv_alg(account_key_pair);
+
+      nlohmann::json r = {
+        {"alg", crv_alg.second},
+        {"kid", account_url},
+        {"nonce", nonce},
+        {"url", resource_url}};
+
+      return r;
+    }
+
     void request_directory()
     {
       http::URL url = with_default_port(config.directory_url);
@@ -576,26 +643,6 @@ namespace ACME
           ok_callback();
           return true;
         });
-    }
-
-    static std::pair<std::string, std::string> get_crv_alg(
-      const std::shared_ptr<crypto::KeyPair>& key_pair)
-    {
-      std::string crv, alg;
-      if (key_pair->get_curve_id() == crypto::CurveID::SECP256R1)
-      {
-        crv = "P-256";
-        alg = "ES256";
-      }
-      else if (key_pair->get_curve_id() == crypto::CurveID::SECP384R1)
-      {
-        crv = "P-384";
-        alg = "ES384";
-      }
-      else
-        throw std::runtime_error("Unsupported curve");
-
-      return std::make_pair(crv, alg);
     }
 
     void request_new_account()
@@ -651,45 +698,33 @@ namespace ACME
             expect_string(j, "status", "valid");
             account = j;
             auto loc_opt = get_header_value(headers, "location");
-            submit_new_order(loc_opt.value_or(""));
+            request_new_order(loc_opt.value_or(""));
           });
       }
     }
 
-    nlohmann::json mk_kid_header(
-      const std::string& account_url,
-      const std::string& nonce,
-      const std::string& resource_url)
+    void authorize_next_challenge(const std::string& order_url)
     {
-      //  For all other requests, the request is signed using an existing
-      //  account, and there MUST be a "kid" field.  This field MUST contain the
-      //  account URL received by POSTing to the newAccount resource.
+      std::unique_lock<std::mutex> guard(orders_lock);
+      auto order = get_order(order_url);
 
-      auto crv_alg = get_crv_alg(account_key_pair);
-
-      nlohmann::json r = {
-        {"alg", crv_alg.second},
-        {"kid", account_url},
-        {"nonce", nonce},
-        {"url", resource_url}};
-
-      return r;
-    }
-
-    void authorize_next_challenge(Order& order)
-    {
-      if (!order.authorizations.empty())
+      if (!order)
       {
-        submit_authorization(order, *order.authorizations.begin());
+        return;
+      }
+
+      if (!order->authorizations.empty())
+      {
+        request_authorization(*order, *order->authorizations.begin());
       }
     }
 
-    void submit_new_order(const std::string& account_url)
+    void request_new_order(const std::string& account_url)
     {
       if (nonces.empty())
       {
         request_new_nonce(
-          [this, account_url]() { submit_new_order(account_url); });
+          [this, account_url]() { request_new_order(account_url); });
       }
       else
       {
@@ -734,7 +769,6 @@ namespace ACME
             }
 
             std::unique_lock<std::mutex> guard(orders_lock);
-
             active_orders.emplace_back(Order{
               ACTIVE, account_url, *order_url_opt, j["finalize"], "", {}, {}});
 
@@ -745,63 +779,83 @@ namespace ACME
               expect(j, "authorizations");
               order.authorizations =
                 j["authorizations"].get<std::unordered_set<std::string>>();
-              authorize_next_challenge(order);
+              guard.unlock();
+              authorize_next_challenge(*order_url_opt);
             }
             else if (j["status"] == "ready")
             {
               expect(j, "finalize");
-              submit_finalize(order);
+              guard.unlock();
+              request_finalization(*order_url_opt);
             }
             else if (j["status"] == "valid")
             {
               expect(j, "certificate");
               order.certificate_url = j["certificate"];
-              download_certificate(order);
+              guard.unlock();
+              request_certificate(*order_url_opt);
+            }
+            else
+            {
+              LOG_FATAL_FMT(
+                "ACME: unknown order status '{}', aborting", j["status"]);
+              guard.unlock();
+              remove_order(*order_url_opt);
             }
           });
       }
     }
 
-    void submit_authorization(Order& order, const std::string& authz_url)
+    void request_authorization(Order& order, const std::string& authz_url)
     {
       post_as_get_json(
         order.account_url,
         authz_url,
-        [this, &order, authz_url](
+        [this, order_url = order.order_url, authz_url](
           const http::HeaderMap& headers, const nlohmann::json& j) {
           LOG_TRACE_FMT("ACME: authorization reply: {}", j.dump());
           expect_string(j, "status", "pending");
           expect(j, "challenges");
 
-          bool found_match = false;
-          for (const auto& challenge : j["challenges"])
           {
-            if (
-              challenge.contains("type") &&
-              challenge["type"] == config.challenge_type)
+            std::unique_lock<std::mutex> guard(orders_lock);
+            auto order = get_order(order_url);
+
+            if (!order)
             {
-              expect_string(challenge, "status", "pending");
-              expect(challenge, "token");
-              expect(challenge, "url");
+              return false;
+            }
 
-              std::string token = challenge["token"];
-              std::string challenge_url = challenge["url"];
+            bool found_match = false;
+            for (const auto& challenge : j["challenges"])
+            {
+              if (
+                challenge.contains("type") &&
+                challenge["type"] == config.challenge_type)
+              {
+                expect_string(challenge, "status", "pending");
+                expect(challenge, "token");
+                expect(challenge, "url");
 
-              add_challenge(order, token, authz_url, challenge_url);
-              found_match = true;
-              break;
+                std::string token = challenge["token"];
+                std::string challenge_url = challenge["url"];
+
+                add_challenge(*order, token, authz_url, challenge_url);
+                found_match = true;
+                break;
+              }
+            }
+
+            order->authorizations.erase(authz_url);
+
+            if (!found_match)
+            {
+              throw std::runtime_error(fmt::format(
+                "challenge type '{}' not offered", config.challenge_type));
             }
           }
 
-          order.authorizations.erase(authz_url);
-
-          if (!found_match)
-          {
-            throw std::runtime_error(fmt::format(
-              "challenge type '{}' not offered", config.challenge_type));
-          }
-
-          authorize_next_challenge(order);
+          authorize_next_challenge(order_url);
 
           return true;
         },
@@ -848,40 +902,47 @@ namespace ACME
 
     struct ChallengeWaitMsg
     {
-      ChallengeWaitMsg(Order order, Challenge challenge, Client* client) :
-        order(order),
+      ChallengeWaitMsg(
+        const std::string& order_url, Challenge challenge, Client* client) :
+        order_url(order_url),
         challenge(challenge),
         client(client)
       {}
-      Order order;
+      std::string order_url;
       Challenge challenge;
       Client* client;
     };
 
     std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> schedule_check_challenge(
-      Order& order, Challenge& challenge)
+      const std::string& order_url, Challenge& challenge)
     {
       return std::make_unique<threading::Tmsg<ChallengeWaitMsg>>(
         [](std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> msg) {
-          Order& order = msg->data.order;
+          std::string& order_url = msg->data.order_url;
           Challenge& challenge = msg->data.challenge;
           Client* client = msg->data.client;
 
-          if (client->check_challenge(order, challenge))
+          if (client->check_challenge(order_url, challenge))
           {
             LOG_TRACE_FMT("ACME: scheduling next challenge check");
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), std::chrono::seconds(5));
           }
         },
-        order,
+        order_url,
         challenge,
         this);
     }
 
-    bool check_challenge(Order& order, const Challenge& challenge)
+    bool check_challenge(
+      const std::string& order_url, const Challenge& challenge)
     {
-      if (order.challenges.find(challenge.token) == order.challenges.end())
+      std::unique_lock<std::mutex> guard(orders_lock);
+      auto order = get_order(order_url);
+
+      if (
+        !order ||
+        order->challenges.find(challenge.token) == order->challenges.end())
       {
         return false;
       }
@@ -892,9 +953,9 @@ namespace ACME
 
       // This post-as-get with empty body ("", not "{}"), but json response.
       post_as_get(
-        order.account_url,
+        order->account_url,
         challenge.authorization_url,
-        [this, &order, &challenge](
+        [this, order_url, challenge_token = challenge.token](
           const http::HeaderMap& headers, const std::vector<uint8_t>& body) {
           auto j = nlohmann::json::parse(body);
           LOG_TRACE_FMT("ACME: authorization status: {}", j.dump());
@@ -902,7 +963,7 @@ namespace ACME
 
           if (j["status"] == "valid")
           {
-            finish_challenge(order, challenge);
+            finish_challenge(order_url, challenge_token);
           }
           else if (j["status"] == "pending" || j["status"] == "processing")
           {
@@ -911,9 +972,9 @@ namespace ACME
               LOG_FAIL_FMT(
                 "ACME: Challenge for token '{}' failed with the "
                 "following error: {}",
-                challenge.token,
+                challenge_token,
                 j["error"].dump());
-              finish_challenge(order, challenge);
+              finish_challenge(order_url, challenge_token);
             }
             else
             {
@@ -924,9 +985,9 @@ namespace ACME
           {
             LOG_FAIL_FMT(
               "ACME: Challenge for token '{}' failed with status '{}' ",
-              challenge.token,
+              challenge_token,
               j["status"]);
-            finish_challenge(order, challenge);
+            finish_challenge(order_url, challenge_token);
           }
 
           return false;
@@ -935,80 +996,87 @@ namespace ACME
       return true;
     }
 
-    void finish_challenge(Order& order, const Challenge& challenge)
+    void finish_challenge(
+      const std::string& order_url, const std::string& challenge_token)
     {
-      std::unique_lock<std::mutex> guard(finalize_lock);
+      bool order_done = false;
 
-      auto cit = order.challenges.find(challenge.token);
-      if (cit == order.challenges.end())
       {
-        throw std::runtime_error(
-          fmt::format("No active challenge for token '{}'", challenge.token));
+        std::unique_lock<std::mutex> guard(orders_lock);
+        auto order = get_order(order_url);
+
+        if (!order)
+        {
+          return;
+        }
+
+        auto cit = order->challenges.find(challenge_token);
+        if (cit == order->challenges.end())
+        {
+          throw std::runtime_error(
+            fmt::format("No active challenge for token '{}'", challenge_token));
+        }
+
+        order->challenges.erase(cit);
+        order_done = order->challenges.empty();
       }
 
-      order.challenges.erase(cit);
-
-      if (order.challenges.empty())
+      if (order_done)
       {
-        submit_finalize(order);
+        request_finalization(order_url);
       }
     }
 
-    bool check_finalization(Order& order)
+    bool check_finalization(const std::string& order_url)
     {
-      std::unique_lock<std::mutex> guard(finalize_lock);
       std::unique_lock<std::mutex> guard2(orders_lock);
+      auto order = get_order(order_url);
 
-      auto oit = std::find_if(
-        active_orders.begin(),
-        active_orders.end(),
-        [&order](const Order& other) {
-          return order.order_url == other.order_url;
-        });
-
-      if (oit != active_orders.end())
+      if (!order)
       {
-        LOG_TRACE_FMT("ACME: checking finalization");
-
-        // This post-as-get with empty body ("", not "{}"), but json response.
-        post_as_get(
-          order.account_url,
-          order.order_url,
-          [this, &order](
-            const http::HeaderMap& headers, const std::vector<uint8_t>& body) {
-            auto j = nlohmann::json::parse(body);
-            LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
-            expect(j, "status");
-            if (j["status"] == "valid")
-            {
-              expect(j, "certificate");
-              order.certificate_url = j["certificate"];
-              download_certificate(order);
-            }
-            else if (j["status"] == "invalid")
-            {
-              LOG_TRACE_FMT("ACME: removing failed order");
-              std::unique_lock<std::mutex> guard(orders_lock);
-              active_orders.remove_if([&order](const Order& other) {
-                return other.order_url == order.order_url;
-              });
-            }
-            else if (j["status"] != "pending" && j["status"] != "processing")
-            {
-              LOG_DEBUG_FMT(
-                "ACME: unknown order status '{}'; aborting order", j["status"]);
-              std::unique_lock<std::mutex> guard(orders_lock);
-              active_orders.remove_if([&order](const Order& other) {
-                return other.order_url == order.order_url;
-              });
-            }
-            return true;
-          });
-
-        return true;
+        return false;
       }
 
-      return false;
+      LOG_TRACE_FMT("ACME: checking finalization of {}", order_url);
+
+      // This post-as-get with empty body ("", not "{}"), but json response.
+      post_as_get(
+        order->account_url,
+        order->order_url,
+        [this, order_url](
+          const http::HeaderMap& headers, const std::vector<uint8_t>& body) {
+          auto j = nlohmann::json::parse(body);
+          LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
+          expect(j, "status");
+          if (j["status"] == "valid")
+          {
+            expect(j, "certificate");
+            {
+              std::unique_lock<std::mutex> guard(orders_lock);
+              auto order = get_order(order_url);
+              if (order)
+              {
+                LOG_TRACE_FMT("ACME: have order");
+                order->certificate_url = j["certificate"];
+              }
+            }
+            request_certificate(order_url);
+          }
+          else if (j["status"] == "invalid")
+          {
+            LOG_TRACE_FMT("ACME: removing failed order");
+            remove_order(order_url);
+          }
+          else if (j["status"] != "pending" && j["status"] != "processing")
+          {
+            LOG_DEBUG_FMT(
+              "ACME: unknown order status '{}'; aborting order", j["status"]);
+            remove_order(order_url);
+          }
+          return true;
+        });
+
+      return true;
     }
 
     struct FinalizationWaitMsg
@@ -1027,49 +1095,41 @@ namespace ACME
       return std::make_unique<threading::Tmsg<FinalizationWaitMsg>>(
         [](std::unique_ptr<threading::Tmsg<FinalizationWaitMsg>> msg) {
           Client* client = msg->data.client;
-          std::string& order_url = msg->data.order_url;
+          const std::string& order_url = msg->data.order_url;
 
-          std::unique_lock<std::mutex> guard(client->orders_lock);
-
-          auto oit = std::find_if(
-            client->active_orders.begin(),
-            client->active_orders.end(),
-            [&order_url](const Order& other) {
-              return order_url == other.order_url;
-            });
-
-          if (oit != client->active_orders.end())
+          if (client->check_finalization(order_url))
           {
-            if (client->check_finalization(*oit))
-            {
-              LOG_TRACE_FMT("ACME: scheduling next finalization check");
-              threading::ThreadMessaging::thread_messaging.add_task_after(
-                std::move(msg), std::chrono::seconds(5));
-            }
+            LOG_TRACE_FMT("ACME: scheduling next finalization check");
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), std::chrono::seconds(5));
           }
         },
         order_url,
         this);
     }
 
-    void submit_finalize(Order& order)
+    void request_finalization(const std::string& order_url)
     {
-      if (!order.challenges.empty())
-      {
-        return;
-      }
-
       if (nonces.empty())
       {
-        request_new_nonce([this, &order]() { submit_finalize(order); });
+        request_new_nonce(
+          [this, &order_url]() { request_finalization(order_url); });
       }
       else
       {
+        std::unique_lock<std::mutex> guard(orders_lock);
+        auto order = get_order(order_url);
+
+        if (!order)
+        {
+          return;
+        }
+
         auto nonce = nonces.front();
         nonces.pop_front();
 
         auto header =
-          mk_kid_header(order.account_url, nonce, order.finalize_url);
+          mk_kid_header(order->account_url, nonce, order->finalize_url);
 
         auto csr = service_key->create_csr_der(
           "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
@@ -1078,13 +1138,13 @@ namespace ACME
 
         JWS jws(header, true, payload, *account_key_pair);
 
-        http::URL url = with_default_port(order.finalize_url);
+        http::URL url = with_default_port(order->finalize_url);
         make_json_request(
           HTTP_POST,
           url,
           json_to_bytes(jws),
           HTTP_STATUS_OK,
-          [this, order_url = order.order_url](
+          [this, order_url = order->order_url](
             const http::HeaderMap& headers, const nlohmann::json& j) {
             LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
             expect(j, "status");
@@ -1092,18 +1152,15 @@ namespace ACME
             {
               expect(j, "certificate");
 
-              std::unique_lock<std::mutex> guard(orders_lock);
-              auto oit = std::find_if(
-                active_orders.begin(),
-                active_orders.end(),
-                [&order_url](const Order& other) {
-                  return order_url == other.order_url;
-                });
-              if (oit != active_orders.end())
               {
-                oit->certificate_url = j["certificate"];
-                download_certificate(*oit);
+                std::unique_lock<std::mutex> guard(orders_lock);
+                auto order = get_order(order_url);
+                if (order)
+                {
+                  order->certificate_url = j["certificate"];
+                }
               }
+              request_certificate(order_url);
             }
             else
             {
@@ -1116,32 +1173,42 @@ namespace ACME
       }
     }
 
-    void download_certificate(Order& order)
+    void request_certificate(const std::string& order_url)
     {
-      http::URL url = with_default_port(order.certificate_url);
-      post_as_get(
-        order.account_url,
-        order.certificate_url,
-        [this, &order](
-          const http::HeaderMap& headers, const std::vector<uint8_t>& data) {
-          std::string c(data.data(), data.data() + data.size());
-          LOG_TRACE_FMT("Obtained certificate (chain): {}", c);
+      if (nonces.empty())
+      {
+        request_new_nonce(
+          [this, &order_url]() { request_certificate(order_url); });
+      }
+      else
+      {
+        std::unique_lock<std::mutex> guard(orders_lock);
+        auto order = get_order(order_url);
 
-          on_certificate(c);
+        if (!order)
+        {
+          return;
+        }
 
-          std::unique_lock<std::mutex> guard(orders_lock);
-          active_orders.remove_if([&order](const Order& other) {
-            return other.order_url == order.order_url;
-          });
+        http::URL url = with_default_port(order->certificate_url);
+        post_as_get(
+          order->account_url,
+          order->certificate_url,
+          [this, order_url](
+            const http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+            std::string c(data.data(), data.data() + data.size());
+            LOG_TRACE_FMT("Obtained certificate (chain): {}", c);
 
-          if (num_failed_attempts > 0)
-          {
+            on_certificate(c);
+
+            remove_order(order_url);
+
             last_request = std::chrono::system_clock::now();
             num_failed_attempts = 0;
-          }
 
-          return true;
-        });
+            return true;
+          });
+      }
     }
   };
 }
