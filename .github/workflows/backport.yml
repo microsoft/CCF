@@ -18,8 +18,10 @@ jobs:
         || (github.event.action == 'closed')
       )
     steps:
-      - name: Local canary file always wins
+      - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Local canary file always wins
         run: |
           git config --local include.path .gitconfig
           git config --global merge.keeplocal.name "Always keep local file during merge"
