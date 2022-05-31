@@ -492,7 +492,7 @@ namespace ccf
           std::lock_guard<std::mutex> guard(lock);
           if (!sm.check(NodeStartupState::pending))
           {
-            return false;
+            return;
           }
 
           if (status != HTTP_STATUS_OK)
@@ -517,7 +517,7 @@ namespace ccf
                   "" :
                   fmt::format("  '{}'", std::string(data.begin(), data.end())));
             }
-            return false;
+            return;
           }
 
           auto j = serdes::unpack(data, serdes::Pack::Text);
@@ -534,7 +534,7 @@ namespace ccf
             LOG_DEBUG_FMT(
               "An error occurred while parsing the join network response: {}",
               j.dump());
-            return false;
+            return;
           }
 
           // Set network secrets, node id and become part of network.
@@ -670,8 +670,10 @@ namespace ccf
             LOG_INFO_FMT(
               "Node {} is waiting for votes of members to be trusted", self);
           }
-
-          return true;
+        },
+        [this](const std::string& error_msg) {
+          std::lock_guard<std::mutex> guard(lock);
+          LOG_FAIL_FMT("Shutdown node gracefully!");
         });
 
       // Send RPC request to remote node to join the network.

@@ -77,6 +77,11 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
     }
 
+    virtual void on_handshake_error(const std::string& error_msg)
+    {
+      LOG_TRACE_FMT("error_msg");
+    }
+
     std::string hostname()
     {
       if (status != ready)
@@ -398,10 +403,10 @@ namespace ccf
 
         case TLS_ERR_NEED_CERT:
         {
-          LOG_TRACE_FMT(
+          on_handshake_error(fmt::format(
             "TLS {} verify error on handshake: {}",
             session_id,
-            tls::error_string(rc));
+            tls::error_string(rc)));
           stop(authfail);
           break;
         }
@@ -419,20 +424,21 @@ namespace ccf
         case TLS_ERR_X509_VERIFY:
         {
           auto err = ctx->get_verify_error();
-
-          LOG_TRACE_FMT(
+          on_handshake_error(fmt::format(
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
-            tls::error_string(rc));
+            tls::error_string(rc)));
           stop(authfail);
           return;
         }
 
         default:
         {
-          LOG_TRACE_FMT(
-            "TLS {} error on handshake: {}", session_id, tls::error_string(rc));
+          on_handshake_error(fmt::format(
+            "TLS {} error on handshake: {}",
+            session_id,
+            tls::error_string(rc)));
           stop(error);
           break;
         }
