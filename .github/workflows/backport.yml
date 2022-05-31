@@ -8,7 +8,7 @@ on:
 
 jobs:
   backport:
-    name: Backport PR
+    name: Backport PR (on branch)
     runs-on: ubuntu-latest
     if: |
       github.event.pull_request.merged == true
