@@ -378,7 +378,7 @@ SignCommittableMessages(i) ==
         /\ LET
             \* Create a new entry in the log that has the contentType Signature and append it
             entry == [term  |-> currentTerm[i],
-                      value |-> clientRequests-1,
+                      value |-> Nil,
                contentType  |-> TypeSignature]
             newLog == Append(log[i], entry)
             IN log' = [log EXCEPT ![i] = newLog]
@@ -896,6 +896,93 @@ SignatureInv ==
     \A i \in PossibleServer :
         \/ commitIndex[i] = 0
         \/ log[i][commitIndex[i]].contentType = TypeSignature
+
+MaxLogLength == (RequestLimit + ReconfigurationCount) * 2
+
+\* Helper function for checking the type safety of log entries
+LogTypeOK(xlog) ==
+    IF Len(xlog) > 0 THEN
+        \A k \in 1..Len(xlog):
+            /\ xlog[k].term \in 1..TermLimit
+            /\ \/ /\ xlog[k].contentType = TypeEntry
+                  /\ xlog[k].value \in 1..RequestLimit+1
+               \/ /\ xlog[k].contentType = TypeSignature
+                  /\ xlog[k].value = Nil
+               \/ /\ xlog[k].contentType = TypeReconfiguration
+                  /\ xlog[k].value \subseteq PossibleServer
+    ELSE TRUE
+
+ReconfigurationVarsTypeInv ==
+    /\ ReconfigurationCount \in 0..ReconfigurationLimit
+    /\ \A i \in PossibleServer :
+        \A k \in 1..Len(Configurations[i]) :
+            /\ Configurations[i][k][1] \in 0..MaxLogLength
+            /\ Configurations[i][k][2] \subseteq PossibleServer
+
+MessageVarsTypeInv ==
+    /\ \A m \in messages:
+        /\ m.msource \in PossibleServer
+        /\ m.mdest \in PossibleServer
+        /\ m.mterm \in 1..TermLimit
+        /\ \/ /\ m.mtype = AppendEntriesRequest
+                /\ m.mprevLogIndex \in 0..MaxLogLength
+                /\ m.mprevLogTerm \in 0..TermLimit
+                /\ LogTypeOK(m.mentries)
+                /\ m.mcommitIndex \in 0..MaxLogLength
+            \/ /\ m.mtype = AppendEntriesResponse
+                /\ m.msuccess \in BOOLEAN
+                /\ m.mmatchIndex \in 0..MaxLogLength
+            \/ /\ m.mtype = RequestVoteRequest
+                /\ m.mlastLogTerm \in 0..TermLimit
+                /\ m.mlastLogIndex \in 0..MaxLogLength
+            \/ /\ m.mtype = RequestVoteResponse
+                /\ m.mvoteGranted \in BOOLEAN
+            \/ /\ m.mtype = NotifyCommitMessage
+                /\ m.mcommitIndex \in 0..MaxLogLength
+    /\ \A i,j \in PossibleServer:
+        /\ Len(messagesSent[i][j]) \in 0..MaxLogLength
+        /\ IF Len(messagesSent[i][j]) > 0 THEN
+            \A k \in 1..Len(messagesSent[i][j]) :
+                messagesSent[i][j][k] \in 1..MessagesLimit
+            ELSE TRUE
+    /\ \A i \in PossibleServer:
+        /\ commitsNotified[i][1] \in 0..MaxLogLength
+        /\ commitsNotified[i][2] \in 0..CommitNotificationLimit
+
+ServerVarsTypeInv ==
+    /\ \A i \in PossibleServer:
+        /\ currentTerm[i] \in 1..TermLimit
+        /\ state[i] \in {Follower, Candidate, Leader, RetiredLeader, Pending}
+        /\ votedFor[i] \in {Nil} \cup PossibleServer
+
+CandidateVarsTypeInv ==
+    /\ \A i \in PossibleServer:
+        /\ votesSent[i] \in BOOLEAN
+        /\ votesGranted[i] \subseteq PossibleServer
+        /\ \A j \in PossibleServer :
+            /\ votesRequested[i][j] \in 0..RequestVoteLimit
+
+LeaderVarsTypeInv ==
+    /\ \A i, j \in PossibleServer :
+        /\ nextIndex[i][j] \in 1..MaxLogLength+1
+        /\ matchIndex[i][j] \in 0..MaxLogLength
+
+LogVarsTypeInv ==
+    /\ \A i \in PossibleServer:
+        /\ LogTypeOK(log[i])
+        /\ commitIndex[i] \in 0..MaxLogLength
+    /\ clientRequests \in 1..RequestLimit+1
+    /\ LogTypeOK(committedLog)
+    /\ committedLogDecrease \in BOOLEAN
+
+\* Invariant to check the type safety of all variables
+TypeInv ==
+    /\ ReconfigurationVarsTypeInv
+    /\ MessageVarsTypeInv
+    /\ ServerVarsTypeInv
+    /\ CandidateVarsTypeInv
+    /\ LeaderVarsTypeInv
+    /\ LogVarsTypeInv
 
 ===============================================================================
 
