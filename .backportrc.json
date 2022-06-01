@@ -12,5 +12,7 @@
   "sourcePRLabels": ["backported"],
   "targetPRLabels": ["backport"],
   "autoAssign": false,
-  "publishStatusCommentOnSuccess": false
+  "publishStatusCommentOnSuccess": false,
+  "publishStatusCommentOnFailure": false,
+  "publishStatusCommentOnAbort": false
 }
