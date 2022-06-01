@@ -1,5 +1,4 @@
-
----------- MODULE MCraft ----------
+---------- MODULE MCraftWithReconfig ----------
 EXTENDS ccfraft, TLC
 
 PossibleServer_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
