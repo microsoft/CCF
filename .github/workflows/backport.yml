@@ -35,6 +35,3 @@ jobs:
         uses: sqren/backport-github-action@v8.4.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Backport log
-        run: cat ~/.backport/backport.log
