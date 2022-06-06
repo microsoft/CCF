@@ -1203,6 +1203,7 @@ namespace ACME
 
             remove_order(order_url);
 
+            last_request = std::chrono::system_clock::now();
             num_failed_attempts = 0;
 
             return true;

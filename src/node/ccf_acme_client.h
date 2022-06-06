@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/service/tables/acme_certificates.h"
 #include "enclave/interface.h"
 #include "enclave/rpc_sessions.h"
 #include "node/acme_client.h"
@@ -81,24 +82,11 @@ namespace ccf
 
     virtual void on_certificate(const std::string& certificate) override
     {
-      // Write the endorsed certificate to the service table; all nodes
-      // will install it later, in the global hook on the service table.
+      // Write the endorsed certificate to the certificate table; all nodes
+      // will install it later, in the global hook on that table.
       auto tx = store->create_tx();
-      auto service = tx.rw<Service>(Tables::SERVICE);
-      auto service_info = service->get();
-      if (!service_info)
-      {
-        LOG_DEBUG_FMT("ACME: no service info!");
-        return;
-      }
-      if (!service_info->acme_certificates)
-      {
-        service_info->acme_certificates = std::map<std::string, crypto::Pem>();
-      }
-      assert(service_info && service_info->acme_certificates);
-      service_info->acme_certificates->emplace(
-        config_name, crypto::Pem(certificate));
-      service->put(*service_info);
+      auto certs = tx.rw<ACMECertificates>(Tables::ACME_CERTIFICATES);
+      certs->put(config_name, crypto::Pem(certificate));
       tx.commit();
     }
   };

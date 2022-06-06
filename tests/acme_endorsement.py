@@ -77,7 +77,7 @@ def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
                         raise Exception("Public key mismatch")
                     num_ok += 1
                 except Exception as ex:
-                    LOG.debug(f"Likely expected exception: {ex}")
+                    LOG.trace(f"Likely expected exception: {ex}")
 
             if num_ok != len(args.nodes):
                 time.sleep(1)

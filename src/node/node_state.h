@@ -8,6 +8,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
 #include "ccf_acme_client.h"
 #include "consensus/aft/raft.h"
@@ -2252,31 +2253,31 @@ namespace ccf
               RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
             }
+          }));
 
-            if (w->acme_certificates)
+      network.tables->set_global_hook(
+        network.acme_certificates.get_name(),
+        network.acme_certificates.wrap_commit_hook(
+          [this](
+            kv::Version hook_version, const ccf::ACMECertificates::Write& w) {
+            for (auto const& [interface_id, interface] :
+                 config.network.rpc_interfaces)
             {
-              for (auto& [iface_id, iface] : config.network.rpc_interfaces)
+              if (interface.acme_configuration)
               {
-                if (
-                  iface.endorsement &&
-                  iface.endorsement->authority == Authority::ACME &&
-                  iface.acme_configuration)
+                auto cit = w.find(*interface.acme_configuration);
+                if (cit != w.end())
                 {
-                  auto cit =
-                    w->acme_certificates->find(*iface.acme_configuration);
-                  if (cit != w->acme_certificates->end())
-                  {
-                    LOG_INFO_FMT(
-                      "ACME: new certificate for interface '{}' with "
-                      "configuration '{}'",
-                      iface_id,
-                      *iface.acme_configuration);
-                    rpcsessions->set_cert(
-                      Authority::ACME,
-                      cit->second,
-                      network.identity->priv_key,
-                      cit->first);
-                  }
+                  LOG_INFO_FMT(
+                    "ACME: new certificate for interface '{}' with "
+                    "configuration '{}'",
+                    interface_id,
+                    *interface.acme_configuration);
+                  rpcsessions->set_cert(
+                    Authority::ACME,
+                    *cit->second,
+                    network.identity->priv_key,
+                    cit->first);
                 }
               }
             }
@@ -2556,31 +2557,24 @@ namespace ccf
                 {
                   bool renew = false;
                   auto tx = state.network.tables->create_read_only_tx();
-                  auto service = tx.ro<Service>(Tables::SERVICE);
-                  auto service_info = service->get();
-                  if (service_info && service_info->acme_certificates)
+                  auto certs =
+                    tx.ro<ACMECertificates>(Tables::ACME_CERTIFICATES);
+                  auto cert = certs->get(cfg_name);
+                  if (cert)
                   {
-                    auto cit = service_info->acme_certificates->find(cfg_name);
-                    if (cit != service_info->acme_certificates->end())
-                    {
-                      auto v = crypto::make_verifier(cit->second);
-                      double rem_pct = v->remaining_percentage(now);
-                      LOG_TRACE_FMT(
-                        "ACME: remaining certificate for '{}' validity: {}%, "
-                        "{} "
-                        "seconds",
-                        cfg_name,
-                        100.0 * rem_pct,
-                        v->remaining_seconds(now));
-                      if (rem_pct < 0.33)
-                      {
-                        renew = true;
-                      }
-                    }
+                    auto v = crypto::make_verifier(*cert);
+                    double rem_pct = v->remaining_percentage(now);
+                    LOG_TRACE_FMT(
+                      "ACME: remaining certificate for '{}' validity: {}%, "
+                      "{} "
+                      "seconds",
+                      cfg_name,
+                      100.0 * rem_pct,
+                      v->remaining_seconds(now));
+                    renew = rem_pct < 0.33;
                   }
 
-                  if (
-                    renew || !service_info || !service_info->acme_certificates)
+                  if (renew || !cert)
                   {
                     client->get_certificate(
                       make_key_pair(state.network.identity->priv_key));

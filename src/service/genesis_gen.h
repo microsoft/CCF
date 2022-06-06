@@ -303,8 +303,7 @@ namespace ccf
       service->put(
         {service_cert,
          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-         recovering ? service->get_version_of_previous_write() : std::nullopt,
-         std::nullopt});
+         recovering ? service->get_version_of_previous_write() : std::nullopt});
     }
 
     bool is_service_created(const crypto::Pem& expected_service_cert)

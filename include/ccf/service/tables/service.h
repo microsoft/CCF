@@ -31,13 +31,10 @@ namespace ccf
     ServiceStatus status = ServiceStatus::OPENING;
     /// Version of previous service identity (before the last recovery)
     std::optional<kv::Version> previous_service_identity_version = std::nullopt;
-    /// ACME interface certificates
-    std::optional<std::map<std::string, crypto::Pem>> acme_certificates;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    ServiceInfo, previous_service_identity_version, acme_certificates);
+  DECLARE_JSON_OPTIONAL_FIELDS(ServiceInfo, previous_service_identity_version);
 
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV
