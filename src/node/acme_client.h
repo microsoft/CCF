@@ -349,7 +349,7 @@ namespace ACME
       }
     }
 
-    const ClientConfig& config;
+    ClientConfig config;
     std::shared_ptr<crypto::KeyPair> service_key;
     std::shared_ptr<crypto::KeyPair> account_key_pair;
 

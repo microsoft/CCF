@@ -5,6 +5,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/service/acme_client_config.h"
 
 #include <string>
 
@@ -84,6 +85,16 @@ namespace ccf
 
     NetInterface node_to_node_interface;
     RpcInterfaces rpc_interfaces;
+
+    struct ACME
+    {
+      std::map<std::string, ccf::ACMEClientConfig> configurations;
+      std::string challenge_server_interface;
+
+      bool operator==(const ACME&) const = default;
+    };
+
+    std::optional<ACME> acme;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
@@ -95,9 +106,13 @@ namespace ccf
     published_address,
     protocol,
     acme_configuration);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
+  DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    NodeInfoNetwork_v2::ACME, configurations, challenge_server_interface);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfoNetwork_v2, acme);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {

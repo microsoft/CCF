@@ -527,9 +527,9 @@ int main(int argc, char** argv)
 #endif
     }
 
-    if (config.acme)
+    if (config.network.acme)
     {
-      startup_config.acme_configurations = config.acme->configurations;
+      startup_config.network.acme = config.network.acme;
     }
 
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
@@ -613,10 +613,12 @@ int main(int argc, char** argv)
     }
 
     std::unique_ptr<ACMEChallengeServer> acs;
-    if (config.acme && !config.acme->challenge_server_interface.empty())
+    if (
+      config.network.acme &&
+      !config.network.acme->challenge_server_interface.empty())
     {
       acs = std::make_unique<ACMEChallengeServer>(
-        config.acme->challenge_server_interface,
+        config.network.acme->challenge_server_interface,
         bp.get_dispatcher(),
         writer_factory);
     }

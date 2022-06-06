@@ -1416,8 +1416,8 @@ namespace ccf
             interfaces->end())
         {
           const std::string& cfg_name = *interface.acme_configuration;
-          auto cit = config.acme_configurations->find(cfg_name);
-          if (cit == config.acme_configurations->end())
+          auto cit = config.network.acme->configurations.find(cfg_name);
+          if (cit == config.network.acme->configurations.end())
           {
             LOG_INFO_FMT("Unknown ACME configuration '{}'", cfg_name);
             continue;
@@ -2520,7 +2520,7 @@ namespace ccf
 
     void setup_acme_clients()
     {
-      if (!config.acme_configurations || config.acme_configurations->empty())
+      if (!config.network.acme || config.network.acme->configurations.empty())
       {
         return;
       }

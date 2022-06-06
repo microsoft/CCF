@@ -147,16 +147,6 @@ namespace host
       Recover recover = {};
     };
     Command command = {};
-
-    struct ACME
-    {
-      std::map<std::string, ccf::ACMEClientConfig> configurations;
-      std::string challenge_server_interface;
-
-      bool operator==(const ACME&) const = default;
-    };
-
-    std::optional<ACME> acme;
   };
 
   DECLARE_JSON_TYPE(CCHostConfig::Enclave);
@@ -213,10 +203,6 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Command, service_certificate_file, start, join, recover);
 
-  DECLARE_JSON_TYPE(CCHostConfig::ACME);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    CCHostConfig::ACME, configurations, challenge_server_interface);
-
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -230,6 +216,5 @@ namespace host
     ledger,
     snapshots,
     logging,
-    memory,
-    acme);
+    memory);
 }

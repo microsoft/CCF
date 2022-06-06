@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/service/acme_client_config.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "enclave/interface.h"
 #include "enclave/rpc_sessions.h"
@@ -13,17 +14,34 @@
 
 namespace ccf
 {
+  namespace
+  {
+    static inline ACME::ClientConfig get_client_config(
+      const ACMEClientConfig& cfg)
+    {
+      return {
+        cfg.ca_certs,
+        cfg.directory_url,
+        cfg.service_dns_name,
+        cfg.contact,
+        cfg.terms_of_service_agreed,
+        cfg.challenge_type,
+        cfg.not_before,
+        cfg.not_after};
+    }
+  }
+
   class ACMEClient : public ACME::Client
   {
   public:
     ACMEClient(
       const std::string& config_name,
-      const ACME::ClientConfig& config,
+      const ACMEClientConfig& config,
       std::shared_ptr<RPCSessions> rpc_sessions,
       std::shared_ptr<kv::Store> store,
       ringbuffer::WriterPtr to_host,
       std::shared_ptr<crypto::KeyPair> account_key_pair = nullptr) :
-      ACME::Client(config, account_key_pair),
+      ACME::Client(get_client_config(config), account_key_pair),
       config_name(config_name),
       rpc_sessions(rpc_sessions),
       store(store),
