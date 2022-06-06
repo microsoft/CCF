@@ -630,6 +630,30 @@ public:
     }
   }
 
+  void assert_is_backup(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_backup())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: backup", node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state backup");
+    }
+  }
+
+  void assert_is_primary(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_primary())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: primary", node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state primary");
+    }
+  }
+
   void assert_state_sync()
   {
     auto [target_id, nd] = *_nodes.begin();

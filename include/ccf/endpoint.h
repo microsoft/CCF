@@ -34,13 +34,6 @@ namespace ccf::endpoints
     Never
   };
 
-  enum class ExecuteOutsideConsensus
-  {
-    Never,
-    Locally,
-    Primary
-  };
-
   enum class Mode
   {
     ReadWrite,
@@ -61,12 +54,6 @@ namespace ccf::endpoints
      {ForwardingRequired::Never, "never"}});
 
   DECLARE_JSON_ENUM(
-    ExecuteOutsideConsensus,
-    {{ExecuteOutsideConsensus::Never, "never"},
-     {ExecuteOutsideConsensus::Locally, "locally"},
-     {ExecuteOutsideConsensus::Primary, "primary"}});
-
-  DECLARE_JSON_ENUM(
     Mode,
     {{Mode::ReadWrite, "readwrite"},
      {Mode::ReadOnly, "readonly"},
@@ -78,9 +65,6 @@ namespace ccf::endpoints
     Mode mode = Mode::ReadWrite;
     /// Endpoint forwarding policy
     ForwardingRequired forwarding_required = ForwardingRequired::Always;
-    /// Execution policy
-    ExecuteOutsideConsensus execute_outside_consensus =
-      ExecuteOutsideConsensus::Never;
     /// Authentication policies
     std::vector<std::string> authn_policies = {};
     /// OpenAPI schema for endpoint
