@@ -80,7 +80,7 @@ namespace ACME
       if (last_request && !override_time)
       {
         // Let's encrypt recommends this retry strategy in their integration
-        // guide
+        // guide, see https://letsencrypt.org/docs/integration-guide/
 
         delta = system_clock::now() - *last_request;
         ok = false;
