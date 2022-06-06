@@ -1,3 +1,5 @@
+name: "Backport PR to LTS release branch(es)"
+
 on:
   pull_request_target:
     branches:
@@ -14,7 +16,7 @@ jobs:
       github.event.pull_request.merged == true
       && endsWith(github.event.pull_request.labels.*.name, '-todo')
       && (
-        (github.event.action == 'labeled' && endsWith(github.event.label.name == '-todo'))
+        (github.event.action == 'labeled' && endsWith(github.event.label.name, '-todo'))
         || (github.event.action == 'closed')
       )
     steps:
