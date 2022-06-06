@@ -13,6 +13,6 @@
   "targetPRLabels": ["2.x-backport"],
   "autoAssign": false,
   "publishStatusCommentOnSuccess": false,
-  "publishStatusCommentOnFailure": false,
-  "publishStatusCommentOnAbort": false
+  "publishStatusCommentOnFailure": true,
+  "publishStatusCommentOnAbort": true
 }
