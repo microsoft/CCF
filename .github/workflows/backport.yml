@@ -28,10 +28,10 @@ jobs:
           git config --local include.path .gitconfig
           git config --global merge.keeplocal.name "Always keep local file during merge"
           git config --global merge.keeplocal.driver true
-          git config --global user.name CCF [bot]
-          git config --global user.email 62645686+ccf-bot@users.noreply.github.com
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Backport Action
-        uses: sqren/backport-github-action@v8.4.2
+        uses: sqren/backport-github-action@v8.4.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
