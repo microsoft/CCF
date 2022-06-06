@@ -2551,6 +2551,7 @@ namespace ccf
               }
               else
               {
+                auto now = system_clock::now();
                 for (auto& [cfg_name, client] : state.acme_clients)
                 {
                   bool renew = false;
@@ -2563,14 +2564,14 @@ namespace ccf
                     if (cit != service_info->acme_certificates->end())
                     {
                       auto v = crypto::make_verifier(cit->second);
-                      double rem_pct = v->remaining_percentage();
+                      double rem_pct = v->remaining_percentage(now);
                       LOG_TRACE_FMT(
                         "ACME: remaining certificate for '{}' validity: {}%, "
                         "{} "
                         "seconds",
                         cfg_name,
                         100.0 * rem_pct,
-                        v->remaining_seconds());
+                        v->remaining_seconds(now));
                       if (rem_pct < 0.33)
                       {
                         renew = true;
