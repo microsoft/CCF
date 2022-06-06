@@ -1,0 +1,40 @@
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - labeled
+      - closed
+
+jobs:
+  backport:
+    name: Backport PR
+    runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.merged == true
+      && contains(github.event.pull_request.labels.*.name, 'auto-backport')
+      && (
+        (github.event.action == 'labeled' && github.event.label.name == 'auto-backport')
+        || (github.event.action == 'closed')
+      )
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Local canary file always wins
+        run: |
+          git config --local include.path .gitconfig
+          git config --global merge.keeplocal.name "Always keep local file during merge"
+          git config --global merge.keeplocal.driver true
+          git config --global user.name CCF [bot]
+          git config --global user.email 62645686+ccf-bot@users.noreply.github.com
+
+      - name: Backport Action
+        uses: sqren/backport-github-action@v8.4.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Backport log
+        run: cat ~/.backport/backport.log
