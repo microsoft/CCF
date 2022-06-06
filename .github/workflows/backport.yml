@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event.pull_request.merged == true
-      && contains(github.event.pull_request.labels.*.name, 'auto-backport')
+      && endsWith(github.event.pull_request.labels.*.name, '-todo')
       && (
-        (github.event.action == 'labeled' && github.event.label.name == 'auto-backport')
+        (github.event.action == 'labeled' && endsWith(github.event.label.name == '-todo'))
         || (github.event.action == 'closed')
       )
     steps:
