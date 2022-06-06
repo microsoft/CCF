@@ -1,0 +1,20 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Create directory for pebble
+  file:
+    path: "{{ pebble_install_prefix }}"
+    state: directory
+  become: true
+
+- name: Download pebble
+  get_url:
+    url: https://github.com/letsencrypt/pebble/releases/{{ pebble_version }}/download/pebble_linux-amd64
+    dest: "{{ pebble_install_prefix }}/pebble_linux-amd64"
+  become: true
+
+- name: Download pebble challenge server
+  get_url:
+    url: https://github.com/letsencrypt/pebble/releases/latest/download/pebble-challtestsrv_linux-amd64
+    dest: "{{ pebble_install_prefix }}/pebble-challtestsrv_linux-amd64"
+  become: true

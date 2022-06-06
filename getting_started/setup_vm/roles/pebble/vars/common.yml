@@ -1,0 +1,3 @@
+workspace: "/tmp/"
+pebble_version: latest
+pebble_install_prefix: "/opt/pebble"
