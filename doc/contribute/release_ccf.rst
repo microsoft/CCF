@@ -13,6 +13,8 @@ Patching a release, ie. issuing a ``N.0.x+1`` version when the current version i
     4. Merge PR, subject to approval and automated checks
     5. Tag head of ``release/N.x`` as ``ccf-N.0.x+1``
 
+.. tip:: Alternatively, pull requests merged to ``main`` with the `auto-backport GitHub label <https://github.com/microsoft/CCF/pulls?q=is%3Apr+label%3Aauto-backport+>`_ will be automatically backported to the active LTS branches.
+
 Create an LTS release
 ---------------------
 
