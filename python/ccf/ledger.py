@@ -1001,8 +1001,19 @@ class Ledger:
         latest_seqno = 0
         for chunk in self:
             for tx in chunk:
-                latest_seqno = tx.get_public_domain().get_seqno()
-                for table_name, records in tx.get_public_domain().get_tables().items():
+                # If a transaction cannot be read (e.g. because it was only partially written to disk
+                # before a crash), return public state so far. This is consistent with CCF's behaviour
+                # which discards the incomplete transaction on recovery.
+                try:
+                    public_domain = tx.get_public_domain()
+                except Exception:
+                    print(
+                        f"Error reading ledger entry. Latest read seqno: {latest_seqno}"
+                    )
+                    return public_tables, latest_seqno
+
+                latest_seqno = public_domain.get_seqno()
+                for table_name, records in public_domain.get_tables().items():
                     if table_name in public_tables:
                         public_tables[table_name].update(records)
                         # Remove deleted keys

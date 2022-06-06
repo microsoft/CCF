@@ -375,6 +375,14 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )
 
+    if(ENABLE_QUICTLS)
+      add_unit_test(
+        quic_test ${CMAKE_CURRENT_SOURCE_DIR}/src/quic/test/main.cpp
+      )
+      target_include_directories(quic_test PUBLIC ${QUICTLS_INCLUDE_DIRS})
+      target_link_libraries(quic_test PUBLIC ${QUICTLS_LIBRARIES})
+    endif()
+
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
