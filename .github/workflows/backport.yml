@@ -23,14 +23,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      # This is necessary as the repository is checked out to avoid merge conflicts
+      # on daily canary file
+      - name: Sets 
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Local canary file always wins
         run: |
           git config --local include.path .gitconfig
           git config --global merge.keeplocal.name "Always keep local file during merge"
           git config --global merge.keeplocal.driver true
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
+          
       - name: Backport Action
         uses: sqren/backport-github-action@v8.4.3
         with:
