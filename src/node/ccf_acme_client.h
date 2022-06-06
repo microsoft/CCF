@@ -9,6 +9,8 @@
 #include "node/acme_client.h"
 #include "service/network_tables.h"
 
+#include <chrono>
+
 namespace ccf
 {
   class ACMEClient : public ACME::Client
@@ -35,6 +37,35 @@ namespace ccf
     {
       ACME::Client::set_account_key(new_account_key_pair);
       install_wildcard_response();
+    }
+
+    virtual void check_expiry(
+      std::shared_ptr<kv::Store> tables,
+      std::unique_ptr<NetworkIdentity>& identity)
+    {
+      auto now = std::chrono::system_clock::now();
+      bool renew = false;
+      auto tx = tables->create_read_only_tx();
+      auto certs = tx.ro<ACMECertificates>(Tables::ACME_CERTIFICATES);
+      auto cert = certs->get(config_name);
+      if (cert)
+      {
+        auto v = crypto::make_verifier(*cert);
+        double rem_pct = v->remaining_percentage(now);
+        LOG_TRACE_FMT(
+          "ACME: remaining certificate for '{}' validity: {}%, "
+          "{} "
+          "seconds",
+          config_name,
+          100.0 * rem_pct,
+          v->remaining_seconds(now));
+        renew = rem_pct < 0.33;
+      }
+
+      if (renew || !cert)
+      {
+        get_certificate(make_key_pair(identity->priv_key));
+      }
     }
 
   protected:

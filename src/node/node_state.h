@@ -1397,6 +1397,8 @@ namespace ccf
         return;
       }
 
+      num_acme_interfaces = 0;
+
       for (const auto& [iname, interface] : config.network.rpc_interfaces)
       {
         if (
@@ -1405,6 +1407,8 @@ namespace ccf
         {
           continue;
         }
+
+        num_acme_interfaces++;
 
         if (
           !interfaces ||
@@ -2521,18 +2525,14 @@ namespace ccf
         return;
       }
 
-      num_acme_interfaces = 0;
-      for (const auto& [iname, interface] : config.network.rpc_interfaces)
-      {
-        if (interface.endorsement->authority == Authority::ACME)
-        {
-          num_acme_interfaces++;
-        }
-      }
+      const auto& ifaces = config.network.rpc_interfaces;
+      num_acme_interfaces =
+        std::count_if(ifaces.begin(), ifaces.end(), [](const auto& id_iface) {
+          return id_iface.second.endorsement->authority == Authority::ACME;
+        });
 
       if (num_acme_interfaces > 0)
       {
-        using namespace std::chrono;
         using namespace threading;
 
         // Start task to periodically check whether any of the certs are
@@ -2552,45 +2552,22 @@ namespace ccf
               }
               else
               {
-                auto now = system_clock::now();
                 for (auto& [cfg_name, client] : state.acme_clients)
                 {
-                  bool renew = false;
-                  auto tx = state.network.tables->create_read_only_tx();
-                  auto certs =
-                    tx.ro<ACMECertificates>(Tables::ACME_CERTIFICATES);
-                  auto cert = certs->get(cfg_name);
-                  if (cert)
-                  {
-                    auto v = crypto::make_verifier(*cert);
-                    double rem_pct = v->remaining_percentage(now);
-                    LOG_TRACE_FMT(
-                      "ACME: remaining certificate for '{}' validity: {}%, "
-                      "{} "
-                      "seconds",
-                      cfg_name,
-                      100.0 * rem_pct,
-                      v->remaining_seconds(now));
-                    renew = rem_pct < 0.33;
-                  }
-
-                  if (renew || !cert)
-                  {
-                    client->get_certificate(
-                      make_key_pair(state.network.identity->priv_key));
-                  }
+                  client->check_expiry(
+                    state.network.tables, state.network.identity);
                 }
               }
             }
 
-            auto delay = minutes(1);
+            auto delay = std::chrono::minutes(1);
             ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
           },
           *this);
 
         ThreadMessaging::thread_messaging.add_task_after(
-          std::move(msg), seconds(2));
+          std::move(msg), std::chrono::seconds(2));
       }
     }
 
