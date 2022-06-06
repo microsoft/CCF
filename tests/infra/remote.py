@@ -594,6 +594,7 @@ class CCFRemote(object):
         jwt_key_refresh_interval_s=None,
         election_timeout_ms=None,
         node_data_json_file=None,
+        service_cert_file="service_cert.pem",
         **kwargs,
     ):
         """
@@ -684,6 +685,7 @@ class CCFRemote(object):
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
                 election_timeout=f"{election_timeout_ms}ms",
                 node_data_json_file=node_data_json_file,
+                service_cert_file=service_cert_file,
                 **kwargs,
             )
 

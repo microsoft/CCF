@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout (#3685).
 - Node and service PEM certificates no longer contain a trailing null byte (#3885).
+- New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
 
 ### Removed
 
