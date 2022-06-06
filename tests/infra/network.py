@@ -1326,7 +1326,9 @@ class Network:
         previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
         while os.path.exists(previous_identity):
             prev_cert_count += 1
-            previous_identity = os.path.join(self.common_dir, f"previous_service_cert_{prev_cert_count}.pem")
+            previous_identity = os.path.join(
+                self.common_dir, f"previous_service_cert_{prev_cert_count}.pem"
+            )
         with open(previous_identity, "w", encoding="utf-8") as f:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
