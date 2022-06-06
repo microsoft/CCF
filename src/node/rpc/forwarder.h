@@ -242,6 +242,14 @@ namespace ccf
                 return;
               }
 
+              // TODO:
+              // 1. Call into nghttp2: send_response().
+              // BUT! There's no incoming HTTP/2 session so it won't work.
+              // Instead, there would need to be a HTTP/2 session between the
+              // backup and the primary node already, which is a lot of work
+              // and probably not worth it if forwarding is going to be sunset
+              // anyway.
+
               // Ignore return value - false only means it is pending
               send_forwarded_response(
                 ctx->get_session_context()->client_session_id,

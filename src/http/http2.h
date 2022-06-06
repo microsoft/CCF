@@ -19,6 +19,12 @@
 // - Join protocol working
 // - Overall flow is sound and most callback are correctly set
 // - What isn't clear is how http2::Session fits with HTTPEndpoint.
+// - Forwarding is really awkward because the primary node needs to calls into
+// nghttp2_submit_response() to send the response back to the backup. So the
+// endpoint created on the primary when a request is forwarded needs to have
+// special nghttp2 send callbacks to send back to the n2n channel. This also
+// implies that the n2n channel needs to be an HTTP/2 session, which is a lot of
+// work.
 // - A larger refactoring is required as HTTP/1 is easy enough that
 // ctx->serialised_response() is called very early on (frontend.h), but we
 // cannot serialise the response early with HTTP/2 (as response headers and body
