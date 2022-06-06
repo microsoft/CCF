@@ -13,7 +13,7 @@ Patching a release, ie. issuing a ``N.0.x+1`` version when the current version i
     4. Merge PR, subject to approval and automated checks
     5. Tag head of ``release/N.x`` as ``ccf-N.0.x+1``
 
-.. tip:: Alternatively, pull requests merged to ``main`` with the ``N.x-todo`` GitHub label will be automatically backported to the active LTS branches.
+.. tip:: Alternatively, pull requests merged to ``main`` with the ``N.x-todo`` GitHub label(s) will be automatically backported to the corresponding LTS branch(es).
 
 Create an LTS release
 ---------------------
