@@ -40,24 +40,31 @@ CONSTANTS TypeEntry, TypeSignature, TypeReconfiguration
 
 \* CCF: Limit on vote requests to be sent to each other node
 CONSTANTS RequestVoteLimit
+ASSUME RequestVoteLimit \in Nat
 
 \* Limit on terms
 CONSTANTS TermLimit
+ASSUME TermLimit \in Nat
 
 \* Limit on client requests
 CONSTANTS RequestLimit
+ASSUME RequestLimit \in Nat
 
 \* Limit for number of reconfigurations to be triggered
 CONSTANTS ReconfigurationLimit
+ASSUME ReconfigurationLimit \in Nat
 
 \* Limit max number of simultaneous candidates
 CONSTANTS MaxSimultaneousCandidates
+ASSUME MaxSimultaneousCandidates \in Nat
 
 \* CCF: Limit how many messages each node can send to another
 CONSTANTS MessagesLimit
+ASSUME MessagesLimit \in Nat
 
 \* CCF: Limit the number of commit notifications per commit Index and server
 CONSTANTS CommitNotificationLimit
+ASSUME CommitNotificationLimit \in Nat
 
 CONSTANTS NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
 
