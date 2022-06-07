@@ -11,10 +11,12 @@
   get_url:
     url: https://github.com/letsencrypt/pebble/releases/download/{{ pebble_version }}/pebble_linux-amd64
     dest: "{{ pebble_install_prefix }}/pebble_linux-amd64"
+    mode: "0775"
   become: true
 
 - name: Download pebble challenge server
   get_url:
     url: https://github.com/letsencrypt/pebble/releases/download/{{ pebble_version }}/pebble-challtestsrv_linux-amd64
     dest: "{{ pebble_install_prefix }}/pebble-challtestsrv_linux-amd64"
+    mode: "0775"
   become: true
