@@ -507,7 +507,13 @@ NotifyCommit(i,j) ==
                    mdest          |-> j] 
        IN Send(msg)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, serverVars, candidateVars, leaderVars, logVars >>
-                
+
+\* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
+CheckQuorum(i) ==
+    /\ state[i] = Leader
+    /\ state' = [state EXCEPT ![i] = Follower]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
+
 ----
 \* Message handlers
 \* i = recipient, j = sender, m = message
@@ -788,6 +794,7 @@ Next == \/ \E i \in PossibleServer : Timeout(i)
         \/ \E i,j \in PossibleServer : NotifyCommit(i,j)
         \/ \E i \in PossibleServer : AdvanceCommitIndex(i)
         \/ \E i,j \in PossibleServer : AppendEntries(i, j)
+        \/ \E i \in PossibleServer : CheckQuorum(i)
         \/ \E m \in messages : Receive(m)
 \* SNIPPET_END: next_states
         \* Dropping messages is disabled by default in this spec but preserved for the future.
@@ -819,6 +826,13 @@ IsPrefix(s, t) ==
 ----
 \* Debugging invariants
 \* These invariants should give error traces and are useful for debugging to see if important situations are possible
+
+\* This invariant is false with checkQuorum enabled but true with checkQuorum disabled
+DebugInvLeaderCannotStepDown ==
+    \A m \in messages: 
+        /\ m.mtype = AppendEntriesRequest
+        /\ currentTerm[m.msource] = m.mterm
+        => state[m.msource] = Leader
 
 \* With reconfig, it should be possible for Node 4 or 5 to become leader
 DebugInvReconfigLeader == 
