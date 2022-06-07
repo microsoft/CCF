@@ -9,7 +9,7 @@ InitialConfig_mc == [s \in PossibleServer_mc |-> Follower]
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
 \* constraint below is too restrictive.
-TermLimit_mc == 3
+TermLimit_mc == 2
 
 \* Limit number of requests (new entries) that can be made
 RequestLimit_mc == 1

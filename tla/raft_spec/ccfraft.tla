@@ -829,10 +829,22 @@ IsPrefix(s, t) ==
 
 \* This invariant is false with checkQuorum enabled but true with checkQuorum disabled
 DebugInvLeaderCannotStepDown ==
-    \A m \in messages: 
+    \A m \in messages :
         /\ m.mtype = AppendEntriesRequest
         /\ currentTerm[m.msource] = m.mterm
         => state[m.msource] = Leader
+
+\* Returns true if server i has committed value v, false otherwise
+IsCommittedByServer(v,i) ==
+    IF commitIndex[i]  = 0
+    THEN FALSE
+    ELSE \E k \in 1..commitIndex[i] :
+        /\ log[i][k].contentType = TypeEntry
+        /\ log[i][k].value = v
+
+\* This invariant states that at least one value is committed on at least one server
+DebugInvAnyCommitted ==
+    \lnot (\E v \in 1..RequestLimit : \E i \in PossibleServer : IsCommittedByServer(v,i))
 
 \* With reconfig, it should be possible for Node 4 or 5 to become leader
 DebugInvReconfigLeader == 
@@ -925,7 +937,7 @@ MaxLogLength == (RequestLimit + ReconfigurationCount) * 2
 \* Helper function for checking the type safety of log entries
 LogTypeOK(xlog) ==
     IF Len(xlog) > 0 THEN
-        \A k \in 1..Len(xlog):
+        \A k \in 1..Len(xlog) :
             /\ xlog[k].term \in 1..TermLimit
             /\ \/ /\ xlog[k].contentType = TypeEntry
                   /\ xlog[k].value \in 1..RequestLimit+1
@@ -943,7 +955,7 @@ ReconfigurationVarsTypeInv ==
             /\ Configurations[i][k][2] \subseteq PossibleServer
 
 MessageVarsTypeInv ==
-    /\ \A m \in messages:
+    /\ \A m \in messages :
         /\ m.msource \in PossibleServer
         /\ m.mdest \in PossibleServer
         /\ m.mterm \in 1..TermLimit
@@ -962,24 +974,24 @@ MessageVarsTypeInv ==
                 /\ m.mvoteGranted \in BOOLEAN
             \/ /\ m.mtype = NotifyCommitMessage
                 /\ m.mcommitIndex \in 0..MaxLogLength
-    /\ \A i,j \in PossibleServer:
+    /\ \A i,j \in PossibleServer :
         /\ Len(messagesSent[i][j]) \in 0..MaxLogLength
         /\ IF Len(messagesSent[i][j]) > 0 THEN
             \A k \in 1..Len(messagesSent[i][j]) :
                 messagesSent[i][j][k] \in 1..MessagesLimit
             ELSE TRUE
-    /\ \A i \in PossibleServer:
+    /\ \A i \in PossibleServer :
         /\ commitsNotified[i][1] \in 0..MaxLogLength
         /\ commitsNotified[i][2] \in 0..CommitNotificationLimit
 
 ServerVarsTypeInv ==
-    /\ \A i \in PossibleServer:
+    /\ \A i \in PossibleServer :
         /\ currentTerm[i] \in 1..TermLimit
         /\ state[i] \in {Follower, Candidate, Leader, RetiredLeader, Pending}
         /\ votedFor[i] \in {Nil} \cup PossibleServer
 
 CandidateVarsTypeInv ==
-    /\ \A i \in PossibleServer:
+    /\ \A i \in PossibleServer :
         /\ votesSent[i] \in BOOLEAN
         /\ votesGranted[i] \subseteq PossibleServer
         /\ \A j \in PossibleServer :
@@ -991,7 +1003,7 @@ LeaderVarsTypeInv ==
         /\ matchIndex[i][j] \in 0..MaxLogLength
 
 LogVarsTypeInv ==
-    /\ \A i \in PossibleServer:
+    /\ \A i \in PossibleServer :
         /\ Len(log[i]) \in 0..MaxLogLength
         /\ LogTypeOK(log[i])
         /\ commitIndex[i] \in 0..MaxLogLength
@@ -1007,6 +1019,16 @@ TypeInv ==
     /\ CandidateVarsTypeInv
     /\ LeaderVarsTypeInv
     /\ LogVarsTypeInv
+
+MonoTermInv ==
+    \A m \in messages: currentTerm[m.msource] >= m.mterm
+
+MonoLogInv ==
+    \A i \in PossibleServer :
+        \/ Len(log[i]) = 0
+        \/ /\ log[i][Len(log[i])].term <= currentTerm[i]
+           /\ \/ Len(log[i]) = 1
+              \/ \A k \in 1..Len(log[i])-1: log[i][k].term <= log[i][k+1].term
 
 ===============================================================================
 
