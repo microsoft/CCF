@@ -904,6 +904,8 @@ SignatureInv ==
         \/ commitIndex[i] = 0
         \/ log[i][commitIndex[i]].contentType = TypeSignature
 
+\* Since a signature transaction cannot follow another signature transaction,
+\* the following is the maximum log length
 MaxLogLength == (RequestLimit + ReconfigurationCount) * 2
 
 \* Helper function for checking the type safety of log entries
@@ -976,6 +978,7 @@ LeaderVarsTypeInv ==
 
 LogVarsTypeInv ==
     /\ \A i \in PossibleServer:
+        /\ Len(log[i]) \in 0..MaxLogLength
         /\ LogTypeOK(log[i])
         /\ commitIndex[i] \in 0..MaxLogLength
     /\ clientRequests \in 1..RequestLimit+1
