@@ -92,9 +92,10 @@ namespace http2
   static nghttp2_nv make_nv(const std::string& key, const std::string& value)
   {
     // TODO: Investigate no copy flags here
+
     return {
-      (uint8_t*)key.c_str(), // TODO: ugly cast
-      (uint8_t*)value.c_str(),
+      (uint8_t*)key.data(), // TODO: ugly cast
+      (uint8_t*)value.data(),
       key.size(),
       value.size(),
       NGHTTP2_NV_FLAG_NONE};
@@ -107,8 +108,9 @@ namespace http2
     std::string url;
     ccf::RESTVerb verb;
     std::vector<uint8_t> request_body;
-
     http_status status;
+
+    // Response
     std::vector<uint8_t> response_body;
 
     StreamData(StreamId id_) : id(id_) {}
@@ -506,19 +508,6 @@ namespace http2
       LOG_TRACE_FMT(
         "http2::send_response: {} - {}", headers.size(), body.size());
 
-      // TODO: Use macro in http_status.h instead?
-      std::vector<nghttp2_nv> hdrs;
-      hdrs.emplace_back(make_nv(
-        http2::headers::STATUS,
-        fmt::format(
-          "{}", static_cast<std::underlying_type<http_status>::type>(status))));
-      hdrs.emplace_back(
-        make_nv(http::headers::CONTENT_LENGTH, fmt::format("{}", body.size())));
-      for (auto& [k, v] : headers)
-      {
-        hdrs.emplace_back(make_nv(k, v));
-      }
-
       auto* stream_data = reinterpret_cast<StreamData*>(
         nghttp2_session_get_stream_user_data(session, stream_id));
       if (stream_data == nullptr)
@@ -526,7 +515,18 @@ namespace http2
         LOG_FAIL_FMT("stream not found!");
         return;
       }
+      stream_data->status = status;
       stream_data->response_body = std::move(body);
+
+      std::vector<nghttp2_nv> hdrs;
+      auto status_str = http_status_str(stream_data->status);
+      auto body_size = std::to_string(body.size());
+      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str));
+      // hdrs.emplace_back(make_nv(http::headers::CONTENT_LENGTH, body_size));
+      for (auto& [k, v] : headers)
+      {
+        hdrs.emplace_back(make_nv(k, v));
+      }
 
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
@@ -540,13 +540,13 @@ namespace http2
         throw std::logic_error(
           fmt::format("nghttp2_submit_response error: {}", rv));
       }
+      LOG_FAIL_FMT("response sent!");
     }
 
     virtual void handle_request(StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ServerSession: handle_request");
 
-      // TODO: Support HTTP method and body
       proc.handle_request(
         stream_data->id,
         stream_data->verb.get_http_method().value(),
