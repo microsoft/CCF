@@ -99,7 +99,7 @@ def get_binary(url, filename):
 def start_mock_dns(filename, listen_address, mgmt_address, out, err, env=None):
     p = subprocess.Popen(
         [
-            "./" + filename,
+            filename,
             "-http01",
             "",
             "-https01",
@@ -144,7 +144,7 @@ def register_endorsed_hosts(args, network_name, dns_mgmt_address):
 def start_pebble(filename, config_filename, dns_address, out, err, env):
     p = subprocess.Popen(
         [
-            "./" + filename,
+            filename,
             "--config",
             config_filename,
             "-dnsserver",
@@ -176,8 +176,7 @@ def get_pebble_ca_certs(mgmt_address):
 
 @reqs.description("Test against a local pebble CA")
 def run_pebble(args):
-    binary_url = "https://github.com/letsencrypt/pebble/releases/latest/download/pebble_linux-amd64"
-    binary_filename = "pebble_linux-amd64"
+    binary_filename = "/opt/pebble/pebble_linux-amd64"
     config_filename = "pebble.config.json"
     ca_key_filename = "pebble-key.pem"
     ca_cert_filename = "pebble-ca-cert.pem"
@@ -188,15 +187,14 @@ def run_pebble(args):
     tls_port = 1026
     http_port = 1027
 
-    mock_dns_url = "https://github.com/letsencrypt/pebble/releases/latest/download/pebble-challtestsrv_linux-amd64"
-    mock_dns_filename = "pebble-challtestsrv_linux-amd64"
+    mock_dns_filename = "/opt/pebble/pebble-challtestsrv_linux-amd64"
     mock_dns_listen_address = "127.0.0.1:1028"
     mock_dns_mgmt_address = "127.0.0.1:1029"
 
     network_name = "my-network.ccf.dev"
 
-    get_binary(binary_url, binary_filename)
-    get_binary(mock_dns_url, mock_dns_filename)
+    if not os.path.exists(binary_filename) or not os.path.exists(mock_dns_filename):
+        raise Exception("pebble not found; run playbooks to install it")
 
     config = {
         "pebble": {
