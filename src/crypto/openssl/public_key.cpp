@@ -209,10 +209,11 @@ namespace crypto
     Unique_BIGNUM x, y;
     CHECK1(EC_POINT_get_affine_coordinates(group, p, x, y, bn_ctx));
     Coordinates r;
-    r.x.resize(BN_num_bytes(x));
-    r.y.resize(BN_num_bytes(y));
-    BN_bn2bin(x, r.x.data());
-    BN_bn2bin(y, r.y.data());
+    int sz = EC_GROUP_get_degree(group) / 8;
+    r.x.resize(sz);
+    r.y.resize(sz);
+    BN_bn2binpad(x, r.x.data(), sz);
+    BN_bn2binpad(y, r.y.data(), sz);
     return r;
   }
 }

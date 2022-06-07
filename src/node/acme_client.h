@@ -662,14 +662,6 @@ namespace ACME
         auto crv_alg = get_crv_alg(account_key_pair);
         auto key_coords = account_key_pair->coordinates();
 
-        if (key_coords.x.size() != key_coords.y.size())
-        {
-          throw std::runtime_error(fmt::format(
-            "invalid EC coordinate sizes in new account request {}!={}",
-            key_coords.x.size(),
-            key_coords.y.size()));
-        }
-
         JWK jwk(
           "EC",
           crv_alg.first,
@@ -866,14 +858,6 @@ namespace ACME
     {
       auto crv_alg = get_crv_alg(account_key_pair);
       auto key_coords = account_key_pair->coordinates();
-
-      if (key_coords.x.size() != key_coords.y.size())
-      {
-        throw std::runtime_error(fmt::format(
-          "invalid EC coordinate sizes in add_challenge {}!={}",
-          key_coords.x.size(),
-          key_coords.y.size()));
-      }
 
       JWK jwk(
         "EC",
