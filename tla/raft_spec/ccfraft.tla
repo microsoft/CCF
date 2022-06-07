@@ -145,9 +145,6 @@ vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVar
 ----
 \* Helpers
 
-\* The term of the last entry in a log, or 0 if the log is empty.
-LastTerm(xlog) == IF Len(xlog) = 0 THEN 0 ELSE xlog[Len(xlog)].term
-
 \* Helper for Send and Reply. Given a message m and set of messages, return a
 \* new set of messages with one more m in it.
 WithMessage(m, msgs) == msgs \union {m}
@@ -191,6 +188,11 @@ MaxCommittableIndex(xlog) ==
             \* Or that is only succeeeded by a postfix of unsigned commits
             \/ xlog[y].contentType /= TypeSignature
     ELSE 0
+
+\* CCF: Returns the term associated with the MaxCommittableIndex(xlog)
+MaxCommittableTerm(xlog) ==
+    LET iMax == MaxCommittableIndex(xlog)
+    IN IF iMax = 0 THEN 0 ELSE xlog[iMax].term
 
 CalculateQuorum(s) == 
     \* Helper function to calculate the Quorum. Needed on each reconfiguration
@@ -267,8 +269,8 @@ RequestVote(i,j) ==
     LET 
         msg == [mtype         |-> RequestVoteRequest,
                 mterm         |-> currentTerm[i],
-                mlastLogTerm  |-> LastTerm(log[i]),
-                \*  CCF extension: Use last signature message and not last log index in elections
+                \*  CCF extension: Use last signature message and not last log entry in elections
+                mlastLogTerm  |-> MaxCommittableTerm(log[i]),
                 mlastLogIndex |-> MaxCommittableIndex(log[i]),
                 msource       |-> i,
                 mdest         |-> j]
@@ -521,8 +523,8 @@ CheckQuorum(i) ==
 \* Server i receives a RequestVote request from server j with
 \* m.mterm <= currentTerm[i].
 HandleRequestVoteRequest(i, j, m) ==
-    LET logOk == \/ m.mlastLogTerm > LastTerm(log[i])
-                 \/ /\ m.mlastLogTerm = LastTerm(log[i])
+    LET logOk == \/ m.mlastLogTerm > MaxCommittableTerm(log[i])
+                 \/ /\ m.mlastLogTerm = MaxCommittableTerm(log[i])
                     \* CCF change: Log is only okay up to signatures, 
                     \*  not any message in the log
                     /\ m.mlastLogIndex >= MaxCommittableIndex(log[i]) 
@@ -919,9 +921,9 @@ QuorumLogInv ==
 \* entries
 MoreUpToDateCorrectInv ==
     \A i, j \in PossibleServer :
-       (\/ LastTerm(log[i]) > LastTerm(log[j])
-        \/ /\ LastTerm(log[i]) = LastTerm(log[j])
-           /\ Len(log[i]) >= Len(log[j])) =>
+       (\/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
+        \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
+           /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
        IsPrefix(Committed(j), log[i])
 
 \* In CCF, only signature messages should ever be committed 
@@ -1029,6 +1031,15 @@ MonoLogInv ==
         \/ /\ log[i][Len(log[i])].term <= currentTerm[i]
            /\ \/ Len(log[i]) = 1
               \/ \A k \in 1..Len(log[i])-1: log[i][k].term <= log[i][k+1].term
+
+\* Committed logs never diverge at a given point in time
+ConsistentCommittedLogsInv ==
+    \A i,j \in PossibleServer :
+        IF commitIndex[i] >= 0 /\ commitIndex[j] >= 0 THEN
+            \A k \in 1..commitIndex[i] :
+                \/ commitIndex[j] < k
+                \/ log[i][k] = log[j][k]
+        ELSE TRUE
 
 ===============================================================================
 

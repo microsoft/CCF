@@ -12,7 +12,7 @@ InitialConfig_mc == [s \in PossibleServer_mc |-> Follower]
 TermLimit_mc == 2
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit_mc == 1
+RequestLimit_mc == 2
 
 \* Limit on number of request votes that can be sent to each other node
 RequestVoteLimit_mc == 1
