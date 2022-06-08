@@ -2229,36 +2229,37 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.service.get_name(),
-        network.service.wrap_commit_hook(
-          [this](kv::Version hook_version, const Service::Write& w) {
-            if (!w.has_value())
-            {
-              throw std::logic_error("Unexpected deletion in service value");
-            }
+        network.service.wrap_commit_hook([this](
+                                           kv::Version hook_version,
+                                           const Service::Write& w) {
+          if (!w.has_value())
+          {
+            throw std::logic_error("Unexpected deletion in service value");
+          }
 
-            // Service open on historical service has no effect
-            auto hook_pubk_pem = crypto::public_key_pem_from_cert(
-              crypto::cert_pem_to_der(w->cert));
-            auto ni_key_pair = make_key_pair(network.identity->priv_key);
-            auto current_pubk_pem = ni_key_pair->public_key_pem();
-            if (hook_pubk_pem != current_pubk_pem)
-            {
-              LOG_TRACE_FMT(
-                "Ignoring historical service open at seqno {} for {}",
-                hook_version,
-                w->cert.str());
-              return;
-            }
+          // Service open on historical service has no effect
+          auto hook_pubk_pem =
+            crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(w->cert));
+          auto current_pubk_pem =
+            crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
+          if (hook_pubk_pem != current_pubk_pem)
+          {
+            LOG_TRACE_FMT(
+              "Ignoring historical service open at seqno {} for {}",
+              hook_version,
+              w->cert.str());
+            return;
+          }
 
-            network.identity->set_certificate(w->cert);
-            if (w->status == ServiceStatus::OPEN)
-            {
-              open_user_frontend();
+          network.identity->set_certificate(w->cert);
+          if (w->status == ServiceStatus::OPEN)
+          {
+            open_user_frontend();
 
-              RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
-              LOG_INFO_FMT("Service open at seqno {}", hook_version);
-            }
-          }));
+            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
+            LOG_INFO_FMT("Service open at seqno {}", hook_version);
+          }
+        }));
 
       network.tables->set_global_hook(
         network.acme_certificates.get_name(),
