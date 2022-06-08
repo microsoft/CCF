@@ -75,30 +75,37 @@ CONSTANTS NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
 VARIABLE ReconfigurationCount
 \* Each server keeps track of the pending configurations
 VARIABLE Configurations
+
 reconfigurationVars == <<ReconfigurationCount, Configurations>>
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
 VARIABLE messages
+
 \* CCF: Keep track of each message sent from each server to each other server
 \* and cap it to a maximum
 VARIABLE messagesSent
+
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
 \* of the current commit level to ensure that no deadlock is reached through 
 \* leaving the network after retirement (as that would lead to endless leader 
 \* re-elects and drop-outs until f is reached and network fails).
 VARIABLE commitsNotified
+
 messageVars == <<messages, messagesSent, commitsNotified>>
 ----
-\* The following variables are all per server (functions with domain Server).
+\* The following variables are all per server (functions with domain PossibleServer).
 
 \* The server's term number.
 VARIABLE currentTerm
+
 \* The server's state (Follower, Candidate, or Leader).
 VARIABLE state
+
 \* The candidate the server voted for in its current term, or
 \* Nil if it hasn't voted for any.
 VARIABLE votedFor
+
 serverVars == <<currentTerm, state, votedFor>>
 
 \* The set of requests that can go into the log
@@ -108,32 +115,41 @@ VARIABLE clientRequests
 \* log entry. Unfortunately, the Sequence module defines Head(s) as the entry
 \* with index 1, so be careful not to use that!
 VARIABLE log
+
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
+
 \* The index that gets committed
 VARIABLE committedLog
+
 \* Have conflicting log entries been committed?
 VARIABLE committedLogConflict
-logVars == <<log, commitIndex, clientRequests, committedLog, committedLogConflict >>
+
+logVars == <<log, commitIndex, clientRequests, committedLog, committedLogConflict>>
 
 \* The following variables are used only on candidates:
 \* The set of servers from which the candidate has received a RequestVote
 \* response in its currentTerm.
 VARIABLE votesSent
+
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
 VARIABLE votesGranted
+
 \* State space limitation: Restrict each node to send a limited amount 
 \* of requests to other nodes
 VARIABLE votesRequested
+
 candidateVars == <<votesSent, votesGranted, votesRequested>>
 
 \* The following variables are used only on leaders:
 \* The next entry to send to each follower.
 VARIABLE nextIndex
+
 \* The latest entry that each follower has acknowledged is the same as the
 \* leader's. This is used to calculate commitIndex on the leader.
 VARIABLE matchIndex
+
 leaderVars == <<nextIndex, matchIndex>>
 
 \* End of per server variables.
@@ -168,6 +184,7 @@ Reply(response, request) ==
 
 \* Return the minimum value from a set, or undefined if the set is empty.
 Min(s) == CHOOSE x \in s : \A y \in s : x <= y
+
 \* Return the maximum value from a set, or undefined if the set is empty.
 Max(s)         == CHOOSE x \in s          : \A y \in s : x >= y
 MaxWithZero(s) == CHOOSE x \in s \cup {0} : \A y \in s : x >= y
@@ -210,34 +227,48 @@ GetServerSet(server) ==
 
 ----
 \*  SNIPPET_START: init_values
+
 \* Define initial values for all variables
-InitReconfigurationVars == /\ ReconfigurationCount = 0
-                           /\ Configurations = [i \in PossibleServer |-> << << 0, InitialServer >> >> ]
-InitMessagesVars == /\ messages = {}
-                    /\ messagesSent = [i \in PossibleServer |-> [j \in PossibleServer |-> << >>] ]
-                    /\ commitsNotified = [i \in PossibleServer |-> <<0,0>>] \* i.e., <<index, times of notification>>
-InitServerVars == /\ currentTerm = [i \in PossibleServer |-> 1]
-                  /\ state       = [i \in PossibleServer |-> InitialConfig[i]]
-                  /\ votedFor    = [i \in PossibleServer |-> Nil]
-InitCandidateVars == /\ votesSent = [i \in PossibleServer |-> FALSE ]
-                     /\ votesGranted   = [i \in PossibleServer |-> {}]
-                     /\ votesRequested = [i \in PossibleServer |-> [j \in PossibleServer |-> 0]]
+InitReconfigurationVars == 
+    /\ ReconfigurationCount = 0
+    /\ Configurations = [i \in PossibleServer |-> << << 0, InitialServer >> >> ]
+
+InitMessagesVars ==
+    /\ messages = {}
+    /\ messagesSent = [i \in PossibleServer |-> [j \in PossibleServer |-> << >>] ]
+    /\ commitsNotified = [i \in PossibleServer |-> <<0,0>>] \* i.e., <<index, times of notification>>
+
+InitServerVars == 
+    /\ currentTerm = [i \in PossibleServer |-> 1]
+    /\ state       = [i \in PossibleServer |-> InitialConfig[i]]
+    /\ votedFor    = [i \in PossibleServer |-> Nil]
+
+InitCandidateVars == 
+    /\ votesSent = [i \in PossibleServer |-> FALSE ]
+    /\ votesGranted   = [i \in PossibleServer |-> {}]
+    /\ votesRequested = [i \in PossibleServer |-> [j \in PossibleServer |-> 0]]
+
 \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
 \* leader does not send itself messages. It's still easier to include these
 \* in the functions.
-InitLeaderVars == /\ nextIndex  = [i \in PossibleServer |-> [j \in PossibleServer |-> 1]]
-                  /\ matchIndex = [i \in PossibleServer |-> [j \in PossibleServer |-> 0]]
-InitLogVars == /\ log          = [i \in PossibleServer |-> << >>]
-               /\ commitIndex  = [i \in PossibleServer |-> 0]
-               /\ clientRequests = 1
-               /\ committedLog = << >>
-               /\ committedLogConflict = FALSE
-Init == /\ InitReconfigurationVars
-        /\ InitMessagesVars
-        /\ InitServerVars
-        /\ InitCandidateVars
-        /\ InitLeaderVars
-        /\ InitLogVars
+InitLeaderVars == 
+    /\ nextIndex  = [i \in PossibleServer |-> [j \in PossibleServer |-> 1]]
+    /\ matchIndex = [i \in PossibleServer |-> [j \in PossibleServer |-> 0]]
+
+InitLogVars == 
+    /\ log          = [i \in PossibleServer |-> << >>]
+    /\ commitIndex  = [i \in PossibleServer |-> 0]
+    /\ clientRequests = 1
+    /\ committedLog = << >>
+    /\ committedLogConflict = FALSE
+
+Init == 
+    /\ InitReconfigurationVars
+    /\ InitMessagesVars
+    /\ InitServerVars
+    /\ InitCandidateVars
+    /\ InitLeaderVars
+    /\ InitLogVars
 \* SNIPPET_END: init_values
 
 ----
@@ -245,23 +276,24 @@ Init == /\ InitReconfigurationVars
 
 \*  SNIPPET_START: timeout
 \* Server i times out and starts a new election.
-Timeout(i) == \* Limit the term of each server to reduce state space
-              /\ currentTerm[i] < TermLimit
-              \* Limit number of candidates in our relevant server set 
-              \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
-              /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < MaxSimultaneousCandidates
-              \* Only servers that are not already leaders can become candidates  
-              /\ state[i] \in {Follower, Candidate}
-              /\ state' = [state EXCEPT ![i] = Candidate]
-              /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
-              \* Most implementations would probably just set the local vote
-              \* atomically, but messaging localhost for it is weaker.
-              \*   CCF change: We do this atomically to reduce state space
-              /\ votedFor' = [votedFor EXCEPT ![i] = i]
-              /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in PossibleServer |-> 0]]
-              /\ votesSent' = [votesSent EXCEPT ![i] = TRUE ]
-              /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
-              /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars>>
+Timeout(i) == 
+    \* Limit the term of each server to reduce state space
+    /\ currentTerm[i] < TermLimit
+    \* Limit number of candidates in our relevant server set 
+    \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
+    /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < MaxSimultaneousCandidates
+    \* Only servers that are not already leaders can become candidates  
+    /\ state[i] \in {Follower, Candidate}
+    /\ state' = [state EXCEPT ![i] = Candidate]
+    /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
+    \* Most implementations would probably just set the local vote
+    \* atomically, but messaging localhost for it is weaker.
+    \*   CCF change: We do this atomically to reduce state space
+    /\ votedFor' = [votedFor EXCEPT ![i] = i]
+    /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in PossibleServer |-> 0]]
+    /\ votesSent' = [votesSent EXCEPT ![i] = TRUE ]
+    /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars>>
 \* SNIPPET_END: timeout
 
 \* Candidate i sends j a RequestVote request.
@@ -790,21 +822,22 @@ DropMessage(m) ==
 ----
 \*  SNIPPET_START: next_states
 \* Defines how the variables may transition.
-Next == \/ \E i \in PossibleServer : Timeout(i)
-        \/ \E i, j \in PossibleServer : RequestVote(i, j)
-        \/ \E i \in PossibleServer : BecomeLeader(i)
-        \/ \E i \in PossibleServer : ClientRequest(i)
-        \/ \E i \in PossibleServer : SignCommittableMessages(i)
-        \/ \E i \in PossibleServer : \E c \in SUBSET(PossibleServer) : ChangeConfiguration(i, c)
-        \/ \E i,j \in PossibleServer : NotifyCommit(i,j)
-        \/ \E i \in PossibleServer : AdvanceCommitIndex(i)
-        \/ \E i,j \in PossibleServer : AppendEntries(i, j)
-        \/ \E i \in PossibleServer : CheckQuorum(i)
-        \/ \E m \in messages : Receive(m)
+Next == 
+    \/ \E i \in PossibleServer : Timeout(i)
+    \/ \E i, j \in PossibleServer : RequestVote(i, j)
+    \/ \E i \in PossibleServer : BecomeLeader(i)
+    \/ \E i \in PossibleServer : ClientRequest(i)
+    \/ \E i \in PossibleServer : SignCommittableMessages(i)
+    \/ \E i \in PossibleServer : \E c \in SUBSET(PossibleServer) : ChangeConfiguration(i, c)
+    \/ \E i,j \in PossibleServer : NotifyCommit(i,j)
+    \/ \E i \in PossibleServer : AdvanceCommitIndex(i)
+    \/ \E i,j \in PossibleServer : AppendEntries(i, j)
+    \/ \E i \in PossibleServer : CheckQuorum(i)
+    \/ \E m \in messages : Receive(m)
 \* SNIPPET_END: next_states
-        \* Dropping messages is disabled by default in this spec but preserved for the future.
-        \* Since liveness is not checked, dropping of messages is left out to reduce the state space.
-        \* \/ \E m \in messages : DropMessage(m)
+    \* Dropping messages is disabled by default in this spec but preserved for the future.
+    \* Since liveness is not checked, dropping of messages is left out to reduce the state space.
+    \* \/ \E m \in messages : DropMessage(m)
 
 \* The specification must start with the initial state and transition according
 \* to Next.
@@ -812,6 +845,7 @@ Spec == Init /\ [][Next]_vars
 
 MoreThanOneLeaderInv ==
     \lnot \E i, j \in PossibleServer :
+        /\ i /= j
         /\ currentTerm[i] = currentTerm[j]
         /\ state[i] = Leader
         /\ state[j] = Leader
@@ -874,9 +908,10 @@ DebugInvRetirementReachable ==
 \* Correctness invariants
 
 \* The prefix of the log of server i that has been committed
-Committed(i) == IF commitIndex[i] = 0
-                THEN << >>
-                ELSE SubSeq(log[i],1,commitIndex[i])
+Committed(i) == 
+    IF commitIndex[i] = 0
+    THEN << >>
+    ELSE SubSeq(log[i],1,commitIndex[i])
 
 \* If a candidate has a chance of being elected, there
 \* are no committed log entries with that candidate's term
