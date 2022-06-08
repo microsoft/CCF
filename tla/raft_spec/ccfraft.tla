@@ -852,6 +852,13 @@ IsPrefix(s, t) ==
 ----
 \* Correctness invariants
 
+
+\* The prefix of the log of server i that has been committed
+Committed(i) ==
+    IF commitIndex[i] = 0
+    THEN << >>
+    ELSE SubSeq(log[i],1,commitIndex[i])
+
 LogInv ==
     /\ \lnot committedLogConflict
     /\ \A i \in PossibleServer : IsPrefix(Committed(i),committedLog)
@@ -862,12 +869,6 @@ MoreThanOneLeaderInv ==
         /\ currentTerm[i] = currentTerm[j]
         /\ state[i] = Leader
         /\ state[j] = Leader
-
-\* The prefix of the log of server i that has been committed
-Committed(i) ==
-    IF commitIndex[i] = 0
-    THEN << >>
-    ELSE SubSeq(log[i],1,commitIndex[i])
 
 \* If a candidate has a chance of being elected, there
 \* are no committed log entries with that candidate's term
