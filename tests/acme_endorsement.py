@@ -236,11 +236,11 @@ def run_pebble(args):
         endorsed_interface = infra.interfaces.RPCInterface(
             host=infra.net.expand_localhost(),
             endorsement=infra.interfaces.Endorsement(
-                authority=infra.interfaces.EndorsementAuthority.ACME
+                authority=infra.interfaces.EndorsementAuthority.ACME,
+                acme_configuration="pebble",
             ),
         )
         endorsed_interface.public_host = network_name
-        endorsed_interface.acme_configuration = "pebble"
         node.rpc_interfaces["acme_endorsed_interface"] = endorsed_interface
         node.acme_challenge_server_interface = (
             endorsed_interface.host + ":" + str(http_port)

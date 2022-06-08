@@ -48,4 +48,5 @@ namespace ccf
     contact,
     terms_of_service_agreed,
     challenge_type);
+  DECLARE_JSON_OPTIONAL_FIELDS(ACMEClientConfig, not_before, not_after);
 }

@@ -27,13 +27,17 @@ namespace ccf
   {
     Authority authority;
 
+    std::optional<std::string> acme_configuration;
+
     bool operator==(const Endorsement& other) const
     {
-      return authority == other.authority;
+      return authority == other.authority &&
+        acme_configuration == other.acme_configuration;
     }
   };
-  DECLARE_JSON_TYPE(Endorsement);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
+  DECLARE_JSON_OPTIONAL_FIELDS(Endorsement, acme_configuration);
 
   struct NodeInfoNetwork_v1
   {
@@ -67,8 +71,6 @@ namespace ccf
 
       std::optional<Endorsement> endorsement = std::nullopt;
 
-      std::optional<std::string> acme_configuration;
-
       bool operator==(const NetInterface& other) const
       {
         return bind_address == other.bind_address &&
@@ -76,8 +78,7 @@ namespace ccf
           protocol == other.protocol &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
-          endorsement == other.endorsement &&
-          acme_configuration == other.acme_configuration;
+          endorsement == other.endorsement;
       }
     };
 
@@ -104,8 +105,7 @@ namespace ccf
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address,
-    protocol,
-    acme_configuration);
+    protocol);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2::ACME, configurations, challenge_server_interface);

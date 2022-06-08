@@ -29,8 +29,8 @@ namespace ccf
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
-  static constexpr ccf::Endorsement endorsement_default =
-    ccf::Endorsement{ccf::Authority::SERVICE};
+  static const ccf::Endorsement endorsement_default = {
+    ccf::Authority::SERVICE, std::nullopt};
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
@@ -45,7 +45,6 @@ namespace ccf
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
       ccf::SessionMetrics::Errors errors;
-      std::optional<std::string> acme_configuration;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
@@ -189,8 +188,6 @@ namespace ccf
 
         li.endorsement = interface.endorsement.value_or(endorsement_default);
 
-        li.acme_configuration = interface.acme_configuration;
-
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
           "{}] and endorsement authority to {}",
@@ -254,8 +251,8 @@ namespace ccf
         {
           if (
             interface.endorsement.authority != Authority::ACME ||
-            (interface.acme_configuration &&
-             *interface.acme_configuration == acme_configuration))
+            (interface.endorsement.acme_configuration &&
+             *interface.endorsement.acme_configuration == acme_configuration))
           {
             certs.insert_or_assign(listen_interface_id, cert);
           }

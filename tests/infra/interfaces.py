@@ -35,16 +35,21 @@ class EndorsementAuthority(Enum):
 class Endorsement:
     authority: EndorsementAuthority = EndorsementAuthority.Service
 
+    acme_configuration: Optional[str] = None
+
     @staticmethod
     def to_json(endorsement):
-        return {
-            "authority": endorsement.authority.name,
-        }
+        r = {"authority": endorsement.authority.name}
+        if endorsement.acme_configuration:
+            r["acme_configuration"] = endorsement.acme_configuration
+        return r
 
     @staticmethod
     def from_json(json):
         endorsement = Endorsement()
         endorsement.authority = json["authority"]
+        if "acme_configuration" in json:
+            endorsement.acme_configuration = json["acme_configuration"]
         return endorsement
 
 

@@ -1403,7 +1403,7 @@ namespace ccf
       {
         if (
           interface.endorsement->authority != Authority::ACME ||
-          !interface.acme_configuration)
+          !interface.endorsement->acme_configuration)
         {
           continue;
         }
@@ -1415,7 +1415,8 @@ namespace ccf
           std::find(interfaces->begin(), interfaces->end(), iname) !=
             interfaces->end())
         {
-          const std::string& cfg_name = *interface.acme_configuration;
+          const std::string& cfg_name =
+            *interface.endorsement->acme_configuration;
           auto cit = config.network.acme->configurations.find(cfg_name);
           if (cit == config.network.acme->configurations.end())
           {
@@ -2267,16 +2268,16 @@ namespace ccf
             for (auto const& [interface_id, interface] :
                  config.network.rpc_interfaces)
             {
-              if (interface.acme_configuration)
+              if (interface.endorsement->acme_configuration)
               {
-                auto cit = w.find(*interface.acme_configuration);
+                auto cit = w.find(*interface.endorsement->acme_configuration);
                 if (cit != w.end())
                 {
                   LOG_INFO_FMT(
                     "ACME: new certificate for interface '{}' with "
                     "configuration '{}'",
                     interface_id,
-                    *interface.acme_configuration);
+                    *interface.endorsement->acme_configuration);
                   rpcsessions->set_cert(
                     Authority::ACME,
                     *cit->second,
