@@ -427,6 +427,7 @@ namespace ACME
       sig = std::vector<uint8_t>(96, 0);
       BN_bn2bin(r, sig.data() + 48 - r_n);
       BN_bn2bin(s, sig.data() + 96 - s_n);
+      ECDSA_SIG_free(sig_r_s);
     }
 
     class JWS : public nlohmann::json::object_t
