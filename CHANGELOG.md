@@ -13,9 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-### Added
-
-- The node-to-node interface configuration now supports a `published_address` to enable networks with nodes running in different (virtual) subnets (#3867).
+- New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
 
 ## [2.0.0]
 

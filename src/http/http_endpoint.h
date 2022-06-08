@@ -267,6 +267,18 @@ namespace http
         "send() should not be called directly on HTTPClient");
     }
 
+    void on_handshake_error(const std::string& error_msg) override
+    {
+      if (handle_error_cb)
+      {
+        handle_error_cb(error_msg);
+      }
+      else
+      {
+        LOG_FAIL_FMT("{}", error_msg);
+      }
+    }
+
     void handle_response(
       http_status status,
       http::HeaderMap&& headers,
