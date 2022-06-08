@@ -1,3 +1,5 @@
+name: "Backport PR to LTS release branch(es)"
+
 on:
   pull_request_target:
     branches:
@@ -12,9 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event.pull_request.merged == true
-      && endsWith(github.event.pull_request.labels.*.name, '-todo')
+      && contains(github.event.pull_request.labels.*.name, 'auto-backport')
       && (
-        (github.event.action == 'labeled' && endsWith(github.event.label.name == '-todo'))
+        (github.event.action == 'labeled' && github.event.label.name == 'auto-backport')
         || (github.event.action == 'closed')
       )
     steps:

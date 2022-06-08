@@ -74,6 +74,10 @@ class StartupSeqnoIsOld(Exception):
     pass
 
 
+class ServiceCertificateInvalid(Exception):
+    pass
+
+
 class NetworkShutdownError(Exception):
     def __init__(self, msg, errors=None):
         super().__init__(msg)
@@ -693,7 +697,14 @@ class Network:
                 )
 
     def join_node(
-        self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        timeout=JOIN_TIMEOUT,
+        stop_on_error=False,
+        **kwargs,
     ):
         forwarded_args = {
             arg: getattr(args, arg, None)
@@ -715,6 +726,8 @@ class Network:
             )
         except TimeoutError as e:
             LOG.error(f"New pending node {node.node_id} failed to join the network")
+            if stop_on_error:
+                assert node.remote.check_done()
             errors, _ = node.stop()
             self.nodes.remove(node)
             if errors:
@@ -724,6 +737,8 @@ class Network:
                         raise CodeIdNotFound from e
                     if "StartupSeqnoIsOld" in error:
                         raise StartupSeqnoIsOld from e
+                    if "invalid cert on handshake" in error:
+                        raise ServiceCertificateInvalid from e
             raise
 
     def trust_node(
