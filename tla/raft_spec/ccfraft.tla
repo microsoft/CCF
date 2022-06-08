@@ -810,6 +810,12 @@ Next == \/ \E i \in PossibleServer : Timeout(i)
 \* to Next.
 Spec == Init /\ [][Next]_vars
 
+MoreThanOneLeaderInv ==
+    \lnot \E i, j \in PossibleServer :
+        /\ currentTerm[i] = currentTerm[j]
+        /\ state[i] = Leader
+        /\ state[j] = Leader
+
 LogInv == \lnot committedLogConflict
 
 \* The following are partially based on a set of invariants by
