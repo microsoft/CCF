@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  // Maps each interface names to a certificate
+  // Maps each interface name to a certificate
   using ACMECertificates = ServiceMap<std::string, crypto::Pem>;
 
   namespace Tables
