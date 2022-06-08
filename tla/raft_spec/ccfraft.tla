@@ -12,7 +12,7 @@
 \* - https://github.com/ongardie/raft.tla/blob/master/raft.tla
 \*   (base spec, modified)
 \* - https://github.com/jinlmsft/raft.tla/blob/master/raft.tla
-\*   (e.g. clientRequests, committedLog, committedLogDecrease)
+\*   (e.g. clientRequests, committedLog)
 \* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
 \*   (e.g. certain invariants)
 
@@ -112,9 +112,9 @@ VARIABLE log
 VARIABLE commitIndex
 \* The index that gets committed
 VARIABLE committedLog
-\* Does the commited Index decrease
-VARIABLE committedLogDecrease
-logVars == <<log, commitIndex, clientRequests, committedLog, committedLogDecrease >>
+\* Have conflicting log entries been committed?
+VARIABLE committedLogConflict
+logVars == <<log, commitIndex, clientRequests, committedLog, committedLogConflict >>
 
 \* The following variables are used only on candidates:
 \* The set of servers from which the candidate has received a RequestVote
@@ -231,7 +231,7 @@ InitLogVars == /\ log          = [i \in PossibleServer |-> << >>]
                /\ commitIndex  = [i \in PossibleServer |-> 0]
                /\ clientRequests = 1
                /\ committedLog = << >>
-               /\ committedLogDecrease = FALSE
+               /\ committedLogConflict = FALSE
 Init == /\ InitReconfigurationVars
         /\ InitMessagesVars
         /\ InitServerVars
@@ -352,7 +352,7 @@ BecomeLeader(i) ==
         /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,new_max_index)]
         \* Potentially also shorten the Configurations if the removed index contained a configuration 
         /\ Configurations' = [Configurations EXCEPT ![i] = SubSeq(@, 1, new_conf_index)]
-    /\ UNCHANGED <<ReconfigurationCount, messageVars, currentTerm, votedFor, votesRequested, candidateVars, commitIndex, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<ReconfigurationCount, messageVars, currentTerm, votedFor, votesRequested, candidateVars, commitIndex, clientRequests, committedLog, committedLogConflict>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -368,7 +368,7 @@ ClientRequest(i) ==
            \* Make sure that each request is unique, reduce state space to be explored
            /\ clientRequests' = clientRequests + 1
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex, committedLog, committedLogDecrease>>
+                   leaderVars, commitIndex, committedLog, committedLogConflict>>
 
 \*  SNIPPET_START: signing
 \* CCF extension: Signed commits
@@ -392,7 +392,7 @@ SignCommittableMessages(i) ==
             newLog == Append(log[i], entry)
             IN log' = [log EXCEPT ![i] = newLog]
         /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog, committedLogDecrease>>
+                    leaderVars, commitIndex, committedLog, committedLogConflict>>
 \* SNIPPET_END: signing
 
 \*  SNIPPET_START: reconfig
@@ -426,7 +426,7 @@ ChangeConfiguration(i, newConfiguration) ==
            /\ log' = [log EXCEPT ![i] = newLog]
            /\ Configurations' = [Configurations EXCEPT ![i] = newConf]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog, committedLogDecrease>>
+                    leaderVars, commitIndex, committedLog, committedLogConflict>>
 \* SNIPPET_END: reconfig
 
 
@@ -469,9 +469,12 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index 
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
-        /\ committedLogDecrease' = \/ ( new_index < Len(new_log) )
-                                   \/ \E j \in 1..Len(committedLog) : new_log[j] /= committedLog[j]
-        /\ committedLog' = new_log
+        /\ IF new_index <= Len(committedLog) THEN
+            /\ committedLogConflict' = \E j \in 1..new_index : committedLog[j] /= new_log[j]
+            /\ UNCHANGED committedLog
+           ELSE
+            /\ committedLogConflict' = \E j \in 1..Len(committedLog) : committedLog[j] /= new_log[j]
+            /\ committedLog' = new_log
         \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
         /\ \/ /\ Len(Configurations[i]) > 1
               /\ new_index >= Configurations[i][2][1]
@@ -597,7 +600,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog, committedLogConflict>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.mentries /= << >>
@@ -614,7 +617,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
                 |-> [n \in 1..Min({Len(messagesSent[i][j]) - 1, index - 1}) 
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
-    /\ UNCHANGED <<ReconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<ReconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog, committedLogConflict>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
@@ -659,7 +662,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<ReconfigurationCount, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog, committedLogDecrease>>
+    /\ UNCHANGED <<ReconfigurationCount, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog, committedLogConflict>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -749,7 +752,7 @@ UpdateCommitIndex(i,j,m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ Configurations' = [Configurations EXCEPT  ![i] = new_config]
     /\ UNCHANGED <<ReconfigurationCount, messages, messagesSent, commitsNotified, currentTerm, 
-                   votedFor, candidateVars, leaderVars, log, clientRequests, committedLog, committedLogDecrease >> 
+                   votedFor, candidateVars, leaderVars, log, clientRequests, committedLog, committedLogConflict >> 
 
 \* Receive a message.
 Receive(m) ==
@@ -807,7 +810,7 @@ Next == \/ \E i \in PossibleServer : Timeout(i)
 \* to Next.
 Spec == Init /\ [][Next]_vars
 
-LogInv == \lnot committedLogDecrease
+LogInv == \lnot committedLogConflict
 
 \* The following are partially based on a set of invariants by
 \* https://github.com/dricketts/raft.tla/blob/master/raft.tla
@@ -1011,7 +1014,7 @@ LogVarsTypeInv ==
         /\ commitIndex[i] \in 0..MaxLogLength
     /\ clientRequests \in 1..RequestLimit+1
     /\ LogTypeOK(committedLog)
-    /\ committedLogDecrease \in BOOLEAN
+    /\ committedLogConflict \in BOOLEAN
 
 \* Invariant to check the type safety of all variables
 TypeInv ==
@@ -1034,12 +1037,7 @@ MonoLogInv ==
 
 \* Committed logs never diverge at a given point in time
 ConsistentCommittedLogsInv ==
-    \A i,j \in PossibleServer :
-        IF commitIndex[i] >= 0 /\ commitIndex[j] >= 0 THEN
-            \A k \in 1..commitIndex[i] :
-                \/ commitIndex[j] < k
-                \/ log[i][k] = log[j][k]
-        ELSE TRUE
+    \A i \in PossibleServer : IsPrefix(Committed(i),committedLog)
 
 ===============================================================================
 
