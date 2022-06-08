@@ -294,7 +294,7 @@ namespace ACME
         auto nonce = nonces.front();
         nonces.pop_front();
         auto header = mk_kid_header(account_url, nonce, resource_url);
-        JWS jws(header, true, *account_key_pair);
+        JWS jws(header, *account_key_pair);
         http::URL url = with_default_port(resource_url);
         make_request(
           HTTP_POST, url, json_to_bytes(jws), HTTP_STATUS_OK, ok_callback);
@@ -322,11 +322,7 @@ namespace ACME
 
         auto header = mk_kid_header(account_url, nonce, resource_url);
         JWS jws(
-          header,
-          true,
-          nlohmann::json::object_t(),
-          *account_key_pair,
-          empty_payload);
+          header, nlohmann::json::object_t(), *account_key_pair, empty_payload);
         http::URL url = with_default_port(resource_url);
         make_request(
           HTTP_POST,
@@ -438,11 +434,9 @@ namespace ACME
     public:
       JWS(
         const nlohmann::json& header_,
-        bool header_is_protected_,
         const nlohmann::json& payload_,
         crypto::KeyPair& signer_,
-        bool empty_payload = false) :
-        header_is_protected(header_is_protected_)
+        bool empty_payload = false)
       {
         LOG_TRACE_FMT("JWS header: {}", header_.dump());
         LOG_TRACE_FMT("JWS payload: {}", payload_.dump());
@@ -451,23 +445,13 @@ namespace ACME
         set(header_b64, payload_b64, signer_);
       }
 
-      JWS(
-        const nlohmann::json& header_,
-        bool header_is_protected_,
-        crypto::KeyPair& signer_) :
-        JWS(
-          header_,
-          header_is_protected_,
-          nlohmann::json::object_t(),
-          signer_,
-          true)
+      JWS(const nlohmann::json& header_, crypto::KeyPair& signer_) :
+        JWS(header_, nlohmann::json::object_t(), signer_, true)
       {}
 
       virtual ~JWS() {}
 
     protected:
-      bool header_is_protected = true;
-
       void set(
         const std::string& header_b64,
         const std::string& payload_b64,
@@ -478,7 +462,7 @@ namespace ACME
         convert_signature_to_ieee_p1363(sig);
         auto sig_b64 = crypto::b64url_from_raw(sig);
 
-        (*this)[header_is_protected ? "protected" : "header"] = header_b64;
+        (*this)["protected"] = header_b64;
         (*this)["payload"] = payload_b64;
         (*this)["signature"] = sig_b64;
       }
@@ -678,7 +662,7 @@ namespace ACME
           {"termsOfServiceAgreed", config.terms_of_service_agreed},
           {"contact", config.contact}};
 
-        JWS jws(header, true, payload, *account_key_pair);
+        JWS jws(header, payload, *account_key_pair);
 
         http::URL url = with_default_port(new_account_url);
         make_json_request(
@@ -741,7 +725,7 @@ namespace ACME
           payload["notAfter"] = *config.not_after;
         }
 
-        JWS jws(header, true, payload, *account_key_pair);
+        JWS jws(header, payload, *account_key_pair);
 
         http::URL url = with_default_port(directory.at("newOrder"));
         make_json_request(
@@ -1120,7 +1104,7 @@ namespace ACME
 
         nlohmann::json payload = {{"csr", crypto::b64url_from_raw(csr, false)}};
 
-        JWS jws(header, true, payload, *account_key_pair);
+        JWS jws(header, payload, *account_key_pair);
 
         http::URL url = with_default_port(order->finalize_url);
         make_json_request(
