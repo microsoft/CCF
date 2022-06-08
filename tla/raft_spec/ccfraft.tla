@@ -812,14 +812,7 @@ Receive(m) ==
 
 \* End of message handlers.
 ----
-\* Network state transitions
 
-\* The network drops a message
-DropMessage(m) ==
-    /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, candidateVars, leaderVars, logVars>>
-
-----
 \*  SNIPPET_START: next_states
 \* Defines how the variables may transition.
 Next == 
@@ -835,9 +828,6 @@ Next ==
     \/ \E i \in PossibleServer : CheckQuorum(i)
     \/ \E m \in messages : Receive(m)
 \* SNIPPET_END: next_states
-    \* Dropping messages is disabled by default in this spec but preserved for the future.
-    \* Since liveness is not checked, dropping of messages is left out to reduce the state space.
-    \* \/ \E m \in messages : DropMessage(m)
 
 \* The specification must start with the initial state and transition according
 \* to Next.
