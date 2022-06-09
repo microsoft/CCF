@@ -24,7 +24,7 @@ DOCTEST_TEST_CASE("Unique proposal ids")
   init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
-  gen.create_service({});
+  gen.create_service();
 
   const auto proposer_cert = get_cert(0, kp);
   const auto proposer_id = gen.add_member(proposer_cert);
@@ -143,7 +143,7 @@ DOCTEST_TEST_CASE("Compaction conflict")
   network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
-  gen.create_service({});
+  gen.create_service();
 
   const auto proposer_cert = get_cert(0, kp);
   const auto proposer_id = gen.add_member(proposer_cert);

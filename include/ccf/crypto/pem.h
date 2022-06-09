@@ -16,14 +16,25 @@ namespace crypto
   // Convenience class ensuring null termination of PEM-encoded certificates
   class Pem
   {
+  private:
     std::string s;
+
+    void check_pem_format()
+    {
+      if (!s.starts_with("-----"))
+      {
+        throw std::runtime_error(
+          fmt::format("PEM constructed with non-PEM data: {}", s));
+      }
+    }
 
   public:
     Pem() = default;
 
-    Pem(const std::string& s_) : s(s_) {}
-
-    Pem(size_t size) : s(size, '0') {}
+    Pem(const std::string& s_) : s(s_)
+    {
+      check_pem_format();
+    }
 
     Pem(const uint8_t* data, size_t size)
     {
@@ -36,6 +47,8 @@ namespace crypto
         size -= 1;
 
       s.assign(reinterpret_cast<const char*>(data), size);
+
+      check_pem_format();
     }
 
     explicit Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}

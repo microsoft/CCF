@@ -497,7 +497,7 @@ void prepare_callers(NetworkState& network)
   network.tables->set_encryptor(encryptor);
 
   GenesisGenerator g(network, tx);
-  g.create_service({});
+  g.create_service();
   user_id = g.add_user({user_caller});
   member_id = g.add_member(member_cert);
   invalid_member_id = g.add_member(invalid_caller);
@@ -514,7 +514,7 @@ void add_callers_bft_store()
   bft_network.tables->set_consensus(backup_consensus);
 
   GenesisGenerator g(bft_network, gen_tx);
-  g.create_service({});
+  g.create_service();
   user_id = g.add_user({user_caller});
   CHECK(gen_tx.commit() == kv::CommitResult::SUCCESS);
 }

@@ -42,6 +42,15 @@ void check_error_message(const TResponse& r, const std::string& msg)
   CHECK(body_s.find(msg) != std::string::npos);
 }
 
+std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
+{
+  using namespace std::literals;
+  const auto valid_from =
+    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  return std::make_unique<ReplicatedNetworkIdentity>(
+    crypto::service_identity_curve_choice, valid_from, 2);
+}
+
 TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
@@ -103,7 +112,7 @@ TEST_CASE("Add a node to an opening service")
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
-  network.identity = std::make_unique<ReplicatedNetworkIdentity>();
+  network.identity = make_test_network_ident();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
@@ -147,7 +156,7 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(response, "No service is available to accept new node");
   }
 
-  gen.create_service({});
+  gen.create_service(network.identity->cert);
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -239,8 +248,7 @@ TEST_CASE("Add a node to an open service")
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
-  network.identity = std::make_unique<ReplicatedNetworkIdentity>();
-
+  network.identity = make_test_network_ident();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
@@ -249,7 +257,7 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
-  gen.create_service({});
+  gen.create_service(network.identity->cert);
   gen.init_configuration({1});
   gen.activate_member(gen.add_member(
     {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
@@ -263,7 +271,11 @@ TEST_CASE("Add a node to an open service")
   std::optional<NodeInfo> node_info;
   auto tx = network.tables->create_tx();
 
+  const auto node_public_encryption_key =
+    crypto::make_key_pair()->public_key_pem();
+
   JoinNetworkNodeToNode::In join_input;
+  join_input.public_encryption_key = node_public_encryption_key;
   join_input.certificate_signing_request = kp->create_csr("CN=Joiner");
 
   INFO("Add node once service is open");
@@ -295,6 +307,7 @@ TEST_CASE("Add a node to an open service")
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
+    join_input.public_encryption_key = node_public_encryption_key;
 
     auto http_response =
       frontend_process(frontend, join_input, "join", new_caller);
