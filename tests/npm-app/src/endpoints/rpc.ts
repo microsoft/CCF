@@ -8,7 +8,7 @@ export function postApplyWrites(request: ccfapp.Request): ccfapp.Response {
   );
   const params = request.body.json();
   kv.set("foo", params.val);
-  if ('setApplyWrites' in params) {
+  if ("setApplyWrites" in params) {
     ccfapp.setApplyWrites(params.setApplyWrites);
   }
   return {
@@ -24,6 +24,6 @@ export function getApplyWrites(request: ccfapp.Request): ccfapp.Response {
   );
   const v = kv.get("foo");
   return {
-    body: v
+    body: v,
   };
 }
