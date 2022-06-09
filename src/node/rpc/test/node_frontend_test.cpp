@@ -5,14 +5,12 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
-
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
 
 using namespace ccf;
 using namespace nlohmann;
@@ -20,36 +18,7 @@ using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
-constexpr size_t certificate_validity_period_days = 365;
-using namespace std::literals;
-auto valid_from =
-  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-auto valid_to = crypto::compute_cert_valid_to_string(
-  valid_from, certificate_validity_period_days);
-
-auto kp = crypto::make_key_pair();
-auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
 auto node_id = 0;
-
-void check_error(const TResponse& r, http_status expected)
-{
-  CHECK(r.status == expected);
-}
-
-void check_error_message(const TResponse& r, const std::string& msg)
-{
-  const std::string body_s(r.body.begin(), r.body.end());
-  CHECK(body_s.find(msg) != std::string::npos);
-}
-
-std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
-{
-  using namespace std::literals;
-  const auto valid_from =
-    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-  return std::make_unique<ReplicatedNetworkIdentity>(
-    crypto::service_identity_curve_choice, valid_from, 2);
-}
 
 TResponse frontend_process(
   NodeRpcFrontend& frontend,
@@ -78,13 +47,6 @@ TResponse frontend_process(
   REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
-}
-
-template <typename T>
-T parse_response_body(const TResponse& r)
-{
-  const auto body_j = serdes::unpack(r.body, serdes::Pack::Text);
-  return body_j.get<T>();
 }
 
 void require_ledger_secrets_equal(
@@ -365,4 +327,14 @@ TEST_CASE("Add a node to an open service")
       response.network_info->endorsed_certificate.value() ==
       dummy_endorsed_certificate);
   }
+}
+
+int main(int argc, char** argv)
+{
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

@@ -432,12 +432,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      node_frontend_test
+      node_frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 sss.host ccf_endpoints.host ccf_kv.host
+                                 sss.host ccf_endpoints.host ccf_kv.host quickjs.host
     )
 
     add_unit_test(

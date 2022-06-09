@@ -629,7 +629,7 @@ namespace ccf::js
         }
         identities.previous = crypto::Pem(prev_bytes, prev_bytes_sz);
         LOG_DEBUG_FMT(
-          "previous service identity: {}", ds::to_hex(*identities.previous));
+          "previous service identity: {}", identities.previous->str());
       }
 
       if (JS_IsUndefined(argv[1]))
@@ -648,7 +648,7 @@ namespace ccf::js
       }
 
       identities.next = crypto::Pem(next_bytes, next_bytes_sz);
-      LOG_DEBUG_FMT("next service identity: {}", ds::to_hex(identities.next));
+      LOG_DEBUG_FMT("next service identity: {}", identities.next.str());
 
       gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
     }
