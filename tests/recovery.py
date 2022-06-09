@@ -45,6 +45,13 @@ def test_recover_service(network, args, from_snapshot=True):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
+    prev_ident = open(args.previous_service_identity_file, "r", encoding="utf-8").read()
+    # Strip trailing null byte
+    prev_ident = prev_ident.strip("\x00")
+    with old_primary.client() as c:
+        r = c.get("/node/service/previous_identity")
+        assert r.status_code in (200, 404), r.status_code
+
     snapshots_dir = None
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
@@ -78,6 +85,18 @@ def test_recover_service(network, args, from_snapshot=True):
         args.initial_service_cert_validity_days
     )
 
+    new_nodes = recovered_network.find_primary_and_any_backup()
+    for n in new_nodes:
+        with n.client() as c:
+            r = c.get("/node/service/previous_identity")
+            assert r.status_code == 200, r.status_code
+            body = r.body.json()
+            assert "previous_service_identity" in body, body
+            received_prev_ident = body["previous_service_identity"]
+            assert (
+                received_prev_ident == prev_ident
+            ), f"Response doesn't match previous identity: {received_prev_ident} != {prev_ident}"
+
     recovered_network.recover(args)
 
     return recovered_network
@@ -90,10 +109,10 @@ def test_recover_service_with_wrong_identity(network, args):
 
     snapshots_dir = network.get_committed_snapshots(old_primary)
 
-    network.stop_all_nodes()
-
     network.save_service_identity(args)
     first_service_identity_file = args.previous_service_identity_file
+
+    network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
@@ -128,9 +147,42 @@ def test_recover_service_with_wrong_identity(network, args):
     if not broken_network.nodes[0].check_log_for_error_message(
         "Error starting node: Previous service identity does not endorse the node identity that signed the snapshot"
     ):
-        raise ValueError("Node log does not contain the expect error message")
+        raise ValueError("Node log does not contain the expected error message")
 
-    # Recover, now with the right service identity
+    # Attempt a second recovery with the broken cert but no snapshot
+    # Now the mismatch is only noticed when the transition proposal is submitted
+
+    broken_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+
+    broken_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+
+    exception = None
+    try:
+        broken_network.recover(args)
+    except Exception as ex:
+        exception = ex
+
+    broken_network.ignoring_shutdown_errors = True
+    broken_network.stop_all_nodes(skip_verification=True)
+
+    if exception is None:
+        raise ValueError("Recovery should have failed")
+    if not broken_network.nodes[0].check_log_for_error_message(
+        "Unable to open service: Previous service identity does not match."
+    ):
+        raise ValueError("Node log does not contain the expected error message")
+
+    # Recover, now with the correct service identity
 
     args.previous_service_identity_file = first_service_identity_file
 

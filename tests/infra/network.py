@@ -21,7 +21,6 @@ from dataclasses import dataclass
 import http
 import pprint
 import functools
-import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 
@@ -1333,9 +1332,20 @@ class Network:
         )
 
     def save_service_identity(self, args):
-        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        n = self.find_random_node()
+        with n.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            current_ident = r.body.json()["service_certificate"]
+        prev_cert_count = 0
         previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
-        shutil.copy(current_identity, previous_identity)
+        while os.path.exists(previous_identity):
+            prev_cert_count += 1
+            previous_identity = os.path.join(
+                self.common_dir, f"previous_service_cert_{prev_cert_count}.pem"
+            )
+        with open(previous_identity, "w", encoding="utf-8") as f:
+            f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
 
