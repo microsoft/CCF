@@ -581,7 +581,37 @@
     "/rpc/apply_writes": {
       "post": {
         "js_module": "endpoints/rpc.js",
-        "js_function": "applyWrites",
+        "js_function": "postApplyWrites",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {
+          "responses": {
+            "400": {
+              "description": "Error"
+            }
+          }
+        }
+      },
+      "get": {
+        "js_module": "endpoints/rpc.js",
+        "js_function": "getApplyWrites",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {
+          "responses": {
+            "400": {
+              "description": "Error"
+            }
+          }
+        }
+      }
+    },
+    "/rpc/nextTxnId": {
+      "get": {
+        "js_module": "endpoints/rpc.js",
+        "js_function": "transfer",
         "forwarding_required": "always",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
