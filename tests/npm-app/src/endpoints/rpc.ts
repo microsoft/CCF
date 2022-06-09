@@ -27,32 +27,3 @@ export function getApplyWrites(request: ccfapp.Request): ccfapp.Response {
     body: v
   };
 }
-
-export function sequenceNumber(): ccfapp.TypedKvMap<number, number> {
-  return ccfapp.typedKv(`private-sequence`, ccfapp.int32, ccfapp.int32);
-}
-
-export function getNextSequence(domain: number): number {
-  let sequenceNum = sequenceNumber().get(domain);
-  if (sequenceNum) {
-    sequenceNum = sequenceNum + 1;
-  } else {
-    sequenceNum = 1;
-  }
-  sequenceNumber().set(domain, sequenceNum);
-  return sequenceNum;
-}
-
-export function transfer(request: ccfapp.Request): ccfapp.Response {
-  const newTransaction = {
-    txnId: getNextSequence(1)
-  };
-  console.log(`Trying to return ${newTransaction.txnId}`);
-  return {
-    statusCode: 401,
-    headers: {},
-    body: {
-      txnId: newTransaction.txnId
-    }
-  };
-}
