@@ -38,9 +38,9 @@ namespace crypto
       s.assign(reinterpret_cast<const char*>(data), size);
     }
 
-    Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
+    explicit Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
 
-    Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
+    explicit Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 
     bool operator==(const Pem& rhs) const
     {
