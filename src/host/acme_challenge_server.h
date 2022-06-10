@@ -266,7 +266,7 @@ public:
       });
   }
 
-  virtual ~ACMEChallengeServer() {}
+  virtual ~ACMEChallengeServer() = default;
 
   virtual void add(asynchost::TCP& peer) override
   {
