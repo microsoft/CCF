@@ -315,7 +315,8 @@ namespace ccf::historical
     auto& ctx,
     ccf::historical::StatePtr& state,
     AbstractStateCache& state_cache,
-    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem)
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem)
   {
     try
     {
@@ -401,8 +402,8 @@ namespace ccf::historical
     const TxIDExtractor& extractor)
   {
     auto& state_cache = node_context.get_historical_state();
-    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem =
-      node_context.get_subsystem<NetworkIdentitySubsystem>();
+    auto network_identity_subsystem =
+      node_context.get_subsystem<NetworkIdentitySubsystemInterface>();
 
     return [f, &state_cache, network_identity_subsystem, available, extractor](
              endpoints::EndpointContext& args) {

@@ -21,6 +21,7 @@
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"
+#include "service/tables/previous_service_identity.h"
 
 namespace ccf
 {
@@ -112,6 +113,18 @@ namespace ccf
   DECLARE_JSON_TYPE(SelfSignedNodeCertificateInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
     SelfSignedNodeCertificateInfo, self_signed_certificate);
+
+  struct GetServicePreviousIdentity
+  {
+    struct Out
+    {
+      crypto::Pem previous_service_identity;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetServicePreviousIdentity::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetServicePreviousIdentity::Out, previous_service_identity);
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -357,7 +370,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.17.1";
+      openapi_info.document_version = "2.18.0";
     }
 
     void init_handlers() override
@@ -816,9 +829,33 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(network_status),
         no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, GetNetworkInfo::Out>()
+        .install();
+
+      auto service_previous_identity = [this](auto& args, nlohmann::json&&) {
+        auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
+        const auto psi = psi_handle->get();
+        if (psi.has_value())
+        {
+          GetServicePreviousIdentity::Out out;
+          out.previous_service_identity = psi.value();
+          return make_success(out);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "This service is not a recovery of a previous service.");
+        }
+      };
+      make_read_only_endpoint(
+        "/service/previous_identity",
+        HTTP_GET,
+        json_read_only_adapter(service_previous_identity),
+        no_auth_required)
+        .set_auto_schema<void, GetServicePreviousIdentity::Out>()
         .install();
 
       auto get_nodes = [this](auto& args, nlohmann::json&&) {
@@ -907,8 +944,6 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_nodes),
         no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Primary)
         .set_auto_schema<void, GetNodes::Out>()
         .add_query_parameter<std::string>(
           "host", ccf::endpoints::OptionalParameter)
@@ -929,8 +964,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, SelfSignedNodeCertificateInfo>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
@@ -981,8 +1014,6 @@ namespace ccf
         json_read_only_adapter(get_node_info),
         no_auth_required)
         .set_auto_schema<void, GetNode::Out>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_self_node = [this](auto& args) {
@@ -1020,8 +1051,6 @@ namespace ccf
       make_read_only_endpoint(
         "/network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_primary_node = [this](auto& args) {
@@ -1075,8 +1104,6 @@ namespace ccf
       make_read_only_endpoint(
         "/network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto is_primary = [this](auto& args) {
@@ -1125,8 +1152,6 @@ namespace ccf
       make_read_only_endpoint(
         "/primary", HTTP_HEAD, is_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto consensus_config = [this](auto& args, nlohmann::json&&) {
@@ -1160,8 +1185,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ConsensusConfig>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto consensus_state = [this](auto& args, nlohmann::json&&) {
@@ -1185,8 +1208,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ConsensusConfigDetails>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto memory_usage = [](auto& args) {
@@ -1213,8 +1234,6 @@ namespace ccf
 
       make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<MemoryUsage>()
         .install();
 
@@ -1231,8 +1250,6 @@ namespace ccf
       make_command_endpoint(
         "/metrics", HTTP_GET, node_metrics, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, NodeMetrics>()
         .install();
 
@@ -1258,8 +1275,6 @@ namespace ccf
         json_read_only_adapter(js_metrics),
         no_auth_required)
         .set_auto_schema<void, JavaScriptMetrics>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto jwt_metrics = [this](auto&, nlohmann::json&&) {
@@ -1281,8 +1296,6 @@ namespace ccf
         json_read_only_adapter(jwt_metrics),
         no_auth_required)
         .set_auto_schema<void, JWTMetrics>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto version = [this](auto&, nlohmann::json&&) {
@@ -1296,8 +1309,6 @@ namespace ccf
         "/version", HTTP_GET, json_command_adapter(version), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<GetVersion>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto create = [this](auto& ctx, nlohmann::json&& params) {
@@ -1332,16 +1343,6 @@ namespace ccf
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
-
-        NodeInfo node_info = {
-          in.node_info_network,
-          {in.quote_info},
-          in.public_encryption_key,
-          NodeStatus::TRUSTED,
-          std::nullopt,
-          ds::to_hex(in.code_digest.data),
-          in.certificate_signing_request,
-          in.public_key};
 
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
@@ -1386,6 +1387,15 @@ namespace ccf
           ctx.tx.rw(network.node_endorsed_certificates);
         endorsed_certificates->put(in.node_id, in.node_endorsed_certificate);
 
+        NodeInfo node_info = {
+          in.node_info_network,
+          {in.quote_info},
+          in.public_encryption_key,
+          NodeStatus::TRUSTED,
+          std::nullopt,
+          ds::to_hex(in.code_digest.data),
+          in.certificate_signing_request,
+          in.public_key};
         g.add_node(in.node_id, node_info);
 
 #ifdef GET_QUOTE
@@ -1622,8 +1632,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ServiceConfiguration>()
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
     }
   };

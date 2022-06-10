@@ -301,8 +301,7 @@ def test_all_members(network, args):
             response_details = response_members[member.service_id]
             assert response_details["cert"] == member.cert
             assert (
-                infra.member.MemberStatus(response_details["status"])
-                == member.status_code
+                infra.member.MemberStatus(response_details["status"]) == member.status
             )
             assert response_details["member_data"] == member.member_data
             if member.is_recovery_member:

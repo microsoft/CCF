@@ -18,11 +18,9 @@ from infra.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
 from dataclasses import dataclass
-from math import ceil
 import http
 import pprint
 import functools
-import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 
@@ -73,6 +71,10 @@ class CodeIdNotFound(Exception):
 
 
 class StartupSeqnoIsOld(Exception):
+    pass
+
+
+class ServiceCertificateInvalid(Exception):
     pass
 
 
@@ -232,7 +234,7 @@ class Network:
         target_node=None,
         recovery=False,
         ledger_dir=None,
-        copy_ledger_read_only=False,
+        copy_ledger=True,
         read_only_ledger_dirs=None,
         from_snapshot=True,
         snapshots_dir=None,
@@ -264,8 +266,7 @@ class Network:
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
-        # By default, only copy historical ledger if node is started from snapshot
-        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
+        if not committed_ledger_dirs and copy_ledger:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
@@ -697,7 +698,14 @@ class Network:
                 )
 
     def join_node(
-        self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        timeout=JOIN_TIMEOUT,
+        stop_on_error=False,
+        **kwargs,
     ):
         forwarded_args = {
             arg: getattr(args, arg, None)
@@ -719,6 +727,8 @@ class Network:
             )
         except TimeoutError as e:
             LOG.error(f"New pending node {node.node_id} failed to join the network")
+            if stop_on_error:
+                assert node.remote.check_done()
             errors, _ = node.stop()
             self.nodes.remove(node)
             if errors:
@@ -728,6 +738,8 @@ class Network:
                         raise CodeIdNotFound from e
                     if "StartupSeqnoIsOld" in error:
                         raise StartupSeqnoIsOld from e
+                    if "invalid cert on handshake" in error:
+                        raise ServiceCertificateInvalid from e
             raise
 
     def trust_node(
@@ -737,22 +749,20 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 valid_from = valid_from or datetime.now()
-                timeout = ceil(args.join_timer_s * 2)
+                # Note: Timeout is function of the ledger size here since
+                # the commit of the trust_node proposal may rely on the new node
+                # catching up (e.g. adding 1 node to a 1-node network).
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=timeout,
-                )
-                self.wait_for_node_in_store(
-                    primary, node.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
+                    timeout=args.ledger_recovery_timeout,
                 )
             if not no_wait:
-                # Here, quote verification has already been run when the node
-                # was added as pending. Only wait for the join timer for the
-                # joining node to retrieve network secrets.
-                node.wait_for_node_to_join(timeout=ceil(args.join_timer_s * 2))
+                # The main endorsed RPC interface is only open once the node
+                # has caught up and observed commit on the service open transaction.
+                node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()
@@ -1323,9 +1333,20 @@ class Network:
         )
 
     def save_service_identity(self, args):
-        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        n = self.find_random_node()
+        with n.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            current_ident = r.body.json()["service_certificate"]
+        prev_cert_count = 0
         previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
-        shutil.copy(current_identity, previous_identity)
+        while os.path.exists(previous_identity):
+            prev_cert_count += 1
+            previous_identity = os.path.join(
+                self.common_dir, f"previous_service_cert_{prev_cert_count}.pem"
+            )
+        with open(previous_identity, "w", encoding="utf-8") as f:
+            f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
 

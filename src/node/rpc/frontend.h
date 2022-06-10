@@ -232,11 +232,7 @@ namespace ccf
                 (ctx->get_session_context()->is_forwarding &&
                  consensus->type() == ConsensusType::CFT) ||
                 (consensus->type() != ConsensusType::CFT &&
-                 !ctx->execute_on_node &&
-                 (endpoint == nullptr ||
-                  (endpoint != nullptr &&
-                   endpoint->properties.execute_outside_consensus !=
-                     endpoints::ExecuteOutsideConsensus::Locally))))
+                 !ctx->execute_on_node))
               {
                 ctx->get_session_context()->is_forwarding = true;
                 return forward(ctx, tx, endpoint);

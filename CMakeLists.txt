@@ -16,8 +16,6 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
-include(${CCF_DIR}/cmake/cpack_settings.cmake)
-
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -29,6 +27,8 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
+
+include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
@@ -374,6 +374,14 @@ if(BUILD_TESTS)
       node_info_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )
+
+    if(ENABLE_QUICTLS)
+      add_unit_test(
+        quic_test ${CMAKE_CURRENT_SOURCE_DIR}/src/quic/test/main.cpp
+      )
+      target_include_directories(quic_test PUBLIC ${QUICTLS_INCLUDE_DIRS})
+      target_link_libraries(quic_test PUBLIC ${QUICTLS_LIBRARIES})
+    endif()
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})

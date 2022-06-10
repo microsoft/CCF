@@ -324,6 +324,17 @@
         ],
         "type": "object"
       },
+      "GetServicePreviousIdentity__Out": {
+        "properties": {
+          "previous_service_identity": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "previous_service_identity"
+        ],
+        "type": "object"
+      },
       "GetState__Out": {
         "properties": {
           "last_recovered_seqno": {
@@ -746,7 +757,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.17.1"
+    "version": "2.18.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1129,6 +1140,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServiceConfiguration"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/node/service/previous_identity": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetServicePreviousIdentity__Out"
                 }
               }
             },

@@ -1596,7 +1596,7 @@ if __name__ == "__main__":
     #     "js",
     #     run,
     #     package="libjs_generic",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     #     initial_user_count=4,
     #     initial_member_count=2,
     # )
@@ -1612,6 +1612,8 @@ if __name__ == "__main__":
     #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     #         initial_user_count=4,
     #         initial_member_count=2,
+    #         election_timeout_ms=cr.args.election_timeout_ms
+    #         * 2,  # Larger election timeout as some large payloads may cause an election with v8
     #     )
 
     cr.add(

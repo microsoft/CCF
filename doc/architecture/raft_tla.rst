@@ -32,7 +32,7 @@ During the model check, the model checker will exhaustively search through all p
 
 Variables and their initial state
 ---------------------------------
-The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similiar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in ``MCraft.tla``.
+The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in ``MCraft.tla``.
 
 .. literalinclude:: ../../tla/raft_spec/ccfraft.tla
     :language: text

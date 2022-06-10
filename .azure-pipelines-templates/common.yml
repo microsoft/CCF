@@ -19,6 +19,12 @@ jobs:
               target: ${{ parameters.target }}
               v8_mode: ${{ parameters.fetch_v8 }}
 
+      - ${{ if parameters.fetch_quictls }}:
+          - template: fetch_quictls.yml
+            parameters:
+              target: ${{ parameters.target }}
+              quictls_mode: ${{ parameters.fetch_quictls }}
+
       - template: cmake.yml
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"

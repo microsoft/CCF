@@ -10,13 +10,18 @@ namespace ccf
   class ClientEndpoint
   {
   protected:
-    using HandleDataCallback = std::function<bool(
+    using HandleDataCallback = std::function<void(
       http_status status,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body)>;
 
-    HandleDataCallback handle_data_cb;
+    using HandleErrorCallback =
+      std::function<void(const std::string& error_msg)>;
 
+    HandleDataCallback handle_data_cb;
+    HandleErrorCallback handle_error_cb;
+
+  private:
     int64_t session_id;
     ringbuffer::WriterPtr to_host;
 
@@ -32,11 +37,13 @@ namespace ccf
     void connect(
       const std::string& hostname,
       const std::string& service,
-      const HandleDataCallback f)
+      const HandleDataCallback f,
+      const HandleErrorCallback e = nullptr)
     {
       RINGBUFFER_WRITE_MESSAGE(
         tls::tls_connect, to_host, session_id, hostname, service);
       handle_data_cb = f;
+      handle_error_cb = e;
     }
   };
 }

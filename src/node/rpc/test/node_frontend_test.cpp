@@ -211,13 +211,14 @@ TEST_CASE("Add a node to an opening service")
     crypto::KeyPairPtr kp = crypto::make_key_pair();
     auto v = crypto::make_verifier(
       kp->self_sign("CN=Other Joiner", valid_from, valid_to));
-    const auto caller = v->cert_der();
+    const auto new_caller = v->cert_pem();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
 
-    auto http_response = frontend_process(frontend, join_input, "join", caller);
+    auto http_response =
+      frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(http_response, "A node with the same node address");
@@ -290,12 +291,13 @@ TEST_CASE("Add a node to an open service")
     crypto::KeyPairPtr kp = crypto::make_key_pair();
     auto v =
       crypto::make_verifier(kp->self_sign("CN=Joiner", valid_from, valid_to));
-    const auto caller = v->cert_der();
+    const auto new_caller = v->cert_pem();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
 
-    auto http_response = frontend_process(frontend, join_input, "join", caller);
+    auto http_response =
+      frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(http_response, "A node with the same node address");
