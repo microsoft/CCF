@@ -142,6 +142,7 @@ protected:
       }
       catch (const std::exception& ex)
       {
+        LOG_INFO_FMT("HTTP handling failed with: {}", ex.what());
         http::Response r(HTTP_STATUS_BAD_REQUEST);
         reply(r, "Bad request");
       }
