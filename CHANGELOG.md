@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Added a `GET /node/service/previous_identity` endpoint, which can be used during a recovery to look up the identity of the service before the catastrophic failure (#3880).
+
 ### Removed
 
 - Removed deprecated `set_execute_outside_consensus()` API (#3886, #3673).

@@ -9,6 +9,7 @@
 #include "ccf/tx.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
+#include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
 #include <fstream>
@@ -290,6 +291,15 @@ namespace ccf
       const crypto::Pem& service_cert, bool recovering = false)
     {
       auto service = tx.rw(tables.service);
+
+      if (service->has())
+      {
+        const auto prev_service_info = service->get();
+        auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
+        previous_service_identity->put(prev_service_info->cert);
+      }
+
       service->put(
         {service_cert,
          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
