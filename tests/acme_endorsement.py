@@ -132,7 +132,7 @@ def register_endorsed_hosts(args, network_name, dns_mgmt_address):
             }
         )
     ).encode("utf-8")
-    urllib.request.urlopen("http://" + dns_mgmt_address + "/add-a", data=data)
+    urllib.request.urlopen(f"http://{dns_mgmt_address}/add-a", data=data)
 
     # Disable the default IPv6 entry
     data = str(json.dumps({"ip": ""})).encode("utf-8")
