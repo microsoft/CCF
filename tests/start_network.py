@@ -8,6 +8,7 @@ import time
 import sys
 import json
 import os
+import shutil
 from loguru import logger as LOG
 
 
@@ -59,9 +60,22 @@ def run(args):
                     LOG.warning(
                         "No available snapshot to recover from. Entire transaction history will be replayed."
                     )
-                args.previous_service_identity_file = os.path.join(
+
+                # Copy the old service cert to a new location, so it isn't overwritten on startup
+                previous_service_cert = os.path.join(
                     args.common_dir, "service_cert.pem"
                 )
+                if not os.path.exists(previous_service_cert):
+                    raise ValueError(
+                        f"Cannot recover, missing previous service cert {previous_service_cert}"
+                    )
+                backup_location = os.path.join(
+                    args.common_dir, "predecessor_service_cert.pem"
+                )
+                LOG.warning(f"Storing previous service's cert at {backup_location}")
+                shutil.copy(previous_service_cert, backup_location)
+                args.previous_service_identity_file = backup_location
+
                 network.start_in_recovery(
                     args,
                     args.ledger_dir,
