@@ -1552,8 +1552,8 @@ def run(args):
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)
         network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_custom_auth_safety(network, args)
         network = test_raw_text(network, args)
         network = test_historical_query(network, args)
         network = test_historical_query_range(network, args)
@@ -1568,9 +1568,9 @@ def run(args):
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            network = test_historical_receipts(network, args)
-            network = test_historical_receipts_with_claims(network, args)
+        # if "v8" not in args.package:
+            # network = test_historical_receipts(network, args)
+            # network = test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1621,7 +1621,7 @@ if __name__ == "__main__":
         run,
         package="samples/apps/logging/liblogging",
         js_app_bundle=None,
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
     )
