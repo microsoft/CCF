@@ -94,8 +94,8 @@ namespace http2
     // TODO: Investigate no copy flags here
 
     return {
-      (uint8_t*)key.data(), // TODO: ugly cast
-      (uint8_t*)value.data(),
+      (uint8_t*)key.c_str(), // TODO: ugly cast
+      (uint8_t*)value.c_str(),
       key.size(),
       value.size(),
       NGHTTP2_NV_FLAG_NONE};
@@ -508,6 +508,16 @@ namespace http2
       LOG_TRACE_FMT(
         "http2::send_response: {} - {}", headers.size(), body.size());
 
+      std::vector<nghttp2_nv> hdrs;
+      auto status_str = fmt::format(
+          "{}", static_cast<std::underlying_type<http_status>::type>(status));
+      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str));
+      hdrs.emplace_back(make_nv(http::headers::CONTENT_LENGTH, std::to_string(body.size())));
+      for (auto& [k, v] : headers)
+      {
+        hdrs.emplace_back(make_nv(k, v));
+      }
+
       auto* stream_data = reinterpret_cast<StreamData*>(
         nghttp2_session_get_stream_user_data(session, stream_id));
       if (stream_data == nullptr)
@@ -515,18 +525,7 @@ namespace http2
         LOG_FAIL_FMT("stream not found!");
         return;
       }
-      stream_data->status = status;
       stream_data->response_body = std::move(body);
-
-      std::vector<nghttp2_nv> hdrs;
-      auto status_str = http_status_str(stream_data->status);
-      auto body_size = std::to_string(body.size());
-      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str));
-      // hdrs.emplace_back(make_nv(http::headers::CONTENT_LENGTH, body_size));
-      for (auto& [k, v] : headers)
-      {
-        hdrs.emplace_back(make_nv(k, v));
-      }
 
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
