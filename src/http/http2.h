@@ -37,6 +37,9 @@ namespace http2
 {
   using StreamId = int32_t;
 
+  // TODO: Make configurable
+  constexpr static size_t max_data_read_size = 2 << 20;
+
   static ssize_t send_callback(
     nghttp2_session* session,
     const uint8_t* data,
@@ -88,6 +91,20 @@ namespace http2
     StreamId stream_id,
     uint32_t error_code,
     void* user_data);
+  ssize_t on_data_source_read_length_callback(
+    nghttp2_session* session,
+    uint8_t frame_type,
+    int32_t stream_id,
+    int32_t session_remote_window_size,
+    int32_t stream_remote_window_size,
+    uint32_t remote_max_frame_size,
+    void* user_data);
+  int on_error_callback(
+    nghttp2_session* session,
+    int lib_error_code,
+    const char* msg,
+    size_t len,
+    void* user_data);
 
   static nghttp2_nv make_nv(const std::string& key, const std::string& value)
   {
@@ -133,6 +150,10 @@ namespace http2
       nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
       nghttp2_session_callbacks_set_on_stream_close_callback(
         callbacks, on_stream_close_callback);
+      nghttp2_session_callbacks_set_data_source_read_length_callback(
+        callbacks, on_data_source_read_length_callback);
+      nghttp2_session_callbacks_set_error_callback2(
+        callbacks, on_error_callback);
 
       if (is_client)
       {
@@ -190,7 +211,8 @@ namespace http2
       auto rc = nghttp2_session_send(session);
       if (rc < 0)
       {
-        throw std::logic_error(fmt::format("nghttp2_session_send: {}", rc));
+        throw std::logic_error(
+          fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
       }
     }
 
@@ -228,9 +250,12 @@ namespace http2
 
     auto& response_body = stream_data->response_body;
 
+    LOG_FAIL_FMT("Response body of size: {}", response_body.size());
+
     // TODO: Explore zero-copy alternative
     memcpy(buf, response_body.data(), response_body.size());
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    // *data_flags |= NGHTTP2_DATA_FLAG_NO_COPY;
     return response_body.size();
   }
 
@@ -473,6 +498,38 @@ namespace http2
     return 0;
   }
 
+  ssize_t on_data_source_read_length_callback(
+    nghttp2_session* session,
+    uint8_t frame_type,
+    int32_t stream_id,
+    int32_t session_remote_window_size,
+    int32_t stream_remote_window_size,
+    uint32_t remote_max_frame_size,
+    void* user_data)
+  {
+    LOG_TRACE_FMT(
+      "on_data_source_read_length_callback: {}, {}, allowed [1, "
+      "min({},{},{})]",
+      stream_id,
+      max_data_read_size,
+      session_remote_window_size,
+      stream_remote_window_size,
+      remote_max_frame_size);
+
+    return max_data_read_size;
+  }
+
+  int on_error_callback(
+    nghttp2_session* session,
+    int lib_error_code,
+    const char* msg,
+    size_t len,
+    void* user_data)
+  {
+    LOG_FAIL_FMT("HTTP/2 error: {}", std::string(msg, msg + len));
+    return 0;
+  }
+
   class ServerSession : public Session
   {
   private:
@@ -486,8 +543,9 @@ namespace http2
       LOG_TRACE_FMT("Initialising HTTP2 Server Session");
 
       // TODO: Configurable by operator
-      std::vector<nghttp2_settings_entry> settings = {
-        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100}};
+      std::vector<nghttp2_settings_entry> settings;
+      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
+      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
@@ -510,9 +568,10 @@ namespace http2
 
       std::vector<nghttp2_nv> hdrs;
       auto status_str = fmt::format(
-          "{}", static_cast<std::underlying_type<http_status>::type>(status));
+        "{}", static_cast<std::underlying_type<http_status>::type>(status));
       hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str));
-      hdrs.emplace_back(make_nv(http::headers::CONTENT_LENGTH, std::to_string(body.size())));
+      hdrs.emplace_back(
+        make_nv(http::headers::CONTENT_LENGTH, std::to_string(body.size())));
       for (auto& [k, v] : headers)
       {
         hdrs.emplace_back(make_nv(k, v));
@@ -539,7 +598,6 @@ namespace http2
         throw std::logic_error(
           fmt::format("nghttp2_submit_response error: {}", rv));
       }
-      LOG_FAIL_FMT("response sent!");
     }
 
     virtual void handle_request(StreamData* stream_data) override
@@ -579,7 +637,7 @@ namespace http2
       std::vector<uint8_t>&& body)
     {
       std::vector<nghttp2_settings_entry> settings = {
-        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100}};
+        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1}};
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
@@ -624,7 +682,8 @@ namespace http2
       auto rc = nghttp2_session_send(session);
       if (rc < 0)
       {
-        throw std::logic_error(fmt::format("nghttp2_session_send: {}", rc));
+        throw std::logic_error(
+          fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
       }
 
       LOG_FAIL_FMT("Successfully sent request with stream id: {}", stream_id);

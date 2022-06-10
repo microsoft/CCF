@@ -354,6 +354,7 @@ def test_large_messages(network, args):
     log_id = 7
     for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
         long_msg = "X" * (2**p)
+        LOG.error(f"Msg size: {len(long_msg)}")
         network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
         check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
         log_id += 1
@@ -1541,8 +1542,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test(network, args)
-        # network = test_large_messages(network, args)
+        # network = test(network, args)
+        network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_clear(network, args)
         network = test_record_count(network, args)
