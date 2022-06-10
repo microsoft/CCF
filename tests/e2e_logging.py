@@ -1542,11 +1542,11 @@ def run(args):
         network.start_and_open(args)
 
         network = test(network, args)
-        network = test_large_messages(network, args)
+        # network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_clear(network, args)
         network = test_record_count(network, args)
-        network = test_forwarding_frontends(network, args)
+        # network = test_forwarding_frontends(network, args)
         network = test_signed_escapes(network, args)
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
@@ -1619,7 +1619,7 @@ if __name__ == "__main__":
         run,
         package="samples/apps/logging/liblogging",
         js_app_bundle=None,
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         initial_user_count=4,
         initial_member_count=2,
     )
