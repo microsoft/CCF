@@ -495,7 +495,7 @@ void prepare_callers(NetworkState& network)
 
   auto tx = network.tables->create_tx();
   network.tables->set_encryptor(encryptor);
-  
+
   init_network(network);
 
   GenesisGenerator g(network, tx);
