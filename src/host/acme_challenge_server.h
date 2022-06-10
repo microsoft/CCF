@@ -46,7 +46,7 @@ protected:
       to_enclave(to_enclave)
     {}
 
-    virtual ~ClientBehaviour() {}
+    virtual ~ClientBehaviour() = default;
 
     void reply(http::Response& r, const std::string& body)
     {
