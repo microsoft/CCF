@@ -61,8 +61,6 @@ protected:
 
     virtual void on_read(size_t len, uint8_t*& incoming, sockaddr sa) override
     {
-      std::string body((char*)incoming, len);
-
       try
       {
         parser.execute(incoming, len);
@@ -75,12 +73,13 @@ protected:
           // http://<YOUR_DOMAIN>/.well-known/acme-challenge/<TOKEN>
           if (req.url.find("/.well-known/acme-challenge/") != 0)
           {
+            std::string content((char*)incoming, len);
             LOG_INFO_FMT(
               "ACME: invalid request from {} for url={} with following "
               "body:\n{}",
               socket->get_peer_name(),
               req.url,
-              body);
+              content);
             http::Response r(HTTP_STATUS_NOT_FOUND);
             reply(r, "Not found");
           }
