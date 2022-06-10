@@ -492,7 +492,7 @@ namespace ACME
         if (kid)
           (*this)["kid"] = *kid;
       }
-      virtual ~JWK() {}
+      virtual ~JWK() = default;
     };
 
     static std::optional<std::string> get_header_value(
