@@ -52,8 +52,7 @@ protected:
     {
       if (!socket.is_null())
       {
-        std::vector<uint8_t> vody(body.begin(), body.end());
-        r.set_body(vody.data(), vody.size());
+        r.set_body(body);
         auto bytes = r.build_response();
         socket->write(bytes.size(), bytes.data());
       }

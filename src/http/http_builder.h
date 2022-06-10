@@ -91,6 +91,15 @@ namespace http
       headers[headers::CONTENT_LENGTH] =
         fmt::format("{}", get_content_length());
     }
+
+    void set_body(const std::string& s)
+    {
+      body = (uint8_t*)s.data();
+      body_size = s.size();
+
+      headers[headers::CONTENT_LENGTH] =
+        fmt::format("{}", get_content_length());
+    }
   };
 
   class Request : public Message
