@@ -14,7 +14,7 @@ import infra.net
 import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
-from socket import socket
+import socket
 import ssl
 from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
@@ -31,6 +31,18 @@ def get_network_public_key(network):
     )
 
 
+def wait_for_port_to_listen(host, port, timeout=10):
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        try:
+            socket.create_connection((host, int(port)), timeout=0.1)
+            return
+        except Exception as ex:
+            LOG.trace(f"Likely expected exception: {ex}")
+            time.sleep(0.5)
+    raise TimeoutError(f"port did not start listening within {timeout} seconds")
+
+
 @reqs.description("Start network and wait for ACME certificates")
 def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
     with infra.network.network(
@@ -39,7 +51,7 @@ def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
         network.start_and_open(args)
 
         # NB: Pebble non-deterministically injects delays and failures,
-        # so the following checks may take a signficant amount of time.
+        # so the following checks may take a significant amount of time.
 
         network_public_key = get_network_public_key(network)
 
@@ -62,7 +74,7 @@ def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
                     for crt in ca_certs:
                         context.load_verify_locations(cadata=crt)
 
-                    s = socket()
+                    s = socket.socket()
                     s.settimeout(1)
                     c = context.wrap_socket(s, server_hostname=network_name)
                     c.connect((iface.host, iface.port))
@@ -116,7 +128,8 @@ def start_mock_dns(filename, listen_address, mgmt_address, out, err, env=None):
         close_fds=True,
         env=env,
     )
-    time.sleep(1)
+    host, port = listen_address.split(":")
+    wait_for_port_to_listen(host, port, 5)
     return p
 
 
@@ -141,7 +154,7 @@ def register_endorsed_hosts(args, network_name, dns_mgmt_address):
     )
 
 
-def start_pebble(filename, config_filename, dns_address, out, err, env):
+def start_pebble(filename, config_filename, dns_address, listen_address, out, err, env):
     p = subprocess.Popen(
         [
             filename,
@@ -155,7 +168,8 @@ def start_pebble(filename, config_filename, dns_address, out, err, env):
         close_fds=True,
         env=env,
     )
-    time.sleep(2)
+    host, port = listen_address.split(":")
+    wait_for_port_to_listen(host, port, 5)
     return p
 
 
@@ -264,6 +278,7 @@ def run_pebble(args):
                 binary_filename,
                 config_filename,
                 mock_dns_listen_address,
+                listen_address,
                 out,
                 err,
                 env={"PEBBLE_WFE_NONCEREJECT": "0", "PEBBLE_VA_NOSLEEP": "1"},
