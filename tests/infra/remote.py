@@ -917,8 +917,14 @@ class CCFRemote(object):
     def set_perf(self):
         self.remote.set_perf()
 
-    def _resilient_copy(self, directory, pre_condition_func=lambda src_dir, _: True, target_name=None, max_retry_count=5):
-        # It is possible that files (ledger, snapshots) are committed 
+    def _resilient_copy(
+        self,
+        directory,
+        pre_condition_func=lambda src_dir, _: True,
+        target_name=None,
+        max_retry_count=5,
+    ):
+        # It is possible that files (ledger, snapshots) are committed
         # while the copy is happening so retry a reasonable number of times.
         retry_count = 0
         while retry_count < max_retry_count:
@@ -931,14 +937,13 @@ class CCFRemote(object):
                 )
                 return
             except Exception as e:
-                LOG.warning(
-                    f"Error copying file from {directory}: {e}. Retrying..."
-                )
+                LOG.warning(f"Error copying file from {directory}: {e}. Retrying...")
                 retry_count += 1
                 time.sleep(0.1)
 
-        raise Exception(f"Error copying files from {directory} after {retry_count} retries")
-
+        raise Exception(
+            f"Error copying files from {directory} after {retry_count} retries"
+        )
 
     def get_ledger(self, ledger_dir_name):
         self._resilient_copy(self.ledger_dir_name, target_name=ledger_dir_name)
@@ -958,7 +963,9 @@ class CCFRemote(object):
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        self._resilient_copy(self.snapshot_dir_name, pre_condition_func=pre_condition_func)
+        self._resilient_copy(
+            self.snapshot_dir_name, pre_condition_func=pre_condition_func
+        )
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
     def log_path(self):
