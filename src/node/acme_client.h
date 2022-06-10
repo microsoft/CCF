@@ -414,7 +414,8 @@ namespace ACME
       return crypto::b64url_from_raw(json_to_bytes(j), with_padding);
     }
 
-    static void convert_signature_to_ieee_p1363(std::vector<uint8_t>& sig)
+    static void convert_signature_to_ieee_p1363(
+      std::vector<uint8_t>& sig, const crypto::KeyPair& signer)
     {
       // Convert signature from ASN.1 format to IEEE P1363
       const unsigned char* pp = sig.data();
@@ -423,10 +424,10 @@ namespace ACME
       const BIGNUM* s = ECDSA_SIG_get0_s(sig_r_s);
       int r_n = BN_num_bytes(r);
       int s_n = BN_num_bytes(s);
-      assert(r_n <= 48 && s_n <= 48);
-      sig = std::vector<uint8_t>(96, 0);
-      BN_bn2bin(r, sig.data() + 48 - r_n);
-      BN_bn2bin(s, sig.data() + 96 - s_n);
+      size_t sz = signer.coordinates().x.size();
+      sig = std::vector<uint8_t>(2 * sz, 0);
+      BN_bn2binpad(r, sig.data(), sz);
+      BN_bn2binpad(s, sig.data() + sz, sz);
       ECDSA_SIG_free(sig_r_s);
     }
 
@@ -460,7 +461,7 @@ namespace ACME
       {
         auto msg = header_b64 + "." + payload_b64;
         auto sig = signer.sign(s2v(msg));
-        convert_signature_to_ieee_p1363(sig);
+        convert_signature_to_ieee_p1363(sig, signer);
         auto sig_b64 = crypto::b64url_from_raw(sig);
 
         (*this)["protected"] = header_b64;
