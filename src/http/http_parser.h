@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/http_configuration.h"
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 #include "http_proc.h"
@@ -184,6 +185,7 @@ namespace http
   protected:
     llhttp_t parser;
     llhttp_settings_t settings;
+    ParserConfiguration configuration;
     State state = DONE;
 
     std::vector<uint8_t> body_buf;
@@ -198,7 +200,8 @@ namespace http
       partial_parsed_header.second.clear();
     }
 
-    Parser(llhttp_type_t type)
+    Parser(llhttp_type_t type, const ParserConfiguration& config) :
+      configuration(config)
     {
       llhttp_settings_init(&settings);
 
@@ -242,12 +245,14 @@ namespace http
         LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
         std::copy(at, at + length, std::back_inserter(body_buf));
 
-        if (body_buf.size() > max_request_body_size)
+        const auto& max_body_size = configuration.max_body_size;
+        if (
+          max_body_size.has_value() && body_buf.size() > max_body_size.value())
         {
           throw std::runtime_error(fmt::format(
-            "Payload too large: {} > {}",
+            "HTTP request body is too large: {}, allowed: {}",
             body_buf.size(),
-            max_request_body_size));
+            max_body_size.value()));
         }
       }
       else

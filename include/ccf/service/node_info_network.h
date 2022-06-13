@@ -5,7 +5,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
-#include "ccf/ds/unit_strings.h"
+#include "ccf/http_configuration.h"
 
 #include <string>
 
@@ -30,22 +30,6 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
-
-  struct HttpConfiguration
-  {
-    std::optional<ds::SizeString> max_body_size = std::nullopt;
-    std::optional<ds::SizeString> max_header_size = std::nullopt;
-
-    bool operator==(const HttpConfiguration& other) const
-    {
-      return max_body_size == other.max_body_size &&
-        max_header_size == other.max_header_size;
-    }
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HttpConfiguration);
-  DECLARE_JSON_REQUIRED_FIELDS(HttpConfiguration);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    HttpConfiguration, max_body_size, max_header_size);
 
   struct NodeInfoNetwork_v1
   {
@@ -77,7 +61,8 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
-      std::optional<HttpConfiguration> http_configuration = std::nullopt;
+      std::optional<http::ParserConfiguration> http_configuration =
+        std::nullopt;
 
       std::optional<Endorsement> endorsement = std::nullopt;
 
