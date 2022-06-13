@@ -8,7 +8,6 @@ import infra.utils
 import infra.github
 import infra.jwt_issuer
 import infra.crypto
-import cimetrics.env
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
@@ -586,10 +585,7 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     repo = infra.github.Repository()
-    # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
-    # current branch on any environment (either local checkout or CI run)
-    env = cimetrics.env.get_env()
-    local_branch = env.branch
+    local_branch = infra.github.GitEnv.local_branch()
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")

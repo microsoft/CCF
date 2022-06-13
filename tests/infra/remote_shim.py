@@ -28,7 +28,8 @@ def map_azure_devops_docker_workspace_dir(workspace_dir):
 
 # Docker image name prefix
 # To update when runtime images are pushed to ACR
-DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
+MICROSOFT_REGISTRY_NAME = "mcr.microsoft.com"
+DOCKER_IMAGE_NAME_PREFIX = "ccf/app/run"
 
 # Network name
 AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR = "AGENT_CONTAINERNETWORK"
@@ -134,13 +135,11 @@ class DockerShim(infra.remote.CCFRemote):
         repo = infra.github.Repository()
         image_name = kwargs.get("node_container_image")
         if image_name is None:
-            image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
+            image_name = f"{MICROSOFT_REGISTRY_NAME}/{DOCKER_IMAGE_NAME_PREFIX}:"
             if ccf_version is not None:
                 image_name += ccf_version
             else:
-                image_name += infra.github.strip_release_tag_name(
-                    repo.get_latest_dev_tag()
-                )
+                image_name += f"{infra.github.strip_release_tag_name(repo.get_latest_dev_tag())}-sgx"
 
         try:
             self.docker_client.images.get(image_name)
