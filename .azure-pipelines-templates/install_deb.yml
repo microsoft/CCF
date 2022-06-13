@@ -33,7 +33,7 @@ steps:
 
   - script: |
       set -ex
-      unsafe_build=$(grep unsafe /tmp/install_prefix)
+      unsafe_build=$(grep unsafe /tmp/install_prefix) || true
       if [[ -n "$unsafe_build" ]]; then
         ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON
       else
