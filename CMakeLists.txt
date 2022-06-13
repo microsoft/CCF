@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
 
 project(
-  ccf
+  ${CCF_PROJECT}
   VERSION ${CCF_RELEASE_VERSION}
   LANGUAGES C CXX
 )
@@ -23,7 +23,7 @@ message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf"
+      "/opt/${CCF_PROJECT}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -968,16 +968,16 @@ endif()
 # Generate and install CMake export file for consumers using CMake
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf-config.cmake.in
-  ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${CCF_PROJECT}-config.cmake.in
+  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
   PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR CMAKE_INSTALL_INCLUDEDIR
 )
 write_basic_package_version_file(
-  ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
   COMPATIBILITY SameMajorVersion
 )
-install(FILES ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
-              ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+install(FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+              ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
         DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
