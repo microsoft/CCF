@@ -1,11 +1,11 @@
 ---------- MODULE MCraftWithReconfig ----------
 EXTENDS ccfraft, TLC
 
-PossibleServer_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
-InitialServer_mc == {NodeOne, NodeTwo, NodeThree}
+PossibleServer_mc == {NodeOne, NodeTwo, NodeThree}
+InitialServer_mc == {NodeOne}
 tmp == [s \in PossibleServer_mc |-> Follower]
-InitialConfig_mc == [tmp EXCEPT ![NodeFour] = Pending,
-                                ![NodeFive] = Pending]
+InitialConfig_mc == [tmp EXCEPT ![NodeTwo] = Pending,
+                                ![NodeThree] = Pending]
 
 \*  SNIPPET_START: mc_config
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
@@ -30,7 +30,7 @@ CommitNotificationLimit_mc == 1
 
 \* We made several restrictions to the state space of Raft. However since we
 \* made these restrictions, Deadlocks can occur at places that Raft would in
-\* real-world deployments handle graciously. 
+\* real-world deployments handle graciously.
 \* One example of this is if a Quorum of nodes becomes Candidate but can not
 \* timeout anymore since we constrained the terms. Then, an artificial Deadlock
 \* is reached. We solve this below. If TermLimit is set to any number >2, this is
@@ -42,7 +42,7 @@ MaxSimultaneousCandidates_mc == 1
 mc_spec == Spec
 
 \* Symmetry set over possible servers. May dangerous and is only enabled
-\* via the Symmetry option in cfg file. 
+\* via the Symmetry option in cfg file.
 Symmetry == Permutations(PossibleServer_mc)
 
 ===================================

@@ -189,6 +189,16 @@ Min(s) == CHOOSE x \in s : \A y \in s : x <= y
 Max(s)         == CHOOSE x \in s          : \A y \in s : x >= y
 MaxWithZero(s) == CHOOSE x \in s \cup {0} : \A y \in s : x >= y
 
+\* We utilize the IsPrefix from the TLA community modules here (MIT license):
+\* https://github.com/tlaplus/CommunityModules/blob/master/modules/SequencesExt.tla
+\* IsPrefix returns TRUE iff the sequence s is a prefix of the sequence t, s.t.
+\* \E u \in Seq(Range(t)) : t = s \o u. In other words, there exists
+\* a suffix u that with s prepended equals t.
+IsPrefix(s, t) ==
+  IF s = << >>
+  THEN TRUE
+  ELSE DOMAIN s \subseteq DOMAIN t /\ \A i \in DOMAIN s: s[i] = t[i]
+
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
 MaxCommittableIndex(xlog) ==
@@ -224,6 +234,26 @@ GetServerSetForIndex(server, index) ==
 GetServerSet(server) ==
     \* Pick the union of all servers across all configurations
     UNION {Configurations[server][relevant_configs][2] : relevant_configs \in 1..Len(Configurations[server])}
+
+\* The prefix of the log of server i that has been committed
+Committed(i) ==
+    IF commitIndex[i] = 0
+    THEN << >>
+    ELSE SubSeq(log[i],1,commitIndex[i])
+
+\* The prefix of the log of server i that has been committed up to term x
+CommittedTermPrefix(i, x) ==
+    \* Only if log of i is non-empty, and if there exists an entry up to the term x
+    IF Len(log[i]) /= 0 /\ \E y \in DOMAIN log[i] : log[i][y].term <= x
+    THEN
+      \* then, we use the subsequence up to the maximum committed term of the leader
+      LET maxTermIndex ==
+          CHOOSE y \in DOMAIN log[i] :
+            /\ log[i][y].term <= x
+            /\ \A z \in DOMAIN log[i] : log[i][z].term <= x  => y >= z
+      IN SubSeq(log[i], 1, Min({maxTermIndex, commitIndex[i]}))
+    \* Otherwise the prefix is the empty tuple
+    ELSE << >>
 
 ----
 \*  SNIPPET_START: init_values
@@ -440,10 +470,14 @@ ChangeConfiguration(i, newConfiguration) ==
     /\ state[i] = Leader
     \* Configuration is non empty
     /\ newConfiguration /= {}
-    \* Configuration is a proper subset ob the Possible Servers
+    \* Configuration is a proper subset of the Possible Servers
     /\ newConfiguration \subseteq PossibleServer
     \* Configuration is not equal to current configuration
     /\ newConfiguration /= Configurations[i][1][2]
+    \* CCF TEMPORARY: Limit reconfigurations to add/removing one server at a time
+    /\ \E j \in PossibleServer :
+        \/ newConfiguration \cup {j} = Configurations[i][1][2]
+        \/ Configurations[i][1][2] \cup {j} = newConfiguration
     \* Keep track of running reconfigurations to limit state space
     /\ ReconfigurationCount' = ReconfigurationCount + 1
     /\ LET
@@ -833,31 +867,9 @@ Next ==
 \* to Next.
 Spec == Init /\ [][Next]_vars
 
-\* The following are partially based on a set of invariants by
-\* https://github.com/dricketts/raft.tla/blob/master/raft.tla
-\* Helpers
-\* The invariants below use IsPrefix on sequences. We utilize the
-\* IsPrefix from the TLA community modules here (MIT license):
-\* https://github.com/tlaplus/CommunityModules/blob/master/modules/SequencesExt.tla
-IsPrefix(s, t) ==
-  (**************************************************************************)
-  (* TRUE iff the sequence s is a prefix of the sequence t, s.t.            *)
-  (* \E u \in Seq(Range(t)) : t = s \o u. In other words, there exists      *)
-  (* a suffix u that with s prepended equals t.                             *)
-  (**************************************************************************)
-  IF s = << >>
-  THEN TRUE
-  ELSE DOMAIN s \subseteq DOMAIN t /\ \A i \in DOMAIN s: s[i] = t[i]
-
 ----
 \* Correctness invariants
-
-
-\* The prefix of the log of server i that has been committed
-Committed(i) ==
-    IF commitIndex[i] = 0
-    THEN << >>
-    ELSE SubSeq(log[i],1,commitIndex[i])
+\* These invariants should be true for all possible states
 
 LogInv ==
     /\ \lnot committedLogConflict
@@ -926,6 +938,15 @@ MoreUpToDateCorrectInv ==
         \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
            /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
        IsPrefix(Committed(j), log[i])
+
+\* The committed entries in every log are a prefix of the
+\* leader's log up to the leader's term (since a next Leader may already be
+\* elected without the old leader stepping down yet)
+LeaderCompletenessInv ==
+    \A i \in PossibleServer :
+        state[i] = Leader =>
+        \A j \in PossibleServer :
+            IsPrefix(CommittedTermPrefix(j, currentTerm[i]),log[i])
 
 \* In CCF, only signature messages should ever be committed
 SignatureInv ==
@@ -1066,7 +1087,8 @@ DebugInvReconfigLeader ==
 DebugInvAllMessagesProcessable ==
     Len(messages) > 0 ~> Len(messages) = 0
 
-\* The Retirement state is reached by Leaders that remove themselves from the configuration. It should be reachable.
+\* The Retirement state is reached by Leaders that remove themselves from the configuration.
+\* It should be reachable.
 DebugInvRetirementReachable ==
     \A i \in PossibleServer : state[i] /= RetiredLeader
 
