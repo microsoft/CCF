@@ -352,11 +352,14 @@ def test_large_messages(network, args):
     # Starting below 16K also helps identify problems (by seeing some
     # pass but not others, and finding where does it fail).
     log_id = 7
-    for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
+    for p in range(20, 22):
         long_msg = "X" * (2**p)
+        LOG.error(f"msg size: {len(long_msg)}")
         network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
         check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
         log_id += 1
+
+    # TODO: Test maximum header size
 
     return network
 
@@ -1541,36 +1544,36 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test(network, args)
+        # network = test(network, args)
         network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_clear(network, args)
-        network = test_record_count(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_signed_escapes(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_metrics(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "CFT":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-            network = test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            network = test_receipts(network, args)
-            network = test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            network = test_historical_receipts(network, args)
-            network = test_historical_receipts_with_claims(network, args)
+        # network = test_remove(network, args)
+        # network = test_clear(network, args)
+        # network = test_record_count(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_signed_escapes(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_multi_auth(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_custom_auth_safety(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
+        # network = test_historical_query_range(network, args)
+        # network = test_view_history(network, args)
+        # network = test_metrics(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "CFT":
+        #     network = test_liveness(network, args)
+        #     network = test_rekey(network, args)
+        #     network = test_liveness(network, args)
+        #     network = test_random_receipts(network, args, False)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     network = test_receipts(network, args)
+        #     network = test_historical_query_sparse(network, args)
+        # if "v8" not in args.package:
+        #     network = test_historical_receipts(network, args)
+        #     network = test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1641,12 +1644,12 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     # This is just for the UDP echo test for now
     cr.add(

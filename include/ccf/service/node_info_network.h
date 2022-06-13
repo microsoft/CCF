@@ -5,6 +5,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
+#include "ds/unit_strings.h"
 
 #include <string>
 
@@ -60,6 +61,9 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
+      std::optional<ds::SizeString> max_http_body_size = std::nullopt;
+      std::optional<ds::SizeString> max_http_header_size = std::nullopt;
+
       std::optional<Endorsement> endorsement = std::nullopt;
 
       bool operator==(const NetInterface& other) const
@@ -86,7 +90,9 @@ namespace ccf
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address,
-    protocol);
+    protocol,
+    max_http_body_size,
+    max_http_header_size);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);

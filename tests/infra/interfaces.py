@@ -14,10 +14,17 @@ def split_address(addr, default_port=0):
 def make_address(host, port=0):
     return f"{host}:{port}"
 
+# TODO: Improve
+def to_size_string(size):
+    return str(size)
+
 
 DEFAULT_TRANSPORT_PROTOCOL = "tcp"
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
+
+DEFAULT_MAX_HTTP_BODY_SIZE = 1024 * 1024 
+DEFAULT_MAX_HTTP_HEADER_SIZE = 16 * 1024
 
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
@@ -65,6 +72,8 @@ class RPCInterface(Interface):
     public_port: Optional[int] = None
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
+    max_http_body_size: Optional[int] = DEFAULT_MAX_HTTP_BODY_SIZE
+    max_http_header_size: Optional[int] = DEFAULT_MAX_HTTP_HEADER_SIZE
     endorsement: Optional[Endorsement] = Endorsement()
 
     @staticmethod
@@ -75,6 +84,8 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
+            "max_http_body_size": to_size_string(interface.max_http_body_size),
+            "max_http_header_size": to_size_string(interface.max_http_header_size),
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
 

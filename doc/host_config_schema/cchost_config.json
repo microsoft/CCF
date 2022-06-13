@@ -71,6 +71,16 @@
                 "default": 1010,
                 "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
               },
+              "max_http_body_size": {
+                "type": "string",
+                "default": "1MB",
+                "description": "Maximum size (size string) of HTTP request body. Submitting a request with a payload larger than this value will result in the session being automaticalled closed."
+              },
+              "max_http_header_size": {
+                "type": "string",
+                "default": "16KB",
+                "description": "Maximum size (size string) of a single HTTP request header. Submitting a request with a header larger than this value will result in the session being automaticalled closed."
+              },
               "endorsement": {
                 "type": "object",
                 "properties": {

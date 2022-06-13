@@ -19,7 +19,8 @@
 namespace http
 {
   // TODO: Make configurable by operator
-  constexpr static size_t max_request_body_size = 2 << 20;
+  constexpr static size_t max_request_body_size = 2 << 20; // 1MB
+  constexpr static size_t max_request_header_size = 2 << 14; // 16KB
 
   inline auto split_url_path(const std::string_view& url)
   {
@@ -298,7 +299,15 @@ namespace http
       // signatures later on
       auto f = std::string(at, length);
       nonstd::to_lower(f);
-      partial_parsed_header.first.append(f);
+      auto& partial_header_value = partial_parsed_header.first;
+      partial_header_value.append(f);
+      if (partial_header_value.size() > max_request_header_size)
+      {
+        throw std::runtime_error(fmt::format(
+          "Header too large: {} > {}",
+          partial_header_value.size(),
+          max_request_header_size));
+      }
     }
 
     void header_value(const char* at, size_t length)

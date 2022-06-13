@@ -342,6 +342,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Absolute path to node JSON configuration file",
         default=None,
     )
+    parser.add_argument(
+        "--max-http-body-size",
+        help="Maximum size of HTTP request body accept by RPC interface",
+        default=1024 * 1024, # 1MB
+    )
 
     add(parser)
 
