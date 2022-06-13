@@ -9,6 +9,7 @@ import git
 import urllib
 import shutil
 import requests
+import cimetrics.env
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -146,6 +147,12 @@ class GitEnv:
             == 200
         )
 
+    @staticmethod
+    def local_branch():
+        # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
+        # current branch on any environment (either local checkout or CI run)
+        return cimetrics.env.get_env().branch
+
 
 class Repository:
     """
@@ -171,11 +178,11 @@ class Repository:
         return tags[first_release_tag_idx + 1 :]
 
     def get_latest_dev_tag(self):
-        dev_tags = [t for t in self.tags if "-dev" in t]
-        dev_tags.reverse()
-
+        local_branch = cimetrics.env.get_env().branch
+        major_version = get_major_version_from_branch_name(local_branch)
+        tags = self.get_tags_for_major_version(major_version)
         # Only consider tags that have releases as a release might be in progress
-        return self._filter_released_tags(dev_tags)[0]
+        return self._filter_released_tags(tags)[0]
 
     def get_tags_for_major_version(self, major_version=None):
         version_re = f"{major_version}\\." if major_version else ""
