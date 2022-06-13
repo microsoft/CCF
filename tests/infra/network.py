@@ -21,7 +21,6 @@ from dataclasses import dataclass
 import http
 import pprint
 import functools
-import shutil
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 
@@ -72,6 +71,10 @@ class CodeIdNotFound(Exception):
 
 
 class StartupSeqnoIsOld(Exception):
+    pass
+
+
+class ServiceCertificateInvalid(Exception):
     pass
 
 
@@ -694,7 +697,14 @@ class Network:
                 )
 
     def join_node(
-        self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        timeout=JOIN_TIMEOUT,
+        stop_on_error=False,
+        **kwargs,
     ):
         forwarded_args = {
             arg: getattr(args, arg, None)
@@ -716,6 +726,8 @@ class Network:
             )
         except TimeoutError as e:
             LOG.error(f"New pending node {node.node_id} failed to join the network")
+            if stop_on_error:
+                assert node.remote.check_done()
             errors, _ = node.stop()
             self.nodes.remove(node)
             if errors:
@@ -725,6 +737,8 @@ class Network:
                         raise CodeIdNotFound from e
                     if "StartupSeqnoIsOld" in error:
                         raise StartupSeqnoIsOld from e
+                    if "invalid cert on handshake" in error:
+                        raise ServiceCertificateInvalid from e
             raise
 
     def trust_node(
@@ -1318,9 +1332,20 @@ class Network:
         )
 
     def save_service_identity(self, args):
-        current_identity = os.path.join(self.common_dir, "service_cert.pem")
+        n = self.find_random_node()
+        with n.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            current_ident = r.body.json()["service_certificate"]
+        prev_cert_count = 0
         previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
-        shutil.copy(current_identity, previous_identity)
+        while os.path.exists(previous_identity):
+            prev_cert_count += 1
+            previous_identity = os.path.join(
+                self.common_dir, f"previous_service_cert_{prev_cert_count}.pem"
+            )
+        with open(previous_identity, "w", encoding="utf-8") as f:
+            f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
 
