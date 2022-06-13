@@ -1,17 +1,17 @@
 ---------- MODULE MCraftWithReconfig ----------
 EXTENDS ccfraft, TLC
 
-PossibleServer_mc == {NodeOne, NodeTwo, NodeThree}
-InitialServer_mc == {NodeOne}
+PossibleServer_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
+InitialServer_mc == {NodeOne, NodeTwo, NodeThree}
 tmp == [s \in PossibleServer_mc |-> Follower]
-InitialConfig_mc == [tmp EXCEPT ![NodeTwo] = Pending,
-                                ![NodeThree] = Pending]
+InitialConfig_mc == [tmp EXCEPT ![NodeFour] = Pending,
+                                ![NodeFive] = Pending]
 
 \*  SNIPPET_START: mc_config
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
 \* constraint below is too restrictive.
-TermLimit_mc == 4
+TermLimit_mc == 3
 
 \* Limit number of requests (new entries) that can be made
 RequestLimit_mc == 2
