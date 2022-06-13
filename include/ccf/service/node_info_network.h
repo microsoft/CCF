@@ -31,6 +31,22 @@ namespace ccf
   DECLARE_JSON_TYPE(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
 
+  struct HttpConfiguration
+  {
+    std::optional<ds::SizeString> max_body_size = std::nullopt;
+    std::optional<ds::SizeString> max_header_size = std::nullopt;
+
+    bool operator==(const HttpConfiguration& other) const
+    {
+      return max_body_size == other.max_body_size &&
+        max_header_size == other.max_header_size;
+    }
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HttpConfiguration);
+  DECLARE_JSON_REQUIRED_FIELDS(HttpConfiguration);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    HttpConfiguration, max_body_size, max_header_size);
+
   struct NodeInfoNetwork_v1
   {
     std::string rpchost;
@@ -61,8 +77,7 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
-      std::optional<ds::SizeString> max_http_body_size = std::nullopt;
-      std::optional<ds::SizeString> max_http_header_size = std::nullopt;
+      std::optional<HttpConfiguration> http_configuration = std::nullopt;
 
       std::optional<Endorsement> endorsement = std::nullopt;
 
@@ -73,7 +88,8 @@ namespace ccf
           protocol == other.protocol &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
-          endorsement == other.endorsement;
+          endorsement == other.endorsement &&
+          http_configuration == other.http_configuration;
       }
     };
 
@@ -82,6 +98,7 @@ namespace ccf
     NetInterface node_to_node_interface;
     RpcInterfaces rpc_interfaces;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -91,8 +108,7 @@ namespace ccf
     max_open_sessions_hard,
     published_address,
     protocol,
-    max_http_body_size,
-    max_http_header_size);
+    http_configuration);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
@@ -174,8 +190,7 @@ namespace ccf
   }
 }
 
-FMT_BEGIN_NAMESPACE
-template <>
+FMT_BEGIN_NAMESPACE template <>
 struct formatter<ccf::Authority>
 {
   template <typename ParseContext>

@@ -26,12 +26,14 @@ namespace http
   protected:
     http::Parser& p;
     std::shared_ptr<ErrorReporter> error_reporter;
+    std::optional<ccf::HttpConfiguration> configuration = std::nullopt;
 
     HTTPEndpoint(
       http::Parser& p_,
       tls::ConnID session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
+      const std::optional<ccf::HttpConfiguration>& configuration = std::nullopt,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
       p(p_),
@@ -130,12 +132,14 @@ namespace http
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
+      const ccf::HttpConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       HTTPEndpoint(
         request_parser,
         session_id,
         writer_factory,
         std::move(ctx),
+        configuration,
         error_reporter),
       request_parser(*this),
       rpc_map(rpc_map),

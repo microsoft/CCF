@@ -44,6 +44,7 @@ namespace ccf
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
+      ccf::HttpConfiguration http_configuration;
       ccf::SessionMetrics::Errors errors;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
@@ -187,6 +188,14 @@ namespace ccf
           max_open_sessions_hard_default);
 
         li.endorsement = interface.endorsement.value_or(endorsement_default);
+
+        if (!interface.http_configuration.has_value())
+        {
+          throw std::logic_error(
+            fmt::format("RPC Interface {} has no HTTP configuration", name));
+        }
+
+        li.http_configuration = interface.http_configuration.value();
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
@@ -353,6 +362,7 @@ namespace ccf
             listen_interface_id,
             writer_factory,
             std::move(ctx),
+            per_listen_interface.http_configuration,
             shared_from_this());
           sessions.insert(std::make_pair(
             id, std::make_pair(listen_interface_id, std::move(session))));

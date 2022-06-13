@@ -84,8 +84,7 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
-            "max_http_body_size": to_size_string(interface.max_http_body_size),
-            "max_http_header_size": to_size_string(interface.max_http_header_size),
+            "http_configuration": {"max_body_size": to_size_string(interface.max_http_body_size), "max_header_size": to_size_string(interface.max_http_header_size)},
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
 
