@@ -21,7 +21,7 @@ namespace crypto
 
     void check_pem_format()
     {
-      if (!s.starts_with("-----"))
+      if (s.find("-----BEGIN") == std::string::npos)
       {
         throw std::runtime_error(
           fmt::format("PEM constructed with non-PEM data: {}", s));
