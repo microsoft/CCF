@@ -18,6 +18,9 @@
 
 namespace http
 {
+  // TODO: Make configurable by operator
+  constexpr static size_t max_request_body_size = 2 << 20;
+
   inline auto split_url_path(const std::string_view& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
@@ -237,6 +240,14 @@ namespace http
       {
         LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
         std::copy(at, at + length, std::back_inserter(body_buf));
+
+        if (body_buf.size() > max_request_body_size)
+        {
+          throw std::runtime_error(fmt::format(
+            "Payload too large: {} > {}",
+            body_buf.size(),
+            max_request_body_size));
+        }
       }
       else
       {
