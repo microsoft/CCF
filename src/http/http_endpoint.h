@@ -26,7 +26,7 @@ namespace http
   protected:
     http::Parser& p;
     std::shared_ptr<ErrorReporter> error_reporter;
-    std::optional<ccf::HttpConfiguration> configuration = std::nullopt;
+    std::optional<http::HttpConfiguration> configuration = std::nullopt;
 
     HTTPEndpoint(
       http::Parser& p_,
