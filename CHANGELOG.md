@@ -7,13 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## [2.0.1]
+
 ### Added
 
 - Added a `GET /node/service/previous_identity` endpoint, which can be used during a recovery to look up the identity of the service before the catastrophic failure (#3880).
-
-### Changed
-
-- Updated PSW in images to 2.16.100.
 
 ### Removed
 
@@ -21,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Updated PSW in images to 2.16.100.
 - New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
 
 ## [2.0.0]
@@ -1511,6 +1510,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.1
 [2.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0
 [2.0.0-rc9]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc9
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
