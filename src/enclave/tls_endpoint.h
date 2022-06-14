@@ -58,6 +58,13 @@ namespace ccf
     std::unique_ptr<tls::Context> ctx;
     Status status;
 
+    bool can_send()
+    {
+      // Closing endpoint should still be able to respond to clients (e.g. to
+      // report errors)
+      return status == ready || status == closing;
+    }
+
   public:
     TLSEndpoint(
       int64_t session_id_,
@@ -257,8 +264,10 @@ namespace ccf
         return;
       }
 
-      if (status != ready)
+      if (!can_send())
+      {
         return;
+      }
 
       pending_write.insert(pending_write.end(), data.begin(), data.end());
 
@@ -284,8 +293,10 @@ namespace ccf
 
       do_handshake();
 
-      if (status != ready)
+      if (!can_send())
+      {
         return;
+      }
 
       while (pending_write.size() > 0)
       {
@@ -345,6 +356,7 @@ namespace ccf
         }
 
         case ready:
+        case closing:
         {
           int r = ctx->close();
 
@@ -481,6 +493,7 @@ namespace ccf
 
       switch (status)
       {
+        case closing:
         case closed:
         {
           RINGBUFFER_WRITE_MESSAGE(
