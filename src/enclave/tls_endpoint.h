@@ -320,7 +320,8 @@ namespace ccf
 
     void close()
     {
-      status = closing;
+      // status = closing;
+      close_thread(); // TODO: Fix
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();
 

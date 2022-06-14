@@ -11,8 +11,8 @@ namespace http
 {
   struct ParserConfiguration
   {
-    std::optional<ds::SizeString> max_body_size = std::nullopt;
-    std::optional<ds::SizeString> max_header_size = std::nullopt;
+    ds::SizeString max_body_size = {"1MB"};
+    ds::SizeString max_header_size = {"16KB"};
 
     bool operator==(const ParserConfiguration& other) const
     {

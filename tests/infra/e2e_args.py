@@ -25,6 +25,8 @@ def nodes(args, n):
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                     max_open_sessions_soft=args.max_open_sessions,
                     max_open_sessions_hard=args.max_open_sessions_hard,
+                    max_http_body_size=args.max_http_body_size,
+                    max_http_header_size=args.max_http_header_size
                 )
             }
         )
@@ -344,8 +346,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--max-http-body-size",
-        help="Maximum size of HTTP request body accept by RPC interface",
-        default=1024 * 1024, # 1MB
+        help="Maximum size of HTTP request body accepted by RPC interface",
+        default=1024 * 20, # 1MB
+    )
+    parser.add_argument(
+        "--max-http-header-size",
+        help="Maximum size of single HTTP request header accepted by RPC interface",
+        default=1024 * 16, # 16KB
     )
 
     add(parser)

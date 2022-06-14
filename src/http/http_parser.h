@@ -19,10 +19,6 @@
 
 namespace http
 {
-  // TODO: Change this logic
-  static ParserConfiguration no_limit_configuration = {
-    std::nullopt, std::nullopt};
-
   class RequestTooLargeException : public std::runtime_error
   {
     using runtime_error::runtime_error;
@@ -207,7 +203,7 @@ namespace http
 
     Parser(
       llhttp_type_t type,
-      const ParserConfiguration& config = no_limit_configuration) :
+      const ParserConfiguration& config = ParserConfiguration{}) :
       configuration(config)
     {
       llhttp_settings_init(&settings);
@@ -252,13 +248,11 @@ namespace http
         LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
         std::copy(at, at + length, std::back_inserter(body_buf));
 
-        const auto& max_body_size = configuration.max_body_size;
-        if (
-          max_body_size.has_value() && body_buf.size() > max_body_size.value())
+        if (body_buf.size() > configuration.max_body_size)
         {
           throw RequestTooLargeException(fmt::format(
             "HTTP request body is too large (max allowed: {})",
-            max_body_size.value()));
+            configuration.max_body_size));
         }
       }
       else
@@ -316,17 +310,14 @@ namespace http
 
     void header_value(const char* at, size_t length)
     {
-      const auto& max_header_size = configuration.max_header_size;
       auto& partial_header_value = partial_parsed_header.second;
       partial_header_value.append(at, length);
-      if (
-        max_header_size.has_value() &&
-        partial_header_value.size() > max_header_size.value())
+      if (partial_header_value.size() > configuration.max_header_size)
       {
         throw RequestTooLargeException(fmt::format(
           "Header value for {} is too large (max allowed {})",
           partial_parsed_header.first,
-          max_header_size.value()));
+          configuration.max_header_size));
       }
     }
 
@@ -389,7 +380,7 @@ namespace http
   public:
     RequestParser(
       RequestProcessor& proc_,
-      const ParserConfiguration& config = no_limit_configuration) :
+      const ParserConfiguration& config = ParserConfiguration{}) :
       Parser(HTTP_REQUEST, config),
       proc(proc_)
     {
@@ -443,7 +434,7 @@ namespace http
 
   public:
     ResponseParser(ResponseProcessor& proc_) :
-      Parser(HTTP_RESPONSE, no_limit_configuration),
+      Parser(HTTP_RESPONSE, ParserConfiguration{}),
       proc(proc_)
     {}
 
