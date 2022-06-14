@@ -245,7 +245,7 @@
         "value": "always"
       },
       "never": {
-        "description": "This call will never be forwarded, and is always executed on the node it was sent to. If this attempts to write on a backup, this will fail. This will be executed by the receiving node even if earlier requests on the same session were forwarded, potentially breaking session consistency. This should be used for operations which want to read node-local state, rather than replicated state.",
+        "description": "This call will never be forwarded, and is always executed on the node it was sent to. If this attempts to write on a backup, this will fail. This will be executed by the receiving node even if earlier requests on the same session were forwarded, potentially breaking session consistency. This should be used for operations which want to read node-local state rather than the latest replicated state, for instance for all historical queries.",
         "value": "never"
       },
       "sometimes": {

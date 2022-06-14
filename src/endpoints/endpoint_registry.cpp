@@ -205,7 +205,8 @@ namespace ccf::endpoints
       "This will be executed by the receiving node even if earlier requests on "
       "the same session were forwarded, potentially breaking session "
       "consistency. This should be used for operations which want to read "
-      "node-local state, rather than replicated state.";
+      "node-local state rather than the latest replicated state, for instance "
+      "for all historical queries.";
 
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
