@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ccf_deprecated.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/openapi.h"
 #include "ccf/endpoint_context.h"
@@ -337,22 +338,7 @@ namespace ccf::endpoints
      */
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
-    /** Indicates that the execution of the Endpoint does not require
-     * consensus from other nodes in the network.
-     *
-     * By default, endpoints are not executed locally.
-     *
-     * \verbatim embed:rst:leading-asterisk
-     * .. warning::
-     *  Use with caution. This should only be used for non-critical endpoints
-     *  that do not read or mutate the state of the key-value store.
-     * \endverbatim
-     *
-     * @param v Enum indicating whether the Endpoint is executed locally,
-     * on the node receiving the request, locally on the primary or via the
-     * consensus.
-     * @return This Endpoint for further modification
-     */
+    CCF_DEPRECATED("Will be removed in 3.0, has no effect in 2.0.")
     Endpoint& set_execute_outside_consensus(ExecuteOutsideConsensus v);
 
     void install()

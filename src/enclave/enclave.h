@@ -71,7 +71,6 @@ namespace ccf
 
   public:
     Enclave(
-      const EnclaveConfig& ec,
       std::unique_ptr<ringbuffer::Circuit> circuit_,
       std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
       std::unique_ptr<oversized::WriterFactory> writer_factory_,

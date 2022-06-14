@@ -8,7 +8,6 @@ import infra.utils
 import infra.github
 import infra.jwt_issuer
 import infra.crypto
-import cimetrics.env
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
@@ -531,12 +530,12 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
 
+                network.save_service_identity(args)
                 network.stop_all_nodes(
                     skip_verification=True,
                     accept_ledger_diff=is_ledger_chunk_breaking,
                 )
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
-                network.save_service_identity(args)
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()
@@ -586,10 +585,7 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     repo = infra.github.Repository()
-    # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
-    # current branch on any environment (either local checkout or CI run)
-    env = cimetrics.env.get_env()
-    local_branch = env.branch
+    local_branch = infra.github.GitEnv.local_branch()
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")

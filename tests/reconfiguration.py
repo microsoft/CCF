@@ -68,6 +68,35 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
             raise Exception("Reconfiguration did not complete in time")
 
 
+@reqs.description("Adding a node with invalid target service certificate")
+def test_add_node_invalid_service_cert(network, args):
+    primary, _ = network.find_primary()
+
+    # Incorrect target service certificate file, in this case the primary's node
+    # identity
+    service_cert_file = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    new_node = network.create_node("local://localhost")
+    try:
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            service_cert_file=service_cert_file,
+            timeout=3,
+            stop_on_error=True,
+        )
+    except infra.network.ServiceCertificateInvalid:
+        LOG.info(
+            f"Node {new_node.local_node_id} with invalid service certificate failed to start, as expected"
+        )
+    else:
+        assert (
+            False
+        ), f"Node {new_node.local_node_id} with invalid service certificate unexpectedly started"
+
+    return network
+
+
 @reqs.description("Adding a valid node")
 def test_add_node(network, args, from_snapshot=True):
     # Note: host is supplied explicitly to avoid having differently
@@ -177,35 +206,25 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-def test_add_node_from_snapshot(
-    network, args, copy_ledger_read_only=True, from_backup=False
-):
+def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=False):
     # Before adding the node from a snapshot, override at least one app entry
     # and wait for a new committed snapshot covering that entry, so that there
     # is at least one historical entry to verify.
     network.txs.issue(network, number_txs=1)
+    idx, historical_entry = network.txs.get_last_tx(priv=True)
     for _ in range(1, args.snapshot_tx_interval):
         network.txs.issue(network, number_txs=1, repeat=True)
         last_tx = network.txs.get_last_tx(priv=True)
         if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
             break
 
-    target_node = None
-    snapshots_dir = None
-    if from_backup:
-        primary, target_node = network.find_primary_and_any_backup()
-        # Retrieve snapshot from primary as only primary node
-        # generates snapshots
-        snapshots_dir = network.get_committed_snapshots(primary)
-
     new_node = network.create_node("local://localhost")
     network.join_node(
         new_node,
         args.package,
         args,
-        copy_ledger_read_only=copy_ledger_read_only,
-        target_node=target_node,
-        snapshots_dir=snapshots_dir,
+        copy_ledger=copy_ledger,
+        target_node=network.find_any_backup() if from_backup else None,
         from_snapshot=True,
     )
     network.trust_node(new_node, args)
@@ -217,8 +236,29 @@ def test_add_node_from_snapshot(
         ), "Node started from snapshot but reports startup seqno of 0"
 
     # Finally, verify all app entries on the new node, including historical ones
-    # from the historical ledger
-    network.txs.verify(node=new_node, include_historical=copy_ledger_read_only)
+    # from the historical ledger and skip historical entries if ledger
+    # was not copied to node.
+    network.txs.verify(node=new_node, include_historical=copy_ledger)
+
+    # Check that historical entry can be retrieved (or not, if new node does not
+    # have access to historical ledger files).
+    try:
+        network.txs.verify_tx(
+            node=new_node,
+            idx=idx,
+            msg=historical_entry["msg"],
+            seqno=historical_entry["seqno"],
+            view=historical_entry["view"],
+            historical=True,
+        )
+    except infra.logging_app.LoggingTxsVerifyException:
+        assert (
+            not copy_ledger
+        ), f"New node {new_node.local_node_id} without ledger should not be able to serve historical entries"
+    else:
+        assert (
+            copy_ledger
+        ), f"New node {new_node.local_node_id} with ledger should be able to serve historical entries"
 
     return network
 
@@ -535,7 +575,7 @@ def test_add_node_with_read_only_ledger(network, args):
 
     new_node = network.create_node("local://localhost")
     network.join_node(
-        new_node, args.package, args, from_snapshot=False, copy_ledger_read_only=True
+        new_node, args.package, args, from_snapshot=False, copy_ledger=True
     )
     network.trust_node(new_node, args)
     return network
@@ -565,6 +605,7 @@ def run(args):
         test_version(network, args)
 
         if args.consensus != "BFT":
+            test_add_node_invalid_service_cert(network, args)
             test_add_node(network, args, from_snapshot=False)
             test_add_node_with_read_only_ledger(network, args)
             test_join_straddling_primary_replacement(network, args)
@@ -578,7 +619,7 @@ def run(args):
 
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)
-            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            test_add_node_from_snapshot(network, args, copy_ledger=False)
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)

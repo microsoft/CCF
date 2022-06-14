@@ -88,8 +88,6 @@ namespace ccf
     };
     make_command_endpoint(
       "/commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
-      .set_execute_outside_consensus(
-        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .set_auto_schema<GetCommit>()
       .install();
 
@@ -151,8 +149,6 @@ namespace ccf
       no_auth_required)
       .set_auto_schema<void, GetTxStatus::Out>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
-      .set_execute_outside_consensus(
-        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
 
     auto get_code = [](auto& ctx, nlohmann::json&&) {
@@ -220,8 +216,6 @@ namespace ccf
       json_command_adapter(endpoint_metrics_fn),
       no_auth_required)
       .set_auto_schema<void, EndpointMetrics>()
-      .set_execute_outside_consensus(
-        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
 
     auto is_tx_committed =
@@ -247,8 +241,6 @@ namespace ccf
       ccf::historical::adapter_v3(
         get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
-      .set_execute_outside_consensus(
-        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .set_auto_schema<void, nlohmann::json>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .install();

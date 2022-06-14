@@ -26,6 +26,7 @@ endif()
 option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
+  set(TEST_HOST_LOGGING_LEVEL "trace")
   add_compile_definitions(VERBOSE_LOGGING)
 endif()
 
