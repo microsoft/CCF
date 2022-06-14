@@ -19,10 +19,14 @@
 
 namespace http
 {
-  // TODO: Make configurable by operator
+  // TODO: Change this logic
   static ParserConfiguration no_limit_configuration = {
     std::nullopt, std::nullopt};
-  constexpr static size_t max_request_header_size = 2 << 14; // 16KB
+
+  class RequestTooLargeException : public std::runtime_error
+  {
+    using runtime_error::runtime_error;
+  };
 
   inline auto split_url_path(const std::string_view& url)
   {
@@ -252,9 +256,8 @@ namespace http
         if (
           max_body_size.has_value() && body_buf.size() > max_body_size.value())
         {
-          throw std::runtime_error(fmt::format(
-            "HTTP request body is too large: {} > max allowed: {}",
-            body_buf.size(),
+          throw RequestTooLargeException(fmt::format(
+            "HTTP request body is too large (max allowed: {})",
             max_body_size.value()));
         }
       }
@@ -320,10 +323,9 @@ namespace http
         max_header_size.has_value() &&
         partial_header_value.size() > max_header_size.value())
       {
-        throw std::runtime_error(fmt::format(
-          "Header value for {} is too large: {} > max allowed {}",
+        throw RequestTooLargeException(fmt::format(
+          "Header value for {} is too large (max allowed {})",
           partial_parsed_header.first,
-          partial_header_value.size(),
           max_header_size.value()));
       }
     }

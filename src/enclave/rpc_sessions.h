@@ -172,6 +172,22 @@ namespace ccf
       }
     }
 
+    // TODO: Refactor with report_parsing_error
+    void report_request_too_large_error(tls::ConnID id) override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+
+      auto search = sessions.find(id);
+      if (search != sessions.end())
+      {
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          it->second.errors.request_too_large++;
+        }
+      }
+    }
+
     void update_listening_interface_options(
       const ccf::NodeInfoNetwork& node_info)
     {

@@ -352,11 +352,26 @@ def test_large_messages(network, args):
     # Starting below 16K also helps identify problems (by seeing some
     # pass but not others, and finding where does it fail).
     log_id = 7
-    for p in range(20, 22):
-        long_msg = "X" * (2**p)
+
+    msg_sizes = [2**n for n in range(10, 20)]
+
+    # Note: infra injects additional data in payload
+    threshold_body_size = args.max_http_body_size - 100
+    msg_sizes.extend([threshold_body_size // 2, threshold_body_size, threshold_body_size * 2])
+
+    # TODO: Check for metrics
+    # TODO: Move test to e2e_common
+    for s in msg_sizes:
+        long_msg = "X" * s
+        msg_size = len(long_msg)
         LOG.error(f"msg size: {len(long_msg)}")
-        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
-        check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
+        try:
+            network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
+        except Exception:
+            assert msg_size > threshold_body_size
+        else:
+            assert msg_size <= threshold_body_size
+            check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
         log_id += 1
 
     # TODO: Test maximum header size

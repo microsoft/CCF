@@ -51,6 +51,7 @@ namespace ccf
     ERROR(RequestNotSigned)
     ERROR(UnsupportedHttpVerb)
     ERROR(UnsupportedContentType)
+    ERROR(RequestBodyTooLarge)
 
     // CCF-specific errors
     // client-facing:
