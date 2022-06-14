@@ -5,7 +5,8 @@
         "enum": [
           "Node",
           "Service",
-          "ACME"
+          "ACME",
+          "NONE"
         ],
         "type": "string"
       },
