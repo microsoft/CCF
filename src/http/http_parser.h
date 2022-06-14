@@ -20,7 +20,8 @@
 namespace http
 {
   // TODO: Make configurable by operator
-  constexpr static size_t max_request_body_size = 2 << 20; // 1MB
+  static ParserConfiguration no_limit_configuration = {
+    std::nullopt, std::nullopt};
   constexpr static size_t max_request_header_size = 2 << 14; // 16KB
 
   inline auto split_url_path(const std::string_view& url)
@@ -200,7 +201,9 @@ namespace http
       partial_parsed_header.second.clear();
     }
 
-    Parser(llhttp_type_t type, const ParserConfiguration& config) :
+    Parser(
+      llhttp_type_t type,
+      const ParserConfiguration& config = no_limit_configuration) :
       configuration(config)
     {
       llhttp_settings_init(&settings);
@@ -250,7 +253,7 @@ namespace http
           max_body_size.has_value() && body_buf.size() > max_body_size.value())
         {
           throw std::runtime_error(fmt::format(
-            "HTTP request body is too large: {}, allowed: {}",
+            "HTTP request body is too large: {} > max allowed: {}",
             body_buf.size(),
             max_body_size.value()));
         }
@@ -306,18 +309,23 @@ namespace http
       nonstd::to_lower(f);
       auto& partial_header_value = partial_parsed_header.first;
       partial_header_value.append(f);
-      if (partial_header_value.size() > max_request_header_size)
-      {
-        throw std::runtime_error(fmt::format(
-          "Header too large: {} > {}",
-          partial_header_value.size(),
-          max_request_header_size));
-      }
     }
 
     void header_value(const char* at, size_t length)
     {
-      partial_parsed_header.second.append(at, length);
+      const auto& max_header_size = configuration.max_header_size;
+      auto& partial_header_value = partial_parsed_header.second;
+      partial_header_value.append(at, length);
+      if (
+        max_header_size.has_value() &&
+        partial_header_value.size() > max_header_size.value())
+      {
+        throw std::runtime_error(fmt::format(
+          "Header value for {} is too large: {} > max allowed {}",
+          partial_parsed_header.first,
+          partial_header_value.size(),
+          max_header_size.value()));
+      }
     }
 
     void headers_complete()
@@ -377,7 +385,11 @@ namespace http
     std::string url = "";
 
   public:
-    RequestParser(RequestProcessor& proc_) : Parser(HTTP_REQUEST), proc(proc_)
+    RequestParser(
+      RequestProcessor& proc_,
+      const ParserConfiguration& config = no_limit_configuration) :
+      Parser(HTTP_REQUEST, config),
+      proc(proc_)
     {
       settings.on_url = on_url;
     }
@@ -429,7 +441,7 @@ namespace http
 
   public:
     ResponseParser(ResponseProcessor& proc_) :
-      Parser(HTTP_RESPONSE),
+      Parser(HTTP_RESPONSE, no_limit_configuration),
       proc(proc_)
     {}
 

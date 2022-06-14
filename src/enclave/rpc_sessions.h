@@ -44,7 +44,7 @@ namespace ccf
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
-      ccf::HttpConfiguration http_configuration;
+      http::ParserConfiguration http_configuration;
       ccf::SessionMetrics::Errors errors;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
