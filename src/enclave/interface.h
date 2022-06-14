@@ -61,17 +61,3 @@ struct LaunchHostProcessMessage
 
 DECLARE_JSON_TYPE(LaunchHostProcessMessage);
 DECLARE_JSON_REQUIRED_FIELDS(LaunchHostProcessMessage, args);
-
-// ACME
-enum ACMEMessage : ringbuffer::Message
-{
-  DEFINE_RINGBUFFER_MSG_TYPE(acme_challenge_response),
-  DEFINE_RINGBUFFER_MSG_TYPE(acme_challenge_response_ack),
-  DEFINE_RINGBUFFER_MSG_TYPE(acme_challenge_server_stop),
-};
-
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ACMEMessage::acme_challenge_response, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ACMEMessage::acme_challenge_response_ack, std::string);
-DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(ACMEMessage::acme_challenge_server_stop);

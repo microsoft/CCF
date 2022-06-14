@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "acme_challenge_server.h"
+
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
@@ -619,17 +619,6 @@ int main(int argc, char** argv)
     for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
     {
       threads.emplace_back(std::thread(enclave_thread_start));
-    }
-
-    std::unique_ptr<ACMEChallengeServer> acs;
-    if (
-      config.network.acme &&
-      !config.network.acme->challenge_server_interface.empty())
-    {
-      acs = std::make_unique<ACMEChallengeServer>(
-        config.network.acme->challenge_server_interface,
-        bp.get_dispatcher(),
-        writer_factory);
     }
 
     LOG_INFO_FMT("Entering event loop");

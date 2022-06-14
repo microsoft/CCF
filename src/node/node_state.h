@@ -1415,6 +1415,8 @@ namespace ccf
           std::find(interfaces->begin(), interfaces->end(), iname) !=
             interfaces->end())
         {
+          auto challenge_frontend = find_acme_challenge_frontend();
+
           const std::string& cfg_name =
             *interface.endorsement->acme_configuration;
           auto cit = config.network.acme->configurations.find(cfg_name);
@@ -1426,16 +1428,17 @@ namespace ccf
 
           if (acme_clients.find(cfg_name) == acme_clients.end())
           {
-            const auto& aconfig = cit->second;
+            const auto& cfg = cit->second;
 
             acme_clients.emplace(
               cfg_name,
               std::make_shared<ccf::ACMEClient>(
                 cfg_name,
-                aconfig,
+                cfg,
+                rpc_map,
                 rpcsessions,
+                challenge_frontend,
                 network.tables,
-                to_host,
                 node_sign_kp));
           }
 
@@ -1888,6 +1891,24 @@ namespace ccf
     bool is_member_frontend_open()
     {
       return find_frontend(ActorsType::members)->is_open();
+    }
+
+    std::shared_ptr<ACMERpcFrontend> find_acme_challenge_frontend()
+    {
+      auto challenge_frontend_opt = rpc_map->find(ActorsType::acme_challenge);
+      if (!challenge_frontend_opt)
+      {
+        throw std::runtime_error("Missing ACME challenge frontend");
+      }
+      return std::static_pointer_cast<ACMERpcFrontend>(*challenge_frontend_opt);
+    }
+
+    void open_acme_challenge_frontend()
+    {
+      if (!config.network.acme->configurations.empty())
+      {
+        find_frontend(ActorsType::acme_challenge)->open();
+      }
     }
 
     std::vector<uint8_t> serialize_create_request(bool create_consortium = true)
@@ -2526,6 +2547,8 @@ namespace ccf
       {
         return;
       }
+
+      open_acme_challenge_frontend();
 
       const auto& ifaces = config.network.rpc_interfaces;
       num_acme_interfaces =

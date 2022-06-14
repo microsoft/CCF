@@ -76,9 +76,9 @@
                 "properties": {
                   "authority": {
                     "type": "string",
-                    "enum": ["Node", "Service", "ACME"],
+                    "enum": ["Node", "Service", "ACME", "NONE"],
                     "default": "Service",
-                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed."
+                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' means an ACME-capable CA, 'NONE' means no authority (for http)."
                   },
                   "acme_configuration": {
                     "type": "string",
@@ -137,16 +137,15 @@
                     "type": "string",
                     "default": "http-01",
                     "description": "Type of the ACME challenge (currently only http-01 supported)"
+                  },
+                  "challenge_server_interface": {
+                    "type": "string",
+                    "description": "Name of the (http) challenge server interface"
                   }
                 },
                 "description": "ACME Configurations",
                 "additionalProperties": false
               }
-            },
-            "challenge_server_interface": {
-              "type": "string",
-              "default": "0.0.0.0:80",
-              "description": "Interface for the (http) challenge server to listen on"
             }
           },
           "description": "Configuration for the ACME client(s) to obtain globally valid TLS certificates, e.g. from Let's Encrypt",

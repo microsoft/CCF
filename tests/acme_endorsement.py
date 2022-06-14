@@ -242,6 +242,7 @@ def run_pebble(args):
                 "contact": ["mailto:nobody@example.com"],
                 "terms_of_service_agreed": True,
                 "challenge_type": "http-01",
+                "challenge_server_interface": "acme_challenge_server_if",
             }
         }
     }
@@ -254,11 +255,16 @@ def run_pebble(args):
                 acme_configuration="pebble",
             ),
         )
+        challenge_server_interface = infra.interfaces.RPCInterface(
+            host=endorsed_interface.host,
+            port=http_port,
+            endorsement=infra.interfaces.Endorsement(
+                authority=infra.interfaces.EndorsementAuthority.Service
+            ),
+        )
         endorsed_interface.public_host = network_name
         node.rpc_interfaces["acme_endorsed_interface"] = endorsed_interface
-        node.acme_challenge_server_interface = (
-            endorsed_interface.host + ":" + str(http_port)
-        )
+        node.rpc_interfaces["acme_challenge_server_if"] = challenge_server_interface
 
     exception_seen = None
 
@@ -329,9 +335,9 @@ def run_lets_encrypt(args):
                 "contact": ["mailto:admin@ccf.dev"],
                 "terms_of_service_agreed": True,
                 "challenge_type": "http-01",
+                "challenge_server_interface": "0.0.0.0:80",
             }
         },
-        "challenge_server_interface": "0.0.0.0:80",
     }
 
     for node in args.nodes:
@@ -344,6 +350,16 @@ def run_lets_encrypt(args):
         endorsed_interface.public_host = service_dns_name
         endorsed_interface.endorsement.acme_configuration = "letsencrypt"
         node.rpc_interfaces["acme_endorsed_interface"] = endorsed_interface
+
+        if node == args.nodes[0]:
+            challenge_server_interface = infra.interfaces.RPCInterface(
+                host=endorsed_interface.host,
+                port=80,
+                endorsement=infra.interfaces.Endorsement(
+                    authority=infra.interfaces.EndorsementAuthority.Service
+                ),
+            )
+            node.rpc_interfaces["acme_challenge_server_if"] = challenge_server_interface
 
     wait_for_certificates(args, service_dns_name, ca_certs)
 
