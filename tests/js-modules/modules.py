@@ -196,6 +196,74 @@ def test_app_bundle(network, args):
     return network
 
 
+def test_apply_writes(c):
+    ### Default behaviour
+    # Writes are applied for 2xx response codes
+    r = c.post("/app/rpc/apply_writes", {"val": "aaa", "statusCode": 200})
+    assert r.status_code == 200
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "aaa"
+
+    r = c.post("/app/rpc/apply_writes", {"val": "bbb", "statusCode": 202})
+    assert r.status_code == 202
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "bbb"
+
+    # Writes are not applied for other response codes
+    r = c.post("/app/rpc/apply_writes", {"val": "ccc", "statusCode": 404})
+    assert r.status_code == 404
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "bbb"
+
+    r = c.post("/app/rpc/apply_writes", {"val": "ddd", "statusCode": 500})
+    assert r.status_code == 500
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "bbb"
+
+    ### setApplyWrites overrides behaviour
+    # Writes can be unapplied despite 2xx response codes
+    r = c.post(
+        "/app/rpc/apply_writes",
+        {"val": "eee", "statusCode": 200, "setApplyWrites": False},
+    )
+    assert r.status_code == 200
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "bbb"
+
+    r = c.post(
+        "/app/rpc/apply_writes",
+        {"val": "fff", "statusCode": 202, "setApplyWrites": False},
+    )
+    assert r.status_code == 202
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "bbb"
+
+    # Writes can be applied despite other response codes
+    r = c.post(
+        "/app/rpc/apply_writes",
+        {"val": "ggg", "statusCode": 404, "setApplyWrites": True},
+    )
+    assert r.status_code == 404
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "ggg"
+
+    r = c.post(
+        "/app/rpc/apply_writes",
+        {"val": "hhh", "statusCode": 500, "setApplyWrites": True},
+    )
+    assert r.status_code == 500
+    r = c.get("/app/rpc/apply_writes")
+    assert r.status_code == 200
+    assert r.body.text() == "hhh"
+
+
 @reqs.description("Test dynamically installed endpoint properties")
 def test_dynamic_endpoints(network, args):
     primary, _ = network.find_nodes()
@@ -459,12 +527,7 @@ def test_npm_app(network, args):
         assert {"id": 42, "msg": "Saluton!"} in body, body
         assert {"id": 43, "msg": "Bonjour!"} in body, body
 
-        r = c.post("/app/rpc/apply_writes")
-        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-        val = network.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
-            "foo".encode()
-        ]
-        assert val == b"bar", val
+        test_apply_writes(c)
 
         r = c.get("/app/jwt")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code

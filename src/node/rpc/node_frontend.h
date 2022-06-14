@@ -21,6 +21,7 @@
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"
+#include "service/tables/previous_service_identity.h"
 
 namespace ccf
 {
@@ -112,6 +113,18 @@ namespace ccf
   DECLARE_JSON_TYPE(SelfSignedNodeCertificateInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
     SelfSignedNodeCertificateInfo, self_signed_certificate);
+
+  struct GetServicePreviousIdentity
+  {
+    struct Out
+    {
+      crypto::Pem previous_service_identity;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetServicePreviousIdentity::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetServicePreviousIdentity::Out, previous_service_identity);
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -357,7 +370,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.17.2";
+      openapi_info.document_version = "2.18.1";
     }
 
     void init_handlers() override
@@ -817,6 +830,32 @@ namespace ccf
         json_read_only_adapter(network_status),
         no_auth_required)
         .set_auto_schema<void, GetNetworkInfo::Out>()
+        .install();
+
+      auto service_previous_identity = [this](auto& args, nlohmann::json&&) {
+        auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
+        const auto psi = psi_handle->get();
+        if (psi.has_value())
+        {
+          GetServicePreviousIdentity::Out out;
+          out.previous_service_identity = psi.value();
+          return make_success(out);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "This service is not a recovery of a previous service.");
+        }
+      };
+      make_read_only_endpoint(
+        "/service/previous_identity",
+        HTTP_GET,
+        json_read_only_adapter(service_previous_identity),
+        no_auth_required)
+        .set_auto_schema<void, GetServicePreviousIdentity::Out>()
         .install();
 
       auto get_nodes = [this](auto& args, nlohmann::json&&) {
@@ -1305,16 +1344,6 @@ namespace ccf
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
 
-        NodeInfo node_info = {
-          in.node_info_network,
-          {in.quote_info},
-          in.public_encryption_key,
-          NodeStatus::TRUSTED,
-          std::nullopt,
-          ds::to_hex(in.code_digest.data),
-          in.certificate_signing_request,
-          in.public_key};
-
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {
@@ -1358,6 +1387,15 @@ namespace ccf
           ctx.tx.rw(network.node_endorsed_certificates);
         endorsed_certificates->put(in.node_id, in.node_endorsed_certificate);
 
+        NodeInfo node_info = {
+          in.node_info_network,
+          {in.quote_info},
+          in.public_encryption_key,
+          NodeStatus::TRUSTED,
+          std::nullopt,
+          ds::to_hex(in.code_digest.data),
+          in.certificate_signing_request,
+          in.public_key};
         g.add_node(in.node_id, node_info);
 
 #ifdef GET_QUOTE

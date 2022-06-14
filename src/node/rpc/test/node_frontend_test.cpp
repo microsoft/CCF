@@ -5,14 +5,12 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
-
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
 
 using namespace ccf;
 using namespace nlohmann;
@@ -20,27 +18,7 @@ using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
-constexpr size_t certificate_validity_period_days = 365;
-using namespace std::literals;
-auto valid_from =
-  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-auto valid_to = crypto::compute_cert_valid_to_string(
-  valid_from, certificate_validity_period_days);
-
-auto kp = crypto::make_key_pair();
-auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
 auto node_id = 0;
-
-void check_error(const TResponse& r, http_status expected)
-{
-  CHECK(r.status == expected);
-}
-
-void check_error_message(const TResponse& r, const std::string& msg)
-{
-  const std::string body_s(r.body.begin(), r.body.end());
-  CHECK(body_s.find(msg) != std::string::npos);
-}
 
 TResponse frontend_process(
   NodeRpcFrontend& frontend,
@@ -71,13 +49,6 @@ TResponse frontend_process(
   return processor.received.front();
 }
 
-template <typename T>
-T parse_response_body(const TResponse& r)
-{
-  const auto body_j = serdes::unpack(r.body, serdes::Pack::Text);
-  return body_j.get<T>();
-}
-
 void require_ledger_secrets_equal(
   const LedgerSecretsMap& first, const LedgerSecretsMap& second)
 {
@@ -103,7 +74,7 @@ TEST_CASE("Add a node to an opening service")
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
-  network.identity = std::make_unique<ReplicatedNetworkIdentity>();
+  network.identity = make_test_network_ident();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
@@ -147,7 +118,7 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(response, "No service is available to accept new node");
   }
 
-  gen.create_service({});
+  gen.create_service(network.identity->cert);
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -211,13 +182,14 @@ TEST_CASE("Add a node to an opening service")
     crypto::KeyPairPtr kp = crypto::make_key_pair();
     auto v = crypto::make_verifier(
       kp->self_sign("CN=Other Joiner", valid_from, valid_to));
-    const auto caller = v->cert_der();
+    const auto new_caller = v->cert_pem();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
 
-    auto http_response = frontend_process(frontend, join_input, "join", caller);
+    auto http_response =
+      frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(http_response, "A node with the same node address");
@@ -238,8 +210,7 @@ TEST_CASE("Add a node to an open service")
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
-  network.identity = std::make_unique<ReplicatedNetworkIdentity>();
-
+  network.identity = make_test_network_ident();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
@@ -248,7 +219,7 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
-  gen.create_service({});
+  gen.create_service(network.identity->cert);
   gen.init_configuration({1});
   gen.activate_member(gen.add_member(
     {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
@@ -262,7 +233,11 @@ TEST_CASE("Add a node to an open service")
   std::optional<NodeInfo> node_info;
   auto tx = network.tables->create_tx();
 
+  const auto node_public_encryption_key =
+    crypto::make_key_pair()->public_key_pem();
+
   JoinNetworkNodeToNode::In join_input;
+  join_input.public_encryption_key = node_public_encryption_key;
   join_input.certificate_signing_request = kp->create_csr("CN=Joiner");
 
   INFO("Add node once service is open");
@@ -290,12 +265,14 @@ TEST_CASE("Add a node to an open service")
     crypto::KeyPairPtr kp = crypto::make_key_pair();
     auto v =
       crypto::make_verifier(kp->self_sign("CN=Joiner", valid_from, valid_to));
-    const auto caller = v->cert_der();
+    const auto new_caller = v->cert_pem();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
+    join_input.public_encryption_key = node_public_encryption_key;
 
-    auto http_response = frontend_process(frontend, join_input, "join", caller);
+    auto http_response =
+      frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(http_response, "A node with the same node address");
@@ -350,4 +327,14 @@ TEST_CASE("Add a node to an open service")
       response.network_info->endorsed_certificate.value() ==
       dummy_endorsed_certificate);
   }
+}
+
+int main(int argc, char** argv)
+{
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

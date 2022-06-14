@@ -76,7 +76,7 @@ namespace ccf
     UserInfo user_info;
 
     //
-    // Node table
+    // Node tables
     //
     Nodes nodes;
     NodeEndorsedCertificates node_endorsed_certificates;

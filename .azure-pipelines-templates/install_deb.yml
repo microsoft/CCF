@@ -33,7 +33,12 @@ steps:
 
   - script: |
       set -ex
-      ./tests/test_install_build.sh
+      unsafe_build=$(grep unsafe /tmp/install_prefix) || true
+      if [[ -n "$unsafe_build" ]]; then
+        ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON
+      else
+        ./tests/test_install_build.sh
+      fi
     displayName: Test building a sample against installed CCF
 
   - task: PublishPipelineArtifact@1
