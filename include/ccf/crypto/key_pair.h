@@ -73,13 +73,27 @@ namespace crypto
       ISSUER = 1
     };
 
+  private:
+    virtual Pem sign_csr_impl(
+      const std::optional<Pem>& issuer_cert,
+      const Pem& signing_request,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      bool ca = false,
+      Signer signer = Signer::SUBJECT) const = 0;
+
+  public:
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
-      Signer signer = Signer::SUBJECT) const = 0;
+      Signer signer = Signer::SUBJECT) const
+    {
+      return sign_csr_impl(
+        issuer_cert, signing_request, valid_from, valid_to, ca, signer);
+    }
 
     Pem self_sign(
       const std::string& name,
@@ -94,7 +108,7 @@ namespace crypto
         sans.push_back(subject_alt_name.value());
       }
       auto csr = create_csr(name, sans);
-      return sign_csr(Pem(0), csr, valid_from, valid_to, ca);
+      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
     }
 
     Pem self_sign(
@@ -105,7 +119,7 @@ namespace crypto
       bool ca = true) const
     {
       auto csr = create_csr(subject_name, subject_alt_names);
-      return sign_csr(Pem(0), csr, valid_from, valid_to, ca);
+      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
     }
 
     virtual std::vector<uint8_t> derive_shared_secret(
