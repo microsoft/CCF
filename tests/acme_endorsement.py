@@ -259,7 +259,7 @@ def run_pebble(args):
             host=endorsed_interface.host,
             port=http_port,
             endorsement=infra.interfaces.Endorsement(
-                authority=infra.interfaces.EndorsementAuthority.Service
+                authority=infra.interfaces.EndorsementAuthority.NONE
             ),
         )
         endorsed_interface.public_host = network_name
@@ -352,11 +352,13 @@ def run_lets_encrypt(args):
         node.rpc_interfaces["acme_endorsed_interface"] = endorsed_interface
 
         if node == args.nodes[0]:
+            # Only the first node offers the challenge server interface,
+            # as only one can serve port 80.
             challenge_server_interface = infra.interfaces.RPCInterface(
                 host=endorsed_interface.host,
                 port=80,
                 endorsement=infra.interfaces.Endorsement(
-                    authority=infra.interfaces.EndorsementAuthority.Service
+                    authority=infra.interfaces.EndorsementAuthority.NONE
                 ),
             )
             node.rpc_interfaces["acme_challenge_server_if"] = challenge_server_interface
@@ -367,6 +369,6 @@ def run_lets_encrypt(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run_pebble(args)
     # run_lets_encrypt(args)

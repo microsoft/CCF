@@ -69,7 +69,8 @@ namespace tls
 
     virtual ~Context() = default;
 
-    void set_bio(void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
+    virtual void set_bio(
+      void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
     {
       // Read/Write BIOs will be used by TLS
       BIO* rbio = BIO_new(BIO_s_mem());
@@ -85,7 +86,7 @@ namespace tls
       SSL_set0_wbio(ssl, wbio);
     }
 
-    int handshake()
+    virtual int handshake()
     {
       if (SSL_is_init_finished(ssl))
         return 0;
@@ -121,7 +122,7 @@ namespace tls
       return -SSL_get_error(ssl, rc);
     }
 
-    int read(uint8_t* buf, size_t len)
+    virtual int read(uint8_t* buf, size_t len)
     {
       if (len == 0)
         return 0;
@@ -143,7 +144,7 @@ namespace tls
       return -SSL_get_error(ssl, rc);
     }
 
-    int write(const uint8_t* buf, size_t len)
+    virtual int write(const uint8_t* buf, size_t len)
     {
       if (len == 0)
         return 0;
@@ -165,18 +166,18 @@ namespace tls
       return -SSL_get_error(ssl, rc);
     }
 
-    int close()
+    virtual int close()
     {
       LOG_TRACE_FMT("Context::close() : Shutdown");
       return SSL_shutdown(ssl);
     }
 
-    bool peer_cert_ok()
+    virtual bool peer_cert_ok()
     {
       return SSL_get_verify_result(ssl) == X509_V_OK;
     }
 
-    std::string get_verify_error()
+    virtual std::string get_verify_error()
     {
       return X509_verify_cert_error_string(SSL_get_verify_result(ssl));
     }
@@ -186,7 +187,7 @@ namespace tls
       return {};
     }
 
-    std::vector<uint8_t> peer_cert()
+    virtual std::vector<uint8_t> peer_cert()
     {
       // CodeQL complains that we don't verify the peer certificate. We don't
       // need to do that because it's been verified before and we use

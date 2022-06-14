@@ -48,6 +48,9 @@ namespace ccf
         get_actor_prefix(ActorsType::acme_challenge), context)
     {
       auto handler = [this](auto& ctx) {
+        http_status response_status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
+        std::string response_body;
+
         try
         {
           const auto& path_params = ctx.rpc_ctx->get_request_path_params();
@@ -60,38 +63,42 @@ namespace ccf
           }
 
           std::string token = url_token_it->second;
-          std::string response;
+          LOG_DEBUG_FMT("ACME: challenge request for token '{}'", token);
+
           auto tit = prepared_responses.find(token);
           if (tit == prepared_responses.end())
           {
             auto prit = prepared_responses.find("");
             if (prit != prepared_responses.end())
             {
-              response = token + "." + prit->second;
+              response_status = HTTP_STATUS_OK;
+              response_body = token + "." + prit->second;
             }
             else
             {
-              ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-              ctx.rpc_ctx->set_response_body(fmt::format(
-                "Challenge response for token '{}' not found", token));
+              response_status = HTTP_STATUS_NOT_FOUND;
+              response_body = fmt::format(
+                "Challenge response for token '{}' not found", token);
             }
           }
           else
           {
-            response = token + "." + tit->second;
+            response_status = HTTP_STATUS_OK;
+            response_body = token + "." + tit->second;
           }
-
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body(std::move(response));
         }
         catch (const std::exception& ex)
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx.rpc_ctx->set_response_body(ex.what());
+          response_status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
+          response_body = ex.what();
         }
+
+        ctx.rpc_ctx->set_response_status(response_status);
+        ctx.rpc_ctx->set_response_body(std::move(response_body));
       };
 
-      make_endpoint("/token/{token}", HTTP_GET, handler, no_auth_required)
+      make_endpoint(
+        "/acme-challenge/{token}", HTTP_GET, handler, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, std::string>()
         .install();
@@ -111,9 +118,6 @@ namespace ccf
 
     void remove(const std::string& token)
     {
-      LOG_TRACE_FMT(
-        "ACME: challenge server removed response for token '{}'", token);
-
       prepared_responses.erase(token);
     }
 
