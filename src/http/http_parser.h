@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/hex.h"
-#include "ccf/ds/http_configuration.h"
+#include "ccf/http_configuration.h"
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 #include "http_proc.h"
