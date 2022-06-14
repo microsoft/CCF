@@ -175,7 +175,7 @@ Service configuration.
    :members:
 
 ``service.previous_service_identity``
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PEM identity of previous service, which this service recovered from.
 
