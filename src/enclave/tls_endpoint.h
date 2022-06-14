@@ -26,6 +26,7 @@ namespace ccf
     {
       handshake,
       ready,
+      closing,
       closed,
       authfail,
       error
@@ -104,16 +105,17 @@ namespace ccf
     // used by caller.
     size_t read(uint8_t* data, size_t size, bool exact = false)
     {
-      LOG_TRACE_FMT("Requesting up to {} bytes", size);
-
       // This will return empty if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
       if (status != ready)
       {
+        LOG_TRACE_FMT("Not ready to read {} bytes", size);
         return 0;
       }
+
+      LOG_TRACE_FMT("Requesting up to {} bytes", size);
 
       // Send pending writes.
       flush();
@@ -318,6 +320,7 @@ namespace ccf
 
     void close()
     {
+      status = closing;
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();
 
