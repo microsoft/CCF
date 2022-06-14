@@ -225,8 +225,8 @@ namespace crypto
     return result;
   }
 
-  Pem KeyPair_OpenSSL::sign_csr(
-    const Pem& issuer_cert,
+  Pem KeyPair_OpenSSL::sign_csr_impl(
+    const std::optional<Pem>& issuer_cert,
     const Pem& signing_request,
     const std::string& valid_from,
     const std::string& valid_to,
@@ -262,9 +262,9 @@ namespace crypto
     BN_free(bn);
 
     // Add issuer name
-    if (!issuer_cert.empty())
+    if (issuer_cert.has_value())
     {
-      Unique_BIO imem(issuer_cert);
+      Unique_BIO imem(*issuer_cert);
       OpenSSL::CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
       OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
 

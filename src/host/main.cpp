@@ -379,14 +379,13 @@ int main(int argc, char** argv)
     {
       for (auto const& m : config.command.start.members)
       {
-        std::optional<std::vector<uint8_t>> public_encryption_key =
-          std::nullopt;
+        std::optional<crypto::Pem> public_encryption_key = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key =
-            files::slurp(m.encryption_public_key_file.value());
+            crypto::Pem(files::slurp(m.encryption_public_key_file.value()));
         }
 
         nlohmann::json md = nullptr;
@@ -396,7 +395,9 @@ int main(int argc, char** argv)
         }
 
         startup_config.start.members.emplace_back(
-          files::slurp(m.certificate_file), public_encryption_key, md);
+          crypto::Pem(files::slurp(m.certificate_file)),
+          public_encryption_key,
+          md);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :
