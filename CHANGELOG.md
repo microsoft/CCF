@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [3.0.0-dev0]
 
 ### Added
 
@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Node and service PEM certificates no longer contain a trailing null byte (#3885).
 - New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
 - Updated PSW in images to 2.16.100.
+- `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
 
 ### Removed
 
@@ -1511,6 +1512,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[3.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev0
 [2.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0
 [2.0.0-rc9]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc9
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
