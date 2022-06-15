@@ -386,6 +386,7 @@ def test_version(network, args):
         with node.client() as c:
             r = c.get("/node/version")
             assert r.body.json()["ccf_version"] == args.ccf_version
+            assert r.body.json()["unsafe"] == False
 
 
 @reqs.description("Replace a node on the same addresses")
