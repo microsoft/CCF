@@ -82,7 +82,7 @@
                   "max_header_size": {
                     "type": "string",
                     "default": "16KB",
-                    "description": "Maximum size (size string) of the value of single HTTP request header. Submitting a request with a header larger than this value will result in the client session being automatically closed."
+                    "description": "Maximum size (size string) of a single HTTP request header (key or value). Submitting a request with a header larger than this value will result in the client session being automatically closed."
                   },
                   "max_headers_count": {
                     "type": "integer",

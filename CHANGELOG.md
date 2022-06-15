@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- New per-interface configuration entries (`network.rpc_interfaces.http_configuration`) are added to let operators cap the maximum size of body, header value size and number of headers in client HTTP requests. The client session is automatically closed if the HTTP request exceeds one of these limits.
+
 ## [3.0.0-dev0]
 
 ### Added

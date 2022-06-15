@@ -315,8 +315,16 @@ namespace http
       // signatures later on
       auto f = std::string(at, length);
       nonstd::to_lower(f);
-      auto& partial_header_value = partial_parsed_header.first;
-      partial_header_value.append(f);
+      auto& partial_header_key = partial_parsed_header.first;
+      partial_header_key.append(f);
+
+      if (partial_header_key.size() > configuration.max_header_size)
+      {
+        throw RequestHeaderTooLarge(fmt::format(
+          "Header key for '{}' is too large (max size allowed: {})",
+          partial_parsed_header.first,
+          configuration.max_header_size));
+      }
     }
 
     void header_value(const char* at, size_t length)
