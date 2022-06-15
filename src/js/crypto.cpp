@@ -216,6 +216,11 @@ namespace ccf::js
       LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
       return JS_FALSE;
     }
+    catch (const std::runtime_error& e)
+    {
+      LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
+      return JS_FALSE;
+    }
 
     return JS_TRUE;
   }

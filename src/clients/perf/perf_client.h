@@ -302,11 +302,12 @@ namespace client
 
         key = crypto::Pem(raw_key);
 
-        auto cert_der = crypto::cert_pem_to_der(raw_cert);
+        const crypto::Pem cert_pem(raw_cert);
+        auto cert_der = crypto::cert_pem_to_der(cert_pem);
         key_id = crypto::Sha256Hash(cert_der).hex_str();
 
         tls_cert = std::make_shared<tls::Cert>(
-          std::make_shared<tls::CA>(ca), raw_cert, key);
+          std::make_shared<tls::CA>(ca), cert_pem, key);
       }
 
       const auto [host, port] = ccf::split_net_address(options.server_address);

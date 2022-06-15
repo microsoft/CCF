@@ -61,8 +61,8 @@ namespace crypto
       const std::vector<SubjectAltName>& subject_alt_names,
       const std::optional<Pem>& public_key = std::nullopt) const override;
 
-    virtual Pem sign_csr(
-      const Pem& issuer_cert,
+    virtual Pem sign_csr_impl(
+      const std::optional<Pem>& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
       const std::string& valid_to,
