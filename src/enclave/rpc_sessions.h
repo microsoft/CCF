@@ -149,7 +149,7 @@ namespace ccf
 
     ListenInterface& get_interface_from_session_id(tls::ConnID id)
     {
-      // Lock must be acquired first
+      // Lock must be first acquired and held while accessing returned interface
       auto search = sessions.find(id);
       if (search != sessions.end())
       {

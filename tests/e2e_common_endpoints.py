@@ -234,11 +234,10 @@ def test_large_messages(network, args):
                     == before_errors_count
                 )
 
-        max_allowed_headers_count = 256  # CCF hardcoded (see http_parser.h)
         headers_counts = [
-            max_allowed_headers_count - 1,
-            max_allowed_headers_count,
-            max_allowed_headers_count + 1,
+            args.max_http_headers_count - 1,
+            args.max_http_headers_count,
+            args.max_http_headers_count + 1,
         ]
         for n in headers_counts:
             before_errors_count = get_main_interface_errors()[
@@ -248,7 +247,7 @@ def test_large_messages(network, args):
             r = c.get("/node/commit", headers=headers)
             # Note: infra adds 2 extra headers (content type and length)
             extra_headers_count = 2
-            if n > max_allowed_headers_count - extra_headers_count:
+            if n > args.max_http_headers_count - extra_headers_count:
                 assert (
                     r.status_code
                     == http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE.value

@@ -13,15 +13,17 @@ namespace http
   {
     ds::SizeString max_body_size = {"1MB"};
     ds::SizeString max_header_size = {"16KB"};
+    size_t max_headers_count = 256;
 
     bool operator==(const ParserConfiguration& other) const
     {
       return max_body_size == other.max_body_size &&
-        max_header_size == other.max_header_size;
+        max_header_size == other.max_header_size &&
+        max_headers_count == other.max_headers_count;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParserConfiguration);
   DECLARE_JSON_REQUIRED_FIELDS(ParserConfiguration);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    ParserConfiguration, max_body_size, max_header_size);
+    ParserConfiguration, max_body_size, max_header_size, max_headers_count);
 }

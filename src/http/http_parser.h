@@ -19,9 +19,6 @@
 
 namespace http
 {
-  // Hardcoded maximum allowed number of headers in incoming request
-  static constexpr size_t max_request_header_count = 256;
-
   class RequestPayloadTooLarge : public std::runtime_error
   {
     using runtime_error::runtime_error;
@@ -306,11 +303,11 @@ namespace http
       if (!partial_parsed_header.second.empty())
       {
         complete_header();
-        if (headers.size() > max_request_header_count)
+        if (headers.size() > configuration.max_headers_count)
         {
           throw RequestHeaderTooLarge(fmt::format(
             "Too many headers (max number allowed: {})",
-            max_request_header_count));
+            configuration.max_headers_count));
         }
       }
 
@@ -329,7 +326,7 @@ namespace http
       if (partial_header_value.size() > configuration.max_header_size)
       {
         throw RequestHeaderTooLarge(fmt::format(
-          "Header value for \"{}\" is too large (max size allowed: {})",
+          "Header value for '{}' is too large (max size allowed: {})",
           partial_parsed_header.first,
           configuration.max_header_size));
       }

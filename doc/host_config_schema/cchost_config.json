@@ -77,12 +77,17 @@
                   "max_body_size": {
                     "type": "string",
                     "default": "1MB",
-                    "description": "Maximum size (size string) of HTTP request body. Submitting a request with a payload larger than this value will result in the session being automaticalled closed."
+                    "description": "Maximum size (size string) of a single HTTP request body. Submitting a request with a payload larger than this value will result in the client session being automatically closed."
                   },
                   "max_header_size": {
                     "type": "string",
                     "default": "16KB",
-                    "description": "Maximum size (size string) of a single HTTP request header. Submitting a request with a header larger than this value will result in the session being automaticalled closed."
+                    "description": "Maximum size (size string) of the value of single HTTP request header. Submitting a request with a header larger than this value will result in the client session being automatically closed."
+                  },
+                  "max_headers_count": {
+                    "type": "integer",
+                    "default": 256,
+                    "description": "Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed."
                   }
                 },
                 "additionalProperties": false
