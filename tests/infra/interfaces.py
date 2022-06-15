@@ -48,8 +48,7 @@ class Endorsement:
     def from_json(json):
         endorsement = Endorsement()
         endorsement.authority = json["authority"]
-        if "acme_configuration" in json:
-            endorsement.acme_configuration = json["acme_configuration"]
+        endorsement.acme_configuration = json["acme_configuration"]
         return endorsement
 
 
