@@ -11,7 +11,7 @@ namespace ccf
     members = 0,
     users,
     nodes,
-    acme_challenge,
+    well_known,
     // not to be used
     unknown
   };
@@ -32,7 +32,7 @@ namespace ccf
       {
         return "node";
       }
-      case ActorsType::acme_challenge:
+      case ActorsType::well_known:
       {
         return ".well-known";
       }
