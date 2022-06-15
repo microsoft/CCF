@@ -39,6 +39,6 @@ jobs:
           git config --global merge.keeplocal.driver true
 
       - name: Backport Action
-        uses: sqren/backport-github-action@v8.4.3
+        uses: sqren/backport-github-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
