@@ -14,7 +14,8 @@ namespace ccf
     struct Errors
     {
       size_t parsing;
-      size_t request_too_large;
+      size_t request_payload_too_large;
+      size_t request_header_too_large;
     };
 
     struct PerInterface
@@ -33,7 +34,10 @@ namespace ccf
 
   DECLARE_JSON_TYPE(SessionMetrics::Errors)
   DECLARE_JSON_REQUIRED_FIELDS(
-    SessionMetrics::Errors, parsing, request_too_large)
+    SessionMetrics::Errors,
+    parsing,
+    request_payload_too_large,
+    request_header_too_large)
 
   DECLARE_JSON_TYPE(SessionMetrics::PerInterface)
   DECLARE_JSON_REQUIRED_FIELDS(

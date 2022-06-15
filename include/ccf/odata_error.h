@@ -52,6 +52,7 @@ namespace ccf
     ERROR(UnsupportedHttpVerb)
     ERROR(UnsupportedContentType)
     ERROR(RequestBodyTooLarge)
+    ERROR(RequestHeaderTooLarge)
 
     // CCF-specific errors
     // client-facing:

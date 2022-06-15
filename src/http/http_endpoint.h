@@ -19,7 +19,8 @@ namespace http
   public:
     virtual ~ErrorReporter() {}
     virtual void report_parsing_error(tls::ConnID) = 0;
-    virtual void report_request_too_large_error(tls::ConnID) = 0;
+    virtual void report_request_payload_too_large_error(tls::ConnID) = 0;
+    virtual void report_request_header_too_large_error(tls::ConnID) = 0;
   };
 
   class HTTPEndpoint : public ccf::TLSEndpoint
@@ -83,11 +84,11 @@ namespace http
           // Used all provided bytes - check if more are available
           n_read = read(buf.data(), buf.size(), false);
         }
-        catch (http::RequestTooLargeException& e)
+        catch (RequestPayloadTooLarge& e)
         {
           if (error_reporter)
           {
-            error_reporter->report_request_too_large_error(session_id);
+            error_reporter->report_request_payload_too_large_error(session_id);
           }
 
           LOG_DEBUG_FMT("Request is too large: {}", e.what());
@@ -95,6 +96,23 @@ namespace http
           send_raw(http::error(ccf::ErrorDetails{
             HTTP_STATUS_PAYLOAD_TOO_LARGE,
             ccf::errors::RequestBodyTooLarge,
+            e.what()}));
+
+          close();
+          break;
+        }
+        catch (RequestHeaderTooLarge& e)
+        {
+          if (error_reporter)
+          {
+            error_reporter->report_request_header_too_large_error(session_id);
+          }
+
+          LOG_DEBUG_FMT("Request header is too large: {}", e.what());
+
+          send_raw(http::error(ccf::ErrorDetails{
+            HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
+            ccf::errors::RequestHeaderTooLarge,
             e.what()}));
 
           close();

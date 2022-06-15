@@ -147,6 +147,23 @@ namespace ccf
       return id;
     }
 
+    ListenInterface& get_interface_from_session_id(tls::ConnID id)
+    {
+      // Lock must be acquired first
+      auto search = sessions.find(id);
+      if (search != sessions.end())
+      {
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          return it->second;
+        }
+      }
+
+      throw std::logic_error(
+        fmt::format("No RPC interface for session ID {}", id));
+    }
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -160,32 +177,19 @@ namespace ccf
     void report_parsing_error(tls::ConnID id) override
     {
       std::lock_guard<std::mutex> guard(lock);
-
-      auto search = sessions.find(id);
-      if (search != sessions.end())
-      {
-        auto it = listening_interfaces.find(search->second.first);
-        if (it != listening_interfaces.end())
-        {
-          it->second.errors.parsing++;
-        }
-      }
+      get_interface_from_session_id(id).errors.parsing++;
     }
 
-    // TODO: Refactor with report_parsing_error
-    void report_request_too_large_error(tls::ConnID id) override
+    void report_request_payload_too_large_error(tls::ConnID id) override
     {
       std::lock_guard<std::mutex> guard(lock);
+      get_interface_from_session_id(id).errors.request_payload_too_large++;
+    }
 
-      auto search = sessions.find(id);
-      if (search != sessions.end())
-      {
-        auto it = listening_interfaces.find(search->second.first);
-        if (it != listening_interfaces.end())
-        {
-          it->second.errors.request_too_large++;
-        }
-      }
+    void report_request_header_too_large_error(tls::ConnID id) override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      get_interface_from_session_id(id).errors.request_header_too_large++;
     }
 
     void update_listening_interface_options(

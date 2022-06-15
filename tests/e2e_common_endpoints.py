@@ -187,29 +187,82 @@ def test_large_messages(network, args):
         ]
     )
 
-    for s in msg_sizes:
-        long_msg = "X" * s
-        with primary.client("user0") as c:
+    with primary.client("user0") as c:
+        for s in msg_sizes:
+            long_msg = "X" * s
             # Note: endpoint does not matter as request parsing is done before dispatch
-            before_errors_count = get_main_interface_errors()["request_too_large"]
+            before_errors_count = get_main_interface_errors()[
+                "request_payload_too_large"
+            ]
             r = c.get(
-                "/node/commit", long_msg, headers={"content-type": "application/json"}
+                "/node/commit",
+                long_msg,
+                headers={"content-type": "application/json"},
             )
             if len(long_msg) > args.max_http_body_size:
                 assert r.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value
                 assert r.body.json()["error"]["code"] == "RequestBodyTooLarge"
                 assert (
-                    get_main_interface_errors()["request_too_large"]
+                    get_main_interface_errors()["request_payload_too_large"]
                     == before_errors_count + 1
                 )
             else:
                 assert r.status_code == http.HTTPStatus.OK.value
                 assert (
-                    get_main_interface_errors()["request_too_large"]
+                    get_main_interface_errors()["request_payload_too_large"]
                     == before_errors_count
                 )
 
-    # TODO: Test maximum header size
+            before_errors_count = get_main_interface_errors()[
+                "request_header_too_large"
+            ]
+            r = c.get("/node/commit", headers={"some-header": long_msg})
+            if len(long_msg) > args.max_http_header_size:
+                assert (
+                    r.status_code
+                    == http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE.value
+                )
+                assert r.body.json()["error"]["code"] == "RequestHeaderTooLarge"
+                assert (
+                    get_main_interface_errors()["request_header_too_large"]
+                    == before_errors_count + 1
+                )
+            else:
+                assert r.status_code == http.HTTPStatus.OK.value
+                assert (
+                    get_main_interface_errors()["request_header_too_large"]
+                    == before_errors_count
+                )
+
+        max_allowed_headers_count = 256  # CCF hardcoded (see http_parser.h)
+        headers_counts = [
+            max_allowed_headers_count - 1,
+            max_allowed_headers_count,
+            max_allowed_headers_count + 1,
+        ]
+        for n in headers_counts:
+            before_errors_count = get_main_interface_errors()[
+                "request_header_too_large"
+            ]
+            headers = {f"header-{h}": str(h) for h in range(n)}
+            r = c.get("/node/commit", headers=headers)
+            # Note: infra adds 2 extra headers (content type and length)
+            extra_headers_count = 2
+            if n > max_allowed_headers_count - extra_headers_count:
+                assert (
+                    r.status_code
+                    == http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE.value
+                )
+                assert (
+                    get_main_interface_errors()["request_header_too_large"]
+                    == before_errors_count + 1
+                )
+            else:
+                assert r.status_code == http.HTTPStatus.OK.value
+                assert (
+                    get_main_interface_errors()["request_header_too_large"]
+                    == before_errors_count
+                )
 
     return network
 
