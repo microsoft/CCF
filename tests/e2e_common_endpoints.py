@@ -278,8 +278,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_primary(network, args)
-        # test_network_node_info(network, args)
-        # test_node_ids(network, args)
-        # test_memory(network, args)
+        test_primary(network, args)
+        test_network_node_info(network, args)
+        test_node_ids(network, args)
+        test_memory(network, args)
         test_large_messages(network, args)
