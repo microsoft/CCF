@@ -186,27 +186,21 @@ namespace ccf::endpoints
     auto& always = forwarding_component["always"];
     always["value"] = ccf::endpoints::ForwardingRequired::Always;
     always["description"] =
-      "If this request is made to a backup, it will be forwarded to a primary "
-      "node for execution. Should be used for operations which may produce "
-      "writes.";
+      "If this request is made to a backup node, it will be forwarded to the "
+      "primary node for execution.";
     auto& sometimes = forwarding_component["sometimes"];
     sometimes["value"] = ccf::endpoints::ForwardingRequired::Sometimes;
     sometimes["description"] =
-      "If this request is made to a backup, it may be forwarded to a primary "
-      "node for execution. Specifically, if this request is sent as part of a "
-      "session which was already forwarded, then it will also be forwarded. "
-      "This is the default value, and should be used for most read-only "
-      "operations.";
+      "If this request is made to a backup node, it may be forwarded to the "
+      "primary node for execution. Specifically, if this request is sent as "
+      "part of a session which was already forwarded, then it will also be "
+      "forwarded.";
     auto& never = forwarding_component["never"];
     never["value"] = ccf::endpoints::ForwardingRequired::Never;
     never["description"] =
-      "This call will never be forwarded, and is always executed on the node "
-      "it was sent to. If this attempts to write on a backup, this will fail. "
-      "This will be executed by the receiving node even if earlier requests on "
-      "the same session were forwarded, potentially breaking session "
-      "consistency. This should be used for operations which want to read "
-      "node-local state rather than the latest replicated state, for instance "
-      "for all historical queries.";
+      "This call will never be forwarded, and is always executed on the "
+      "receiving node, potentially breaking session consistency. If this "
+      "attempts to write on a backup, this will fail.";
 
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
