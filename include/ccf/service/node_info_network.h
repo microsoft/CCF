@@ -16,14 +16,14 @@ namespace ccf
     NODE,
     SERVICE,
     ACME,
-    NONE
+    UNSECURED
   };
   DECLARE_JSON_ENUM(
     Authority,
     {{Authority::NODE, "Node"},
      {Authority::SERVICE, "Service"},
      {Authority::ACME, "ACME"},
-     {Authority::NONE, "NONE"}});
+     {Authority::UNSECURED, "Unsecured"}});
 
   struct Endorsement
   {
@@ -219,9 +219,9 @@ struct formatter<ccf::Authority>
       {
         return format_to(ctx.out(), "ACME");
       }
-      case (ccf::Authority::NONE):
+      case (ccf::Authority::UNSECURED):
       {
-        return format_to(ctx.out(), "NONE");
+        return format_to(ctx.out(), "Unsecured");
       }
     }
   }

@@ -259,7 +259,7 @@ def run_pebble(args):
             host=endorsed_interface.host,
             port=http_port,
             endorsement=infra.interfaces.Endorsement(
-                authority=infra.interfaces.EndorsementAuthority.NONE
+                authority=infra.interfaces.EndorsementAuthority.Unsecured
             ),
         )
         endorsed_interface.public_host = network_name
@@ -358,7 +358,7 @@ def run_lets_encrypt(args):
                 host=endorsed_interface.host,
                 port=80,
                 endorsement=infra.interfaces.Endorsement(
-                    authority=infra.interfaces.EndorsementAuthority.NONE
+                    authority=infra.interfaces.EndorsementAuthority.Unsecured
                 ),
             )
             node.rpc_interfaces["acme_challenge_server_if"] = challenge_server_interface

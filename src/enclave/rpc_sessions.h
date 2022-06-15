@@ -287,7 +287,7 @@ namespace ccf
       auto& per_listen_interface = it->second;
 
       if (
-        per_listen_interface.endorsement.authority != Authority::NONE &&
+        per_listen_interface.endorsement.authority != Authority::UNSECURED &&
         certs.find(listen_interface_id) == certs.end())
       {
         LOG_DEBUG_FMT(
@@ -358,7 +358,8 @@ namespace ccf
         else
         {
           std::unique_ptr<tls::Context> ctx;
-          if (per_listen_interface.endorsement.authority == Authority::NONE)
+          if (
+            per_listen_interface.endorsement.authority == Authority::UNSECURED)
             ctx = std::make_unique<nontls::PlaintextServer>();
           else
             ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);

@@ -29,7 +29,7 @@ class EndorsementAuthority(Enum):
     Service = auto()
     Node = auto()
     ACME = auto()
-    NONE = auto()
+    Unsecured = auto()
 
 
 @dataclass
