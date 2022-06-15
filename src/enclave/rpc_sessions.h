@@ -29,8 +29,8 @@ namespace ccf
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
-  static constexpr ccf::Endorsement endorsement_default =
-    ccf::Endorsement{ccf::Authority::SERVICE};
+  static const ccf::Endorsement endorsement_default = {
+    ccf::Authority::SERVICE, std::nullopt};
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
@@ -231,7 +231,10 @@ namespace ccf
     }
 
     void set_cert(
-      ccf::Authority authority, const crypto::Pem& cert_, const crypto::Pem& pk)
+      ccf::Authority authority,
+      const crypto::Pem& cert_,
+      const crypto::Pem& pk,
+      const std::string& acme_configuration = "")
     {
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
@@ -246,7 +249,13 @@ namespace ccf
       {
         if (interface.endorsement.authority == authority)
         {
-          certs.insert_or_assign(listen_interface_id, cert);
+          if (
+            interface.endorsement.authority != Authority::ACME ||
+            (interface.endorsement.acme_configuration &&
+             *interface.endorsement.acme_configuration == acme_configuration))
+          {
+            certs.insert_or_assign(listen_interface_id, cert);
+          }
         }
       }
     }
