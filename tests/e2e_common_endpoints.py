@@ -159,49 +159,55 @@ def test_memory(network, args):
         )
     return network
 
+
 @reqs.description("Write/Read large messages on primary")
 @reqs.supports_methods("/app/log/private")
 @app.scoped_txs()
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
-    def get_main_interface_metrics():
+    def get_main_interface_errors():
         with primary.client() as c:
             return c.get("/node/metrics").body.json()["sessions"]["interfaces"][
                 infra.interfaces.PRIMARY_RPC_INTERFACE
-            ]
-
-    request_too_large_error_count = get_main_interface_metrics()["errors"]["request_too_large"]
+            ]["errors"]
 
     # TLS libraries usually have 16K internal buffers, so we start at
     # 1K and move up to 1M and make sure they can cope with it.
     # Starting below 16K also helps identify problems (by seeing some
     # pass but not others, and finding where does it fail).
-    log_id = 7
-
     msg_sizes = [2**n for n in range(10, 20)]
-    # Note: infra injects additional data in payload
-    threshold_body_size = args.max_http_body_size - 100
-    msg_sizes.extend([threshold_body_size // 2, threshold_body_size, threshold_body_size * 2])
+    msg_sizes.extend(
+        [
+            args.max_http_body_size // 2,
+            args.max_http_body_size - 1,
+            args.max_http_body_size,
+            args.max_http_body_size + 1,
+            args.max_http_body_size * 2,
+        ]
+    )
 
     for s in msg_sizes:
         long_msg = "X" * s
-        msg_size = len(long_msg)
-        LOG.error(f"msg size: {len(long_msg)}")
-        try:
-            network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
-        except Exception:
-            assert msg_size > threshold_body_size
-            current_errors_count = get_main_interface_metrics()["errors"]["request_too_large"]
-            assert current_errors_count == request_too_large_error_count + 1
-            request_too_large_error_count = current_errors_count
-        else:
-            assert msg_size <= threshold_body_size
-            check = infra.checker.Checker()
-            check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
-        log_id += 1
-
-    
+        with primary.client("user0") as c:
+            # Note: endpoint does not matter as request parsing is done before dispatch
+            before_errors_count = get_main_interface_errors()["request_too_large"]
+            r = c.get(
+                "/node/commit", long_msg, headers={"content-type": "application/json"}
+            )
+            if len(long_msg) > args.max_http_body_size:
+                assert r.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value
+                assert r.body.json()["error"]["code"] == "RequestBodyTooLarge"
+                assert (
+                    get_main_interface_errors()["request_too_large"]
+                    == before_errors_count + 1
+                )
+            else:
+                assert r.status_code == http.HTTPStatus.OK.value
+                assert (
+                    get_main_interface_errors()["request_too_large"]
+                    == before_errors_count
+                )
 
     # TODO: Test maximum header size
 
@@ -211,7 +217,12 @@ def test_large_messages(network, args):
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs,
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_open(args)
 
@@ -220,4 +231,3 @@ def run(args):
         # test_node_ids(network, args)
         # test_memory(network, args)
         test_large_messages(network, args)
-

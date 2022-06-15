@@ -251,7 +251,7 @@ namespace http
         if (body_buf.size() > configuration.max_body_size)
         {
           throw RequestTooLargeException(fmt::format(
-            "HTTP request body is too large (max allowed: {})",
+            "HTTP request body is too large (max size allowed: {})",
             configuration.max_body_size));
         }
       }
