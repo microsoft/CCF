@@ -6,7 +6,7 @@
           "Node",
           "Service",
           "ACME",
-          "NONE"
+          "Unsecured"
         ],
         "type": "string"
       },
