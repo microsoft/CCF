@@ -581,6 +581,7 @@ class CCFRemote(object):
         ledger_dir=None,
         read_only_ledger_dirs=None,
         snapshots_dir=None,
+        read_only_snapshots_dir=None,
         common_read_only_ledger_dir=None,
         constitution=None,
         curve_id=None,
@@ -610,9 +611,7 @@ class CCFRemote(object):
 
         # 1.x releases have a separate cchost.virtual binary for virtual enclaves
         if enclave_type == "virtual" and (
-            (major_version is not None and major_version <= 1)
-            # This is still present in 2.0.0-rc0
-            or (version == "ccf-2.0.0-rc0")
+            major_version is not None and major_version <= 1
         ):
             self.BIN = "cchost.virtual"
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
@@ -640,11 +639,24 @@ class CCFRemote(object):
 
         # Snapshots
         self.snapshots_dir = os.path.normpath(snapshots_dir) if snapshots_dir else None
-        self.snapshot_dir_name = (
+        self.snapshots_dir_name = (
             os.path.basename(self.snapshots_dir)
             if self.snapshots_dir
             else f"{local_node_id}.snapshots"
         )
+        self.read_only_snapshots_dir = (
+            os.path.normpath(read_only_snapshots_dir)
+            if read_only_snapshots_dir
+            else None
+        )
+        self.read_only_snapshots_dir_name = (
+            os.path.basename(self.read_only_snapshots_dir)
+            if self.read_only_snapshots_dir
+            else None
+        )
+
+        # if self.snapshots_dir
+        # else f"{local_node_id}.snapshots"
 
         # Constitution
         constitution = [
@@ -682,7 +694,8 @@ class CCFRemote(object):
                 rpc_addresses_file=self.rpc_addresses_file,
                 ledger_dir=self.ledger_dir_name,
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
-                snapshots_dir=self.snapshot_dir_name,
+                snapshots_dir=self.snapshots_dir_name,
+                read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
                 host_log_level=host_log_level.title(),
@@ -751,7 +764,7 @@ class CCFRemote(object):
                 f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.host, primary_rpc_interface.port)}",
                 f"--rpc-address-file={self.rpc_addresses_file}",
                 f"--ledger-dir={self.ledger_dir_name}",
-                f"--snapshot-dir={self.snapshot_dir_name}",
+                f"--snapshot-dir={self.snapshots_dir_name}",
                 f"--node-cert-file={self.pem}",
                 f"--host-log-level={host_log_level}",
                 f"--raft-election-timeout-ms={election_timeout_ms}",
@@ -965,14 +978,18 @@ class CCFRemote(object):
         return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
     def get_snapshots(self):
-        self._resilient_copy(self.snapshot_dir_name)
-        return os.path.join(self.common_dir, self.snapshot_dir_name)
+        # TODO: Remove this function as it's only used in one place?
+        self._resilient_copy(self.snapshots_dir_name)
+        return os.path.join(self.common_dir, self.snapshots_dir_name)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         self._resilient_copy(
-            self.snapshot_dir_name, pre_condition_func=pre_condition_func
+            self.snapshots_dir_name, pre_condition_func=pre_condition_func
         )
-        return os.path.join(self.common_dir, self.snapshot_dir_name)
+        self._resilient_copy(
+            self.snapshots_dir_name, pre_condition_func=pre_condition_func
+        )
+        return os.path.join(self.common_dir, self.snapshots_dir_name)
 
     def log_path(self):
         return self.remote.out

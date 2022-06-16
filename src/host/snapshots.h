@@ -209,8 +209,8 @@ namespace asynchost
       const Ledger& ledger_,
       const std::optional<std::string>& read_snapshot_dir_ = std::nullopt) :
       snapshot_dir(snapshot_dir_),
-      ledger(ledger_),
-      read_snapshot_dir(read_snapshot_dir_)
+      read_snapshot_dir(read_snapshot_dir_),
+      ledger(ledger_)
     {
       if (fs::is_directory(snapshot_dir))
       {
