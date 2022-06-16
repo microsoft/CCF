@@ -184,6 +184,43 @@ namespace ccf
         }
       }
 
+      if (endpoint->properties.encryption_required)
+      {
+        auto sctx = ctx->get_session_context();
+        auto iface = sctx->interface_id;
+        if (iface)
+        {
+          auto tx = tables.create_read_only_tx();
+          auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
+          auto info = nodes->get(consensus->id());
+          if (!info)
+          {
+            ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+            return ctx->serialise_response();
+          }
+          auto ifit = info->rpc_interfaces.find(*iface);
+          if (ifit == info->rpc_interfaces.end())
+          {
+            ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+            return ctx->serialise_response();
+          }
+          if (ifit->second.endorsement->authority == Authority::UNSECURED)
+          {
+            ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+            return ctx->serialise_response();
+          }
+        }
+        else
+        {
+          if (sctx->is_forwarded)
+          {
+            ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+            return ctx->serialise_response();
+          }
+          // else internal, OK
+        }
+      }
+
       // Note: calls that could not be dispatched (cases handled above)
       // are not counted against any particular endpoint.
       endpoints.increment_metrics_calls(endpoint);

@@ -68,4 +68,10 @@ namespace ccf::endpoints
     properties.forwarding_required = fr;
     return *this;
   }
+
+  Endpoint& Endpoint::set_encryption_required(bool v)
+  {
+    properties.encryption_required = v;
+    return *this;
+  }
 }
