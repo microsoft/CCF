@@ -1250,12 +1250,16 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   auto dir = AutoDeleteFolder(ledger_dir);
   auto snap_dir = AutoDeleteFolder(snapshot_dir);
   auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
+  fs::create_directory(snapshot_dir_read_only);
 
   Ledger ledger(ledger_dir, wf, 1);
   SnapshotManager snapshots(snapshot_dir, ledger, snapshot_dir_read_only);
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
+  size_t last_snapshot_idx = 0;
+
+  LOG_FAIL_FMT("here");
 
   INFO("Generate snapshots");
   {
@@ -1283,13 +1287,14 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       REQUIRE(latest_committed_snapshot.has_value());
       const auto& snapshot = latest_committed_snapshot.value();
       REQUIRE(get_snapshot_idx_from_file_name(snapshot) == i);
+      last_snapshot_idx = i;
       REQUIRE(get_snapshot_evidence_idx_from_file_name(snapshot) == i + 1);
       REQUIRE_FALSE(
         get_evidence_commit_idx_from_file_name(snapshot).has_value());
     }
   }
 
-  INFO("Move committed snapshot to ro directory");
+  INFO("Move committed snapshots to ro directory");
   {
     for (auto const& f : fs::directory_iterator(snapshot_dir))
     {
@@ -1298,6 +1303,26 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
     }
 
     auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    REQUIRE(latest_committed_snapshot.has_value());
+    const auto& snapshot = latest_committed_snapshot.value();
+    REQUIRE(get_snapshot_idx_from_file_name(snapshot) == last_snapshot_idx);
+  }
+
+  INFO("Commit and retrieve new snapshot");
+  {
+    size_t new_snapshot_idx = last_snapshot_idx + 1;
+    snapshots.write_snapshot(
+      new_snapshot_idx,
+      new_snapshot_idx + 1,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
+    snapshots.commit_snapshot(
+      new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
+
+    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    REQUIRE(latest_committed_snapshot.has_value());
+    const auto& snapshot = latest_committed_snapshot.value();
+    REQUIRE(get_snapshot_idx_from_file_name(snapshot) == new_snapshot_idx);
   }
 }
 
