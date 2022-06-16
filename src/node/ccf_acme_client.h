@@ -50,46 +50,38 @@ namespace ccf
         http_status response_status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
         std::string response_body;
 
-        try
+        const auto& path_params = ctx.rpc_ctx->get_request_path_params();
+        const auto url_token_it = path_params.find("token");
+
+        if (url_token_it == path_params.end())
         {
-          const auto& path_params = ctx.rpc_ctx->get_request_path_params();
-          const auto url_token_it = path_params.find("token");
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          ctx.rpc_ctx->set_response_body("no token in URL");
+        }
 
-          if (url_token_it == path_params.end())
+        std::string token = url_token_it->second;
+        LOG_DEBUG_FMT("ACME: challenge request for token '{}'", token);
+
+        auto tit = prepared_responses.find(token);
+        if (tit == prepared_responses.end())
+        {
+          auto prit = prepared_responses.find("");
+          if (prit != prepared_responses.end())
           {
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-            ctx.rpc_ctx->set_response_body("no token in URL");
-          }
-
-          std::string token = url_token_it->second;
-          LOG_DEBUG_FMT("ACME: challenge request for token '{}'", token);
-
-          auto tit = prepared_responses.find(token);
-          if (tit == prepared_responses.end())
-          {
-            auto prit = prepared_responses.find("");
-            if (prit != prepared_responses.end())
-            {
-              response_status = HTTP_STATUS_OK;
-              response_body = token + "." + prit->second;
-            }
-            else
-            {
-              response_status = HTTP_STATUS_NOT_FOUND;
-              response_body = fmt::format(
-                "Challenge response for token '{}' not found", token);
-            }
+            response_status = HTTP_STATUS_OK;
+            response_body = token + "." + prit->second;
           }
           else
           {
-            response_status = HTTP_STATUS_OK;
-            response_body = token + "." + tit->second;
+            response_status = HTTP_STATUS_NOT_FOUND;
+            response_body =
+              fmt::format("Challenge response for token '{}' not found", token);
           }
         }
-        catch (const std::exception& ex)
+        else
         {
-          response_status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
-          response_body = ex.what();
+          response_status = HTTP_STATUS_OK;
+          response_body = token + "." + tit->second;
         }
 
         ctx.rpc_ctx->set_response_status(response_status);
