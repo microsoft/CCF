@@ -10,7 +10,7 @@
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/wrap.h"
-#include "node/ccf_acme_client.h"
+#include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
