@@ -3,7 +3,6 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "ds/ccf_memcpy.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
@@ -217,7 +216,7 @@ namespace ccf
           r.self_signed_node_cert.size());
         return CreateNodeStatus::InternalError;
       }
-      ccf_memcpy(
+      ::memcpy(
         node_cert,
         r.self_signed_node_cert.data(),
         r.self_signed_node_cert.size());
@@ -235,7 +234,7 @@ namespace ccf
             r.service_cert.size());
           return CreateNodeStatus::InternalError;
         }
-        ccf_memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
+        ::memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
         *service_cert_len = r.service_cert.size();
       }
 
