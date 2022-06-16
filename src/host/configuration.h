@@ -88,6 +88,7 @@ namespace host
     {
       std::string directory = "snapshots";
       size_t tx_count = 10'000;
+      std::optional<std::string> read_only_directory = std::nullopt;
 
       bool operator==(const Snapshots&) const = default;
     };
@@ -167,7 +168,8 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Snapshots);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Snapshots);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Snapshots, directory, tx_count);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::Snapshots, directory, tx_count, read_only_directory);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);

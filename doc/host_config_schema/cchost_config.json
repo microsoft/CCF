@@ -394,6 +394,10 @@
           "default": 10000,
           "description": "Number of transactions after which a snapshot is automatically generated",
           "minimum": 1
+        },
+        "read_only_directory": {
+          "type": ["string", "null"],
+          "description": "Path to optional read-only snapshot directory"
         }
       },
       "description": "This section includes configuration for the snapshot directory and files",

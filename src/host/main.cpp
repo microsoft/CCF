@@ -265,7 +265,8 @@ int main(int argc, char** argv)
       config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(config.snapshots.directory, ledger);
+    asynchost::SnapshotManager snapshots(
+      config.snapshots.directory, ledger, config.snapshots.read_only_directory);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // handle LFS-related messages from the enclave
