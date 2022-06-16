@@ -94,8 +94,9 @@ namespace ccf::endpoints
     std::string js_module;
     /// JavaScript function name
     std::string js_function;
-    /// Flag to indicate that the endpoint requries encrypted communication
-    bool encryption_required = true;
+    /// Flag to indicate that an endpoint does not require encrypted
+    /// communication
+    bool unencrypted_ok = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
@@ -108,7 +109,7 @@ namespace ccf::endpoints
     mode,
     js_module,
     js_function,
-    encryption_required);
+    unencrypted_ok);
 
   struct EndpointDefinition
   {
@@ -363,11 +364,11 @@ namespace ccf::endpoints
       }
     }
 
-    /** Overrides whether an Endpoint requires encrypted communication
-     * @param v Boolean indicating whether encryption is required
+    /** Overrides whether an Endpoint allows unencrypted communication
+     * @param v Boolean indicating whether unencrypted communication is ok
      * @return This Endpoint for further modification
      */
-    Endpoint& set_encryption_required(bool v);
+    Endpoint& set_unencrypted_ok(bool v);
   };
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;

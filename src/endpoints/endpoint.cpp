@@ -69,9 +69,9 @@ namespace ccf::endpoints
     return *this;
   }
 
-  Endpoint& Endpoint::set_encryption_required(bool v)
+  Endpoint& Endpoint::set_unencrypted_ok(bool v)
   {
-    properties.encryption_required = v;
+    properties.unencrypted_ok = v;
     return *this;
   }
 }
