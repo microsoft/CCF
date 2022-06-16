@@ -148,13 +148,18 @@ namespace asynchost
   class SnapshotManager
   {
   private:
-    const std::string snapshot_dir;
+    const fs::path snapshot_dir;
+    const std::optional<fs::path> read_snapshot_dir = std::nullopt;
     const Ledger& ledger;
 
   public:
-    SnapshotManager(const std::string& snapshot_dir_, const Ledger& ledger_) :
+    SnapshotManager(
+      const std::string& snapshot_dir_,
+      const Ledger& ledger_,
+      const std::optional<std::string>& read_snapshot_dir_ = std::nullopt) :
       snapshot_dir(snapshot_dir_),
-      ledger(ledger_)
+      ledger(ledger_),
+      read_snapshot_dir(read_snapshot_dir_)
     {
       if (fs::is_directory(snapshot_dir))
       {
@@ -166,10 +171,20 @@ namespace asynchost
         throw std::logic_error(
           fmt::format("Could not create snapshot directory: {}", snapshot_dir));
       }
+
+      if (
+        read_snapshot_dir.has_value() &&
+        !fs::is_directory(read_snapshot_dir.value()))
+      {
+        throw std::logic_error(fmt::format(
+          "{} read-only snapshot is not a directory {}",
+          read_snapshot_dir.value()));
+      }
     }
 
     std::vector<uint8_t> read_snapshot(const std::string& file_name)
     {
+      // TODO: Fix
       return files::slurp(fs::path(snapshot_dir) / fs::path(file_name));
     }
 
@@ -267,14 +282,16 @@ namespace asynchost
       }
     }
 
-    std::optional<std::string> find_latest_committed_snapshot()
+    // TODO: Make private:
+    std::optional<std::string> find_latest_committed_snapshot(
+      const fs::path& directory,
+      size_t ledger_last_idx,
+      size_t& latest_committed_snapshot_idx)
     {
       std::optional<std::string> latest_committed_snapshot_file_name =
         std::nullopt;
-      size_t latest_idx = 0;
-      auto ledger_last_idx = ledger.get_last_idx();
 
-      for (auto& f : fs::directory_iterator(snapshot_dir))
+      for (auto& f : fs::directory_iterator(directory))
       {
         auto file_name = f.path().filename().string();
         if (!is_snapshot_file(file_name))
@@ -308,12 +325,31 @@ namespace asynchost
         }
 
         auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
-        if (snapshot_idx > latest_idx)
+        if (snapshot_idx > latest_committed_snapshot_idx)
         {
           latest_committed_snapshot_file_name = file_name;
-          latest_idx = snapshot_idx;
+          latest_committed_snapshot_idx = snapshot_idx;
         }
       }
+
+      return latest_committed_snapshot_file_name;
+    }
+
+    std::optional<std::string> find_latest_committed_snapshot()
+    {
+      std::optional<std::string> latest_committed_snapshot_file_name =
+        std::nullopt;
+      size_t latest_idx = 0;
+      auto ledger_last_idx = ledger.get_last_idx();
+
+      if (read_snapshot_dir.has_value())
+      {
+        latest_committed_snapshot_file_name = find_latest_committed_snapshot(
+          read_snapshot_dir.value(), ledger_last_idx, latest_idx);
+      }
+
+      latest_committed_snapshot_file_name = find_latest_committed_snapshot(
+        snapshot_dir, ledger_last_idx, latest_idx);
 
       return latest_committed_snapshot_file_name;
     }

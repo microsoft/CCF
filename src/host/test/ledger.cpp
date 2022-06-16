@@ -22,6 +22,7 @@ static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
 static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
 static constexpr auto snapshot_dir = "snapshot_dir";
+static constexpr auto snapshot_dir_read_only = "snapshot_dir_ro";
 
 static const auto dummy_snapshot = std::vector<uint8_t>(128, 42);
 static const auto dummy_receipt = std::vector<uint8_t>(64, 1);
@@ -1248,9 +1249,10 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 {
   auto dir = AutoDeleteFolder(ledger_dir);
   auto snap_dir = AutoDeleteFolder(snapshot_dir);
+  auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
 
   Ledger ledger(ledger_dir, wf, 1);
-  SnapshotManager snapshots(snapshot_dir, ledger);
+  SnapshotManager snapshots(snapshot_dir, ledger, snapshot_dir_read_only);
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
@@ -1285,6 +1287,17 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       REQUIRE_FALSE(
         get_evidence_commit_idx_from_file_name(snapshot).has_value());
     }
+  }
+
+  INFO("Move committed snapshot to ro directory");
+  {
+    for (auto const& f : fs::directory_iterator(snapshot_dir))
+    {
+      fs::copy(f.path(), snapshot_dir_read_only);
+      fs::remove(f.path());
+    }
+
+    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
   }
 }
 
