@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <sys/socket.h>
+
 /**
  * @brief Pending writes on both host and enclave, with data, length and
  * destination address.

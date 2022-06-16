@@ -389,6 +389,24 @@ namespace ccf
             }
           });
 
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp.get_dispatcher(),
+          ACMEMessage::acme_challenge_response_ack,
+          [this](const uint8_t* data, size_t size) {
+            try
+            {
+              auto [token] = ringbuffer::read_message<
+                ACMEMessage::acme_challenge_response_ack>(data, size);
+              node->acme_challenge_response_ack(token);
+            }
+            catch (const std::exception& ex)
+            {
+              LOG_FAIL_FMT(
+                "ACME: acme_challenge_response_ack handler failed: {}",
+                ex.what());
+            }
+          });
+
         rpcsessions->register_message_handlers(bp.get_dispatcher());
 
         if (start_type == StartType::Join)
