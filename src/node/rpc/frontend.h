@@ -212,12 +212,7 @@ namespace ccf
         }
         else
         {
-          if (sctx->is_forwarded)
-          {
-            ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-            return ctx->serialise_response();
-          }
-          // else internal, OK
+          // internal or forwarded, OK?
         }
       }
 
