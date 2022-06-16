@@ -11,6 +11,8 @@ set(CCF_PROJECT "ccf")
 if(UNSAFE_VERSION)
   set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
   add_compile_definitions(UNSAFE_VERSION)
+  file(WRITE ${CMAKE_BINARY_DIR}/UNSAFE "UNSAFE")
+  install(FILES ${CMAKE_BINARY_DIR}/UNSAFE DESTINATION share)
 endif()
 
 # If possible, deduce project version from git environment
