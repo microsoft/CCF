@@ -184,7 +184,7 @@ namespace ccf
         }
       }
 
-      if (!endpoint->properties.unencrypted_ok)
+      if (consensus && !endpoint->properties.unencrypted_ok)
       {
         auto sctx = ctx->get_session_context();
         auto iface = sctx->interface_id;
