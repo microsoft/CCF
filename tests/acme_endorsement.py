@@ -98,12 +98,17 @@ def wait_for_certificates(
             if num_ok != len(args.nodes):
                 time.sleep(1)
 
-        # We can't run test_unsecured_interfaces here because network_name may not
-        # be an address that the name server can resolve, e.g. those that are added
-        # to the pebble mock dns server. Conversely, if we were to use the IP address
-        # instead of the name, then the ACME-certificate subject/SAN won't match.
+        # We can't run test_unsecured_interfaces against the ACME-endorsed interface
+        # here, because network_name may not be an address that the name server can
+        # resolve, e.g. those that are added to the pebble mock dns server.
+        # Conversely, if we were to use the IP address instead of the name, then
+        # the ACME-certificate subject/SAN won't match.
         # I have not yet found a way to add a name server in such a way that
         # httpx.Client picks it up.
+
+        test_unsecured_interfaces(
+            network, infra.interfaces.PRIMARY_RPC_INTERFACE, challenge_interface
+        )
 
         LOG.info(
             f"Success: all nodes had correct certificates installed after {int(time.time() - start_time)} seconds"
@@ -200,9 +205,7 @@ def get_pebble_ca_certs(mgmt_address):
 
 
 @reqs.description("Test that secure content is not available on an unsecured interface")
-def test_unsecured_interfaces(
-    network, secured_interface, unsecured_interface, ca_context=None
-):
+def test_unsecured_interfaces(network, secured_interface, unsecured_interface):
     for node in network.nodes:
         with node.client(interface_name=secured_interface) as c:
             r = c.get("/node/network/nodes")
@@ -210,6 +213,7 @@ def test_unsecured_interfaces(
         with node.client(interface_name=unsecured_interface, protocol="http") as c:
             r = c.get("/node/network/nodes")
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+        with node.client(interface_name=unsecured_interface, protocol="http") as c:
             r = c.get("/.well-known/acme-challenge/A1B2C3D4")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
 
