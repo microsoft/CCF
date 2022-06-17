@@ -184,7 +184,7 @@ namespace ccf
         }
       }
 
-      if (endpoint->properties.unencrypted_ok)
+      if (!endpoint->properties.unencrypted_ok)
       {
         auto sctx = ctx->get_session_context();
         auto iface = sctx->interface_id;
@@ -204,7 +204,7 @@ namespace ccf
             ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
             return ctx->serialise_response();
           }
-          if (ifit->second.endorsement->authority != Authority::UNSECURED)
+          if (ifit->second.endorsement->authority == Authority::UNSECURED)
           {
             ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
             return ctx->serialise_response();
