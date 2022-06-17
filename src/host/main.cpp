@@ -53,7 +53,7 @@ void print_version(size_t)
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
-  signal(SIGPIPE, SIG_IGN);
+  // signal(SIGPIPE, SIG_IGN);
 
   CLI::App app{"ccf"};
 
