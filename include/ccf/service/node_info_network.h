@@ -77,6 +77,10 @@ namespace ccf
 
       std::optional<Endorsement> endorsement = std::nullopt;
 
+      // Regular expressions of endpoints that are accessible over
+      // this interface. std::nullopt means everything is accepted.
+      std::optional<std::vector<std::string>> accepted_endpoints = std::nullopt;
+
       bool operator==(const NetInterface& other) const
       {
         return bind_address == other.bind_address &&
@@ -86,6 +90,7 @@ namespace ccf
           max_open_sessions_hard == other.max_open_sessions_hard &&
           endorsement == other.endorsement &&
           http_configuration == other.http_configuration;
+        accepted_endpoints == other.accepted_endpoints;
       }
     };
 
@@ -113,8 +118,8 @@ namespace ccf
     max_open_sessions_hard,
     published_address,
     protocol,
-    http_configuration);
-
+    http_configuration,
+    accepted_endpoints);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);

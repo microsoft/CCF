@@ -143,6 +143,9 @@ namespace ccf
       kv::Version prescribed_commit_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN)
     {
+      auto sctx = ctx->get_session_context();
+      auto interface_id = sctx->interface_id;
+
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
       {
@@ -188,39 +191,56 @@ namespace ccf
         }
       }
 
-      if (consensus && !endpoint->properties.unencrypted_ok)
+      if (consensus && interface_id)
       {
-        auto sctx = ctx->get_session_context();
-        auto iface = sctx->interface_id;
-        if (iface)
+        if (!node_configuration_subsystem)
         {
+          node_configuration_subsystem =
+            node_context.get_subsystem<NodeConfigurationSubsystem>();
           if (!node_configuration_subsystem)
           {
-            node_configuration_subsystem =
-              node_context.get_subsystem<NodeConfigurationSubsystem>();
-            if (!node_configuration_subsystem)
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+            return ctx->serialise_response();
+          }
+        }
+
+        auto& node_config = node_configuration_subsystem->get();
+        auto icfg = node_config.network.rpc_interfaces.at(*interface_id);
+
+        if (icfg.accepted_endpoints)
+        {
+          bool ok = false;
+          for (const auto& restr : *icfg.accepted_endpoints)
+          {
+            std::regex re(restr);
+            std::smatch m;
+            if (std::regex_match(endpoint->full_uri_path, m, re))
             {
-              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-              return ctx->serialise_response();
+              ok = true;
+              break;
             }
           }
-
-          auto& node_config = node_configuration_subsystem->get();
-          auto icfg = node_config.network.rpc_interfaces.at(*iface);
-
-          if (
-            !icfg.endorsement ||
-            icfg.endorsement->authority == Authority::UNSECURED)
+          if (!ok)
           {
             ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
             return ctx->serialise_response();
           }
         }
-        else
+        else if (icfg.endorsement->authority == Authority::UNSECURED)
         {
-          // internal or forwarded: OK because they have been checked by the
-          // forwarder (forward() happens further down).
+          // Unsecured interfaces are opt-in only.
+          LOG_FAIL_FMT(
+            "Request for {} rejected because the interface is unsecured and "
+            "no accepted_endpoints have been configured.",
+            endpoint->full_uri_path);
+          ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+          return ctx->serialise_response();
         }
+      }
+      else
+      {
+        // internal or forwarded: OK because they have been checked by the
+        // forwarder (forward() happens further down).
       }
 
       // Note: calls that could not be dispatched (cases handled above)

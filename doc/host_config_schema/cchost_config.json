@@ -109,6 +109,13 @@
                 },
                 "required": ["authority"],
                 "additionalProperties": false
+              },
+              "accepted_endpoints": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Acceptable endpoints to serve on the interface"
               }
             },
             "required": ["bind_address"]
