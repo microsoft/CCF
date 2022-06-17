@@ -86,3 +86,6 @@ Glossary
 
   Users
     Directly interact with the application running in CCF. Their public identity should be voted in by members before they are allowed to issue requests.
+
+  Write Set
+    The keys and values written to during a CCF transaction. The state of the Key Value store at a given :term:`Transaction ID` is logically the successive application of all write sets up to that point.

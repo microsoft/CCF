@@ -98,8 +98,14 @@ To be able to bind to that port, the ``cchost`` binary may need to be given spec
 
         "network": {
             "rpc_interfaces": { 
-                ... ,
-                "acme_endorsed_interface": { ... , "endorsement": { ... , "acme_configuration": "my-acme-cfg" } }
+                // ... ,
+                "acme_endorsed_interface": {
+                    // ... ,
+                    "endorsement": {
+                        // ... ,
+                        "acme_configuration": "my-acme-cfg"
+                    }
+                }
             },
             "acme": {
                 "my-acme-cfg": { 
