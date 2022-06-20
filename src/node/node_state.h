@@ -1895,19 +1895,25 @@ namespace ccf
 
     std::shared_ptr<ACMERpcFrontend> find_well_known_frontend()
     {
-      auto challenge_frontend_opt = rpc_map->find(ActorsType::well_known);
-      if (!challenge_frontend_opt)
+      auto well_known_opt = rpc_map->find(ActorsType::well_known);
+      if (!well_known_opt)
       {
         throw std::runtime_error("Missing ACME challenge frontend");
       }
-      return std::static_pointer_cast<ACMERpcFrontend>(*challenge_frontend_opt);
+      // At this time, only the ACME challenge frontend uses the well-known
+      // actor prefix.
+      return std::static_pointer_cast<ACMERpcFrontend>(*well_known_opt);
     }
 
     void open_well_known_frontend()
     {
-      if (!config.network.acme->configurations.empty())
+      if (config.network.acme && !config.network.acme->configurations.empty())
       {
-        find_frontend(ActorsType::well_known)->open();
+        auto fe = find_frontend(ActorsType::well_known);
+        if (fe)
+        {
+          fe->open();
+        }
       }
     }
 
