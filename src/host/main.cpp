@@ -48,10 +48,19 @@ void print_version(size_t)
   exit(0);
 }
 
+static void _signal_handler(int sig_num)
+{
+  LOG_INFO_FMT("Ignoring signal: {}", sig_num);
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
-  signal(SIGPIPE, SIG_IGN);
+  {
+    // Avoiding use of SIG_IGN due to OE issue:
+    // https://github.com/openenclave/openenclave/issues/4542
+    signal(SIGPIPE, _signal_handler);
+  }
 
   CLI::App app{"ccf"};
 
