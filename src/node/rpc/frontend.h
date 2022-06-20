@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
+#include "ccf/http_status.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
@@ -192,19 +193,26 @@ namespace ccf
         {
           auto tx = tables.create_read_only_tx();
           auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
+          if (!nodes)
+          {
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+            return ctx->serialise_response();
+          }
           auto info = nodes->get(consensus->id());
           if (!info)
           {
-            ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
             return ctx->serialise_response();
           }
           auto ifit = info->rpc_interfaces.find(*iface);
           if (ifit == info->rpc_interfaces.end())
           {
-            ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
             return ctx->serialise_response();
           }
-          if (ifit->second.endorsement->authority == Authority::UNSECURED)
+          if (
+            !ifit->second.endorsement ||
+            ifit->second.endorsement->authority == Authority::UNSECURED)
           {
             ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
             return ctx->serialise_response();

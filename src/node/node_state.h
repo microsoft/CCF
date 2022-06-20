@@ -1402,6 +1402,7 @@ namespace ccf
       for (const auto& [iname, interface] : config.network.rpc_interfaces)
       {
         if (
+          !interface.endorsement ||
           interface.endorsement->authority != Authority::ACME ||
           !interface.endorsement->acme_configuration)
         {
