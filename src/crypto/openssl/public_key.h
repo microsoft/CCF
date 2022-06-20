@@ -56,6 +56,8 @@ namespace crypto
     {
       return key;
     }
+
+    virtual Coordinates coordinates() const override;
   };
 
   OpenSSL::Unique_PKEY key_from_raw_ec_point(
