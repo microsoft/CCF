@@ -718,6 +718,9 @@ class CCFRemote(object):
         exe_files += [self.BIN, enclave_file] + self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []
         data_files += [self.snapshots_dir] if self.snapshots_dir else []
+        data_files += (
+            [self.read_only_snapshots_dir] if self.read_only_snapshots_dir else []
+        )
         if self.read_only_ledger_dirs_names:
             data_files.extend(
                 [os.path.join(self.common_dir, f) for f in self.read_only_ledger_dirs]
@@ -986,10 +989,19 @@ class CCFRemote(object):
         self._resilient_copy(
             self.snapshots_dir_name, pre_condition_func=pre_condition_func
         )
-        self._resilient_copy(
-            self.snapshots_dir_name, pre_condition_func=pre_condition_func
+        read_only_snapshots_dir = None
+        if self.read_only_snapshots_dir_name:
+            self._resilient_copy(
+                self.read_only_snapshots_dir_name, pre_condition_func=pre_condition_func
+            )
+            read_only_snapshots_dir = os.path.join(
+                self.common_dir, self.read_only_snapshots_dir_name
+            )
+
+        return (
+            os.path.join(self.common_dir, self.snapshots_dir_name),
+            read_only_snapshots_dir,
         )
-        return os.path.join(self.common_dir, self.snapshots_dir_name)
 
     def log_path(self):
         return self.remote.out

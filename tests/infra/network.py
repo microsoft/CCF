@@ -250,17 +250,22 @@ class Network:
 
         committed_ledger_dirs = read_only_ledger_dirs or []
         current_ledger_dir = ledger_dir
+        read_only_snapshots_dir = None
 
         # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
         # to produce more ledger entries
         if from_snapshot:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
-            snapshots_dir = snapshots_dir or self.get_committed_snapshots(primary)
-            if os.listdir(snapshots_dir):
-                LOG.info(f"Joining from snapshot directory: {snapshots_dir}")
+            if snapshots_dir is None:
+                read_only_snapshots_dir = self.get_committed_snapshots(primary)
+            LOG.error(read_only_snapshots_dir)
+            if os.listdir(snapshots_dir) or os.listdir(read_only_snapshots_dir):
+                LOG.info(
+                    f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
+                )
             else:
                 LOG.warning(
-                    f"Attempting to join from snapshot but {snapshots_dir} is empty: defaulting to complete replay of transaction history"
+                    f"Attempting to join from snapshot but {snapshots_dir},{read_only_snapshots_dir} is empty: defaulting to complete replay of transaction history"
                 )
         else:
             LOG.info(
@@ -280,6 +285,7 @@ class Network:
                 target_node.get_public_rpc_host(), target_node.get_public_rpc_port()
             ),
             snapshots_dir=snapshots_dir,
+            read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             **kwargs,
@@ -1221,6 +1227,7 @@ class Network:
         # Wait for the snapshot including target_seqno to be committed before
         # copying snapshot directory
         target_seqno = None
+        LOG.error("there")
         with node.client() as c:
             r = c.get("/node/commit").body.json()
             target_seqno = TxID.from_str(r["transaction_id"]).seqno
@@ -1251,9 +1258,11 @@ class Network:
                     c.wait_for_commit(r)
                 time.sleep(0.1)
             LOG.error(
-                f"Could not find committed snapshot for seqno {target_seqno} after {timeout}s in {src_dir}: {list_src_dir_func(src_dir)}"
+                f"Could not find committed snapshot for seqno {target_seqno} after {timeout:.2f}s in {src_dir}: {list_src_dir_func(src_dir)}"
             )
             return False
+
+        LOG.error("here")
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 

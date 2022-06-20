@@ -228,7 +228,7 @@ namespace asynchost
         !fs::is_directory(read_snapshot_dir.value()))
       {
         throw std::logic_error(fmt::format(
-          "{} read-only snapshot is not a directory {}",
+          "{} read-only snapshot is not a directory",
           read_snapshot_dir.value()));
       }
     }
