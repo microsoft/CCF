@@ -754,7 +754,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.now()
+                valid_from = valid_from or datetime.utcnow()
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
