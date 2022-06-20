@@ -318,9 +318,12 @@ namespace crypto
     struct Unique_EC_POINT
       : public Unique_SSL_OBJECT<EC_POINT, nullptr, nullptr>
     {
-      Unique_EC_POINT(EC_GROUP* group) :
+      Unique_EC_POINT(const EC_GROUP* group) :
         Unique_SSL_OBJECT(
           EC_POINT_new(group), EC_POINT_free, /*check_null=*/true)
+      {}
+      Unique_EC_POINT(EC_POINT* point) :
+        Unique_SSL_OBJECT(point, EC_POINT_free, /*check_null=*/true)
       {}
     };
 
@@ -329,6 +332,9 @@ namespace crypto
       Unique_EC_KEY(int nid) :
         Unique_SSL_OBJECT(
           EC_KEY_new_by_curve_name(nid), EC_KEY_free, /*check_null=*/true)
+      {}
+      Unique_EC_KEY(EC_KEY* key) :
+        Unique_SSL_OBJECT(key, EC_KEY_free, /*check_null=*/true)
       {}
     };
 

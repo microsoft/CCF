@@ -56,6 +56,11 @@ namespace crypto
       return create_csr(subject_name, {});
     }
 
+    virtual std::vector<uint8_t> create_csr_der(
+      const std::string& subject_name,
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key = std::nullopt) const = 0;
+
     // Note about the signed_by_issuer parameter to sign_csr: when issuing a new
     // certificate for an old subject, which does not exist anymore, we cannot
     // sign the CSR with that old subject's private key. Instead, the issuer
@@ -128,6 +133,8 @@ namespace crypto
     virtual std::vector<uint8_t> public_key_raw() const = 0;
 
     virtual CurveID get_curve_id() const = 0;
+
+    virtual PublicKey::Coordinates coordinates() const = 0;
   };
 
   using PublicKeyPtr = std::shared_ptr<PublicKey>;

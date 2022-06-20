@@ -4,7 +4,8 @@
       "Authority": {
         "enum": [
           "Node",
-          "Service"
+          "Service",
+          "ACME"
         ],
         "type": "string"
       },
@@ -142,6 +143,9 @@
       },
       "Endorsement": {
         "properties": {
+          "acme_configuration": {
+            "$ref": "#/components/schemas/string"
+          },
           "authority": {
             "$ref": "#/components/schemas/Authority"
           }
