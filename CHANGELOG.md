@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `/node/version` now contains an `unsafe` flag reflecting the status of the build.
 
+### Changed
+
+- Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+
 ## [3.0.0-dev0]
 
 ### Added
