@@ -20,7 +20,7 @@ std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
   auto size = std::min(v.size(), max_size);
   return fmt::format(
-    "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
+    "[{} bytes] {}", v.size(), std::string(v.begin(), v.end()));
 }
 
 std::string stringify(const std::optional<std::vector<uint8_t>>& o)
