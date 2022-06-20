@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.2]
+
+- Avoids potential segfault when nodes receive a `SIGPIPE` interrupt from the OS (#3953).
+
 ## [2.0.1]
 
 ### Added
@@ -1509,6 +1513,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.2
 [2.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.1
 [2.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0
 [2.0.0-rc9]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc9
