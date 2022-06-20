@@ -50,7 +50,8 @@ void print_version(size_t)
   exit(0);
 }
 
-static void _signal_handler(int sig_num) {
+static void _signal_handler(int sig_num)
+{
   LOG_INFO_FMT("Ignoring signal: {}", sig_num);
 }
 
