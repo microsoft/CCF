@@ -41,4 +41,4 @@ CCF identifies the signing identity for a request via the SHA-256 digest of its 
 That value must be set in the ``keyId`` field of the ``Authorization`` HTTP header for a signed request.
 
 These commands can also be signed and transmitted by external libraries.
-For example, the CCF test infrastructure uses `an auth plugin <https://pypi.org/project/requests-http-signature/>`_ for `Python Requests <https://requests.readthedocs.io/en/master/>`_.
+For example, the CCF test infrastructure uses `an auth plugin <https://pypi.org/project/requests-http-signature/>`_ for `Python Requests <https://requests.readthedocs.io/en/stable/>`_.
