@@ -68,6 +68,12 @@ namespace ccf::endpoints
           }
         }
       }
+
+      auto schema_ref_object = nlohmann::json::object();
+      schema_ref_object["$ref"] = fmt::format(
+        "#/components/x-ccf-forwarding/{}",
+        endpoint->properties.forwarding_required);
+      ds::openapi::extension(path_op, "x-ccf-forwarding") = schema_ref_object;
     }
   }
 
@@ -174,6 +180,28 @@ namespace ccf::endpoints
 
   void EndpointRegistry::build_api(nlohmann::json& document, kv::ReadOnlyTx&)
   {
+    // Add common components:
+    // - Descriptions of each kind of forwarding
+    auto& forwarding_component = document["components"]["x-ccf-forwarding"];
+    auto& always = forwarding_component["always"];
+    always["value"] = ccf::endpoints::ForwardingRequired::Always;
+    always["description"] =
+      "If this request is made to a backup node, it will be forwarded to the "
+      "primary node for execution.";
+    auto& sometimes = forwarding_component["sometimes"];
+    sometimes["value"] = ccf::endpoints::ForwardingRequired::Sometimes;
+    sometimes["description"] =
+      "If this request is made to a backup node, it may be forwarded to the "
+      "primary node for execution. Specifically, if this request is sent as "
+      "part of a session which was already forwarded, then it will also be "
+      "forwarded.";
+    auto& never = forwarding_component["never"];
+    never["value"] = ccf::endpoints::ForwardingRequired::Never;
+    never["description"] =
+      "This call will never be forwarded, and is always executed on the "
+      "receiving node, potentially breaking session consistency. If this "
+      "attempts to write on a backup, this will fail.";
+
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
