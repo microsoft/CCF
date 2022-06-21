@@ -1476,7 +1476,7 @@ namespace ccf
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
-      RpcFrontend(*network.tables, member_endpoints),
+      RpcFrontend(*network.tables, member_endpoints, context),
       member_endpoints(network, context, share_manager)
     {}
   };
