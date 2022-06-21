@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/http_status.h"
-#include "ccf/odata_error.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "enclave/rpc_sessions.h"
