@@ -1804,6 +1804,9 @@ namespace aft
       if (state->commit_idx > 0)
       {
         rollback(election_index);
+        // Nothing past is committable at this point, only freshly emitted
+        // transactions are
+        committable_indices.clear();
       }
       else
       {
