@@ -5,6 +5,7 @@
 #include "ccf/crypto/verifier.h"
 #include "crypto/openssl/openssl_wrappers.h"
 
+#include <chrono>
 #include <openssl/x509.h>
 
 namespace crypto
@@ -36,6 +37,12 @@ namespace crypto
 
     virtual std::pair<std::string, std::string> validity_period()
       const override;
+
+    virtual size_t remaining_seconds(
+      const std::chrono::system_clock::time_point& now) const override;
+
+    virtual double remaining_percentage(
+      const std::chrono::system_clock::time_point& now) const override;
 
     virtual std::string subject() const override;
   };

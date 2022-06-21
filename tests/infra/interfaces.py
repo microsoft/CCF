@@ -32,22 +32,27 @@ NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 class EndorsementAuthority(Enum):
     Service = auto()
     Node = auto()
+    ACME = auto()
 
 
 @dataclass
 class Endorsement:
     authority: EndorsementAuthority = EndorsementAuthority.Service
 
+    acme_configuration: Optional[str] = None
+
     @staticmethod
     def to_json(endorsement):
-        return {
-            "authority": endorsement.authority.name,
-        }
+        r = {"authority": endorsement.authority.name}
+        if endorsement.acme_configuration:
+            r["acme_configuration"] = endorsement.acme_configuration
+        return r
 
     @staticmethod
     def from_json(json):
         endorsement = Endorsement()
         endorsement.authority = json["authority"]
+        endorsement.acme_configuration = json["acme_configuration"]
         return endorsement
 
 
@@ -73,10 +78,11 @@ class RPCInterface(Interface):
     max_http_header_size: Optional[int] = DEFAULT_MAX_HTTP_HEADER_SIZE
     max_http_headers_count: Optional[int] = DEFAULT_MAX_HTTP_HEADERS_COUNT
     endorsement: Optional[Endorsement] = Endorsement()
+    acme_configuration: Optional[str] = None
 
     @staticmethod
     def to_json(interface):
-        return {
+        r = {
             "bind_address": f"{interface.host}:{interface.port}",
             "protocol": f"{interface.transport}",
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
@@ -89,6 +95,9 @@ class RPCInterface(Interface):
             },
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
+        if interface.acme_configuration:
+            r["acme_configuration"] = interface.acme_configuration
+        return r
 
     @staticmethod
     def from_json(json):
@@ -108,6 +117,8 @@ class RPCInterface(Interface):
         )
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
+        if "acme_configuration" in json:
+            interface.acme_configuration = json.get("acme_configuration")
         return interface
 
 
@@ -122,6 +133,7 @@ def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTER
 @dataclass
 class HostSpec:
     rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
+    acme_challenge_server_interface: Optional[str] = None
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]

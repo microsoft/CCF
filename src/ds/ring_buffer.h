@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf_memcpy.h"
 #include "ring_buffer_types.h"
 
 #include <cstring>
@@ -339,7 +340,9 @@ namespace ringbuffer
 
       // Standard says memcpy(x, null, 0) is undefined, so avoid it
       if (size > 0)
-        ::memcpy(bd.data + index, bytes, size);
+      {
+        ccf_memcpy(bd.data + index, bytes, size);
+      }
 
       return {index + size};
     }

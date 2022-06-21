@@ -9,7 +9,7 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    container: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.17.7-2
+    container: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.0-0
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"

@@ -11,12 +11,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - New per-interface configuration entries (`network.rpc_interfaces.http_configuration`) are added to let operators cap the maximum size of body, header value size and number of headers in client HTTP requests. The client session is automatically closed if the HTTP request exceeds one of these limits (#3941).
 
+### Changed
+
+- Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+
 ## [3.0.0-dev0]
 
 ### Added
 
 - The node-to-node interface configuration now supports a `published_address` to enable networks with nodes running in different (virtual) subnets (#3867).
 - Added a `GET /node/service/previous_identity` endpoint, which can be used during a recovery to look up the identity of the service before the catastrophic failure (#3880).
+- Added an automatic certificate management environment (ACME) client to automatically manage TLS certificates that are globally endorsed by an external authority, e.g. Let's Encrypt (#3877).
 
 ### Changed
 
