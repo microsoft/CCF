@@ -2581,5 +2581,10 @@ namespace ccf
         client->start_challenge(token);
       }
     }
+
+    virtual const StartupConfig& get_node_config() const override
+    {
+      return config;
+    }
   };
 }

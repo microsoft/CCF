@@ -141,6 +141,9 @@ namespace ccf
         std::make_shared<ccf::NetworkIdentitySubsystem>(
           *node, network.identity));
 
+      context->install_subsystem(
+        std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -148,7 +151,7 @@ namespace ccf
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         std::make_unique<ccf::UserRpcFrontend>(
-          network, ccfapp::make_user_endpoints(*context)));
+          network, ccfapp::make_user_endpoints(*context), *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));

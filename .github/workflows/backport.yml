@@ -38,7 +38,8 @@ jobs:
           git config --global merge.keeplocal.name "Always keep local file during merge"
           git config --global merge.keeplocal.driver true
 
+      # Update backport action (https://github.com/sqren/backport/issues/391#issuecomment-1156355381)
       - name: Backport Action
-        uses: sqren/backport-github-action@v8.4.3
+        uses: sqren/backport-github-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
