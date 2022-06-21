@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- `/node/version` now contains an `unsafe` flag reflecting the status of the build.
+
 ### Changed
 
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
@@ -1604,3 +1608,4 @@ Initial pre-release
 [0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
+[unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased
