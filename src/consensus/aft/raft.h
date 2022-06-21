@@ -253,6 +253,10 @@ namespace aft
     bool can_replicate() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
+      LOG_DEBUG_FMT(
+        "XXXXXXXXXXXXXXXXXXXXXXXX CAN REPLICATE {}",
+        leadership_state == kv::LeadershipState::Leader &&
+          !retirement_committable_idx.has_value());
       return leadership_state == kv::LeadershipState::Leader &&
         !retirement_committable_idx.has_value();
     }
@@ -261,6 +265,7 @@ namespace aft
     {
       std::unique_lock<std::mutex> guard(state->lock);
       bool should = _should_sign;
+      LOG_DEBUG_FMT("XXXXXXXXXXXXXXXXXX SHOULD SIGN {}", should);
       _should_sign = false;
       return should;
     }

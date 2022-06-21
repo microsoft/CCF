@@ -543,10 +543,12 @@ namespace ccf
               // Emit signatures when there's either a committable gap
               // or the consensus believes it should sign, for example because
               // the node just became leader.
-              (consensus->should_sign() || self->store.committable_gap() > 0) &&
-              time > time_of_last_signature &&
-              (time - time_of_last_signature) > sig_ms_interval)
+              (consensus->should_sign() ||
+               (self->store.committable_gap() > 0 &&
+                time > time_of_last_signature &&
+                (time - time_of_last_signature) > sig_ms_interval)))
             {
+              LOG_DEBUG_FMT("XXXXX EMIT");
               should_emit_signature = true;
             }
 
@@ -750,13 +752,14 @@ namespace ccf
         return;
       }
 
-      // Signatures are only emitted when the consensus is establishing commit
-      // over the node's own transactions
+      // // Signatures are only emitted when the consensus is establishing
+      // commit
+      // // over the node's own transactions
       auto signable_txid = consensus->get_signable_txid();
-      if (!signable_txid.has_value())
-      {
-        return;
-      }
+      // if (!signable_txid.has_value())
+      // {
+      //   return;
+      // }
 
       if (!endorsed_cert.has_value())
       {
@@ -764,8 +767,10 @@ namespace ccf
           fmt::format("No endorsed certificate set to emit signature"));
       }
 
-      auto commit_txid = signable_txid.value();
       auto txid = store.next_txid();
+      auto commit_txid =
+        signable_txid.value_or(kv::Consensus::SignableTxIndices{
+          txid.term, txid.version, txid.version - 1});
 
       last_signed_tx = commit_txid.version;
       time_of_last_signature =

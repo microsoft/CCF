@@ -331,7 +331,7 @@ def test_retire_primary(network, args):
         new_primary,
         primary.node_id,
         node_status=None,
-        timeout=3,
+        timeout=10,
     )
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
