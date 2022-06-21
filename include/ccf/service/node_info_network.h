@@ -100,7 +100,7 @@ namespace ccf
       bool operator==(const ACME&) const = default;
     };
 
-    std::optional<ACME> acme;
+    std::optional<ACME> acme = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
@@ -113,7 +113,6 @@ namespace ccf
     published_address,
     protocol,
     http_configuration);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
 
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
   DECLARE_JSON_REQUIRED_FIELDS(
