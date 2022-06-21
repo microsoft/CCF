@@ -30,8 +30,27 @@ namespace ccf::endpoints
 
   enum class ForwardingRequired
   {
+    /** ForwardingRequired::Sometimes is the default value, and should be used
+     * for most read-only operations. If this request is made to a backup node,
+     * it may be forwarded to the primary node for execution to maintain session
+     * consistency. Specifically, if this request is sent as part of a session
+     * which was already forwarded, then it will also be forwarded.
+     */
     Sometimes,
+
+    /** ForwardingRequired::Always should be used for operations which may
+     * produce writes. If this request is made to a backup node, it will be
+     * forwarded to the primary node for execution.
+     */
     Always,
+
+    /** ForwardingRequired::Never should be used for operations which want to
+     * read node-local state rather than the latest replicated state, such as
+     * historical queries or local consensus information. This call will never
+     * be forwarded, and is always executed on the receiving node, potentiall
+     * breaking session consistency. If this attempts to write on a backup, this
+     * will fail.
+     */
     Never
   };
 
@@ -359,3 +378,44 @@ namespace ccf::endpoints
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::endpoints::ForwardingRequired>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx)
+  {
+    char const* s;
+    switch (v)
+    {
+      case ccf::endpoints::ForwardingRequired::Sometimes:
+      {
+        s = "sometimes";
+        break;
+      }
+      case ccf::endpoints::ForwardingRequired::Always:
+      {
+        s = "always";
+        break;
+      }
+      case ccf::endpoints::ForwardingRequired::Never:
+      {
+        s = "never";
+        break;
+      }
+      default:
+      {
+        throw std::logic_error("Unhandled value for ForwardingRequired");
+      }
+    }
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE
