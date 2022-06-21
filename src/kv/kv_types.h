@@ -466,6 +466,7 @@ namespace kv
     virtual bool is_primary() = 0;
     virtual bool is_backup() = 0;
     virtual bool can_replicate() = 0;
+    virtual bool should_sign() = 0;
 
     virtual void force_become_primary() = 0;
     virtual void force_become_primary(

@@ -62,6 +62,11 @@ namespace kv::test
       return state == Primary;
     }
 
+    bool should_sign() override
+    {
+      return false;
+    }
+
     virtual bool is_backup() override
     {
       return state == Backup;
@@ -270,6 +275,11 @@ namespace kv::test
     {
       return false;
     }
+
+    bool should_sign() override
+    {
+      return false;
+    }
   };
 
   class PrimaryStubConsensus : public StubConsensus
@@ -287,6 +297,11 @@ namespace kv::test
     bool can_replicate() override
     {
       return true;
+    }
+
+    bool should_sign() override
+    {
+      return false;
     }
   };
 }
