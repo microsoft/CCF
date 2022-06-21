@@ -205,7 +205,7 @@ namespace logger
       // that the time inside the enclave was 130 milliseconds earlier than
       // the host timestamp printed on the line
       return fmt::format(
-        "{} {:+01.3f} {:<3} [{:<5}] {:<36} | {}",
+        "{} {:+01.3f} {:<3} [{:<5}] {:<36} | {}\n",
         get_timestamp(host_tm, host_ts),
         enclave_offset.value(),
         ll.thread_id,
@@ -218,7 +218,7 @@ namespace logger
       // Padding on the right to align the rest of the message
       // with lines that contain enclave time offsets
       return fmt::format(
-        "{}        {:<3} [{:<5}] {:<36} | {}",
+        "{}        {:<3} [{:<5}] {:<36} | {}\n",
         get_timestamp(host_tm, host_ts),
         ll.thread_id,
         to_string(ll.log_level),
@@ -312,7 +312,7 @@ namespace logger
   // 2. Be a higher precedence than &&, such that the log statement is bound
   // more tightly than the short-circuiting.
   // This allows:
-  // LOG_DEBUG << "info" << std::endl;
+  // LOG_DEBUG << "this " << "msg";
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
@@ -332,13 +332,13 @@ namespace logger
     logger::config::ok(logger::TRACE) && \
       logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
 #  define LOG_TRACE_FMT(s, ...) \
-    LOG_TRACE << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+    LOG_TRACE << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 
 #  define LOG_DEBUG \
     logger::config::ok(logger::DEBUG) && \
       logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
 #  define LOG_DEBUG_FMT(s, ...) \
-    LOG_DEBUG << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+    LOG_DEBUG << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
@@ -353,19 +353,19 @@ namespace logger
   logger::config::ok(logger::INFO) && \
     logger::Out() == logger::LogLine(logger::INFO, __FILE__, __LINE__)
 #define LOG_INFO_FMT(s, ...) \
-  LOG_INFO << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+  LOG_INFO << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 
 #define LOG_FAIL \
   logger::config::ok(logger::FAIL) && \
     logger::Out() == logger::LogLine(logger::FAIL, __FILE__, __LINE__)
 #define LOG_FAIL_FMT(s, ...) \
-  LOG_FAIL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+  LOG_FAIL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 
 #define LOG_FATAL \
   logger::config::ok(logger::FATAL) && \
     logger::Out() == logger::LogLine(logger::FATAL, __FILE__, __LINE__)
 #define LOG_FATAL_FMT(s, ...) \
-  LOG_FATAL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+  LOG_FATAL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 
 // Convenient wrapper to report exception errors. Exception message is only
 // displayed in debug mode
