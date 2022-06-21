@@ -17,7 +17,8 @@ namespace ccf
     GetState::Out, recovery_target_seqno, last_recovered_seqno)
 
   DECLARE_JSON_TYPE(GetVersion::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetVersion::Out, ccf_version, quickjs_version)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetVersion::Out, ccf_version, quickjs_version, unsafe)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
