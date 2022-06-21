@@ -97,7 +97,7 @@ namespace ccf
   public:
     ACMERpcFrontend(
       NetworkState& network, ccfapp::AbstractNodeContext& context) :
-      RpcFrontend(*network.tables, endpoints),
+      RpcFrontend(*network.tables, endpoints, context),
       endpoints(network, context)
     {}
 

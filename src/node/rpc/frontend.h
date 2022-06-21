@@ -4,6 +4,8 @@
 
 #include "ccf/endpoint_registry.h"
 #include "ccf/http_status.h"
+#include "ccf/node_context.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
@@ -187,32 +189,27 @@ namespace ccf
 
       if (consensus && !endpoint->properties.unencrypted_ok)
       {
+        if (!node_configuration_subsystem)
+        {
+          node_configuration_subsystem =
+            node_context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+            return ctx->serialise_response();
+          }
+        }
+
         auto sctx = ctx->get_session_context();
         auto iface = sctx->interface_id;
         if (iface)
         {
-          auto tx = tables.create_read_only_tx();
-          auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
-          if (!nodes)
-          {
-            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            return ctx->serialise_response();
-          }
-          auto info = nodes->get(consensus->id());
-          if (!info)
-          {
-            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            return ctx->serialise_response();
-          }
-          auto ifit = info->rpc_interfaces.find(*iface);
-          if (ifit == info->rpc_interfaces.end())
-          {
-            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            return ctx->serialise_response();
-          }
+          auto& node_config = node_configuration_subsystem->get();
+          auto icfg = node_config.network.rpc_interfaces.at(*iface);
+
           if (
-            !ifit->second.endorsement ||
-            ifit->second.endorsement->authority == Authority::UNSECURED)
+            !icfg.endorsement ||
+            icfg.endorsement->authority == Authority::UNSECURED)
           {
             ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
             return ctx->serialise_response();

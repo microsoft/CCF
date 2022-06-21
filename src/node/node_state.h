@@ -2604,14 +2604,6 @@ namespace ccf
     }
 
   public:
-    void acme_challenge_response_ack(const std::string& token)
-    {
-      for (auto& [_, client] : acme_clients)
-      {
-        client->start_challenge(token);
-      }
-    }
-
     virtual const StartupConfig& get_node_config() const override
     {
       return config;
