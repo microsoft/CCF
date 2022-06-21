@@ -136,5 +136,16 @@ namespace crypto
      * The curve ID
      */
     virtual CurveID get_curve_id() const = 0;
+
+    struct Coordinates
+    {
+      std::vector<uint8_t> x;
+      std::vector<uint8_t> y;
+    };
+
+    /**
+     * The x/y coordinates of the public key
+     */
+    virtual Coordinates coordinates() const = 0;
   };
 }

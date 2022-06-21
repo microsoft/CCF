@@ -9,14 +9,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `/node/version` now contains an `unsafe` flag reflecting the status of the build.
+
+### Changed
+
+- Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+
+## [3.0.0-dev0]
+
+### Added
+
 - The node-to-node interface configuration now supports a `published_address` to enable networks with nodes running in different (virtual) subnets (#3867).
 - Added a `GET /node/service/previous_identity` endpoint, which can be used during a recovery to look up the identity of the service before the catastrophic failure (#3880).
+- Added an automatic certificate management environment (ACME) client to automatically manage TLS certificates that are globally endorsed by an external authority, e.g. Let's Encrypt (#3877).
 
 ### Changed
 
 - Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout (#3685).
 - Node and service PEM certificates no longer contain a trailing null byte (#3885).
 - New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
+- Updated PSW in images to 2.16.100.
+- `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
 
 ### Removed
 
@@ -1510,6 +1523,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[3.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev0
 [2.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0
 [2.0.0-rc9]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc9
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
@@ -1594,3 +1608,4 @@ Initial pre-release
 [0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
+[unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased

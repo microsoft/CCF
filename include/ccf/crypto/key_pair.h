@@ -56,6 +56,11 @@ namespace crypto
       return create_csr(subject_name, {});
     }
 
+    virtual std::vector<uint8_t> create_csr_der(
+      const std::string& subject_name,
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key = std::nullopt) const = 0;
+
     // Note about the signed_by_issuer parameter to sign_csr: when issuing a new
     // certificate for an old subject, which does not exist anymore, we cannot
     // sign the CSR with that old subject's private key. Instead, the issuer
@@ -73,13 +78,27 @@ namespace crypto
       ISSUER = 1
     };
 
+  private:
+    virtual Pem sign_csr_impl(
+      const std::optional<Pem>& issuer_cert,
+      const Pem& signing_request,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      bool ca = false,
+      Signer signer = Signer::SUBJECT) const = 0;
+
+  public:
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
-      Signer signer = Signer::SUBJECT) const = 0;
+      Signer signer = Signer::SUBJECT) const
+    {
+      return sign_csr_impl(
+        issuer_cert, signing_request, valid_from, valid_to, ca, signer);
+    }
 
     Pem self_sign(
       const std::string& name,
@@ -94,7 +113,7 @@ namespace crypto
         sans.push_back(subject_alt_name.value());
       }
       auto csr = create_csr(name, sans);
-      return sign_csr(Pem(0), csr, valid_from, valid_to, ca);
+      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
     }
 
     Pem self_sign(
@@ -105,7 +124,7 @@ namespace crypto
       bool ca = true) const
     {
       auto csr = create_csr(subject_name, subject_alt_names);
-      return sign_csr(Pem(0), csr, valid_from, valid_to, ca);
+      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
     }
 
     virtual std::vector<uint8_t> derive_shared_secret(
@@ -114,6 +133,8 @@ namespace crypto
     virtual std::vector<uint8_t> public_key_raw() const = 0;
 
     virtual CurveID get_curve_id() const = 0;
+
+    virtual PublicKey::Coordinates coordinates() const = 0;
   };
 
   using PublicKeyPtr = std::shared_ptr<PublicKey>;

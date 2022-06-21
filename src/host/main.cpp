@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "acme_challenge_server.h"
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
@@ -49,10 +50,19 @@ void print_version(size_t)
   exit(0);
 }
 
+static void _signal_handler(int sig_num)
+{
+  LOG_INFO_FMT("Ignoring signal: {}", sig_num);
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
-  signal(SIGPIPE, SIG_IGN);
+  {
+    // Avoiding use of SIG_IGN due to OE issue:
+    // https://github.com/openenclave/openenclave/issues/4542
+    signal(SIGPIPE, _signal_handler);
+  }
 
   CLI::App app{"ccf"};
 
@@ -408,14 +418,13 @@ int main(int argc, char** argv)
     {
       for (auto const& m : config.command.start.members)
       {
-        std::optional<std::vector<uint8_t>> public_encryption_key =
-          std::nullopt;
+        std::optional<crypto::Pem> public_encryption_key = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key =
-            files::slurp(m.encryption_public_key_file.value());
+            crypto::Pem(files::slurp(m.encryption_public_key_file.value()));
         }
 
         nlohmann::json md = nullptr;
@@ -425,7 +434,9 @@ int main(int argc, char** argv)
         }
 
         startup_config.start.members.emplace_back(
-          files::slurp(m.certificate_file), public_encryption_key, md);
+          crypto::Pem(files::slurp(m.certificate_file)),
+          public_encryption_key,
+          md);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :
@@ -525,6 +536,11 @@ int main(int argc, char** argv)
 #endif
     }
 
+    if (config.network.acme)
+    {
+      startup_config.network.acme = config.network.acme;
+    }
+
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
     auto flush_outbound = [&]() {
@@ -603,6 +619,17 @@ int main(int argc, char** argv)
     for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
     {
       threads.emplace_back(std::thread(enclave_thread_start));
+    }
+
+    std::unique_ptr<ACMEChallengeServer> acs;
+    if (
+      config.network.acme &&
+      !config.network.acme->challenge_server_interface.empty())
+    {
+      acs = std::make_unique<ACMEChallengeServer>(
+        config.network.acme->challenge_server_interface,
+        bp.get_dispatcher(),
+        writer_factory);
     }
 
     LOG_INFO_FMT("Entering event loop");

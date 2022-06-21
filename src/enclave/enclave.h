@@ -3,6 +3,7 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ds/ccf_memcpy.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
@@ -140,6 +141,9 @@ namespace ccf
         std::make_shared<ccf::NetworkIdentitySubsystem>(
           *node, network.identity));
 
+      context->install_subsystem(
+        std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -147,7 +151,7 @@ namespace ccf
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         std::make_unique<ccf::UserRpcFrontend>(
-          network, ccfapp::make_user_endpoints(*context)));
+          network, ccfapp::make_user_endpoints(*context), *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
@@ -216,7 +220,7 @@ namespace ccf
           r.self_signed_node_cert.size());
         return CreateNodeStatus::InternalError;
       }
-      ::memcpy(
+      ccf_memcpy(
         node_cert,
         r.self_signed_node_cert.data(),
         r.self_signed_node_cert.size());
@@ -234,7 +238,7 @@ namespace ccf
             r.service_cert.size());
           return CreateNodeStatus::InternalError;
         }
-        ::memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
+        ccf_memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
         *service_cert_len = r.service_cert.size();
       }
 
@@ -385,6 +389,24 @@ namespace ccf
               {
                 LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
               }
+            }
+          });
+
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp.get_dispatcher(),
+          ACMEMessage::acme_challenge_response_ack,
+          [this](const uint8_t* data, size_t size) {
+            try
+            {
+              auto [token] = ringbuffer::read_message<
+                ACMEMessage::acme_challenge_response_ack>(data, size);
+              node->acme_challenge_response_ack(token);
+            }
+            catch (const std::exception& ex)
+            {
+              LOG_FAIL_FMT(
+                "ACME: acme_challenge_response_ack handler failed: {}",
+                ex.what());
             }
           });
 

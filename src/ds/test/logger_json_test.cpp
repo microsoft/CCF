@@ -40,7 +40,7 @@ TEST_CASE("Test custom log format")
     auto j = nlohmann::json::parse(line);
     auto host_ts = j.find("h_ts");
     REQUIRE(host_ts != j.end());
-    REQUIRE(j["msg"] == log_msg_dbg + "\n");
+    REQUIRE(j["msg"] == log_msg_dbg);
     REQUIRE(j["file"] == __FILE__);
     auto line_number = j.find("number");
     REQUIRE(line_number != j.end());

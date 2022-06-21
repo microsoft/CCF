@@ -4,7 +4,8 @@
       "Authority": {
         "enum": [
           "Node",
-          "Service"
+          "Service",
+          "ACME"
         ],
         "type": "string"
       },
@@ -142,6 +143,9 @@
       },
       "Endorsement": {
         "properties": {
+          "acme_configuration": {
+            "$ref": "#/components/schemas/string"
+          },
           "authority": {
             "$ref": "#/components/schemas/Authority"
           }
@@ -386,11 +390,15 @@
           },
           "quickjs_version": {
             "$ref": "#/components/schemas/string"
+          },
+          "unsafe": {
+            "$ref": "#/components/schemas/boolean"
           }
         },
         "required": [
           "ccf_version",
-          "quickjs_version"
+          "quickjs_version",
+          "unsafe"
         ],
         "type": "object"
       },
@@ -752,12 +760,26 @@
         "minimum": 0,
         "type": "integer"
       }
+    },
+    "x-ccf-forwarding": {
+      "always": {
+        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
+        "value": "always"
+      },
+      "never": {
+        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
+        "value": "never"
+      },
+      "sometimes": {
+        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
+        "value": "sometimes"
+      }
     }
   },
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.18.0"
+    "version": "2.20.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -774,6 +796,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -790,6 +815,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -806,6 +834,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -822,6 +853,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -838,6 +872,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -854,6 +891,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -870,6 +910,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -886,6 +929,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -912,6 +958,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -928,6 +977,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -944,6 +996,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -960,6 +1015,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1002,6 +1060,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1011,6 +1072,9 @@
           "200": {
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1020,6 +1084,9 @@
           "200": {
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1036,6 +1103,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       },
       "parameters": [
@@ -1055,6 +1125,9 @@
           "200": {
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1071,6 +1144,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1087,6 +1163,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1113,6 +1192,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -1129,6 +1211,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1145,6 +1230,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1161,6 +1249,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1177,6 +1268,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1203,6 +1297,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1219,6 +1316,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     }

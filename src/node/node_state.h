@@ -5,9 +5,12 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
+#include "ccf_acme_client.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -196,6 +199,10 @@ namespace ccf
     // the lifetime of the node
     kv::Version startup_seqno = 0;
 
+    // ACME certificate endorsement client
+    std::map<std::string, std::shared_ptr<ACMEClient>> acme_clients;
+    size_t num_acme_interfaces = 0;
+
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
     {
 #ifdef USE_NULL_ENCRYPTOR
@@ -360,6 +367,8 @@ namespace ccf
       setup_snapshotter();
       setup_encryptor();
 
+      setup_acme_clients();
+
       switch (start_type)
       {
         case StartType::Start:
@@ -469,6 +478,7 @@ namespace ccf
 
       auto network_ca = std::make_shared<tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
+
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca,
         self_signed_node_cert,
@@ -687,8 +697,7 @@ namespace ccf
       JoinNetworkNodeToNode::In join_params;
 
       join_params.node_info_network = config.network;
-      join_params.public_encryption_key =
-        node_encrypt_kp->public_key_pem().raw();
+      join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
@@ -1376,6 +1385,68 @@ namespace ccf
       }
       committable_tx->set_flag(
         kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    }
+
+    void trigger_acme_refresh(
+      kv::Tx& tx,
+      const std::optional<std::vector<std::string>>& interfaces =
+        std::nullopt) override
+    {
+      if (!network.identity)
+      {
+        return;
+      }
+
+      num_acme_interfaces = 0;
+
+      for (const auto& [iname, interface] : config.network.rpc_interfaces)
+      {
+        if (
+          interface.endorsement->authority != Authority::ACME ||
+          !interface.endorsement->acme_configuration)
+        {
+          continue;
+        }
+
+        num_acme_interfaces++;
+
+        if (
+          !interfaces ||
+          std::find(interfaces->begin(), interfaces->end(), iname) !=
+            interfaces->end())
+        {
+          const std::string& cfg_name =
+            *interface.endorsement->acme_configuration;
+          auto cit = config.network.acme->configurations.find(cfg_name);
+          if (cit == config.network.acme->configurations.end())
+          {
+            LOG_INFO_FMT("Unknown ACME configuration '{}'", cfg_name);
+            continue;
+          }
+
+          if (acme_clients.find(cfg_name) == acme_clients.end())
+          {
+            const auto& aconfig = cit->second;
+
+            acme_clients.emplace(
+              cfg_name,
+              std::make_shared<ccf::ACMEClient>(
+                cfg_name,
+                aconfig,
+                rpcsessions,
+                network.tables,
+                to_host,
+                node_sign_kp));
+          }
+
+          auto client = acme_clients[cfg_name];
+          if (!client->has_active_orders())
+          {
+            acme_clients[cfg_name]->get_certificate(
+              make_key_pair(network.identity->priv_key), true);
+          }
+        }
+      }
     }
 
     void trigger_host_process_launch(
@@ -2189,6 +2260,34 @@ namespace ccf
             LOG_INFO_FMT("Service open at seqno {}", hook_version);
           }
         }));
+
+      network.tables->set_global_hook(
+        network.acme_certificates.get_name(),
+        network.acme_certificates.wrap_commit_hook(
+          [this](
+            kv::Version hook_version, const ccf::ACMECertificates::Write& w) {
+            for (auto const& [interface_id, interface] :
+                 config.network.rpc_interfaces)
+            {
+              if (interface.endorsement->acme_configuration)
+              {
+                auto cit = w.find(*interface.endorsement->acme_configuration);
+                if (cit != w.end())
+                {
+                  LOG_INFO_FMT(
+                    "ACME: new certificate for interface '{}' with "
+                    "configuration '{}'",
+                    interface_id,
+                    *interface.endorsement->acme_configuration);
+                  rpcsessions->set_cert(
+                    Authority::ACME,
+                    *cit->second,
+                    network.identity->priv_key,
+                    cit->first);
+                }
+              }
+            }
+          }));
     }
 
     kv::Version get_last_recovered_signed_idx() override
@@ -2419,6 +2518,73 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(
         consensus::ledger_truncate, to_host, idx, recovery_mode);
+    }
+
+    void setup_acme_clients()
+    {
+      if (!config.network.acme || config.network.acme->configurations.empty())
+      {
+        return;
+      }
+
+      const auto& ifaces = config.network.rpc_interfaces;
+      num_acme_interfaces =
+        std::count_if(ifaces.begin(), ifaces.end(), [](const auto& id_iface) {
+          return id_iface.second.endorsement->authority == Authority::ACME;
+        });
+
+      if (num_acme_interfaces > 0)
+      {
+        using namespace threading;
+
+        // Start task to periodically check whether any of the certs are
+        // expired.
+        auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+          [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+            auto& state = msg->data.self;
+            auto& config = state.config;
+
+            if (state.consensus && state.consensus->can_replicate())
+            {
+              if (state.acme_clients.size() != state.num_acme_interfaces)
+              {
+                auto tx = state.network.tables->create_tx();
+                state.trigger_acme_refresh(tx);
+                tx.commit();
+              }
+              else
+              {
+                for (auto& [cfg_name, client] : state.acme_clients)
+                {
+                  client->check_expiry(
+                    state.network.tables, state.network.identity);
+                }
+              }
+            }
+
+            auto delay = std::chrono::minutes(1);
+            ThreadMessaging::thread_messaging.add_task_after(
+              std::move(msg), delay);
+          },
+          *this);
+
+        ThreadMessaging::thread_messaging.add_task_after(
+          std::move(msg), std::chrono::seconds(2));
+      }
+    }
+
+  public:
+    void acme_challenge_response_ack(const std::string& token)
+    {
+      for (auto& [_, client] : acme_clients)
+      {
+        client->start_challenge(token);
+      }
+    }
+
+    virtual const StartupConfig& get_node_config() const override
+    {
+      return config;
     }
   };
 }
