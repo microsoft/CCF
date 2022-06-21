@@ -1796,6 +1796,8 @@ namespace aft
       // and has a genesis or recovery tx as the last transaction
       election_index = last_committable_index();
 
+      committable_indices.clear();
+
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
