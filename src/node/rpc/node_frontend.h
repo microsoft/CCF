@@ -370,7 +370,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.18.1";
+      openapi_info.document_version = "2.20.0";
     }
 
     void init_handlers() override
@@ -1302,6 +1302,12 @@ namespace ccf
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
         result.quickjs_version = ccf::quickjs_version;
+#ifdef UNSAFE_VERSION
+        result.unsafe = true;
+#else
+        result.unsafe = false;
+#endif
+
         return make_success(result);
       };
 
