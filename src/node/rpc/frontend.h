@@ -189,21 +189,21 @@ namespace ccf
 
       if (consensus && !endpoint->properties.unencrypted_ok)
       {
-        if (!node_configuration_subsystem)
-        {
-          node_configuration_subsystem =
-            node_context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
-          {
-            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            return ctx->serialise_response();
-          }
-        }
-
         auto sctx = ctx->get_session_context();
         auto iface = sctx->interface_id;
         if (iface)
         {
+          if (!node_configuration_subsystem)
+          {
+            node_configuration_subsystem =
+              node_context.get_subsystem<NodeConfigurationSubsystem>();
+            if (!node_configuration_subsystem)
+            {
+              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              return ctx->serialise_response();
+            }
+          }
+
           auto& node_config = node_configuration_subsystem->get();
           auto icfg = node_config.network.rpc_interfaces.at(*iface);
 
