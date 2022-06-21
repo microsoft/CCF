@@ -2,7 +2,7 @@
 EXTENDS ccfraft, TLC
 
 PossibleServer_mc == {NodeOne, NodeTwo, NodeThree}
-InitialServer_mc == {NodeOne, NodeTwo, NodeThree}
+PossibleConfigs_mc == <<{NodeOne, NodeTwo, NodeThree}>>
 InitialConfig_mc == [s \in PossibleServer_mc |-> Follower]
 
 \*  SNIPPET_START: mc_config

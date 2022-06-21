@@ -21,7 +21,7 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC
 CONSTANTS PossibleServer
 
 \* The set and state of servers that we start with
-CONSTANTS InitialServer, InitialConfig
+CONSTANTS PossibleConfigs, InitialConfig
 
 \* Server states.
 CONSTANTS Follower, Candidate, Leader, RetiredLeader, Pending
@@ -261,7 +261,7 @@ CommittedTermPrefix(i, x) ==
 \* Define initial values for all variables
 InitReconfigurationVars ==
     /\ ReconfigurationCount = 0
-    /\ Configurations = [i \in PossibleServer |-> << << 0, InitialServer >> >> ]
+    /\ Configurations = [i \in PossibleServer |-> << << 0, PossibleConfigs[1] >> >> ]
 
 InitMessagesVars ==
     /\ messages = {}
@@ -470,14 +470,11 @@ ChangeConfiguration(i, newConfiguration) ==
     /\ state[i] = Leader
     \* Configuration is non empty
     /\ newConfiguration /= {}
+    /\ newConfiguration = PossibleConfigs[ReconfigurationCount+2]
     \* Configuration is a proper subset of the Possible Servers
     /\ newConfiguration \subseteq PossibleServer
     \* Configuration is not equal to current configuration
     /\ newConfiguration /= Configurations[i][1][2]
-    \* CCF TEMPORARY: Limit reconfigurations to add/removing one server at a time
-    /\ \E j \in PossibleServer :
-        \/ newConfiguration \cup {j} = Configurations[i][1][2]
-        \/ Configurations[i][1][2] \cup {j} = newConfiguration
     \* Keep track of running reconfigurations to limit state space
     /\ ReconfigurationCount' = ReconfigurationCount + 1
     /\ LET
@@ -1081,7 +1078,7 @@ DebugInvAnyCommitted ==
 \* With reconfig, it should be possible for Node 4 or 5 to become leader
 DebugInvReconfigLeader ==
     /\ state[NodeFour] /= Leader
-    /\ state[NodeFive] /= Follower
+    /\ state[NodeFive] /= Leader
 
 \* Check that eventually all messages can be dropped or processed and we did not forget a message
 DebugInvAllMessagesProcessable ==
