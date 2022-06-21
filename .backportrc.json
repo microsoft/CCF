@@ -10,7 +10,7 @@
   "prTitle": "[{targetBranch}] Cherry pick: {commitMessages}",
   "prDescription": "Backports the following commits to `{targetBranch}`:\n{commitMessages}",
   "sourcePRLabels": ["backported"],
-  "targetPRLabels": ["2.x-backport"],
+  "targetPRLabels": ["$1-backport"],
   "autoAssign": false,
   "publishStatusCommentOnSuccess": false,
   "publishStatusCommentOnFailure": true,

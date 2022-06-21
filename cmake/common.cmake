@@ -279,7 +279,6 @@ target_link_libraries(
           ${CMAKE_THREAD_LIBS_INIT}
           ${LINK_LIBCXX}
           ccfcrypto.host
-          http_parser.host
 )
 if("sgx" IN_LIST COMPILE_TARGETS)
   target_link_libraries(cchost PRIVATE openenclave::oehost)

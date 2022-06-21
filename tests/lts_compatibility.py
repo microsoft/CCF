@@ -95,7 +95,7 @@ def test_new_service(
     nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
 
     # Pre-2.0 nodes require X509 time format
-    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.now()))
+    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
 
     for _ in range(0, nodes_to_add_count):
         new_node = network.create_node(
@@ -239,7 +239,7 @@ def run_code_upgrade_from(
                     new_node,
                     args,
                     valid_from=str(  # Pre-2.0 nodes require X509 time format
-                        infra.crypto.datetime_to_X509time(datetime.datetime.now())
+                        infra.crypto.datetime_to_X509time(datetime.datetime.utcnow())
                     ),
                 )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,
