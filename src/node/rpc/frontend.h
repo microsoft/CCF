@@ -7,12 +7,14 @@
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "common/configuration.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
+#include "node/node_configuration_subsystem.h"
 #include "rpc_exception.h"
 
 #define FMT_HEADER_ONLY
@@ -28,6 +30,7 @@ namespace ccf
   protected:
     kv::Store& tables;
     endpoints::EndpointRegistry& endpoints;
+    ccfapp::AbstractNodeContext& node_context;
 
   private:
     std::mutex open_lock;
@@ -41,6 +44,9 @@ namespace ccf
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     crypto::Pem* service_identity = nullptr;
+
+    std::shared_ptr<NodeConfigurationSubsystem> node_configuration_subsystem =
+      nullptr;
 
     using PreExec =
       std::function<void(kv::CommittableTx& tx, ccf::RpcContextImpl& ctx)>;
@@ -411,9 +417,13 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(kv::Store& tables_, endpoints::EndpointRegistry& handlers_) :
+    RpcFrontend(
+      kv::Store& tables_,
+      endpoints::EndpointRegistry& handlers_,
+      ccfapp::AbstractNodeContext& node_context_) :
       tables(tables_),
       endpoints(handlers_),
+      node_context(node_context_),
       consensus(nullptr),
       history(nullptr)
     {}

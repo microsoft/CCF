@@ -1650,7 +1650,7 @@ namespace ccf
   public:
     NodeRpcFrontend(
       NetworkState& network, ccfapp::AbstractNodeContext& context) :
-      RpcFrontend(*network.tables, node_endpoints),
+      RpcFrontend(*network.tables, node_endpoints, context),
       node_endpoints(network, context)
     {}
   };
