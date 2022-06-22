@@ -204,15 +204,14 @@ namespace ccf
           }
         }
 
-        auto& node_config = node_configuration_subsystem->get();
-        auto icfg = node_config.network.rpc_interfaces.at(*interface_id);
+        auto& ncs = node_configuration_subsystem->get();
+        auto rit = ncs.rpc_interface_regexes.find(*interface_id);
 
-        if (icfg.accepted_endpoints)
+        if (rit != ncs.rpc_interface_regexes.end())
         {
           bool ok = false;
-          for (const auto& restr : *icfg.accepted_endpoints)
+          for (const auto& re : rit->second)
           {
-            std::regex re(restr);
             std::smatch m;
             if (std::regex_match(endpoint->full_uri_path, m, re))
             {
@@ -226,15 +225,19 @@ namespace ccf
             return ctx->serialise_response();
           }
         }
-        else if (icfg.endorsement->authority == Authority::UNSECURED)
+        else
         {
-          // Unsecured interfaces are opt-in only.
-          LOG_FAIL_FMT(
-            "Request for {} rejected because the interface is unsecured and "
-            "no accepted_endpoints have been configured.",
-            endpoint->full_uri_path);
-          ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
-          return ctx->serialise_response();
+          auto icfg = ncs.node_config.network.rpc_interfaces.at(*interface_id);
+          if (icfg.endorsement->authority == Authority::UNSECURED)
+          {
+            // Unsecured interfaces are opt-in only.
+            LOG_FAIL_FMT(
+              "Request for {} rejected because the interface is unsecured and "
+              "no accepted_endpoints have been configured.",
+              endpoint->full_uri_path);
+            ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+            return ctx->serialise_response();
+          }
         }
       }
       else
