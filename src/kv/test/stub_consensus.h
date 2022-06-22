@@ -157,7 +157,7 @@ namespace kv::test
       return {committed_txid.view, committed_txid.seqno};
     }
 
-    std::optional<SignableTxIndices> get_signable_txid() override
+    SignableTxIndices get_signable_txid() override
     {
       auto txid = get_committed_txid();
       SignableTxIndices r;

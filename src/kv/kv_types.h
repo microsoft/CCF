@@ -483,7 +483,7 @@ namespace kv
       ccf::SeqNo version, previous_version;
     };
 
-    virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
+    virtual SignableTxIndices get_signable_txid() = 0;
 
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
     virtual ccf::View get_view() = 0;

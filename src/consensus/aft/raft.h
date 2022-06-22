@@ -392,23 +392,14 @@ namespace aft
       return {get_term_internal(commit_idx), commit_idx};
     }
 
-    std::optional<kv::Consensus::SignableTxIndices> get_signable_txid() override
+    kv::Consensus::SignableTxIndices get_signable_txid() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      if (
-        consensus_type == ConsensusType::BFT ||
-        state->commit_idx >= election_index)
-      {
-        kv::Consensus::SignableTxIndices r;
-        r.term = get_term_internal(state->commit_idx);
-        r.version = state->commit_idx;
-        r.previous_version = last_committable_index();
-        return r;
-      }
-      else
-      {
-        return std::nullopt;
-      }
+      kv::Consensus::SignableTxIndices r;
+      r.term = get_term_internal(state->commit_idx);
+      r.version = state->commit_idx;
+      r.previous_version = std::max(election_index, last_committable_index());
+      return r;
     }
 
     Term get_view(Index idx) override
@@ -1359,7 +1350,7 @@ namespace aft
               }
               else
               {
-                state->view_history.update(prev_lci + 1, ds->get_term());
+                state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
               commit_if_possible(r.leader_commit_idx);
             }

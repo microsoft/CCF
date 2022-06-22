@@ -755,11 +755,7 @@ namespace ccf
       // // Signatures are only emitted when the consensus is establishing
       // commit
       // // over the node's own transactions
-      auto signable_txid = consensus->get_signable_txid();
-      // if (!signable_txid.has_value())
-      // {
-      //   return;
-      // }
+      auto commit_txid = consensus->get_signable_txid();
 
       if (!endorsed_cert.has_value())
       {
@@ -768,10 +764,6 @@ namespace ccf
       }
 
       auto txid = store.next_txid();
-      auto commit_txid =
-        signable_txid.value_or(kv::Consensus::SignableTxIndices{
-          txid.term, txid.version, txid.version - 1});
-
       last_signed_tx = commit_txid.version;
       time_of_last_signature =
         threading::ThreadMessaging::thread_messaging.get_current_time_offset();

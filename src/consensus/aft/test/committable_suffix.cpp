@@ -462,6 +462,10 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 
     // B's term history must match the current primary's
     DOCTEST_REQUIRE(rB.get_last_idx() <= rC.get_last_idx());
+    std::cerr << "rB.get_view_history(rB.get_last_idx()) "
+              << rB.get_view_history(rB.get_last_idx())[2] << std::endl;
+    std::cerr << "rC.get_view_history(rB.get_last_idx()) "
+              << rC.get_view_history(rB.get_last_idx())[2] << std::endl;
     DOCTEST_REQUIRE(
       rB.get_view_history(rB.get_last_idx()) ==
       rC.get_view_history(rB.get_last_idx()));
