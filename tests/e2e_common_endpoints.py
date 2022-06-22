@@ -4,7 +4,6 @@ import infra.network
 from ccf.ledger import NodeStatus
 import http
 import suite.test_requirements as reqs
-import infra.logging_app as app
 
 
 from loguru import logger as LOG
