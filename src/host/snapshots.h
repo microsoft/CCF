@@ -4,7 +4,6 @@
 
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
-#include "ds/files.h"
 #include "host/ledger.h"
 #include "time_bound_logger.h"
 
@@ -145,26 +144,25 @@ namespace asynchost
     return read_idx(file_name.substr(evidence_idx_pos + 1, end_str));
   }
 
-  std::optional<std::string> find_latest_committed_snapshot_in_directory(
+  std::optional<fs::path> find_latest_committed_snapshot_in_directory(
     const fs::path& directory,
     size_t ledger_last_idx,
     size_t& latest_committed_snapshot_idx)
   {
-    std::optional<std::string> latest_committed_snapshot_file_name =
-      std::nullopt;
+    std::optional<fs::path> latest_committed_snapshot_file_name = std::nullopt;
 
     for (auto& f : fs::directory_iterator(directory))
     {
-      auto file_name = f.path().filename().string();
+      auto file_name = f.path().filename();
       if (!is_snapshot_file(file_name))
       {
-        LOG_INFO_FMT("Ignoring non-snapshot file \"{}\"", file_name);
+        LOG_INFO_FMT("Ignoring non-snapshot file {}", file_name);
         continue;
       }
 
       if (!is_snapshot_file_committed(file_name))
       {
-        LOG_INFO_FMT("Ignoring non-committed snapshot file \"{}\"", file_name);
+        LOG_INFO_FMT("Ignoring non-committed snapshot file {}", file_name);
         continue;
       }
 
@@ -177,7 +175,7 @@ namespace asynchost
         snapshot_evidence_commit_idx_1_x.value() > ledger_last_idx)
       {
         LOG_INFO_FMT(
-          "Ignoring \"{}\": ledger does not contain evidence commit "
+          "Ignoring {}: ledger does not contain evidence commit "
           "seqno (evidence commit seqno {} > last ledger seqno {})",
           file_name,
           snapshot_evidence_commit_idx_1_x.value(),
@@ -188,7 +186,7 @@ namespace asynchost
       auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
       if (snapshot_idx > latest_committed_snapshot_idx)
       {
-        latest_committed_snapshot_file_name = file_name;
+        latest_committed_snapshot_file_name = directory / file_name;
         latest_committed_snapshot_idx = snapshot_idx;
       }
     }
@@ -233,12 +231,6 @@ namespace asynchost
       }
     }
 
-    std::vector<uint8_t> read_snapshot(const std::string& file_name)
-    {
-      // TODO: Fix
-      return files::slurp(fs::path(snapshot_dir) / fs::path(file_name));
-    }
-
     void write_snapshot(
       consensus::Index idx,
       consensus::Index evidence_idx,
@@ -258,8 +250,7 @@ namespace asynchost
         idx,
         snapshot_idx_delimiter,
         evidence_idx);
-      auto full_snapshot_path =
-        fs::path(snapshot_dir) / fs::path(snapshot_file_name);
+      auto full_snapshot_path = snapshot_dir / fs::path(snapshot_file_name);
 
       if (fs::exists(full_snapshot_path))
       {
@@ -298,8 +289,7 @@ namespace asynchost
             !is_snapshot_file_committed(file_name) &&
             get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
           {
-            auto full_snapshot_path =
-              fs::path(snapshot_dir) / fs::path(file_name);
+            auto full_snapshot_path = snapshot_dir / fs::path(file_name);
             const auto committed_file_name =
               fmt::format("{}{}", file_name, snapshot_committed_suffix);
 
@@ -315,8 +305,8 @@ namespace asynchost
               reinterpret_cast<const char*>(receipt_data), receipt_size);
 
             fs::rename(
-              fs::path(snapshot_dir) / fs::path(file_name),
-              fs::path(snapshot_dir) / fs::path(committed_file_name));
+              snapshot_dir / fs::path(file_name),
+              snapshot_dir / fs::path(committed_file_name));
 
             return;
           }
@@ -333,12 +323,13 @@ namespace asynchost
       }
     }
 
-    std::optional<std::string> find_latest_committed_snapshot()
+    std::optional<fs::path> find_latest_committed_snapshot()
     {
+      // Keep track of latest snapshot file in both directories
       size_t latest_idx = 0;
       auto ledger_last_idx = ledger.get_last_idx();
 
-      std::optional<std::string> read_only_latest_committed_snapshot =
+      std::optional<fs::path> read_only_latest_committed_snapshot =
         std::nullopt;
       if (read_snapshot_dir.has_value())
       {

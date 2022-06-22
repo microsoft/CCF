@@ -495,7 +495,7 @@ int main(int argc, char** argv)
       if (snapshot_file.has_value())
       {
         auto& snapshot = snapshot_file.value();
-        startup_config.startup_snapshot = snapshots.read_snapshot(snapshot);
+        startup_config.startup_snapshot = files::slurp(snapshot);
 
         if (asynchost::is_snapshot_file_1_x(snapshot))
         {

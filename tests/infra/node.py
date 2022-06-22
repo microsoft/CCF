@@ -506,10 +506,10 @@ class Node:
             read_only_snapshots_dir,
         ) = self.remote.get_committed_snapshots(pre_condition_func)
 
-        snapshots_dir = os.path.join(self.common_dir, f"{self.local_node_id}.snapshots")
+        snapshots_dir = os.path.join(
+            self.common_dir, f"{self.local_node_id}.snapshots.committed"
+        )
         infra.path.create_dir(snapshots_dir)
-
-        LOG.error(f"here: {snapshots_dir}")
 
         for f in os.listdir(main_snapshots_dir):
             if is_file_committed(f):
