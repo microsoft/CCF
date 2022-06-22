@@ -380,20 +380,11 @@ namespace aft
     std::optional<kv::Consensus::SignableTxIndices> get_signable_txid() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      if (
-        consensus_type == ConsensusType::BFT ||
-        state->commit_idx >= election_index)
-      {
-        kv::Consensus::SignableTxIndices r;
-        r.term = get_term_internal(state->commit_idx);
-        r.version = state->commit_idx;
-        r.previous_version = last_committable_index();
-        return r;
-      }
-      else
-      {
-        return std::nullopt;
-      }
+      kv::Consensus::SignableTxIndices r;
+      r.version = state->last_idx;
+      r.term = get_term_internal(r.version);
+      r.previous_version = last_committable_index();
+      return r;
     }
 
     Term get_view(Index idx) override
