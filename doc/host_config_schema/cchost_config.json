@@ -106,6 +106,18 @@
                     "description": "Name of the ACME configuration defined in the network.acme.configurations section"
                   }
                 },
+                "oneOf": [
+                  {
+                    "required": ["acme_configuration"]
+                  },
+                  {
+                    "not": {
+                      "properties": {
+                        "authority": { "const": "ACME" }
+                      }
+                    }
+                  }
+                ],
                 "required": ["authority"],
                 "additionalProperties": false
               },
