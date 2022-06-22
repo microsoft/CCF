@@ -3,12 +3,14 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ds/ccf_memcpy.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/wrap.h"
+#include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
@@ -140,6 +142,9 @@ namespace ccf
         std::make_shared<ccf::NetworkIdentitySubsystem>(
           *node, network.identity));
 
+      context->install_subsystem(
+        std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -147,10 +152,13 @@ namespace ccf
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         std::make_unique<ccf::UserRpcFrontend>(
-          network, ccfapp::make_user_endpoints(*context)));
+          network, ccfapp::make_user_endpoints(*context), *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
+
+      rpc_map->register_frontend<ccf::ActorsType::well_known>(
+        std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
       ccf::js::register_ffi_plugins(ccfapp::get_js_plugins());
 
@@ -216,7 +224,7 @@ namespace ccf
           r.self_signed_node_cert.size());
         return CreateNodeStatus::InternalError;
       }
-      ::memcpy(
+      ccf_memcpy(
         node_cert,
         r.self_signed_node_cert.data(),
         r.self_signed_node_cert.size());
@@ -234,7 +242,7 @@ namespace ccf
             r.service_cert.size());
           return CreateNodeStatus::InternalError;
         }
-        ::memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
+        ccf_memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
         *service_cert_len = r.service_cert.size();
       }
 

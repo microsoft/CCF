@@ -15,6 +15,7 @@
 #include "tls/cert.h"
 #include "tls/client.h"
 #include "tls/context.h"
+#include "tls/plaintext_server.h"
 #include "tls/server.h"
 
 #include <limits>
@@ -29,8 +30,8 @@ namespace ccf
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
-  static constexpr ccf::Endorsement endorsement_default =
-    ccf::Endorsement{ccf::Authority::SERVICE};
+  static const ccf::Endorsement endorsement_default = {
+    ccf::Authority::SERVICE, std::nullopt};
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
@@ -231,7 +232,10 @@ namespace ccf
     }
 
     void set_cert(
-      ccf::Authority authority, const crypto::Pem& cert_, const crypto::Pem& pk)
+      ccf::Authority authority,
+      const crypto::Pem& cert_,
+      const crypto::Pem& pk,
+      const std::string& acme_configuration = "")
     {
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
@@ -246,7 +250,13 @@ namespace ccf
       {
         if (interface.endorsement.authority == authority)
         {
-          certs.insert_or_assign(listen_interface_id, cert);
+          if (
+            interface.endorsement.authority != Authority::ACME ||
+            (interface.endorsement.acme_configuration &&
+             *interface.endorsement.acme_configuration == acme_configuration))
+          {
+            certs.insert_or_assign(listen_interface_id, cert);
+          }
         }
       }
     }
@@ -276,7 +286,9 @@ namespace ccf
 
       auto& per_listen_interface = it->second;
 
-      if (certs.find(listen_interface_id) == certs.end())
+      if (
+        per_listen_interface.endorsement.authority != Authority::UNSECURED &&
+        certs.find(listen_interface_id) == certs.end())
       {
         LOG_DEBUG_FMT(
           "Refusing TLS session {} inside the enclave - interface {} "
@@ -345,7 +357,12 @@ namespace ccf
         }
         else
         {
-          auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+          std::unique_ptr<tls::Context> ctx;
+          if (
+            per_listen_interface.endorsement.authority == Authority::UNSECURED)
+            ctx = std::make_unique<nontls::PlaintextServer>();
+          else
+            ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
 
           auto session = std::make_shared<ServerEndpointImpl>(
             rpc_map,

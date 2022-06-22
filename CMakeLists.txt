@@ -804,6 +804,13 @@ if(BUILD_TESTS)
     CONSENSUS ${CONSENSUS_FILTER}
   )
 
+  add_e2e_test(
+    NAME acme_endorsement_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+    LABEL ACME
+    CONSENSUS cft
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME vegeta_stress_${CONSENSUS}

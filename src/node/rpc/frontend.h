@@ -3,16 +3,21 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
+#include "ccf/http_status.h"
+#include "ccf/node_context.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "common/configuration.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
+#include "node/node_configuration_subsystem.h"
 #include "rpc_exception.h"
 
 #define FMT_HEADER_ONLY
@@ -28,6 +33,7 @@ namespace ccf
   protected:
     kv::Store& tables;
     endpoints::EndpointRegistry& endpoints;
+    ccfapp::AbstractNodeContext& node_context;
 
   private:
     std::mutex open_lock;
@@ -41,6 +47,9 @@ namespace ccf
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     crypto::Pem* service_identity = nullptr;
+
+    std::shared_ptr<NodeConfigurationSubsystem> node_configuration_subsystem =
+      nullptr;
 
     using PreExec =
       std::function<void(kv::CommittableTx& tx, ccf::RpcContextImpl& ctx)>;
@@ -175,6 +184,41 @@ namespace ccf
                 allow_header_value));
           }
           return ctx->serialise_response();
+        }
+      }
+
+      if (consensus && !endpoint->properties.unencrypted_ok)
+      {
+        auto sctx = ctx->get_session_context();
+        auto iface = sctx->interface_id;
+        if (iface)
+        {
+          if (!node_configuration_subsystem)
+          {
+            node_configuration_subsystem =
+              node_context.get_subsystem<NodeConfigurationSubsystem>();
+            if (!node_configuration_subsystem)
+            {
+              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              return ctx->serialise_response();
+            }
+          }
+
+          auto& node_config = node_configuration_subsystem->get();
+          auto icfg = node_config.network.rpc_interfaces.at(*iface);
+
+          if (
+            !icfg.endorsement ||
+            icfg.endorsement->authority == Authority::UNSECURED)
+          {
+            ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+            return ctx->serialise_response();
+          }
+        }
+        else
+        {
+          // internal or forwarded: OK because they have been checked by the
+          // forwarder (forward() happens further down).
         }
       }
 
@@ -411,9 +455,13 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(kv::Store& tables_, endpoints::EndpointRegistry& handlers_) :
+    RpcFrontend(
+      kv::Store& tables_,
+      endpoints::EndpointRegistry& handlers_,
+      ccfapp::AbstractNodeContext& node_context_) :
       tables(tables_),
       endpoints(handlers_),
+      node_context(node_context_),
       consensus(nullptr),
       history(nullptr)
     {}

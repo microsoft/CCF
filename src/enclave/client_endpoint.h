@@ -9,7 +9,7 @@ namespace ccf
 {
   class ClientEndpoint
   {
-  protected:
+  public:
     using HandleDataCallback = std::function<void(
       http_status status,
       http::HeaderMap&& headers,
@@ -18,6 +18,7 @@ namespace ccf
     using HandleErrorCallback =
       std::function<void(const std::string& error_msg)>;
 
+  protected:
     HandleDataCallback handle_data_cb;
     HandleErrorCallback handle_error_cb;
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/app_interface.h"
+#include "ccf/node_context.h"
 #include "node/network_state.h"
 #include "node/rpc/frontend.h"
 
@@ -16,8 +17,9 @@ namespace ccf
   public:
     UserRpcFrontend(
       NetworkState& network,
-      std::unique_ptr<ccf::endpoints::EndpointRegistry>&& endpoints_) :
-      RpcFrontend(*network.tables, *endpoints_),
+      std::unique_ptr<ccf::endpoints::EndpointRegistry>&& endpoints_,
+      ccfapp::AbstractNodeContext& context_) :
+      RpcFrontend(*network.tables, *endpoints_, context_),
       endpoints(std::move(endpoints_))
     {}
   };

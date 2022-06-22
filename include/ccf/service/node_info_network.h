@@ -5,6 +5,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/service/acme_client_config.h"
 
 #include <string>
 
@@ -13,22 +14,32 @@ namespace ccf
   enum class Authority
   {
     NODE,
-    SERVICE
+    SERVICE,
+    ACME,
+    UNSECURED
   };
   DECLARE_JSON_ENUM(
-    Authority, {{Authority::NODE, "Node"}, {Authority::SERVICE, "Service"}});
+    Authority,
+    {{Authority::NODE, "Node"},
+     {Authority::SERVICE, "Service"},
+     {Authority::ACME, "ACME"},
+     {Authority::UNSECURED, "Unsecured"}});
 
   struct Endorsement
   {
     Authority authority;
 
+    std::optional<std::string> acme_configuration;
+
     bool operator==(const Endorsement& other) const
     {
-      return authority == other.authority;
+      return authority == other.authority &&
+        acme_configuration == other.acme_configuration;
     }
   };
-  DECLARE_JSON_TYPE(Endorsement);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
+  DECLARE_JSON_OPTIONAL_FIELDS(Endorsement, acme_configuration);
 
   struct NodeInfoNetwork_v1
   {
@@ -77,6 +88,15 @@ namespace ccf
 
     NetInterface node_to_node_interface;
     RpcInterfaces rpc_interfaces;
+
+    struct ACME
+    {
+      std::map<std::string, ccf::ACMEClientConfig> configurations;
+
+      bool operator==(const ACME&) const = default;
+    };
+
+    std::optional<ACME> acme;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
@@ -87,9 +107,12 @@ namespace ccf
     max_open_sessions_hard,
     published_address,
     protocol);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
+  DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfoNetwork_v2, acme);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
@@ -191,6 +214,14 @@ struct formatter<ccf::Authority>
       case (ccf::Authority::SERVICE):
       {
         return format_to(ctx.out(), "Service");
+      }
+      case (ccf::Authority::ACME):
+      {
+        return format_to(ctx.out(), "ACME");
+      }
+      case (ccf::Authority::UNSECURED):
+      {
+        return format_to(ctx.out(), "Unsecured");
       }
     }
   }

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
@@ -49,10 +50,19 @@ void print_version(size_t)
   exit(0);
 }
 
+static void _signal_handler(int sig_num)
+{
+  LOG_INFO_FMT("Ignoring signal: {}", sig_num);
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
-  signal(SIGPIPE, SIG_IGN);
+  {
+    // Avoiding use of SIG_IGN due to OE issue:
+    // https://github.com/openenclave/openenclave/issues/4542
+    signal(SIGPIPE, _signal_handler);
+  }
 
   CLI::App app{"ccf"};
 
@@ -524,6 +534,11 @@ int main(int argc, char** argv)
       LOG_FAIL_FMT(
         "Selected consensus BFT is not supported in {}", ccf::ccf_version);
 #endif
+    }
+
+    if (config.network.acme)
+    {
+      startup_config.network.acme = config.network.acme;
     }
 
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
