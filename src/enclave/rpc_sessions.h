@@ -209,13 +209,8 @@ namespace ccf
 
         li.endorsement = interface.endorsement.value_or(endorsement_default);
 
-        if (!interface.http_configuration.has_value())
-        {
-          throw std::logic_error(
-            fmt::format("RPC Interface {} has no HTTP configuration", name));
-        }
-
-        li.http_configuration = interface.http_configuration.value();
+        li.http_configuration =
+          interface.http_configuration.value_or(http::ParserConfiguration{});
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "

@@ -48,6 +48,8 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
+            LOG.error(node["rpc_interfaces"])
+            LOG.success(infra.interfaces.HostSpec.to_json(n.host))
             assert infra.interfaces.HostSpec.to_json(n.host) == node["rpc_interfaces"]
             del nodes_by_id[n.node_id]
 

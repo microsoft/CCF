@@ -352,7 +352,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--max-http-header-size",
-        help="Maximum allowed size of single header in single HTTP request header",
+        help="Maximum allowed size of single header in single HTTP request",
         default=1024 * 16,  # 16KB
     )
     parser.add_argument(

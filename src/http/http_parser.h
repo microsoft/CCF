@@ -253,11 +253,13 @@ namespace http
         LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
         std::copy(at, at + length, std::back_inserter(body_buf));
 
-        if (body_buf.size() > configuration.max_body_size)
+        auto const& max_body_size =
+          configuration.max_body_size.value_or(default_max_body_size);
+        if (body_buf.size() > max_body_size)
         {
           throw RequestPayloadTooLarge(fmt::format(
             "HTTP request body is too large (max size allowed: {})",
-            configuration.max_body_size));
+            max_body_size));
         }
       }
       else
@@ -303,11 +305,12 @@ namespace http
       if (!partial_parsed_header.second.empty())
       {
         complete_header();
-        if (headers.size() > configuration.max_headers_count)
+        auto const& max_headers_count =
+          configuration.max_headers_count.value_or(default_max_headers_count);
+        if (headers.size() > max_headers_count)
         {
           throw RequestHeaderTooLarge(fmt::format(
-            "Too many headers (max number allowed: {})",
-            configuration.max_headers_count));
+            "Too many headers (max number allowed: {})", max_headers_count));
         }
       }
 
@@ -318,12 +321,14 @@ namespace http
       auto& partial_header_key = partial_parsed_header.first;
       partial_header_key.append(f);
 
-      if (partial_header_key.size() > configuration.max_header_size)
+      auto const& max_header_size =
+        configuration.max_header_size.value_or(default_max_header_size);
+      if (partial_header_key.size() > max_header_size)
       {
         throw RequestHeaderTooLarge(fmt::format(
           "Header key for '{}' is too large (max size allowed: {})",
           partial_parsed_header.first,
-          configuration.max_header_size));
+          max_header_size));
       }
     }
 
@@ -331,12 +336,14 @@ namespace http
     {
       auto& partial_header_value = partial_parsed_header.second;
       partial_header_value.append(at, length);
-      if (partial_header_value.size() > configuration.max_header_size)
+      auto const& max_header_size =
+        configuration.max_header_size.value_or(default_max_header_size);
+      if (partial_header_value.size() > max_header_size)
       {
         throw RequestHeaderTooLarge(fmt::format(
           "Header value for '{}' is too large (max size allowed: {})",
           partial_parsed_header.first,
-          configuration.max_header_size));
+          max_header_size));
       }
     }
 
