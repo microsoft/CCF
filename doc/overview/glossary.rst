@@ -22,6 +22,9 @@ Glossary
   Constitution
     JavaScript module that defines possible governance actions, and how members' proposals are validated, resolved and applied to the service.
 
+  Commit Evidence
+    A :ref:`unique string <use_apps/verify_tx:Commit Evidence>` produced per transaction, and included in the Merkle Tree along with the :term:`Write Set` digest and the `claims_digest`. The reveal of that string guarantees the transaction is committed.
+
   CFT
     Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
     a given limit. CFT however does not account for any nodes behaving maliciously (in contrast to :term:`BFT`). Read more on CFT :ref:`here <architecture/consensus/index:CFT Consensus Protocol>`.
