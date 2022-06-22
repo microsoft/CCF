@@ -383,7 +383,7 @@ namespace aft
       kv::Consensus::SignableTxIndices r;
       r.version = state->last_idx;
       r.term = get_term_internal(r.version);
-      r.previous_version = last_committable_index();
+      r.previous_version = std::max(last_committable_index(), election_index);
       return r;
     }
 
