@@ -462,10 +462,6 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 
     // B's term history must match the current primary's
     DOCTEST_REQUIRE(rB.get_last_idx() <= rC.get_last_idx());
-    std::cerr << "rB.get_view_history(rB.get_last_idx()) "
-              << rB.get_view_history(rB.get_last_idx())[2] << std::endl;
-    std::cerr << "rC.get_view_history(rB.get_last_idx()) "
-              << rC.get_view_history(rB.get_last_idx())[2] << std::endl;
     DOCTEST_REQUIRE(
       rB.get_view_history(rB.get_last_idx()) ==
       rC.get_view_history(rB.get_last_idx()));
@@ -665,7 +661,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   const auto num_terms = 16;
   for (size_t i = 0; i < num_terms; ++i)
   {
-    create_term_on(rand() % 2 == 0, rand() % 6);
+    create_term_on(rand() % 2 == 0, rand() % 6 + 1);
   }
 
   // Ensure at least one term on each
@@ -730,8 +726,12 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     auto& channelsPrimary = rA.is_primary() ? channelsA : channelsB;
     {
       DOCTEST_INFO("Catch node C up");
+      auto attempts = 0u;
+
       while (rC.get_last_idx() < rPrimary.get_last_idx())
       {
+        // Avoid infinite loop
+        DOCTEST_REQUIRE(attempts++ < rPrimary.get_last_idx());
         rPrimary.periodic(request_timeout);
         dispatch_all(nodes, id_primary);
         dispatch_all(nodes, node_idC);

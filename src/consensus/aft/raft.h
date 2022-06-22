@@ -150,8 +150,6 @@ namespace aft
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
 
-    bool _should_sign = false;
-
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -253,21 +251,8 @@ namespace aft
     bool can_replicate() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
-      LOG_DEBUG_FMT(
-        "XXXXXXXXXXXXXXXXXXXXXXXX CAN REPLICATE {}",
-        leadership_state == kv::LeadershipState::Leader &&
-          !retirement_committable_idx.has_value());
       return leadership_state == kv::LeadershipState::Leader &&
         !retirement_committable_idx.has_value();
-    }
-
-    bool should_sign() override
-    {
-      std::unique_lock<std::mutex> guard(state->lock);
-      bool should = _should_sign;
-      LOG_DEBUG_FMT("XXXXXXXXXXXXXXXXXX SHOULD SIGN {}", should);
-      _should_sign = false;
-      return should;
     }
 
     bool is_backup() override
@@ -1796,8 +1781,6 @@ namespace aft
       {
         return;
       }
-
-      _should_sign = true;
 
       // When we force to become the primary we are going around the
       // consensus protocol. This only happens when a node starts a new network

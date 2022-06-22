@@ -44,6 +44,9 @@ def fully_connected_scenario(nodes, steps):
     for node in range(nodes):
         lines.append(f"periodic_one,{node},100")
         lines.append("dispatch_all")
+        lines.append("replicate,latest,CommitConfirmer")
+        lines.append("periodic_all,10")
+        lines.append("dispatch_all")
         lines.append("periodic_all,10")
         lines.append("dispatch_all")
         lines.append("state_all")

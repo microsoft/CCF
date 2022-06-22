@@ -40,7 +40,7 @@ def count_nodes(configs, network):
     return len(nodes)
 
 
-def wait_for_reconfiguration_to_complete(network, timeout=3):
+def wait_for_reconfiguration_to_complete(network, timeout=10):
     max_num_configs = 0
     max_rid = 0
     all_same_rid = False
@@ -331,7 +331,7 @@ def test_retire_primary(network, args):
         new_primary,
         primary.node_id,
         node_status=None,
-        timeout=10,
+        timeout=3,
     )
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)

@@ -540,15 +540,10 @@ namespace ccf
             auto consensus = self->store.get_consensus();
             if (
               (consensus != nullptr) && consensus->can_replicate() &&
-              // Emit signatures when there's either a committable gap
-              // or the consensus believes it should sign, for example because
-              // the node just became leader.
-              (consensus->should_sign() ||
-               (self->store.committable_gap() > 0 &&
-                time > time_of_last_signature &&
-                (time - time_of_last_signature) > sig_ms_interval)))
+              (self->store.committable_gap() > 0 &&
+               time > time_of_last_signature &&
+               (time - time_of_last_signature) > sig_ms_interval))
             {
-              LOG_DEBUG_FMT("XXXXX EMIT");
               should_emit_signature = true;
             }
 
