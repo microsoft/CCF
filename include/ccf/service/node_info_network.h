@@ -182,7 +182,6 @@ namespace ccf
     }
     catch (const JsonParseError& jpe)
     {
-      LOG_FAIL_FMT("JSON error: {}", jpe.what());
       NodeInfoNetwork_v1 v1;
       from_json(j, v1);
 
