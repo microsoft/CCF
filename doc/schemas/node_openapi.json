@@ -499,6 +499,9 @@
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
+          "http_configuration": {
+            "$ref": "#/components/schemas/ParserConfiguration"
+          },
           "max_open_sessions_hard": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -537,6 +540,20 @@
           "Retiring"
         ],
         "type": "string"
+      },
+      "ParserConfiguration": {
+        "properties": {
+          "max_body_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
+          "max_header_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
+          "max_headers_count": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "type": "object"
       },
       "Pem": {
         "type": "string"
@@ -661,10 +678,18 @@
         "properties": {
           "parsing": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "request_header_too_large": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "request_payload_too_large": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
-          "parsing"
+          "parsing",
+          "request_payload_too_large",
+          "request_header_too_large"
         ],
         "type": "object"
       },
@@ -694,6 +719,10 @@
           "errors"
         ],
         "type": "object"
+      },
+      "TimeString": {
+        "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+        "type": "string"
       },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
@@ -779,7 +808,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.20.0"
+    "version": "2.21.0"
   },
   "openapi": "3.0.0",
   "paths": {
