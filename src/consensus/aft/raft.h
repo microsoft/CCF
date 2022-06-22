@@ -1324,7 +1324,6 @@ namespace aft
           case kv::ApplyResult::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
-            auto prev_lci = last_committable_index();
             if (
               membership_state == kv::MembershipState::Retired &&
               retirement_phase == kv::RetirementPhase::Ordered)
@@ -1344,7 +1343,10 @@ namespace aft
               }
               else
               {
-                state->view_history.update(prev_lci + 1, ds->get_term());
+                // NB: This is only safe as long as AppendEntries only contain a
+                // single term. If they cover multiple terms, then we need to
+                // know our previous signature locally.
+                state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
               commit_if_possible(r.leader_commit_idx);
             }
@@ -1796,6 +1798,11 @@ namespace aft
       // and has a genesis or recovery tx as the last transaction
       election_index = last_committable_index();
 
+      // A newly elected leader must not advance the commit index until a
+      // transaction in the new term commits. We achieve this by clearing our
+      // list committable indices - so nothing from a previous term is now
+      // considered committable. Instead this new primary will shortly produce
+      // their own signature, which _will_ be considered committable.
       committable_indices.clear();
 
       LOG_DEBUG_FMT(
