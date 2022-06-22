@@ -61,7 +61,11 @@ dispatch_one,1
 # Node 2 responds in support
 dispatch_one,2
 
+# Node 1 appends a new committable entry to persist its primaryship across potential further elections
+replicate,2,Primary
+
 # Node 1 sends an initial AppendEntries probe
+periodic_one,1,10
 dispatch_one,1
 
 # Node 2 indicates it is behind
@@ -83,6 +87,9 @@ state_all
 # Node 0 rejoins the network
 connect,0,1
 connect,0,2
+
+periodic_all,10
+dispatch_all
 
 periodic_all,10
 dispatch_all

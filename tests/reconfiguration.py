@@ -40,7 +40,7 @@ def count_nodes(configs, network):
     return len(nodes)
 
 
-def wait_for_reconfiguration_to_complete(network, timeout=10):
+def wait_for_reconfiguration_to_complete(network, timeout=3):
     max_num_configs = 0
     max_rid = 0
     all_same_rid = False
