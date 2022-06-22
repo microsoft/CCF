@@ -48,8 +48,6 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
-            LOG.error(node["rpc_interfaces"])
-            LOG.success(infra.interfaces.HostSpec.to_json(n.host))
             assert infra.interfaces.HostSpec.to_json(n.host) == node["rpc_interfaces"]
             del nodes_by_id[n.node_id]
 
@@ -164,7 +162,6 @@ def test_memory(network, args):
 
 @reqs.description("Write/Read large messages on primary")
 @reqs.supports_methods("/app/log/private")
-@app.scoped_txs()
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -284,14 +281,8 @@ def test_large_messages(network, args):
 
 
 def run(args):
-    txs = app.LoggingTxs("user0")
     with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-        txs=txs,
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
