@@ -15,6 +15,7 @@
 #include "tls/cert.h"
 #include "tls/client.h"
 #include "tls/context.h"
+#include "tls/plaintext_server.h"
 #include "tls/server.h"
 
 #include <limits>
@@ -309,7 +310,9 @@ namespace ccf
 
       auto& per_listen_interface = it->second;
 
-      if (certs.find(listen_interface_id) == certs.end())
+      if (
+        per_listen_interface.endorsement.authority != Authority::UNSECURED &&
+        certs.find(listen_interface_id) == certs.end())
       {
         LOG_DEBUG_FMT(
           "Refusing TLS session {} inside the enclave - interface {} "
@@ -378,7 +381,12 @@ namespace ccf
         }
         else
         {
-          auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+          std::unique_ptr<tls::Context> ctx;
+          if (
+            per_listen_interface.endorsement.authority == Authority::UNSECURED)
+            ctx = std::make_unique<nontls::PlaintextServer>();
+          else
+            ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
 
           auto session = std::make_shared<ServerEndpointImpl>(
             rpc_map,

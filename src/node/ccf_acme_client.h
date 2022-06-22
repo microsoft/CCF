@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/json.h"
+#include "ccf/http_status.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/tables/acme_certificates.h"
-#include "enclave/interface.h"
 #include "enclave/rpc_sessions.h"
+#include "node/acme_challenge_frontend.h"
 #include "node/acme_client.h"
 #include "service/network_tables.h"
 
@@ -37,15 +37,17 @@ namespace ccf
     ACMEClient(
       const std::string& config_name,
       const ACMEClientConfig& config,
+      std::shared_ptr<RPCMap> rpc_map,
       std::shared_ptr<RPCSessions> rpc_sessions,
+      std::shared_ptr<ACMERpcFrontend> challenge_frontend,
       std::shared_ptr<kv::Store> store,
-      ringbuffer::WriterPtr to_host,
       std::shared_ptr<crypto::KeyPair> account_key_pair = nullptr) :
       ACME::Client(get_client_config(config), account_key_pair),
       config_name(config_name),
+      rpc_map(rpc_map),
       rpc_sessions(rpc_sessions),
-      store(store),
-      to_host(to_host)
+      challenge_frontend(challenge_frontend),
+      store(store)
     {}
 
     virtual ~ACMEClient() {}
@@ -88,16 +90,17 @@ namespace ccf
 
   protected:
     std::string config_name;
+    std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpc_sessions;
+    std::shared_ptr<ACMERpcFrontend> challenge_frontend;
     std::shared_ptr<kv::Store> store;
-    ringbuffer::WriterPtr to_host;
 
     void install_wildcard_response()
     {
       // Register a wildcard-response for all challenge tokens. If we use a
       // shared account key, we can use this response on all nodes without
       // further communication.
-      on_challenge(make_challenge_response());
+      on_challenge("", make_challenge_response());
     }
 
     virtual void on_http_request(
@@ -123,10 +126,16 @@ namespace ccf
       client->send_request(std::move(req));
     }
 
-    virtual void on_challenge(const std::string& key_authorization) override
+    virtual void on_challenge(
+      const std::string& token, const std::string& response) override
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ACMEMessage::acme_challenge_response, to_host, key_authorization);
+      challenge_frontend->add(token, response);
+      start_challenge(token);
+    }
+
+    virtual void on_challenge_finished(const std::string& token) override
+    {
+      challenge_frontend->remove(token);
     }
 
     virtual void on_certificate(const std::string& certificate) override

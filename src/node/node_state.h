@@ -1402,6 +1402,7 @@ namespace ccf
       for (const auto& [iname, interface] : config.network.rpc_interfaces)
       {
         if (
+          !interface.endorsement ||
           interface.endorsement->authority != Authority::ACME ||
           !interface.endorsement->acme_configuration)
         {
@@ -1415,6 +1416,8 @@ namespace ccf
           std::find(interfaces->begin(), interfaces->end(), iname) !=
             interfaces->end())
         {
+          auto challenge_frontend = find_well_known_frontend();
+
           const std::string& cfg_name =
             *interface.endorsement->acme_configuration;
           auto cit = config.network.acme->configurations.find(cfg_name);
@@ -1426,16 +1429,17 @@ namespace ccf
 
           if (acme_clients.find(cfg_name) == acme_clients.end())
           {
-            const auto& aconfig = cit->second;
+            const auto& cfg = cit->second;
 
             acme_clients.emplace(
               cfg_name,
               std::make_shared<ccf::ACMEClient>(
                 cfg_name,
-                aconfig,
+                cfg,
+                rpc_map,
                 rpcsessions,
+                challenge_frontend,
                 network.tables,
-                to_host,
                 node_sign_kp));
           }
 
@@ -1888,6 +1892,30 @@ namespace ccf
     bool is_member_frontend_open()
     {
       return find_frontend(ActorsType::members)->is_open();
+    }
+
+    std::shared_ptr<ACMERpcFrontend> find_well_known_frontend()
+    {
+      auto well_known_opt = rpc_map->find(ActorsType::well_known);
+      if (!well_known_opt)
+      {
+        throw std::runtime_error("Missing ACME challenge frontend");
+      }
+      // At this time, only the ACME challenge frontend uses the well-known
+      // actor prefix.
+      return std::static_pointer_cast<ACMERpcFrontend>(*well_known_opt);
+    }
+
+    void open_well_known_frontend()
+    {
+      if (config.network.acme && !config.network.acme->configurations.empty())
+      {
+        auto fe = find_frontend(ActorsType::well_known);
+        if (fe)
+        {
+          fe->open();
+        }
+      }
     }
 
     std::vector<uint8_t> serialize_create_request(bool create_consortium = true)
@@ -2527,6 +2555,8 @@ namespace ccf
         return;
       }
 
+      open_well_known_frontend();
+
       const auto& ifaces = config.network.rpc_interfaces;
       num_acme_interfaces =
         std::count_if(ifaces.begin(), ifaces.end(), [](const auto& id_iface) {
@@ -2574,14 +2604,6 @@ namespace ccf
     }
 
   public:
-    void acme_challenge_response_ack(const std::string& token)
-    {
-      for (auto& [_, client] : acme_clients)
-      {
-        client->start_challenge(token);
-      }
-    }
-
     virtual const StartupConfig& get_node_config() const override
     {
       return config;
