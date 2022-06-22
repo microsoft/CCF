@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `/node/version` now contains an `unsafe` flag reflecting the status of the build.
+
+### Changed
+
+- Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+
 ## [3.0.0-dev0]
 
 ### Added
@@ -1598,3 +1608,4 @@ Initial pre-release
 [0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
+[unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased

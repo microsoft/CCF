@@ -6,6 +6,7 @@
 #include "ccf/node_startup_state.h"
 #include "ccf/quote_info.h"
 #include "ccf/service/tables/code_id.h"
+#include "common/configuration.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
@@ -49,5 +50,6 @@ namespace ccf
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;
     virtual crypto::Pem get_self_signed_certificate() = 0;
+    virtual const StartupConfig& get_node_config() const = 0;
   };
 }

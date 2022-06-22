@@ -44,6 +44,7 @@ namespace ccf
     {
       std::string ccf_version;
       std::string quickjs_version;
+      bool unsafe;
     };
   };
 
