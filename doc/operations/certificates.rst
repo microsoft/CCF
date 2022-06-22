@@ -127,6 +127,6 @@ To be able to bind to that port, the ``cchost`` binary may need to be given spec
     - ``contact``: A list of contact addresses, usually e-mail addresses, which must be prefixed with ``mailto:``. These contacts may receive notifications about service changes, e.g. certificate revocation or expiry.
     - ``terms_of_service_agreed``: A Boolean confirming that the operator accepts the terms of service for the CA. RFC8555 requires this to be set explicitly by the operator.
     - ``challenge_type``: Currently only `http-01 <https://letsencrypt.org/docs/challenge-types/>`_ is supported.
-    - ``challenge_server_interface``: Name of the interface that the ACME challenge server listens on. For http-01 challenges in production, this must listen on port 80.
+    - ``challenge_server_interface``: Name of the interface that the ACME challenge server listens on. For http-01 challenges in production, this interface must be exposed publicly on port 80.
 
 4. CCF nodes periodically check for certificate expiry and trigger renewal when 66% of the validity period has elapsed. The resulting certificates are stored in the ``ccf.gov.service.acme_certificates`` table and upon an update to this table, nodes will automatically install the corresponding certificate on their interfaces. If necessary, renewal can also be triggered manually by submitting a ``trigger_acme_refresh`` governance proposal.
