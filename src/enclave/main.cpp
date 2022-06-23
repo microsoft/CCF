@@ -14,7 +14,7 @@
 #include <thread>
 
 // the central enclave object
-static std::mutex create_lock;
+static ccf::Mutex create_lock;
 static std::atomic<ccf::Enclave*> e;
 
 std::atomic<uint16_t> num_pending_threads = 0;
@@ -58,6 +58,24 @@ extern "C"
     }
   }
 
+  // Confirming in-enclave behaviour in separate unit tests is tricky, so we do
+  // final sanity checks on some std behaviour here, on every enclave launch.
+  void enclave_sanity_checks()
+  {
+    {
+      ccf::Mutex m;
+      m.lock();
+      if (m.try_lock())
+      {
+        LOG_FATAL_FMT("Able to lock mutex multiple times");
+        abort();
+      }
+      m.unlock();
+    }
+
+    LOG_DEBUG_FMT("All sanity check tests passed");
+  }
+
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
     char* ccf_config,
@@ -75,7 +93,7 @@ extern "C"
     size_t num_worker_threads,
     void* time_location)
   {
-    std::lock_guard<std::mutex> guard(create_lock);
+    std::lock_guard<ccf::Mutex> guard(create_lock);
 
     if (e != nullptr)
     {
@@ -112,6 +130,8 @@ extern "C"
     logger::config::loggers().push_back(std::move(new_logger));
 
     oe_enclave_log_set_callback(nullptr, &open_enclave_logging_callback);
+
+    enclave_sanity_checks();
 
     {
       // Report enclave version to host
@@ -299,7 +319,7 @@ extern "C"
     {
       uint16_t tid;
       {
-        std::lock_guard<std::mutex> guard(create_lock);
+        std::lock_guard<ccf::Mutex> guard(create_lock);
 
         tid = threading::ThreadMessaging::thread_count.fetch_add(1);
         threading::thread_ids.emplace(std::pair<std::thread::id, uint16_t>(

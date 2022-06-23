@@ -10,7 +10,7 @@
 namespace asynchost
 {
   static std::unordered_set<uv_getaddrinfo_t*> pending_resolve_requests;
-  static std::mutex pending_resolve_requests_mtx;
+  static ccf::Mutex pending_resolve_requests_mtx;
 
   class DNS
   {
@@ -36,7 +36,7 @@ namespace asynchost
       if (async)
       {
         {
-          std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+          std::unique_lock<ccf::Mutex> guard(pending_resolve_requests_mtx);
           pending_resolve_requests.insert(resolver);
         }
 
@@ -56,7 +56,7 @@ namespace asynchost
             service,
             uv_strerror(rc));
           {
-            std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+            std::unique_lock<ccf::Mutex> guard(pending_resolve_requests_mtx);
             pending_resolve_requests.erase(resolver);
           }
           delete resolver;

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/mutex.h"
 #include "channels.h"
 #include "node/node_to_node.h"
 
@@ -14,7 +15,7 @@ namespace ccf
     ringbuffer::WriterPtr to_host;
 
     std::unordered_map<NodeId, std::shared_ptr<Channel>> channels;
-    std::mutex lock; //< Protects access to channels map
+    ccf::Mutex lock; //< Protects access to channels map
 
     struct ThisNode
     {
@@ -35,7 +36,7 @@ namespace ccf
         "Requested channel with self {}",
         peer_id);
 
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
       CCF_ASSERT_FMT(
         this_node != nullptr && this_node->endorsed_node_cert.has_value(),
         "Endorsed node certificate has not yet been set");
@@ -95,7 +96,7 @@ namespace ccf
 
     void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert) override
     {
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
       this_node->endorsed_node_cert = endorsed_node_cert;
     }
 
