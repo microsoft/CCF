@@ -122,7 +122,7 @@ if poll_for_service_open ${network_live_time}; then
 fi
 
 entries_final=$(current_ledger_length)
-if [ ${entries_final} -lt ${entries_to_recover} ]; then
+if [ "${entries_final}" -lt "${entries_to_recover}" ]; then
     echo "Error: not all entries were recovered (expected ${entries_to_recover} but only recovered ${entries_final})"
     exit 1
 fi
