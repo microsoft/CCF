@@ -58,6 +58,9 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
+      std::optional<http::ParserConfiguration> http_configuration =
+        std::nullopt;
+
       std::optional<Endorsement> endorsement = std::nullopt;
 
       bool operator==(const NetInterface& other) const
@@ -66,7 +69,8 @@ namespace ccf
           published_address == other.published_address &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
-          endorsement == other.endorsement;
+          endorsement == other.endorsement &&
+          http_configuration == other.http_configuration;
       }
     };
 
@@ -75,6 +79,7 @@ namespace ccf
     NetInterface node_to_node_interface;
     RpcInterfaces rpc_interfaces;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -82,8 +87,13 @@ namespace ccf
     endorsement,
     max_open_sessions_soft,
     max_open_sessions_hard,
-    published_address);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
+    published_address,
+    protocol,
+    http_configuration);
+
+  DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
 
@@ -164,8 +174,7 @@ namespace ccf
   }
 }
 
-FMT_BEGIN_NAMESPACE
-template <>
+FMT_BEGIN_NAMESPACE template <>
 struct formatter<ccf::Authority>
 {
   template <typename ParseContext>

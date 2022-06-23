@@ -40,7 +40,7 @@ def print_attributes(entry):
     if "description" in entry:
         desc += entry["description"]
     if "enum" in entry:
-        desc += f' (values: {", ".join(stringify_output(s) for s in entry["enum"])})'
+        desc += f'. (values: {", ".join(stringify_output(s) for s in entry["enum"])})'
     if "default" in entry:
         desc += f'. Default: {stringify_output(entry["default"])}'
     if "minimum" in entry:

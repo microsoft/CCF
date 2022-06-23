@@ -491,6 +491,9 @@
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
+          "http_configuration": {
+            "$ref": "#/components/schemas/ParserConfiguration"
+          },
           "max_open_sessions_hard": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -526,6 +529,20 @@
           "Retiring"
         ],
         "type": "string"
+      },
+      "ParserConfiguration": {
+        "properties": {
+          "max_body_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
+          "max_header_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
+          "max_headers_count": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "type": "object"
       },
       "Pem": {
         "type": "string"
@@ -650,10 +667,18 @@
         "properties": {
           "parsing": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "request_header_too_large": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "request_payload_too_large": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
-          "parsing"
+          "parsing",
+          "request_payload_too_large",
+          "request_header_too_large"
         ],
         "type": "object"
       },
@@ -683,6 +708,10 @@
           "errors"
         ],
         "type": "object"
+      },
+      "TimeString": {
+        "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+        "type": "string"
       },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
