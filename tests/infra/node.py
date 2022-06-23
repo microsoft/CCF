@@ -702,9 +702,11 @@ class Node:
         return False
 
     def version_after(self, version):
-        rc, _ = version_rc(version)
-        if rc is None or self.version is None:
+        if self.version is None and version is not None:
+            # It is assumed that version is None for latest development
+            # branch (i.e. main)
             return True
+        rc, _ = version_rc(version)
         self_rc, self_num_rc_tkns = version_rc(self.version)
         ver = Version(strip_version(version))
         self_ver = Version(strip_version(self.version))

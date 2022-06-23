@@ -275,6 +275,11 @@ class Network:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
+        # Note: temporary fix until second snapshot directory is ported to 2.x branch
+        if not node.version_after("ccf-2.0.3") and read_only_snapshots_dir is not None:
+            LOG.error("here")
+            snapshots_dir = read_only_snapshots_dir
+
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
@@ -1211,7 +1216,7 @@ class Network:
                         f
                     ):
                         LOG.info(
-                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time())}s"
+                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time()):.2f}s"
                         )
                         return True
 
