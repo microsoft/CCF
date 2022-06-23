@@ -93,7 +93,8 @@ language = "en"
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "zenburn"
+pygments_style = "default"
+pygments_dark_style = "zenburn"
 
 # Ignore main index file that has clickable images, JS/Doxygen output,
 # github anchors https://github.com/sphinx-doc/sphinx/issues/9016), and nghttp2
