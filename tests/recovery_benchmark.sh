@@ -6,7 +6,7 @@
 # Note that the script makes uses of the sandbox and as such, 
 # the timing results are rough (+/- a few seconds).
 
-# Usage: $ recovery_benchmark.sh /opt/ccf [--with-snapshot] [--sig-tx-interval 100] [--load-run-time-s 30]
+# Usage: $ cd CCF/build && ../tests/recovery_benchmark.sh /opt/ccf [--with-snapshot] [--sig-tx-interval 100] [--load-run-time-s 30]
 
 if [ -z "$1" ]; then
     echo "Error: First argument should be CCF install path"
@@ -121,7 +121,13 @@ if poll_for_service_open ${network_live_time}; then
     exit 1
 fi
 
+entries_final=$(current_ledger_length)
+if [ ${entries_final} -lt ${entries_to_recover} ]; then
+    echo "Error: not all entries were recovered (expected ${entries_to_recover} but only recovered ${entries_final})"
+    exit 1
+fi
+
 total_recovery_time=$((SECONDS-seconds_before_recovery))
-echo "** Successfully recovered $(current_ledger_length) entries"
+echo "** Successfully recovered ${entries_final} entries"
 
 echo "Total recovery time: $total_recovery_time secs [# entries: ${entries_to_recover}, with snapshot: ${with_snapshot}, sig interval: ${signature_tx_interval}]"
