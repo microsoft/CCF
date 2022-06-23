@@ -61,6 +61,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
+    :fa:`network-wired` :doc:`network`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Configure a network to deploy a CCF service.
+
+    ---
+
     :fa:`file-alt` :doc:`node_output`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -91,6 +98,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
     code_upgrade_1x
     certificates
     recovery
+    network
     node_output
     resource_usage
     operator_rpc_api
