@@ -45,6 +45,7 @@ namespace ccf
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
+      http::ParserConfiguration http_configuration;
       ccf::SessionMetrics::Errors errors;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
@@ -147,6 +148,23 @@ namespace ccf
       return id;
     }
 
+    ListenInterface& get_interface_from_session_id(tls::ConnID id)
+    {
+      // Lock must be first acquired and held while accessing returned interface
+      auto search = sessions.find(id);
+      if (search != sessions.end())
+      {
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          return it->second;
+        }
+      }
+
+      throw std::logic_error(
+        fmt::format("No RPC interface for session ID {}", id));
+    }
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -160,16 +178,19 @@ namespace ccf
     void report_parsing_error(tls::ConnID id) override
     {
       std::lock_guard<std::mutex> guard(lock);
+      get_interface_from_session_id(id).errors.parsing++;
+    }
 
-      auto search = sessions.find(id);
-      if (search != sessions.end())
-      {
-        auto it = listening_interfaces.find(search->second.first);
-        if (it != listening_interfaces.end())
-        {
-          it->second.errors.parsing++;
-        }
-      }
+    void report_request_payload_too_large_error(tls::ConnID id) override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      get_interface_from_session_id(id).errors.request_payload_too_large++;
+    }
+
+    void report_request_header_too_large_error(tls::ConnID id) override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      get_interface_from_session_id(id).errors.request_header_too_large++;
     }
 
     void update_listening_interface_options(
@@ -188,6 +209,9 @@ namespace ccf
           max_open_sessions_hard_default);
 
         li.endorsement = interface.endorsement.value_or(endorsement_default);
+
+        li.http_configuration =
+          interface.http_configuration.value_or(http::ParserConfiguration{});
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
@@ -370,6 +394,7 @@ namespace ccf
             listen_interface_id,
             writer_factory,
             std::move(ctx),
+            per_listen_interface.http_configuration,
             shared_from_this());
           sessions.insert(std::make_pair(
             id, std::make_pair(listen_interface_id, std::move(session))));
