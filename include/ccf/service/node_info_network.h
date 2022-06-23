@@ -5,6 +5,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_configuration.h"
 #include "ccf/service/acme_client_config.h"
 
 #include <string>
@@ -71,6 +72,9 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
+      std::optional<http::ParserConfiguration> http_configuration =
+        std::nullopt;
+
       std::optional<Endorsement> endorsement = std::nullopt;
 
       bool operator==(const NetInterface& other) const
@@ -80,7 +84,8 @@ namespace ccf
           protocol == other.protocol &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
-          endorsement == other.endorsement;
+          endorsement == other.endorsement &&
+          http_configuration == other.http_configuration;
       }
     };
 
@@ -96,8 +101,9 @@ namespace ccf
       bool operator==(const ACME&) const = default;
     };
 
-    std::optional<ACME> acme;
+    std::optional<ACME> acme = std::nullopt;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -106,7 +112,9 @@ namespace ccf
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address,
-    protocol);
+    protocol,
+    http_configuration);
+
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
@@ -191,8 +199,7 @@ namespace ccf
   }
 }
 
-FMT_BEGIN_NAMESPACE
-template <>
+FMT_BEGIN_NAMESPACE template <>
 struct formatter<ccf::Authority>
 {
   template <typename ParseContext>
