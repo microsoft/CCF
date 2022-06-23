@@ -264,7 +264,7 @@ namespace aft
     Consensus::SignatureDisposition get_signature_disposition() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
-      if (can_replicate())
+      if (can_replicate_unsafe())
       {
         if (is_new_primary)
         {
