@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ds/unit_strings.h"
+#include "ccf/ds/unit_strings.h"
 
 #include <cmath>
 #include <doctest/doctest.h>

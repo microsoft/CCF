@@ -19,6 +19,10 @@ DEFAULT_TRANSPORT_PROTOCOL = "tcp"
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 
+DEFAULT_MAX_HTTP_BODY_SIZE = 1024 * 1024
+DEFAULT_MAX_HTTP_HEADER_SIZE = 16 * 1024
+DEFAULT_MAX_HTTP_HEADERS_COUNT = 256
+
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
@@ -71,6 +75,9 @@ class RPCInterface(Interface):
     public_port: Optional[int] = None
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
+    max_http_body_size: Optional[int] = DEFAULT_MAX_HTTP_BODY_SIZE
+    max_http_header_size: Optional[int] = DEFAULT_MAX_HTTP_HEADER_SIZE
+    max_http_headers_count: Optional[int] = DEFAULT_MAX_HTTP_HEADERS_COUNT
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
 
@@ -82,6 +89,11 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
+            "http_configuration": {
+                "max_body_size": str(interface.max_http_body_size),
+                "max_header_size": str(interface.max_http_header_size),
+                "max_headers_count": interface.max_http_headers_count,
+            },
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
         if interface.acme_configuration:

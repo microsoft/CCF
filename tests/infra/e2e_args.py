@@ -25,6 +25,9 @@ def nodes(args, n):
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                     max_open_sessions_soft=args.max_open_sessions,
                     max_open_sessions_hard=args.max_open_sessions_hard,
+                    max_http_body_size=args.max_http_body_size,
+                    max_http_header_size=args.max_http_header_size,
+                    max_http_headers_count=args.max_http_headers_count,
                 )
             }
         )
@@ -341,6 +344,21 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--config-file",
         help="Absolute path to node JSON configuration file",
         default=None,
+    )
+    parser.add_argument(
+        "--max-http-body-size",
+        help="Maximum allowed size for body of single HTTP request",
+        default=1024 * 1024,  # 1MB
+    )
+    parser.add_argument(
+        "--max-http-header-size",
+        help="Maximum allowed size of single header in single HTTP request",
+        default=1024 * 16,  # 16KB
+    )
+    parser.add_argument(
+        "--max-http-headers-count",
+        help="Maximum number of headers in single HTTP request",
+        default=256,
     )
 
     add(parser)
