@@ -104,6 +104,13 @@ namespace aft
     // entries, the initial index will not advance until this node acks.
     bool is_new_follower = false;
 
+    // When this node becomes primary, they should produce a new signature in
+    // the current view. This signature is the first thing they may commit, as
+    // they cannot confirm commit of anything from a previous view (Raft paper
+    // section 5.4.2). This bool is true from the point this node becomes
+    // primary, until it has seen a new signature pass through replicate.
+    bool is_new_primary = false;
+
     std::shared_ptr<aft::State> state;
 
     // Timeouts
@@ -251,8 +258,27 @@ namespace aft
     bool can_replicate() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
-      return leadership_state == kv::LeadershipState::Leader &&
-        !retirement_committable_idx.has_value();
+      return can_replicate_unsafe();
+    }
+
+    Consensus::SignatureDisposition get_signature_disposition() override
+    {
+      std::unique_lock<std::mutex> guard(state->lock);
+      if (can_replicate())
+      {
+        if (is_new_primary)
+        {
+          return Consensus::SHOULD_SIGN;
+        }
+        else
+        {
+          return Consensus::CAN_SIGN;
+        }
+      }
+      else
+      {
+        return Consensus::CANT_REPLICATE;
+      }
     }
 
     bool is_backup() override
@@ -377,9 +403,10 @@ namespace aft
       return {get_term_internal(commit_idx), commit_idx};
     }
 
-    std::optional<kv::Consensus::SignableTxIndices> get_signable_txid() override
+    kv::Consensus::SignableTxIndices get_signable_txid() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
+
       kv::Consensus::SignableTxIndices r;
       r.version = state->last_idx;
       r.term = get_term_internal(r.version);
@@ -749,6 +776,7 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
+          is_new_primary = false;
           start_ticking_if_necessary();
         }
 
@@ -954,6 +982,12 @@ namespace aft
         return ccf::VIEW_UNKNOWN;
 
       return state->view_history.view_at(idx);
+    }
+
+    bool can_replicate_unsafe()
+    {
+      return leadership_state == kv::LeadershipState::Leader &&
+        !retirement_committable_idx.has_value();
     }
 
     Index get_commit_idx_unsafe()
@@ -1813,6 +1847,7 @@ namespace aft
 
       leadership_state = kv::LeadershipState::Leader;
       leader_id = state->my_node_id;
+      is_new_primary = true;
 
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
