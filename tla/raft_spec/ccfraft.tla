@@ -18,10 +18,8 @@
 
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
-CONSTANTS PossibleServer
-
-\* The set and state of servers that we start with
-CONSTANTS PossibleConfigs, InitialConfig
+----
+\* Constants
 
 \* Server states.
 CONSTANTS Follower, Candidate, Leader, RetiredLeader, Pending
@@ -68,6 +66,20 @@ ASSUME CommitNotificationLimit \in Nat
 
 CONSTANTS NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
 
+\* Set of nodes for this model
+CONSTANTS PossibleServer
+ASSUME PossibleServer /= {}
+ASSUME PossibleServer \subseteq {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
+
+\* Set of configurations - Each new server should have a new identity
+CONSTANTS PossibleConfigs
+ASSUME PossibleConfigs /= <<>>
+ASSUME \A k \in 1..Len(PossibleConfigs): PossibleConfigs[k] /= {} /\ PossibleConfigs[k] \subseteq PossibleServer
+ASSUME Len(PossibleConfigs) >= ReconfigurationLimit
+
+\* State of the servers that we start with
+CONSTANTS InitialConfig
+ASSUME \A i \in PossibleServer : InitialConfig[i] \in {Follower, Candidate, Leader, RetiredLeader, Pending}
 ----
 \* Global variables
 
