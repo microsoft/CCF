@@ -1259,8 +1259,6 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   size_t snapshot_count = 5;
   size_t last_snapshot_idx = 0;
 
-  LOG_FAIL_FMT("here");
-
   INFO("Generate snapshots");
   {
     for (size_t i = 1; i < snapshot_interval * snapshot_count;

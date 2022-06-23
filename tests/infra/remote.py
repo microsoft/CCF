@@ -655,9 +655,6 @@ class CCFRemote(object):
             else None
         )
 
-        # if self.snapshots_dir
-        # else f"{local_node_id}.snapshots"
-
         # Constitution
         constitution = [
             os.path.join(self.common_dir, os.path.basename(f)) for f in constitution
