@@ -556,6 +556,7 @@ namespace ccf
                   {
                     should_emit_signature = true;
                   }
+                  break;
                 }
                 case kv::Consensus::SHOULD_SIGN:
                 {
