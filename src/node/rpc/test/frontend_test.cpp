@@ -40,7 +40,7 @@ protected:
 public:
   SimpleUserRpcFrontend(
     kv::Store& tables, ccfapp::AbstractNodeContext& context) :
-    RpcFrontend(tables, common_handlers),
+    RpcFrontend(tables, common_handlers, context),
     common_handlers(context)
   {}
 };
@@ -279,11 +279,12 @@ public:
 
 class TestNoCertsFrontend : public RpcFrontend
 {
+  ccf::StubNodeContext context;
   ccf::endpoints::EndpointRegistry endpoints;
 
 public:
   TestNoCertsFrontend(kv::Store& tables) :
-    RpcFrontend(tables, endpoints),
+    RpcFrontend(tables, endpoints, context),
     endpoints("test")
   {
     open();

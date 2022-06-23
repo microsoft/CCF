@@ -493,7 +493,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.7.2";
+      openapi_info.document_version = "2.7.3";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1476,7 +1476,7 @@ namespace ccf
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
-      RpcFrontend(*network.tables, member_endpoints),
+      RpcFrontend(*network.tables, member_endpoints, context),
       member_endpoints(network, context, share_manager)
     {}
   };
