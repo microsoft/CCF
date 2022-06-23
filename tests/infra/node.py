@@ -575,6 +575,9 @@ class Node:
             == infra.interfaces.EndorsementAuthority.Node,
             verify_ca=verify_ca,
         )
+        akwargs["protocol"] = (
+            kwargs.get("protocol") if "protocol" in kwargs else "https"
+        )
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[

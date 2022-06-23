@@ -16,13 +16,15 @@ namespace ccf
   {
     NODE,
     SERVICE,
-    ACME
+    ACME,
+    UNSECURED
   };
   DECLARE_JSON_ENUM(
     Authority,
     {{Authority::NODE, "Node"},
      {Authority::SERVICE, "Service"},
-     {Authority::ACME, "ACME"}});
+     {Authority::ACME, "ACME"},
+     {Authority::UNSECURED, "Unsecured"}});
 
   struct Endorsement
   {
@@ -95,7 +97,6 @@ namespace ccf
     struct ACME
     {
       std::map<std::string, ccf::ACMEClientConfig> configurations;
-      std::string challenge_server_interface;
 
       bool operator==(const ACME&) const = default;
     };
@@ -115,8 +116,7 @@ namespace ccf
     http_configuration);
 
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfoNetwork_v2::ACME, configurations, challenge_server_interface);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
@@ -225,6 +225,10 @@ struct formatter<ccf::Authority>
       case (ccf::Authority::ACME):
       {
         return format_to(ctx.out(), "ACME");
+      }
+      case (ccf::Authority::UNSECURED):
+      {
+        return format_to(ctx.out(), "Unsecured");
       }
     }
   }

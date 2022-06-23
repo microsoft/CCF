@@ -3,6 +3,9 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
+#include "ccf/http_status.h"
+#include "ccf/node_context.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
@@ -181,6 +184,41 @@ namespace ccf
                 allow_header_value));
           }
           return ctx->serialise_response();
+        }
+      }
+
+      if (consensus && !endpoint->properties.unencrypted_ok)
+      {
+        auto sctx = ctx->get_session_context();
+        auto iface = sctx->interface_id;
+        if (iface)
+        {
+          if (!node_configuration_subsystem)
+          {
+            node_configuration_subsystem =
+              node_context.get_subsystem<NodeConfigurationSubsystem>();
+            if (!node_configuration_subsystem)
+            {
+              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              return ctx->serialise_response();
+            }
+          }
+
+          auto& node_config = node_configuration_subsystem->get();
+          auto icfg = node_config.network.rpc_interfaces.at(*iface);
+
+          if (
+            !icfg.endorsement ||
+            icfg.endorsement->authority == Authority::UNSECURED)
+          {
+            ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+            return ctx->serialise_response();
+          }
+        }
+        else
+        {
+          // internal or forwarded: OK because they have been checked by the
+          // forwarder (forward() happens further down).
         }
       }
 
