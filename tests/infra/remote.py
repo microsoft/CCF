@@ -991,9 +991,7 @@ class CCFRemote(object):
         )
         read_only_snapshots_dir = None
         if self.read_only_snapshots_dir_name:
-            self._resilient_copy(
-                self.read_only_snapshots_dir_name, pre_condition_func=pre_condition_func
-            )
+            self._resilient_copy(self.read_only_snapshots_dir_name)
             read_only_snapshots_dir = os.path.join(
                 self.common_dir, self.read_only_snapshots_dir_name
             )

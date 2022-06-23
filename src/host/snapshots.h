@@ -186,7 +186,7 @@ namespace asynchost
       auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
       if (snapshot_idx > latest_committed_snapshot_idx)
       {
-        latest_committed_snapshot_file_name = directory / file_name;
+        latest_committed_snapshot_file_name = file_name;
         latest_committed_snapshot_idx = snapshot_idx;
       }
     }
@@ -231,6 +231,11 @@ namespace asynchost
       }
     }
 
+    fs::path get_main_directory() const
+    {
+      return snapshot_dir;
+    }
+
     void write_snapshot(
       consensus::Index idx,
       consensus::Index evidence_idx,
@@ -250,7 +255,7 @@ namespace asynchost
         idx,
         snapshot_idx_delimiter,
         evidence_idx);
-      auto full_snapshot_path = snapshot_dir / fs::path(snapshot_file_name);
+      auto full_snapshot_path = snapshot_dir / snapshot_file_name;
 
       if (fs::exists(full_snapshot_path))
       {
@@ -289,7 +294,7 @@ namespace asynchost
             !is_snapshot_file_committed(file_name) &&
             get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
           {
-            auto full_snapshot_path = snapshot_dir / fs::path(file_name);
+            auto full_snapshot_path = snapshot_dir / file_name;
             const auto committed_file_name =
               fmt::format("{}{}", file_name, snapshot_committed_suffix);
 
@@ -305,8 +310,7 @@ namespace asynchost
               reinterpret_cast<const char*>(receipt_data), receipt_size);
 
             fs::rename(
-              snapshot_dir / fs::path(file_name),
-              snapshot_dir / fs::path(committed_file_name));
+              snapshot_dir / file_name, snapshot_dir / committed_file_name);
 
             return;
           }
@@ -323,7 +327,8 @@ namespace asynchost
       }
     }
 
-    std::optional<fs::path> find_latest_committed_snapshot()
+    std::optional<std::pair<fs::path, fs::path>>
+    find_latest_committed_snapshot()
     {
       // Keep track of latest snapshot file in both directories
       size_t latest_idx = 0;
@@ -344,10 +349,17 @@ namespace asynchost
 
       if (main_latest_committed_snapshot.has_value())
       {
-        return main_latest_committed_snapshot.value();
+        return std::make_pair(
+          snapshot_dir, main_latest_committed_snapshot.value());
+      }
+      else if (read_only_latest_committed_snapshot.has_value())
+      {
+        return std::make_pair(
+          read_snapshot_dir.value(),
+          read_only_latest_committed_snapshot.value());
       }
 
-      return read_only_latest_committed_snapshot;
+      return std::nullopt;
     }
 
     void register_message_handlers(
