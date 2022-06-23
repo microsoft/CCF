@@ -341,26 +341,6 @@ def test_protocols(network, args):
     return network
 
 
-@reqs.description("Write/Read large messages on primary")
-@reqs.supports_methods("/app/log/private")
-@app.scoped_txs()
-def test_large_messages(network, args):
-    check = infra.checker.Checker()
-
-    # TLS libraries usually have 16K internal buffers, so we start at
-    # 1K and move up to 1M and make sure they can cope with it.
-    # Starting below 16K also helps identify problems (by seeing some
-    # pass but not others, and finding where does it fail).
-    log_id = 7
-    for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-        long_msg = "X" * (2**p)
-        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
-        check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
-        log_id += 1
-
-    return network
-
-
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("/app/log/private")
 def test_remove(network, args):
@@ -1541,36 +1521,35 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test(network, args)
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_clear(network, args)
-        network = test_record_count(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_signed_escapes(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_metrics(network, args)
+        test(network, args)
+        test_remove(network, args)
+        test_clear(network, args)
+        test_record_count(network, args)
+        test_forwarding_frontends(network, args)
+        test_signed_escapes(network, args)
+        test_user_data_ACL(network, args)
+        test_cert_prefix(network, args)
+        test_anonymous_caller(network, args)
+        test_multi_auth(network, args)
+        test_custom_auth(network, args)
+        test_custom_auth_safety(network, args)
+        test_raw_text(network, args)
+        test_historical_query(network, args)
+        test_historical_query_range(network, args)
+        test_view_history(network, args)
+        test_metrics(network, args)
         # BFT does not handle re-keying yet
         if args.consensus == "CFT":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-            network = test_random_receipts(network, args, False)
+            test_liveness(network, args)
+            test_rekey(network, args)
+            test_liveness(network, args)
+            test_random_receipts(network, args, False)
         if args.package == "samples/apps/logging/liblogging":
-            network = test_receipts(network, args)
-            network = test_historical_query_sparse(network, args)
+            test_receipts(network, args)
+            test_historical_query_sparse(network, args)
         if "v8" not in args.package:
-            network = test_historical_receipts(network, args)
-            network = test_historical_receipts_with_claims(network, args)
+            test_historical_receipts(network, args)
+            test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1585,8 +1564,8 @@ def run_parsing_errors(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_illegal(network, args)
-        network = test_protocols(network, args)
+        test_illegal(network, args)
+        test_protocols(network, args)
 
 
 if __name__ == "__main__":
