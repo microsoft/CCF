@@ -980,11 +980,6 @@ class CCFRemote(object):
             read_only_ledger_dirs.append(os.path.join(self.common_dir, name))
         return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
-    def get_snapshots(self):
-        # TODO: Remove this function as it's only used in one place?
-        self._resilient_copy(self.snapshots_dir_name)
-        return os.path.join(self.common_dir, self.snapshots_dir_name)
-
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         self._resilient_copy(
             self.snapshots_dir_name, pre_condition_func=pre_condition_func

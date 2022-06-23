@@ -387,7 +387,7 @@
         "directory": {
           "type": "string",
           "default": "snapshots",
-          "description": "Path to snapshot directory"
+          "description": "Path to snapshots directory"
         },
         "tx_count": {
           "type": "integer",
@@ -397,10 +397,10 @@
         },
         "read_only_directory": {
           "type": ["string", "null"],
-          "description": "Path to optional read-only snapshot directory"
+          "description": "Path to read-only snapshots directory"
         }
       },
-      "description": "This section includes configuration for the snapshot directory and files",
+      "description": "This section includes configuration for the snapshot directories and files",
       "additionalProperties": false
     },
     "logging": {

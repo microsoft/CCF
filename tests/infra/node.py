@@ -496,10 +496,6 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
-    def get_snapshots(self):
-        # TODO: Delete function if possible
-        return self.remote.get_snapshots()
-
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         (
             main_snapshots_dir,

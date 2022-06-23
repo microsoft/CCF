@@ -258,7 +258,6 @@ class Network:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             if snapshots_dir is None:
                 read_only_snapshots_dir = self.get_committed_snapshots(primary)
-            LOG.error(read_only_snapshots_dir)
             if os.listdir(snapshots_dir) or os.listdir(read_only_snapshots_dir):
                 LOG.info(
                     f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
@@ -1188,51 +1187,19 @@ class Network:
         )
         return primaries[0]
 
-    def wait_for_commit_proof(self, node, seqno, timeout=3):
-        # Wait that the target seqno has a commit proof on a specific node.
-        # This is achieved by first waiting for a commit over seqno, issuing
-        # a write request and then waiting for a commit over that
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with node.client(self.consortium.get_any_active_member().local_id) as c:
-                r = c.get("/node/commit")
-                current_tx = TxID.from_str(r.body.json()["transaction_id"])
-                if current_tx.seqno >= seqno:
-                    # Using update_state_digest here as a convenient write tx
-                    # that is app agnostic
-                    r = c.post("/gov/ack/update_state_digest")
-                    assert (
-                        r.status_code == http.HTTPStatus.OK.value
-                    ), f"Error ack/update_state_digest: {r}"
-                    c.wait_for_commit(r)
-                    return True
-            time.sleep(0.1)
-        raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
-
-    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
-        # Check that snapshot exists for target seqno and if so, wait until
-        # snapshot evidence is committed
-        snapshot_evidence_seqno = None
-        primary, _ = self.find_primary()
-        for s in os.listdir(primary.get_snapshots()):
-            snapshot_seqno, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)
-            if snapshot_seqno > seqno:
-                break
-        if snapshot_evidence_seqno is None:
-            return False
-
-        return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
-
-    def get_committed_snapshots(self, node):
+    def get_committed_snapshots(self, node, target_seqno=None, force_txs=True):
         # Wait for the snapshot including target_seqno to be committed before
-        # copying snapshot directory
-        target_seqno = None
-        LOG.error("there")
-        with node.client() as c:
-            r = c.get("/node/commit").body.json()
-            target_seqno = TxID.from_str(r["transaction_id"]).seqno
+        # copying snapshot directory. Do not issue transactions if force_txs is False
+        # and expect snapshot to have already been created.
+        if target_seqno is None:
+            with node.client() as c:
+                r = c.get("/node/commit").body.json()
+                target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
+            if not force_txs:
+                return True
+
             LOG.info(
                 f"Waiting for a snapshot to be committed including seqno {target_seqno}"
             )
@@ -1261,8 +1228,6 @@ class Network:
                 f"Could not find committed snapshot for seqno {target_seqno} after {timeout:.2f}s in {src_dir}: {list_src_dir_func(src_dir)}"
             )
             return False
-
-        LOG.error("here")
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
