@@ -467,7 +467,7 @@ namespace kv
     virtual bool is_backup() = 0;
     virtual bool can_replicate() = 0;
 
-    enum SignatureDisposition
+    enum class SignatureDisposition
     {
       CANT_REPLICATE,
       CAN_SIGN,
