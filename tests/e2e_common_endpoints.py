@@ -160,7 +160,6 @@ def test_memory(network, args):
 
 
 @reqs.description("Write/Read large messages on primary")
-@reqs.supports_methods("/app/log/private")
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -182,6 +181,7 @@ def test_large_messages(network, args):
             args.max_http_body_size,
             args.max_http_body_size + 1,
             args.max_http_body_size * 2,
+            args.max_http_body_size * 200,
         ]
     )
 
@@ -203,9 +203,9 @@ def test_large_messages(network, args):
                 *args,
                 **kwargs,
             )
-        except BrokenPipeError:
+        except infra.clients.CCFConnectionException:
             # In some cases, the client ends up writing to the now-closed socket first
-            # before reading the server error, resulting in a BrokenPipeError error
+            # before reading the server error, resulting in a connection error
             assert length > threshold
             assert get_main_interface_errors()[metrics_name] == before_errors_count + 1
         else:
@@ -233,6 +233,8 @@ def test_large_messages(network, args):
                 long_msg,
                 headers={"content-type": "application/json"},
             )
+
+        return
 
         header_sizes = [
             args.max_http_header_size - 1,
@@ -294,8 +296,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_primary(network, args)
-        test_network_node_info(network, args)
-        test_node_ids(network, args)
-        test_memory(network, args)
+        # test_primary(network, args)
+        # test_network_node_info(network, args)
+        # test_node_ids(network, args)
+        # test_memory(network, args)
         test_large_messages(network, args)

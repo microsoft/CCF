@@ -65,6 +65,11 @@ namespace ccf
       return status == ready || status == closing;
     }
 
+    bool can_recv()
+    {
+      return status == ready || status == handshake;
+    }
+
   public:
     TLSEndpoint(
       int64_t session_id_,
@@ -219,7 +224,11 @@ namespace ccf
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
-      pending_read.insert(pending_read.end(), data, data + size);
+
+      if (can_recv())
+      {
+        pending_read.insert(pending_read.end(), data, data + size);
+      }
 
       do_handshake();
     }
