@@ -348,15 +348,13 @@ RequestVote(i,j) ==
                 mlastLogIndex |-> MaxCommittableIndex(log[i]),
                 msource       |-> i,
                 mdest         |-> j]
-        relevantServers == GetServerSetForIndex(i, commitIndex[i])
     IN
     \* Timeout votes for itself atomically. Thus we do not need to request our own vote.
     /\ i /= j
     \* Only requests vote if we are candidate
     /\ state[i] = Candidate
-    \* Reconfiguration: Make sure j is in a current relevant configuration of i
-    \* However we only considered configurations that are already committed here
-    /\ j \in relevantServers
+    \* Reconfiguration: Make sure j is in a configuration of i
+    /\ j \in GetServerSet(i)
     \* State limitation: Limit requested votes
     /\ votesRequested[i][j] < RequestVoteLimit
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
@@ -408,9 +406,8 @@ AppendEntries(i, j) ==
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
     /\ state[i] = Candidate
-    /\  \* To become leader, a Quorum of _all_ known nodes must have voted for this server (across configurations)
-        LET relevantServers == GetServerSet(i)
-        IN (votesGranted[i] \cap relevantServers) \in CalculateQuorum(relevantServers)
+    \* To become leader, the candidate must have received votes from a majority in each active configuration
+    /\ \A k \in 1..Len(Configurations[i]) : votesGranted[i] \in CalculateQuorum(Configurations[i][k][2])
     /\ state'      = [state EXCEPT ![i] = Leader]
     /\ nextIndex'  = [nextIndex EXCEPT ![i] =
                          [j \in PossibleServer |-> Len(log[i]) + 1]]
@@ -983,7 +980,8 @@ LogTypeOK(xlog) ==
 ReconfigurationVarsTypeInv ==
     /\ ReconfigurationCount \in 0..ReconfigurationLimit
     /\ \A i \in PossibleServer :
-        \A k \in 1..Len(Configurations[i]) :
+        /\ Configurations[i] /= <<>>
+        /\ \A k \in 1..Len(Configurations[i]) :
             /\ Configurations[i][k][1] \in 0..MaxLogLength
             /\ Configurations[i][k][2] \subseteq PossibleServer
 
@@ -1061,7 +1059,10 @@ MonoLogInv ==
         \/ Len(log[i]) = 0
         \/ /\ log[i][Len(log[i])].term <= currentTerm[i]
            /\ \/ Len(log[i]) = 1
-              \/ \A k \in 1..Len(log[i])-1: log[i][k].term <= log[i][k+1].term
+              \/ \A k \in 1..Len(log[i])-1:
+                \/ log[i][k].term = log[i][k+1].term
+                \/ /\ log[i][k].term < log[i][k+1].term
+                   /\ log[i][k].contentType = TypeSignature
 
 ----
 \* Debugging invariants
@@ -1083,21 +1084,36 @@ IsCommittedByServer(v,i) ==
         /\ log[i][k].contentType = TypeEntry
         /\ log[i][k].value = v
 
-\* This invariant states that at least one value is committed on at least one server
+\* This invariant shows that at least one value is committed on at least one server
 DebugInvAnyCommitted ==
     \lnot (\E v \in 1..RequestLimit : \E i \in PossibleServer : IsCommittedByServer(v,i))
 
-\* With reconfig, it should be possible for Node 4 or 5 to become leader
+\* This invariant shows that all values are committed on at least one server each
+DebugInvAllCommitted ==
+    \lnot (\A v \in 1..RequestLimit : \E i \in PossibleServer : IsCommittedByServer(v,i))
+
+\* This invariant shows that it should be possible for Node 4 or 5 to become leader
 DebugInvReconfigLeader ==
     /\ state[NodeFour] /= Leader
     /\ state[NodeFive] /= Leader
+
+\* This invariant shows that a txn can be committed after a reconfiguration
+DebugInvSuccessfulCommitAfterReconfig ==
+    \lnot (
+        \E i \in PossibleServer:
+            \E k_1,k_2 \in 1..Len(log[i]) :
+                /\ k_1 < k_2
+                /\ log[i][k_1].contentType = TypeReconfiguration
+                /\ log[i][k_2].contentType = TypeEntry
+                /\ commitIndex[i] > k_2
+    )
 
 \* Check that eventually all messages can be dropped or processed and we did not forget a message
 DebugInvAllMessagesProcessable ==
     Len(messages) > 0 ~> Len(messages) = 0
 
 \* The Retirement state is reached by Leaders that remove themselves from the configuration.
-\* It should be reachable.
+\* It should be reachable if a leader is removed.
 DebugInvRetirementReachable ==
     \A i \in PossibleServer : state[i] /= RetiredLeader
 
