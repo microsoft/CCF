@@ -108,7 +108,7 @@ namespace aft
     // the current view. This signature is the first thing they may commit, as
     // they cannot confirm commit of anything from a previous view (Raft paper
     // section 5.4.2). This bool is true from the point this node becomes
-    // primary, until it is explicitly by a call to get_signable_txid()
+    // primary, until it is explicitly reset by a call to get_signable_txid()
     bool should_sign = false;
 
     std::shared_ptr<aft::State> state;
