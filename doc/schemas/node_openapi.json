@@ -494,6 +494,9 @@
       },
       "NodeInfoNetwork_v2__NetInterface": {
         "properties": {
+          "accepted_endpoints": {
+            "$ref": "#/components/schemas/string_array"
+          },
           "bind_address": {
             "$ref": "#/components/schemas/string"
           },
@@ -761,6 +764,12 @@
       "json": {},
       "string": {
         "type": "string"
+      },
+      "string_array": {
+        "items": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "array"
       },
       "string_to_ConsensusNodeConfig": {
         "additionalProperties": {

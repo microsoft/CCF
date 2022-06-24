@@ -94,22 +94,13 @@ namespace ccf::endpoints
     std::string js_module;
     /// JavaScript function name
     std::string js_function;
-    /// Flag to indicate that an endpoint does not require encrypted
-    /// communication
-    bool unencrypted_ok = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
   DECLARE_JSON_REQUIRED_FIELDS(
     EndpointProperties, forwarding_required, authn_policies);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    EndpointProperties,
-    openapi,
-    openapi_hidden,
-    mode,
-    js_module,
-    js_function,
-    unencrypted_ok);
+    EndpointProperties, openapi, openapi_hidden, mode, js_module, js_function);
 
   struct EndpointDefinition
   {
@@ -363,12 +354,6 @@ namespace ccf::endpoints
         installer->install(*this);
       }
     }
-
-    /** Overrides whether an Endpoint allows unencrypted communication
-     * @param v Boolean indicating whether unencrypted communication is ok
-     * @return This Endpoint for further modification
-     */
-    Endpoint& set_unencrypted_ok(bool v);
   };
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
