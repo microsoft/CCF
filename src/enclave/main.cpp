@@ -59,7 +59,7 @@ extern "C"
   }
 
   // Confirming in-enclave behaviour in separate unit tests is tricky, so we do
-  // final sanity checks on some std behaviour here, on every enclave launch.
+  // final sanity checks on some basic behaviour here, on every enclave launch.
   void enclave_sanity_checks()
   {
     {
