@@ -153,6 +153,7 @@ class Network:
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = service_load
+            self.recovery_count = 0
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -166,6 +167,9 @@ class Network:
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
                 self.service_load.set_network(self)
+            self.recovery_count = existing_network.recovery_count
+
+        LOG.success(f"Recovery count: {self.recovery_count}")
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -577,7 +581,13 @@ class Network:
             )
             self._wait_for_app_open(node)
 
-        self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
+        self.recovery_count += 1
+        LOG.error(f"Bumping recovery count: {self.recovery_count}")
+        self.consortium.check_for_service(
+            self.find_random_node(),
+            ServiceStatus.OPEN,
+            recovery_count=self.recovery_count,
+        )
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):

@@ -701,15 +701,16 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def check_for_service(self, remote_node, status):
+    def check_for_service(self, remote_node, status, recovery_count=None):
         """
         Check the certificate associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
         with remote_node.client() as c:
-            r = c.get("/node/network")
-            current_status = r.body.json()["service_status"]
-            current_cert = r.body.json()["service_certificate"]
+            r = c.get("/node/network").body.json()
+            current_status = r["service_status"]
+            current_cert = r["service_certificate"]
+            current_recovery_count = r["recovery_count"]
 
             expected_cert = slurp_file(
                 os.path.join(self.common_dir, "service_cert.pem")
@@ -725,6 +726,9 @@ class Consortium:
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
+            assert (
+                recovery_count is None or current_recovery_count == recovery_count
+            ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"
 
     def submit_2tx_migration_proposal(self, remote_node, timeout=10):
         proposal_body = {
