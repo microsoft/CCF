@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+- The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
+- Added a note to the "Updating documentation" documentation to help developers build documentation pages locally.
 
 ## [3.0.0-dev0]
 
