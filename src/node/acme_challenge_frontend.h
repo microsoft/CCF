@@ -64,7 +64,6 @@ namespace ccf
         "/acme-challenge/{token}", HTTP_GET, handler, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, std::string>()
-        .set_unencrypted_ok(true)
         .install();
     }
 

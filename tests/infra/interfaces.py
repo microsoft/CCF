@@ -80,6 +80,7 @@ class RPCInterface(Interface):
     max_http_headers_count: Optional[int] = DEFAULT_MAX_HTTP_HEADERS_COUNT
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
+    accepted_endpoints: Optional[str] = None
 
     @staticmethod
     def to_json(interface):
@@ -96,8 +97,8 @@ class RPCInterface(Interface):
             },
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
-        if interface.acme_configuration:
-            r["acme_configuration"] = interface.acme_configuration
+        if interface.accepted_endpoints:
+            r["accepted_endpoints"] = interface.accepted_endpoints
         return r
 
     @staticmethod
@@ -118,8 +119,7 @@ class RPCInterface(Interface):
         )
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
-        if "acme_configuration" in json:
-            interface.acme_configuration = json.get("acme_configuration")
+        interface.accepted_endpoints = json.get("accepted_endpoints")
         return interface
 
 

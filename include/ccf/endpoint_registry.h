@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
+#include "ccf/ds/mutex.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/rpc_context.h"
@@ -162,7 +163,7 @@ namespace ccf::endpoints
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
-    std::mutex metrics_lock;
+    ccf::Mutex metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     EndpointRegistry::Metrics& get_metrics_for_endpoint(
