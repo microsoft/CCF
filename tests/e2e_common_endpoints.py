@@ -234,8 +234,6 @@ def test_large_messages(network, args):
                 headers={"content-type": "application/json"},
             )
 
-        return
-
         header_sizes = [
             args.max_http_header_size - 1,
             args.max_http_header_size,
@@ -296,8 +294,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_primary(network, args)
-        # test_network_node_info(network, args)
-        # test_node_ids(network, args)
-        # test_memory(network, args)
+        test_primary(network, args)
+        test_network_node_info(network, args)
+        test_node_ids(network, args)
+        test_memory(network, args)
         test_large_messages(network, args)
