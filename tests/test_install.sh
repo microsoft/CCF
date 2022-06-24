@@ -41,7 +41,7 @@ mkdir -p "$working_dir"
 cd "$working_dir"
 
 # Start ephemeral network in the background
-network_live_time=60
+network_live_time=120
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
 "$INSTALL_PREFIX"/bin/sandbox.sh -e release --verbose &
 
@@ -68,7 +68,7 @@ python ../../../python/ledger_tutorial.py ./workspace/sandbox_0/0.ledger
 # Recover network
 cp -r ./workspace/sandbox_0/0.ledger .
 
-recovered_network_live_time=30
+recovered_network_live_time=120
 timeout --signal=SIGINT --kill-after=${recovered_network_live_time}s --preserve-status ${recovered_network_live_time}s \
 "$INSTALL_PREFIX"/bin/sandbox.sh --verbose \
     -e release \

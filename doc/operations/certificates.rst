@@ -81,7 +81,7 @@ The procedure that operators and members should follow is summarised in the foll
 
 
 ACME-endorsed TLS certificates
-==================================
+------------------------------
 
 Unendorsed, self-signed (CA) service certificates are a complication for clients as they need to be given a copy of the certificate before they can establish TLS connections to the service, or the service certificate is permanently installed in their trust store. To alleviate this, CCF provides an `ACME <https://en.wikipedia.org/wiki/Automatic_Certificate_Management_Environment>`_ client, which is used to obtain TLS certificates that are endorsed by external certificate authorities. For instance, the `Let's Encrypt <https://letsencrypt.org/>`_ CA is endorsed by a root certificate that is pre-installed on most current operating systems, which means that clients usually have all required certificates to establish TLS connections without further configuration, if the service certificate is endorsed by Let's Encrypt. CCF handles the creation and renewal of ACME certificates, but it requires some configuration:
 
@@ -90,7 +90,7 @@ Unendorsed, self-signed (CA) service certificates are a complication for clients
 2. ACME `http-01 <https://letsencrypt.org/docs/challenge-types/>`_ challenges require a challenge server to be reachable on port 80 (non-negotiable). 
 To be able to bind to that port, the ``cchost`` binary may need to be given special permission, e.g. by running ``sudo setcap CAP_NET_BIND_SERVICE=+eip cchost``. Alternatively, port 80 can be redirected to a non-privileged port that ``cchost`` may bind to without special permission.
 
-3. Each interface defined in the ``cchost`` configuration file can be given the name of an ACME configuration to use. The settings of each ACME configuration are defined in ``network.acme``. Note that this information is required by *all* nodes as they might have to renew the certificate(s) later.
+3. Each interface defined in the ``cchost`` configuration file can be given the name of an ACME configuration to use. The settings of each ACME configuration are defined in ``network.acme`` :doc:`configuration entry </operations/configuration>`. Note that this information is required by *all* nodes as they might have to renew the certificate(s) later.
 
     The various options are as follows:
 
