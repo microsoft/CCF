@@ -5,6 +5,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_configuration.h"
 
 #include <string>
 
@@ -88,12 +89,9 @@ namespace ccf
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address,
-    protocol,
     http_configuration);
 
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
+  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
 
