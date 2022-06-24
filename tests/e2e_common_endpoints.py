@@ -197,18 +197,27 @@ def test_large_messages(network, args):
     ):
         before_errors_count = get_main_interface_errors()[metrics_name]
         # Note: endpoint does not matter as request parsing is done before dispatch
-        r = client.get(
-            "/node/commit",
-            *args,
-            **kwargs,
-        )
-        if length > threshold:
-            assert r.status_code == expected_status.value
-            assert r.body.json()["error"]["code"] == expected_code
+        try:
+            r = client.get(
+                "/node/commit",
+                *args,
+                **kwargs,
+            )
+        except BrokenPipeError:
+            # In some cases, the client ends up writing to the now-closed socket first
+            # before reading the server error, resulting in a BrokenPipeError error
+            assert length > threshold
             assert get_main_interface_errors()[metrics_name] == before_errors_count + 1
         else:
-            assert r.status_code == http.HTTPStatus.OK.value
-            assert get_main_interface_errors()[metrics_name] == before_errors_count
+            if length > threshold:
+                assert r.status_code == expected_status.value
+                assert r.body.json()["error"]["code"] == expected_code
+                assert (
+                    get_main_interface_errors()[metrics_name] == before_errors_count + 1
+                )
+            else:
+                assert r.status_code == http.HTTPStatus.OK.value
+                assert get_main_interface_errors()[metrics_name] == before_errors_count
 
     with primary.client("user0") as c:
         for s in msg_sizes:
