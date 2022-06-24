@@ -57,28 +57,35 @@ namespace ccf
 
   static constexpr auto PRIMARY_RPC_INTERFACE = "ccf.default_rpc_interface";
 
+  /// Node network information
   struct NodeInfoNetwork_v2
   {
     using NetAddress = std::string;
     using RpcInterfaceID = std::string;
     using NetProtocol = std::string;
 
+    /// Network interface description
     struct NetInterface
     {
       NetAddress bind_address;
       NetAddress published_address;
       NetProtocol protocol;
 
+      /// Maximum open sessions soft limit
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
+
+      /// Maximum open sessions hard limit
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
+      /// HTTP configuration
       std::optional<http::ParserConfiguration> http_configuration =
         std::nullopt;
 
+      /// Interface endorsement
       std::optional<Endorsement> endorsement = std::nullopt;
 
-      // Regular expressions of endpoints that are accessible over
-      // this interface. std::nullopt means everything is accepted.
+      /// Regular expressions of endpoints that are accessible over
+      /// this interface. std::nullopt means everything is accepted.
       std::optional<std::vector<std::string>> accepted_endpoints = std::nullopt;
 
       bool operator==(const NetInterface& other) const
@@ -89,23 +96,30 @@ namespace ccf
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
           endorsement == other.endorsement &&
-          http_configuration == other.http_configuration;
-        accepted_endpoints == other.accepted_endpoints;
+          http_configuration == other.http_configuration &&
+          accepted_endpoints == other.accepted_endpoints;
       }
     };
 
+    /// RPC interface mapping
     using RpcInterfaces = std::map<RpcInterfaceID, NetInterface>;
 
+    /// Node-to-node network interface
     NetInterface node_to_node_interface;
+
+    /// RPC interfaces
     RpcInterfaces rpc_interfaces;
 
+    /// ACME configuration description
     struct ACME
     {
+      /// Mapping of ACME client configuration names to configurations
       std::map<std::string, ccf::ACMEClientConfig> configurations;
 
       bool operator==(const ACME&) const = default;
     };
 
+    /// ACME configuration
     std::optional<ACME> acme = std::nullopt;
   };
 
