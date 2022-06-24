@@ -66,11 +66,11 @@ namespace kv::test
     {
       if (state == Primary)
       {
-        return ConsensusSignatureDisposition::CAN_SIGN;
+        return Consensus::SignatureDisposition::CAN_SIGN;
       }
       else
       {
-        return ConsensusSignatureDisposition::CANT_REPLICATE;
+        return Consensus::SignatureDisposition::CANT_REPLICATE;
       }
     }
 
@@ -285,7 +285,7 @@ namespace kv::test
 
     Consensus::SignatureDisposition get_signature_disposition() override
     {
-      return ConsensusSignatureDisposition::CANT_REPLICATE;
+      return Consensus::SignatureDisposition::CANT_REPLICATE;
     }
   };
 
@@ -308,7 +308,7 @@ namespace kv::test
 
     Consensus::SignatureDisposition get_signature_disposition() override
     {
-      return ConsensusSignatureDisposition::CAN_SIGN;
+      return Consensus::SignatureDisposition::CAN_SIGN;
     }
   };
 }

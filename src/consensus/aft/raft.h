@@ -268,16 +268,16 @@ namespace aft
       {
         if (is_new_primary)
         {
-          return ConsensusSignatureDisposition::SHOULD_SIGN;
+          return Consensus::SignatureDisposition::SHOULD_SIGN;
         }
         else
         {
-          return ConsensusSignatureDisposition::CAN_SIGN;
+          return Consensus::SignatureDisposition::CAN_SIGN;
         }
       }
       else
       {
-        return ConsensusSignatureDisposition::CANT_REPLICATE;
+        return Consensus::SignatureDisposition::CANT_REPLICATE;
       }
     }
 

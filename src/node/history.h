@@ -543,11 +543,11 @@ namespace ccf
               auto sig_disp = consensus->get_signature_disposition();
               switch (sig_disp)
               {
-                case kv::ConsensusSignatureDisposition::CANT_REPLICATE:
+                case kv::Consensus::SignatureDisposition::CANT_REPLICATE:
                 {
                   break;
                 }
-                case kv::ConsensusSignatureDisposition::CAN_SIGN:
+                case kv::Consensus::SignatureDisposition::CAN_SIGN:
                 {
                   if (
                     self->store.committable_gap() > 0 &&
@@ -558,7 +558,7 @@ namespace ccf
                   }
                   break;
                 }
-                case kv::ConsensusSignatureDisposition::SHOULD_SIGN:
+                case kv::Consensus::SignatureDisposition::SHOULD_SIGN:
                 {
                   should_emit_signature = true;
                   break;
