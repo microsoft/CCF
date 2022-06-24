@@ -68,10 +68,4 @@ namespace ccf::endpoints
     properties.forwarding_required = fr;
     return *this;
   }
-
-  Endpoint& Endpoint::set_unencrypted_ok(bool v)
-  {
-    properties.unencrypted_ok = v;
-    return *this;
-  }
 }
