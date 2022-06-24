@@ -101,6 +101,10 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
    :project: CCF
    :members:
 
+.. doxygenstruct:: ccf::NodeInfoNetwork_v2
+   :project: CCF
+   :members:
+
 .. doxygenstruct:: ccf::QuoteInfo
    :project: CCF
    :members:
@@ -182,6 +186,13 @@ PEM identity of previous service, which this service recovered from.
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 **Value** Previous service identity, represented as a PEM-encoded JSON string.
+
+``service.acme_certificates``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Name of a network interface (string).
+
+**Value** Endorsed TLS certificate for the interface, represented as a PEM-encoded string.
 
 ``proposals``
 ~~~~~~~~~~~~~

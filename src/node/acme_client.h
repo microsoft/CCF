@@ -178,7 +178,7 @@ namespace ACME
       std::function<bool(const http::HeaderMap&, const std::vector<uint8_t>&)>
         ok_callback)
     {
-      std::unique_lock<std::mutex> guard(req_lock);
+      std::unique_lock<ccf::Mutex> guard(req_lock);
 
       try
       {
@@ -360,8 +360,8 @@ namespace ACME
     nlohmann::json account;
     std::list<std::string> nonces;
 
-    std::mutex req_lock;
-    std::mutex orders_lock;
+    ccf::Mutex req_lock;
+    ccf::Mutex orders_lock;
 
     std::optional<std::chrono::system_clock::time_point> last_request =
       std::nullopt;
@@ -583,7 +583,7 @@ namespace ACME
     {
       LOG_TRACE_FMT("ACME: removing order {}", order_url);
 
-      std::unique_lock<std::mutex> guard(orders_lock);
+      std::unique_lock<ccf::Mutex> guard(orders_lock);
       for (auto it = active_orders.begin(); it != active_orders.end();)
       {
         if (it->order_url == order_url)
@@ -703,7 +703,7 @@ namespace ACME
 
     void authorize_next_challenge(const std::string& order_url)
     {
-      std::unique_lock<std::mutex> guard(orders_lock);
+      std::unique_lock<ccf::Mutex> guard(orders_lock);
       auto order = get_order(order_url);
 
       if (!order)
@@ -766,7 +766,7 @@ namespace ACME
               throw std::runtime_error("missing order location");
             }
 
-            std::unique_lock<std::mutex> guard(orders_lock);
+            std::unique_lock<ccf::Mutex> guard(orders_lock);
             active_orders.emplace_back(Order{
               ACTIVE, account_url, *order_url_opt, j["finalize"], "", {}, {}});
 
@@ -816,7 +816,7 @@ namespace ACME
           expect(j, "challenges");
 
           {
-            std::unique_lock<std::mutex> guard(orders_lock);
+            std::unique_lock<ccf::Mutex> guard(orders_lock);
             auto order = get_order(order_url);
 
             if (!order)
@@ -926,7 +926,7 @@ namespace ACME
     bool check_challenge(
       const std::string& order_url, const Challenge& challenge)
     {
-      std::unique_lock<std::mutex> guard(orders_lock);
+      std::unique_lock<ccf::Mutex> guard(orders_lock);
       auto order = get_order(order_url);
 
       if (
@@ -991,7 +991,7 @@ namespace ACME
       bool order_done = false;
 
       {
-        std::unique_lock<std::mutex> guard(orders_lock);
+        std::unique_lock<ccf::Mutex> guard(orders_lock);
         auto order = get_order(order_url);
 
         if (!order)
@@ -1019,7 +1019,7 @@ namespace ACME
 
     bool check_finalization(const std::string& order_url)
     {
-      std::unique_lock<std::mutex> guard2(orders_lock);
+      std::unique_lock<ccf::Mutex> guard2(orders_lock);
       auto order = get_order(order_url);
 
       if (!order)
@@ -1042,7 +1042,7 @@ namespace ACME
           {
             expect(j, "certificate");
             {
-              std::unique_lock<std::mutex> guard(orders_lock);
+              std::unique_lock<ccf::Mutex> guard(orders_lock);
               auto order = get_order(order_url);
               if (order)
               {
@@ -1107,7 +1107,7 @@ namespace ACME
       }
       else
       {
-        std::unique_lock<std::mutex> guard(orders_lock);
+        std::unique_lock<ccf::Mutex> guard(orders_lock);
         auto order = get_order(order_url);
 
         if (!order)
@@ -1143,7 +1143,7 @@ namespace ACME
               expect(j, "certificate");
 
               {
-                std::unique_lock<std::mutex> guard(orders_lock);
+                std::unique_lock<ccf::Mutex> guard(orders_lock);
                 auto order = get_order(order_url);
                 if (order)
                 {
@@ -1172,7 +1172,7 @@ namespace ACME
       }
       else
       {
-        std::unique_lock<std::mutex> guard(orders_lock);
+        std::unique_lock<ccf::Mutex> guard(orders_lock);
         auto order = get_order(order_url);
 
         if (!order)

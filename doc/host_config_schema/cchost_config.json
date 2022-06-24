@@ -103,12 +103,30 @@
                   },
                   "acme_configuration": {
                     "type": "string",
-                    "default": "",
                     "description": "Name of the ACME configuration defined in the network.acme.configurations section"
                   }
                 },
+                "oneOf": [
+                  {
+                    "required": ["acme_configuration"]
+                  },
+                  {
+                    "not": {
+                      "properties": {
+                        "authority": { "const": "ACME" }
+                      }
+                    }
+                  }
+                ],
                 "required": ["authority"],
                 "additionalProperties": false
+              },
+              "accepted_endpoints": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served"
               }
             },
             "required": ["bind_address"]
@@ -133,12 +151,10 @@
                   },
                   "directory_url": {
                     "type": "string",
-                    "default": "",
                     "description": "URL of the ACME server's directory"
                   },
                   "service_dns_name": {
                     "type": "string",
-                    "default": "",
                     "description": "DNS name of the service we represent"
                   },
                   "contact": {
@@ -161,7 +177,7 @@
                   },
                   "challenge_server_interface": {
                     "type": "string",
-                    "description": "Name of the (http) challenge server interface"
+                    "description": "Name of the interface for the (http-01) challenge server to listen on"
                   }
                 },
                 "description": "ACME Configurations",
