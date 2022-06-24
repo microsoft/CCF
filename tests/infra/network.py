@@ -169,8 +169,6 @@ class Network:
                 self.service_load.set_network(self)
             self.recovery_count = existing_network.recovery_count
 
-        LOG.success(f"Recovery count: {self.recovery_count}")
-
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
         self.nodes = []

@@ -512,15 +512,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 else:
                     time.sleep(3)
 
-                # if idx > 0:
-                #     test_new_service(
-                #         network,
-                #         args,
-                #         install_path,
-                #         binary_dir,
-                #         library_dir,
-                #         version,
-                #     )
+                if idx > 0:
+                    test_new_service(
+                        network,
+                        args,
+                        install_path,
+                        binary_dir,
+                        library_dir,
+                        version,
+                    )
 
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
@@ -618,21 +618,21 @@ if __name__ == "__main__":
 
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-        # latest_lts_version = run_live_compatibility_with_latest(
-        #     args, repo, local_branch, this_release_branch_only=False
-        # )
-        # compatibility_report["live compatibility"].update(
-        #     {"with previous LTS": latest_lts_version}
-        # )
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=False
+        )
+        compatibility_report["live compatibility"].update(
+            {"with previous LTS": latest_lts_version}
+        )
 
-        # # Compatibility with latest LTS on the same release branch
-        # # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
-        # latest_lts_version = run_live_compatibility_with_latest(
-        #     args, repo, local_branch, this_release_branch_only=True
-        # )
-        # compatibility_report["live compatibility"].update(
-        #     {"with same LTS": latest_lts_version}
-        # )
+        # Compatibility with latest LTS on the same release branch
+        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=True
+        )
+        compatibility_report["live compatibility"].update(
+            {"with same LTS": latest_lts_version}
+        )
 
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
