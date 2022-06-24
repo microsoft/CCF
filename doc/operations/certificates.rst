@@ -94,18 +94,26 @@ To be able to bind to that port, the ``cchost`` binary may need to be given spec
 
     The various options are as follows:
 
-    .. code-block:: json
+    .. code-block:: python
 
         "network": {
-            "rpc_interfaces": {
-                ... ,
-                "acme_endorsed_interface": { ... , "endorsement": { ... , "acme_configuration": "my-acme-cfg" } },
-                "acme_challenge_server_interface": {
-                    "bind_address": "... :80",
-                    "endorsement": { "authority": "Unsecured" },
-                    "accepted_endpoints": [ "/.well-known/acme-challenge/.*" ],
-                    ...
+            "rpc_interfaces": { 
+                # ... ,
+                "acme_endorsed_interface": {
+                    # ... ,
+                    "endorsement": {
+                        # ... ,
+                        "acme_configuration": "my-acme-cfg"
+                    }
                 },
+                "acme_challenge_server_interface": {
+                    "bind_address": "...:80",
+                    "endorsement": {
+                        "authority": "Unsecured"
+                    },
+                    "accepted_endpoints": [ "/.well-known/acme-challenge/.*" ]
+                    # ...
+                }
             },
             "acme": {
                 "my-acme-cfg": {
