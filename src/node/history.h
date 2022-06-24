@@ -482,7 +482,7 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
-    std::mutex state_lock;
+    ccf::Mutex state_lock;
     kv::Term term_of_last_version = 0;
     kv::Term term_of_next_version;
 
@@ -520,7 +520,7 @@ namespace ccf
         [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
           auto self = msg->data.self;
 
-          std::unique_lock<std::mutex> mguard(
+          std::unique_lock<ccf::Mutex> mguard(
             self->signature_lock, std::defer_lock);
 
           const int64_t sig_ms_interval = self->sig_ms_interval;
@@ -608,7 +608,7 @@ namespace ccf
     bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       // The history can be initialised after a snapshot has been applied by
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
@@ -637,14 +637,14 @@ namespace ccf
 
     crypto::Sha256Hash get_replicated_state_root() override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       return replicated_state_tree.get_root();
     }
 
     std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
     get_replicated_state_txid_and_root() override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       return {
         {term_of_last_version,
          static_cast<kv::Version>(replicated_state_tree.end_index())},
@@ -700,7 +700,7 @@ namespace ccf
 
     std::vector<uint8_t> serialise_tree(size_t from, size_t to) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       return replicated_state_tree.serialise(from, to);
     }
 
@@ -708,7 +708,7 @@ namespace ccf
     {
       // This should only be called once, when the store first knows about its
       // term
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       term_of_last_version = t;
       term_of_next_version = t;
     }
@@ -716,7 +716,7 @@ namespace ccf
     void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       LOG_TRACE_FMT("Rollback to {}.{}", tx_id.term, tx_id.version);
       term_of_last_version = tx_id.term;
       term_of_next_version = term_of_next_version_;
@@ -726,7 +726,7 @@ namespace ccf
 
     void compact(kv::Version v) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       // Receipts can only be retrieved to the flushed index. Keep a range of
       // history so that a range of receipts are available.
       if (v > MAX_HISTORY_LEN)
@@ -740,11 +740,11 @@ namespace ccf
     std::chrono::milliseconds time_of_last_signature =
       std::chrono::milliseconds(0);
 
-    std::mutex signature_lock;
+    ccf::Mutex signature_lock;
 
     void try_emit_signature() override
     {
-      std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
+      std::unique_lock<ccf::Mutex> mguard(signature_lock, std::defer_lock);
       if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;
@@ -798,20 +798,20 @@ namespace ccf
 
     std::vector<uint8_t> get_proof(kv::Version index) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       return replicated_state_tree.get_proof(index).to_v();
     }
 
     bool verify_proof(const std::vector<uint8_t>& v) override
     {
       Proof proof(v);
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       return replicated_state_tree.verify(proof);
     }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       auto leaf = replicated_state_tree.get_leaf(index);
       return {leaf.h.begin(), leaf.h.end()};
     }
@@ -820,14 +820,14 @@ namespace ccf
     {
       crypto::Sha256Hash rh(data);
       log_hash(rh, APPEND);
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       replicated_state_tree.append(rh);
     }
 
     void append_entry(const crypto::Sha256Hash& digest) override
     {
       log_hash(digest, APPEND);
-      std::lock_guard<std::mutex> guard(state_lock);
+      std::lock_guard<ccf::Mutex> guard(state_lock);
       replicated_state_tree.append(digest);
     }
 

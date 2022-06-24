@@ -502,7 +502,7 @@ namespace ccf::historical
     };
 
     // Guard all access to internal state with this lock
-    std::mutex requests_lock;
+    ccf::Mutex requests_lock;
 
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
@@ -747,7 +747,7 @@ namespace ccf::historical
           "Invalid range for historical query: Cannot request empty range");
       }
 
-      std::lock_guard<std::mutex> guard(requests_lock);
+      std::lock_guard<ccf::Mutex> guard(requests_lock);
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -994,7 +994,7 @@ namespace ccf::historical
 
     bool drop_cached_states(const CompoundHandle& handle)
     {
-      std::lock_guard<std::mutex> guard(requests_lock);
+      std::lock_guard<ccf::Mutex> guard(requests_lock);
       const auto erased_count = requests.erase(handle);
       return erased_count > 0;
     }
@@ -1006,7 +1006,7 @@ namespace ccf::historical
 
     bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
     {
-      std::lock_guard<std::mutex> guard(requests_lock);
+      std::lock_guard<ccf::Mutex> guard(requests_lock);
       const auto it = pending_fetches.find(seqno);
       if (it == pending_fetches.end())
       {
@@ -1126,7 +1126,7 @@ namespace ccf::historical
 
     void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
     {
-      std::lock_guard<std::mutex> guard(requests_lock);
+      std::lock_guard<ccf::Mutex> guard(requests_lock);
 
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
@@ -1215,7 +1215,7 @@ namespace ccf::historical
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
     {
-      std::lock_guard<std::mutex> guard(requests_lock);
+      std::lock_guard<ccf::Mutex> guard(requests_lock);
       auto it = requests.begin();
       while (it != requests.end())
       {

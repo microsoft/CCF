@@ -9,8 +9,9 @@
 #include "node/rpc/node_frontend.h"
 
 #define FMT_HEADER_ONLY
+#include "ccf/ds/mutex.h"
+
 #include <fmt/format.h>
-#include <mutex>
 
 namespace ccf
 {
