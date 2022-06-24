@@ -386,11 +386,15 @@
           },
           "quickjs_version": {
             "$ref": "#/components/schemas/string"
+          },
+          "unsafe": {
+            "$ref": "#/components/schemas/boolean"
           }
         },
         "required": [
           "ccf_version",
-          "quickjs_version"
+          "quickjs_version",
+          "unsafe"
         ],
         "type": "object"
       },
@@ -797,7 +801,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.18.1"
+    "version": "2.20.0"
   },
   "openapi": "3.0.0",
   "paths": {
