@@ -542,7 +542,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args):
+    def recover(self, args, expected_recovery_count=None):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -581,8 +581,7 @@ class Network:
             )
             self._wait_for_app_open(node)
 
-        self.recovery_count += 1
-        LOG.error(f"Bumping recovery count: {self.recovery_count}")
+        self.recovery_count = expected_recovery_count or self.recovery_count + 1
         self.consortium.check_for_service(
             self.find_random_node(),
             ServiceStatus.OPEN,

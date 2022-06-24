@@ -8,6 +8,7 @@ import infra.utils
 import infra.github
 import infra.jwt_issuer
 import infra.crypto
+import infra.node
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
@@ -433,6 +434,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
+    previous_version = None
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -473,7 +475,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
                     )
-                    network.recover(args)
+                    # Recovery count is not stored in pre-2.0.3 ledgers
+                    network.recover(
+                        args,
+                        expected_recovery_count=1
+                        if not infra.node.version_after(previous_version, "ccf-2.0.3")
+                        else None,
+                    )
+
+                previous_version = version
 
                 nodes = network.get_joined_nodes()
                 primary, _ = network.find_primary()
@@ -502,15 +512,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 else:
                     time.sleep(3)
 
-                if idx > 0:
-                    test_new_service(
-                        network,
-                        args,
-                        install_path,
-                        binary_dir,
-                        library_dir,
-                        version,
-                    )
+                # if idx > 0:
+                #     test_new_service(
+                #         network,
+                #         args,
+                #         install_path,
+                #         binary_dir,
+                #         library_dir,
+                #         version,
+                #     )
 
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
@@ -608,21 +618,21 @@ if __name__ == "__main__":
 
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=False
-        )
-        compatibility_report["live compatibility"].update(
-            {"with previous LTS": latest_lts_version}
-        )
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=False
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with previous LTS": latest_lts_version}
+        # )
 
-        # Compatibility with latest LTS on the same release branch
-        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=True
-        )
-        compatibility_report["live compatibility"].update(
-            {"with same LTS": latest_lts_version}
-        )
+        # # Compatibility with latest LTS on the same release branch
+        # # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=True
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with same LTS": latest_lts_version}
+        # )
 
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}

@@ -710,7 +710,11 @@ class Consortium:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
             current_cert = r["service_certificate"]
-            current_recovery_count = r["recovery_count"]
+            # Note: to change once this is backported to 2.x
+            if remote_node.version_after("ccf-2.0.3"):
+                current_recovery_count = r["recovery_count"]
+            else:
+                assert "recovery_count" not in r
 
             expected_cert = slurp_file(
                 os.path.join(self.common_dir, "service_cert.pem")
@@ -726,9 +730,10 @@ class Consortium:
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
-            assert (
-                recovery_count is None or current_recovery_count == recovery_count
-            ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"
+            if remote_node.version_after("ccf-2.0.3"):
+                assert (
+                    recovery_count is None or current_recovery_count == recovery_count
+                ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"
 
     def submit_2tx_migration_proposal(self, remote_node, timeout=10):
         proposal_body = {
