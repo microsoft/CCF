@@ -772,6 +772,8 @@ namespace ccf
           fmt::format("No endorsed certificate set to emit signature"));
       }
 
+      // NB: This call will also reset consensus' should_sign, so we should
+      // always proceed to producing a signature from here.
       auto commit_txid = consensus->get_signable_txid();
       auto txid = store.next_txid();
 

@@ -108,8 +108,8 @@ namespace aft
     // the current view. This signature is the first thing they may commit, as
     // they cannot confirm commit of anything from a previous view (Raft paper
     // section 5.4.2). This bool is true from the point this node becomes
-    // primary, until it has seen a new signature pass through replicate.
-    bool is_new_primary = false;
+    // primary, until it is explicitly by a call to get_signable_txid()
+    bool should_sign = false;
 
     std::shared_ptr<aft::State> state;
 
@@ -266,7 +266,7 @@ namespace aft
       std::unique_lock<std::mutex> guard(state->lock);
       if (can_replicate_unsafe())
       {
-        if (is_new_primary)
+        if (should_sign)
         {
           return Consensus::SignatureDisposition::SHOULD_SIGN;
         }
@@ -411,6 +411,11 @@ namespace aft
       r.version = state->last_idx;
       r.term = get_term_internal(r.version);
       r.previous_version = std::max(last_committable_index(), election_index);
+
+      // NB: Reset here, since we're already holding the lock, and assume the
+      // caller will go on to emit a signature
+      should_sign = false;
+
       return r;
     }
 
@@ -776,7 +781,6 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
-          is_new_primary = false;
           start_ticking_if_necessary();
         }
 
@@ -1847,7 +1851,7 @@ namespace aft
 
       leadership_state = kv::LeadershipState::Leader;
       leader_id = state->my_node_id;
-      is_new_primary = true;
+      should_sign = true;
 
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
