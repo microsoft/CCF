@@ -345,25 +345,51 @@ namespace asynchost
       return get_last_idx();
     }
 
-    size_t entries_size(size_t from, size_t to) const
+    std::pair<bool, size_t> entries_size(
+      size_t from,
+      size_t to,
+      std::optional<size_t> max_size = std::nullopt) const
     {
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
-        return 0;
+        return std::make_pair(false, 0);
       }
 
-      if (to == get_last_idx())
+      bool has_cut = false;
+      size_t size = 0;
+
+      // If max_size is set, return entries that fit within in (best effort).
+      while (true)
       {
-        return total_len - positions.at(from - start_idx);
+        auto position_to =
+          (to == get_last_idx()) ? total_len : positions.at(to - start_idx + 1);
+        size = position_to - positions.at(from - start_idx);
+
+        if (!max_size.has_value() || size <= max_size.value())
+        {
+          break;
+        }
+        else
+        {
+          size_t to_ = from + (to - from) / 2;
+          LOG_TRACE_FMT(
+            "Requesting ledger entries from {} to {} in file {} but size {} > "
+            "max size {}: now requesting up to {}",
+            from,
+            to,
+            file_name,
+            size,
+            max_size.value(),
+            to_);
+          to = to_;
+          has_cut = true;
+        }
       }
-      else
-      {
-        return positions.at(to - start_idx + 1) -
-          positions.at(from - start_idx);
-      }
+
+      return std::make_pair(has_cut, size);
     }
 
-    std::optional<std::vector<uint8_t>> read_entries(
+    std::optional<std::pair<bool, std::vector<uint8_t>>> read_entries(
       size_t from, size_t to, std::optional<size_t> max_size = std::nullopt)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
@@ -377,11 +403,7 @@ namespace asynchost
       }
 
       std::unique_lock<ccf::Mutex> guard(file_lock);
-      auto size = entries_size(from, to);
-      if (max_size.has_value())
-      {
-        size = std::min(size, max_size.value());
-      }
+      auto [has_cut, size] = entries_size(from, to, max_size);
       std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
@@ -391,7 +413,7 @@ namespace asynchost
           "Failed to read entry range {} - {} from file", from, to));
       }
 
-      return entries;
+      return std::make_pair(has_cut, entries);
     }
 
     bool truncate(size_t idx)
@@ -732,6 +754,9 @@ namespace asynchost
       bool strict = true,
       std::optional<size_t> max_entries_size = std::nullopt)
     {
+      // Note: if max_entries_size is set, this returns contiguous ledger
+      // entries on a best effort basis, so that the returned entries fit in
+      // max_entries_size but without maximising the number of entries returned.
       if ((from <= 0) || (to < from))
       {
         return std::nullopt;
@@ -771,10 +796,19 @@ namespace asynchost
         {
           return std::nullopt;
         }
+        auto& [has_cut, e] = v.value();
         entries.insert(
           entries.end(),
-          std::make_move_iterator(v->begin()),
-          std::make_move_iterator(v->end()));
+          std::make_move_iterator(e.begin()),
+          std::make_move_iterator(e.end()));
+        if (has_cut)
+        {
+          // If all the entries requested from a file are not returned (i.e.
+          // because the requested entries are larger than max_entries_size),
+          // return immediately to avoid returning non-contiguous entries from a
+          // subsequent ledger file.
+          break;
+        }
         idx = to_ + 1;
       }
 
@@ -1357,8 +1391,11 @@ namespace asynchost
           // as many entries as possible including the very last one.
           bool strict = purpose != consensus::LedgerRequestPurpose::Recovery;
 
-          auto max_message_size = to_enclave->get_max_message_size();
-          LOG_FAIL_FMT("max message size: {}", max_message_size);
+          // Ledger entries response has metadata so cap total entries size
+          // accordingly
+          constexpr size_t write_ledger_range_response_metadata_size = 2048;
+          auto max_entries_size = to_enclave->get_max_message_size() -
+            write_ledger_range_response_metadata_size;
 
           if (is_in_committed_file(to_idx))
           {
@@ -1375,13 +1412,15 @@ namespace asynchost
                                 from_idx = from_idx,
                                 to_idx = to_idx,
                                 purpose = purpose,
-                                strict = strict](auto&& entry, int status) {
+                                strict = strict,
+                                max_entries_size =
+                                  max_entries_size](auto&& entry, int status) {
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
                 write_ledger_get_range_response(
                   from_idx,
                   to_idx,
-                  read_entries(from_idx, to_idx, strict),
+                  read_entries(from_idx, to_idx, strict, max_entries_size),
                   purpose);
               };
 
@@ -1401,7 +1440,7 @@ namespace asynchost
             write_ledger_get_range_response(
               from_idx,
               to_idx,
-              read_entries(from_idx, to_idx, strict),
+              read_entries(from_idx, to_idx, strict, max_entries_size),
               purpose);
           }
         });
