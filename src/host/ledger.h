@@ -389,7 +389,7 @@ namespace asynchost
         }
       }
 
-      return std::make_pair(size, to);
+      return {size, to};
     }
 
     std::optional<std::pair<std::vector<uint8_t>, size_t>> read_entries(
@@ -423,7 +423,7 @@ namespace asynchost
           file_name));
       }
 
-      return std::make_pair(entries, to_);
+      return {entries, to_};
     }
 
     bool truncate(size_t idx)
