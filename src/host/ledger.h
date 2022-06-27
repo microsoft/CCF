@@ -363,7 +363,8 @@ namespace asynchost
       }
     }
 
-    std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
+    std::optional<std::vector<uint8_t>> read_entries(
+      size_t from, size_t to, std::optional<size_t> max_size = std::nullopt)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
@@ -377,6 +378,10 @@ namespace asynchost
 
       std::unique_lock<ccf::Mutex> guard(file_lock);
       auto size = entries_size(from, to);
+      if (max_size.has_value())
+      {
+        size = std::min(size, max_size.value());
+      }
       std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
@@ -721,7 +726,11 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_entries_range(
-      size_t from, size_t to, bool read_cache_only = false, bool strict = true)
+      size_t from,
+      size_t to,
+      bool read_cache_only = false,
+      bool strict = true,
+      std::optional<size_t> max_entries_size = std::nullopt)
     {
       if ((from <= 0) || (to < from))
       {
@@ -741,7 +750,7 @@ namespace asynchost
         }
       }
 
-      std::vector<uint8_t> entries;
+      std::vector<uint8_t> entries = {};
       size_t idx = from;
       while (idx <= to)
       {
@@ -752,7 +761,12 @@ namespace asynchost
           return std::nullopt;
         }
         auto to_ = std::min(f_from->get_last_idx(), to);
-        auto v = f_from->read_entries(idx, to_);
+        std::optional<size_t> max_size = std::nullopt;
+        if (max_entries_size.has_value())
+        {
+          max_size = max_entries_size.value() - entries.size();
+        }
+        auto v = f_from->read_entries(idx, to_, max_size);
         if (!v.has_value())
         {
           return std::nullopt;
@@ -1059,12 +1073,15 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_entries(
-      size_t from, size_t to, bool strict = true)
+      size_t from,
+      size_t to,
+      bool strict = true,
+      std::optional<size_t> max_entries_size = std::nullopt)
     {
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entries from {} to {}", from, to));
 
-      return read_entries_range(from, to, false, strict);
+      return read_entries_range(from, to, false, strict, max_entries_size);
     }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
@@ -1339,6 +1356,9 @@ namespace asynchost
           // end of the ledger. When the end of the ledger is reached, we return
           // as many entries as possible including the very last one.
           bool strict = purpose != consensus::LedgerRequestPurpose::Recovery;
+
+          auto max_message_size = to_enclave->get_max_message_size();
+          LOG_FAIL_FMT("max message size: {}", max_message_size);
 
           if (is_in_committed_file(to_idx))
           {
