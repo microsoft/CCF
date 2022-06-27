@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
 
+### Fixed
+
+- Fixed issue with recovery of large ledger entries (#3986).
+
 ## [3.0.0-dev0]
 
 ### Added
