@@ -355,6 +355,7 @@ namespace asynchost
         return std::make_pair(false, 0);
       }
 
+      // TODO: Return to_ instead of has_cut
       bool has_cut = false;
       size_t size = 0;
 
@@ -371,6 +372,10 @@ namespace asynchost
         }
         else
         {
+          if (from == to)
+          {
+            return std::make_pair(true, 0);
+          }
           size_t to_ = from + (to - from) / 2;
           LOG_TRACE_FMT(
             "Requesting ledger entries from {} to {} in file {} but size {} > "
@@ -404,13 +409,20 @@ namespace asynchost
 
       std::unique_lock<ccf::Mutex> guard(file_lock);
       auto [has_cut, size] = entries_size(from, to, max_size);
+      if (size == 0)
+      {
+        return std::nullopt;
+      }
       std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
       if (fread(entries.data(), size, 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
-          "Failed to read entry range {} - {} from file", from, to));
+          "Failed to read entry range {} - {} from file {}",
+          from,
+          to,
+          file_name));
       }
 
       return std::make_pair(has_cut, entries);
