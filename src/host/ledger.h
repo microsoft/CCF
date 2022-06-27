@@ -423,7 +423,7 @@ namespace asynchost
           file_name));
       }
 
-      return {entries, to_};
+      return std::make_pair(entries, to_);
     }
 
     bool truncate(size_t idx)
