@@ -243,8 +243,8 @@ GetServerSetForIndex(server, index) ==
     {Configurations[server][relevant_configs][2] : relevant_configs \in
         {c \in 1..Len(Configurations[server]) : Configurations[server][c][1] <= index} \cup {}}
 
+\* Pick the union of all servers across all configurations
 GetServerSet(server) ==
-    \* Pick the union of all servers across all configurations
     UNION {Configurations[server][relevant_configs][2] : relevant_configs \in 1..Len(Configurations[server])}
 
 \* The prefix of the log of server i that has been committed
@@ -326,6 +326,10 @@ Timeout(i) ==
     /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < MaxSimultaneousCandidates
     \* Only servers that are not already leaders can become candidates
     /\ state[i] \in {Follower, Candidate}
+    \* Check that the reconfiguration which added this node is at least committable
+    /\ \E k \in 1..Len(Configurations[i]):
+        /\ i \in Configurations[i][k][2]
+        /\ MaxCommittableIndex(log[i]) >= Configurations[i][k][1]
     /\ state' = [state EXCEPT ![i] = Candidate]
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
     \* Most implementations would probably just set the local vote
@@ -974,7 +978,7 @@ LogTypeOK(xlog) ==
                \/ /\ xlog[k].contentType = TypeSignature
                   /\ xlog[k].value = Nil
                \/ /\ xlog[k].contentType = TypeReconfiguration
-                  /\ xlog[k].value \subseteq PossibleServer
+                  /\ xlog[k].value \in {PossibleConfigs[l]: l \in 1..Len(PossibleConfigs)}
     ELSE TRUE
 
 ReconfigurationVarsTypeInv ==
@@ -983,7 +987,7 @@ ReconfigurationVarsTypeInv ==
         /\ Configurations[i] /= <<>>
         /\ \A k \in 1..Len(Configurations[i]) :
             /\ Configurations[i][k][1] \in 0..MaxLogLength
-            /\ Configurations[i][k][2] \subseteq PossibleServer
+            /\ Configurations[i][k][2] \in {PossibleConfigs[l]: l \in 1..Len(PossibleConfigs)}
 
 MessageVarsTypeInv ==
     /\ \A m \in messages :
