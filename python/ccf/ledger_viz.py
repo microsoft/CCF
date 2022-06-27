@@ -146,7 +146,7 @@ def main():
         ledger_paths,
         committed_only=not args.uncommitted,
         validator=ccf.ledger.LedgerValidator()
-        if args.insecure_skip_verification
+        if not args.insecure_skip_verification
         else None,
     )
 
