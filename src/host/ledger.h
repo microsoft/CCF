@@ -345,6 +345,7 @@ namespace asynchost
       return get_last_idx();
     }
 
+    // Return pair containing entries size and index of last entry included
     std::pair<size_t, size_t> entries_size(
       size_t from,
       size_t to,
