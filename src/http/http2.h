@@ -91,7 +91,7 @@ namespace http2
     StreamId stream_id,
     uint32_t error_code,
     void* user_data);
-  ssize_t on_data_source_read_length_callback(
+  static ssize_t on_data_source_read_length_callback(
     nghttp2_session* session,
     uint8_t frame_type,
     int32_t stream_id,
@@ -99,23 +99,27 @@ namespace http2
     int32_t stream_remote_window_size,
     uint32_t remote_max_frame_size,
     void* user_data);
-  int on_error_callback(
+  static int on_error_callback(
     nghttp2_session* session,
     int lib_error_code,
     const char* msg,
     size_t len,
     void* user_data);
 
-  static nghttp2_nv make_nv(const std::string& key, const std::string& value)
+  static nghttp2_nv make_nv(const uint8_t* key, const uint8_t* value)
   {
     // TODO: Investigate no copy flags here
-
     return {
-      (uint8_t*)key.c_str(), // TODO: ugly cast
-      (uint8_t*)value.c_str(),
-      key.size(),
-      value.size(),
+      const_cast<uint8_t*>(key),
+      const_cast<uint8_t*>(value),
+      strlen((char*)key),
+      strlen((char*)value),
       NGHTTP2_NV_FLAG_NONE};
+  }
+
+  static nghttp2_nv make_nv(const char* key, const char* value)
+  {
+    return make_nv((uint8_t*)key, (uint8_t*)value);
   }
 
   struct StreamData
@@ -252,10 +256,15 @@ namespace http2
 
     LOG_FAIL_FMT("Response body of size: {}", response_body.size());
 
-    // TODO: Explore zero-copy alternative
-    memcpy(buf, response_body.data(), response_body.size());
+    if (response_body.size() > 0)
+    {
+      // TODO: Explore zero-copy alternative
+      memcpy(buf, response_body.data(), response_body.size());
+    }
+
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     // *data_flags |= NGHTTP2_DATA_FLAG_NO_COPY;
+
     return response_body.size();
   }
 
@@ -498,7 +507,7 @@ namespace http2
     return 0;
   }
 
-  ssize_t on_data_source_read_length_callback(
+  static ssize_t on_data_source_read_length_callback(
     nghttp2_session* session,
     uint8_t frame_type,
     int32_t stream_id,
@@ -519,7 +528,7 @@ namespace http2
     return max_data_read_size;
   }
 
-  int on_error_callback(
+  static int on_error_callback(
     nghttp2_session* session,
     int lib_error_code,
     const char* msg,
@@ -566,15 +575,16 @@ namespace http2
       LOG_TRACE_FMT(
         "http2::send_response: {} - {}", headers.size(), body.size());
 
+      std::string body_size = std::to_string(body.size());
       std::vector<nghttp2_nv> hdrs;
       auto status_str = fmt::format(
         "{}", static_cast<std::underlying_type<http_status>::type>(status));
-      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str));
+      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
       hdrs.emplace_back(
-        make_nv(http::headers::CONTENT_LENGTH, std::to_string(body.size())));
+        make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
       for (auto& [k, v] : headers)
       {
-        hdrs.emplace_back(make_nv(k, v));
+        hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
       auto* stream_data = reinterpret_cast<StreamData*>(
@@ -651,12 +661,12 @@ namespace http2
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
         make_nv(http2::headers::METHOD, "POST")); // TODO: Make configurable
-      hdrs.emplace_back(make_nv(http2::headers::PATH, route));
+      hdrs.emplace_back(make_nv(http2::headers::PATH, route.data()));
       hdrs.emplace_back(make_nv(":scheme", "https"));
       hdrs.emplace_back(make_nv(":authority", "localhost:8080"));
       for (auto const& [k, v] : headers)
       {
-        hdrs.emplace_back(make_nv(k, v));
+        hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
       auto stream_data = std::make_shared<StreamData>(0);

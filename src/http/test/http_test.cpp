@@ -569,6 +569,7 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
 
   // TODO: Fix
   virtual void handle_request(
+    int32_t stream_id,
     llhttp_method method,
     const std::string_view& url,
     http::HeaderMap&& headers,
@@ -583,7 +584,7 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     }
 
     http::SimpleRequestProcessor::handle_request(
-      method, url, std::move(headers), std::move(body));
+      stream_id, method, url, std::move(headers), std::move(body));
   }
 };
 
