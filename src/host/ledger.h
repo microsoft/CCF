@@ -345,21 +345,19 @@ namespace asynchost
       return get_last_idx();
     }
 
-    std::pair<bool, size_t> entries_size(
+    std::pair<size_t, size_t> entries_size(
       size_t from,
       size_t to,
       std::optional<size_t> max_size = std::nullopt) const
     {
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
-        return std::make_pair(false, 0);
+        return {0, 0};
       }
 
-      // TODO: Return to_ instead of has_cut
-      bool has_cut = false;
       size_t size = 0;
 
-      // If max_size is set, return entries that fit within in (best effort).
+      // If max_size is set, return entries that fit within it (best effort).
       while (true)
       {
         auto position_to =
@@ -374,7 +372,8 @@ namespace asynchost
         {
           if (from == to)
           {
-            return std::make_pair(true, 0);
+            // Request one entry that is too large: no entries are found
+            return {0, 0};
           }
           size_t to_ = from + (to - from) / 2;
           LOG_TRACE_FMT(
@@ -387,14 +386,13 @@ namespace asynchost
             max_size.value(),
             to_);
           to = to_;
-          has_cut = true;
         }
       }
 
-      return std::make_pair(has_cut, size);
+      return std::make_pair(size, to);
     }
 
-    std::optional<std::pair<bool, std::vector<uint8_t>>> read_entries(
+    std::optional<std::pair<std::vector<uint8_t>, size_t>> read_entries(
       size_t from, size_t to, std::optional<size_t> max_size = std::nullopt)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
@@ -408,7 +406,7 @@ namespace asynchost
       }
 
       std::unique_lock<ccf::Mutex> guard(file_lock);
-      auto [has_cut, size] = entries_size(from, to, max_size);
+      auto [size, to_] = entries_size(from, to, max_size);
       if (size == 0)
       {
         return std::nullopt;
@@ -425,7 +423,7 @@ namespace asynchost
           file_name));
       }
 
-      return std::make_pair(has_cut, entries);
+      return std::make_pair(entries, to_);
     }
 
     bool truncate(size_t idx)
@@ -808,12 +806,12 @@ namespace asynchost
         {
           return std::nullopt;
         }
-        auto& [has_cut, e] = v.value();
+        auto& [e, to_read] = v.value();
         entries.insert(
           entries.end(),
           std::make_move_iterator(e.begin()),
           std::make_move_iterator(e.end()));
-        if (has_cut)
+        if (to_read != to_)
         {
           // If all the entries requested from a file are not returned (i.e.
           // because the requested entries are larger than max_entries_size),
