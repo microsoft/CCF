@@ -1068,6 +1068,22 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
+MonoConfigurationsInv ==
+    \A i \in PossibleServer:
+        \/ Len(Configurations[i]) = 1
+        \/ \A k \in 1..Len(Configurations[i])-1: Configurations[i][k][1] < Configurations[i][k+1][1]
+
+LogConfigurationConsistentInv ==
+    \A i \in PossibleServer:
+        \A k \in 1..Len(Configurations[i]):
+            \/ Configurations[i][k][1] = 0
+            \/ log[i][Configurations[i][k][1]].value = Configurations[i][k][2]
+
+LocalStateInv ==
+    /\ MonoLogInv
+    /\ MonoConfigurationsInv
+    /\ LogConfigurationConsistentInv
+
 ----
 \* Debugging invariants
 \* These invariants should give error traces and are useful for debugging to see if important situations are possible
