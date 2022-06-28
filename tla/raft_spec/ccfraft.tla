@@ -893,16 +893,15 @@ MoreThanOneLeaderInv ==
         /\ state[j] = Leader
 
 \* If a candidate has a chance of being elected, there
-\* are no committed log entries with that candidate's term
+\* are no log entries with that candidate's term
 CandidateTermNotInLogInv ==
     \A i \in PossibleServer :
         (/\ state[i] = Candidate
-         /\ LET relevantServers == GetServerSet(i)
-            IN
+        /\ \A k \in 1..Len(Configurations[i]) :
             {j \in PossibleServer :
                 /\ currentTerm[j] = currentTerm[i]
                 /\ votedFor[j] = i
-            } \cap relevantServers \in CalculateQuorum(relevantServers)
+            } \in CalculateQuorum(Configurations[i][k][2])
         )
         =>
         \A j \in PossibleServer :
