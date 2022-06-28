@@ -58,6 +58,7 @@ namespace ccf
       crypto::Pem service_certificate;
       std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
+      size_t recovery_count;
     };
   };
 
