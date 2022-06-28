@@ -291,6 +291,7 @@ def run_pebble(args):
             endorsement=infra.interfaces.Endorsement(
                 authority=infra.interfaces.EndorsementAuthority.Unsecured
             ),
+            accepted_endpoints=["/.well-known/acme-challenge/.*"],
         )
         endorsed_interface.public_host = network_name
         node.rpc_interfaces["acme_endorsed_interface"] = endorsed_interface
@@ -396,6 +397,7 @@ def run_lets_encrypt(args):
                 endorsement=infra.interfaces.Endorsement(
                     authority=infra.interfaces.EndorsementAuthority.Unsecured
                 ),
+                accepted_endpoints=["/.well-known/acme-challenge/.*"],
             )
             node.rpc_interfaces["acme_challenge_server_if"] = challenge_server_interface
 
@@ -422,6 +424,7 @@ def run_unsecured(args):
             endorsement=infra.interfaces.Endorsement(
                 authority=infra.interfaces.EndorsementAuthority.Unsecured
             ),
+            accepted_endpoints=["/.well-known/acme-challenge/.*"],
         )
         node.rpc_interfaces["secured_interface"] = endorsed_interface
         node.rpc_interfaces["unsecured_interface"] = challenge_server_interface
