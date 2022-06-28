@@ -103,5 +103,3 @@ or if there are no Doxygen changes
 .. code-block:: bash
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
-
-.. note:: If you haven't already built CCF then to build local documentation you may need to temporarily rename ``python/version.py.in`` to ``python/version.py`` and edit it to contain a valid version.  
