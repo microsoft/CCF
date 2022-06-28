@@ -152,6 +152,7 @@ class Network:
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = service_load
+            self.recovery_count = 0
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -163,6 +164,7 @@ class Network:
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
                 self.service_load.set_network(self)
+            self.recovery_count = existing_network.recovery_count
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -535,7 +537,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args):
+    def recover(self, args, expected_recovery_count=None):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -574,7 +576,12 @@ class Network:
             )
             self._wait_for_app_open(node)
 
-        self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
+        self.recovery_count = expected_recovery_count or self.recovery_count + 1
+        self.consortium.check_for_service(
+            self.find_random_node(),
+            ServiceStatus.OPEN,
+            recovery_count=self.recovery_count,
+        )
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
