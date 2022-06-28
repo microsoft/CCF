@@ -5,9 +5,9 @@ This page contains troubleshooting tips for CCF.
 
 Tips for interacting with CCF to diagnose issues
 ------------------------------------------------
-.. note:: In the examples below this documentation uses ``example-ccf-domain.com`` as an example CCF domain, you will need to replace that with your own CCF domain when using these commands. 
+.. note:: In the examples below this documentation uses ``example-ccf-domain.com`` as an example CCF domain, you will need to replace that with your own CCF domain when using these commands. You will also need to add authentication parameters such as ``--cacert`` to the curl commands, see :doc:`Issuing commands </use_apps/issue_commands>` for an example.
 
-.. note:: CCF may be deployed with a loadbalancer which may cache the node which last responded to a query from an IP address. Until the cache clears, any subsequent queries from that IP address will be handled by the same node. As an example, if the cache clears after one minute, then in order to get a response from a different node, an operator must wait one minute between queries.  
+.. note:: CCF may be deployed with a load balancer which may cache the node which last responded to a query from an IP address. Until the cache clears, the load balancer will direct any subsequent queries from that IP address to the same node. As an example, if the cache clears after one minute, then in order to get a response from a different node, an operator must wait one minute between queries.  
 
 Below are descriptions of CLI commands and how they are useful for diagnosing CCF issues:
 
@@ -15,15 +15,21 @@ Below are descriptions of CLI commands and how they are useful for diagnosing CC
 
 .. code-block:: bash 
 
-    curl -k https://example-ccf-domain.com/node/network/nodes/self -i
+    curl https://example-ccf-domain.com/node/network/nodes/self -i
 
-This is useful to identify which node is handling queries. The node ID can be found in the Location header. Please read the note above about loadbalancers.
+This is useful to identify which node is handling queries. The node ID can be found in the ``location`` header as shown in the example command output below:
+
+.. code-block:: bash
+
+    HTTP/1.1 308 Permanent Redirect
+    content-length: 0
+    location: https://example-ccf-domain/node/network/nodes/<Node ID>
 
 **“What CCF version is running?”**
 
 .. code-block:: bash
 
-    curl -k https://example-ccf-domain.com/node/version
+    curl https://example-ccf-domain.com/node/version
 
 This is useful to confirm the version that is running.
 
@@ -31,18 +37,18 @@ This is useful to confirm the version that is running.
 
 .. code-block:: bash
 
-    curl -k https://example-ccf-domain.com/node/network/nodes
+    curl https://example-ccf-domain.com/node/network/nodes
 
-This will show information for all nodes in the network. In a healthy network all nodes will show ``“status” = “Trusted”``, and one node only will show ``“primary” = true``. This is the healthy state of the network. 
+This will show information for all nodes in the network. In a healthy network all nodes will show ``“status”: “Trusted”``, and one node only will show ``“primary” = true``. This is the healthy state of the network. 
 Around upgrades/restarts/migrations nodes will transition through unhealthy states temporarily. If the network remains in an unhealthly state for a long time, this indicates there is an issue. 
 
-You can obtain this information for a single node by appending its ID to this endpoint. E.g. ``https://<your-domain>/node/network/nodes/<ID>``, where ``<ID>`` can be obtained from the ``/node/network/nodes/self`` endpoint described above. Take note of the ``node_data`` field which contains useful correlation IDs. E.g. ``node 0``, ``pod name``.
+You can obtain this information for a single node by querying the :http:GET:`/node/network/nodes/{node_id}` endpoint, where ``{node id}`` can be obtained from the :http:GET:`/node/network/nodes/self` endpoint described above. Take note of the ``node_data`` field in the response which contains useful correlation IDs.
 
 **“Is the network in the middle of a reconfiguration?”**
 
 .. code-block:: bash
 
-    curl -k https://example-ccf-domain.com/node/consensus
+    curl https://example-ccf-domain.com/node/consensus
 
 This has a few bits of data that might help us diagnose a partitioned/faulty network. In particular, most of the time there should be a single entry in the ``configs`` list. During an upgrade/restart/migration, there may be multiple values. If multiple values persist for a long time, it suggests something went wrong during the reconfiguration.
 
@@ -50,9 +56,11 @@ This has a few bits of data that might help us diagnose a partitioned/faulty net
 
 .. code-block:: bash
 
-    curl -k https://example-ccf-domain.com/node/commit
+    curl https://example-ccf-domain.com/node/commit
 
-This is a good endpoint to query to check if the CCF service is reachable. Additionally, comparing the view in this response with the “current view” from /node/consensus endpoint, explained above, can highlight a partitioned node. So for example, if the response from ``/node/commit`` states the ``view`` is ``15``, and the response from ``/node/concensus`` states the node's ``current view`` is ``78967`` and that number is constantly increasing, then this indicates the node is unable to make consensus progress, which likely indicates it is unable to contact other nodes. 
+This is a good endpoint to query to check if the CCF service is reachable. Additionally, a large and increasing difference between the ``View`` in the :term:`Transaction ID` in this response, and the ``current_view`` from the :http:GET:`/node/consensus` response, indicates a partitioned node. For example, if the response from :http:GET:`/node/commit` shows the ``View`` is ``15``, and the response from :http:GET:`/node/consensus` states the ``current view`` is ``78967`` and that number is constantly increasing, then this indicates the node is unable to make consensus progress, which likely indicates it is unable to contact other nodes. 
+
+.. tip:: See :ccf_repo:`tests/infra/health_watcher.py` for a detailed technical example of how the health of the network can be monitored.
 
 
 Node Output
