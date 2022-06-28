@@ -119,6 +119,7 @@ def test_new_service(
         network.retire_node(primary, node)
         if primary == node:
             primary, _ = network.wait_for_new_primary(primary)
+            network.txs.issue(network, number_txs=1, repeat=True)
         node.stop()
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
