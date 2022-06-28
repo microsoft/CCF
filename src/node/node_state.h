@@ -687,8 +687,7 @@ namespace ccf
       JoinNetworkNodeToNode::In join_params;
 
       join_params.node_info_network = config.network;
-      join_params.public_encryption_key =
-        node_encrypt_kp->public_key_pem().raw();
+      join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
