@@ -48,7 +48,7 @@ namespace kv
 
     Version last_replicated = 0;
     // Version of the latest committable entry committed in this term and by
-    // _this_ store. Always reset on rollback.
+    // _this_ store.
     Version last_committable = 0;
 
     Version rollback_count = 0;
