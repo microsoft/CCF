@@ -123,6 +123,7 @@ def run(
     uncommitted=False,
     insecure_skip_verification=False,
     tables_format_rules=None,
+    digests_only=None,
 ):
 
     # Extend and compile rules
@@ -159,7 +160,12 @@ def run(
                     f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
                 )
                 for transaction in chunk:
-                    dump_entry(transaction, table_filter, tables_format_rules)
+                    if digests_only:
+                        print(
+                            f"{transaction.gcm_header.view}.{transaction.gcm_header.seqno} {transaction.get_write_set_digest().hex()}"
+                        )
+                    else:
+                        dump_entry(transaction, table_filter, tables_format_rules)
         except Exception as e:
             LOG.exception(f"Error parsing ledger: {e}")
             has_error = True
@@ -201,6 +207,12 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "-d",
+        "--digests-only",
+        help="Only print transaction digests",
+        action="store_true",
+    )
+    parser.add_argument(
         "-t",
         "--tables",
         help="Regex filter for tables to display",
@@ -224,5 +236,7 @@ if __name__ == "__main__":
         args.tables,
         args.uncommitted,
         args.insecure_skip_verification,
+        None,
+        args.digests_only,
     ):
         sys.exit(1)

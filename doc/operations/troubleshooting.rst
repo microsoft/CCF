@@ -68,13 +68,13 @@ Node Output
 
 By default node output is written to ``stdout`` and to ``stderr`` and can be handled accordingly.
 
-There is an option to generate machine-readable logs for monitoring. To enable this pass ``--json-format-json`` when creating a node (in either ``start`` or ``join`` mode). The generated logs will be in JSON format as displayed below:
+There is an option to generate machine-readable logs for monitoring. To enable this, set the ``logging.format`` configuration entry to ``"Json"``. The generated logs will be in JSON format as displayed below:
 
 .. code-block:: json
 
     {
         "e_ts": "2019-09-02T14:47:24.589386Z",
-        "file": "../src/consensus/raft/raft.h",
+        "file": "../src/consensus/aft/raft.h",
         "h_ts": "2019-09-02T14:47:24.589384Z",
         "level": "info",
         "msg": "Deserialising signature at 24\n",

@@ -672,6 +672,7 @@ class Transaction(Entry):
     _next_offset: int = LEDGER_HEADER_SIZE
     _tx_offset: int = 0
     _ledger_validator: Optional[LedgerValidator] = None
+    _dgst = functools.partial(digest, hashes.SHA256())
 
     def __init__(
         self, filename: str, ledger_validator: Optional[LedgerValidator] = None
@@ -714,18 +715,24 @@ class Transaction(Entry):
     def get_offsets(self) -> Tuple[int, int]:
         return (self._tx_offset, self._next_offset)
 
+    def get_write_set_digest(self) -> bytes:
+        self._dgst = functools.partial(digest, hashes.SHA256())
+        return self._dgst(self.get_raw_tx())
+
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
         commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
-        dgst = functools.partial(digest, hashes.SHA256())
-        write_set_digest = dgst(self.get_raw_tx())
+        write_set_digest = self.get_write_set_digest()
         if claims_digest is None:
             if commit_evidence_digest is None:
                 return write_set_digest
             else:
-                return dgst(write_set_digest + commit_evidence_digest)
+                return self._dgst(write_set_digest + commit_evidence_digest)
         else:
-            return dgst(write_set_digest + commit_evidence_digest + claims_digest)
+            assert (
+                commit_evidence_digest
+            ), "Invalid transaction: commit_evidence_digest not set"
+            return self._dgst(write_set_digest + commit_evidence_digest + claims_digest)
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)

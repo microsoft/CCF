@@ -45,6 +45,7 @@ namespace ccf
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
       ccf::Endorsement endorsement;
+      http::ParserConfiguration http_configuration;
       ccf::SessionMetrics::Errors errors;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
@@ -54,7 +55,7 @@ namespace ccf
     std::shared_ptr<RPCMap> rpc_map;
     std::unordered_map<ListenInterfaceID, std::shared_ptr<tls::Cert>> certs;
 
-    std::mutex lock;
+    ccf::Mutex lock;
     std::unordered_map<
       tls::ConnID,
       std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
@@ -147,6 +148,23 @@ namespace ccf
       return id;
     }
 
+    ListenInterface& get_interface_from_session_id(tls::ConnID id)
+    {
+      // Lock must be first acquired and held while accessing returned interface
+      auto search = sessions.find(id);
+      if (search != sessions.end())
+      {
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          return it->second;
+        }
+      }
+
+      throw std::logic_error(
+        fmt::format("No RPC interface for session ID {}", id));
+    }
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -159,23 +177,26 @@ namespace ccf
 
     void report_parsing_error(tls::ConnID id) override
     {
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
+      get_interface_from_session_id(id).errors.parsing++;
+    }
 
-      auto search = sessions.find(id);
-      if (search != sessions.end())
-      {
-        auto it = listening_interfaces.find(search->second.first);
-        if (it != listening_interfaces.end())
-        {
-          it->second.errors.parsing++;
-        }
-      }
+    void report_request_payload_too_large_error(tls::ConnID id) override
+    {
+      std::lock_guard<ccf::Mutex> guard(lock);
+      get_interface_from_session_id(id).errors.request_payload_too_large++;
+    }
+
+    void report_request_header_too_large_error(tls::ConnID id) override
+    {
+      std::lock_guard<ccf::Mutex> guard(lock);
+      get_interface_from_session_id(id).errors.request_header_too_large++;
     }
 
     void update_listening_interface_options(
       const ccf::NodeInfoNetwork& node_info)
     {
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
 
       for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
@@ -188,6 +209,9 @@ namespace ccf
           max_open_sessions_hard_default);
 
         li.endorsement = interface.endorsement.value_or(endorsement_default);
+
+        li.http_configuration =
+          interface.http_configuration.value_or(http::ParserConfiguration{});
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
@@ -203,7 +227,7 @@ namespace ccf
     ccf::SessionMetrics get_session_metrics()
     {
       ccf::SessionMetrics sm;
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
 
       sm.active = sessions.size();
       sm.peak = sessions_peak;
@@ -244,7 +268,7 @@ namespace ccf
       auto cert = std::make_shared<tls::Cert>(
         nullptr, cert_, pk, std::nullopt, /*auth_required ==*/false);
 
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
 
       for (auto& [listen_interface_id, interface] : listening_interfaces)
       {
@@ -266,7 +290,7 @@ namespace ccf
       const ListenInterfaceID& listen_interface_id,
       bool udp = false)
     {
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
 
       if (sessions.find(id) != sessions.end())
       {
@@ -370,6 +394,7 @@ namespace ccf
             listen_interface_id,
             writer_factory,
             std::move(ctx),
+            per_listen_interface.http_configuration,
             shared_from_this());
           sessions.insert(std::make_pair(
             id, std::make_pair(listen_interface_id, std::move(session))));
@@ -385,7 +410,7 @@ namespace ccf
 
     bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
     {
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
@@ -402,7 +427,7 @@ namespace ccf
 
     void remove_session(tls::ConnID id)
     {
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
       LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
       const auto search = sessions.find(id);
       if (search != sessions.end())
@@ -419,7 +444,7 @@ namespace ccf
     std::shared_ptr<ClientEndpoint> create_client(
       std::shared_ptr<tls::Cert> cert)
     {
-      std::lock_guard<std::mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
       auto id = get_next_client_id();
 

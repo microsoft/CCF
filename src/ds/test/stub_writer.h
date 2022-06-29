@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/mutex.h"
 #include "ds/ring_buffer_types.h"
 
 #include <limits>
-#include <mutex>
 #include <vector>
 
 struct StubWriter : public ringbuffer::AbstractWriter
@@ -17,7 +17,7 @@ public:
     bool finished;
     std::vector<uint8_t> contents;
   };
-  std::mutex writes_mutex;
+  ccf::Mutex writes_mutex;
   std::vector<Write> writes;
 
   Write& get_write(const WriteMarker& marker)
@@ -35,7 +35,7 @@ public:
     bool wait = true,
     size_t* identifier = nullptr) override
   {
-    std::lock_guard<std::mutex> guard(writes_mutex);
+    std::lock_guard<ccf::Mutex> guard(writes_mutex);
     const auto seqno = writes.size();
     writes.push_back(Write{m, false, {}});
     return seqno;
@@ -43,14 +43,14 @@ public:
 
   void finish(const WriteMarker& marker) override
   {
-    std::lock_guard<std::mutex> guard(writes_mutex);
+    std::lock_guard<ccf::Mutex> guard(writes_mutex);
     get_write(marker).finished = true;
   }
 
   WriteMarker write_bytes(
     const WriteMarker& marker, const uint8_t* bytes, size_t size) override
   {
-    std::lock_guard<std::mutex> guard(writes_mutex);
+    std::lock_guard<ccf::Mutex> guard(writes_mutex);
     auto& write = get_write(marker);
     write.contents.insert(write.contents.end(), bytes, bytes + size);
     return marker;
