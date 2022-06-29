@@ -60,6 +60,7 @@ namespace ccf
       std::optional<NodeId> primary_id;
       size_t recovery_count;
       nlohmann::json service_data;
+      std::optional<ccf::TxID> current_service_create_txid;
     };
   };
 

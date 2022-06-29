@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New per-interface configuration entries (`network.rpc_interfaces.http_configuration`) are added to let operators cap the maximum size of body, header value size and number of headers in client HTTP requests. The client session is automatically closed if the HTTP request exceeds one of these limits (#3941).
 - Added new `recovery_count` field to `GET /node/network` endpoint to track the number of disaster recovery procedures undergone by the service (#3982).
 - Added new `service_data_json_file` configuration entry to `cchost` to point to free-form JSON file to set arbitrary data to service (#3997).
+- Added new `current_service_create_txid` field to `GET /node/network` endpoint to indicate `TxID` at which current service was created (#3996).
 
 ### Changed
 

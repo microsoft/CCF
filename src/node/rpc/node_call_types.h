@@ -63,6 +63,7 @@ namespace ccf
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
       nlohmann::json service_data;
+      ccf::TxID create_txid;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;
