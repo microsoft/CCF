@@ -45,7 +45,7 @@ namespace tls
 
       // Configure protocols negotiated by ALPN
       static unsigned char alpn_protos_data[] = {
-        8, 'h', 't', 't', 'p', '/', '1', '.', '1'};
+        2, 'h', '2', 8, 'h', 't', 't', 'p', '/', '1', '.', '1'};
       static AlpnProtocols alpn_protos{
         alpn_protos_data, sizeof(alpn_protos_data)};
       SSL_CTX_set_alpn_select_cb(cfg, alpn_select_cb, &alpn_protos);
