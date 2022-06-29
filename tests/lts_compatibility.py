@@ -119,6 +119,15 @@ def test_new_service(
         network.retire_node(primary, node)
         if primary == node:
             primary, _ = network.wait_for_new_primary(primary)
+            # Stopping a node immediately after its removal being
+            # committed and an election is not safe: the successor
+            # primary may need to re-establish commit on a config
+            # that includes the retire node.
+            # See https://github.com/microsoft/CCF/issues/1713
+            # for more detail. Until the dedicated endpoint exposing
+            # this safely is implemented, we work around this by
+            # submitting and waiting for commit on another transaction.
+            network.txs.issue(network, number_txs=1, repeat=True)
         node.stop()
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)

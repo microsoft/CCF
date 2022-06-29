@@ -538,13 +538,32 @@ namespace ccf
             auto time_of_last_signature = self->time_of_last_signature.count();
 
             auto consensus = self->store.get_consensus();
-            if (
-              (consensus != nullptr) && consensus->can_replicate() &&
-              self->store.committable_gap() > 0 &&
-              time > time_of_last_signature &&
-              (time - time_of_last_signature) > sig_ms_interval)
+            if (consensus != nullptr)
             {
-              should_emit_signature = true;
+              auto sig_disp = consensus->get_signature_disposition();
+              switch (sig_disp)
+              {
+                case kv::Consensus::SignatureDisposition::CANT_REPLICATE:
+                {
+                  break;
+                }
+                case kv::Consensus::SignatureDisposition::CAN_SIGN:
+                {
+                  if (
+                    self->store.committable_gap() > 0 &&
+                    time > time_of_last_signature &&
+                    (time - time_of_last_signature) > sig_ms_interval)
+                  {
+                    should_emit_signature = true;
+                  }
+                  break;
+                }
+                case kv::Consensus::SignatureDisposition::SHOULD_SIGN:
+                {
+                  should_emit_signature = true;
+                  break;
+                }
+              }
             }
 
             delta_time_to_next_sig =
@@ -747,21 +766,15 @@ namespace ccf
         return;
       }
 
-      // Signatures are only emitted when the consensus is establishing commit
-      // over the node's own transactions
-      auto signable_txid = consensus->get_signable_txid();
-      if (!signable_txid.has_value())
-      {
-        return;
-      }
-
       if (!endorsed_cert.has_value())
       {
         throw std::logic_error(
           fmt::format("No endorsed certificate set to emit signature"));
       }
 
-      auto commit_txid = signable_txid.value();
+      // NB: This call will also reset consensus' should_sign, so we should
+      // always proceed to producing a signature from here.
+      auto commit_txid = consensus->get_signable_txid();
       auto txid = store.next_txid();
 
       last_signed_tx = commit_txid.version;
