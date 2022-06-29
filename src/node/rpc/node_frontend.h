@@ -809,6 +809,7 @@ namespace ccf
           out.service_status = service_value.status;
           out.service_certificate = service_value.cert;
           out.recovery_count = service_value.recovery_count.value_or(0);
+          out.service_data = service_value.service_data;
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
