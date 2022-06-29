@@ -126,6 +126,7 @@ struct StartupConfig : CCFConfig
 
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;
+  nlohmann::json service_data = nullptr;
 
   nlohmann::json node_data = nullptr;
 
@@ -173,6 +174,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   startup_host_time,
   snapshot_tx_interval,
   initial_service_certificate_validity_days,
+  service_data,
   node_data,
   start,
   join,

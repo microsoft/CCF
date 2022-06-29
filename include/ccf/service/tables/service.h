@@ -33,11 +33,17 @@ namespace ccf
     std::optional<kv::Version> previous_service_identity_version = std::nullopt;
     /// Number of disaster recoveries performed on this service
     std::optional<size_t> recovery_count = std::nullopt;
+    /// Free-form user data, can be used by members to store additional
+    /// information about service
+    nlohmann::json service_data = nullptr;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    ServiceInfo, previous_service_identity_version, recovery_count);
+    ServiceInfo,
+    previous_service_identity_version,
+    recovery_count,
+    service_data);
 
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV

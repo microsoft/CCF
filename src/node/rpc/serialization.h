@@ -74,7 +74,7 @@ namespace ccf
     code_digest,
     node_info_network)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CreateNetworkNodeToNode::In, genesis_info, node_data)
+    CreateNetworkNodeToNode::In, genesis_info, node_data, service_data)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)

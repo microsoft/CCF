@@ -1951,6 +1951,7 @@ namespace ccf
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
+      create_params.service_data = config.node_data;
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 

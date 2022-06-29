@@ -408,6 +408,12 @@ int main(int argc, char** argv)
         files::slurp_json(config.node_data_json_file.value());
     }
 
+    if (config.service_data_json_file.has_value())
+    {
+      startup_config.service_data =
+        files::slurp_json(config.service_data_json_file.value());
+    }
+
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
