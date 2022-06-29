@@ -68,10 +68,10 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
-    :fa:`file-alt` :doc:`node_output`
+    :fa:`wrench` :doc:`troubleshooting`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Monitor node health and events using logs.
+    Troubleshooting tips for unexpected events.
 
     ---
 
@@ -99,6 +99,6 @@ This section describes how :term:`Operators` manage the different nodes constitu
     certificates
     recovery
     network
-    node_output
+    troubleshooting
     resource_usage
     operator_rpc_api
