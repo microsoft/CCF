@@ -48,7 +48,7 @@ namespace kv
 
     Version last_replicated = 0;
     // Version of the latest committable entry committed in this term and by
-    // _this_ store. Always reset on rollback.
+    // _this_ store.
     Version last_committable = 0;
 
     Version rollback_count = 0;
@@ -638,7 +638,6 @@ namespace kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        last_committable = 0;
         unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;

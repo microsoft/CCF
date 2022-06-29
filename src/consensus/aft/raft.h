@@ -104,6 +104,13 @@ namespace aft
     // entries, the initial index will not advance until this node acks.
     bool is_new_follower = false;
 
+    // When this node becomes primary, they should produce a new signature in
+    // the current view. This signature is the first thing they may commit, as
+    // they cannot confirm commit of anything from a previous view (Raft paper
+    // section 5.4.2). This bool is true from the point this node becomes
+    // primary, until it is explicitly reset by a call to get_signable_txid()
+    bool should_sign = false;
+
     std::shared_ptr<aft::State> state;
 
     // Timeouts
@@ -251,8 +258,27 @@ namespace aft
     bool can_replicate() override
     {
       std::unique_lock<ccf::Mutex> guard(state->lock);
-      return leadership_state == kv::LeadershipState::Leader &&
-        !retirement_committable_idx.has_value();
+      return can_replicate_unsafe();
+    }
+
+    Consensus::SignatureDisposition get_signature_disposition() override
+    {
+      std::unique_lock<ccf::Mutex> guard(state->lock);
+      if (can_replicate_unsafe())
+      {
+        if (should_sign)
+        {
+          return Consensus::SignatureDisposition::SHOULD_SIGN;
+        }
+        else
+        {
+          return Consensus::SignatureDisposition::CAN_SIGN;
+        }
+      }
+      else
+      {
+        return Consensus::SignatureDisposition::CANT_REPLICATE;
+      }
     }
 
     bool is_backup() override
@@ -377,23 +403,20 @@ namespace aft
       return {get_term_internal(commit_idx), commit_idx};
     }
 
-    std::optional<kv::Consensus::SignableTxIndices> get_signable_txid() override
+    kv::Consensus::SignableTxIndices get_signable_txid() override
     {
       std::lock_guard<ccf::Mutex> guard(state->lock);
-      if (
-        consensus_type == ConsensusType::BFT ||
-        state->commit_idx >= election_index)
-      {
-        kv::Consensus::SignableTxIndices r;
-        r.term = get_term_internal(state->commit_idx);
-        r.version = state->commit_idx;
-        r.previous_version = last_committable_index();
-        return r;
-      }
-      else
-      {
-        return std::nullopt;
-      }
+
+      kv::Consensus::SignableTxIndices r;
+      r.version = state->last_idx;
+      r.term = get_term_internal(r.version);
+      r.previous_version = std::max(last_committable_index(), election_index);
+
+      // NB: Reset here, since we're already holding the lock, and assume the
+      // caller will go on to emit a signature
+      should_sign = false;
+
+      return r;
     }
 
     Term get_view(Index idx) override
@@ -965,6 +988,12 @@ namespace aft
       return state->view_history.view_at(idx);
     }
 
+    bool can_replicate_unsafe()
+    {
+      return leadership_state == kv::LeadershipState::Leader &&
+        !retirement_committable_idx.has_value();
+    }
+
     Index get_commit_idx_unsafe()
     {
       if (consensus_type == ConsensusType::CFT)
@@ -1324,7 +1353,6 @@ namespace aft
           case kv::ApplyResult::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
-            auto prev_lci = last_committable_index();
             if (
               membership_state == kv::MembershipState::Retired &&
               retirement_phase == kv::RetirementPhase::Ordered)
@@ -1344,7 +1372,10 @@ namespace aft
               }
               else
               {
-                state->view_history.update(prev_lci + 1, ds->get_term());
+                // NB: This is only safe as long as AppendEntries only contain a
+                // single term. If they cover multiple terms, then we need to
+                // know our previous signature locally.
+                state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
               commit_if_possible(r.leader_commit_idx);
             }
@@ -1796,6 +1827,13 @@ namespace aft
       // and has a genesis or recovery tx as the last transaction
       election_index = last_committable_index();
 
+      // A newly elected leader must not advance the commit index until a
+      // transaction in the new term commits. We achieve this by clearing our
+      // list committable indices - so nothing from a previous term is now
+      // considered committable. Instead this new primary will shortly produce
+      // their own signature, which _will_ be considered committable.
+      committable_indices.clear();
+
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
@@ -1813,6 +1851,7 @@ namespace aft
 
       leadership_state = kv::LeadershipState::Leader;
       leader_id = state->my_node_id;
+      should_sign = true;
 
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
