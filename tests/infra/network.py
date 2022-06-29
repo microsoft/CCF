@@ -279,7 +279,6 @@ class Network:
 
         # Note: temporary fix until second snapshot directory is ported to 2.x branch
         if not node.version_after("ccf-2.0.3") and read_only_snapshots_dir is not None:
-            LOG.error("here")
             snapshots_dir = read_only_snapshots_dir
 
         node.join(
