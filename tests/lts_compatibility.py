@@ -8,6 +8,7 @@ import infra.utils
 import infra.github
 import infra.jwt_issuer
 import infra.crypto
+import infra.node
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
@@ -433,6 +434,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
+    previous_version = None
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -473,7 +475,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
                     )
-                    network.recover(args)
+                    # Recovery count is not stored in pre-2.0.4 ledgers
+                    network.recover(
+                        args,
+                        expected_recovery_count=1
+                        if not infra.node.version_after(previous_version, "ccf-2.0.4")
+                        else None,
+                    )
+
+                previous_version = version
 
                 nodes = network.get_joined_nodes()
                 primary, _ = network.find_primary()
