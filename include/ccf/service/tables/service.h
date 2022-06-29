@@ -34,7 +34,7 @@ namespace ccf
     std::optional<kv::Version> previous_service_identity_version = std::nullopt;
     /// Number of disaster recoveries performed on this service
     std::optional<size_t> recovery_count = std::nullopt;
-    /// Version (seqno) at which current service was created
+    /// TxID at which current service was created
     std::optional<ccf::TxID> current_service_create_txid = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
