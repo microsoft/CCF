@@ -475,11 +475,11 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
                     )
-                    # Recovery count is not stored in pre-2.0.3 ledgers
+                    # Recovery count is not stored in pre-2.0.4 ledgers
                     network.recover(
                         args,
                         expected_recovery_count=1
-                        if not infra.node.version_after(previous_version, "ccf-2.0.3")
+                        if not infra.node.version_after(previous_version, "ccf-2.0.4")
                         else None,
                     )
 
