@@ -5,6 +5,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/service/map.h"
+#include "ccf/tx_id.h"
 
 namespace ccf
 {
@@ -34,7 +35,7 @@ namespace ccf
     /// Number of disaster recoveries performed on this service
     std::optional<size_t> recovery_count = std::nullopt;
     /// Version (seqno) at which current service was created
-    std::optional<kv::Version> current_service_create_version = std::nullopt;
+    std::optional<ccf::TxID> current_service_create_txid = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
@@ -42,7 +43,7 @@ namespace ccf
     ServiceInfo,
     previous_service_identity_version,
     recovery_count,
-    current_service_create_version);
+    current_service_create_txid);
 
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV

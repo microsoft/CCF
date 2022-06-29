@@ -51,6 +51,7 @@ def test_recover_service(network, args, from_snapshot=True):
     with old_primary.client() as c:
         r = c.get("/node/service/previous_identity")
         assert r.status_code in (200, 404), r.status_code
+        prev_view = c.get("/node/network").body.json()["current_view"]
 
     snapshots_dir = None
     if from_snapshot:
@@ -98,6 +99,16 @@ def test_recover_service(network, args, from_snapshot=True):
             ), f"Response doesn't match previous identity: {received_prev_ident} != {prev_ident}"
 
     recovered_network.recover(args)
+
+    LOG.info("Check that new service view is as expected")
+    new_primary, _ = recovered_network.find_primary()
+    with new_primary.client() as c:
+        assert (
+            ccf.tx_id.TxID.from_str(
+                c.get("/node/network").body.json()["current_service_create_txid"]
+            ).view
+            == prev_view + 2
+        )
 
     return recovered_network
 
@@ -553,11 +564,14 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
+        primary, _ = network.find_primary()
 
-        network = test_recover_service(network, args, from_snapshot=False)
-        network = test_recover_service(network, args, from_snapshot=False)
-
-        return network
+        LOG.info("Check for well-known genesis service TxID")
+        with primary.client() as c:
+            r = c.get("/node/network").body.json()
+            assert ccf.tx_id.TxID.from_str(
+                r["current_service_create_txid"]
+            ) == ccf.tx_id.TxID(2, 1)
 
         if args.with_load:
             # See https://github.com/microsoft/CCF/issues/3788 for justification

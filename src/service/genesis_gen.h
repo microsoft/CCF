@@ -289,7 +289,7 @@ namespace ccf
     // Service status should use a state machine, very much like NodeState.
     void create_service(
       const crypto::Pem& service_cert,
-      kv::Version create_version,
+      ccf::TxID create_txid,
       bool recovering = false)
     {
       auto service = tx.rw(tables.service);
@@ -314,7 +314,7 @@ namespace ccf
          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
          recovering ? service->get_version_of_previous_write() : std::nullopt,
          recovery_count,
-         create_version});
+         create_txid});
     }
 
     bool is_service_created(const crypto::Pem& expected_service_cert)

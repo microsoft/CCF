@@ -809,6 +809,8 @@ namespace ccf
           out.service_status = service_value.status;
           out.service_certificate = service_value.cert;
           out.recovery_count = service_value.recovery_count.value_or(0);
+          out.current_service_create_txid =
+            service_value.current_service_create_txid;
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
@@ -1346,7 +1348,7 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.service_cert, in.create_version, recovering);
+        g.create_service(in.service_cert, in.create_txid, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
