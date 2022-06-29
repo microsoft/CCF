@@ -554,6 +554,11 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        network = test_recover_service(network, args, from_snapshot=False)
+        network = test_recover_service(network, args, from_snapshot=False)
+
+        return network
+
         if args.with_load:
             # See https://github.com/microsoft/CCF/issues/3788 for justification
             LOG.info("Loading service before recovery...")

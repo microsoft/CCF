@@ -1346,7 +1346,7 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.service_cert, recovering);
+        g.create_service(in.service_cert, in.create_version, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();

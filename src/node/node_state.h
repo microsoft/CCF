@@ -1052,6 +1052,8 @@ namespace ccf
         last_recovered_term,
         last_recovered_signed_idx);
 
+      auto first_idx_in_new_service = last_recovered_signed_idx + 1;
+
       auto tx = network.tables->create_read_only_tx();
       if (network.consensus_type == ConsensusType::BFT)
       {
@@ -1062,7 +1064,7 @@ namespace ccf
         open_frontend(ActorsType::members);
       }
 
-      network.ledger_secrets->init(last_recovered_signed_idx + 1);
+      network.ledger_secrets->init(first_idx_in_new_service);
 
       // Initialise snapshotter after public recovery
       snapshotter->init_after_public_recovery();
@@ -1951,6 +1953,7 @@ namespace ccf
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
+      create_params.create_version = last_recovered_signed_idx + 1;
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 

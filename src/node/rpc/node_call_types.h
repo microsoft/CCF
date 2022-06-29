@@ -62,6 +62,7 @@ namespace ccf
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
+      kv::Version create_version;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;
