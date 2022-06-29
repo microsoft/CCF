@@ -500,7 +500,7 @@ void prepare_callers(NetworkState& network)
   init_network(network);
 
   GenesisGenerator g(network, tx);
-  g.create_service(network.identity->cert);
+  g.create_service(network.identity->cert, ccf::TxID{});
   user_id = g.add_user({user_caller});
   member_id = g.add_member(member_cert);
   invalid_member_id = g.add_member(invalid_caller);
