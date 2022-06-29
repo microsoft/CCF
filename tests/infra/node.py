@@ -94,6 +94,21 @@ def version_rc(full_version):
     return (None, 0)
 
 
+def version_after(version, cmp_version):
+    if version is None and cmp_version is not None:
+        # It is assumed that version is None for latest development
+        # branch (i.e. main)
+        return True
+    rc, _ = version_rc(cmp_version)
+    self_rc, self_num_rc_tkns = version_rc(version)
+    ver = Version(strip_version(cmp_version))
+    self_ver = Version(strip_version(version))
+    return self_ver > ver or (
+        self_ver == ver
+        and (not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3))
+    )
+
+
 class Node:
     # Default to using httpx
     curl = False
@@ -702,20 +717,7 @@ class Node:
         return False
 
     def version_after(self, version):
-        if self.version is None and version is not None:
-            # It is assumed that version is None for latest development
-            # branch (i.e. main)
-            return True
-        rc, _ = version_rc(version)
-        self_rc, self_num_rc_tkns = version_rc(self.version)
-        ver = Version(strip_version(version))
-        self_ver = Version(strip_version(self.version))
-        return self_ver > ver or (
-            self_ver == ver
-            and (
-                not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3)
-            )
-        )
+        return version_after(self.version, version)
 
     def get_receipt(self, view, seqno, timeout=3):
         found = False

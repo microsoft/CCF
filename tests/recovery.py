@@ -368,10 +368,13 @@ def test_share_resilience(network, args, from_snapshot=False):
             timeout=args.ledger_recovery_timeout,
         )
 
+    recovered_network.recovery_count += 1
     recovered_network.consortium.check_for_service(
         new_primary,
         infra.network.ServiceStatus.OPEN,
+        recovery_count=recovered_network.recovery_count,
     )
+
     if recovered_network.service_load:
         recovered_network.service_load.set_network(recovered_network)
     return recovered_network

@@ -88,7 +88,8 @@ namespace ccf
     service_status,
     service_certificate,
     current_view,
-    primary_id)
+    primary_id,
+    recovery_count)
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
