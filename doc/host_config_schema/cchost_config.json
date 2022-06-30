@@ -113,7 +113,9 @@
                   {
                     "not": {
                       "properties": {
-                        "authority": { "const": "ACME" }
+                        "authority": {
+                          "const": "ACME"
+                        }
                       }
                     }
                   }
@@ -392,6 +394,10 @@
     "node_data_json_file": {
       "type": ["string", "null"],
       "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier"
+    },
+    "service_data_json_file": {
+      "type": ["string", "null"],
+      "description": "Path to file (JSON) containing initial service data. It is used when the node starts in 'Start' or 'Recover' mode and is intended to store arbitrary information about the service"
     },
     "ledger": {
       "type": "object",

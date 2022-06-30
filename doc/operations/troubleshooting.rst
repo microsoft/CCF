@@ -64,7 +64,7 @@ This is a good endpoint to query to check if the CCF service is reachable. Addit
 
 
 Node Output
-===========
+-----------
 
 By default node output is written to ``stdout`` and to ``stderr`` and can be handled accordingly.
 
