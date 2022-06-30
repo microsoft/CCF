@@ -44,6 +44,7 @@ namespace tls
       cert->use(ssl, cfg);
 
       // Configure protocols negotiated by ALPN
+      // TODO: h2 only for http2 interface
       static unsigned char alpn_protos_data[] = {
         2, 'h', '2', 8, 'h', 't', 't', 'p', '/', '1', '.', '1'};
       static AlpnProtocols alpn_protos{
