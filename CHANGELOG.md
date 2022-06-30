@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Added new `recovery_count` field to `GET /node/network` endpoint to track the number of disaster recovery procedures undergone by the service (#3982).
+
 ### Changed
 
 - Node and service PEM certificates no longer contain a trailing null byte.

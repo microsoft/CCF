@@ -370,7 +370,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.20.0";
+      openapi_info.document_version = "2.22.0";
     }
 
     void init_handlers() override
@@ -808,6 +808,7 @@ namespace ccf
           const auto& service_value = service_state.value();
           out.service_status = service_value.status;
           out.service_certificate = service_value.cert;
+          out.recovery_count = service_value.recovery_count.value_or(0);
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
