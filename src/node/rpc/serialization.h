@@ -72,7 +72,8 @@ namespace ccf
     quote_info,
     public_encryption_key,
     code_digest,
-    node_info_network)
+    node_info_network,
+    create_txid)
   DECLARE_JSON_OPTIONAL_FIELDS(
     CreateNetworkNodeToNode::In, genesis_info, node_data)
 
@@ -89,7 +90,8 @@ namespace ccf
     service_certificate,
     current_view,
     primary_id,
-    recovery_count)
+    recovery_count,
+    current_service_create_txid)
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
