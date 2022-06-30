@@ -34,6 +34,9 @@ namespace ccf
     std::optional<kv::Version> previous_service_identity_version = std::nullopt;
     /// Number of disaster recoveries performed on this service
     std::optional<size_t> recovery_count = std::nullopt;
+    /// Free-form user data, can be used by members to store additional
+    /// information about service
+    nlohmann::json service_data = nullptr;
     /// TxID at which current service was created
     std::optional<ccf::TxID> current_service_create_txid = std::nullopt;
   };
@@ -43,6 +46,7 @@ namespace ccf
     ServiceInfo,
     previous_service_identity_version,
     recovery_count,
+    service_data,
     current_service_create_txid);
 
   // As there is only one service active at a given time, it is stored in single

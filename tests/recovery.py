@@ -17,6 +17,7 @@ import time
 from e2e_logging import verify_receipt
 import infra.service_load
 import ccf.tx_id
+import tempfile
 
 from loguru import logger as LOG
 
@@ -76,12 +77,23 @@ def test_recover_service(network, args, from_snapshot=True):
         args.perf_nodes,
         existing_network=network,
     )
-    recovered_network.start_in_recovery(
-        args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-        snapshots_dir=snapshots_dir,
-    )
+    with tempfile.NamedTemporaryFile(mode="w+") as ntf:
+        service_data = {"this is a": "recovery service"}
+        json.dump(service_data, ntf)
+        ntf.flush()
+        recovered_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+            service_data_json_file=ntf.name,
+        )
+        LOG.info("Check that service data has been set")
+        primary, _ = recovered_network.find_primary()
+        with primary.client() as c:
+            r = c.get("/node/network").body.json()
+            assert r["service_data"] == service_data
+
     recovered_network.verify_service_certificate_validity_period(
         args.initial_service_cert_validity_days
     )

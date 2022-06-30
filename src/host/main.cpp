@@ -409,6 +409,22 @@ int main(int argc, char** argv)
         files::slurp_json(config.node_data_json_file.value());
     }
 
+    if (config.service_data_json_file.has_value())
+    {
+      if (
+        config.command.type == StartType::Start ||
+        config.command.type == StartType::Recover)
+      {
+        startup_config.service_data =
+          files::slurp_json(config.service_data_json_file.value());
+      }
+      else
+      {
+        LOG_FAIL_FMT(
+          "Service data is ignored for start type {}", config.command.type);
+      }
+    }
+
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 

@@ -62,6 +62,7 @@ namespace ccf
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
+      nlohmann::json service_data;
       ccf::TxID create_txid;
 
       // Only set on genesis transaction, but not on recovery
