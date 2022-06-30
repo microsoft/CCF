@@ -118,7 +118,7 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(response, "No service is available to accept new node");
   }
 
-  gen.create_service(network.identity->cert);
+  gen.create_service(network.identity->cert, ccf::TxID{});
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -219,7 +219,7 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
-  gen.create_service(network.identity->cert);
+  gen.create_service(network.identity->cert, ccf::TxID{});
   gen.init_configuration({1});
   gen.activate_member(gen.add_member(
     {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));

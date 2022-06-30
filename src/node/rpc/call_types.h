@@ -59,6 +59,7 @@ namespace ccf
       std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
       size_t recovery_count;
+      std::optional<ccf::TxID> current_service_create_txid;
     };
   };
 
