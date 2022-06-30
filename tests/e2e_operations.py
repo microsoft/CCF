@@ -210,7 +210,6 @@ def run_file_operations(args):
         service_data = {"the owls": "are not", "what": "they seem"}
         json.dump(service_data, ntf)
         ntf.flush()
-        args.service_data_json_file = ntf.name
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             txs = app.LoggingTxs("user0")
@@ -224,7 +223,7 @@ def run_file_operations(args):
             ) as network:
 
                 args.common_read_only_ledger_dir = tmp_dir
-                network.start_and_open(args)
+                network.start_and_open(args, service_data_json_file=ntf.name)
 
                 LOG.info("Check that service data has been set")
                 primary, _ = network.find_primary()

@@ -360,11 +360,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Maximum number of headers in single HTTP request",
         default=256,
     )
-    parser.add_argument(
-        "--service-data-json-file",
-        help="Path to file containing arbitrary service data as JSON",
-        default=None,
-    )
 
     add(parser)
 

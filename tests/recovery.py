@@ -81,12 +81,12 @@ def test_recover_service(network, args, from_snapshot=True):
         service_data = {"this is a": "recovery service"}
         json.dump(service_data, ntf)
         ntf.flush()
-        args.service_data_json_file = ntf.name
         recovered_network.start_in_recovery(
             args,
             ledger_dir=current_ledger_dir,
             committed_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
+            service_data_json_file=ntf.name,
         )
         LOG.info("Check that service data has been set")
         primary, _ = recovered_network.find_primary()
