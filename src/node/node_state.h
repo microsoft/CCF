@@ -1528,8 +1528,8 @@ namespace ccf
           "Service identity mismatch: the next service identity in the "
           "transition_service_to_open proposal does not match the current "
           "service identity:\nNext:\n{}\nCurrent:\n{}",
-          identities.next,
-          service_info->cert));
+          identities.next.str(),
+          service_info->cert.str()));
       }
 
       service_info->previous_service_identity_version =
