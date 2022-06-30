@@ -212,11 +212,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
     # is at least one historical entry to verify.
     network.txs.issue(network, number_txs=1)
     idx, historical_entry = network.txs.get_last_tx(priv=True)
-    for _ in range(1, args.snapshot_tx_interval):
-        network.txs.issue(network, number_txs=1, repeat=True)
-        last_tx = network.txs.get_last_tx(priv=True)
-        if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
-            break
+    network.txs.issue(network, number_txs=1, repeat=True)
 
     new_node = network.create_node("local://localhost")
     network.join_node(
@@ -386,6 +382,9 @@ def test_version(network, args):
         with node.client() as c:
             r = c.get("/node/version")
             assert r.body.json()["ccf_version"] == args.ccf_version
+            assert r.body.json()["unsafe"] == os.path.exists(
+                os.path.join(args.binary_dir, "UNSAFE")
+            )
 
 
 @reqs.description("Replace a node on the same addresses")
@@ -447,7 +446,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(datetime.now()),
+                    "valid_from": str(datetime.utcnow()),
                 },
             },
             {

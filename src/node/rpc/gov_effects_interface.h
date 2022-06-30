@@ -19,8 +19,8 @@ namespace ccf
 
     struct ServiceIdentities
     {
-      std::optional<std::vector<uint8_t>> previous;
-      std::vector<uint8_t> next;
+      std::optional<crypto::Pem> previous;
+      crypto::Pem next;
     };
 
     virtual void transition_service_to_open(
@@ -29,5 +29,9 @@ namespace ccf
     virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(kv::Tx& tx) = 0;
     virtual void trigger_snapshot(kv::Tx& tx) = 0;
+    virtual void trigger_acme_refresh(
+      kv::Tx& tx,
+      const std::optional<std::vector<std::string>>& interfaces =
+        std::nullopt) = 0;
   };
 }

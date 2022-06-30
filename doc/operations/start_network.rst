@@ -133,6 +133,14 @@ To start a CCF node in ``virtual`` mode, the JSON configuration file should spec
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
 
+Node and Service Data
+---------------------
+
+To be able to better identify a specific service and its nodes, operators can specify arbitrary JSON data to attach to each service/node:
+
+- The optional :ref:`operations/configuration:``node_data_json_file``` configuration entry specifies the path to a JSON file containing node-specific information, e.g. the pod identifier in a Kubernetes deployment. This data is recorded in the :ref:`audit/builtin_maps:``nodes.info``` table and accessible via the :http:GET:`/node/network/nodes` endpoint.
+- The optional :ref:`operations/configuration:``service_data_json_file``` configuration entry specifies the path to a JSON file containing service-specific information, e.g. the timestamp at which the service started or the cluster identifier in a Kubernetes deployment. This data is recorded in the :ref:`audit/builtin_maps:``service.info``` table and accessible via the :http:GET:`/node/network` endpoint.
+
 .. rubric:: Footnotes
 
 .. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node is trusted by the consortium.

@@ -8,7 +8,7 @@ import infra.utils
 import infra.github
 import infra.jwt_issuer
 import infra.crypto
-import cimetrics.env
+import infra.node
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
@@ -96,7 +96,7 @@ def test_new_service(
     nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
 
     # Pre-2.0 nodes require X509 time format
-    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.now()))
+    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
 
     for _ in range(0, nodes_to_add_count):
         new_node = network.create_node(
@@ -120,6 +120,15 @@ def test_new_service(
         network.retire_node(primary, node)
         if primary == node:
             primary, _ = network.wait_for_new_primary(primary)
+            # Stopping a node immediately after its removal being
+            # committed and an election is not safe: the successor
+            # primary may need to re-establish commit on a config
+            # that includes the retire node.
+            # See https://github.com/microsoft/CCF/issues/1713
+            # for more detail. Until the dedicated endpoint exposing
+            # this safely is implemented, we work around this by
+            # submitting and waiting for commit on another transaction.
+            network.txs.issue(network, number_txs=1, repeat=True)
         node.stop()
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
@@ -240,7 +249,7 @@ def run_code_upgrade_from(
                     new_node,
                     args,
                     valid_from=str(  # Pre-2.0 nodes require X509 time format
-                        infra.crypto.datetime_to_X509time(datetime.datetime.now())
+                        infra.crypto.datetime_to_X509time(datetime.datetime.utcnow())
                     ),
                 )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,
@@ -434,6 +443,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
+    previous_version = None
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -474,7 +484,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
                     )
-                    network.recover(args)
+                    # Recovery count is not stored in pre-2.0.4 ledgers
+                    network.recover(
+                        args,
+                        expected_recovery_count=1
+                        if not infra.node.version_after(previous_version, "ccf-2.0.4")
+                        else None,
+                    )
+
+                previous_version = version
 
                 nodes = network.get_joined_nodes()
                 primary, _ = network.find_primary()
@@ -586,10 +604,7 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     repo = infra.github.Repository()
-    # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
-    # current branch on any environment (either local checkout or CI run)
-    env = cimetrics.env.get_env()
-    local_branch = env.branch
+    local_branch = infra.github.GitEnv.local_branch()
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")

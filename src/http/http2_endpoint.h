@@ -110,8 +110,10 @@ namespace http
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
+      const http::ParserConfiguration&
+        configuration, // TODO: Support configuration
       const std::shared_ptr<ErrorReporter>& error_reporter =
-        nullptr) // TODO: Store
+        nullptr) // TODO: Report errors
       :
       HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
       server_session(*this, *this), // TODO: Ugly! but currently necessary to be

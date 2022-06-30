@@ -26,6 +26,7 @@ namespace ccf
     {
       handshake,
       ready,
+      closing,
       closed,
       authfail,
       error
@@ -56,6 +57,18 @@ namespace ccf
 
     std::unique_ptr<tls::Context> ctx;
     Status status;
+
+    bool can_send()
+    {
+      // Closing endpoint should still be able to respond to clients (e.g. to
+      // report errors)
+      return status == ready || status == closing;
+    }
+
+    bool can_recv()
+    {
+      return status == ready || status == handshake;
+    }
 
   public:
     TLSEndpoint(
@@ -104,16 +117,17 @@ namespace ccf
     // used by caller.
     size_t read(uint8_t* data, size_t size, bool exact = false)
     {
-      LOG_TRACE_FMT("Requesting up to {} bytes", size);
-
       // This will return empty if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
       if (status != ready)
       {
+        LOG_TRACE_FMT("Not ready to read {} bytes", size);
         return 0;
       }
+
+      LOG_TRACE_FMT("Requesting up to {} bytes", size);
 
       // Send pending writes.
       flush();
@@ -210,7 +224,11 @@ namespace ccf
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
-      pending_read.insert(pending_read.end(), data, data + size);
+
+      if (can_recv())
+      {
+        pending_read.insert(pending_read.end(), data, data + size);
+      }
 
       do_handshake();
     }
@@ -255,8 +273,10 @@ namespace ccf
         return;
       }
 
-      if (status != ready)
+      if (!can_send())
+      {
         return;
+      }
 
       pending_write.insert(pending_write.end(), data.begin(), data.end());
 
@@ -282,8 +302,10 @@ namespace ccf
 
       do_handshake();
 
-      if (status != ready)
+      if (!can_send())
+      {
         return;
+      }
 
       while (pending_write.size() > 0)
       {
@@ -318,6 +340,7 @@ namespace ccf
 
     void close()
     {
+      status = closing;
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();
 
@@ -342,6 +365,7 @@ namespace ccf
         }
 
         case ready:
+        case closing:
         {
           int r = ctx->close();
 
@@ -478,6 +502,7 @@ namespace ccf
 
       switch (status)
       {
+        case closing:
         case closed:
         {
           RINGBUFFER_WRITE_MESSAGE(

@@ -44,6 +44,7 @@ namespace ccf
     {
       std::string ccf_version;
       std::string quickjs_version;
+      bool unsafe;
     };
   };
 
@@ -61,6 +62,8 @@ namespace ccf
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
+      nlohmann::json service_data;
+      ccf::TxID create_txid;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;

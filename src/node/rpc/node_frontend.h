@@ -370,7 +370,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.18.0";
+      openapi_info.document_version = "2.24.0";
     }
 
     void init_handlers() override
@@ -808,6 +808,10 @@ namespace ccf
           const auto& service_value = service_state.value();
           out.service_status = service_value.status;
           out.service_certificate = service_value.cert;
+          out.recovery_count = service_value.recovery_count.value_or(0);
+          out.service_data = service_value.service_data;
+          out.current_service_create_txid =
+            service_value.current_service_create_txid;
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
@@ -1302,6 +1306,12 @@ namespace ccf
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
         result.quickjs_version = ccf::quickjs_version;
+#ifdef UNSAFE_VERSION
+        result.unsafe = true;
+#else
+        result.unsafe = false;
+#endif
+
         return make_success(result);
       };
 
@@ -1339,7 +1349,8 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.service_cert, recovering);
+        g.create_service(
+          in.service_cert, in.create_txid, in.service_data, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
@@ -1644,7 +1655,7 @@ namespace ccf
   public:
     NodeRpcFrontend(
       NetworkState& network, ccfapp::AbstractNodeContext& context) :
-      RpcFrontend(*network.tables, node_endpoints),
+      RpcFrontend(*network.tables, node_endpoints, context),
       node_endpoints(network, context)
     {}
   };

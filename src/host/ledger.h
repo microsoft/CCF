@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/ds/mutex.h"
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
@@ -132,7 +133,7 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file = nullptr;
-    std::mutex file_lock;
+    ccf::Mutex file_lock;
 
     size_t start_idx = 1;
     size_t total_len = 0; // Points to end of last written entry
@@ -344,25 +345,56 @@ namespace asynchost
       return get_last_idx();
     }
 
-    size_t entries_size(size_t from, size_t to) const
+    // Return pair containing entries size and index of last entry included
+    std::pair<size_t, size_t> entries_size(
+      size_t from,
+      size_t to,
+      std::optional<size_t> max_size = std::nullopt) const
     {
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
-        return 0;
+        return {0, 0};
       }
 
-      if (to == get_last_idx())
+      size_t size = 0;
+
+      // If max_size is set, return entries that fit within it (best effort).
+      while (true)
       {
-        return total_len - positions.at(from - start_idx);
+        auto position_to =
+          (to == get_last_idx()) ? total_len : positions.at(to - start_idx + 1);
+        size = position_to - positions.at(from - start_idx);
+
+        if (!max_size.has_value() || size <= max_size.value())
+        {
+          break;
+        }
+        else
+        {
+          if (from == to)
+          {
+            // Request one entry that is too large: no entries are found
+            return {0, 0};
+          }
+          size_t to_ = from + (to - from) / 2;
+          LOG_TRACE_FMT(
+            "Requesting ledger entries from {} to {} in file {} but size {} > "
+            "max size {}: now requesting up to {}",
+            from,
+            to,
+            file_name,
+            size,
+            max_size.value(),
+            to_);
+          to = to_;
+        }
       }
-      else
-      {
-        return positions.at(to - start_idx + 1) -
-          positions.at(from - start_idx);
-      }
+
+      return {size, to};
     }
 
-    std::optional<std::vector<uint8_t>> read_entries(size_t from, size_t to)
+    std::optional<std::pair<std::vector<uint8_t>, size_t>> read_entries(
+      size_t from, size_t to, std::optional<size_t> max_size = std::nullopt)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
@@ -374,18 +406,25 @@ namespace asynchost
         return std::nullopt;
       }
 
-      std::unique_lock<std::mutex> guard(file_lock);
-      auto size = entries_size(from, to);
+      std::unique_lock<ccf::Mutex> guard(file_lock);
+      auto [size, to_] = entries_size(from, to, max_size);
+      if (size == 0)
+      {
+        return std::nullopt;
+      }
       std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
       if (fread(entries.data(), size, 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
-          "Failed to read entry range {} - {} from file", from, to));
+          "Failed to read entry range {} - {} from file {}",
+          from,
+          to,
+          file_name));
       }
 
-      return entries;
+      return std::make_pair(entries, to_);
     }
 
     bool truncate(size_t idx)
@@ -573,7 +612,7 @@ namespace asynchost
     // Cache of ledger files for reading
     size_t max_read_cache_files;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
-    std::mutex read_cache_lock;
+    ccf::Mutex read_cache_lock;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
@@ -614,7 +653,7 @@ namespace asynchost
       }
 
       {
-        std::unique_lock<std::mutex> guard(read_cache_lock);
+        std::unique_lock<ccf::Mutex> guard(read_cache_lock);
 
         // First, try to find file from read cache
         for (auto const& f : files_read_cache)
@@ -669,7 +708,7 @@ namespace asynchost
       }
 
       {
-        std::unique_lock<std::mutex> guard(read_cache_lock);
+        std::unique_lock<ccf::Mutex> guard(read_cache_lock);
 
         files_read_cache.emplace_back(match_file);
         if (files_read_cache.size() > max_read_cache_files)
@@ -720,8 +759,15 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_entries_range(
-      size_t from, size_t to, bool read_cache_only = false, bool strict = true)
+      size_t from,
+      size_t to,
+      bool read_cache_only = false,
+      bool strict = true,
+      std::optional<size_t> max_entries_size = std::nullopt)
     {
+      // Note: if max_entries_size is set, this returns contiguous ledger
+      // entries on a best effort basis, so that the returned entries fit in
+      // max_entries_size but without maximising the number of entries returned.
       if ((from <= 0) || (to < from))
       {
         return std::nullopt;
@@ -740,7 +786,7 @@ namespace asynchost
         }
       }
 
-      std::vector<uint8_t> entries;
+      std::vector<uint8_t> entries = {};
       size_t idx = from;
       while (idx <= to)
       {
@@ -751,15 +797,29 @@ namespace asynchost
           return std::nullopt;
         }
         auto to_ = std::min(f_from->get_last_idx(), to);
-        auto v = f_from->read_entries(idx, to_);
+        std::optional<size_t> max_size = std::nullopt;
+        if (max_entries_size.has_value())
+        {
+          max_size = max_entries_size.value() - entries.size();
+        }
+        auto v = f_from->read_entries(idx, to_, max_size);
         if (!v.has_value())
         {
           return std::nullopt;
         }
+        auto& [e, to_read] = v.value();
         entries.insert(
           entries.end(),
-          std::make_move_iterator(v->begin()),
-          std::make_move_iterator(v->end()));
+          std::make_move_iterator(e.begin()),
+          std::make_move_iterator(e.end()));
+        if (to_read != to_)
+        {
+          // If all the entries requested from a file are not returned (i.e.
+          // because the requested entries are larger than max_entries_size),
+          // return immediately to avoid returning non-contiguous entries from a
+          // subsequent ledger file.
+          break;
+        }
         idx = to_ + 1;
       }
 
@@ -1058,12 +1118,15 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_entries(
-      size_t from, size_t to, bool strict = true)
+      size_t from,
+      size_t to,
+      bool strict = true,
+      std::optional<size_t> max_entries_size = std::nullopt)
     {
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entries from {} to {}", from, to));
 
-      return read_entries_range(from, to, false, strict);
+      return read_entries_range(from, to, false, strict, max_entries_size);
     }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
@@ -1339,6 +1402,12 @@ namespace asynchost
           // as many entries as possible including the very last one.
           bool strict = purpose != consensus::LedgerRequestPurpose::Recovery;
 
+          // Ledger entries response has metadata so cap total entries size
+          // accordingly
+          constexpr size_t write_ledger_range_response_metadata_size = 2048;
+          auto max_entries_size = to_enclave->get_max_message_size() -
+            write_ledger_range_response_metadata_size;
+
           if (is_in_committed_file(to_idx))
           {
             // Start an asynchronous job to do this, since it is committed and
@@ -1354,13 +1423,15 @@ namespace asynchost
                                 from_idx = from_idx,
                                 to_idx = to_idx,
                                 purpose = purpose,
-                                strict = strict](auto&& entry, int status) {
+                                strict = strict,
+                                max_entries_size =
+                                  max_entries_size](auto&& entry, int status) {
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
                 write_ledger_get_range_response(
                   from_idx,
                   to_idx,
-                  read_entries(from_idx, to_idx, strict),
+                  read_entries(from_idx, to_idx, strict, max_entries_size),
                   purpose);
               };
 
@@ -1380,7 +1451,7 @@ namespace asynchost
             write_ledger_get_range_response(
               from_idx,
               to_idx,
-              read_entries(from_idx, to_idx, strict),
+              read_entries(from_idx, to_idx, strict, max_entries_size),
               purpose);
           }
         });

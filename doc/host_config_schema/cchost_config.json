@@ -71,23 +71,124 @@
                 "default": 1010,
                 "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
               },
+              "http_configuration": {
+                "type": "object",
+                "properties": {
+                  "max_body_size": {
+                    "type": "string",
+                    "default": "1MB",
+                    "description": "Maximum size (size string) of a single HTTP request body. Submitting a request with a payload larger than this value will result in the client session being automatically closed"
+                  },
+                  "max_header_size": {
+                    "type": "string",
+                    "default": "16KB",
+                    "description": "Maximum size (size string) of a single HTTP request header (key or value). Submitting a request with a header larger than this value will result in the client session being automatically closed"
+                  },
+                  "max_headers_count": {
+                    "type": "integer",
+                    "default": 256,
+                    "description": "Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed"
+                  }
+                },
+                "additionalProperties": false
+              },
               "endorsement": {
                 "type": "object",
                 "properties": {
                   "authority": {
                     "type": "string",
-                    "enum": ["Node", "Service"],
+                    "enum": ["Node", "Service", "ACME", "Unsecured"],
                     "default": "Service",
-                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed."
+                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' means an ACME-capable CA, 'Unsecured' means unencrypted traffic and no endorsement authority"
+                  },
+                  "acme_configuration": {
+                    "type": "string",
+                    "description": "Name of the ACME configuration defined in the network.acme.configurations section"
                   }
                 },
+                "oneOf": [
+                  {
+                    "required": ["acme_configuration"]
+                  },
+                  {
+                    "not": {
+                      "properties": {
+                        "authority": {
+                          "const": "ACME"
+                        }
+                      }
+                    }
+                  }
+                ],
                 "required": ["authority"],
                 "additionalProperties": false
+              },
+              "accepted_endpoints": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served"
               }
             },
             "required": ["bind_address"]
           },
           "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
+        },
+        "acme": {
+          "type": "object",
+          "properties": {
+            "configurations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "ca_certs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "description": "Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let's Encrypt's ISRG Root X1)"
+                  },
+                  "directory_url": {
+                    "type": "string",
+                    "description": "URL of the ACME server's directory"
+                  },
+                  "service_dns_name": {
+                    "type": "string",
+                    "description": "DNS name of the service we represent"
+                  },
+                  "contact": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "description": "Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)"
+                  },
+                  "terms_of_service_agreed": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Indication that the user/operator is aware of the latest terms and conditions for the CA"
+                  },
+                  "challenge_type": {
+                    "type": "string",
+                    "default": "http-01",
+                    "description": "Type of the ACME challenge (currently only http-01 supported)"
+                  },
+                  "challenge_server_interface": {
+                    "type": "string",
+                    "description": "Name of the interface for the (http-01) challenge server to listen on"
+                  }
+                },
+                "description": "ACME Configurations",
+                "additionalProperties": false
+              }
+            }
+          },
+          "description": "Configuration for the ACME client(s) to obtain globally valid TLS certificates, e.g. from Let's Encrypt",
+          "additionalProperties": false
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
@@ -105,13 +206,17 @@
         "service_certificate_file": {
           "type": "string",
           "default": "service_cert.pem",
-          "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing service to join."
+          "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing service to join"
         }
       },
       "allOf": [
         {
           "if": {
-            "properties": { "type": { "const": "Start" } }
+            "properties": {
+              "type": {
+                "const": "Start"
+              }
+            }
           },
           "then": {
             "properties": {
@@ -193,7 +298,11 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "Join" } }
+            "properties": {
+              "type": {
+                "const": "Join"
+              }
+            }
           },
           "then": {
             "properties": {
@@ -207,7 +316,7 @@
                   "retry_timeout": {
                     "type": "string",
                     "default": "1000ms",
-                    "description": "Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of 'consensus.election_timeout' set on the primary node of the existing service to join."
+                    "description": "Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of 'consensus.election_timeout' set on the primary node of the existing service to join"
                   }
                 },
                 "required": ["target_rpc_address"],
@@ -219,7 +328,11 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "Recover" } }
+            "properties": {
+              "type": {
+                "const": "Recover"
+              }
+            }
           },
           "then": {
             "properties": {
@@ -280,7 +393,11 @@
     },
     "node_data_json_file": {
       "type": ["string", "null"],
-      "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier."
+      "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier"
+    },
+    "service_data_json_file": {
+      "type": ["string", "null"],
+      "description": "Path to file (JSON) containing initial service data. It is used when the node starts in 'Start' or 'Recover' mode and is intended to store arbitrary information about the service"
     },
     "ledger": {
       "type": "object",
@@ -312,16 +429,20 @@
         "directory": {
           "type": "string",
           "default": "snapshots",
-          "description": "Path to snapshot directory"
+          "description": "Path to snapshots directory"
         },
         "tx_count": {
           "type": "integer",
           "default": 10000,
           "description": "Number of transactions after which a snapshot is automatically generated",
           "minimum": 1
+        },
+        "read_only_directory": {
+          "type": ["string", "null"],
+          "description": "Path to read-only snapshots directory"
         }
       },
-      "description": "This section includes configuration for the snapshot directory and files",
+      "description": "This section includes configuration for the snapshot directories and files",
       "additionalProperties": false
     },
     "logging": {
@@ -331,7 +452,7 @@
           "type": "string",
           "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
           "default": "Info",
-          "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity."
+          "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity"
         },
         "format": {
           "type": "string",
@@ -360,7 +481,7 @@
         "election_timeout": {
           "type": "string",
           "default": "5000ms",
-          "description": "Maximum timeout (time string) after which backup nodes that have not received any message from the primary node (or voted for a candidate) will trigger a new election. This timeout is also used by candidates to restart unsuccessful elections. This should be set to a significantly greater value than 'message_timeout' plus the expected network delay."
+          "description": "Maximum timeout (time string) after which backup nodes that have not received any message from the primary node (or voted for a candidate) will trigger a new election. This timeout is also used by candidates to restart unsuccessful elections. This should be set to a significantly greater value than 'message_timeout' plus the expected network delay"
         }
       },
       "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)",
@@ -381,7 +502,7 @@
           "description": "Maximum duration after which a signature transaction is automatically generated"
         }
       },
-      "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.",
+      "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput",
       "additionalProperties": false
     },
     "jwt": {

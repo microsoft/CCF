@@ -303,15 +303,20 @@ class CurlClient:
         self.session_auth = session_auth
         self.signing_auth = signing_auth
         self.ca_curve = get_curve(self.ca)
+        self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
 
-    def request(self, request, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+    def request(
+        self,
+        request: Request,
+        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+    ):
         with tempfile.NamedTemporaryFile() as nf:
             if self.signing_auth:
                 cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
 
-            url = f"https://{self.host}:{self.port}{request.path}"
+            url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
 
             cmd += [
                 url,
@@ -414,8 +419,12 @@ class RequestClient:
         cert = None
         if self.session_auth:
             cert = (self.session_auth.cert, self.session_auth.key)
+        self.protocol = "https"
+        if "protocol" in kwargs:
+            self.protocol = kwargs.get("protocol")
+            kwargs.pop("protocol")
         self.session = httpx.Client(
-            verify=self.ca, cert=cert, http1=False, http2=True, **kwargs
+            verify=self.ca, http1=False, http2=True, cert=cert, **kwargs
         )
         if self.signing_auth:
             with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
@@ -481,7 +490,7 @@ class RequestClient:
         try:
             response = self.session.request(
                 request.http_verb,
-                url=f"https://{self.host}:{self.port}{request.path}",
+                url=f"{self.protocol}://{self.host}:{self.port}{request.path}",
                 auth=auth,
                 headers=extra_headers,
                 follow_redirects=request.allow_redirects,
@@ -493,7 +502,9 @@ class RequestClient:
         except httpx.NetworkError as exc:
             raise CCFConnectionException from exc
         except Exception as exc:
-            raise RuntimeError(f"Request client failed with unexpected error: {exc}") from exc
+            raise RuntimeError(
+                f"Request client failed with unexpected error: {exc}"
+            ) from exc
 
         return Response.from_requests_response(response)
 
@@ -565,7 +576,7 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
-        allow_redirects=True,
+        allow_redirects: bool = True,
     ) -> Response:
         if headers is None:
             headers = {}
@@ -616,7 +627,13 @@ class CCFClient:
             try:
                 logs = []
                 response = self._call(
-                    path, body, http_verb, headers, timeout, logs, allow_redirects
+                    path,
+                    body,
+                    http_verb,
+                    headers,
+                    timeout,
+                    logs,
+                    allow_redirects,
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _call

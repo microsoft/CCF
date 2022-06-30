@@ -627,10 +627,9 @@ namespace ccf::js
           return JS_ThrowTypeError(
             ctx, "Previous service identity argument is not an array buffer");
         }
-        identities.previous =
-          std::vector<uint8_t>{prev_bytes, prev_bytes + prev_bytes_sz};
+        identities.previous = crypto::Pem(prev_bytes, prev_bytes_sz);
         LOG_DEBUG_FMT(
-          "previous service identity: {}", ds::to_hex(*identities.previous));
+          "previous service identity: {}", identities.previous->str());
       }
 
       if (JS_IsUndefined(argv[1]))
@@ -648,9 +647,8 @@ namespace ccf::js
           ctx, "Next service identity argument is not an array buffer");
       }
 
-      identities.next =
-        std::vector<uint8_t>{next_bytes, next_bytes + next_bytes_sz};
-      LOG_DEBUG_FMT("next service identity: {}", ds::to_hex(identities.next));
+      identities.next = crypto::Pem(next_bytes, next_bytes_sz);
+      LOG_DEBUG_FMT("next service identity: {}", identities.next.str());
 
       gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
     }
@@ -1078,24 +1076,16 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  JSValue js_node_trigger_host_process_launch(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  JSValue get_string_array(
+    JSContext* ctx, JSValueConst& argv, std::vector<std::string>& out)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    if (argc != 1)
-    {
-      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
-    }
-
-    auto args = JSWrappedValue(ctx, argv[0]);
+    auto args = JSWrappedValue(ctx, argv);
 
     if (!JS_IsArray(ctx, args))
     {
       return JS_ThrowTypeError(ctx, "First argument must be an array");
     }
-
-    std::vector<std::string> process_args;
 
     auto len_atom = JS_NewAtom(ctx, "length");
     auto len_val = args.get_property(len_atom);
@@ -1117,8 +1107,76 @@ namespace ccf::js
         return JS_ThrowTypeError(
           ctx, "First argument must be an array of strings, found non-string");
       }
-      auto arg = jsctx.to_str(arg_val);
-      process_args.push_back(*arg);
+      out.push_back(*jsctx.to_str(arg_val));
+    }
+
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_trigger_acme_refresh(
+    JSContext* ctx,
+    JSValueConst this_val,
+    [[maybe_unused]] int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
+      JS_GetOpaque(this_val, node_class_id));
+    auto global_obj = jsctx.get_global_obj();
+    auto ccf = global_obj["ccf"];
+    auto kv = ccf["kv"];
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    try
+    {
+      std::optional<std::vector<std::string>> opt_interfaces = std::nullopt;
+
+      if (argc > 0)
+      {
+        std::vector<std::string> interfaces;
+        JSValue r = get_string_array(ctx, argv[0], interfaces);
+
+        if (!JS_IsUndefined(r))
+        {
+          return r;
+        }
+
+        opt_interfaces = interfaces;
+      }
+
+      gov_effects->trigger_acme_refresh(*tx_ctx_ptr->tx, opt_interfaces);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unable to request snapshot: {}", e.what());
+    }
+
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_node_trigger_host_process_launch(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    std::vector<std::string> process_args;
+    JSValue r = get_string_array(ctx, argv[0], process_args);
+
+    if (!JS_IsUndefined(r))
+    {
+      return r;
     }
 
     auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
@@ -1674,6 +1732,11 @@ namespace ccf::js
         node,
         "triggerSnapshot",
         JS_NewCFunction(ctx, js_trigger_snapshot, "triggerSnapshot", 0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "triggerACMERefresh",
+        JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
     }
 
     if (host_processes != nullptr)

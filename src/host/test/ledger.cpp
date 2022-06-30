@@ -22,6 +22,7 @@ static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
 static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
 static constexpr auto snapshot_dir = "snapshot_dir";
+static constexpr auto snapshot_dir_read_only = "snapshot_dir_ro";
 
 static const auto dummy_snapshot = std::vector<uint8_t>(128, 42);
 static const auto dummy_receipt = std::vector<uint8_t>(64, 1);
@@ -169,9 +170,13 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
   REQUIRE(TestLedgerEntry(data, size).value() == idx);
 }
 
-void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
+void read_entries_range_from_ledger(
+  Ledger& ledger,
+  size_t from,
+  size_t to,
+  std::optional<size_t> max_entries_size = std::nullopt)
 {
-  auto entries = ledger.read_entries(from, to);
+  auto entries = ledger.read_entries(from, to, true, max_entries_size);
   if (!entries.has_value())
   {
     throw std::logic_error(
@@ -428,6 +433,55 @@ TEST_CASE("Regular chunking")
     entries = ledger.read_entries(end_of_first_chunk_idx, 2 * last_idx, strict);
     verify_framed_entries_range(
       entries.value(), end_of_first_chunk_idx, last_idx);
+  }
+
+  INFO("Read range of entries with size limit");
+  {
+    auto last_idx = entry_submitter.get_last_idx();
+
+    // Reading entries larger than the max entries size fails
+    REQUIRE_FALSE(
+      ledger.read_entries(1, 1, true, 0 /* max_entries_size */).has_value());
+    REQUIRE_FALSE(
+      ledger.read_entries(1, end_of_first_chunk_idx + 1, true, 0).has_value());
+
+    // Reading entries larger than max entries size returns some entries
+    size_t max_entries_size = chunk_threshold / entries_per_chunk;
+
+    auto e =
+      ledger.read_entries(1, end_of_first_chunk_idx, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(e.value(), 1, 1);
+
+    e = ledger.read_entries(
+      1, end_of_first_chunk_idx + 1, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(e.value(), 1, 1);
+
+    max_entries_size = 2 * chunk_threshold;
+
+    // All entries are returned
+    read_entries_range_from_ledger(
+      ledger, 1, end_of_first_chunk_idx, max_entries_size);
+    read_entries_range_from_ledger(
+      ledger,
+      end_of_first_chunk_idx + 1,
+      2 * end_of_first_chunk_idx + 1,
+      max_entries_size);
+    read_entries_range_from_ledger(
+      ledger, last_idx - 1, last_idx, max_entries_size);
+
+    // Only some entries are returned
+    e = ledger.read_entries(
+      1, 2 * end_of_first_chunk_idx, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(e.value(), 1, end_of_first_chunk_idx + 1);
+
+    e = ledger.read_entries(
+      end_of_first_chunk_idx + 1, last_idx, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(
+      e.value(), end_of_first_chunk_idx + 1, 2 * end_of_first_chunk_idx + 1);
   }
 }
 
@@ -1248,12 +1302,15 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 {
   auto dir = AutoDeleteFolder(ledger_dir);
   auto snap_dir = AutoDeleteFolder(snapshot_dir);
+  auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
+  fs::create_directory(snapshot_dir_read_only);
 
   Ledger ledger(ledger_dir, wf, 1);
-  SnapshotManager snapshots(snapshot_dir, ledger);
+  SnapshotManager snapshots(snapshot_dir, ledger, snapshot_dir_read_only);
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
+  size_t last_snapshot_idx = 0;
 
   INFO("Generate snapshots");
   {
@@ -1279,12 +1336,44 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      const auto& snapshot = latest_committed_snapshot.value();
+      const auto& snapshot = latest_committed_snapshot->second;
       REQUIRE(get_snapshot_idx_from_file_name(snapshot) == i);
+      last_snapshot_idx = i;
       REQUIRE(get_snapshot_evidence_idx_from_file_name(snapshot) == i + 1);
       REQUIRE_FALSE(
         get_evidence_commit_idx_from_file_name(snapshot).has_value());
     }
+  }
+
+  INFO("Move committed snapshots to ro directory");
+  {
+    for (auto const& f : fs::directory_iterator(snapshot_dir))
+    {
+      fs::copy(f.path(), snapshot_dir_read_only);
+      fs::remove(f.path());
+    }
+
+    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    REQUIRE(latest_committed_snapshot.has_value());
+    const auto& snapshot = latest_committed_snapshot->second;
+    REQUIRE(get_snapshot_idx_from_file_name(snapshot) == last_snapshot_idx);
+  }
+
+  INFO("Commit and retrieve new snapshot");
+  {
+    size_t new_snapshot_idx = last_snapshot_idx + 1;
+    snapshots.write_snapshot(
+      new_snapshot_idx,
+      new_snapshot_idx + 1,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
+    snapshots.commit_snapshot(
+      new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
+
+    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    REQUIRE(latest_committed_snapshot.has_value());
+    const auto& snapshot = latest_committed_snapshot->second;
+    REQUIRE(get_snapshot_idx_from_file_name(snapshot) == new_snapshot_idx);
   }
 }
 
@@ -1376,7 +1465,7 @@ TEST_CASE(
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      const auto& snapshot = latest_committed_snapshot.value();
+      const auto& snapshot = latest_committed_snapshot->second;
       REQUIRE(
         get_snapshot_idx_from_file_name(snapshot) ==
         latest_committed_snapshot_idx);
@@ -1406,7 +1495,7 @@ TEST_CASE(
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
       REQUIRE(
-        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        get_snapshot_idx_from_file_name(latest_committed_snapshot->second) ==
         latest_committed_snapshot_idx);
     }
   }
@@ -1422,15 +1511,15 @@ TEST_CASE(
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      REQUIRE_FALSE(is_snapshot_file_1_x(latest_committed_snapshot.value()));
+      REQUIRE_FALSE(is_snapshot_file_1_x(latest_committed_snapshot->second));
       REQUIRE(
-        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        get_snapshot_idx_from_file_name(latest_committed_snapshot->second) ==
         i);
       REQUIRE(
         get_snapshot_evidence_idx_from_file_name(
-          latest_committed_snapshot.value()) == i + 1);
+          latest_committed_snapshot->second) == i + 1);
       REQUIRE_FALSE(get_evidence_commit_idx_from_file_name(
-                      latest_committed_snapshot.value())
+                      latest_committed_snapshot->second)
                       .has_value());
     }
   }
@@ -1474,11 +1563,9 @@ TEST_CASE(
 
     auto snapshot_file_name = commit_1_x_snapshot(snapshot_dir, snapshot_idx);
 
-    LOG_DEBUG_FMT("{}", snapshot_file_name.value());
-
     REQUIRE(snapshot_file_name.has_value());
     REQUIRE(
-      snapshots.find_latest_committed_snapshot().value() ==
+      snapshots.find_latest_committed_snapshot()->second ==
       snapshot_file_name.value());
 
     fs::remove(fmt::format("{}/{}", snapshot_dir, snapshot_file_name.value()));
@@ -1505,7 +1592,7 @@ TEST_CASE(
     // Snapshot is now valid
     auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
     REQUIRE(latest_committed_snapshot.has_value());
-    REQUIRE(latest_committed_snapshot.value() == snapshot_file_name);
+    REQUIRE(latest_committed_snapshot->second == snapshot_file_name);
   }
 }
 

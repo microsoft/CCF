@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
@@ -49,10 +50,19 @@ void print_version(size_t)
   exit(0);
 }
 
+static void _signal_handler(int sig_num)
+{
+  LOG_INFO_FMT("Ignoring signal: {}", sig_num);
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
-  signal(SIGPIPE, SIG_IGN);
+  {
+    // Avoiding use of SIG_IGN due to OE issue:
+    // https://github.com/openenclave/openenclave/issues/4542
+    signal(SIGPIPE, _signal_handler);
+  }
 
   CLI::App app{"ccf"};
 
@@ -264,7 +274,8 @@ int main(int argc, char** argv)
       config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(config.snapshots.directory, ledger);
+    asynchost::SnapshotManager snapshots(
+      config.snapshots.directory, ledger, config.snapshots.read_only_directory);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // handle LFS-related messages from the enclave
@@ -398,6 +409,22 @@ int main(int argc, char** argv)
         files::slurp_json(config.node_data_json_file.value());
     }
 
+    if (config.service_data_json_file.has_value())
+    {
+      if (
+        config.command.type == StartType::Start ||
+        config.command.type == StartType::Recover)
+      {
+        startup_config.service_data =
+          files::slurp_json(config.service_data_json_file.value());
+      }
+      else
+      {
+        LOG_FAIL_FMT(
+          "Service data is ignored for start type {}", config.command.type);
+      }
+    }
+
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
@@ -408,14 +435,13 @@ int main(int argc, char** argv)
     {
       for (auto const& m : config.command.start.members)
       {
-        std::optional<std::vector<uint8_t>> public_encryption_key =
-          std::nullopt;
+        std::optional<crypto::Pem> public_encryption_key = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key =
-            files::slurp(m.encryption_public_key_file.value());
+            crypto::Pem(files::slurp(m.encryption_public_key_file.value()));
         }
 
         nlohmann::json md = nullptr;
@@ -425,7 +451,9 @@ int main(int argc, char** argv)
         }
 
         startup_config.start.members.emplace_back(
-          files::slurp(m.certificate_file), public_encryption_key, md);
+          crypto::Pem(files::slurp(m.certificate_file)),
+          public_encryption_key,
+          md);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :
@@ -488,23 +516,25 @@ int main(int argc, char** argv)
       config.command.type == StartType::Join ||
       config.command.type == StartType::Recover)
     {
-      auto snapshot_file = snapshots.find_latest_committed_snapshot();
-      if (snapshot_file.has_value())
+      auto latest_committed_snapshot =
+        snapshots.find_latest_committed_snapshot();
+      if (latest_committed_snapshot.has_value())
       {
-        auto& snapshot = snapshot_file.value();
-        startup_config.startup_snapshot = snapshots.read_snapshot(snapshot);
+        auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
+        startup_config.startup_snapshot =
+          files::slurp(snapshot_dir / snapshot_file);
 
-        if (asynchost::is_snapshot_file_1_x(snapshot))
+        if (asynchost::is_snapshot_file_1_x(snapshot_file))
         {
           // Snapshot evidence seqno is only specified for 1.x snapshots which
           // need to be verified by deserialising the ledger suffix.
           startup_config.startup_snapshot_evidence_seqno_for_1_x =
-            asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
+            asynchost::get_snapshot_evidence_idx_from_file_name(snapshot_file);
         }
 
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {})",
-          snapshot,
+          snapshot_dir / snapshot_file,
           startup_config.startup_snapshot.size());
       }
       else
@@ -523,6 +553,11 @@ int main(int argc, char** argv)
       LOG_FAIL_FMT(
         "Selected consensus BFT is not supported in {}", ccf::ccf_version);
 #endif
+    }
+
+    if (config.network.acme)
+    {
+      startup_config.network.acme = config.network.acme;
     }
 
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");

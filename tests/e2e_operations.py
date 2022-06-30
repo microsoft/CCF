@@ -15,6 +15,7 @@ import infra.interfaces
 import infra.path
 import infra.proc
 import random
+import json
 
 from loguru import logger as LOG
 
@@ -205,29 +206,40 @@ def test_split_ledger_on_stopped_network(primary, args):
 
 
 def run_file_operations(args):
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        txs = app.LoggingTxs("user0")
-        with infra.network.network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-            pdb=args.pdb,
-            txs=txs,
-        ) as network:
+    with tempfile.NamedTemporaryFile(mode="w+") as ntf:
+        service_data = {"the owls": "are not", "what": "they seem"}
+        json.dump(service_data, ntf)
+        ntf.flush()
 
-            args.common_read_only_ledger_dir = tmp_dir
-            network.start_and_open(args)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            txs = app.LoggingTxs("user0")
+            with infra.network.network(
+                args.nodes,
+                args.binary_dir,
+                args.debug_nodes,
+                args.perf_nodes,
+                pdb=args.pdb,
+                txs=txs,
+            ) as network:
 
-            test_save_committed_ledger_files(network, args)
-            test_parse_snapshot_file(network, args)
-            test_forced_ledger_chunk(network, args)
-            test_forced_snapshot(network, args)
+                args.common_read_only_ledger_dir = tmp_dir
+                network.start_and_open(args, service_data_json_file=ntf.name)
 
-            primary, _ = network.find_primary()
-            network.stop_all_nodes()
+                LOG.info("Check that service data has been set")
+                primary, _ = network.find_primary()
+                with primary.client() as c:
+                    r = c.get("/node/network").body.json()
+                    assert r["service_data"] == service_data
 
-            test_split_ledger_on_stopped_network(primary, args)
+                test_save_committed_ledger_files(network, args)
+                test_parse_snapshot_file(network, args)
+                test_forced_ledger_chunk(network, args)
+                test_forced_snapshot(network, args)
+
+                primary, _ = network.find_primary()
+                network.stop_all_nodes()
+
+                test_split_ledger_on_stopped_network(primary, args)
 
 
 def run_tls_san_checks(args):

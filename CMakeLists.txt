@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
 
 project(
-  ccf
+  ${CCF_PROJECT}
   VERSION ${CCF_RELEASE_VERSION}
   LANGUAGES C CXX
 )
@@ -23,7 +23,7 @@ message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf"
+      "/opt/${CCF_PROJECT}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -339,6 +339,12 @@ if(BUILD_TESTS)
     )
     target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
 
+    add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
+    target_link_libraries(
+      js_test PRIVATE quickjs.host ccf_kv.host ccf_endpoints.host
+                      http_parser.host
+    )
+
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
@@ -432,12 +438,13 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      node_frontend_test
+      node_frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 sss.host ccf_endpoints.host ccf_kv.host
+      node_frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
+              ccf_endpoints.host ccf_kv.host quickjs.host
     )
 
     add_unit_test(
@@ -803,6 +810,13 @@ if(BUILD_TESTS)
     CONSENSUS ${CONSENSUS_FILTER}
   )
 
+  add_e2e_test(
+    NAME acme_endorsement_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+    LABEL ACME
+    CONSENSUS cft
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME vegeta_stress_${CONSENSUS}
@@ -968,16 +982,16 @@ endif()
 # Generate and install CMake export file for consumers using CMake
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf-config.cmake.in
-  ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${CCF_PROJECT}-config.cmake.in
+  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
   PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR CMAKE_INSTALL_INCLUDEDIR
 )
 write_basic_package_version_file(
-  ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
   COMPATIBILITY SameMajorVersion
 )
-install(FILES ${CMAKE_BINARY_DIR}/cmake/ccf-config.cmake
-              ${CMAKE_BINARY_DIR}/cmake/ccf-config-version.cmake
+install(FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+              ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
         DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )

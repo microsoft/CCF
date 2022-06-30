@@ -9,6 +9,7 @@
 #include "proxy.h"
 #include "socket.h"
 
+#include <netinet/in.h>
 #include <optional>
 
 namespace asynchost
@@ -100,7 +101,7 @@ namespace asynchost
     ~TCPImpl()
     {
       {
-        std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+        std::unique_lock<ccf::Mutex> guard(pending_resolve_requests_mtx);
         for (auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
@@ -140,6 +141,36 @@ namespace asynchost
     std::string get_port() const
     {
       return port;
+    }
+
+    std::string get_peer_name() const
+    {
+      sockaddr_storage sa = {};
+      int name_len = sizeof(sa);
+      if (uv_tcp_getpeername(&uv_handle, (sockaddr*)&sa, &name_len) < 0)
+      {
+        LOG_FAIL_FMT("uv_tcp_getpeername failed");
+        return "";
+      }
+      switch (sa.ss_family)
+      {
+        case AF_INET:
+        {
+          char tmp[INET_ADDRSTRLEN];
+          sockaddr_in* sa4 = (sockaddr_in*)&sa;
+          uv_ip4_name(sa4, tmp, sizeof(tmp));
+          return tmp;
+        }
+        case AF_INET6:
+        {
+          char tmp[INET6_ADDRSTRLEN];
+          sockaddr_in6* sa6 = (sockaddr_in6*)&sa;
+          uv_ip6_name(sa6, tmp, sizeof(tmp));
+          return tmp;
+        }
+        default:
+          return fmt::format("unknown family: {}", sa.ss_family);
+      }
     }
 
     std::optional<std::string> get_listen_name() const
@@ -531,7 +562,7 @@ namespace asynchost
 
     static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
     {
-      std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+      std::unique_lock<ccf::Mutex> guard(pending_resolve_requests_mtx);
       pending_resolve_requests.erase(req);
 
       if (req->data)
