@@ -631,8 +631,14 @@ namespace ccf
             node_info.status == ccf::NodeStatus::RETIRED &&
             node_id != this->context.get_node_id())
           {
-            nodes->remove(node_id);
-            node_endorsed_certificates->remove(node_id);
+            // Only set to REMOVED nodes for which RETIRED status
+            // has been committed.
+            auto node = nodes->get_globally_committed(node_id);
+            if (node.has_value())
+            {
+              node->status = ccf::NodeStatus::REMOVED;
+              nodes->put(node_id, node.value());
+            }
 
             LOG_DEBUG_FMT("Removing retired node {}", node_id);
           }
@@ -955,6 +961,37 @@ namespace ccf
           "port", ccf::endpoints::OptionalParameter)
         .add_query_parameter<std::string>(
           "status", ccf::endpoints::OptionalParameter)
+        .install();
+
+      auto get_removable_nodes = [this](auto& args, nlohmann::json&&) {
+        GetNodes::Out out;
+
+        auto nodes = args.tx.ro(this->network.nodes);
+        nodes->foreach(
+          [this, &out, nodes](const NodeId& node_id, const NodeInfo& ni) {
+            auto node = nodes->get_globally_committed(node_id);
+            if (node.has_value() && node->status == ccf::NodeStatus::REMOVED)
+            {
+              out.nodes.push_back(
+                {node_id,
+                 node->status,
+                 false /* is_primary */,
+                 node->rpc_interfaces,
+                 node->node_data,
+                 nodes->get_version_of_previous_write(node_id).value_or(0)});
+            }
+            return true;
+          });
+
+        return make_success(out);
+      };
+
+      make_read_only_endpoint(
+        "/network/removable_nodes",
+        HTTP_GET,
+        json_read_only_adapter(get_removable_nodes),
+        no_auth_required)
+        .set_auto_schema<void, GetNodes::Out>()
         .install();
 
       auto get_self_signed_certificate = [this](auto& args, nlohmann::json&&) {

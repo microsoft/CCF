@@ -301,7 +301,7 @@ def test_retire_backup(network, args):
     network.wait_for_node_in_store(
         primary,
         backup_to_retire.node_id,
-        node_status=None,
+        node_status=ccf.ledger.NodeStatus.REMOVED,
         timeout=3,
     )
     backup_to_retire.stop()
@@ -326,7 +326,7 @@ def test_retire_primary(network, args):
     network.wait_for_node_in_store(
         new_primary,
         primary.node_id,
-        node_status=None,
+        node_status=ccf.ledger.NodeStatus.REMOVED,
         timeout=3,
     )
     check_can_progress(backup)
@@ -396,7 +396,9 @@ def test_node_replacement(network, args):
     LOG.info(f"Retiring node {node_to_replace.local_node_id}")
     network.retire_node(primary, node_to_replace)
     node_to_replace.stop()
+    
     check_can_progress(primary)
+    # TODO: actually delete the node!
 
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(

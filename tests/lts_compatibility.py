@@ -139,7 +139,9 @@ def test_new_service(
         network.wait_for_node_in_store(
             primary,
             node.node_id,
-            node_status=ccf.ledger.NodeStatus.TRUSTED if node.is_joined() else None,
+            node_status=ccf.ledger.NodeStatus.TRUSTED
+            if node.is_joined()
+            else ccf.ledger.NodeStatus.REMOVED,
         )
 
     if args.check_2tx_reconfig_migration:

@@ -20,7 +20,8 @@ namespace ccf
     TRUSTED = 1,
     RETIRED = 2,
     LEARNER = 3,
-    RETIRING = 4
+    RETIRING = 4,
+    REMOVED = 5
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
@@ -28,7 +29,8 @@ namespace ccf
      {NodeStatus::TRUSTED, "Trusted"},
      {NodeStatus::RETIRED, "Retired"},
      {NodeStatus::LEARNER, "Learner"},
-     {NodeStatus::RETIRING, "Retiring"}});
+     {NodeStatus::RETIRING, "Retiring"},
+     {NodeStatus::REMOVED, "Removed"}});
 
   struct NodeInfo : NodeInfoNetwork
   {
@@ -118,6 +120,10 @@ struct formatter<ccf::NodeStatus>
       case (ccf::NodeStatus::RETIRING):
       {
         return format_to(ctx.out(), "RETIRING");
+      }
+      case (ccf::NodeStatus::REMOVED):
+      {
+        return format_to(ctx.out(), "REMOVED");
       }
     }
   }
