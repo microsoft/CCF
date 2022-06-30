@@ -86,15 +86,6 @@ def strip_version(full_version):
     return full_version.split("-")[dash_offset]
 
 
-def version_rc(full_version):
-    if full_version is not None:
-        tokens = full_version.split("-")
-        if len(tokens) > 2 and "rc" in tokens[2]:
-            rc_tkn = tokens[2]
-            return (int(rc_tkn[2:]), len(tokens))
-    return (None, 0)
-
-
 def version_after(version, cmp_version):
     if version is None and cmp_version is not None:
         # It is assumed that version is None for latest development
