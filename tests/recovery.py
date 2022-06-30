@@ -552,7 +552,7 @@ def check_snapshots(args, network):
 
 
 def run(args):
-    recoveries_count = 5
+    recoveries_count = 3
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -601,8 +601,7 @@ def run(args):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % recoveries_count == 0:
-                if args.consensus != "BFT":
-                    network = test_share_resilience(network, args, from_snapshot=True)
+                network = test_share_resilience(network, args, from_snapshot=True)
             elif i % recoveries_count == 1:
                 network = test_recover_service_aborted(
                     network, args, from_snapshot=False
