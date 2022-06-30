@@ -532,8 +532,8 @@ def check_snapshots(args, network):
         # Check that primary node has produced a snapshot. The wait timeout is larger than the
         # signature interval, so the snapshots should become available within the timeout.
         assert args.sig_ms_interval < 3000
-        if not network.wait_for_snapshot_committed_for(
-            seqno, timeout=3, on_all_nodes=True
+        if not network.get_committed_snapshots(
+            primary, target_seqno=True, issue_txs=False
         ):
             raise ValueError(
                 f"No snapshot found after seqno={seqno} on primary {primary.local_node_id}"

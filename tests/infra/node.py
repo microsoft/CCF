@@ -499,11 +499,32 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
-    def get_snapshots(self):
-        return self.remote.get_snapshots()
-
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        return self.remote.get_committed_snapshots(pre_condition_func)
+        (
+            main_snapshots_dir,
+            read_only_snapshots_dir,
+        ) = self.remote.get_committed_snapshots(pre_condition_func)
+
+        snapshots_dir = os.path.join(
+            self.common_dir, f"{self.local_node_id}.snapshots.committed"
+        )
+        infra.path.create_dir(snapshots_dir)
+
+        for f in os.listdir(main_snapshots_dir):
+            if is_file_committed(f):
+                infra.path.copy_dir(
+                    os.path.join(main_snapshots_dir, f),
+                    snapshots_dir,
+                )
+
+        for f in os.listdir(read_only_snapshots_dir):
+            if is_file_committed(f):
+                infra.path.copy_dir(
+                    os.path.join(read_only_snapshots_dir, f),
+                    snapshots_dir,
+                )
+
+        return snapshots_dir
 
     def identity(self, name=None):
         if name is not None:
