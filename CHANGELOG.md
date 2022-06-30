@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added new `recovery_count` field to `GET /node/network` endpoint to track the number of disaster recovery procedures undergone by the service (#3982).
+- Added new `read_only_directory` snapshots directory node configuration so that committed snapshots can be shared between nodes (#3973).
 
 ### Changed
 
