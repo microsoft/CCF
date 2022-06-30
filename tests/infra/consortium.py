@@ -710,7 +710,6 @@ class Consortium:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
             current_cert = r["service_certificate"]
-            # Note: to change once this is backported to 2.x
             if remote_node.version_after("ccf-2.0.4"):
                 current_recovery_count = r["recovery_count"]
             else:
