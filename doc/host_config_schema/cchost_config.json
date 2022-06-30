@@ -423,16 +423,20 @@
         "directory": {
           "type": "string",
           "default": "snapshots",
-          "description": "Path to snapshot directory"
+          "description": "Path to snapshots directory"
         },
         "tx_count": {
           "type": "integer",
           "default": 10000,
           "description": "Number of transactions after which a snapshot is automatically generated",
           "minimum": 1
+        },
+        "read_only_directory": {
+          "type": ["string", "null"],
+          "description": "Path to read-only snapshots directory"
         }
       },
-      "description": "This section includes configuration for the snapshot directory and files",
+      "description": "This section includes configuration for the snapshot directories and files",
       "additionalProperties": false
     },
     "logging": {

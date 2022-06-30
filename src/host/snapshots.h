@@ -4,7 +4,6 @@
 
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
-#include "ds/files.h"
 #include "host/ledger.h"
 #include "time_bound_logger.h"
 
@@ -145,15 +144,70 @@ namespace asynchost
     return read_idx(file_name.substr(evidence_idx_pos + 1, end_str));
   }
 
+  std::optional<fs::path> find_latest_committed_snapshot_in_directory(
+    const fs::path& directory,
+    size_t ledger_last_idx,
+    size_t& latest_committed_snapshot_idx)
+  {
+    std::optional<fs::path> latest_committed_snapshot_file_name = std::nullopt;
+
+    for (auto& f : fs::directory_iterator(directory))
+    {
+      auto file_name = f.path().filename();
+      if (!is_snapshot_file(file_name))
+      {
+        LOG_INFO_FMT("Ignoring non-snapshot file {}", file_name);
+        continue;
+      }
+
+      if (!is_snapshot_file_committed(file_name))
+      {
+        LOG_INFO_FMT("Ignoring non-committed snapshot file {}", file_name);
+        continue;
+      }
+
+      // 1.x committed snapshot file names contain the evidence commit index
+      // which must be contained in the ledger for the snapshot to be valid
+      auto snapshot_evidence_commit_idx_1_x =
+        get_evidence_commit_idx_from_file_name(file_name);
+      if (
+        snapshot_evidence_commit_idx_1_x.has_value() &&
+        snapshot_evidence_commit_idx_1_x.value() > ledger_last_idx)
+      {
+        LOG_INFO_FMT(
+          "Ignoring {}: ledger does not contain evidence commit "
+          "seqno (evidence commit seqno {} > last ledger seqno {})",
+          file_name,
+          snapshot_evidence_commit_idx_1_x.value(),
+          ledger_last_idx);
+        continue;
+      }
+
+      auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
+      if (snapshot_idx > latest_committed_snapshot_idx)
+      {
+        latest_committed_snapshot_file_name = file_name;
+        latest_committed_snapshot_idx = snapshot_idx;
+      }
+    }
+
+    return latest_committed_snapshot_file_name;
+  }
+
   class SnapshotManager
   {
   private:
-    const std::string snapshot_dir;
+    const fs::path snapshot_dir;
+    const std::optional<fs::path> read_snapshot_dir = std::nullopt;
     const Ledger& ledger;
 
   public:
-    SnapshotManager(const std::string& snapshot_dir_, const Ledger& ledger_) :
+    SnapshotManager(
+      const std::string& snapshot_dir_,
+      const Ledger& ledger_,
+      const std::optional<std::string>& read_snapshot_dir_ = std::nullopt) :
       snapshot_dir(snapshot_dir_),
+      read_snapshot_dir(read_snapshot_dir_),
       ledger(ledger_)
     {
       if (fs::is_directory(snapshot_dir))
@@ -166,11 +220,20 @@ namespace asynchost
         throw std::logic_error(
           fmt::format("Could not create snapshot directory: {}", snapshot_dir));
       }
+
+      if (
+        read_snapshot_dir.has_value() &&
+        !fs::is_directory(read_snapshot_dir.value()))
+      {
+        throw std::logic_error(fmt::format(
+          "{} read-only snapshot is not a directory",
+          read_snapshot_dir.value()));
+      }
     }
 
-    std::vector<uint8_t> read_snapshot(const std::string& file_name)
+    fs::path get_main_directory() const
     {
-      return files::slurp(fs::path(snapshot_dir) / fs::path(file_name));
+      return snapshot_dir;
     }
 
     void write_snapshot(
@@ -192,8 +255,7 @@ namespace asynchost
         idx,
         snapshot_idx_delimiter,
         evidence_idx);
-      auto full_snapshot_path =
-        fs::path(snapshot_dir) / fs::path(snapshot_file_name);
+      auto full_snapshot_path = snapshot_dir / snapshot_file_name;
 
       if (fs::exists(full_snapshot_path))
       {
@@ -232,8 +294,7 @@ namespace asynchost
             !is_snapshot_file_committed(file_name) &&
             get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
           {
-            auto full_snapshot_path =
-              fs::path(snapshot_dir) / fs::path(file_name);
+            auto full_snapshot_path = snapshot_dir / file_name;
             const auto committed_file_name =
               fmt::format("{}{}", file_name, snapshot_committed_suffix);
 
@@ -249,8 +310,7 @@ namespace asynchost
               reinterpret_cast<const char*>(receipt_data), receipt_size);
 
             fs::rename(
-              fs::path(snapshot_dir) / fs::path(file_name),
-              fs::path(snapshot_dir) / fs::path(committed_file_name));
+              snapshot_dir / file_name, snapshot_dir / committed_file_name);
 
             return;
           }
@@ -267,55 +327,39 @@ namespace asynchost
       }
     }
 
-    std::optional<std::string> find_latest_committed_snapshot()
+    std::optional<std::pair<fs::path, fs::path>>
+    find_latest_committed_snapshot()
     {
-      std::optional<std::string> latest_committed_snapshot_file_name =
-        std::nullopt;
+      // Keep track of latest snapshot file in both directories
       size_t latest_idx = 0;
       auto ledger_last_idx = ledger.get_last_idx();
 
-      for (auto& f : fs::directory_iterator(snapshot_dir))
+      std::optional<fs::path> read_only_latest_committed_snapshot =
+        std::nullopt;
+      if (read_snapshot_dir.has_value())
       {
-        auto file_name = f.path().filename().string();
-        if (!is_snapshot_file(file_name))
-        {
-          LOG_INFO_FMT("Ignoring non-snapshot file \"{}\"", file_name);
-          continue;
-        }
-
-        if (!is_snapshot_file_committed(file_name))
-        {
-          LOG_INFO_FMT(
-            "Ignoring non-committed snapshot file \"{}\"", file_name);
-          continue;
-        }
-
-        // 1.x committed snapshot file names contain the evidence commit index
-        // which must be contained in the ledger for the snapshot to be valid
-        auto snapshot_evidence_commit_idx_1_x =
-          get_evidence_commit_idx_from_file_name(file_name);
-        if (
-          snapshot_evidence_commit_idx_1_x.has_value() &&
-          snapshot_evidence_commit_idx_1_x.value() > ledger_last_idx)
-        {
-          LOG_INFO_FMT(
-            "Ignoring \"{}\": ledger does not contain evidence commit "
-            "seqno (evidence commit seqno {} > last ledger seqno {})",
-            file_name,
-            snapshot_evidence_commit_idx_1_x.value(),
-            ledger_last_idx);
-          continue;
-        }
-
-        auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
-        if (snapshot_idx > latest_idx)
-        {
-          latest_committed_snapshot_file_name = file_name;
-          latest_idx = snapshot_idx;
-        }
+        read_only_latest_committed_snapshot =
+          find_latest_committed_snapshot_in_directory(
+            read_snapshot_dir.value(), ledger_last_idx, latest_idx);
       }
 
-      return latest_committed_snapshot_file_name;
+      auto main_latest_committed_snapshot =
+        find_latest_committed_snapshot_in_directory(
+          snapshot_dir, ledger_last_idx, latest_idx);
+
+      if (main_latest_committed_snapshot.has_value())
+      {
+        return std::make_pair(
+          snapshot_dir, main_latest_committed_snapshot.value());
+      }
+      else if (read_only_latest_committed_snapshot.has_value())
+      {
+        return std::make_pair(
+          read_snapshot_dir.value(),
+          read_only_latest_committed_snapshot.value());
+      }
+
+      return std::nullopt;
     }
 
     void register_message_handlers(
