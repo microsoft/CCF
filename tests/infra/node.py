@@ -21,6 +21,7 @@ import copy
 import json
 import time
 import http
+import ccf._versionifier
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -99,14 +100,10 @@ def version_after(version, cmp_version):
         # It is assumed that version is None for latest development
         # branch (i.e. main)
         return True
-    rc, _ = version_rc(cmp_version)
-    self_rc, self_num_rc_tkns = version_rc(version)
-    ver = Version(strip_version(cmp_version))
-    self_ver = Version(strip_version(version))
-    return self_ver > ver or (
-        self_ver == ver
-        and (not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3))
-    )
+
+    return ccf._versionifier.to_python_version(
+        version
+    ) > ccf._versionifier.to_python_version(cmp_version)
 
 
 class Node:
