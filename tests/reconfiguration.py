@@ -212,11 +212,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
     # is at least one historical entry to verify.
     network.txs.issue(network, number_txs=1)
     idx, historical_entry = network.txs.get_last_tx(priv=True)
-    for _ in range(1, args.snapshot_tx_interval):
-        network.txs.issue(network, number_txs=1, repeat=True)
-        last_tx = network.txs.get_last_tx(priv=True)
-        if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
-            break
+    network.txs.issue(network, number_txs=1, repeat=True)
 
     new_node = network.create_node("local://localhost")
     network.join_node(

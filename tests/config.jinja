@@ -50,7 +50,8 @@
   "snapshots":
   {
     "directory": "{{ snapshots_dir }}",
-    "tx_count": {{ snapshot_tx_interval }}
+    "tx_count": {{ snapshot_tx_interval }},
+    "read_only_directory": {{ read_only_snapshots_dir|tojson }}
   },
   "logging":
   {
