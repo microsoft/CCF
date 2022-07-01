@@ -144,8 +144,12 @@ namespace ccf
 
     struct NodeStateMsg
     {
-      NodeStateMsg(NodeState& self_) : self(self_) {}
+      NodeStateMsg(NodeState& self_, View create_view_ = 0) :
+        self(self_),
+        create_view(create_view_)
+      {}
       NodeState& self;
+      View create_view;
     };
 
     //
@@ -390,7 +394,8 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          if (!create_and_send_boot_request(true /* Create new consortium */))
+          if (!create_and_send_boot_request(
+                aft::starting_view_change, true /* Create new consortium */))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
@@ -1027,7 +1032,7 @@ namespace ccf
       // When reaching the end of the public ledger, truncate to last signed
       // index
       const auto last_recovered_term = view_history.size();
-      auto new_term = last_recovered_term + 2;
+      auto new_term = last_recovered_term + aft::starting_view_change;
       LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
 
       // Note: KV term must be set before the first Tx is committed
@@ -1097,6 +1102,7 @@ namespace ccf
       auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
           if (!msg->data.self.create_and_send_boot_request(
+                msg->data.create_view,
                 false /* Restore consortium from ledger */))
           {
             throw std::runtime_error(
@@ -1104,7 +1110,8 @@ namespace ccf
           }
           msg->data.self.advance_part_of_public_network();
         },
-        *this);
+        *this,
+        new_term);
       threading::ThreadMessaging::thread_messaging.add_task(
         threading::get_current_thread_id(), std::move(msg));
     }
@@ -1818,7 +1825,8 @@ namespace ccf
       return find_frontend(ActorsType::members)->is_open();
     }
 
-    std::vector<uint8_t> serialize_create_request(bool create_consortium = true)
+    std::vector<uint8_t> serialize_create_request(
+      View create_view, bool create_consortium = true)
     {
       CreateNetworkNodeToNode::In create_params;
 
@@ -1851,6 +1859,7 @@ namespace ccf
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
+      create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1933,9 +1942,11 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_boot_request(bool create_consortium = true)
+    bool create_and_send_boot_request(
+      View create_view, bool create_consortium = true)
     {
-      return send_create_request(serialize_create_request(create_consortium));
+      return send_create_request(
+        serialize_create_request(create_view, create_consortium));
     }
 
     void backup_initiate_private_recovery()
