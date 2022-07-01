@@ -716,7 +716,7 @@ namespace ccf
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
 
-      auto body = serdes::pack(join_params, serdes::Pack::Text);
+      const auto body = serdes::pack(join_params, serdes::Pack::Text);
 
       http::Request r(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));

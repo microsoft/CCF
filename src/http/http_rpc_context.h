@@ -49,12 +49,10 @@ namespace http
 
     std::vector<uint8_t> serialised_request = {};
 
-  public: // TODO: Fix!
     http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
 
-  private:
     bool serialised = false;
 
     std::optional<bool> explicit_apply_writes = std::nullopt;
@@ -113,6 +111,21 @@ namespace http
       {
         serialised = true;
       }
+    }
+
+    http::HeaderMap get_response_headers() const
+    {
+      return response_headers;
+    }
+
+    std::vector<uint8_t>& get_response_body()
+    {
+      return response_body;
+    }
+
+    http_status get_response_http_status() const
+    {
+      return response_status;
     }
 
     virtual ccf::FrameFormat frame_format() const override

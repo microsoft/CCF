@@ -194,9 +194,9 @@ namespace http
 
         server_session.send_response(
           stream_id,
-          rpc_ctx->response_status,
-          rpc_ctx->response_headers,
-          std::move(rpc_ctx->response_body));
+          rpc_ctx->get_response_http_status(),
+          rpc_ctx->get_response_headers(),
+          std::move(rpc_ctx->get_response_body()));
 
         // if (!response.has_value())
         // {

@@ -632,7 +632,7 @@ if __name__ == "__main__":
         "session_auth",
         gov,
         package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session=True,
     )

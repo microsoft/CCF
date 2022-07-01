@@ -304,7 +304,10 @@ class CurlClient:
         self.signing_auth = signing_auth
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
-        self.http2 = kwargs.get("http2")
+        if self.http2:
+            # Currently not supported. This is because we cannot easily construct
+            # a Response via from_raw() for HTTP/2
+            raise RuntimeError("HTTP/2 is not currently support with CurlClient")
 
     def request(
         self,
@@ -320,11 +323,6 @@ class CurlClient:
             url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
 
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
-
-            if self.http2:
-                # Currently not supported. This is because we cannot easily construct 
-                # a Response via from_raw() for HTTP/2
-                raise RuntimeError("HTTP/2 is not currently support with CurlClient")
 
             if request.allow_redirects:
                 cmd.append("-L")

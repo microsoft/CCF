@@ -151,7 +151,7 @@ class Node:
         self.initial_node_data_json_file = node_data_json_file
         self.label = None
 
-        if False:  # os.getenv("CONTAINER_NODES"):
+        if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim
