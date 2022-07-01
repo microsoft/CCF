@@ -6,9 +6,7 @@
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "forwarder_types.h"
-#ifdef ENABLE_HTTP2
-#  include "http/http2_endpoint.h"
-#endif
+#include "http/http2_endpoint.h"
 #include "http/http_endpoint.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
@@ -27,13 +25,10 @@
 
 namespace ccf
 {
-#ifdef ENABLE_HTTP2
   using ServerEndpointImpl = http::HTTP2ServerEndpoint;
   using ClientEndpointImpl = http::HTTP2ClientEndpoint;
-#else
-  using ServerEndpointImpl = http::HTTPServerEndpoint;
-  using ClientEndpointImpl = http::HTTPClientEndpoint;
-#endif
+  // using ServerEndpointImpl = http::HTTPServerEndpoint;
+  // using ClientEndpointImpl = http::HTTPClientEndpoint;
   using QUICEndpointImpl = quic::QUICEchoEndpoint;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
@@ -55,6 +50,7 @@ namespace ccf
       ccf::Endorsement endorsement;
       http::ParserConfiguration http_configuration;
       ccf::SessionMetrics::Errors errors;
+      ccf::ApplicationProtocol app_protocol;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
@@ -220,6 +216,8 @@ namespace ccf
 
         li.http_configuration =
           interface.http_configuration.value_or(http::ParserConfiguration{});
+
+        li.app_protocol = interface.app_protocol;
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
@@ -392,20 +390,42 @@ namespace ccf
           std::unique_ptr<tls::Context> ctx;
           if (
             per_listen_interface.endorsement.authority == Authority::UNSECURED)
+          {
             ctx = std::make_unique<nontls::PlaintextServer>();
+          }
           else
+          {
             ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+          }
 
-          auto session = std::make_shared<ServerEndpointImpl>(
-            rpc_map,
-            id,
-            listen_interface_id,
-            writer_factory,
-            std::move(ctx),
-            per_listen_interface.http_configuration,
-            shared_from_this());
-          sessions.insert(std::make_pair(
-            id, std::make_pair(listen_interface_id, std::move(session))));
+          if (
+            per_listen_interface.app_protocol ==
+            ccf::ApplicationProtocol::HTTP2)
+          {
+            auto session = std::make_shared<http::HTTP2ServerEndpoint>(
+              rpc_map,
+              id,
+              listen_interface_id,
+              writer_factory,
+              std::move(ctx),
+              per_listen_interface.http_configuration,
+              shared_from_this());
+            sessions.insert(std::make_pair(
+              id, std::make_pair(listen_interface_id, std::move(session))));
+          }
+          else
+          {
+            auto session = std::make_shared<ServerEndpointImpl>(
+              rpc_map,
+              id,
+              listen_interface_id,
+              writer_factory,
+              std::move(ctx),
+              per_listen_interface.http_configuration,
+              shared_from_this());
+            sessions.insert(std::make_pair(
+              id, std::make_pair(listen_interface_id, std::move(session))));
+          }
           per_listen_interface.open_sessions++;
           per_listen_interface.peak_sessions = std::max(
             per_listen_interface.peak_sessions,
