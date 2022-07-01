@@ -21,6 +21,8 @@ import copy
 import json
 import time
 import http
+
+# pylint: disable=protected-access
 import ccf._versionifier
 
 # pylint: disable=import-error, no-name-in-module
