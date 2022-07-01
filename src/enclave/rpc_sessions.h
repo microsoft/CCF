@@ -432,7 +432,10 @@ namespace ccf
           }
           else
           {
-            ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+            ctx = std::make_unique<tls::Server>(
+              certs[listen_interface_id],
+              per_listen_interface.app_protocol ==
+                ccf::ApplicationProtocol::HTTP2);
           }
 
           auto session = make_server_session(

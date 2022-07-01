@@ -322,11 +322,9 @@ class CurlClient:
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
             if self.http2:
-                # This is because we cannot easily construct a Response via from_raw()
-                # for HTTP/2
+                # Currently not supported. This is because we cannot easily construct 
+                # a Response via from_raw() for HTTP/2
                 raise RuntimeError("HTTP/2 is not currently support with CurlClient")
-            else:  # TODO: Remove
-                cmd += ["--http1.1"]
 
             if request.allow_redirects:
                 cmd.append("-L")
