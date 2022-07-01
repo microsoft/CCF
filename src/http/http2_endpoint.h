@@ -145,8 +145,8 @@ namespace http
       {
         if (session_ctx == nullptr)
         {
-          session_ctx =
-            std::make_shared<ccf::SessionContext>(session_id, peer_cert());
+          session_ctx = std::make_shared<ccf::SessionContext>(
+            session_id, peer_cert(), interface_id);
         }
 
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;

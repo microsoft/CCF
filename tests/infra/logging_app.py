@@ -432,7 +432,7 @@ def scoped_txs(identity="user0", verify=False):
                 headers = infra.jwt_issuer.make_bearer_header(
                     network.jwt_issuer.issue_jwt()
                 )
-            node = network.find_random_node()
+            node, _ = network.find_primary()
             previous_scope = network.txs.scope
 
             scope = get_fresh_scope(node, identity, headers)

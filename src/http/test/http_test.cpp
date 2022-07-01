@@ -567,7 +567,6 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
 {
   std::queue<ccf::SignedReq> signed_reqs;
 
-  // TODO: Fix
   virtual void handle_request(
     int32_t stream_id,
     llhttp_method method,

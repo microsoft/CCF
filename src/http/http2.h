@@ -126,7 +126,7 @@ namespace http2
     int flags,
     void* user_data)
   {
-    LOG_TRACE_FMT("send_callback: {}", length);
+    LOG_TRACE_FMT("http2::send_callback: {}", length);
 
     auto* s = reinterpret_cast<Session*>(user_data);
     s->send(data, length);
@@ -142,14 +142,12 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    LOG_TRACE_FMT("read_callback: {}", length);
+    LOG_TRACE_FMT("http2::read_callback: {}", length);
 
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
 
     auto& response_body = stream_data->response_body;
-
-    LOG_FAIL_FMT("Response body of size: {}", response_body.size());
 
     if (response_body.size() > 0)
     {
@@ -172,13 +170,13 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    LOG_TRACE_FMT("read_callback client: {}", length);
+    LOG_TRACE_FMT("http2::read_callback client: {}", length);
 
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
 
     auto& request_body = stream_data->request_body;
-    LOG_FAIL_FMT("Request body size: {}", request_body.size());
+    LOG_DEBUG_FMT("Request body size: {}", request_body.size());
 
     // TODO: Explore zero-copy alternative
     // TODO: Also bump maximum size for SGX enclave and join protocol
@@ -191,7 +189,7 @@ namespace http2
   static int on_frame_recv_callback(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
-    LOG_TRACE_FMT("on_frame_recv_callback, type: {}", frame->hd.type);
+    LOG_TRACE_FMT("http2::on_frame_recv_callback, type: {}", frame->hd.type);
 
     auto* s = reinterpret_cast<Session*>(user_data);
     auto* stream_data = reinterpret_cast<StreamData*>(
@@ -231,7 +229,8 @@ namespace http2
   static int on_frame_recv_callback_client(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
-    LOG_TRACE_FMT("on_frame_recv_callback_client, type: {}", frame->hd.type);
+    LOG_TRACE_FMT(
+      "http2::on_frame_recv_callback_client, type: {}", frame->hd.type);
 
     auto* s = reinterpret_cast<Session*>(user_data);
     auto* stream_data = reinterpret_cast<StreamData*>(
@@ -245,7 +244,7 @@ namespace http2
         if (stream_data->id == frame->hd.stream_id)
         {
           // TODO: Is this the right place to this?
-          LOG_FAIL_FMT("All headers received");
+          LOG_DEBUG_FMT("All headers received");
           s->handle_response(stream_data);
         }
         break;
@@ -262,7 +261,7 @@ namespace http2
   static int on_begin_headers_callback(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
-    LOG_TRACE_FMT("on_begin_headers_callback");
+    LOG_TRACE_FMT("http2::on_begin_headers_callback");
 
     auto* s = reinterpret_cast<Session*>(user_data);
     auto stream_data = std::make_shared<StreamData>(frame->hd.stream_id);
@@ -283,7 +282,8 @@ namespace http2
   static int on_begin_headers_callback_client(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
-    LOG_TRACE_FMT("on_begin_headers_callback_client: {}", frame->hd.type);
+    LOG_TRACE_FMT(
+      "http2::on_begin_headers_callback_client: {}", frame->hd.type);
 
     return 0;
   }
@@ -300,7 +300,7 @@ namespace http2
   {
     auto k = std::string(name, name + namelen);
     auto v = std::string(value, value + valuelen);
-    LOG_TRACE_FMT("on_header_callback: {}:{}", k, v);
+    LOG_TRACE_FMT("http2::on_header_callback: {}:{}", k, v);
 
     auto* s = reinterpret_cast<Session*>(user_data);
     auto* stream_data = reinterpret_cast<StreamData*>(
@@ -334,7 +334,7 @@ namespace http2
   {
     auto k = std::string(name, name + namelen);
     auto v = std::string(value, value + valuelen);
-    LOG_TRACE_FMT("on_header_callback_client: {}:{}", k, v);
+    LOG_TRACE_FMT("http2::on_header_callback_client: {}:{}", k, v);
 
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
@@ -360,7 +360,7 @@ namespace http2
     size_t len,
     void* user_data)
   {
-    LOG_TRACE_FMT("on_data_callback: {}", stream_id);
+    LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
 
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
@@ -379,7 +379,7 @@ namespace http2
     size_t len,
     void* user_data)
   {
-    LOG_TRACE_FMT("on_data_callback_client: {}", stream_id);
+    LOG_TRACE_FMT("http2::on_data_callback_client: {}", stream_id);
 
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
@@ -396,7 +396,11 @@ namespace http2
     uint32_t error_code,
     void* user_data)
   {
-    LOG_TRACE_FMT("on_stream_close_callback: {}, {}", stream_id, error_code);
+    LOG_TRACE_FMT(
+      "http2::on_stream_close_callback: {}, {}", stream_id, error_code);
+
+    auto* stream_data = reinterpret_cast<StreamData*>(
+      nghttp2_session_get_stream_user_data(session, stream_id));
 
     // TODO: Close stream_data correctly
     return 0;
@@ -412,7 +416,7 @@ namespace http2
     void* user_data)
   {
     LOG_TRACE_FMT(
-      "on_data_source_read_length_callback: {}, {}, allowed [1, "
+      "http2::on_data_source_read_length_callback: {}, {}, allowed [1, "
       "min({},{},{})]",
       stream_id,
       max_data_read_size,
@@ -591,7 +595,7 @@ namespace http2
           fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
       }
 
-      LOG_FAIL_FMT("Successfully sent request with stream id: {}", stream_id);
+      LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
     }
 
     virtual void handle_request(StreamData* stream_data) override
