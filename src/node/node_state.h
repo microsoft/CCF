@@ -491,8 +491,11 @@ namespace ccf
         config.join.target_rpc_address);
 
       // Create RPC client and connect to remote node
-      auto join_client =
-        rpcsessions->create_client(std::move(join_client_cert));
+      // TODO: For now, assume that network accepts same application protocol as
+      // this node's main RPC interface
+      auto join_client = rpcsessions->create_client(
+        std::move(join_client_cert),
+        rpcsessions->get_app_protocol_main_interface());
 
       auto [target_host, target_port] =
         split_net_address(config.join.target_rpc_address);

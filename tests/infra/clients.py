@@ -304,6 +304,7 @@ class CurlClient:
         self.signing_auth = signing_auth
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
+        self.http2 = kwargs.get("http2")
 
     def request(
         self,
@@ -318,14 +319,14 @@ class CurlClient:
 
             url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
 
-            cmd += [
-                url,
-                "-X",
-                request.http_verb,
-                "-i",
-                f"-m {timeout}",
-                "--http2-prior-knowledge",
-            ]
+            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
+
+            if self.http2:
+                # This is because we cannot easily construct a Response via from_raw()
+                # for HTTP/2
+                raise RuntimeError("HTTP/2 is not currently support with CurlClient")
+            else:  # TODO: Remove
+                cmd += ["--http1.1"]
 
             if request.allow_redirects:
                 cmd.append("-L")
@@ -423,9 +424,7 @@ class RequestClient:
         if "protocol" in kwargs:
             self.protocol = kwargs.get("protocol")
             kwargs.pop("protocol")
-        self.session = httpx.Client(
-            verify=self.ca, http1=False, http2=True, cert=cert, **kwargs
-        )
+        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
         if self.signing_auth:
             with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
@@ -558,7 +557,9 @@ class CCFClient:
         self.sign = bool(signing_auth)
 
         if curl or os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
+            self.client_impl = CurlClient(
+                host, port, ca, session_auth, signing_auth, **kwargs
+            )
         else:
             self.client_impl = RequestClient(
                 host, port, ca, session_auth, signing_auth, common_headers, **kwargs

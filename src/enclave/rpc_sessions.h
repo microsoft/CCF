@@ -25,10 +25,6 @@
 
 namespace ccf
 {
-  using ServerEndpointImpl = http::HTTP2ServerEndpoint;
-  using ClientEndpointImpl = http::HTTP2ClientEndpoint;
-  // using ServerEndpointImpl = http::HTTPServerEndpoint;
-  // using ClientEndpointImpl = http::HTTPClientEndpoint;
   using QUICEndpointImpl = quic::QUICEchoEndpoint;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
@@ -251,6 +247,16 @@ namespace ccf
       return sm;
     }
 
+    ccf::ApplicationProtocol get_app_protocol_main_interface() const
+    {
+      if (listening_interfaces.empty())
+      {
+        throw std::logic_error("No listening interface for this node");
+      }
+
+      return listening_interfaces.begin()->second.app_protocol;
+    }
+
     void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
       set_cert(ccf::Authority::NODE, cert_, pk);
@@ -415,7 +421,7 @@ namespace ccf
           }
           else
           {
-            auto session = std::make_shared<ServerEndpointImpl>(
+            auto session = std::make_shared<http::HTTPServerEndpoint>(
               rpc_map,
               id,
               listen_interface_id,
@@ -470,7 +476,8 @@ namespace ccf
     }
 
     std::shared_ptr<ClientEndpoint> create_client(
-      std::shared_ptr<tls::Cert> cert)
+      const std::shared_ptr<tls::Cert>& cert,
+      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1)
     {
       std::lock_guard<ccf::Mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
@@ -478,17 +485,25 @@ namespace ccf
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
-      auto session = std::make_shared<ClientEndpointImpl>(
-        id, writer_factory, std::move(ctx));
-
       // There are no limits on outbound client sessions (we do not check any
       // session caps here). We expect this type of session to be rare and want
       // it to succeed even when we are busy.
-      sessions.insert(std::make_pair(id, std::make_pair("", session)));
-
-      sessions_peak = std::max(sessions_peak, sessions.size());
-
-      return session;
+      if (app_protocol == ccf::ApplicationProtocol::HTTP2)
+      {
+        auto session = std::make_shared<http::HTTP2ClientEndpoint>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
+        sessions_peak = std::max(sessions_peak, sessions.size());
+        return session;
+      }
+      else
+      {
+        auto session = std::make_shared<http::HTTPClientEndpoint>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
+        sessions_peak = std::max(sessions_peak, sessions.size());
+        return session;
+      }
     }
 
     void register_message_handlers(

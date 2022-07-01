@@ -151,7 +151,7 @@ class Node:
         self.initial_node_data_json_file = node_data_json_file
         self.label = None
 
-        if False: # os.getenv("CONTAINER_NODES"):
+        if False:  # os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim
@@ -614,6 +614,9 @@ class Node:
         akwargs["protocol"] = (
             kwargs.get("protocol") if "protocol" in kwargs else "https"
         )
+        if rpc_interface.app_protocol == infra.interfaces.AppProtocol.HTTP2:
+            akwargs["http1"] = False
+            akwargs["http2"] = True
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
