@@ -290,6 +290,7 @@ namespace ccf
     void create_service(
       const crypto::Pem& service_cert,
       ccf::TxID create_txid,
+      nlohmann::json service_data = nullptr,
       bool recovering = false)
     {
       auto service = tx.rw(tables.service);
@@ -314,6 +315,7 @@ namespace ccf
          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
          recovering ? service->get_version_of_previous_write() : std::nullopt,
          recovery_count,
+         service_data,
          create_txid});
     }
 

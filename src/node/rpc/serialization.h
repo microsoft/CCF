@@ -75,7 +75,7 @@ namespace ccf
     node_info_network,
     create_txid)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CreateNetworkNodeToNode::In, genesis_info, node_data)
+    CreateNetworkNodeToNode::In, genesis_info, node_data, service_data)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)
@@ -91,6 +91,7 @@ namespace ccf
     current_view,
     primary_id,
     recovery_count,
+    service_data,
     current_service_create_txid)
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
