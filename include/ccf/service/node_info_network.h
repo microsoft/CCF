@@ -26,6 +26,16 @@ namespace ccf
      {Authority::ACME, "ACME"},
      {Authority::UNSECURED, "Unsecured"}});
 
+  enum class ApplicationProtocol
+  {
+    HTTP1,
+    HTTP2
+  };
+  DECLARE_JSON_ENUM(
+    ApplicationProtocol,
+    {{ApplicationProtocol::HTTP1, "HTTP1"},
+     {ApplicationProtocol::HTTP2, "HTTP2"}});
+
   struct Endorsement
   {
     Authority authority;
@@ -70,6 +80,7 @@ namespace ccf
       NetAddress bind_address;
       NetAddress published_address;
       NetProtocol protocol;
+      ApplicationProtocol app_protocol = ApplicationProtocol::HTTP1;
 
       /// Maximum open sessions soft limit
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
@@ -92,7 +103,7 @@ namespace ccf
       {
         return bind_address == other.bind_address &&
           published_address == other.published_address &&
-          protocol == other.protocol &&
+          protocol == other.protocol && app_protocol == other.app_protocol &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
           endorsement == other.endorsement &&
@@ -132,6 +143,7 @@ namespace ccf
     max_open_sessions_hard,
     published_address,
     protocol,
+    app_protocol,
     http_configuration,
     accepted_endpoints);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
