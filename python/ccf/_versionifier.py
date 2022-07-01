@@ -50,34 +50,42 @@ if __name__ == "__main__":
 
     v = to_python_version("1.2.3")
     assert v.release == (1, 2, 3)
+    assert v == to_python_version("ccf-1.2.3")
 
     v = to_python_version("ccf-1.2.3")
     assert v.release == (1, 2, 3)
+    assert v == to_python_version("ccf-1.2.3")
 
     v = to_python_version("ccf-1.2.3-a42")
     assert v.release == (1, 2, 3)
     assert v.pre == ("a", 42)
+    assert v < to_python_version("ccf-1.2.3")  # -x precedes main release
 
     v = to_python_version("ccf-1.2.3-rc1")
     assert v.release == (1, 2, 3)
     assert v.pre == ("rc", 1)
+    assert v < to_python_version("ccf-1.2.3")  # RC precedes main release
 
     v = to_python_version("ccf-1.2.3-dev2")
     assert v.release == (1, 2, 3)
     assert v.dev == 2
+    assert v < to_python_version("ccf-1.2.3")  # dev precedes main release
 
     v = to_python_version("ccf-1.2.3-dev3-5-deadbeef")
     assert v.release == (1, 2, 3)
     assert v.dev == 3
     assert v.local == "5.deadbeef"
+    assert v < to_python_version("ccf-1.2.3")  # dev precedes main release
 
     v = to_python_version("ccf-1.2.3-42-deadbeef")
     assert v.release == (1, 2, 3)
     assert v.post == 42
     assert v.local == "deadbeef"
+    assert v > to_python_version("ccf-1.2.3")  # -N comes after main release
 
     v = to_python_version("ccf-2.0.0-rc4-26-g49d7b7941+unsafe")
     assert v.release == (2, 0, 0)
     assert v.pre == ("rc", 4)
     assert v.post == 26
     assert v.local == "g49d7b7941unsafe"
+    assert v < to_python_version("ccf-2.0.0")  # RC precedes main release
