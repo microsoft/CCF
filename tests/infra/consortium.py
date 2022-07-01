@@ -710,7 +710,7 @@ class Consortium:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
             current_cert = r["service_certificate"]
-            if remote_node.version_after("ccf-2.0.4"):
+            if remote_node.version_after("ccf-2.0.3"):
                 current_recovery_count = r["recovery_count"]
             else:
                 assert "recovery_count" not in r
@@ -729,7 +729,7 @@ class Consortium:
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
-            if remote_node.version_after("ccf-2.0.4"):
+            if remote_node.version_after("ccf-2.0.3"):
                 assert (
                     recovery_count is None or current_recovery_count == recovery_count
                 ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"
