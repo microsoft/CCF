@@ -165,6 +165,37 @@ namespace ccf
         fmt::format("No RPC interface for session ID {}", id));
     }
 
+    std::shared_ptr<Endpoint> make_server_session(
+      ccf::ApplicationProtocol app_protocol,
+      tls::ConnID id,
+      const ListenInterfaceID& listen_interface_id,
+      std::unique_ptr<tls::Context>&& ctx,
+      const http::ParserConfiguration& parser_configuration)
+    {
+      if (app_protocol == ccf::ApplicationProtocol::HTTP2)
+      {
+        return std::make_shared<http::HTTP2ServerEndpoint>(
+          rpc_map,
+          id,
+          listen_interface_id,
+          writer_factory,
+          std::move(ctx),
+          parser_configuration,
+          shared_from_this());
+      }
+      else
+      {
+        return std::make_shared<http::HTTPServerEndpoint>(
+          rpc_map,
+          id,
+          listen_interface_id,
+          writer_factory,
+          std::move(ctx),
+          parser_configuration,
+          shared_from_this());
+      }
+    }
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -404,34 +435,15 @@ namespace ccf
             ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
           }
 
-          if (
-            per_listen_interface.app_protocol ==
-            ccf::ApplicationProtocol::HTTP2)
-          {
-            auto session = std::make_shared<http::HTTP2ServerEndpoint>(
-              rpc_map,
-              id,
-              listen_interface_id,
-              writer_factory,
-              std::move(ctx),
-              per_listen_interface.http_configuration,
-              shared_from_this());
-            sessions.insert(std::make_pair(
-              id, std::make_pair(listen_interface_id, std::move(session))));
-          }
-          else
-          {
-            auto session = std::make_shared<http::HTTPServerEndpoint>(
-              rpc_map,
-              id,
-              listen_interface_id,
-              writer_factory,
-              std::move(ctx),
-              per_listen_interface.http_configuration,
-              shared_from_this());
-            sessions.insert(std::make_pair(
-              id, std::make_pair(listen_interface_id, std::move(session))));
-          }
+          auto session = make_server_session(
+            per_listen_interface.app_protocol,
+            id,
+            listen_interface_id,
+            std::move(ctx),
+            per_listen_interface.http_configuration);
+
+          sessions.insert(std::make_pair(
+            id, std::make_pair(listen_interface_id, std::move(session))));
           per_listen_interface.open_sessions++;
           per_listen_interface.peak_sessions = std::max(
             per_listen_interface.peak_sessions,
