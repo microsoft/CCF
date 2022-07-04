@@ -111,13 +111,12 @@ namespace http
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
       const http::ParserConfiguration&
-        configuration, // TODO: Support configuration
+        configuration, // Note: Support configuration
       const std::shared_ptr<ErrorReporter>& error_reporter =
-        nullptr) // TODO: Report errors
+        nullptr) // Note: Report errors
       :
       HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
-      server_session(*this, *this), // TODO: Ugly! but currently necessary to be
-                                    // able to write back to the ring buffer
+      server_session(*this, *this),
       rpc_map(rpc_map),
       session_id(session_id),
       interface_id(interface_id)
@@ -157,10 +156,7 @@ namespace http
         }
         catch (std::exception& e)
         {
-          // send_raw(http::error(
-          //   HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          //   ccf::errors::InternalError,
-          //   e.what()));
+          // Note: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -173,7 +169,7 @@ namespace http
               "Request path must contain '/[actor]/[method]'. Unable to parse "
               "'{}'.",
               rpc_ctx->get_method()));
-          // send_raw(rpc_ctx->serialise_response());
+          // Note: return HTTP_STATUS_NOT_FOUND, e.what()
           return;
         }
 
@@ -186,36 +182,34 @@ namespace http
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             fmt::format("Unknown actor '{}'.", actor_s));
-          // send_raw(rpc_ctx->serialise_response());
+          // Note: return HTTP_STATUS_NOT_FOUND, e.what()
           return;
         }
 
         auto response = search.value()->process(rpc_ctx);
 
-        server_session.send_response(
-          stream_id,
-          rpc_ctx->get_response_http_status(),
-          rpc_ctx->get_response_headers(),
-          std::move(rpc_ctx->get_response_body()));
-
-        // if (!response.has_value())
-        // {
-        //   // If the RPC is pending, hold the connection.
-        //   LOG_TRACE_FMT("Pending");
-        //   return;
-        // }
-        // else
-        // {
-        //   send_buffered(response.value());
-        //   flush();
-        // }
+        if (!response.has_value())
+        {
+          // If the RPC is pending, hold the connection.
+          LOG_TRACE_FMT("Pending");
+          return;
+        }
+        else
+        {
+          server_session.send_response(
+            stream_id,
+            rpc_ctx->get_response_http_status(),
+            rpc_ctx->get_response_headers(),
+            std::move(rpc_ctx->get_response_body()));
+        }
       }
       catch (const std::exception& e)
       {
-        // send_raw(http::error(
-        //   HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        //   ccf::errors::InternalError,
-        //   fmt::format("Exception: {}", e.what())));
+        // Note: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
+        send_raw(http::error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Exception: {}", e.what())));
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
@@ -245,8 +239,7 @@ namespace http
 
     void send_request(const http::Request& request) override
     {
-      // TODO: Add verb
-      // TODO: Avoid copy?
+      // Note: Avoid extra copy
       std::vector<uint8_t> request_body = {
         request.get_content_data(),
         request.get_content_data() + request.get_content_length()};

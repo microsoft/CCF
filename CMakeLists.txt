@@ -708,7 +708,8 @@ if(BUILD_TESTS)
       NAME e2e_logging_http2
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
     )
   endif()
 

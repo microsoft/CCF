@@ -37,7 +37,7 @@ namespace http2
   // Functions to create HTTP2 headers
   static nghttp2_nv make_nv(const uint8_t* key, const uint8_t* value)
   {
-    // TODO: Investigate no copy flags here
+    // Note: Investigate no copy flags here
     return {
       const_cast<uint8_t*>(key),
       const_cast<uint8_t*>(value),

@@ -37,7 +37,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     nghttp2.enclave PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>
                            $<INSTALL_INTERFACE:include/3rdparty/nghttp2>
   )
-  target_compile_definitions(nghttp2.enclave PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1)
+  target_compile_definitions(
+    nghttp2.enclave PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1
+  )
 
   install(
     TARGETS nghttp2.enclave
@@ -51,7 +53,9 @@ target_include_directories(
   nghttp2.host PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>
                       $<INSTALL_INTERFACE:include/3rdparty/nghttp2>
 )
-target_compile_definitions(nghttp2.host PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1)
+target_compile_definitions(
+  nghttp2.host PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1
+)
 add_san(nghttp2.host)
 set_property(TARGET nghttp2.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
