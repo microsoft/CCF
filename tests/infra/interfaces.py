@@ -86,7 +86,7 @@ class RPCInterface(Interface):
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
-    app_protocol: AppProtocol = AppProtocol.HTTP2
+    app_protocol: AppProtocol = AppProtocol.HTTP1
 
     @staticmethod
     def to_json(interface):
