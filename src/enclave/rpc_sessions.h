@@ -244,7 +244,8 @@ namespace ccf
         li.http_configuration =
           interface.http_configuration.value_or(http::ParserConfiguration{});
 
-        li.app_protocol = interface.app_protocol;
+        li.app_protocol =
+          interface.app_protocol.value_or(ApplicationProtocol::HTTP1);
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "

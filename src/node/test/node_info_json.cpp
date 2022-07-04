@@ -9,6 +9,7 @@
 
 TEST_CASE("Multiple versions of NodeInfoNetwork")
 {
+  logger::config::default_init();
   ccf::NodeInfoNetwork::NetAddress node{"42.42.42.42:4242"};
   ccf::NodeInfoNetwork::NetAddress rpc_a{"1.2.3.4:4321"};
   ccf::NodeInfoNetwork::NetAddress rpc_a_pub{"5.6.7.8:8765"};
@@ -61,8 +62,10 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     INFO(
       "Current format loses some information when round-tripping through old");
     nlohmann::json j = current;
+    LOG_FAIL_FMT("{}", j.dump());
     const auto intermediate = j.get<ccf::NodeInfoNetwork_v1>();
     nlohmann::json j2 = intermediate;
+    LOG_FAIL_FMT("{}", j2.dump());
     const auto converted = j2.get<ccf::NodeInfoNetwork>();
     REQUIRE(!(current == converted));
 
@@ -81,6 +84,10 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     REQUIRE(
       current_interface.published_address ==
       converted_interface.published_address);
+    LOG_FAIL_FMT(
+      "{} != {}",
+      current_interface.max_open_sessions_hard.value_or(0),
+      converted_interface.max_open_sessions_hard.value_or(99));
     REQUIRE(
       current_interface.max_open_sessions_hard !=
       converted_interface.max_open_sessions_hard);

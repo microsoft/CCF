@@ -80,7 +80,7 @@ namespace ccf
       NetAddress bind_address;
       NetAddress published_address;
       NetProtocol protocol;
-      ApplicationProtocol app_protocol = ApplicationProtocol::HTTP1;
+      std::optional<ApplicationProtocol> app_protocol = std::nullopt;
 
       /// Maximum open sessions soft limit
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
