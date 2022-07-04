@@ -304,7 +304,7 @@ class CurlClient:
         self.signing_auth = signing_auth
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
-        if self.http2:
+        if kwargs.get("http2"):
             # Currently not supported. This is because we cannot easily construct
             # a Response via from_raw() for HTTP/2
             raise RuntimeError("HTTP/2 is not currently support with CurlClient")
