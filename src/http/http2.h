@@ -514,11 +514,11 @@ namespace http2
       LOG_TRACE_FMT("http2::ServerSession: handle_request");
 
       proc.handle_request(
-        stream_data->id,
         stream_data->verb.get_http_method().value(),
         stream_data->url,
         std::move(stream_data->headers),
-        std::move(stream_data->request_body));
+        std::move(stream_data->request_body),
+        stream_data->id);
     }
 
     void handle_response(StreamData* stream_data) override

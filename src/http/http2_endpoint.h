@@ -129,11 +129,11 @@ namespace http
     }
 
     void handle_request(
-      int32_t stream_id,
       llhttp_method verb,
       const std::string_view& url,
       http::HeaderMap&& headers,
-      std::vector<uint8_t>&& body) override
+      std::vector<uint8_t>&& body,
+      int32_t stream_id) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {} [{} bytes])",

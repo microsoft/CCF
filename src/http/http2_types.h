@@ -17,7 +17,6 @@ namespace http2
 {
   using StreamId = int32_t;
 
-  // TODO: Make configurable
   constexpr static size_t max_data_read_size = 2 << 20;
 
   struct StreamData
