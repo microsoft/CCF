@@ -61,6 +61,11 @@ namespace http2
       nghttp2_session_callbacks_del(callbacks);
     }
 
+    virtual ~Session()
+    {
+      nghttp2_session_del(session);
+    }
+
     void add_stream(const std::shared_ptr<StreamData>& stream_data)
     {
       streams.push_back(stream_data);
