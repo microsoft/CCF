@@ -3,32 +3,10 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "enclave/endpoint.h" // TODO: Not great!
+#include "enclave/endpoint.h"
 #include "http2_types.h"
 #include "http_proc.h"
 #include "http_rpc_context.h"
-
-// TODO: State of things as of 30/05/22:
-//
-// Next: Cleanup and forwarding.
-//
-// - HTTP works up to service opening (and a little more)
-// - Join protocol working
-// - Overall flow is sound and most callback are correctly set
-// - What isn't clear is how http2::Session fits with HTTPEndpoint.
-// - Forwarding is really awkward because the primary node needs to calls into
-// nghttp2_submit_response() to send the response back to the backup. So the
-// endpoint created on the primary when a request is forwarded needs to have
-// special nghttp2 send callbacks to send back to the n2n channel. This also
-// implies that the n2n channel needs to be an HTTP/2 session, which is a lot of
-// work.
-// - A larger refactoring is required as HTTP/1 is easy enough that
-// ctx->serialised_response() is called very early on (frontend.h), but we
-// cannot serialise the response early with HTTP/2 (as response headers and body
-// are passed separately). Also, http2.h needs to be able to write to the
-// endpoint directly, whereas http_parser only consumes input data but never
-// writes to ring buffer. Note that it's probably wise to implement join
-// protocol before doing this refactoring.
 
 namespace http2
 {
@@ -92,8 +70,8 @@ namespace http2
     {
       LOG_TRACE_FMT("http2::Session send: {}", length);
 
-      std::vector<uint8_t> resp = {
-        data, data + length}; // TODO: Remove extra copy
+      // Note: Remove extra copy
+      std::vector<uint8_t> resp = {data, data + length};
       endpoint.send(std::move(resp), sockaddr());
     }
 
@@ -151,12 +129,11 @@ namespace http2
 
     if (response_body.size() > 0)
     {
-      // TODO: Explore zero-copy alternative
+      // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
       memcpy(buf, response_body.data(), response_body.size());
     }
 
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-    // *data_flags |= NGHTTP2_DATA_FLAG_NO_COPY;
 
     return response_body.size();
   }
@@ -176,12 +153,15 @@ namespace http2
       nghttp2_session_get_stream_user_data(session, stream_id));
 
     auto& request_body = stream_data->request_body;
-    LOG_DEBUG_FMT("Request body size: {}", request_body.size());
+    LOG_TRACE_FMT("Request body size: {}", request_body.size());
 
-    // TODO: Explore zero-copy alternative
-    // TODO: Also bump maximum size for SGX enclave and join protocol
+    // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
+    // Also bump maximum size for SGX enclave and join protocol
     // https://nghttp2.org/documentation/types.html#c.nghttp2_data_source_read_length_callback
-    memcpy(buf, request_body.data(), request_body.size());
+    if (request_body.size() > 0)
+    {
+      memcpy(buf, request_body.data(), request_body.size());
+    }
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     return request_body.size();
   }
@@ -218,7 +198,6 @@ namespace http2
       }
       default:
       {
-        // TODO: Support other frame types
         break;
       }
     }
@@ -243,7 +222,6 @@ namespace http2
         LOG_TRACE_FMT("Data frame: {}", frame->headers.cat);
         if (stream_data->id == frame->hd.stream_id)
         {
-          // TODO: Is this the right place to this?
           LOG_DEBUG_FMT("All headers received");
           s->handle_response(stream_data);
         }
@@ -251,7 +229,6 @@ namespace http2
       }
       default:
       {
-        // TODO: Support other frame types
         break;
       }
     }
@@ -341,8 +318,8 @@ namespace http2
 
     if (k == http2::headers::STATUS)
     {
-      stream_data->status =
-        HTTP_STATUS_OK; // TODO: Status conversion from string to http_status
+      // Note: handle errors
+      stream_data->status = HTTP_STATUS_OK;
     }
     else
     {
@@ -399,10 +376,8 @@ namespace http2
     LOG_TRACE_FMT(
       "http2::on_stream_close_callback: {}, {}", stream_id, error_code);
 
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, stream_id));
+    // Note: Stream should be closed correctly here
 
-    // TODO: Close stream_data correctly
     return 0;
   }
 
@@ -450,7 +425,7 @@ namespace http2
     {
       LOG_TRACE_FMT("Initialising HTTP2 Server Session");
 
-      // TODO: Configurable by operator
+      // Note: Should be set by operator on node startup
       std::vector<nghttp2_settings_entry> settings;
       settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
       settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
@@ -541,6 +516,7 @@ namespace http2
     }
 
     void send_structured_request(
+      llhttp_method method,
       const std::string& route,
       const http::HeaderMap& headers,
       std::vector<uint8_t>&& body)
@@ -559,7 +535,7 @@ namespace http2
 
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
-        make_nv(http2::headers::METHOD, "POST")); // TODO: Make configurable
+        make_nv(http2::headers::METHOD, llhttp_method_name(method)));
       hdrs.emplace_back(make_nv(http2::headers::PATH, route.data()));
       hdrs.emplace_back(make_nv(":scheme", "https"));
       hdrs.emplace_back(make_nv(":authority", "localhost:8080"));

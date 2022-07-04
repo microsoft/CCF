@@ -251,7 +251,10 @@ namespace http
         request.get_content_data(),
         request.get_content_data() + request.get_content_length()};
       client_session.send_structured_request(
-        request.get_path(), request.get_headers(), std::move(request_body));
+        request.get_method(),
+        request.get_path(),
+        request.get_headers(),
+        std::move(request_body));
     }
 
     void send(std::vector<uint8_t>&& data, sockaddr) override
