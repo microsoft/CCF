@@ -106,7 +106,7 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::send_callback: {}", length);
 
-    auto* s = reinterpret_cast<Session*>(user_data);
+    auto* s = get_session(user_data);
     s->send(data, length);
     return length;
   }
@@ -122,8 +122,7 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::read_callback: {}", length);
 
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, stream_id));
+    auto* stream_data = get_stream_data(session, stream_id);
 
     auto& response_body = stream_data->response_body;
 
@@ -149,9 +148,7 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::read_callback client: {}", length);
 
-    // TODO: Make function for this
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, stream_id));
+    auto* stream_data = get_stream_data(session, stream_id);
 
     auto& request_body = stream_data->request_body;
 
@@ -182,9 +179,8 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::on_frame_recv_callback, type: {}", frame->hd.type);
 
-    auto* s = reinterpret_cast<Session*>(user_data);
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+    auto* s = get_session(user_data);
+    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
 
     switch (frame->hd.type)
     {
@@ -222,9 +218,8 @@ namespace http2
     LOG_TRACE_FMT(
       "http2::on_frame_recv_callback_client, type: {}", frame->hd.type);
 
-    auto* s = reinterpret_cast<Session*>(user_data);
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+    auto* s = get_session(user_data);
+    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
 
     switch (frame->hd.type)
     {
@@ -251,7 +246,7 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::on_begin_headers_callback");
 
-    auto* s = reinterpret_cast<Session*>(user_data);
+    auto* s = get_session(user_data);
     auto stream_data = std::make_shared<StreamData>(frame->hd.stream_id);
     s->add_stream(stream_data);
     auto rc = nghttp2_session_set_stream_user_data(
@@ -290,9 +285,8 @@ namespace http2
     auto v = std::string(value, value + valuelen);
     LOG_TRACE_FMT("http2::on_header_callback: {}:{}", k, v);
 
-    auto* s = reinterpret_cast<Session*>(user_data);
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+    auto* s = get_session(user_data);
+    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
 
     if (k == http2::headers::PATH)
     {
@@ -324,8 +318,7 @@ namespace http2
     auto v = std::string(value, value + valuelen);
     LOG_TRACE_FMT("http2::on_header_callback_client: {}:{}", k, v);
 
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
 
     if (k == http2::headers::STATUS)
     {
@@ -350,8 +343,7 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
 
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, stream_id));
+    auto* stream_data = get_stream_data(session, stream_id);
 
     stream_data->request_body.insert(
       stream_data->request_body.end(), data, data + len);
@@ -369,8 +361,7 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::on_data_callback_client: {}", stream_id);
 
-    auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, stream_id));
+    auto* stream_data = get_stream_data(session, stream_id);
 
     stream_data->response_body.insert(
       stream_data->response_body.end(), data, data + len);
@@ -472,8 +463,7 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      auto* stream_data = reinterpret_cast<StreamData*>(
-        nghttp2_session_get_stream_user_data(session, stream_id));
+      auto* stream_data = get_stream_data(session, stream_id);
       if (stream_data == nullptr)
       {
         LOG_FAIL_FMT("stream not found!");
@@ -498,6 +488,12 @@ namespace http2
     virtual void handle_request(StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ServerSession: handle_request");
+
+      if (stream_data == nullptr)
+      {
+        LOG_FAIL_FMT("No stream data to handle request");
+        return;
+      }
 
       proc.handle_request(
         stream_data->verb.get_http_method().value(),

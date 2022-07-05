@@ -19,6 +19,8 @@ namespace http2
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
+  class Session;
+
   struct StreamData
   {
     StreamId id;
@@ -50,6 +52,17 @@ namespace http2
   static nghttp2_nv make_nv(const char* key, const char* value)
   {
     return make_nv((uint8_t*)key, (uint8_t*)value);
+  }
+
+  Session* get_session(void* user_data)
+  {
+    return reinterpret_cast<Session*>(user_data);
+  }
+
+  StreamData* get_stream_data(nghttp2_session* session, StreamId stream_id)
+  {
+    return reinterpret_cast<StreamData*>(
+      nghttp2_session_get_stream_user_data(session, stream_id));
   }
 
   // Callbacks
