@@ -17,7 +17,7 @@ namespace http2
 {
   using StreamId = int32_t;
 
-  constexpr static size_t max_data_read_size = 2 << 20;
+  constexpr static size_t max_data_read_size = 1 << 20;
 
   struct StreamData
   {
@@ -27,6 +27,7 @@ namespace http2
     ccf::RESTVerb verb;
     std::vector<uint8_t> request_body;
     http_status status;
+    size_t current_offset = 0;
 
     // Response
     std::vector<uint8_t> response_body;

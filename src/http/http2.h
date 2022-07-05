@@ -149,21 +149,32 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::read_callback client: {}", length);
 
+    // TODO: Make function for this
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
 
     auto& request_body = stream_data->request_body;
-    LOG_TRACE_FMT("Request body size: {}", request_body.size());
 
     // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-    // Also bump maximum size for SGX enclave and join protocol
-    // https://nghttp2.org/documentation/types.html#c.nghttp2_data_source_read_length_callback
+    size_t to_read =
+      std::min(request_body.size() - stream_data->current_offset, length);
+    LOG_TRACE_FMT(
+      "Request body size: {}, offset: {}, to_read: {}",
+      request_body.size(),
+      stream_data->current_offset,
+      to_read);
     if (request_body.size() > 0)
     {
-      memcpy(buf, request_body.data(), request_body.size());
+      memcpy(buf, request_body.data() + stream_data->current_offset, to_read);
+      stream_data->current_offset += to_read;
     }
-    *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-    return request_body.size();
+    if (stream_data->current_offset >= request_body.size())
+    {
+      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      stream_data->current_offset = 0;
+      request_body.clear();
+    }
+    return to_read;
   }
 
   static int on_frame_recv_callback(
@@ -521,8 +532,9 @@ namespace http2
       const http::HeaderMap& headers,
       std::vector<uint8_t>&& body)
     {
-      std::vector<nghttp2_settings_entry> settings = {
-        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1}};
+      std::vector<nghttp2_settings_entry> settings;
+      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
+      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
@@ -545,7 +557,6 @@ namespace http2
       }
 
       auto stream_data = std::make_shared<StreamData>(0);
-      add_stream(stream_data);
 
       stream_data->request_body = std::move(body);
 
@@ -560,6 +571,7 @@ namespace http2
       {
         LOG_FAIL_FMT(
           "Could not submit HTTP request: {}", nghttp2_strerror(stream_id));
+        return;
       }
 
       stream_data->id = stream_id;
@@ -567,10 +579,11 @@ namespace http2
       auto rc = nghttp2_session_send(session);
       if (rc < 0)
       {
-        throw std::logic_error(
-          fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
+        LOG_FAIL_FMT("http2:nghttp2_session_send: {}", nghttp2_strerror(rc));
+        return;
       }
 
+      add_stream(stream_data);
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
     }
 
