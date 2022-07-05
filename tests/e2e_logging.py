@@ -1514,7 +1514,10 @@ def run(args):
     for local_node_id, node_host in enumerate(args.nodes):
         for interface_name, host in additional_interfaces(local_node_id).items():
             node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
-                host=host
+                host=host,
+                app_protocol=infra.interfaces.AppProtocol.HTTP2
+                if args.http2
+                else infra.interfaces.AppProtocol.HTTP1,
             )
 
     txs = app.LoggingTxs("user0")
