@@ -6,7 +6,7 @@ CCF implements some modifications to Raft as it was originally proposed by Ongar
 
 The TLA+ specification models the intended behavior of Raft as it is modified for CCF. Below, we explain several core parts of the specification in more detail.
 
-You can find the full specification in the :ccf_repo:`tla/` folder and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is `this guide <https://www.learntla.com/introduction/about-this-guide/>`_.
+You can find the full specification in the :ccf_repo:`tla/` folder and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is `this guide <https://www.learntla.com>`_.
 
 
 Building blocks of the TLA+ spec
