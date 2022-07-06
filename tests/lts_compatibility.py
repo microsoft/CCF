@@ -292,6 +292,9 @@ def run_code_upgrade_from(
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
+                    # Submit tx and wait for commit after node retirement. See
+                    # https://github.com/microsoft/CCF/issues/1713 for more detail.
+                    network.txs.issue(network, number_txs=1, repeat=True)
                     # This block is here to test the transition period from a network that
                     # does not support custom claims to one that does. It can be removed after
                     # the transition is complete.
