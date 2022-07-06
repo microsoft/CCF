@@ -163,7 +163,7 @@ class HostSpec:
         )
 
     @staticmethod
-    def from_str(s):
+    def from_str(s, http2=False):
         # Format: local|ssh(,tcp|udp)://hostname:port
         protocol, address = s.split("://")
         transport = DEFAULT_TRANSPORT_PROTOCOL
@@ -183,6 +183,7 @@ class HostSpec:
                     port=port,
                     public_host=pub_host,
                     public_port=pub_port,
+                    app_protocol=AppProtocol.HTTP2 if http2 else AppProtocol.HTTP1,
                 )
             }
         )
