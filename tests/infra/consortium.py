@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+from asyncio import wait_for
 import os
 import http
 import json
@@ -271,7 +272,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, ballot, wait_for_global_commit=True, timeout=3
+        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=3
     ):
         response = None
 
@@ -301,7 +302,7 @@ class Consortium:
             view = response.view
 
         # Wait for proposal completion to be committed, even if no votes are issued
-        if wait_for_global_commit:
+        if wait_for_commit:
             with remote_node.client() as c:
                 infra.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
@@ -333,23 +334,34 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def trust_node(
-        self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
+    def trust_nodes(
+        self,
+        remote_node,
+        node_ids,
+        valid_from,
+        validity_period_days=None,
+        wait_for_commit=True,
+        timeout=3,
     ):
-        proposal_body, careful_vote = self.make_proposal(
-            "transition_node_to_trusted",
-            node_id=node_id,
-            valid_from=valid_from,
-            validity_period_days=validity_period_days,
-        )
+        proposal_body = {"actions": []}
+        for node_id in node_ids:
+            args = {"node_id": node_id, "valid_from": str(valid_from)}
+            if validity_period_days is not None:
+                args["validity_period_days"] = validity_period_days
+            proposal_body["actions"].append(
+                {"name": "transition_node_to_trusted", "args": args}
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,
             proposal,
-            careful_vote,
-            wait_for_global_commit=True,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+            wait_for_commit=wait_for_commit,
             timeout=timeout,
         )
+
+    def trust_node(self, remote_node, node_id, *args, **kwargs):
+        return self.trust_nodes(remote_node, [node_id], *args, **kwargs)
 
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")
@@ -604,7 +616,7 @@ class Consortium:
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
-            remote_node, proposal, careful_vote, wait_for_global_commit=True
+            remote_node, proposal, careful_vote, wait_for_commit=True
         )
         # If the node was already in state "PartOfNetwork", the open network
         # proposal should open the service

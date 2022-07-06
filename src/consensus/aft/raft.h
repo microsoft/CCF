@@ -120,7 +120,8 @@ namespace aft
 
     // Configurations
     std::list<Configuration> configurations;
-    std::unordered_map<ccf::NodeId, NodeState> nodes;
+    std::unordered_map<ccf::NodeId, NodeState>
+      nodes; // TODO: Should only be used for sending messages!
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
@@ -2016,6 +2017,7 @@ namespace aft
       }
       else
       {
+        // TODO: Get quorum in all configurations!
         // Need 50% + 1 of the total nodes, which are the other nodes plus us.
         votes_for_me.insert(from);
         quorum = get_quorum(nodes.size() + 1);

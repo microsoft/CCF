@@ -196,6 +196,9 @@ class Node:
     def __eq__(self, other):
         return self.local_node_id == other.local_node_id
 
+    def __str__(self):
+        return str(self.local_node_id)
+
     def start(
         self,
         lib_name,

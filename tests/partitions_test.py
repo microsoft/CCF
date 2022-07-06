@@ -275,6 +275,41 @@ def test_new_joiner_helps_liveness(network, args):
         network.wait_for_all_nodes_to_commit(primary=primary)
 
 
+@reqs.description("Test election while reconfiguration is in flight")
+@reqs.at_least_n_nodes(3)
+def test_configuration_quorums(network, args):
+    # Test for issue described in https://github.com/microsoft/CCF/issues/3948
+    primary, backups = network.find_nodes()
+
+    new_nodes = []
+    for _ in range(len(backups) + 2):
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_nodes.append(new_node)
+
+    LOG.info(
+        f"Isolate original backups {backups} and issue reconfiguration of another quorum"
+    )
+    with network.partitioner.partition(backups):
+        LOG.info(
+            "Trust new node (commit stuck as majority of nodes in old configuration are isolated)"
+        )
+        network.consortium.trust_nodes(
+            primary,
+            [n.node_id for n in new_nodes],
+            valid_from=datetime.utcnow(),
+            wait_for_commit=False,
+        )
+
+        import time
+
+        time.sleep(5)
+
+        # TODO: Maybe wait for configuration to appear on new_nodes?
+        primary.stop()
+        network.wait_for_new_primary(primary, nodes=new_nodes)
+
+
 @reqs.description("Add a learner, partition nodes, check that there is no progress")
 def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
@@ -389,12 +424,13 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
+        # test_isolate_primary_from_one_backup(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        # for n in range(5):
+        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        test_configuration_quorums(network, args)
 
 
 if __name__ == "__main__":
