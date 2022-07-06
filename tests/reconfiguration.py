@@ -321,6 +321,8 @@ def test_retire_primary(network, args):
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
     new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
+    # See https://github.com/microsoft/CCF/issues/1713
+    check_can_progress(new_primary)
     # The old primary should automatically be removed from the store
     # once a new primary is elected
     network.wait_for_node_in_store(
