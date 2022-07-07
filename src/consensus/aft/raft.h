@@ -67,7 +67,9 @@ namespace aft
     // Volatile
     std::optional<ccf::NodeId> voted_for = std::nullopt;
     std::optional<ccf::NodeId> leader_id = std::nullopt;
-    std::unordered_set<ccf::NodeId> votes_for_me;
+
+    // Keep track of votes in all active configuration
+    std::map<Index, std::unordered_set<ccf::NodeId>> votes_for_me;
 
     // Replicas start in leadership state Follower. Apart from a single forced
     // transition from Follower to Leader on the initial node at startup,
@@ -2012,18 +2014,20 @@ namespace aft
         }
 
         // Need 50% + 1 of the total nodes in the current config (including us).
-        votes_for_me.insert(from);
+        votes_for_me[0].insert(from);
         quorum = get_quorum(cfg.nodes.size());
       }
       else
       {
         // TODO: Get quorum in all configurations!
         // Need 50% + 1 of the total nodes, which are the other nodes plus us.
-        votes_for_me.insert(from);
+        votes_for_me[0].insert(from);
         quorum = get_quorum(nodes.size() + 1);
+        LOG_FAIL_FMT("{} >= {}?", votes_for_me.size(), quorum);
+        // for (auto const&)
       }
 
-      if (votes_for_me.size() >= quorum)
+      if (votes_for_me.at(0).size() >= quorum)
       {
         become_leader();
       }
