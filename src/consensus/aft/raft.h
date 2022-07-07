@@ -70,7 +70,12 @@ namespace aft
 
     // Keep track of votes in all active configuration
     // TODO: Cleanup on compact/rollback
-    std::map<Index, std::unordered_set<ccf::NodeId>> votes_for_me;
+    struct Votes
+    {
+      std::unordered_set<ccf::NodeId> votes;
+      size_t quorum;
+    };
+    std::map<Index, Votes> votes_for_me;
 
     // Replicas start in leadership state Follower. Apart from a single forced
     // transition from Follower to Leader on the initial node at startup,
@@ -2003,8 +2008,6 @@ namespace aft
     void add_vote_for_me(const ccf::NodeId& from)
     {
       size_t quorum = -1; // TODO: Delete
-      std::map<Index, size_t> quorums =
-        {}; // TODO: Fold quorums into votes_for_me?
 
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
@@ -2017,13 +2020,12 @@ namespace aft
         }
 
         // Need 50% + 1 of the total nodes in the current config (including us).
-        votes_for_me[0].insert(from);
+        votes_for_me[0].votes.insert(from);
         quorum = get_quorum(cfg.nodes.size());
       }
       else
       {
         // TODO: Get quorum in all configurations!
-        // Need 50% + 1 of the total nodes, which are the other nodes plus us.
 
         for (auto const& conf : configurations)
         {
@@ -2040,25 +2042,19 @@ namespace aft
           }
           auto const& node_id = search->first;
 
-          votes_for_me[conf.idx].insert(from);
-          LOG_FAIL_FMT("Get quorum for {}", nodes_.size());
-          quorums[conf.idx] = get_quorum(nodes_.size());
-          LOG_FAIL_FMT("Quorum for {} is {}", conf.idx, quorums[conf.idx]);
+          votes_for_me[conf.idx].quorum = get_quorum(nodes_.size());
+          votes_for_me[conf.idx].votes.insert(from);
+          LOG_FAIL_FMT(
+            "Quorum for {} is {}", conf.idx, votes_for_me[conf.idx].quorum);
         }
       }
 
       bool is_elected = true;
       for (auto const& v : votes_for_me)
       {
-        auto search = quorums.find(v.first);
-        if (search == quorums.end())
-        {
-          throw std::logic_error(
-            fmt::format("Cannot find quorum for configuration {}", v.first));
-        }
-        auto const& quorum = search->second;
+        auto const& quorum = v.second.quorum;
+        auto const& votes = v.second.votes;
 
-        auto const& votes = v.second;
         LOG_FAIL_FMT("{} < {}?", votes.size(), quorum);
         if (votes.size() < quorum)
         {
