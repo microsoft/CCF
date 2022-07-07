@@ -69,6 +69,7 @@ namespace aft
     std::optional<ccf::NodeId> leader_id = std::nullopt;
 
     // Keep track of votes in all active configuration
+    // TODO: Cleanup on compact/rollback
     std::map<Index, std::unordered_set<ccf::NodeId>> votes_for_me;
 
     // Replicas start in leadership state Follower. Apart from a single forced
@@ -2001,7 +2002,9 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
-      size_t quorum = -1;
+      size_t quorum = -1; // TODO: Delete
+      std::map<Index, size_t> quorums =
+        {}; // TODO: Fold quorums into votes_for_me?
 
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
@@ -2021,13 +2024,49 @@ namespace aft
       {
         // TODO: Get quorum in all configurations!
         // Need 50% + 1 of the total nodes, which are the other nodes plus us.
-        votes_for_me[0].insert(from);
-        quorum = get_quorum(nodes.size() + 1);
-        LOG_FAIL_FMT("{} >= {}?", votes_for_me.size(), quorum);
-        // for (auto const&)
+
+        for (auto const& conf : configurations)
+        {
+          auto const& nodes_ = conf.nodes;
+          LOG_FAIL_FMT(
+            "Configuration: {} with {} nodes", conf.idx, nodes_.size());
+
+          auto search = nodes_.find(from);
+          if (search == nodes_.end())
+          {
+            LOG_FAIL_FMT(
+              "Adding vote for {} but no no longer in conf {}", from, conf.idx);
+            continue;
+          }
+          auto const& node_id = search->first;
+
+          votes_for_me[conf.idx].insert(from);
+          LOG_FAIL_FMT("Get quorum for {}", nodes_.size());
+          quorums[conf.idx] = get_quorum(nodes_.size());
+          LOG_FAIL_FMT("Quorum for {} is {}", conf.idx, quorums[conf.idx]);
+        }
       }
 
-      if (votes_for_me.at(0).size() >= quorum)
+      bool is_elected = true;
+      for (auto const& v : votes_for_me)
+      {
+        auto search = quorums.find(v.first);
+        if (search == quorums.end())
+        {
+          throw std::logic_error(
+            fmt::format("Cannot find quorum for configuration {}", v.first));
+        }
+        auto const& quorum = search->second;
+
+        auto const& votes = v.second;
+        LOG_FAIL_FMT("{} < {}?", votes.size(), quorum);
+        if (votes.size() < quorum)
+        {
+          is_elected = false;
+        }
+      }
+
+      if (is_elected)
       {
         become_leader();
       }
