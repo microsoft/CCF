@@ -128,8 +128,11 @@ namespace aft
 
     // Configurations
     std::list<Configuration> configurations;
-    std::unordered_map<ccf::NodeId, NodeState>
-      nodes; // TODO: Should only be used for sending messages!
+    // Union of other nodes (i.e. all nodes but us) in all active
+    // configurations. This should be used for diagnostic or broadcasting
+    // messages but *not* for counting quorums, which should be done for all
+    // active configurations.
+    std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
@@ -527,7 +530,7 @@ namespace aft
           for (const auto& [nid, _] : conf)
           {
             if (
-              nodes.find(nid) != nodes.end() &&
+              all_other_nodes.find(nid) != all_other_nodes.end() &&
               learner_nodes.find(nid) != learner_nodes.end() &&
               new_learner_nodes.find(nid) == new_learner_nodes.end())
             {
@@ -604,7 +607,7 @@ namespace aft
 
     void reset_last_ack_timeouts()
     {
-      for (auto& node : nodes)
+      for (auto& node : all_other_nodes)
       {
         using namespace std::chrono_literals;
         node.second.last_ack_timeout = 0ms;
@@ -711,7 +714,7 @@ namespace aft
       {
         details.configs.push_back(config);
       }
-      for (auto& [k, v] : nodes)
+      for (auto& [k, v] : all_other_nodes)
       {
         details.acks[k] = {
           v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
@@ -805,7 +808,7 @@ namespace aft
           update_batch_size();
           entry_count = 0;
           entry_size_not_limited = 0;
-          for (const auto& it : nodes)
+          for (const auto& it : all_other_nodes)
           {
             LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
@@ -814,7 +817,7 @@ namespace aft
       }
 
       // If we are the only node, attempt to commit immediately.
-      if (nodes.size() == 0)
+      if (all_other_nodes.size() == 0)
       {
         update_commit();
       }
@@ -898,14 +901,14 @@ namespace aft
 
           update_batch_size();
           // Send newly available entries to all nodes.
-          for (const auto& it : nodes)
+          for (const auto& it : all_other_nodes)
           {
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
 
         size_t backup_ack_timeout_count = 0;
-        for (auto& node : nodes)
+        for (auto& node : all_other_nodes)
         {
           node.second.last_ack_timeout += elapsed;
           if (node.second.last_ack_timeout >= election_timeout)
@@ -914,7 +917,8 @@ namespace aft
           }
         }
 
-        if (backup_ack_timeout_count >= get_quorum(nodes.size()))
+        // TODO: Should be quorum in all configurations
+        if (backup_ack_timeout_count >= get_quorum(all_other_nodes.size()))
         {
           // CheckQuorum: The primary automatically steps down if it has not
           // heard back from a majority of backups during an election timeout.
@@ -1091,7 +1095,7 @@ namespace aft
         term_of_idx,
         contains_new_view};
 
-      auto& node = nodes.at(to);
+      auto& node = all_other_nodes.at(to);
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
@@ -1498,8 +1502,8 @@ namespace aft
         return;
       }
 
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = all_other_nodes.find(from);
+      if (node == all_other_nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -1740,8 +1744,8 @@ namespace aft
       }
 
       // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = all_other_nodes.find(from);
+      if (node == all_other_nodes.end())
       {
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: unknown node",
@@ -1817,7 +1821,7 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        for (auto const& node : nodes)
+        for (auto const& node : all_other_nodes)
         {
           send_request_vote(node.first);
         }
@@ -1871,7 +1875,7 @@ namespace aft
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
       // Immediately commit if there are no other nodes.
-      if (nodes.size() == 0)
+      if (all_other_nodes.size() == 0)
       {
         commit(state->last_idx);
         return;
@@ -1880,7 +1884,7 @@ namespace aft
       // Reset next, match, and sent indices for all nodes.
       auto next = state->last_idx + 1;
 
-      for (auto& node : nodes)
+      for (auto& node : all_other_nodes)
       {
         node.second.match_idx = 0;
         node.second.sent_idx = next - 1;
@@ -2091,7 +2095,7 @@ namespace aft
           }
           else
           {
-            match.push_back(nodes.at(node.first).match_idx);
+            match.push_back(all_other_nodes.at(node.first).match_idx);
           }
         }
 
@@ -2164,7 +2168,7 @@ namespace aft
       for (const auto& [id, _] : c.nodes)
       {
         if (
-          (nodes.find(id) != nodes.end() &&
+          (all_other_nodes.find(id) != all_other_nodes.end() &&
            learner_nodes.find(id) == learner_nodes.end()) ||
           (id == state->my_node_id && !is_learner()))
         {
@@ -2533,7 +2537,7 @@ namespace aft
       // configuration.
       std::vector<ccf::NodeId> to_remove;
 
-      for (const auto& node : nodes)
+      for (const auto& node : all_other_nodes)
       {
         if (active_nodes.find(node.first) == active_nodes.end())
         {
@@ -2543,7 +2547,7 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        nodes.erase(node_id);
+        all_other_nodes.erase(node_id);
         LOG_INFO_FMT("Removed raft node {}", node_id);
       }
 
@@ -2555,7 +2559,7 @@ namespace aft
           continue;
         }
 
-        if (nodes.find(node_info.first) == nodes.end())
+        if (all_other_nodes.find(node_info.first) == all_other_nodes.end())
         {
           if (!channels->have_channel(node_info.first))
           {
@@ -2571,7 +2575,8 @@ namespace aft
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;
-          nodes.try_emplace(node_info.first, node_info.second, index, 0);
+          all_other_nodes.try_emplace(
+            node_info.first, node_info.second, index, 0);
 
           if (leadership_state == kv::LeadershipState::Leader)
           {
