@@ -69,7 +69,6 @@ namespace aft
     std::optional<ccf::NodeId> leader_id = std::nullopt;
 
     // Keep track of votes in all active configuration
-    // TODO: Cleanup on compact/rollback
     struct Votes
     {
       std::unordered_set<ccf::NodeId> votes;
@@ -710,9 +709,9 @@ namespace aft
       {
         details.retirement_phase = retirement_phase;
       }
-      for (auto& config : configurations)
+      for (auto const& conf : configurations)
       {
-        details.configs.push_back(config);
+        details.configs.push_back(conf);
       }
       for (auto& [k, v] : all_other_nodes)
       {
@@ -907,26 +906,59 @@ namespace aft
           }
         }
 
-        size_t backup_ack_timeout_count = 0;
         for (auto& node : all_other_nodes)
         {
           node.second.last_ack_timeout += elapsed;
-          if (node.second.last_ack_timeout >= election_timeout)
+        }
+
+        LOG_DEBUG_FMT("Counting ack timeouts");
+        std::map<Index, Votes> ack_timeouts = {};
+        for (auto const& conf : configurations)
+        {
+          auto const& nodes = conf.nodes;
+          // Get quorum of backup nodes
+          ack_timeouts[conf.idx].quorum = get_quorum(nodes.size() - 1);
+
+          for (auto const& node : nodes)
           {
-            backup_ack_timeout_count++;
+            auto search = all_other_nodes.find(node.first);
+            if (search == all_other_nodes.end())
+            {
+              // Ignore ourselves
+              continue;
+            }
+            if (search->second.last_ack_timeout >= election_timeout)
+            {
+              LOG_DEBUG_FMT(
+                "No ack received from {} in last {}",
+                node.first,
+                election_timeout);
+              ack_timeouts[conf.idx].votes.insert(node.first);
+            }
           }
         }
 
-        // TODO: Should be quorum in all configurations
-        if (backup_ack_timeout_count >= get_quorum(all_other_nodes.size()))
+        // TODO: Fold this loop in previous loop?
+        bool has_quorum = false;
+        for (auto const& ack_timeout : ack_timeouts)
+        {
+          auto const& ack = ack_timeout.second;
+          if (ack.votes.size() < ack.quorum)
+          {
+            has_quorum = true;
+            break;
+          }
+        }
+
+        if (!has_quorum)
         {
           // CheckQuorum: The primary automatically steps down if it has not
-          // heard back from a majority of backups during an election timeout.
+          // heard back from a majority of backups in _all_ active
+          // configurations during an election timeout.
           LOG_INFO_FMT(
-            "Stepping down as follower {}: No ack received from a majority {} "
-            "of backups in last {}",
+            "Stepping down as follower {}: No ack received from a majority of "
+            "backups in last {}",
             state->my_node_id,
-            backup_ack_timeout_count,
             election_timeout);
           become_follower();
         }
@@ -2012,6 +2044,7 @@ namespace aft
     void add_vote_for_me(const ccf::NodeId& from)
     {
       size_t quorum = -1; // TODO: Delete
+      // TODO: Do configuration quorum logic for 2tx scheme as well
 
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
@@ -2035,8 +2068,7 @@ namespace aft
           auto const& nodes = conf.nodes;
           votes_for_me[conf.idx].quorum = get_quorum(nodes.size());
 
-          auto search = nodes.find(from);
-          if (search == nodes.end())
+          if (nodes.find(from) == nodes.end())
           {
             continue;
           }
@@ -2080,7 +2112,7 @@ namespace aft
       auto new_commit_cft_idx = std::numeric_limits<Index>::max();
 
       // Obtain CFT watermarks
-      for (auto& c : configurations)
+      for (auto const& c : configurations)
       {
         // The majority must be checked separately for each active
         // configuration.
@@ -2535,9 +2567,9 @@ namespace aft
       // Find all nodes present in any active configuration.
       Configuration::Nodes active_nodes;
 
-      for (auto& conf : configurations)
+      for (auto const& conf : configurations)
       {
-        for (auto node : conf.nodes)
+        for (auto const& node : conf.nodes)
         {
           active_nodes.emplace(node.first, node.second);
         }
