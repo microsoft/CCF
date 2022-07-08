@@ -899,10 +899,10 @@ namespace aft
           timeout_elapsed = 0ms;
 
           update_batch_size();
-          // Send newly available entries to all nodes.
-          for (const auto& it : all_other_nodes)
+          // Send newly available entries to all other nodes.
+          for (const auto& node : all_other_nodes)
           {
-            send_append_entries(it.first, it.second.sent_idx + 1);
+            send_append_entries(node.first, node.second.sent_idx + 1);
           }
         }
 
@@ -911,20 +911,16 @@ namespace aft
           node.second.last_ack_timeout += elapsed;
         }
 
-        LOG_DEBUG_FMT("Counting ack timeouts");
-        std::map<Index, Votes> ack_timeouts = {};
+        bool has_quorum_of_backups = false;
         for (auto const& conf : configurations)
         {
-          auto const& nodes = conf.nodes;
-          // Get quorum of backup nodes
-          ack_timeouts[conf.idx].quorum = get_quorum(nodes.size() - 1);
-
-          for (auto const& node : nodes)
+          size_t backup_ack_timeout_count = 0;
+          for (auto const& node : conf.nodes)
           {
             auto search = all_other_nodes.find(node.first);
             if (search == all_other_nodes.end())
             {
-              // Ignore ourselves
+              // Ignore ourselves as primary
               continue;
             }
             if (search->second.last_ack_timeout >= election_timeout)
@@ -933,24 +929,20 @@ namespace aft
                 "No ack received from {} in last {}",
                 node.first,
                 election_timeout);
-              ack_timeouts[conf.idx].votes.insert(node.first);
+              backup_ack_timeout_count++;
             }
           }
-        }
 
-        // TODO: Fold this loop in previous loop?
-        bool has_quorum = false;
-        for (auto const& ack_timeout : ack_timeouts)
-        {
-          auto const& ack = ack_timeout.second;
-          if (ack.votes.size() < ack.quorum)
+          if (backup_ack_timeout_count < get_quorum(conf.nodes.size() - 1))
           {
-            has_quorum = true;
+            // If primary has quorum of active backups in any configuration, it
+            // should remain primary
+            has_quorum_of_backups = true;
             break;
           }
         }
 
-        if (!has_quorum)
+        if (!has_quorum_of_backups)
         {
           // CheckQuorum: The primary automatically steps down if it has not
           // heard back from a majority of backups in _all_ active
