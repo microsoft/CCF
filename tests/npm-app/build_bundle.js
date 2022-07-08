@@ -20,7 +20,7 @@ const getAllFiles = function (dirPath, arrayOfFiles) {
 };
 
 const removePrefix = function (s, prefix) {
-  return s.substr(prefix.length).split('\\').join('/');
+  return s.substr(prefix.length).split("\\").join("/");
 };
 
 const rootDir = args[0];
