@@ -464,7 +464,7 @@ namespace aft
       const std::unordered_set<ccf::NodeId>& new_learner_nodes = {},
       const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
     {
-      LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
+      LOG_DEBUG_FMT("Configurations: add new conf at {}: {{{}}}", idx, conf);
 
       if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
@@ -2029,30 +2029,29 @@ namespace aft
       }
       else
       {
-        // TODO: Get quorum in all configurations!
-
+        // Add vote for from node in all configuration where it is present
         for (auto const& conf : configurations)
         {
-          auto const& nodes_ = conf.nodes;
-          LOG_FAIL_FMT(
-            "Configuration: {} with {} nodes", conf.idx, nodes_.size());
+          auto const& nodes = conf.nodes;
+          votes_for_me[conf.idx].quorum = get_quorum(nodes.size());
 
-          auto search = nodes_.find(from);
-          if (search == nodes_.end())
+          auto search = nodes.find(from);
+          if (search == nodes.end())
           {
-            LOG_FAIL_FMT(
-              "Adding vote for {} but no no longer in conf {}", from, conf.idx);
             continue;
           }
-          auto const& node_id = search->first;
 
-          votes_for_me[conf.idx].quorum = get_quorum(nodes_.size());
           votes_for_me[conf.idx].votes.insert(from);
-          LOG_FAIL_FMT(
-            "Quorum for {} is {}", conf.idx, votes_for_me[conf.idx].quorum);
+          LOG_DEBUG_FMT(
+            "Node {} voted for {} in configuration {} with quorum {}",
+            from,
+            state->my_node_id,
+            conf.idx,
+            votes_for_me[conf.idx].quorum);
         }
       }
 
+      // If we have a quorum of votes in all configurations, we become leader
       bool is_elected = true;
       for (auto const& v : votes_for_me)
       {
@@ -2063,6 +2062,7 @@ namespace aft
         if (votes.size() < quorum)
         {
           is_elected = false;
+          break;
         }
       }
 
@@ -2262,14 +2262,20 @@ namespace aft
       {
         auto conf = configurations.begin();
         if (conf == configurations.end())
+        {
           break;
+        }
 
         auto next = std::next(conf);
         if (next == configurations.end())
+        {
           break;
+        }
 
         if (idx < next->idx)
+        {
           break;
+        }
 
         if (require_identity_for_reconfig)
         {
@@ -2288,6 +2294,8 @@ namespace aft
 
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
+          LOG_DEBUG_FMT(
+            "Configurations: discard committed conf at {}", conf->idx);
           configurations.pop_front();
           changed = true;
 
@@ -2482,6 +2490,8 @@ namespace aft
 
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
+        LOG_DEBUG_FMT(
+          "Configurations: rollback conf at {}", configurations.back().idx);
         configurations.pop_back();
         changed = true;
       }

@@ -287,9 +287,7 @@ def test_configuration_quorums(network, args):
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
-    LOG.info(
-        f"Isolate original backups {backups} and issue reconfiguration of another quorum"
-    )
+    LOG.info(f"Isolate original backups and issue reconfiguration of another quorum")
     with network.partitioner.partition(backups):
         LOG.info(
             "Trust new node (commit stuck as majority of nodes in old configuration are isolated)"
@@ -301,13 +299,18 @@ def test_configuration_quorums(network, args):
             wait_for_commit=False,
         )
 
-        import time
-
-        time.sleep(5)
-
-        # TODO: Maybe wait for configuration to appear on new_nodes?
         primary.stop()
-        network.wait_for_new_primary(primary, nodes=new_nodes)
+
+        try:
+            network.wait_for_new_primary(primary, nodes=new_nodes)
+        except infra.network.PrimaryNotFound:
+            LOG.info(
+                "New primary could not be elected as old configuration could not make progress"
+            )
+        else:
+            assert False, "No new primary should be elected while partition is up"
+
+    network.wait_for_new_primary(primary, nodes=new_nodes)
 
 
 @reqs.description("Add a learner, partition nodes, check that there is no progress")
