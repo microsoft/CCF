@@ -32,8 +32,7 @@ namespace ccf::v8_tmpl
       }
       ss << v8_util::to_str(isolate, str);
     }
-    // TODO: Awkward!
-    CCF_LOG_OUT(INFO) << ss.str() << std::endl;
+    CCF_LOG_OUT(INFO, "info") << ss.str() << std::endl;
   }
 
   v8::Local<v8::ObjectTemplate> ConsoleGlobal::create_template(

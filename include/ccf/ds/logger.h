@@ -42,7 +42,8 @@ namespace logger
   {
   public:
     friend struct Out;
-    const char* log_level;
+    Level log_level;
+    std::string tag;
     std::string file_name;
     size_t line_number;
     uint16_t thread_id;
@@ -52,18 +53,12 @@ namespace logger
 
     LogLine(
       Level level,
-      const char* file_name,
-      size_t line_number,
-      std::optional<uint16_t> thread_id_ = std::nullopt) :
-      LogLine(to_string(level), file_name, line_number, thread_id_)
-    {}
-
-    LogLine(
-      const char* level,
-      const char* file_name,
+      std::string_view tag,
+      std::string_view file_name,
       size_t line_number,
       std::optional<uint16_t> thread_id_ = std::nullopt) :
       log_level(level),
+      tag(tag),
       file_name(file_name),
       line_number(line_number)
     {
@@ -157,13 +152,12 @@ namespace logger
 
         s = fmt::format(
           "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
-          "}\",\"file\":\"{}\","
-          "\"number\":\"{}\","
-          "\"msg\":{}}}\n",
+          "}\",\"tag\":\"{}\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
           get_timestamp(host_tm, host_ts),
           get_timestamp(enclave_tm, enc_ts),
           ll.thread_id,
-          ll.log_level,
+          to_string(ll.log_level),
+          ll.tag,
           ll.file_name,
           ll.line_number,
           escaped_msg);
@@ -171,13 +165,12 @@ namespace logger
       else
       {
         s = fmt::format(
-          "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"file\":\"{"
-          "}"
-          "\",\"number\":\"{}\","
-          "\"msg\":{}}}\n",
+          "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
+          "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
           get_timestamp(host_tm, host_ts),
           ll.thread_id,
-          ll.log_level,
+          to_string(ll.log_level),
+          ll.tag,
           ll.file_name,
           ll.line_number,
           escaped_msg);
@@ -217,7 +210,7 @@ namespace logger
         get_timestamp(host_tm, host_ts),
         enclave_offset.value(),
         ll.thread_id,
-        ll.log_level,
+        ll.tag,
         file_line_data,
         ll.msg);
     }
@@ -229,7 +222,7 @@ namespace logger
         "{}        {:<3} [{:<5}] {:<36} | {}\n",
         get_timestamp(host_tm, host_ts),
         ll.thread_id,
-        ll.log_level,
+        ll.tag,
         file_line_data,
         ll.msg);
     }
@@ -303,13 +296,12 @@ namespace logger
         logger->write(line);
       }
 
-      // TODO
-      // #ifndef INSIDE_ENCLAVE
-      //       if (line.log_level == Level::FATAL)
-      //       {
-      //         throw std::logic_error("Fatal: " + format_to_text(line));
-      //       }
-      // #endif
+#ifndef INSIDE_ENCLAVE
+      if (line.log_level == Level::FATAL)
+      {
+        throw std::logic_error("Fatal: " + format_to_text(line));
+      }
+#endif
 
       return true;
     }
@@ -334,17 +326,17 @@ namespace logger
   // 2. Be a higher precedence than &&, such that the log statement is bound
   // more tightly than the short-circuiting.
   // This allows:
-  // CCF_LOG_OUT(DEBUG) << "this " << "msg";
-#define CCF_LOG_OUT(LVL) \
+  // CCF_LOG_OUT(DEBUG, debug) << "this " << "msg";
+#define CCF_LOG_OUT(LVL, TAG) \
   logger::config::ok(logger::LVL) && \
-    logger::Out() == logger::LogLine(logger::LVL, __FILE__, __LINE__)
+    logger::Out() == logger::LogLine(logger::LVL, TAG, __FILE__, __LINE__)
 
-#define CCF_LOG_FMT(LVL, s, ...) \
-  CCF_LOG_OUT(LVL) << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define CCF_LOG_FMT(LVL, TAG, s, ...) \
+  CCF_LOG_OUT(LVL, TAG) << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 
 #ifdef VERBOSE_LOGGING
-#  define LOG_TRACE_FMT(s, ...) CCF_LOG_FMT(TRACE, s, ##__VA_ARGS__)
-#  define LOG_DEBUG_FMT(s, ...) CCF_LOG_FMT(DEBUG, s, ##__VA_ARGS__)
+#  define LOG_TRACE_FMT(s, ...) CCF_LOG_FMT(TRACE, "trace", s, ##__VA_ARGS__)
+#  define LOG_DEBUG_FMT(s, ...) CCF_LOG_FMT(DEBUG, "debug", s, ##__VA_ARGS__)
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
@@ -352,9 +344,9 @@ namespace logger
 #  define LOG_DEBUG_FMT(...)
 #endif
 
-#define LOG_INFO_FMT(s, ...) CCF_LOG_FMT(INFO, s, ##__VA_ARGS__)
-#define LOG_FAIL_FMT(s, ...) CCF_LOG_FMT(FAIL, s, ##__VA_ARGS__)
-#define LOG_FATAL_FMT(s, ...) CCF_LOG_FMT(FATAL, s, ##__VA_ARGS__)
+#define LOG_INFO_FMT(s, ...) CCF_LOG_FMT(INFO, "info", s, ##__VA_ARGS__)
+#define LOG_FAIL_FMT(s, ...) CCF_LOG_FMT(FAIL, "fail", s, ##__VA_ARGS__)
+#define LOG_FATAL_FMT(s, ...) CCF_LOG_FMT(FATAL, "fatal", s, ##__VA_ARGS__)
 
 // Convenient wrapper to report exception errors. Exception message is only
 // displayed in debug mode

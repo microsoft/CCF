@@ -77,11 +77,7 @@ struct Foo
 DECLARE_JSON_TYPE(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
 
-#define LOG_EDDY_FMT(s, ...) \
-  logger::config::ok(logger::INFO) && \
-    logger::Out() == \
-      logger::LogLine("Lorem ipsum", __FILE__, __LINE__) \
-        << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define LOG_EDDY_FMT(s, ...) CCF_LOG_FMT(INFO, "Lorem ipsum", s, ##__VA_ARGS__)
 
 TEST_CASE("foooo")
 {

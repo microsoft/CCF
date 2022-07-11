@@ -57,7 +57,7 @@ static void log_accepted(picobench::state& s)
 
     for (size_t i = 0; i < s.iterations(); ++i)
     {
-      CCF_LOG_OUT(DEBUG) << "test" << std::endl;
+      CCF_LOG_OUT(DEBUG, "debug") << "test" << std::endl;
     }
   }
 
@@ -93,7 +93,7 @@ static void log_rejected(picobench::state& s)
 
     for (size_t i = 0; i < s.iterations(); ++i)
     {
-      CCF_LOG_OUT(DEBUG) << "test" << std::endl;
+      CCF_LOG_OUT(DEBUG, "debug") << "test" << std::endl;
     }
   }
 
