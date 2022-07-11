@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/ds/openapi.h"
 
+#include "ccf/ds/logger.h"
 #include "ccf/http_consts.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -75,6 +76,24 @@ struct Foo
 };
 DECLARE_JSON_TYPE(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
+
+#define LOG_EDDY_FMT(s, ...) \
+  logger::config::ok(logger::INFO) && \
+    logger::Out() == \
+      logger::LogLine("Lorem ipsum", __FILE__, __LINE__) \
+        << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+
+TEST_CASE("foooo")
+{
+  logger::config::default_init();
+
+  LOG_INFO_FMT("Hmmm");
+  LOG_FAIL_FMT("Badness!");
+  LOG_INFO_FMT("And this?");
+  LOG_EDDY_FMT("What about this?");
+
+  logger::config::loggers().clear();
+}
 
 TEST_CASE("Simple custom types")
 {

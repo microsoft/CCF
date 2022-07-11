@@ -31,7 +31,7 @@ namespace logger
   static constexpr const char* LevelNames[] = {
     "trace", "debug", "info", "fail", "fatal"};
 
-  static const char* to_string(Level l)
+  static constexpr const char* to_string(Level l)
   {
     return LevelNames[static_cast<int>(l)];
   }
@@ -42,7 +42,7 @@ namespace logger
   {
   public:
     friend struct Out;
-    Level log_level;
+    const char* log_level;
     std::string file_name;
     size_t line_number;
     uint16_t thread_id;
@@ -52,6 +52,14 @@ namespace logger
 
     LogLine(
       Level level,
+      const char* file_name,
+      size_t line_number,
+      std::optional<uint16_t> thread_id_ = std::nullopt) :
+      LogLine(to_string(level), file_name, line_number, thread_id_)
+    {}
+
+    LogLine(
+      const char* level,
       const char* file_name,
       size_t line_number,
       std::optional<uint16_t> thread_id_ = std::nullopt) :
@@ -155,7 +163,7 @@ namespace logger
           get_timestamp(host_tm, host_ts),
           get_timestamp(enclave_tm, enc_ts),
           ll.thread_id,
-          to_string(ll.log_level),
+          ll.log_level,
           ll.file_name,
           ll.line_number,
           escaped_msg);
@@ -169,7 +177,7 @@ namespace logger
           "\"msg\":{}}}\n",
           get_timestamp(host_tm, host_ts),
           ll.thread_id,
-          to_string(ll.log_level),
+          ll.log_level,
           ll.file_name,
           ll.line_number,
           escaped_msg);
@@ -209,7 +217,7 @@ namespace logger
         get_timestamp(host_tm, host_ts),
         enclave_offset.value(),
         ll.thread_id,
-        to_string(ll.log_level),
+        ll.log_level,
         file_line_data,
         ll.msg);
     }
@@ -221,7 +229,7 @@ namespace logger
         "{}        {:<3} [{:<5}] {:<36} | {}\n",
         get_timestamp(host_tm, host_ts),
         ll.thread_id,
-        to_string(ll.log_level),
+        ll.log_level,
         file_line_data,
         ll.msg);
     }
@@ -295,12 +303,13 @@ namespace logger
         logger->write(line);
       }
 
-#ifndef INSIDE_ENCLAVE
-      if (line.log_level == Level::FATAL)
-      {
-        throw std::logic_error("Fatal: " + format_to_text(line));
-      }
-#endif
+      // TODO
+      // #ifndef INSIDE_ENCLAVE
+      //       if (line.log_level == Level::FATAL)
+      //       {
+      //         throw std::logic_error("Fatal: " + format_to_text(line));
+      //       }
+      // #endif
 
       return true;
     }
