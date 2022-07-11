@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
 
+### Dependencies
+
+- Upgraded Open Enclave to 0.18.1 (#4023).
+
 ## [3.0.0-dev0]
 
 ### Added
