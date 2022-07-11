@@ -320,33 +320,36 @@ namespace logger
 #  define CCF_FMT_STRING(s) FMT_STRING(s)
 #endif
 
-  // The == operator is being used to:
-  // 1. Be a lower precedence than <<, such that using << on the LogLine will
-  // happen before the LogLine is "equalitied" with the Out.
-  // 2. Be a higher precedence than &&, such that the log statement is bound
-  // more tightly than the short-circuiting.
-  // This allows:
-  // CCF_LOG_OUT(DEBUG, debug) << "this " << "msg";
+// The == operator is being used to:
+// 1. Be a lower precedence than <<, such that using << on the LogLine will
+// happen before the LogLine is "equalitied" with the Out.
+// 2. Be a higher precedence than &&, such that the log statement is bound
+// more tightly than the short-circuiting.
+// This allows:
+// CCF_LOG_OUT(DEBUG, debug) << "this " << "msg";
 #define CCF_LOG_OUT(LVL, TAG) \
   logger::config::ok(logger::LVL) && \
     logger::Out() == logger::LogLine(logger::LVL, TAG, __FILE__, __LINE__)
 
-#define CCF_LOG_FMT(LVL, TAG, s, ...) \
-  CCF_LOG_OUT(LVL, TAG) << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+// To avoid repeating the (s, ...) args for every macro, we cheat with a curried
+// macro here by ending the macro with another macro name, which then accepts
+// the trailing arguments
+#define CCF_LOG_FMT_(s, ...) fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_
 
 #ifdef VERBOSE_LOGGING
-#  define LOG_TRACE_FMT(s, ...) CCF_LOG_FMT(TRACE, "trace", s, ##__VA_ARGS__)
-#  define LOG_DEBUG_FMT(s, ...) CCF_LOG_FMT(DEBUG, "debug", s, ##__VA_ARGS__)
+#  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "trace")
+#  define LOG_DEBUG_FMT CCF_LOG_FMT(DEBUG, "debug")
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
-#  define LOG_TRACE_FMT(...)
-#  define LOG_DEBUG_FMT(...)
+#  define LOG_TRACE_FMT(s, ...)
+#  define LOG_DEBUG_FMT(s, ...)
 #endif
 
-#define LOG_INFO_FMT(s, ...) CCF_LOG_FMT(INFO, "info", s, ##__VA_ARGS__)
-#define LOG_FAIL_FMT(s, ...) CCF_LOG_FMT(FAIL, "fail", s, ##__VA_ARGS__)
-#define LOG_FATAL_FMT(s, ...) CCF_LOG_FMT(FATAL, "fatal", s, ##__VA_ARGS__)
+#define LOG_INFO_FMT CCF_LOG_FMT(INFO, "info")
+#define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "fail")
+#define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "fatal")
 
 // Convenient wrapper to report exception errors. Exception message is only
 // displayed in debug mode

@@ -77,7 +77,7 @@ struct Foo
 DECLARE_JSON_TYPE(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
 
-#define LOG_EDDY_FMT(s, ...) CCF_LOG_FMT(INFO, "Lorem ipsum", s, ##__VA_ARGS__)
+#define LOG_EDDY_FMT CCF_LOG_FMT(INFO, "Lorem ipsum")
 
 TEST_CASE("foooo")
 {
