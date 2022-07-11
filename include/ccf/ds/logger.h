@@ -315,14 +315,6 @@ namespace logger
     }
   };
 
-  // The == operator is being used to:
-  // 1. Be a lower precedence than <<, such that using << on the LogLine will
-  // happen before the LogLine is "equalitied" with the Out.
-  // 2. Be a higher precedence than &&, such that the log statement is bound
-  // more tightly than the short-circuiting.
-  // This allows:
-  // LOG_DEBUG << "this " << "msg";
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
@@ -336,45 +328,33 @@ namespace logger
 #  define CCF_FMT_STRING(s) FMT_STRING(s)
 #endif
 
-#ifdef VERBOSE_LOGGING
-#  define LOG_TRACE \
-    logger::config::ok(logger::TRACE) && \
-      logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
-#  define LOG_TRACE_FMT(s, ...) \
-    LOG_TRACE << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+  // The == operator is being used to:
+  // 1. Be a lower precedence than <<, such that using << on the LogLine will
+  // happen before the LogLine is "equalitied" with the Out.
+  // 2. Be a higher precedence than &&, such that the log statement is bound
+  // more tightly than the short-circuiting.
+  // This allows:
+  // CCF_LOG_OUT(DEBUG) << "this " << "msg";
+#define CCF_LOG_OUT(LVL) \
+  logger::config::ok(logger::LVL) && \
+    logger::Out() == logger::LogLine(logger::LVL, __FILE__, __LINE__)
 
-#  define LOG_DEBUG \
-    logger::config::ok(logger::DEBUG) && \
-      logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
-#  define LOG_DEBUG_FMT(s, ...) \
-    LOG_DEBUG << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define CCF_LOG_FMT(LVL, s, ...) \
+  CCF_LOG_OUT(LVL) << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+
+#ifdef VERBOSE_LOGGING
+#  define LOG_TRACE_FMT(s, ...) CCF_LOG_FMT(TRACE, s, ##__VA_ARGS__)
+#  define LOG_DEBUG_FMT(s, ...) CCF_LOG_FMT(DEBUG, s, ##__VA_ARGS__)
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
-#  define LOG_TRACE
 #  define LOG_TRACE_FMT(...)
-
-#  define LOG_DEBUG
 #  define LOG_DEBUG_FMT(...)
 #endif
 
-#define LOG_INFO \
-  logger::config::ok(logger::INFO) && \
-    logger::Out() == logger::LogLine(logger::INFO, __FILE__, __LINE__)
-#define LOG_INFO_FMT(s, ...) \
-  LOG_INFO << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
-
-#define LOG_FAIL \
-  logger::config::ok(logger::FAIL) && \
-    logger::Out() == logger::LogLine(logger::FAIL, __FILE__, __LINE__)
-#define LOG_FAIL_FMT(s, ...) \
-  LOG_FAIL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
-
-#define LOG_FATAL \
-  logger::config::ok(logger::FATAL) && \
-    logger::Out() == logger::LogLine(logger::FATAL, __FILE__, __LINE__)
-#define LOG_FATAL_FMT(s, ...) \
-  LOG_FATAL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define LOG_INFO_FMT(s, ...) CCF_LOG_FMT(INFO, s, ##__VA_ARGS__)
+#define LOG_FAIL_FMT(s, ...) CCF_LOG_FMT(FAIL, s, ##__VA_ARGS__)
+#define LOG_FATAL_FMT(s, ...) CCF_LOG_FMT(FATAL, s, ##__VA_ARGS__)
 
 // Convenient wrapper to report exception errors. Exception message is only
 // displayed in debug mode

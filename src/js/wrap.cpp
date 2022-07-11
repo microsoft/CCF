@@ -1420,7 +1420,7 @@ namespace ccf::js
       ss << *str;
     }
     // TODO: Awkward!
-    LOG_INFO << ss.str() << std::endl;
+    CCF_LOG_OUT(INFO) << ss.str() << std::endl;
     return JS_UNDEFINED;
   }
 
