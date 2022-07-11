@@ -32,6 +32,7 @@ namespace ccf::v8_tmpl
       }
       ss << v8_util::to_str(isolate, str);
     }
+    // TODO: Awkward!
     LOG_INFO << ss.str() << std::endl;
   }
 

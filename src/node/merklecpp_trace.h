@@ -10,4 +10,5 @@
   { \
     X; \
   };
+// TODO: Awkward!
 #define MERKLECPP_TOUT LOG_TRACE

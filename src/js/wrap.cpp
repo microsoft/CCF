@@ -1419,6 +1419,7 @@ namespace ccf::js
         return JS_EXCEPTION;
       ss << *str;
     }
+    // TODO: Awkward!
     LOG_INFO << ss.str() << std::endl;
     return JS_UNDEFINED;
   }
@@ -1552,6 +1553,7 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto console = jsctx.new_obj();
 
+    // TODO: console.info, console.debug, console.warn?
     JS_SetPropertyStr(
       ctx, console, "log", JS_NewCFunction(ctx, js_print, "log", 1));
 

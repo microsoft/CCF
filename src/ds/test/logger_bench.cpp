@@ -57,6 +57,7 @@ static void log_accepted(picobench::state& s)
 
     for (size_t i = 0; i < s.iterations(); ++i)
     {
+      // TODO: Awkward!
       LOG_DEBUG << "test" << std::endl;
     }
   }
@@ -93,6 +94,7 @@ static void log_rejected(picobench::state& s)
 
     for (size_t i = 0; i < s.iterations(); ++i)
     {
+      // TODO: Awkward!
       LOG_DEBUG << "test" << std::endl;
     }
   }
