@@ -313,6 +313,53 @@ def test_configuration_quorums(network, args):
     network.wait_for_new_primary(primary, nodes=new_nodes)
 
 
+@reqs.description("Test election while reconfiguration is in flight")
+@reqs.at_least_n_nodes(3)
+def test_election_reconfiguration(network, args):
+    # Test for issue described in https://github.com/microsoft/CCF/issues/3948
+    primary, backups = network.find_nodes()
+
+    new_nodes = []
+    for _ in range(1):
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_nodes.append(new_node)
+
+    LOG.info(f"Isolate original backups and issue reconfiguration of another quorum")
+    with network.partitioner.partition(backups):
+        LOG.info(
+            "Trust new node (commit stuck as majority of nodes in old configuration are isolated)"
+        )
+        network.consortium.trust_nodes(
+            primary,
+            [n.node_id for n in new_nodes],
+            valid_from=datetime.utcnow(),
+            wait_for_commit=False,
+        )
+
+        # TODO: Cannot use wait_for_node_to_join here as new node needs to have global commit
+        # on node endorsed certificate to open primary RPC endorsed interface
+        LOG.info("Wait for new node to join")
+        import time
+
+        time.sleep(10)
+
+        primary.stop()
+
+        # for node in new_nodes:
+        #     node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+        try:
+            network.wait_for_new_primary(primary, nodes=new_nodes)
+        except infra.network.PrimaryNotFound:
+            LOG.info(
+                "New primary could not be elected as old configuration could not make progress"
+            )
+        else:
+            assert False, "No new primary should be elected while partition is up"
+
+    network.wait_for_new_primary(primary, nodes=new_nodes)
+
+
 @reqs.description("Add a learner, partition nodes, check that there is no progress")
 def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
@@ -433,7 +480,8 @@ def run(args):
         # test_new_joiner_helps_liveness(network, args)
         # for n in range(5):
         #     test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_configuration_quorums(network, args)
+        # test_configuration_quorums(network, args)
+        test_election_reconfiguration(network, args)
 
 
 if __name__ == "__main__":
