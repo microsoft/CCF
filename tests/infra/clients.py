@@ -307,7 +307,7 @@ class CurlClient:
         if kwargs.get("http2"):
             # Currently not supported. This is because we cannot easily construct
             # a Response via from_raw() for HTTP/2
-            raise RuntimeError("HTTP/2 is not currently support with CurlClient")
+            raise RuntimeError("HTTP/2 is not currently supported with CurlClient")
 
     def request(
         self,
