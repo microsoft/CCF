@@ -185,7 +185,6 @@ set(CCF_ENDPOINTS_SOURCES
 find_library(CRYPTO_LIBRARY crypto)
 find_library(TLS_LIBRARY ssl)
 
-list(APPEND COMPILE_LIBCXX -stdlib=libc++)
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
 else()
