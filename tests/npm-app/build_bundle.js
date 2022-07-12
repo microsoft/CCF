@@ -1,5 +1,5 @@
 import { readdirSync, statSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { join, posix, sep } from "path";
 
 const args = process.argv.slice(2);
 
@@ -20,7 +20,7 @@ const getAllFiles = function (dirPath, arrayOfFiles) {
 };
 
 const removePrefix = function (s, prefix) {
-  return s.substr(prefix.length);
+  return s.substr(prefix.length).split(sep).join(posix.sep);
 };
 
 const rootDir = args[0];
