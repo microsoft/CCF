@@ -21,8 +21,8 @@ namespace logger
     TRACE,
     DEBUG, // events useful for debugging
     INFO, // important events that should be logged even in release mode
-    FAIL, // important failures that should always be logged
-    FATAL, // fatal errors that lead to a termination of the program/enclave
+    FAIL, // survivable failures that should always be logged
+    FATAL, // fatal errors that may be non-recoverable
     MAX_LOG_LEVEL
   };
 
@@ -332,7 +332,7 @@ namespace logger
 // 2. Be a higher precedence than &&, such that the log statement is bound
 // more tightly than the short-circuiting.
 // This allows:
-// CCF_LOG_OUT(DEBUG, debug) << "this " << "msg";
+// CCF_LOG_OUT(DEBUG, "[foo]") << "this " << "msg";
 #define CCF_LOG_OUT(LVL, TAG) \
   logger::config::ok(logger::LVL) && \
     logger::Out() == logger::LogLine(logger::LVL, TAG, __FILE__, __LINE__)
@@ -346,17 +346,27 @@ namespace logger
 #ifdef VERBOSE_LOGGING
 #  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "[trace]")
 #  define LOG_DEBUG_FMT CCF_LOG_FMT(DEBUG, "[debug]")
+
+#  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "[trace][app]")
+#  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "[debug][app]")
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
 #  define LOG_TRACE_FMT(...)
 #  define LOG_DEBUG_FMT(...)
+
+#  define CCF_APP_TRACE(...)
+#  define CCF_APP_DEBUG(...)
 #endif
 
+// TODO: Deprecate?
 #define LOG_INFO_FMT CCF_LOG_FMT(INFO, "[info ]")
-#define CCF_LOG_INFO_APP CCF_LOG_FMT(INFO, "[info ][app]")
 #define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "[fail ]")
 #define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "[fatal]")
+
+#define CCF_APP_INFO CCF_LOG_FMT(INFO, "[info ][app]")
+#define CCF_APP_FAIL CCF_LOG_FMT(FAIL, "[fail ][app]")
+#define CCF_APP_FATAL CCF_LOG_FMT(FATAL, "[fatal][app]")
 
 // Convenient wrapper to report exception errors. Exception message is only
 // displayed in debug mode

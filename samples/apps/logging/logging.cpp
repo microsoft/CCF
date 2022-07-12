@@ -386,7 +386,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_claims_digest(ccf::ClaimsDigest::Digest(in.msg));
         }
         // SNIPPET_END: set_claims_digest
-        CCF_LOG_INFO_APP("Storing {} = {}", id, in.msg);
+        CCF_APP_INFO("Storing {} = {}", id, in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -420,11 +420,11 @@ namespace loggingapp
 
         if (record.has_value())
         {
-          CCF_LOG_INFO_APP("Fetching {} = {}", id, record.value());
+          CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
         }
 
-        CCF_LOG_INFO_APP("Fetching - no entry for {}", id);
+        CCF_APP_INFO("Fetching - no entry for {}", id);
         return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::ResourceNotFound,
