@@ -87,10 +87,13 @@ DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
   CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
 #define FMT_C \
   CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
+#define FMT_D \
+  CCF_LOG_FMT(INFO, "")
 
 TEST_CASE("foooo")
 {
-  logger::config::default_init();
+  logger::config::add_text_console_logger();
+  logger::config::add_json_console_logger();
 
   LOG_INFO_FMT("Normal log");
   LOG_TPAL_FMT("Application logging");
@@ -100,6 +103,7 @@ TEST_CASE("foooo")
   FMT_A("Boundary cases");
   FMT_B("Boundary cases");
   FMT_C("Boundary cases");
+  FMT_D("Boundary cases");
 
   logger::config::loggers().clear();
 }

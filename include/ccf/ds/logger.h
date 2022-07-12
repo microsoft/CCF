@@ -76,11 +76,6 @@ namespace logger
         thread_id = 100;
 #endif
       }
-
-      if (tag.size() > preamble_length)
-      {
-        tag.resize(preamble_length);
-      }
     }
 
     template <typename T>
@@ -202,7 +197,8 @@ namespace logger
 
     // The preamble is the tag followed by the file line. If the file line is
     // too long, the final characters are retained.
-    const auto max_file_line_len = preamble_length - ll.tag.size();
+    const auto tag = ll.tag.substr(0, preamble_length);
+    const auto max_file_line_len = preamble_length - tag.size();
 
     const auto len = file_line.size();
     if (len > max_file_line_len)
@@ -210,7 +206,7 @@ namespace logger
       file_line_data += len - max_file_line_len;
     }
 
-    const auto preamble = fmt::format("{} {}", ll.tag, file_line_data);
+    const auto preamble = fmt::format("{} {}", tag, file_line_data);
 
     if (enclave_offset.has_value())
     {
