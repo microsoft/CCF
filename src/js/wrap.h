@@ -249,8 +249,6 @@ namespace ccf::js
   class Context
   {
     JSContext* ctx;
-    // TODO: Remove this bool?
-    bool ok_to_free = true;
 
   public:
     const TxAccess access;
@@ -267,10 +265,7 @@ namespace ccf::js
 
     ~Context()
     {
-      if (ok_to_free)
-      {
-        JS_FreeContext(ctx);
-      }
+      JS_FreeContext(ctx);
     }
 
     operator JSContext*() const

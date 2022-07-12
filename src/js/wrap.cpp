@@ -1617,7 +1617,6 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto console = jsctx.new_obj();
 
-    // TODO: Don't use app logging for gov!!!
     JS_SetPropertyStr(
       ctx, console, "log", JS_NewCFunction(ctx, js_info, "log", 1));
     JS_SetPropertyStr(
