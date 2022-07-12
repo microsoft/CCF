@@ -7,6 +7,7 @@
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "ds/serialized.h"
+#include "ds/ccf_exception.h"
 #include "enclave/reconfiguration_type.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"

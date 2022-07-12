@@ -367,14 +367,5 @@ namespace logger
 #define CCF_APP_FAIL CCF_LOG_FMT(FAIL, "[fail ][app]")
 #define CCF_APP_FATAL CCF_LOG_FMT(FATAL, "[fatal][app]")
 
-// Convenient wrapper to report exception errors. Exception message is only
-// displayed in debug mode
-#define LOG_FAIL_EXC(msg) \
-  do \
-  { \
-    LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__); \
-    LOG_DEBUG_FMT("Error: {}", msg); \
-  } while (0)
-
 #pragma clang diagnostic pop
 }
