@@ -1,0 +1,61 @@
+trigger:
+  batch: false
+
+parameters:
+  - name: VERSION
+    displayName: QUICTLS version
+    type: string
+    default: "1.1.1"
+  - name: REV
+    displayName: QUICTLS version revision
+    type: string
+    default: "o"
+  - name: PUSH_ARTIFACT
+    displayName: Publish to package feed
+    type: boolean
+    default: true
+
+jobs:
+  - job: build_quictls
+    container: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.1-0
+    pool: 1es-dv4-focal
+
+    strategy:
+      matrix:
+        debug:
+          MODE: "debug"
+        release:
+          MODE: "release"
+
+    steps:
+      - checkout: self
+        clean: true
+
+      - script: scripts/quictls/build.sh ${{ parameters.VERSION }} ${{ parameters.REV }} $(MODE) ${{ parameters.PUSH_ARTIFACT }}
+        displayName: "Build QUICTLS"
+
+      - ${{ if eq(parameters.PUSH_ARTIFACT, true) }}:
+          - script: |
+              # Version to MAJOR
+              VERSION=${{ parameters.VERSION }}
+              MAJOR=${VERSION//./}
+              # Rev to MINOR (assuming it doesn't go beyond 'z')
+              CHAR=$(printf '%d' "'${{ parameters.REV }}'")
+              BASE=$(printf '%d' "'a'")
+              MINOR=$(($CHAR-$BASE+1))
+              # MAJOR.MINOR (BUILD automatic and incrementing)
+              echo "##vso[task.setvariable variable=pkg-ver]$MAJOR.$MINOR.$(Build.BuildId)"
+
+              mv scripts/quictls/quictls-${{ parameters.VERSION }}${{ parameters.REV }}-$(MODE).tar.xz $(Build.ArtifactStagingDirectory)
+            displayName: "Prepare Artifact Staging Directory"
+
+          - task: UniversalPackages@0
+            displayName: "Publish QUICTLS Artifact"
+            inputs:
+              command: publish
+              publishDirectory: "$(Build.ArtifactStagingDirectory)"
+              vstsFeedPublish: "CCF/QUICTLS"
+              vstsFeedPackagePublish: "quictls-$(MODE)"
+              versionOption: custom
+              versionPublish: "$(pkg-ver)"
+              packagePublishDescription: "CCF build of QUICTLS-enabled OpenSSL"
