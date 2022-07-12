@@ -49,13 +49,11 @@ namespace ccf::js
   struct TxContext
   {
     kv::Tx* tx = nullptr;
-    TxAccess access = js::TxAccess::APP;
   };
 
   struct ReadOnlyTxContext
   {
     kv::ReadOnlyTx* tx = nullptr;
-    TxAccess access = js::TxAccess::APP;
   };
 
   struct HistoricalStateContext
@@ -251,10 +249,13 @@ namespace ccf::js
   class Context
   {
     JSContext* ctx;
+    // TODO: Remove this bool?
     bool ok_to_free = true;
 
   public:
-    Context(JSRuntime* rt)
+    const TxAccess access;
+
+    Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -262,12 +263,6 @@ namespace ccf::js
         throw std::runtime_error("Failed to initialise QuickJS context");
       }
       JS_SetContextOpaque(ctx, this);
-    }
-
-    Context(JSContext* other)
-    {
-      ctx = other;
-      ok_to_free = false;
     }
 
     ~Context()

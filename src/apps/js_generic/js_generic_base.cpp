@@ -278,9 +278,9 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::Context ctx(rt);
-      js::TxContext txctx{&endpoint_ctx.tx, js::TxAccess::APP};
-      js::ReadOnlyTxContext historical_txctx{historical_tx, js::TxAccess::APP};
+      js::Context ctx(rt, js::TxAccess::APP);
+      js::TxContext txctx{&endpoint_ctx.tx};
+      js::ReadOnlyTxContext historical_txctx{historical_tx};
 
       js::register_request_body_class(ctx);
       js::populate_global(

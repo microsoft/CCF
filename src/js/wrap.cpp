@@ -459,8 +459,7 @@ namespace ccf::js
     auto tx_ctx_ptr =
       static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
 
-    const auto read_only =
-      _check_kv_map_access(tx_ctx_ptr->access, property_name);
+    const auto read_only = _check_kv_map_access(jsctx.access, property_name);
 
     auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
 
@@ -482,7 +481,7 @@ namespace ccf::js
     auto tx_ctx_ptr = static_cast<ReadOnlyTxContext*>(
       JS_GetOpaque(this_val, kv_read_only_class_id));
 
-    _check_kv_map_access(tx_ctx_ptr->access, property_name);
+    _check_kv_map_access(jsctx.access, property_name);
     const auto read_only = true;
 
     auto handle = tx_ctx_ptr->tx->ro<KVMap>(property_name);
@@ -1304,7 +1303,7 @@ namespace ccf::js
 
     js::Runtime rt;
     JS_SetModuleLoaderFunc(rt, nullptr, js::js_app_module_loader, &tx);
-    js::Context ctx2(rt);
+    js::Context ctx2(rt, js::TxAccess::APP);
 
     auto modules = tx.ro<ccf::Modules>(ccf::Tables::MODULES);
     auto quickjs_version =
@@ -1436,7 +1435,16 @@ namespace ccf::js
     {
       return JS_EXCEPTION;
     }
-    CCF_APP_INFO("{}", ss->str());
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    if (jsctx.access == js::TxAccess::APP)
+    {
+      CCF_APP_INFO("{}", ss->str());
+    }
+    else
+    {
+      LOG_INFO_FMT("{}", ss->str());
+    }
     return JS_UNDEFINED;
   }
 
@@ -1447,7 +1455,16 @@ namespace ccf::js
     {
       return JS_EXCEPTION;
     }
-    CCF_APP_FAIL("{}", ss->str());
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    if (jsctx.access == js::TxAccess::APP)
+    {
+      CCF_APP_INFO("{}", ss->str());
+    }
+    else
+    {
+      LOG_FAIL_FMT("{}", ss->str());
+    }
     return JS_UNDEFINED;
   }
 
@@ -1458,7 +1475,16 @@ namespace ccf::js
     {
       return JS_EXCEPTION;
     }
-    CCF_APP_FATAL("{}", ss->str());
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    if (jsctx.access == js::TxAccess::APP)
+    {
+      CCF_APP_FATAL("{}", ss->str());
+    }
+    else
+    {
+      LOG_FATAL_FMT("{}", ss->str());
+    }
     return JS_UNDEFINED;
   }
 
@@ -1591,6 +1617,7 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto console = jsctx.new_obj();
 
+    // TODO: Don't use app logging for gov!!!
     JS_SetPropertyStr(
       ctx, console, "log", JS_NewCFunction(ctx, js_info, "log", 1));
     JS_SetPropertyStr(
