@@ -11,7 +11,7 @@ RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 RUN mkdir -p /etc/init
 
 ENV UBUNTU=focal
-ENV PSW_VERSION=2.16.100
+ENV PSW_VERSION=2.17.100
 RUN if [ -z "$PSW_VERSION" ]; then echo "Please set PSW_VERSION (e.g. 2.11)." >&2; exit 1; fi
 
 RUN apt-get update && apt-get install -y wget gnupg
