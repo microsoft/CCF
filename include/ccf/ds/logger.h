@@ -340,8 +340,8 @@ namespace logger
 // To avoid repeating the (s, ...) args for every macro, we cheat with a curried
 // macro here by ending the macro with another macro name, which then accepts
 // the trailing arguments
-#define CCF_LOG_FMT_(s, ...) fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
-#define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_
+#define CCF_LOG_FMT_2(s, ...) fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_2
 
 #ifdef VERBOSE_LOGGING
 #  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "[trace]")
