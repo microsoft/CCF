@@ -1419,7 +1419,7 @@ namespace ccf::js
         return JS_EXCEPTION;
       ss << *str;
     }
-    CCF_LOG_OUT(INFO, "info") << ss.str() << std::endl;
+    CCF_LOG_OUT(INFO, "[info ]") << ss.str() << std::endl;
     return JS_UNDEFINED;
   }
 

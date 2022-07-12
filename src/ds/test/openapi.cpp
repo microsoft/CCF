@@ -77,16 +77,29 @@ struct Foo
 DECLARE_JSON_TYPE(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
 
-#define LOG_EDDY_FMT CCF_LOG_FMT(INFO, "Lorem ipsum")
+#define LOG_TPAL_FMT CCF_LOG_FMT(INFO, "[info ][TPAL]")
+#define LOG_EDDY_FMT CCF_LOG_FMT(INFO, "[!Eddy!]")
+#define LONG_FMT \
+  CCF_LOG_FMT(INFO, "[This is a very long tag that may cause problems]")
+#define FMT_A \
+  CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
+#define FMT_B \
+  CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
+#define FMT_C \
+  CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
 
 TEST_CASE("foooo")
 {
   logger::config::default_init();
 
-  LOG_INFO_FMT("Hmmm");
-  LOG_FAIL_FMT("Badness!");
-  LOG_INFO_FMT("And this?");
-  LOG_EDDY_FMT("What about this?");
+  LOG_INFO_FMT("Normal log");
+  LOG_TPAL_FMT("Application logging");
+  LOG_TPAL_FMT("Looks like this");
+  LOG_EDDY_FMT("Tags can remove the level if they want to");
+  LONG_FMT("Long tags might be truncated");
+  FMT_A("Boundary cases");
+  FMT_B("Boundary cases");
+  FMT_C("Boundary cases");
 
   logger::config::loggers().clear();
 }

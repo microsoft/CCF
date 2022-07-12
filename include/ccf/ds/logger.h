@@ -38,6 +38,8 @@ namespace logger
 
   static constexpr long int ns_per_s = 1'000'000'000;
 
+  static constexpr auto preamble_length = 44u;
+
   struct LogLine
   {
   public:
@@ -52,15 +54,15 @@ namespace logger
     std::string msg;
 
     LogLine(
-      Level level,
-      std::string_view tag,
-      std::string_view file_name,
-      size_t line_number,
+      Level level_,
+      std::string_view tag_,
+      std::string_view file_name_,
+      size_t line_number_,
       std::optional<uint16_t> thread_id_ = std::nullopt) :
-      log_level(level),
-      tag(tag),
-      file_name(file_name),
-      line_number(line_number)
+      log_level(level_),
+      tag(tag_),
+      file_name(file_name_),
+      line_number(line_number_)
     {
       if (thread_id_.has_value())
       {
@@ -73,6 +75,11 @@ namespace logger
 #else
         thread_id = 100;
 #endif
+      }
+
+      if (tag.size() > preamble_length)
+      {
+        tag.resize(preamble_length);
       }
     }
 
@@ -190,15 +197,20 @@ namespace logger
     std::tm host_tm;
     ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-    auto file_line = fmt::format("{}:{}", ll.file_name, ll.line_number);
+    auto file_line = fmt::format("{}:{} ", ll.file_name, ll.line_number);
     auto file_line_data = file_line.data();
 
-    // Truncate to final characters - if too long, advance char*
-    constexpr auto max_len = 36u;
+    // The preamble is the tag followed by the file line. If the file line is
+    // too long, the final characters are retained.
+    const auto max_file_line_len = preamble_length - ll.tag.size();
 
     const auto len = file_line.size();
-    if (len > max_len)
-      file_line_data += len - max_len;
+    if (len > max_file_line_len)
+    {
+      file_line_data += len - max_file_line_len;
+    }
+
+    const auto preamble = fmt::format("{} {}", ll.tag, file_line_data);
 
     if (enclave_offset.has_value())
     {
@@ -206,12 +218,11 @@ namespace logger
       // that the time inside the enclave was 130 milliseconds earlier than
       // the host timestamp printed on the line
       return fmt::format(
-        "{} {:+01.3f} {:<3} [{:<5}] {:<36} | {}\n",
+        "{} {:+01.3f} {:<3} {:<45}| {}\n",
         get_timestamp(host_tm, host_ts),
         enclave_offset.value(),
         ll.thread_id,
-        ll.tag,
-        file_line_data,
+        preamble,
         ll.msg);
     }
     else
@@ -219,11 +230,10 @@ namespace logger
       // Padding on the right to align the rest of the message
       // with lines that contain enclave time offsets
       return fmt::format(
-        "{}        {:<3} [{:<5}] {:<36} | {}\n",
+        "{}        {:<3} {:<45}| {}\n",
         get_timestamp(host_tm, host_ts),
         ll.thread_id,
-        ll.tag,
-        file_line_data,
+        preamble,
         ll.msg);
     }
   }
@@ -338,8 +348,8 @@ namespace logger
 #define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_
 
 #ifdef VERBOSE_LOGGING
-#  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "trace")
-#  define LOG_DEBUG_FMT CCF_LOG_FMT(DEBUG, "debug")
+#  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "[trace]")
+#  define LOG_DEBUG_FMT CCF_LOG_FMT(DEBUG, "[debug]")
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
@@ -347,10 +357,10 @@ namespace logger
 #  define LOG_DEBUG_FMT(...)
 #endif
 
-#define LOG_INFO_FMT CCF_LOG_FMT(INFO, "info")
-#define CCF_LOG_INFO_APP CCF_LOG_FMT(INFO, "app")
-#define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "fail")
-#define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "fatal")
+#define LOG_INFO_FMT CCF_LOG_FMT(INFO, "[info ]")
+#define CCF_LOG_INFO_APP CCF_LOG_FMT(INFO, "[info ][app]")
+#define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "[fail ]")
+#define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "[fatal]")
 
 // Convenient wrapper to report exception errors. Exception message is only
 // displayed in debug mode
