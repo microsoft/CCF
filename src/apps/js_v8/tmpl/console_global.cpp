@@ -9,30 +9,60 @@
 
 namespace ccf::v8_tmpl
 {
-  static void log(const v8::FunctionCallbackInfo<v8::Value>& info)
+  static std::optional<std::stringstream> stringify_args(
+    const v8::FunctionCallbackInfo<v8::Value>& fci)
   {
-    v8::Isolate* isolate = info.GetIsolate();
+    v8::Isolate* isolate = fci.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
     std::stringstream ss;
-    for (int i = 0; i < info.Length(); i++)
+    for (int i = 0; i < fci.Length(); i++)
     {
       if (i != 0)
-        ss << ' ';
-      v8::Local<v8::String> str;
-      if (!info[i]->IsNativeError() && info[i]->IsObject())
       {
-        if (!v8::JSON::Stringify(context, info[i]).ToLocal(&str))
-          return;
+        ss << ' ';
+      }
+      v8::Local<v8::String> str;
+      if (!fci[i]->IsNativeError() && fci[i]->IsObject())
+      {
+        if (!v8::JSON::Stringify(context, fci[i]).ToLocal(&str))
+          return std::nullopt;
       }
       else
       {
-        if (!info[i]->ToString(context).ToLocal(&str))
-          return;
+        if (!fci[i]->ToString(context).ToLocal(&str))
+          return std::nullopt;
       }
       ss << v8_util::to_str(isolate, str);
     }
-    CCF_LOG_OUT(INFO, "[info ]") << ss.str() << std::endl;
+    return ss;
+  }
+
+  static void info(const v8::FunctionCallbackInfo<v8::Value>& fci)
+  {
+    const auto ss = stringify_args(fci);
+    if (ss.has_value())
+    {
+      CCF_APP_INFO("{}", ss->str());
+    }
+  }
+
+  static void fail(const v8::FunctionCallbackInfo<v8::Value>& fci)
+  {
+    const auto ss = stringify_args(fci);
+    if (ss.has_value())
+    {
+      CCF_APP_FAIL("{}", ss->str());
+    }
+  }
+
+  static void fatal(const v8::FunctionCallbackInfo<v8::Value>& fci)
+  {
+    const auto ss = stringify_args(fci);
+    if (ss.has_value())
+    {
+      CCF_APP_FATAL("{}", ss->str());
+    }
   }
 
   v8::Local<v8::ObjectTemplate> ConsoleGlobal::create_template(
@@ -44,7 +74,16 @@ namespace ccf::v8_tmpl
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "log"),
-      v8::FunctionTemplate::New(isolate, log));
+      v8::FunctionTemplate::New(isolate, info));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "info"),
+      v8::FunctionTemplate::New(isolate, info));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "warn"),
+      v8::FunctionTemplate::New(isolate, fail));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "error"),
+      v8::FunctionTemplate::New(isolate, fatal));
 
     return handle_scope.Escape(tmpl);
   }

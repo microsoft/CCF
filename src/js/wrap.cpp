@@ -1396,7 +1396,8 @@ namespace ccf::js
     historical_state_class_def.finalizer = js_historical_state_finalizer;
   }
 
-  JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  std::optional<std::stringstream> stringify_args(
+    JSContext* ctx, int argc, JSValueConst* argv)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
@@ -1407,19 +1408,57 @@ namespace ccf::js
     for (i = 0; i < argc; i++)
     {
       if (i != 0)
+      {
         ss << ' ';
+      }
       if (!JS_IsError(ctx, argv[i]) && JS_IsObject(argv[i]))
       {
         auto rval = jsctx.json_stringify(JSWrappedValue(ctx, argv[i]));
         str = jsctx.to_str(rval);
       }
       else
+      {
         str = jsctx.to_str(argv[i]);
+      }
       if (!str)
-        return JS_EXCEPTION;
+      {
+        return std::nullopt;
+      }
       ss << *str;
     }
-    CCF_LOG_OUT(INFO, "[info ]") << ss.str() << std::endl;
+    return ss;
+  }
+
+  JSValue js_info(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    const auto ss = stringify_args(ctx, argc, argv);
+    if (!ss.has_value())
+    {
+      return JS_EXCEPTION;
+    }
+    CCF_APP_INFO("{}", ss->str());
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_fail(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    const auto ss = stringify_args(ctx, argc, argv);
+    if (!ss.has_value())
+    {
+      return JS_EXCEPTION;
+    }
+    CCF_APP_FAIL("{}", ss->str());
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_fatal(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    const auto ss = stringify_args(ctx, argc, argv);
+    if (!ss.has_value())
+    {
+      return JS_EXCEPTION;
+    }
+    CCF_APP_FATAL("{}", ss->str());
     return JS_UNDEFINED;
   }
 
@@ -1431,7 +1470,7 @@ namespace ccf::js
     bool is_error = JS_IsError(ctx, exception_val);
     if (!is_error)
       LOG_INFO_FMT("Throw: ");
-    js_print(ctx, JS_NULL, 1, (JSValueConst*)&exception_val);
+    js_fail(ctx, JS_NULL, 1, (JSValueConst*)&exception_val);
     if (is_error)
     {
       auto val = exception_val["stack"];
@@ -1552,9 +1591,14 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto console = jsctx.new_obj();
 
-    // TODO: console.info, console.debug, console.warn?
     JS_SetPropertyStr(
-      ctx, console, "log", JS_NewCFunction(ctx, js_print, "log", 1));
+      ctx, console, "log", JS_NewCFunction(ctx, js_info, "log", 1));
+    JS_SetPropertyStr(
+      ctx, console, "info", JS_NewCFunction(ctx, js_info, "info", 1));
+    JS_SetPropertyStr(
+      ctx, console, "warn", JS_NewCFunction(ctx, js_fail, "warn", 1));
+    JS_SetPropertyStr(
+      ctx, console, "error", JS_NewCFunction(ctx, js_fatal, "error", 1));
 
     return console;
   }
