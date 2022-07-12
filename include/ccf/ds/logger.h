@@ -352,11 +352,11 @@ namespace logger
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
-#  define LOG_TRACE_FMT(...)
-#  define LOG_DEBUG_FMT(...)
+#  define LOG_TRACE_FMT(...) ((void)0)
+#  define LOG_DEBUG_FMT(...) ((void)0)
 
-#  define CCF_APP_TRACE(...)
-#  define CCF_APP_DEBUG(...)
+#  define CCF_APP_TRACE(...) ((void)0)
+#  define CCF_APP_DEBUG(...) ((void)0)
 #endif
 
 #define LOG_INFO_FMT CCF_LOG_FMT(INFO, "[info ]")

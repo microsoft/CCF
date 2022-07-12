@@ -16,7 +16,8 @@
     { \
       if ((expr) == 0) \
       { \
-        LOG_FAIL_FMT("Assertion failed: {} {}", #expr, (msg)); \
+        CCF_LOG_FMT(FAIL, "[assert]") \
+        ("Assertion failed: {} {}", #expr, (msg)); \
         throw std::logic_error(msg); \
       } \
     } while (0)

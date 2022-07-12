@@ -68,4 +68,19 @@ namespace ccf::endpoints
     properties.forwarding_required = fr;
     return *this;
   }
+
+  void Endpoint::install()
+  {
+    if (installer == nullptr)
+    {
+      LOG_FATAL_FMT(
+        "Can't install this endpoint ({}) - it is not associated with an "
+        "installer",
+        full_uri_path);
+    }
+    else
+    {
+      installer->install(*this);
+    }
+  }
 }
