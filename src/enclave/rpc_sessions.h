@@ -281,6 +281,10 @@ namespace ccf
 
     ccf::ApplicationProtocol get_app_protocol_main_interface() const
     {
+      // Note: this is a temporary function to conveniently find out which
+      // protocol to use when creating client endpoints (e.g. for join
+      // protocol). This can be removed once the HTTP and HTTP/2 endpoints have
+      // been merged.
       if (listening_interfaces.empty())
       {
         throw std::logic_error("No listening interface for this node");

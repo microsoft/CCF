@@ -19,8 +19,6 @@ namespace http2
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
-  class Session;
-
   struct StreamData
   {
     StreamId id;
@@ -35,6 +33,16 @@ namespace http2
     std::vector<uint8_t> response_body;
 
     StreamData(StreamId id_) : id(id_) {}
+  };
+
+  class AbstractSession
+  {
+  public:
+    virtual ~AbstractSession() = default;
+    virtual void send(const uint8_t* data, size_t length) = 0;
+    virtual void handle_request(StreamData* stream_data) = 0;
+    virtual void handle_response(StreamData* stream_data) = 0;
+    virtual void add_stream(const std::shared_ptr<StreamData>& stream_data) = 0;
   };
 
   // Functions to create HTTP2 headers
@@ -54,9 +62,9 @@ namespace http2
     return make_nv((uint8_t*)key, (uint8_t*)value);
   }
 
-  Session* get_session(void* user_data)
+  AbstractSession* get_session(void* user_data)
   {
-    return reinterpret_cast<Session*>(user_data);
+    return reinterpret_cast<AbstractSession*>(user_data);
   }
 
   StreamData* get_stream_data(nghttp2_session* session, StreamId stream_id)
@@ -64,71 +72,4 @@ namespace http2
     return reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
   }
-
-  // Callbacks
-  static ssize_t send_callback(
-    nghttp2_session* session,
-    const uint8_t* data,
-    size_t length,
-    int flags,
-    void* user_data);
-  static int on_frame_recv_callback(
-    nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
-  static int on_frame_recv_callback_client(
-    nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
-  static int on_begin_headers_callback(
-    nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
-  static int on_begin_headers_callback_client(
-    nghttp2_session* session, const nghttp2_frame* frame, void* user_data);
-  static int on_header_callback(
-    nghttp2_session* session,
-    const nghttp2_frame* frame,
-    const uint8_t* name,
-    size_t namelen,
-    const uint8_t* value,
-    size_t valuelen,
-    uint8_t flags,
-    void* user_data);
-  static int on_header_callback_client(
-    nghttp2_session* session,
-    const nghttp2_frame* frame,
-    const uint8_t* name,
-    size_t namelen,
-    const uint8_t* value,
-    size_t valuelen,
-    uint8_t flags,
-    void* user_data);
-  static int on_data_callback(
-    nghttp2_session* session,
-    uint8_t flags,
-    StreamId stream_id,
-    const uint8_t* data,
-    size_t len,
-    void* user_data);
-  static int on_data_callback_client(
-    nghttp2_session* session,
-    uint8_t flags,
-    StreamId stream_id,
-    const uint8_t* data,
-    size_t len,
-    void* user_data);
-  static int on_stream_close_callback(
-    nghttp2_session* session,
-    StreamId stream_id,
-    uint32_t error_code,
-    void* user_data);
-  static ssize_t on_data_source_read_length_callback(
-    nghttp2_session* session,
-    uint8_t frame_type,
-    int32_t stream_id,
-    int32_t session_remote_window_size,
-    int32_t stream_remote_window_size,
-    uint32_t remote_max_frame_size,
-    void* user_data);
-  static int on_error_callback(
-    nghttp2_session* session,
-    int lib_error_code,
-    const char* msg,
-    size_t len,
-    void* user_data);
 }

@@ -10,98 +10,6 @@
 
 namespace http2
 {
-  class Session
-  {
-  protected:
-    nghttp2_session* session;
-    std::list<std::shared_ptr<StreamData>> streams;
-    ccf::Endpoint& endpoint;
-
-  public:
-    Session(ccf::Endpoint& endpoint, bool is_client = false) :
-      endpoint(endpoint)
-    {
-      LOG_TRACE_FMT("Created HTTP2 session");
-      nghttp2_session_callbacks* callbacks;
-      nghttp2_session_callbacks_new(&callbacks);
-      nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
-      nghttp2_session_callbacks_set_on_stream_close_callback(
-        callbacks, on_stream_close_callback);
-      nghttp2_session_callbacks_set_data_source_read_length_callback(
-        callbacks, on_data_source_read_length_callback);
-      nghttp2_session_callbacks_set_error_callback2(
-        callbacks, on_error_callback);
-
-      if (is_client)
-      {
-        nghttp2_session_callbacks_set_on_frame_recv_callback(
-          callbacks, on_frame_recv_callback_client);
-        nghttp2_session_callbacks_set_on_begin_headers_callback(
-          callbacks, on_begin_headers_callback_client);
-        nghttp2_session_callbacks_set_on_header_callback(
-          callbacks, on_header_callback_client);
-        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
-          callbacks, on_data_callback_client);
-        nghttp2_session_client_new(&session, callbacks, this);
-      }
-      else
-      {
-        nghttp2_session_callbacks_set_on_frame_recv_callback(
-          callbacks, on_frame_recv_callback);
-        nghttp2_session_callbacks_set_on_begin_headers_callback(
-          callbacks, on_begin_headers_callback);
-        nghttp2_session_callbacks_set_on_header_callback(
-          callbacks, on_header_callback);
-        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
-          callbacks, on_data_callback);
-
-        nghttp2_session_server_new(&session, callbacks, this);
-      }
-
-      nghttp2_session_callbacks_del(callbacks);
-    }
-
-    virtual ~Session()
-    {
-      nghttp2_session_del(session);
-    }
-
-    void add_stream(const std::shared_ptr<StreamData>& stream_data)
-    {
-      streams.push_back(stream_data);
-    }
-
-    void send(const uint8_t* data, size_t length)
-    {
-      LOG_TRACE_FMT("http2::Session send: {}", length);
-
-      // Note: Remove extra copy
-      std::vector<uint8_t> resp = {data, data + length};
-      endpoint.send(std::move(resp), sockaddr());
-    }
-
-    void recv(const uint8_t* data, size_t size)
-    {
-      LOG_TRACE_FMT("http2::Session recv: {}", size);
-      auto readlen = nghttp2_session_mem_recv(session, data, size);
-      if (readlen < 0)
-      {
-        throw std::logic_error(fmt::format(
-          "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
-      }
-
-      auto rc = nghttp2_session_send(session);
-      if (rc < 0)
-      {
-        throw std::logic_error(
-          fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
-      }
-    }
-
-    virtual void handle_request(StreamData* stream_data) = 0;
-    virtual void handle_response(StreamData* stream_data) = 0;
-  };
-
   static ssize_t send_callback(
     nghttp2_session* session,
     const uint8_t* data,
@@ -327,8 +235,7 @@ namespace http2
 
     if (k == http2::headers::STATUS)
     {
-      // Note: handle errors
-      stream_data->status = HTTP_STATUS_OK;
+      stream_data->status = http_status(std::stoi(v));
     }
     else
     {
@@ -420,6 +327,98 @@ namespace http2
     return 0;
   }
 
+  class Session : public AbstractSession
+  {
+  protected:
+    nghttp2_session* session;
+    std::list<std::shared_ptr<StreamData>> streams;
+    ccf::Endpoint& endpoint;
+
+  public:
+    Session(ccf::Endpoint& endpoint, bool is_client = false) :
+      endpoint(endpoint)
+    {
+      LOG_TRACE_FMT("Created HTTP2 session");
+      nghttp2_session_callbacks* callbacks;
+      nghttp2_session_callbacks_new(&callbacks);
+      nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
+      nghttp2_session_callbacks_set_on_stream_close_callback(
+        callbacks, on_stream_close_callback);
+      nghttp2_session_callbacks_set_data_source_read_length_callback(
+        callbacks, on_data_source_read_length_callback);
+      nghttp2_session_callbacks_set_error_callback2(
+        callbacks, on_error_callback);
+
+      if (is_client)
+      {
+        nghttp2_session_callbacks_set_on_frame_recv_callback(
+          callbacks, on_frame_recv_callback_client);
+        nghttp2_session_callbacks_set_on_begin_headers_callback(
+          callbacks, on_begin_headers_callback_client);
+        nghttp2_session_callbacks_set_on_header_callback(
+          callbacks, on_header_callback_client);
+        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
+          callbacks, on_data_callback_client);
+        nghttp2_session_client_new(&session, callbacks, this);
+      }
+      else
+      {
+        nghttp2_session_callbacks_set_on_frame_recv_callback(
+          callbacks, on_frame_recv_callback);
+        nghttp2_session_callbacks_set_on_begin_headers_callback(
+          callbacks, on_begin_headers_callback);
+        nghttp2_session_callbacks_set_on_header_callback(
+          callbacks, on_header_callback);
+        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
+          callbacks, on_data_callback);
+
+        if (nghttp2_session_server_new(&session, callbacks, this) != 0)
+        {
+          throw std::logic_error("Could not create new HTTP/2 server session");
+        }
+      }
+
+      nghttp2_session_callbacks_del(callbacks);
+    }
+
+    virtual ~Session()
+    {
+      nghttp2_session_del(session);
+    }
+
+    void add_stream(const std::shared_ptr<StreamData>& stream_data) override
+    {
+      streams.push_back(stream_data);
+    }
+
+    void send(const uint8_t* data, size_t length) override
+    {
+      LOG_TRACE_FMT("http2::Session send: {}", length);
+
+      // Note: Remove extra copy
+      std::vector<uint8_t> resp = {data, data + length};
+      endpoint.send(std::move(resp), sockaddr());
+    }
+
+    void recv(const uint8_t* data, size_t size)
+    {
+      LOG_TRACE_FMT("http2::Session recv: {}", size);
+      auto readlen = nghttp2_session_mem_recv(session, data, size);
+      if (readlen < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
+      }
+
+      auto rc = nghttp2_session_send(session);
+      if (rc < 0)
+      {
+        throw std::logic_error(
+          fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
+      }
+    }
+  };
+
   class ServerSession : public Session
   {
   private:
@@ -510,7 +509,8 @@ namespace http2
 
     void handle_response(StreamData* stream_data) override
     {
-      throw std::logic_error("Not implemented");
+      // Server does not handle responses
+      return;
     }
   };
 
@@ -590,7 +590,8 @@ namespace http2
 
     virtual void handle_request(StreamData* stream_data) override
     {
-      throw std::logic_error("Not implemented");
+      // Client does not handle requests
+      return;
     }
 
     void handle_response(StreamData* stream_data) override
