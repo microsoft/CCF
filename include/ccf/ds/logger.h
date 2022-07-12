@@ -359,7 +359,6 @@ namespace logger
 #  define CCF_APP_DEBUG(...)
 #endif
 
-// TODO: Deprecate?
 #define LOG_INFO_FMT CCF_LOG_FMT(INFO, "[info ]")
 #define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "[fail ]")
 #define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "[fatal]")
