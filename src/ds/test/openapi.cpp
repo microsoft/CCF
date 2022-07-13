@@ -77,33 +77,6 @@ struct Foo
 DECLARE_JSON_TYPE(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
 
-#define LOG_TPAL_FMT CCF_LOG_FMT(INFO, "[info ][TPAL]")
-#define LOG_EDDY_FMT CCF_LOG_FMT(INFO, "[!Eddy!]")
-#define LONG_FMT \
-  CCF_LOG_FMT(INFO, "[This is a very long tag that may cause problems]")
-#define FMT_A CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
-#define FMT_B CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
-#define FMT_C CCF_LOG_FMT(INFO, "[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]")
-#define FMT_D CCF_LOG_FMT(INFO, "")
-
-TEST_CASE("foooo")
-{
-  logger::config::add_text_console_logger();
-  logger::config::add_json_console_logger();
-
-  LOG_INFO_FMT("Normal log");
-  LOG_TPAL_FMT("Application logging");
-  LOG_TPAL_FMT("Looks like this");
-  LOG_EDDY_FMT("Tags can remove the level if they want to");
-  LONG_FMT("Long tags might be truncated");
-  FMT_A("Boundary cases");
-  FMT_B("Boundary cases");
-  FMT_C("Boundary cases");
-  FMT_D("Boundary cases");
-
-  logger::config::loggers().clear();
-}
-
 TEST_CASE("Simple custom types")
 {
   auto doc = openapi::create_document(

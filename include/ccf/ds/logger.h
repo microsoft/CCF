@@ -109,9 +109,9 @@ namespace logger
     AbstractLogger() = default;
     virtual ~AbstractLogger() = default;
 
-    virtual void emit(const std::string& s, std::ostream& os = std::cout)
+    virtual void emit(const std::string& s)
     {
-      os << s << std::flush;
+      std::cout << s << std::flush;
     }
 
     virtual void write(
