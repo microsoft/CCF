@@ -32,7 +32,7 @@
 import { ccf } from "./global.js";
 
 /**
- * @inheritDoc CCF.historicalState
+ * @inheritDoc global!CCF.historicalState
  */
 export const historicalState = ccf.historicalState;
 
