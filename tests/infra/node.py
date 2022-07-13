@@ -22,6 +22,9 @@ import json
 import time
 import http
 
+# pylint: disable=protected-access
+import ccf._versionifier
+
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
 
@@ -92,6 +95,17 @@ def version_rc(full_version):
             rc_tkn = tokens[2]
             return (int(rc_tkn[2:]), len(tokens))
     return (None, 0)
+
+
+def version_after(version, cmp_version):
+    if version is None and cmp_version is not None:
+        # It is assumed that version is None for latest development
+        # branch (i.e. main)
+        return True
+
+    return ccf._versionifier.to_python_version(
+        version
+    ) > ccf._versionifier.to_python_version(cmp_version)
 
 
 class Node:
@@ -496,11 +510,32 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
-    def get_snapshots(self):
-        return self.remote.get_snapshots()
-
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        return self.remote.get_committed_snapshots(pre_condition_func)
+        (
+            main_snapshots_dir,
+            read_only_snapshots_dir,
+        ) = self.remote.get_committed_snapshots(pre_condition_func)
+
+        snapshots_dir = os.path.join(
+            self.common_dir, f"{self.local_node_id}.snapshots.committed"
+        )
+        infra.path.create_dir(snapshots_dir)
+
+        for f in os.listdir(main_snapshots_dir):
+            if is_file_committed(f):
+                infra.path.copy_dir(
+                    os.path.join(main_snapshots_dir, f),
+                    snapshots_dir,
+                )
+
+        for f in os.listdir(read_only_snapshots_dir):
+            if is_file_committed(f):
+                infra.path.copy_dir(
+                    os.path.join(read_only_snapshots_dir, f),
+                    snapshots_dir,
+                )
+
+        return snapshots_dir
 
     def identity(self, name=None):
         if name is not None:
@@ -574,6 +609,9 @@ class Node:
             self_signed=rpc_interface.endorsement.authority
             == infra.interfaces.EndorsementAuthority.Node,
             verify_ca=verify_ca,
+        )
+        akwargs["protocol"] = (
+            kwargs.get("protocol") if "protocol" in kwargs else "https"
         )
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
@@ -678,18 +716,7 @@ class Node:
         return False
 
     def version_after(self, version):
-        rc, _ = version_rc(version)
-        if rc is None or self.version is None:
-            return True
-        self_rc, self_num_rc_tkns = version_rc(self.version)
-        ver = Version(strip_version(version))
-        self_ver = Version(strip_version(self.version))
-        return self_ver > ver or (
-            self_ver == ver
-            and (
-                not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3)
-            )
-        )
+        return version_after(self.version, version)
 
     def get_receipt(self, view, seqno, timeout=3):
         found = False

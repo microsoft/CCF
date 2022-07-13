@@ -110,7 +110,7 @@ export function typedKv<K, V>(
 }
 
 /**
- * @inheritDoc CCF.kv
+ * @inheritDoc global!CCF.kv
  */
 export const rawKv = ccf.kv;
 

@@ -239,7 +239,8 @@ Historical state always contains a receipt. Users wishing to implement a receipt
 User-Defined Claims in Receipts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A user wanting to tie transaction-specific values to a receipt can do so by attaching a claims digest to their transaction:
+A user wanting to tie transaction-specific values to a receipt can do so by attaching a claims digest to their transaction.
+This is conceptually equivalent to getting a signature from the service for claims made by the application logic.
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
@@ -247,7 +248,7 @@ A user wanting to tie transaction-specific values to a receipt can do so by atta
     :end-before: SNIPPET_END: set_claims_digest
     :dedent:
 
-CCF will then record this transaction as a leaf in the Merkle tree constructed from the combined digest of the write set, this ``claims_digest``, and the commit evidence.
+CCF will record this transaction as a leaf in the Merkle tree constructed from the combined digest of the write set, this ``claims_digest``, and the :term:`Commit Evidence`.
 
 This ``claims_digest`` will be exposed in receipts under ``leaf_components``. It can then be revealed externally,
 or by the endpoint directly if it has been stored in the ledger. The receipt object deliberately makes the ``claims_digest`` optional,

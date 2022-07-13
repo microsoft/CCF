@@ -153,6 +153,7 @@ class Network:
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = service_load
+            self.recovery_count = 0
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -166,6 +167,7 @@ class Network:
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
                 self.service_load.set_network(self)
+            self.recovery_count = existing_network.recovery_count
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -250,17 +252,21 @@ class Network:
 
         committed_ledger_dirs = read_only_ledger_dirs or []
         current_ledger_dir = ledger_dir
+        read_only_snapshots_dir = None
 
         # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
         # to produce more ledger entries
         if from_snapshot:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
-            snapshots_dir = snapshots_dir or self.get_committed_snapshots(primary)
-            if os.listdir(snapshots_dir):
-                LOG.info(f"Joining from snapshot directory: {snapshots_dir}")
+            if snapshots_dir is None:
+                read_only_snapshots_dir = self.get_committed_snapshots(primary)
+            if os.listdir(snapshots_dir) or os.listdir(read_only_snapshots_dir):
+                LOG.info(
+                    f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
+                )
             else:
                 LOG.warning(
-                    f"Attempting to join from snapshot but {snapshots_dir} is empty: defaulting to complete replay of transaction history"
+                    f"Attempting to join from snapshot but {snapshots_dir},{read_only_snapshots_dir} are empty: defaulting to complete replay of transaction history"
                 )
         else:
             LOG.info(
@@ -271,6 +277,10 @@ class Network:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
+        # Note: temporary fix until second snapshot directory is ported to 2.x branch
+        if not node.version_after("ccf-2.0.3") and read_only_snapshots_dir is not None:
+            snapshots_dir = read_only_snapshots_dir
+
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
@@ -280,6 +290,7 @@ class Network:
                 target_node.get_public_rpc_host(), target_node.get_public_rpc_port()
             ),
             snapshots_dir=snapshots_dir,
+            read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             **kwargs,
@@ -538,7 +549,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args):
+    def recover(self, args, expected_recovery_count=None):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -577,7 +588,12 @@ class Network:
             )
             self._wait_for_app_open(node)
 
-        self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
+        self.recovery_count = expected_recovery_count or self.recovery_count + 1
+        self.consortium.check_for_service(
+            self.find_random_node(),
+            ServiceStatus.OPEN,
+            recovery_count=self.recovery_count,
+        )
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -748,7 +764,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.now()
+                valid_from = valid_from or datetime.utcnow()
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
@@ -1182,50 +1198,19 @@ class Network:
         )
         return primaries[0]
 
-    def wait_for_commit_proof(self, node, seqno, timeout=3):
-        # Wait that the target seqno has a commit proof on a specific node.
-        # This is achieved by first waiting for a commit over seqno, issuing
-        # a write request and then waiting for a commit over that
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with node.client(self.consortium.get_any_active_member().local_id) as c:
-                r = c.get("/node/commit")
-                current_tx = TxID.from_str(r.body.json()["transaction_id"])
-                if current_tx.seqno >= seqno:
-                    # Using update_state_digest here as a convenient write tx
-                    # that is app agnostic
-                    r = c.post("/gov/ack/update_state_digest")
-                    assert (
-                        r.status_code == http.HTTPStatus.OK.value
-                    ), f"Error ack/update_state_digest: {r}"
-                    c.wait_for_commit(r)
-                    return True
-            time.sleep(0.1)
-        raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
-
-    def wait_for_snapshot_committed_for(self, seqno, timeout=3):
-        # Check that snapshot exists for target seqno and if so, wait until
-        # snapshot evidence is committed
-        snapshot_evidence_seqno = None
-        primary, _ = self.find_primary()
-        for s in os.listdir(primary.get_snapshots()):
-            snapshot_seqno, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)
-            if snapshot_seqno > seqno:
-                break
-        if snapshot_evidence_seqno is None:
-            return False
-
-        return self.wait_for_commit_proof(primary, snapshot_evidence_seqno, timeout)
-
-    def get_committed_snapshots(self, node):
+    def get_committed_snapshots(self, node, target_seqno=None, force_txs=True):
         # Wait for the snapshot including target_seqno to be committed before
-        # copying snapshot directory
-        target_seqno = None
-        with node.client() as c:
-            r = c.get("/node/commit").body.json()
-            target_seqno = TxID.from_str(r["transaction_id"]).seqno
+        # copying snapshot directory. Do not issue transactions if force_txs is False
+        # and expect snapshot to have already been created.
+        if target_seqno is None:
+            with node.client() as c:
+                r = c.get("/node/commit").body.json()
+                target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
+            if not force_txs:
+                return True
+
             LOG.info(
                 f"Waiting for a snapshot to be committed including seqno {target_seqno}"
             )
@@ -1237,7 +1222,7 @@ class Network:
                         f
                     ):
                         LOG.info(
-                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time())}s"
+                            f"Found committed snapshot {f} for seqno {target_seqno} after {timeout - (end_time - time.time()):.2f}s"
                         )
                         return True
 
@@ -1251,7 +1236,7 @@ class Network:
                     c.wait_for_commit(r)
                 time.sleep(0.1)
             LOG.error(
-                f"Could not find committed snapshot for seqno {target_seqno} after {timeout}s in {src_dir}: {list_src_dir_func(src_dir)}"
+                f"Could not find committed snapshot for seqno {target_seqno} after {timeout:.2f}s in {src_dir}: {list_src_dir_func(src_dir)}"
             )
             return False
 

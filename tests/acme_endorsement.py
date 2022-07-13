@@ -16,9 +16,11 @@ import infra.crypto
 import suite.test_requirements as reqs
 import socket
 import ssl
+import http
 from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
 
 from loguru import logger as LOG
 
@@ -44,7 +46,9 @@ def wait_for_port_to_listen(host, port, timeout=10):
 
 
 @reqs.description("Start network and wait for ACME certificates")
-def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
+def wait_for_certificates(
+    args, network_name, ca_certs, interface_name, challenge_interface, timeout=5 * 60
+):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -66,7 +70,7 @@ def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
 
             num_ok = 0
             for node in network.nodes:
-                iface = node.host.rpc_interfaces["acme_endorsed_interface"]
+                iface = node.host.rpc_interfaces[interface_name]
                 try:
                     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
                     context.verify_mode = ssl.CERT_REQUIRED
@@ -93,6 +97,18 @@ def wait_for_certificates(args, network_name, ca_certs, timeout=5 * 60):
 
             if num_ok != len(args.nodes):
                 time.sleep(1)
+
+        # We can't run test_unsecured_interfaces against the ACME-endorsed interface
+        # here, because network_name may not be an address that the name server can
+        # resolve, e.g. those that are added to the pebble mock dns server.
+        # Conversely, if we were to use the IP address instead of the name, then
+        # the ACME-certificate subject/SAN won't match.
+        # I have not yet found a way to add a name server in such a way that
+        # httpx.Client picks it up.
+
+        test_unsecured_interfaces(
+            network, infra.interfaces.PRIMARY_RPC_INTERFACE, challenge_interface
+        )
 
         LOG.info(
             f"Success: all nodes had correct certificates installed after {int(time.time() - start_time)} seconds"
@@ -188,6 +204,20 @@ def get_pebble_ca_certs(mgmt_address):
     return ca, intermediate
 
 
+@reqs.description("Test that secure content is not available on an unsecured interface")
+def test_unsecured_interfaces(network, secured_interface, unsecured_interface):
+    for node in network.nodes:
+        with node.client(interface_name=secured_interface) as c:
+            r = c.get("/node/network/nodes")
+            assert r.status_code == http.HTTPStatus.OK
+        with node.client(interface_name=unsecured_interface, protocol="http") as c:
+            r = c.get("/node/network/nodes")
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+        with node.client(interface_name=unsecured_interface, protocol="http") as c:
+            r = c.get("/.well-known/acme-challenge/A1B2C3D4")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+
 @reqs.description("Test against a local pebble CA")
 def run_pebble(args):
     binary_filename = "/opt/pebble/pebble_linux-amd64"
@@ -242,6 +272,7 @@ def run_pebble(args):
                 "contact": ["mailto:nobody@example.com"],
                 "terms_of_service_agreed": True,
                 "challenge_type": "http-01",
+                "challenge_server_interface": "acme_challenge_server_if",
             }
         }
     }
@@ -254,11 +285,17 @@ def run_pebble(args):
                 acme_configuration="pebble",
             ),
         )
+        challenge_server_interface = infra.interfaces.RPCInterface(
+            host=endorsed_interface.host,
+            port=http_port,
+            endorsement=infra.interfaces.Endorsement(
+                authority=infra.interfaces.EndorsementAuthority.Unsecured
+            ),
+            accepted_endpoints=["/.well-known/acme-challenge/.*"],
+        )
         endorsed_interface.public_host = network_name
         node.rpc_interfaces["acme_endorsed_interface"] = endorsed_interface
-        node.acme_challenge_server_interface = (
-            endorsed_interface.host + ":" + str(http_port)
-        )
+        node.rpc_interfaces["acme_challenge_server_if"] = challenge_server_interface
 
     exception_seen = None
 
@@ -286,7 +323,13 @@ def run_pebble(args):
 
             try:
                 ca_certs = get_pebble_ca_certs(mgmt_address)
-                wait_for_certificates(args, network_name, ca_certs)
+                wait_for_certificates(
+                    args,
+                    network_name,
+                    ca_certs,
+                    "acme_endorsed_interface",
+                    "acme_challenge_server_if",
+                )
             except Exception as ex:
                 exception_seen = ex
             finally:
@@ -329,9 +372,9 @@ def run_lets_encrypt(args):
                 "contact": ["mailto:admin@ccf.dev"],
                 "terms_of_service_agreed": True,
                 "challenge_type": "http-01",
+                "challenge_server_interface": "0.0.0.0:80",
             }
         },
-        "challenge_server_interface": "0.0.0.0:80",
     }
 
     for node in args.nodes:
@@ -345,12 +388,58 @@ def run_lets_encrypt(args):
         endorsed_interface.endorsement.acme_configuration = "letsencrypt"
         node.rpc_interfaces["acme_endorsed_interface"] = endorsed_interface
 
-    wait_for_certificates(args, service_dns_name, ca_certs)
+        if node == args.nodes[0]:
+            # Only the first node offers the challenge server interface,
+            # as only one can serve port 80.
+            challenge_server_interface = infra.interfaces.RPCInterface(
+                host=endorsed_interface.host,
+                port=80,
+                endorsement=infra.interfaces.Endorsement(
+                    authority=infra.interfaces.EndorsementAuthority.Unsecured
+                ),
+                accepted_endpoints=["/.well-known/acme-challenge/.*"],
+            )
+            node.rpc_interfaces["acme_challenge_server_if"] = challenge_server_interface
+
+    wait_for_certificates(
+        args,
+        service_dns_name,
+        ca_certs,
+        "acme_endorsed_interface",
+        "acme_challenge_server_if",
+    )
+
+
+def run_unsecured(args):
+    for node in args.nodes:
+        endorsed_interface = infra.interfaces.RPCInterface(
+            host=infra.net.expand_localhost(),
+            endorsement=infra.interfaces.Endorsement(
+                authority=infra.interfaces.EndorsementAuthority.Node,
+            ),
+        )
+        challenge_server_interface = infra.interfaces.RPCInterface(
+            host=endorsed_interface.host,
+            port=1024,
+            endorsement=infra.interfaces.Endorsement(
+                authority=infra.interfaces.EndorsementAuthority.Unsecured
+            ),
+            accepted_endpoints=["/.well-known/acme-challenge/.*"],
+        )
+        node.rpc_interfaces["secured_interface"] = endorsed_interface
+        node.rpc_interfaces["unsecured_interface"] = challenge_server_interface
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        test_unsecured_interfaces(network, "secured_interface", "unsecured_interface")
 
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run_pebble(args)
+    run_unsecured(args)
     # run_lets_encrypt(args)

@@ -212,11 +212,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
     # is at least one historical entry to verify.
     network.txs.issue(network, number_txs=1)
     idx, historical_entry = network.txs.get_last_tx(priv=True)
-    for _ in range(1, args.snapshot_tx_interval):
-        network.txs.issue(network, number_txs=1, repeat=True)
-        last_tx = network.txs.get_last_tx(priv=True)
-        if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
-            break
+    network.txs.issue(network, number_txs=1, repeat=True)
 
     new_node = network.create_node("local://localhost")
     network.join_node(
@@ -325,6 +321,8 @@ def test_retire_primary(network, args):
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
     new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
+    # See https://github.com/microsoft/CCF/issues/1713
+    check_can_progress(new_primary)
     # The old primary should automatically be removed from the store
     # once a new primary is elected
     network.wait_for_node_in_store(
@@ -450,7 +448,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(datetime.now()),
+                    "valid_from": str(datetime.utcnow()),
                 },
             },
             {

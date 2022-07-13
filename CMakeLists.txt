@@ -339,6 +339,12 @@ if(BUILD_TESTS)
     )
     target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
 
+    add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
+    target_link_libraries(
+      js_test PRIVATE quickjs.host ccf_kv.host ccf_endpoints.host
+                      http_parser.host
+    )
+
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
@@ -479,7 +485,8 @@ if(BUILD_TESTS)
     if(NOT UNSAFE_VERSION)
       # Unsafe builds do not follow normal version conventions
       add_test(NAME versionifier_test
-               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+               COMMAND ${PYTHON}
+                       ${CMAKE_SOURCE_DIR}/python/ccf/_versionifier.py
       )
 
       add_test(NAME github_version_lts_test

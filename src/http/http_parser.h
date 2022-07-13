@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/hex.h"
+#include "ccf/http_configuration.h"
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 #include "http_proc.h"
@@ -18,6 +19,16 @@
 
 namespace http
 {
+  class RequestPayloadTooLarge : public std::runtime_error
+  {
+    using runtime_error::runtime_error;
+  };
+
+  class RequestHeaderTooLarge : public std::runtime_error
+  {
+    using runtime_error::runtime_error;
+  };
+
   inline auto split_url_path(const std::string_view& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
@@ -180,6 +191,7 @@ namespace http
   protected:
     llhttp_t parser;
     llhttp_settings_t settings;
+    ParserConfiguration configuration;
     State state = DONE;
 
     std::vector<uint8_t> body_buf;
@@ -194,7 +206,10 @@ namespace http
       partial_parsed_header.second.clear();
     }
 
-    Parser(llhttp_type_t type)
+    Parser(
+      llhttp_type_t type,
+      const ParserConfiguration& config = ParserConfiguration{}) :
+      configuration(config)
     {
       llhttp_settings_init(&settings);
 
@@ -237,6 +252,15 @@ namespace http
       {
         LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
         std::copy(at, at + length, std::back_inserter(body_buf));
+
+        auto const& max_body_size =
+          configuration.max_body_size.value_or(default_max_body_size);
+        if (body_buf.size() > max_body_size)
+        {
+          throw RequestPayloadTooLarge(fmt::format(
+            "HTTP request body is too large (max size allowed: {})",
+            max_body_size));
+        }
       }
       else
       {
@@ -281,18 +305,46 @@ namespace http
       if (!partial_parsed_header.second.empty())
       {
         complete_header();
+        auto const& max_headers_count =
+          configuration.max_headers_count.value_or(default_max_headers_count);
+        if (headers.size() > max_headers_count)
+        {
+          throw RequestHeaderTooLarge(fmt::format(
+            "Too many headers (max number allowed: {})", max_headers_count));
+        }
       }
 
       // HTTP headers are stored lowercase as it is easier to verify HTTP
       // signatures later on
       auto f = std::string(at, length);
       nonstd::to_lower(f);
-      partial_parsed_header.first.append(f);
+      auto& partial_header_key = partial_parsed_header.first;
+      partial_header_key.append(f);
+
+      auto const& max_header_size =
+        configuration.max_header_size.value_or(default_max_header_size);
+      if (partial_header_key.size() > max_header_size)
+      {
+        throw RequestHeaderTooLarge(fmt::format(
+          "Header key for '{}' is too large (max size allowed: {})",
+          partial_parsed_header.first,
+          max_header_size));
+      }
     }
 
     void header_value(const char* at, size_t length)
     {
-      partial_parsed_header.second.append(at, length);
+      auto& partial_header_value = partial_parsed_header.second;
+      partial_header_value.append(at, length);
+      auto const& max_header_size =
+        configuration.max_header_size.value_or(default_max_header_size);
+      if (partial_header_value.size() > max_header_size)
+      {
+        throw RequestHeaderTooLarge(fmt::format(
+          "Header value for '{}' is too large (max size allowed: {})",
+          partial_parsed_header.first,
+          max_header_size));
+      }
     }
 
     void headers_complete()
@@ -352,7 +404,11 @@ namespace http
     std::string url = "";
 
   public:
-    RequestParser(RequestProcessor& proc_) : Parser(HTTP_REQUEST), proc(proc_)
+    RequestParser(
+      RequestProcessor& proc_,
+      const ParserConfiguration& config = ParserConfiguration{}) :
+      Parser(HTTP_REQUEST, config),
+      proc(proc_)
     {
       settings.on_url = on_url;
     }
@@ -404,7 +460,7 @@ namespace http
 
   public:
     ResponseParser(ResponseProcessor& proc_) :
-      Parser(HTTP_RESPONSE),
+      Parser(HTTP_RESPONSE, ParserConfiguration{}),
       proc(proc_)
     {}
 
