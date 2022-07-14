@@ -68,6 +68,14 @@ if(LVI_MITIGATIONS)
   )
 endif()
 
+list(APPEND COMPILE_LIBCXX -stdlib=libc++)
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
+else()
+  # Clang <9 needs to link libc++fs when using <filesystem>
+  list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
+endif()
+
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "INSTALL_LIBS")
