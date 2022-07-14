@@ -11,7 +11,6 @@ set(COMPILE_TARGETS
 )
 
 set(IS_VALID_TARGET "FALSE")
-
 foreach(REQUESTED_TARGET ${COMPILE_TARGETS})
   if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
     set(IS_VALID_TARGET "TRUE")
@@ -32,23 +31,21 @@ endif()
 
 # Find OpenEnclave package
 find_package(OpenEnclave 0.18.0 CONFIG REQUIRED)
-
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
 # OpenEnclave_INCLUDE_DIRS
+
 set(OE_TARGET_LIBC openenclave::oelibc)
 set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
                               openenclave::oelibc openenclave::oecryptoopenssl
 )
-
 # These oe libraries must be linked in specific order
 set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
                                 openenclave::oecore openenclave::oesyscall
 )
 
 option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
-
 if(LVI_MITIGATIONS)
   string(APPEND OE_TARGET_LIBC -lvi-cfg)
   list(TRANSFORM OE_TARGET_ENCLAVE_AND_STD APPEND -lvi-cfg)
@@ -72,7 +69,6 @@ if(LVI_MITIGATIONS)
 endif()
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
-
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
 else()
@@ -151,6 +147,7 @@ endfunction()
 
 # Enclave library wrapper
 function(add_ccf_app name)
+
   cmake_parse_arguments(
     PARSE_ARGV 1 PARSED_ARGS "" ""
     "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS;INSTALL_LIBS"
@@ -176,7 +173,6 @@ function(add_ccf_app name)
     add_lvi_mitigations(${enc_name})
 
     add_dependencies(${name} ${enc_name})
-
     if(PARSED_ARGS_DEPS)
       add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
     endif()
@@ -211,7 +207,6 @@ function(add_ccf_app name)
     add_san(${virt_name})
 
     add_dependencies(${name} ${virt_name})
-
     if(PARSED_ARGS_DEPS)
       add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
     endif()

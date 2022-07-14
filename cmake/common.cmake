@@ -25,7 +25,6 @@ endif()
 
 option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
-
 if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "trace")
   add_compile_definitions(VERBOSE_LOGGING)
@@ -34,7 +33,6 @@ endif()
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
        OFF
 )
-
 if(USE_NULL_ENCRYPTOR)
   add_compile_definitions(USE_NULL_ENCRYPTOR)
 endif()
@@ -46,20 +44,16 @@ option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
-
 if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
-
 option(ENABLE_HTTP2 "Enable experimental support for HTTP2" OFF)
-
 if(ENABLE_HTTP2)
   message(STATUS "Enabling experimental support for HTTP2")
   add_compile_definitions(ENABLE_HTTP2)
 endif()
 
 option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
-
 if(ENABLE_BFT)
   add_compile_definitions(ENABLE_BFT)
 endif()
@@ -67,7 +61,6 @@ endif()
 option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
        OFF
 )
-
 if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
 endif()
@@ -118,7 +111,6 @@ add_custom_command(
 set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh
                   verify_quote.sh
 )
-
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -136,7 +128,6 @@ set(CCF_TEST_UTILITIES
     config.jinja
     recovery_benchmark.sh
 )
-
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
     ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -197,7 +188,6 @@ find_library(TLS_LIBRARY ssl)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
-
 if(ENABLE_HTTP2)
   include(${CCF_DIR}/cmake/nghttp2.cmake)
 endif()
@@ -238,7 +228,6 @@ if(SAN OR NOT USE_SNMALLOC)
   set(SNMALLOC_LIB)
 else()
   set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-
   # Remove the following two lines once we upgrade to snmalloc 0.5.4
   set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
   set(USE_POSIX_COMMIT_CHECKS off)
@@ -268,7 +257,6 @@ target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
 if("sgx" IN_LIST COMPILE_TARGETS)
   target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_SGX)
 endif()
-
 if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_VIRTUAL)
   target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
@@ -284,7 +272,6 @@ target_link_libraries(
           ${LINK_LIBCXX}
           ccfcrypto.host
 )
-
 if("sgx" IN_LIST COMPILE_TARGETS)
   target_link_libraries(cchost PRIVATE openenclave::oehost)
 endif()
@@ -295,7 +282,6 @@ install(TARGETS cchost DESTINATION bin)
 add_executable(
   scenario_perf_client ${CCF_DIR}/src/clients/perf/scenario_perf_client.cpp
 )
-
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(
     scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
@@ -307,7 +293,6 @@ else()
                                  ccfcrypto.host c++fs
   )
 endif()
-
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
@@ -319,7 +304,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
@@ -342,7 +326,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
@@ -362,7 +345,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
@@ -402,7 +384,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-
 if("virtual" IN_LIST COMPILE_TARGETS)
   add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.virtual)
@@ -434,7 +415,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-
 if("virtual" IN_LIST COMPILE_TARGETS)
   add_library(
     js_generic_base.virtual STATIC
@@ -457,7 +437,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic
@@ -470,8 +449,8 @@ sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
-
 # SNIPPET_END: JS generic application
+
 include(${CCF_DIR}/cmake/js_v8.cmake)
 include(${CCF_DIR}/cmake/quictls.cmake)
 
@@ -483,6 +462,7 @@ install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
 
 # Helper for building clients inheriting from perf_client
 function(add_client_exe name)
+
   cmake_parse_arguments(
     PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
@@ -495,6 +475,7 @@ function(add_client_exe name)
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
+
 endfunction()
 
 # Helper for building end-to-end function tests using the python infrastructure
@@ -576,7 +557,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-
     if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
       # Containerised nodes are only enabled with long tests
       set_property(
@@ -585,7 +565,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CONTAINER_NODES=ON"
       )
     endif()
-
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
@@ -604,6 +583,7 @@ endfunction()
 
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
+
   cmake_parse_arguments(
     PARSE_ARGV
     0
@@ -624,7 +604,6 @@ function(add_perf_test)
   endif()
 
   set(TESTS_SUFFIX "")
-
   if("sgx" IN_LIST COMPILE_TARGETS)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
   endif()
@@ -660,7 +639,6 @@ function(add_perf_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
       TEST ${TEST_NAME}
@@ -668,7 +646,6 @@ function(add_perf_test)
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
-
   set_property(
     TEST ${TEST_NAME}
     APPEND
