@@ -57,3 +57,13 @@ namespace http
   static constexpr char const* required_signature_headers[] = {
     auth::SIGN_HEADER_REQUEST_TARGET, headers::DIGEST};
 }
+
+namespace http2
+{
+  namespace headers
+  {
+    static constexpr auto PATH = ":path";
+    static constexpr auto STATUS = ":status";
+    static constexpr auto METHOD = ":method";
+  }
+}
