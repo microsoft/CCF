@@ -4,10 +4,10 @@
 set(ALLOWED_TARGETS "sgx;virtual")
 
 set(COMPILE_TARGETS
-  "sgx;virtual"
-  CACHE
-  STRING
-  "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
+    "sgx;virtual"
+    CACHE
+      STRING
+      "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
 )
 
 set(IS_VALID_TARGET "FALSE")
@@ -18,7 +18,7 @@ foreach(REQUESTED_TARGET ${COMPILE_TARGETS})
   else()
     message(
       FATAL_ERROR
-      "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
+        "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
     )
   endif()
 endforeach()
@@ -26,7 +26,7 @@ endforeach()
 if((NOT ${IS_VALID_TARGET}))
   message(
     FATAL_ERROR
-    "Variable list 'COMPILE_TARGETS' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
+      "Variable list 'COMPILE_TARGETS' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
 
@@ -39,12 +39,12 @@ find_package(OpenEnclave 0.18.0 CONFIG REQUIRED)
 # OpenEnclave_INCLUDE_DIRS
 set(OE_TARGET_LIBC openenclave::oelibc)
 set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
-  openenclave::oelibc openenclave::oecryptoopenssl
+                              openenclave::oelibc openenclave::oecryptoopenssl
 )
 
 # These oe libraries must be linked in specific order
 set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
-  openenclave::oecore openenclave::oesyscall
+                                openenclave::oecore openenclave::oesyscall
 )
 
 option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
@@ -63,8 +63,8 @@ endfunction()
 
 if(LVI_MITIGATIONS)
   set(LVI_MITIGATION_BINDIR
-    /opt/oe_lvi
-    CACHE STRING "Path to the LVI mitigation bindir."
+      /opt/oe_lvi
+      CACHE STRING "Path to the LVI mitigation bindir."
   )
   find_package(
     OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
@@ -91,19 +91,16 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
 
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-
       # Copy conf file locally
       COMMAND cp ${app_oe_conf_path} ${DEBUG_CONF_NAME}
-
       # Remove any existing Debug= lines
       COMMAND sed -i "/^Debug=\.*/d" ${DEBUG_CONF_NAME}
-
       # Add Debug=1 line
       COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
       COMMAND
-      openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-      ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
-      ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+        ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
+        ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
@@ -117,18 +114,15 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-
       # Copy conf file locally
       COMMAND cp ${app_oe_conf_path} ${SIGNED_CONF_NAME}
-
       # Remove any existing Debug= lines
       COMMAND sed -i "/^Debug=\.*/d" ${SIGNED_CONF_NAME}
-
       # Add Debug=0 line
       COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
       COMMAND
-      openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-      ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
+        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+        ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
@@ -139,10 +133,10 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
 
     if(${PARSED_ARGS_INSTALL_LIBS})
       install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-        DESTINATION lib
+              DESTINATION lib
       )
       install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-        DESTINATION lib
+              DESTINATION lib
       )
     endif()
   endif()
@@ -174,7 +168,7 @@ function(add_ccf_app name)
     add_warning_checks(${enc_name})
     target_link_libraries(
       ${enc_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
-      ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
+                          ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)

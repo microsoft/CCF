@@ -11,10 +11,10 @@ option(PROFILE_TESTS "Profile tests" OFF)
 set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
-  ""
-  CACHE
-  STRING
-  "Hosts to which performance tests should be distributed, for example -n ssh://x.x.x.x -n ssh://x.x.x.x -n ssh://x.x.x.x"
+    ""
+    CACHE
+      STRING
+      "Hosts to which performance tests should be distributed, for example -n ssh://x.x.x.x -n ssh://x.x.x.x -n ssh://x.x.x.x"
 )
 
 if(DISTRIBUTE_PERF_TESTS)
@@ -32,7 +32,7 @@ if(VERBOSE_LOGGING)
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
-  OFF
+       OFF
 )
 
 if(USE_NULL_ENCRYPTOR)
@@ -65,7 +65,7 @@ if(ENABLE_BFT)
 endif()
 
 option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
-  OFF
+       OFF
 )
 
 if(ENABLE_2TX_RECONFIG)
@@ -98,15 +98,15 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 if(SAN AND LVI_MITIGATIONS)
   message(
     FATAL_ERROR
-    "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
+      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
   )
 endif()
 
 add_custom_command(
   COMMAND
-  openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
-  --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir
-  ${CCF_GENERATED_DIR}
+    openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
+    --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir
+    ${CCF_GENERATED_DIR}
   COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
   COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
   DEPENDS ${CCF_DIR}/edl/ccf.edl
@@ -116,7 +116,7 @@ add_custom_command(
 
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh
-  verify_quote.sh
+                  verify_quote.sh
 )
 
 foreach(UTILITY ${CCF_UTILITIES})
@@ -128,13 +128,13 @@ endforeach()
 
 # Copy utilities from tests directory
 set(CCF_TEST_UTILITIES
-  tests.sh
-  cimetrics_env.sh
-  upload_pico_metrics.py
-  test_install.sh
-  docker_wrap.sh
-  config.jinja
-  recovery_benchmark.sh
+    tests.sh
+    cimetrics_env.sh
+    upload_pico_metrics.py
+    test_install.sh
+    docker_wrap.sh
+    config.jinja
+    recovery_benchmark.sh
 )
 
 foreach(UTILITY ${CCF_TEST_UTILITIES})
@@ -167,28 +167,28 @@ else()
 endif()
 
 set(HTTP_PARSER_SOURCES
-  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
-  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
-  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
 set(CCF_ENDPOINTS_SOURCES
-  ${CCF_DIR}/src/endpoints/endpoint.cpp
-  ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
-  ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
-  ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
-  ${CCF_DIR}/src/endpoints/json_handler.cpp
-  ${CCF_DIR}/src/endpoints/authentication/authentication_types.cpp
-  ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
-  ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
-  ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
-  ${CCF_DIR}/src/endpoints/authentication/sig_auth.cpp
-  ${CCF_DIR}/src/enclave/enclave_time.cpp
-  ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
-  ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
-  ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
-  ${CCF_DIR}/src/node/historical_queries_adapter.cpp
-  ${CCF_DIR}/src/node/receipt.cpp
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/json_handler.cpp
+    ${CCF_DIR}/src/endpoints/authentication/authentication_types.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/sig_auth.cpp
+    ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
+    ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
+    ${CCF_DIR}/src/node/historical_queries_adapter.cpp
+    ${CCF_DIR}/src/node/receipt.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
@@ -277,12 +277,12 @@ endif()
 target_link_libraries(
   cchost
   PRIVATE uv
-  ${SNMALLOC_LIB}
-  ${TLS_LIBRARY}
-  ${CMAKE_DL_LIBS}
-  ${CMAKE_THREAD_LIBS_INIT}
-  ${LINK_LIBCXX}
-  ccfcrypto.host
+          ${SNMALLOC_LIB}
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -299,12 +299,12 @@ add_executable(
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(
     scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-    ccfcrypto.host
+                                 ccfcrypto.host
   )
 else()
   target_link_libraries(
     scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-    ccfcrypto.host c++fs
+                                 ccfcrypto.host c++fs
   )
 endif()
 
@@ -330,7 +330,7 @@ install(
 
 # CCF kv libs
 set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
-  ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+                   ${CCF_DIR}/src/kv/untyped_map_handle.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -374,22 +374,22 @@ install(
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
-  0
-  CACHE STRING "Number of worker threads to start on each CCF node"
+    0
+    CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
 set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
-  --constitution
-  ${CCF_DIR}/samples/constitutions/default/actions.js
-  --constitution
-  ${CCF_DIR}/samples/constitutions/default/validate.js
-  --constitution
-  ${CCF_DIR}/samples/constitutions/default/resolve.js
-  --constitution
-  ${CCF_DIR}/samples/constitutions/default/apply.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/actions.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/validate.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/resolve.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/apply.js
 )
 set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
-  --worker-threads ${WORKER_THREADS}
+                          --worker-threads ${WORKER_THREADS}
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -410,7 +410,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-    _LIBCPP_HAS_THREAD_API_PTHREAD
+                                  _LIBCPP_HAS_THREAD_API_PTHREAD
   )
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -446,7 +446,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-    _LIBCPP_HAS_THREAD_API_PTHREAD
+                                   _LIBCPP_HAS_THREAD_API_PTHREAD
   )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -464,7 +464,7 @@ add_ccf_app(
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
   LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual INSTALL_LIBS
-  ON
+                    ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
@@ -476,7 +476,7 @@ include(${CCF_DIR}/cmake/js_v8.cmake)
 include(${CCF_DIR}/cmake/quictls.cmake)
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
-  DESTINATION samples/logging
+        DESTINATION samples/logging
 )
 
 # Samples
@@ -512,14 +512,14 @@ function(add_e2e_test)
   if(BUILD_END_TO_END_TESTS)
     if(PROFILE_TESTS)
       set(PYTHON_WRAPPER
-        py-spy
-        record
-        --format
-        speedscope
-        -o
-        ${PARSED_ARGS_NAME}.trace
-        --
-        python3
+          py-spy
+          record
+          --format
+          speedscope
+          -o
+          ${PARSED_ARGS_NAME}.trace
+          --
+          python3
       )
     else()
       set(PYTHON_WRAPPER ${PYTHON})
@@ -529,9 +529,9 @@ function(add_e2e_test)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
-      ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
-      ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-      --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
+        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
+        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -577,7 +577,7 @@ function(add_e2e_test)
       )
     endif()
 
-    if((${PARSED_ARGS_CONTAINER_NODES}) AND(LONG_TESTS))
+    if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
       # Containerised nodes are only enabled with long tests
       set_property(
         TEST ${PARSED_ARGS_NAME}
@@ -647,11 +647,11 @@ function(add_perf_test)
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
-    ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-    ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
-    ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
-    ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
-    ${NODES}
+      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
+      ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${NODES}
   )
 
   # Make python test client framework importable
@@ -693,7 +693,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-    ccfcrypto.host
+                    ccfcrypto.host
   )
 
   # -Wall -Werror catches a number of warnings in picobench
@@ -702,8 +702,8 @@ function(add_picobench name)
   add_test(
     NAME ${name}
     COMMAND
-    bash -c
-    "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
+      bash -c
+      "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
   )
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
