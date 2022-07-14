@@ -8,7 +8,8 @@
     "src/global.ts",
     "src/historical.ts",
     "src/kv.ts",
-    "src/polyfill.ts"
+    "src/polyfill.ts",
+    "src/openenclave.ts"
   ],
   "out": "html",
   "theme": "default",
