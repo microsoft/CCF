@@ -195,10 +195,14 @@ namespace logger
     auto file_line = fmt::format("{}:{} ", ll.file_name, ll.line_number);
     auto file_line_data = file_line.data();
 
-    // The preamble is the tag followed by the file line. If the file line is
+    // The preamble is the level, then tag, then file line. If the file line is
     // too long, the final characters are retained.
-    const auto tag = ll.tag.substr(0, preamble_length);
-    const auto max_file_line_len = preamble_length - tag.size();
+    auto preamble = fmt::format(
+                      "[{:<5}]{} ",
+                      to_string(ll.log_level),
+                      (ll.tag.empty() ? "" : fmt::format("[{}]", ll.tag)))
+                      .substr(0, preamble_length);
+    const auto max_file_line_len = preamble_length - preamble.size();
 
     const auto len = file_line.size();
     if (len > max_file_line_len)
@@ -206,7 +210,7 @@ namespace logger
       file_line_data += len - max_file_line_len;
     }
 
-    const auto preamble = fmt::format("{} {}", tag, file_line_data);
+    preamble += file_line_data;
 
     if (enclave_offset.has_value())
     {
@@ -332,7 +336,7 @@ namespace logger
 // 2. Be a higher precedence than &&, such that the log statement is bound
 // more tightly than the short-circuiting.
 // This allows:
-// CCF_LOG_OUT(DEBUG, "[foo]") << "this " << "msg";
+// CCF_LOG_OUT(DEBUG, "foo") << "this " << "msg";
 #define CCF_LOG_OUT(LVL, TAG) \
   logger::config::ok(logger::LVL) && \
     logger::Out() == logger::LogLine(logger::LVL, TAG, __FILE__, __LINE__)
@@ -344,11 +348,11 @@ namespace logger
 #define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_2
 
 #ifdef VERBOSE_LOGGING
-#  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "[trace]")
-#  define LOG_DEBUG_FMT CCF_LOG_FMT(DEBUG, "[debug]")
+#  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "")
+#  define LOG_DEBUG_FMT CCF_LOG_FMT(DEBUG, "")
 
-#  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "[trace][app]")
-#  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "[debug][app]")
+#  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
+#  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
@@ -359,13 +363,13 @@ namespace logger
 #  define CCF_APP_DEBUG(...) ((void)0)
 #endif
 
-#define LOG_INFO_FMT CCF_LOG_FMT(INFO, "[info ]")
-#define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "[fail ]")
-#define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "[fatal]")
+#define LOG_INFO_FMT CCF_LOG_FMT(INFO, "")
+#define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "")
+#define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "")
 
-#define CCF_APP_INFO CCF_LOG_FMT(INFO, "[info ][app]")
-#define CCF_APP_FAIL CCF_LOG_FMT(FAIL, "[fail ][app]")
-#define CCF_APP_FATAL CCF_LOG_FMT(FATAL, "[fatal][app]")
+#define CCF_APP_INFO CCF_LOG_FMT(INFO, "app")
+#define CCF_APP_FAIL CCF_LOG_FMT(FAIL, "app")
+#define CCF_APP_FATAL CCF_LOG_FMT(FATAL, "app")
 
 #pragma clang diagnostic pop
 }

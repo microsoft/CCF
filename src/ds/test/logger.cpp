@@ -72,11 +72,11 @@ TEST_CASE("Standard logging macros")
   logger::config::loggers().clear();
 }
 
-constexpr auto custom_tag = "[my tag]";
+constexpr auto custom_tag = "my tag";
 #define CUSTOM_LOG CCF_LOG_FMT(INFO, custom_tag)
 
 constexpr auto custom_long_tag =
-  "[A very long tag that may need to be truncated]";
+  "A very long tag that may need to be truncated";
 #define CUSTOM_LOG_LONG CCF_LOG_FMT(INFO, custom_long_tag)
 
 TEST_CASE("Custom logging macros")
@@ -92,7 +92,7 @@ TEST_CASE("Custom logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") == std::string::npos);
+    REQUIRE(log.find("info") != std::string::npos);
     REQUIRE(log.find(custom_tag) != std::string::npos);
     REQUIRE(log.find("logger.cpp") != std::string::npos);
     REQUIRE(log.find("Some message") != std::string::npos);
@@ -106,7 +106,7 @@ TEST_CASE("Custom logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") == std::string::npos);
+    REQUIRE(log.find("info") != std::string::npos);
     // Search for smaller prefixes of the long tag, expect that one is
     // eventually present
     std::string truncated_tag = custom_long_tag;
