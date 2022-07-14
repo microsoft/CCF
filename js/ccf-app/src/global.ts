@@ -269,7 +269,7 @@ export interface CCFRpc {
    * Set a claims digest to be associated with the transaction if it succeeds. This
    * digest can later be accessed from the receipt, and expanded into a full claim.
    *
-   * The `digest` argument must be a sha-256 ArrayBuffer, eg. produced by {@link CCF.digest}
+   * The `digest` argument must be a sha-256 ArrayBuffer, eg. produced by {@link global!CCF.digest}.
    */
   setClaimsDigest(digest: ArrayBuffer): void;
 }
@@ -331,7 +331,7 @@ export interface CCFHistorical {
    *
    * If the requested range failed to be retrieved then `null` is returned.
    * This may happen if the range is not known to the node (see also
-   * {@linkcode CCFConsensus.getStatusForTxId | getStatusForTxId}) or not available for
+   * {@linkcode global!CCFConsensus.getStatusForTxId | getStatusForTxId}) or not available for
    * other reasons (for example, the node is missing ledger files on disk).
    */
   getStateRange(
