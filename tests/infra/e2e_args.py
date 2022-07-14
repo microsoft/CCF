@@ -28,6 +28,9 @@ def nodes(args, n):
                     max_http_body_size=args.max_http_body_size,
                     max_http_header_size=args.max_http_header_size,
                     max_http_headers_count=args.max_http_headers_count,
+                    app_protocol=infra.interfaces.AppProtocol.HTTP2
+                    if args.http2
+                    else infra.interfaces.AppProtocol.HTTP1,
                 )
             }
         )
@@ -359,6 +362,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--max-http-headers-count",
         help="Maximum number of headers in single HTTP request",
         default=256,
+    )
+    parser.add_argument(
+        "--http2",
+        help="Enable HTTP/2 for all interfaces",
+        action="store_true",
+        default=False,
     )
 
     add(parser)

@@ -105,7 +105,7 @@ namespace ccf
 
     virtual void on_http_request(
       const http::URL& url,
-      std::vector<uint8_t>&& req,
+      http::Request&& req,
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) override

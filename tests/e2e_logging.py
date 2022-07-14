@@ -136,6 +136,7 @@ def verify_receipt(
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 @app.scoped_txs(verify=False)
 def test(network, args):
     network.txs.issue(
@@ -613,6 +614,7 @@ def test_multi_auth(network, args):
 
 @reqs.description("Call an endpoint with a custom auth policy")
 @reqs.supports_methods("/app/custom_auth")
+@reqs.no_http2()
 def test_custom_auth(network, args):
     primary, other = network.find_primary_and_any_backup()
 
@@ -653,6 +655,7 @@ def test_custom_auth(network, args):
 
 @reqs.description("Call an endpoint with a custom auth policy which throws")
 @reqs.supports_methods("/app/custom_auth")
+@reqs.no_http2()
 def test_custom_auth_safety(network, args):
     primary, other = network.find_primary_and_any_backup()
 
@@ -743,6 +746,7 @@ def test_metrics(network, args):
 
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
+@reqs.no_http2()
 @app.scoped_txs()
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
@@ -1103,6 +1107,7 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 @app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
@@ -1128,6 +1133,7 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Testing signed queries with escaped queries")
 @reqs.installed_package("samples/apps/logging/liblogging")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 def test_signed_escapes(network, args):
     node = network.find_node_by_role()
     with node.client("user0", "user0") as c:
@@ -1431,6 +1437,7 @@ def test_random_receipts(
 
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
+@reqs.no_http2()
 @app.scoped_txs()
 def test_liveness(network, args):
     network.txs.issue(
@@ -1508,7 +1515,10 @@ def run(args):
     for local_node_id, node_host in enumerate(args.nodes):
         for interface_name, host in additional_interfaces(local_node_id).items():
             node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
-                host=host
+                host=host,
+                app_protocol=infra.interfaces.AppProtocol.HTTP2
+                if args.http2
+                else infra.interfaces.AppProtocol.HTTP1,
             )
 
     txs = app.LoggingTxs("user0")
@@ -1614,19 +1624,20 @@ if __name__ == "__main__":
     )
 
     # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    if not cr.args.http2:
+        cr.add(
+            "js_illegal",
+            run_parsing_errors,
+            package="libjs_generic",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+        cr.add(
+            "cpp_illegal",
+            run_parsing_errors,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        )
 
     # This is just for the UDP echo test for now
     cr.add(

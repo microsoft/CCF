@@ -491,8 +491,11 @@ namespace ccf
         config.join.target_rpc_address);
 
       // Create RPC client and connect to remote node
-      auto join_client =
-        rpcsessions->create_client(std::move(join_client_cert));
+      // Note: For now, assume that target node accepts same application
+      // protocol as this node's main RPC interface
+      auto join_client = rpcsessions->create_client(
+        std::move(join_client_cert),
+        rpcsessions->get_app_protocol_main_interface());
 
       auto [target_host, target_port] =
         split_net_address(config.join.target_rpc_address);
@@ -721,7 +724,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_request(r.build_request());
+      join_client->send_request(r);
     }
 
     // Note: _unsafe() pattern can be simplified once 2.x has been released

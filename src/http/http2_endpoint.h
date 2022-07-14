@@ -6,32 +6,29 @@
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
-#include "http_parser.h"
+#include "http2.h"
 #include "http_rpc_context.h"
 
 namespace http
 {
-  class HTTPEndpoint : public ccf::TLSEndpoint
+  class HTTP2Endpoint : public ccf::TLSEndpoint
   {
   protected:
-    http::Parser& p;
-    std::shared_ptr<ErrorReporter> error_reporter;
+    http2::Session& session;
 
-    HTTPEndpoint(
-      http::Parser& p_,
-      tls::ConnID session_id,
+    HTTP2Endpoint(
+      http2::Session& session_,
+      int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx,
-      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
+      std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_),
-      error_reporter(error_reporter)
+      session(session_)
     {}
 
   public:
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<HTTPEndpoint*>(msg->data.self.get())
+      reinterpret_cast<HTTP2Endpoint*>(msg->data.self.get())
         ->recv_(msg->data.data.data(), msg->data.data.size());
     }
 
@@ -67,66 +64,24 @@ namespace http
 
         try
         {
-          p.execute(data, n_read);
+          session.recv(data, n_read);
 
           // Used all provided bytes - check if more are available
           n_read = read(buf.data(), buf.size(), false);
         }
-        catch (RequestPayloadTooLarge& e)
-        {
-          if (error_reporter)
-          {
-            error_reporter->report_request_payload_too_large_error(session_id);
-          }
-
-          LOG_DEBUG_FMT("Request is too large: {}", e.what());
-
-          send_raw(http::error(ccf::ErrorDetails{
-            HTTP_STATUS_PAYLOAD_TOO_LARGE,
-            ccf::errors::RequestBodyTooLarge,
-            e.what()}));
-
-          close();
-          break;
-        }
-        catch (RequestHeaderTooLarge& e)
-        {
-          if (error_reporter)
-          {
-            error_reporter->report_request_header_too_large_error(session_id);
-          }
-
-          LOG_DEBUG_FMT("Request header is too large: {}", e.what());
-
-          send_raw(http::error(ccf::ErrorDetails{
-            HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
-            ccf::errors::RequestHeaderTooLarge,
-            e.what()}));
-
-          close();
-          break;
-        }
         catch (const std::exception& e)
         {
-          if (error_reporter)
-          {
-            error_reporter->report_parsing_error(session_id);
-          }
+          LOG_FAIL_FMT("Error parsing HTTP request");
           LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
           auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
           response.set_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          // NB: Avoid formatting input data a string, as it may contain null
-          // bytes. Instead insert it at the end of this message, verbatim
-          auto body_s = fmt::format(
-            "Unable to parse data as a HTTP request. Error message is: {}\n"
-            "Error occurred while parsing fragment:\n",
+          auto body = fmt::format(
+            "Unable to parse data as a HTTP request. Error details are "
+            "below.\n\n{}",
             e.what());
-          std::vector<uint8_t> response_body(
-            std::begin(body_s), std::end(body_s));
-          response_body.insert(response_body.end(), data, data + n_read);
-          response.set_body(response_body.data(), response_body.size());
+          response.set_body((const uint8_t*)body.data(), body.size());
           send_raw(response.build_response());
 
           close();
@@ -136,33 +91,32 @@ namespace http
     }
   };
 
-  class HTTPServerEndpoint : public HTTPEndpoint, public http::RequestProcessor
+  class HTTP2ServerEndpoint : public HTTP2Endpoint,
+                              public http::RequestProcessor
   {
   private:
-    http::RequestParser request_parser;
+    http2::ServerSession server_session;
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
-    tls::ConnID session_id;
+    int64_t session_id;
     ccf::ListenInterfaceID interface_id;
 
   public:
-    HTTPServerEndpoint(
+    HTTP2ServerEndpoint(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      tls::ConnID session_id,
+      int64_t session_id,
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
-      const http::ParserConfiguration& configuration,
-      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      HTTPEndpoint(
-        request_parser,
-        session_id,
-        writer_factory,
-        std::move(ctx),
-        error_reporter),
-      request_parser(*this, configuration),
+      const http::ParserConfiguration&
+        configuration, // Note: Support configuration
+      const std::shared_ptr<ErrorReporter>& error_reporter =
+        nullptr) // Note: Report errors
+      :
+      HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
+      server_session(*this, *this),
       rpc_map(rpc_map),
       session_id(session_id),
       interface_id(interface_id)
@@ -178,7 +132,7 @@ namespace http
       const std::string_view& url,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body,
-      int32_t) override
+      int32_t stream_id) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {} [{} bytes])",
@@ -202,10 +156,7 @@ namespace http
         }
         catch (std::exception& e)
         {
-          send_raw(http::error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            e.what()));
+          // Note: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -218,7 +169,7 @@ namespace http
               "Request path must contain '/[actor]/[method]'. Unable to parse "
               "'{}'.",
               rpc_ctx->get_method()));
-          send_raw(rpc_ctx->serialise_response());
+          // Note: return HTTP_STATUS_NOT_FOUND, e.what()
           return;
         }
 
@@ -231,7 +182,7 @@ namespace http
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             fmt::format("Unknown actor '{}'.", actor_s));
-          send_raw(rpc_ctx->serialise_response());
+          // Note: return HTTP_STATUS_NOT_FOUND, e.what()
           return;
         }
 
@@ -245,12 +196,16 @@ namespace http
         }
         else
         {
-          send_buffered(response.value());
-          flush();
+          server_session.send_response(
+            stream_id,
+            rpc_ctx->get_response_http_status(),
+            rpc_ctx->get_response_headers(),
+            std::move(rpc_ctx->get_response_body()));
         }
       }
       catch (const std::exception& e)
       {
+        // Note: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
         send_raw(http::error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
@@ -265,44 +220,39 @@ namespace http
     }
   };
 
-  class HTTPClientEndpoint : public HTTPEndpoint,
-                             public ccf::ClientEndpoint,
-                             public http::ResponseProcessor
+  class HTTP2ClientEndpoint : public HTTP2Endpoint,
+                              public ccf::ClientEndpoint,
+                              public http::ResponseProcessor
   {
   private:
-    http::ResponseParser response_parser;
+    http2::ClientSession client_session;
 
   public:
-    HTTPClientEndpoint(
-      tls::ConnID session_id,
+    HTTP2ClientEndpoint(
+      int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
+      HTTP2Endpoint(client_session, session_id, writer_factory, std::move(ctx)),
       ClientEndpoint(session_id, writer_factory),
-      response_parser(*this)
+      client_session(*this, *this)
     {}
 
     void send_request(const http::Request& request) override
     {
-      send_raw(request.build_request());
+      // Note: Avoid extra copy
+      std::vector<uint8_t> request_body = {
+        request.get_content_data(),
+        request.get_content_data() + request.get_content_length()};
+      client_session.send_structured_request(
+        request.get_method(),
+        request.get_path(),
+        request.get_headers(),
+        std::move(request_body));
     }
 
-    void send(std::vector<uint8_t>&&, sockaddr) override
+    void send(std::vector<uint8_t>&& data, sockaddr) override
     {
-      throw std::logic_error(
-        "send() should not be called directly on HTTPClient");
-    }
-
-    void on_handshake_error(const std::string& error_msg) override
-    {
-      if (handle_error_cb)
-      {
-        handle_error_cb(error_msg);
-      }
-      else
-      {
-        LOG_FAIL_FMT("{}", error_msg);
-      }
+      send_raw(std::move(data));
     }
 
     void handle_response(

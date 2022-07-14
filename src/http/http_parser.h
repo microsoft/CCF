@@ -99,7 +99,8 @@ namespace http
       llhttp_method method,
       const std::string_view& url,
       http::HeaderMap&& headers,
-      std::vector<uint8_t>&& body) override
+      std::vector<uint8_t>&& body,
+      int32_t) override
     {
       received.emplace(Request{method, std::string(url), headers, body});
     }

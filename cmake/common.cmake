@@ -188,9 +188,7 @@ find_library(TLS_LIBRARY ssl)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
-if(ENABLE_HTTP2)
-  include(${CCF_DIR}/cmake/nghttp2.cmake)
-endif()
+include(${CCF_DIR}/cmake/nghttp2.cmake)
 
 # Unit test wrapper
 function(add_unit_test name)
