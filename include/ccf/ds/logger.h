@@ -347,25 +347,42 @@ namespace logger
 #define CCF_LOG_FMT_2(s, ...) fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 #define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_2
 
+  enum class macro
+  {
+    LOG_TRACE_FMT [[deprecated("Use CCF_APP_TRACE instead")]],
+    LOG_DEBUG_FMT [[deprecated("Use CCF_APP_DEBUG instead")]],
+    LOG_INFO_FMT [[deprecated("Use CCF_APP_INFO instead")]],
+    LOG_FAIL_FMT [[deprecated("Use CCF_APP_FAIL instead")]],
+    LOG_FATAL_FMT [[deprecated("Use CCF_APP_FATAL instead")]],
+  };
+
+#ifndef CCF_LOGGER_NO_DEPRECATE
+#  define CCF_LOGGER_DEPRECATE(MACRO) logger::macro::MACRO;
+#else
+#  define CCF_LOGGER_DEPRECATE(MACRO)
+#endif
+
 #ifdef VERBOSE_LOGGING
-#  define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "")
-#  define LOG_DEBUG_FMT CCF_LOG_FMT(DEBUG, "")
+#  define LOG_TRACE_FMT \
+    CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT) CCF_LOG_FMT(TRACE, "")
+#  define LOG_DEBUG_FMT \
+    CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT) CCF_LOG_FMT(DEBUG, "")
 
 #  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
 #  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
-#  define LOG_TRACE_FMT(...) ((void)0)
-#  define LOG_DEBUG_FMT(...) ((void)0)
+#  define LOG_TRACE_FMT(...) CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT)((void)0)
+#  define LOG_DEBUG_FMT(...) CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT)((void)0)
 
 #  define CCF_APP_TRACE(...) ((void)0)
 #  define CCF_APP_DEBUG(...) ((void)0)
 #endif
 
-#define LOG_INFO_FMT CCF_LOG_FMT(INFO, "")
-#define LOG_FAIL_FMT CCF_LOG_FMT(FAIL, "")
-#define LOG_FATAL_FMT CCF_LOG_FMT(FATAL, "")
+#define LOG_INFO_FMT CCF_LOGGER_DEPRECATE(LOG_INFO_FMT) CCF_LOG_FMT(INFO, "")
+#define LOG_FAIL_FMT CCF_LOGGER_DEPRECATE(LOG_FAIL_FMT) CCF_LOG_FMT(FAIL, "")
+#define LOG_FATAL_FMT CCF_LOGGER_DEPRECATE(LOG_FATAL_FMT) CCF_LOG_FMT(FATAL, "")
 
 #define CCF_APP_INFO CCF_LOG_FMT(INFO, "app")
 #define CCF_APP_FAIL CCF_LOG_FMT(FAIL, "app")
