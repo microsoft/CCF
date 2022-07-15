@@ -105,9 +105,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
                        sss.enclave ccf_endpoints.enclave ccf_kv.enclave
   )
 
-  if(ENABLE_HTTP2)
-    target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
-  endif()
+  target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
 
   enable_quote_code(ccf.enclave)
 
@@ -159,9 +157,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
-  if(ENABLE_HTTP2)
-    target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
-  endif()
+  target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -250,6 +246,10 @@ if(BUILD_TESTS)
 
     add_unit_test(
       json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
+    )
+
+    add_unit_test(
+      logger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger.cpp
     )
 
     add_unit_test(
@@ -706,6 +706,16 @@ if(BUILD_TESTS)
     CONTAINER_NODES TRUE
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
+
+  if(ENABLE_HTTP2)
+    add_e2e_test(
+      NAME e2e_logging_http2
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
+    )
+  endif()
 
   add_e2e_test(
     NAME membership

@@ -160,6 +160,7 @@ def test_memory(network, args):
 
 
 @reqs.description("Write/Read large messages on primary")
+@reqs.no_http2()
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 

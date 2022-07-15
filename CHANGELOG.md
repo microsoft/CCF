@@ -15,10 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added new `service_data_json_file` configuration entry to `cchost` to point to free-form JSON file to set arbitrary data to service (#3997).
 - Added new `current_service_create_txid` field to `GET /node/network` endpoint to indicate `TxID` at which current service was created (#3996).
 - Added new `read_only_directory` snapshots directory node configuration so that committed snapshots can be shared between nodes (#3973).
+- Experimental support for HTTP/2 (#4010).
 
 ### Changed
 
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+- Application code should now use the `CCF_APP_*` macros rather than `LOG_*_FMT` (eg - `CCF_APP_INFO` replacing `LOG_INFO_FMT`). The new macros will add an `[app]` tag to all lines so they can be easily filtered from framework code (#4024).
 
 ### Fixed
 

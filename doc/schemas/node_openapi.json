@@ -1,6 +1,13 @@
 {
   "components": {
     "schemas": {
+      "ApplicationProtocol": {
+        "enum": [
+          "HTTP1",
+          "HTTP2"
+        ],
+        "type": "string"
+      },
       "Authority": {
         "enum": [
           "Node",
@@ -508,6 +515,9 @@
         "properties": {
           "accepted_endpoints": {
             "$ref": "#/components/schemas/string_array"
+          },
+          "app_protocol": {
+            "$ref": "#/components/schemas/ApplicationProtocol"
           },
           "bind_address": {
             "$ref": "#/components/schemas/string"

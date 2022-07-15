@@ -266,7 +266,7 @@ namespace ccf
         });
       http::Request r(jwks_url.path, HTTP_GET);
       r.set_header(http::headers::HOST, std::string(jwks_url.host));
-      http_client->send_request(r.build_request());
+      http_client->send_request(r);
     }
 
     void refresh_jwt_keys()
@@ -334,7 +334,7 @@ namespace ccf
           });
         http::Request r(metadata_url.path, HTTP_GET);
         r.set_header(http::headers::HOST, std::string(metadata_url.host));
-        http_client->send_request(r.build_request());
+        http_client->send_request(r);
         return true;
       });
     }

@@ -39,16 +39,30 @@ namespace tls
     std::shared_ptr<Cert> cert;
 
   public:
-    Server(std::shared_ptr<Cert> cert_) : Context(false), cert(cert_)
+    Server(const std::shared_ptr<Cert>& cert_, bool http2 = false) :
+      Context(false),
+      cert(cert_)
     {
       cert->use(ssl, cfg);
 
       // Configure protocols negotiated by ALPN
-      static unsigned char alpn_protos_data[] = {
-        8, 'h', 't', 't', 'p', '/', '1', '.', '1'};
-      static AlpnProtocols alpn_protos{
-        alpn_protos_data, sizeof(alpn_protos_data)};
-      SSL_CTX_set_alpn_select_cb(cfg, alpn_select_cb, &alpn_protos);
+      // See https://nghttp2.org/documentation/tutorial-server.html and use of
+      // nghttp2_select_next_protocol for better example
+      if (http2)
+      {
+        static unsigned char alpn_protos_data[] = {2, 'h', '2'};
+        static AlpnProtocols alpn_protos{
+          alpn_protos_data, sizeof(alpn_protos_data)};
+        SSL_CTX_set_alpn_select_cb(cfg, alpn_select_cb, &alpn_protos);
+      }
+      else
+      {
+        static unsigned char alpn_protos_data[] = {
+          8, 'h', 't', 't', 'p', '/', '1', '.', '1'};
+        static AlpnProtocols alpn_protos{
+          alpn_protos_data, sizeof(alpn_protos_data)};
+        SSL_CTX_set_alpn_select_cb(cfg, alpn_select_cb, &alpn_protos);
+      }
     }
   };
 }

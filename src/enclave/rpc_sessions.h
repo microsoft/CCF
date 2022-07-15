@@ -6,6 +6,7 @@
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "forwarder_types.h"
+#include "http/http2_endpoint.h"
 #include "http/http_endpoint.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
@@ -24,8 +25,6 @@
 
 namespace ccf
 {
-  using ServerEndpointImpl = http::HTTPServerEndpoint;
-  using ClientEndpointImpl = http::HTTPClientEndpoint;
   using QUICEndpointImpl = quic::QUICEchoEndpoint;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
@@ -47,6 +46,7 @@ namespace ccf
       ccf::Endorsement endorsement;
       http::ParserConfiguration http_configuration;
       ccf::SessionMetrics::Errors errors;
+      ccf::ApplicationProtocol app_protocol;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
@@ -165,6 +165,37 @@ namespace ccf
         fmt::format("No RPC interface for session ID {}", id));
     }
 
+    std::shared_ptr<Endpoint> make_server_session(
+      ccf::ApplicationProtocol app_protocol,
+      tls::ConnID id,
+      const ListenInterfaceID& listen_interface_id,
+      std::unique_ptr<tls::Context>&& ctx,
+      const http::ParserConfiguration& parser_configuration)
+    {
+      if (app_protocol == ccf::ApplicationProtocol::HTTP2)
+      {
+        return std::make_shared<http::HTTP2ServerEndpoint>(
+          rpc_map,
+          id,
+          listen_interface_id,
+          writer_factory,
+          std::move(ctx),
+          parser_configuration,
+          shared_from_this());
+      }
+      else
+      {
+        return std::make_shared<http::HTTPServerEndpoint>(
+          rpc_map,
+          id,
+          listen_interface_id,
+          writer_factory,
+          std::move(ctx),
+          parser_configuration,
+          shared_from_this());
+      }
+    }
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -213,6 +244,9 @@ namespace ccf
         li.http_configuration =
           interface.http_configuration.value_or(http::ParserConfiguration{});
 
+        li.app_protocol =
+          interface.app_protocol.value_or(ApplicationProtocol::HTTP1);
+
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
           "{}] and endorsement authority to {}",
@@ -243,6 +277,20 @@ namespace ccf
       }
 
       return sm;
+    }
+
+    ccf::ApplicationProtocol get_app_protocol_main_interface() const
+    {
+      // Note: this is a temporary function to conveniently find out which
+      // protocol to use when creating client endpoints (e.g. for join
+      // protocol). This can be removed once the HTTP and HTTP/2 endpoints have
+      // been merged.
+      if (listening_interfaces.empty())
+      {
+        throw std::logic_error("No listening interface for this node");
+      }
+
+      return listening_interfaces.begin()->second.app_protocol;
     }
 
     void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
@@ -384,18 +432,24 @@ namespace ccf
           std::unique_ptr<tls::Context> ctx;
           if (
             per_listen_interface.endorsement.authority == Authority::UNSECURED)
+          {
             ctx = std::make_unique<nontls::PlaintextServer>();
+          }
           else
-            ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+          {
+            ctx = std::make_unique<tls::Server>(
+              certs[listen_interface_id],
+              per_listen_interface.app_protocol ==
+                ccf::ApplicationProtocol::HTTP2);
+          }
 
-          auto session = std::make_shared<ServerEndpointImpl>(
-            rpc_map,
+          auto session = make_server_session(
+            per_listen_interface.app_protocol,
             id,
             listen_interface_id,
-            writer_factory,
             std::move(ctx),
-            per_listen_interface.http_configuration,
-            shared_from_this());
+            per_listen_interface.http_configuration);
+
           sessions.insert(std::make_pair(
             id, std::make_pair(listen_interface_id, std::move(session))));
           per_listen_interface.open_sessions++;
@@ -442,7 +496,8 @@ namespace ccf
     }
 
     std::shared_ptr<ClientEndpoint> create_client(
-      std::shared_ptr<tls::Cert> cert)
+      const std::shared_ptr<tls::Cert>& cert,
+      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1)
     {
       std::lock_guard<ccf::Mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
@@ -450,17 +505,25 @@ namespace ccf
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
-      auto session = std::make_shared<ClientEndpointImpl>(
-        id, writer_factory, std::move(ctx));
-
       // There are no limits on outbound client sessions (we do not check any
       // session caps here). We expect this type of session to be rare and want
       // it to succeed even when we are busy.
-      sessions.insert(std::make_pair(id, std::make_pair("", session)));
-
-      sessions_peak = std::max(sessions_peak, sessions.size());
-
-      return session;
+      if (app_protocol == ccf::ApplicationProtocol::HTTP2)
+      {
+        auto session = std::make_shared<http::HTTP2ClientEndpoint>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
+        sessions_peak = std::max(sessions_peak, sessions.size());
+        return session;
+      }
+      else
+      {
+        auto session = std::make_shared<http::HTTPClientEndpoint>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
+        sessions_peak = std::max(sessions_peak, sessions.size());
+        return session;
+      }
     }
 
     void register_message_handlers(

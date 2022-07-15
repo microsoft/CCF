@@ -36,6 +36,11 @@ class EndorsementAuthority(Enum):
     Unsecured = auto()
 
 
+class AppProtocol(Enum):
+    HTTP1 = auto()
+    HTTP2 = auto()
+
+
 @dataclass
 class Endorsement:
     authority: EndorsementAuthority = EndorsementAuthority.Service
@@ -81,12 +86,14 @@ class RPCInterface(Interface):
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
+    app_protocol: AppProtocol = AppProtocol.HTTP1
 
     @staticmethod
     def to_json(interface):
         r = {
             "bind_address": f"{interface.host}:{interface.port}",
             "protocol": f"{interface.transport}",
+            "app_protocol": interface.app_protocol.name,
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
@@ -156,7 +163,7 @@ class HostSpec:
         )
 
     @staticmethod
-    def from_str(s):
+    def from_str(s, http2=False):
         # Format: local|ssh(,tcp|udp)://hostname:port
         protocol, address = s.split("://")
         transport = DEFAULT_TRANSPORT_PROTOCOL
@@ -176,6 +183,7 @@ class HostSpec:
                     port=port,
                     public_host=pub_host,
                     public_port=pub_port,
+                    app_protocol=AppProtocol.HTTP2 if http2 else AppProtocol.HTTP1,
                 )
             }
         )

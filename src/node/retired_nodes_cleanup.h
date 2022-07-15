@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/thread_messaging.h"
 #include "node_client.h"
 
 namespace ccf
