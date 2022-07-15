@@ -12,7 +12,7 @@ User-facing API
 As defined under :ref:`use_apps/rpc_api:Built-ins`.
 
 These endpoints are expected to be quite stable across releases, but it is difficult for CCF itself to version them because its own versioning scheme may not be in-sync with a given application: release dates and numbers will differ.
-It is instead recommended that applications programmatically disable these endpoints as exposed by CCF now, and replace them with their own as illustrated in :ref:`build_apps/logging_cpp:Default Endpoints`. This is currently only supported for C++ applications.
+It is instead recommended that applications programmatically disable these endpoints as exposed by CCF now, and replace them with their own as illustrated in :ref:`build_apps/example_cpp:Default Endpoints`. This is currently only supported for C++ applications.
 
 CCF exposes its implementation of the user built-in endpoints as a public, versioned C++ API and application code can dispatch to the chosen implementation for each of its own versions.
 

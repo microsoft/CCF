@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.7]
+
+### Added
+
+- Application code should now use the `CCF_APP_*` macros rather than `LOG_*_FMT` (eg - `CCF_APP_INFO` replacing `LOG_INFO_FMT`). The new macros will add an `[app]` tag to all lines so they can be easily filtered from framework code (#4024).
+
 ## [2.0.6]
 
 ### Dependencies
@@ -1566,6 +1572,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.7
 [2.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.6
 [2.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.5
 [2.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.4

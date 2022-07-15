@@ -1,5 +1,5 @@
-Logging (C++)
-=============
+Example app (C++)
+=================
 
 A C++ application exposes itself to CCF by implementing:
 
@@ -9,7 +9,7 @@ A C++ application exposes itself to CCF by implementing:
     :end-before: SNIPPET_END: app_interface
     :dedent:
 
-The Logging application simply has:
+The Logging example application simply has:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

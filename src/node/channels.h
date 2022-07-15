@@ -11,6 +11,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
 #include "crypto/key_exchange.h"
+#include "ds/ccf_exception.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
 #include "ds/thread_messaging.h"

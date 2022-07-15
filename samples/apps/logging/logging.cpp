@@ -375,7 +375,8 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        records_handle->put(params["id"], in.msg);
+        const auto id = params["id"].get<size_t>();
+        records_handle->put(id, in.msg);
         update_first_write(ctx.tx, in.id, false, get_scope(ctx));
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
@@ -383,6 +384,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_claims_digest(ccf::ClaimsDigest::Digest(in.msg));
         }
         // SNIPPET_END: set_claims_digest
+        CCF_APP_INFO("Storing {} = {}", id, in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -415,8 +417,12 @@ namespace loggingapp
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
+        {
+          CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
+        }
 
+        CCF_APP_INFO("Fetching - no entry for {}", id);
         return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::ResourceNotFound,
