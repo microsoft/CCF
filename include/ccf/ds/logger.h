@@ -38,7 +38,7 @@ namespace logger
 
   static constexpr long int ns_per_s = 1'000'000'000;
 
-  static constexpr auto preamble_length = 44u;
+  static constexpr auto preamble_length = 45u;
 
   struct LogLine
   {
