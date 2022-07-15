@@ -72,7 +72,8 @@ option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
-# Allow framework code to use LOG_*_FMT macros. These will be removed from public headers in future
+# Allow framework code to use LOG_*_FMT macros. These will be removed from
+# public headers in future
 add_compile_definitions(CCF_LOGGER_NO_DEPRECATE)
 
 # Build common library for CCF enclaves
