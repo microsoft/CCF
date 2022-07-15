@@ -370,7 +370,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.25.0";
+      openapi_info.document_version = "2.26.0";
     }
 
     void init_handlers() override
@@ -992,6 +992,40 @@ namespace ccf
         json_read_only_adapter(get_removable_nodes),
         no_auth_required)
         .set_auto_schema<void, GetNodes::Out>()
+        .install();
+
+      auto delete_removed_node = [this](auto& args, nlohmann::json&&) {
+        GetNodes::Out out;
+
+        std::string node_id;
+        std::string error;
+        if (!get_path_param(
+              args.rpc_ctx->get_request_path_params(),
+              "node_id",
+              node_id,
+              error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
+
+        auto nodes = args.tx.rw(this->network.nodes);
+
+        auto node = nodes->get_globally_committed(node_id);
+        if (node.has_value() && node->status == ccf::NodeStatus::REMOVED)
+        {
+          nodes->remove(node_id);
+        }
+
+        return make_success(true);
+      };
+
+      make_endpoint(
+        "/network/nodes/{node_id}",
+        HTTP_DELETE,
+        json_adapter(delete_removed_node),
+        no_auth_required)
+        .set_auto_schema<void, bool>()
         .install();
 
       auto get_self_signed_certificate = [this](auto& args, nlohmann::json&&) {
