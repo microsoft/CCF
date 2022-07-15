@@ -10,4 +10,4 @@
   { \
     X; \
   };
-#define MERKLECPP_TOUT LOG_TRACE
+#define MERKLECPP_TOUT CCF_LOG_OUT(TRACE, "merkl")

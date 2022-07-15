@@ -340,20 +340,7 @@ namespace ccf::endpoints
      */
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
-    void install()
-    {
-      if (installer == nullptr)
-      {
-        LOG_FATAL_FMT(
-          "Can't install this endpoint ({}) - it is not associated with an "
-          "installer",
-          full_uri_path);
-      }
-      else
-      {
-        installer->install(*this);
-      }
-    }
+    void install();
   };
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;

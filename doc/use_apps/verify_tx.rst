@@ -115,7 +115,7 @@ Note that since a receipt is a committment by a service to a transaction, a veri
 Application Claims
 ------------------
 
-CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`enclave::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
+CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`enclave::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/example_cpp:User-Defined Claims in Receipts`.
 
 This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
 For example, a logging application may choose to set the digest of the payload being logged as ``claims_digest``.
@@ -129,7 +129,7 @@ Revealing ``hash(claim_a)`` and ``claim_b`` allows verification without revealin
 
 Although CCF takes the approach of concatenating leaf components to keep its implementation simple and format-agnostic, an application may choose to encode its claims in a structured way for convenience, for example as JSON, CBOR etc.
 
-Applications may wish to expose dedicated endpoints, besides CCF's built-in :http:GET:`/node/receipt`, in which they can selectively expand claims, as illustrated in :ref:`build_apps/logging_cpp:User-Defined Claims in Receipts`.
+Applications may wish to expose dedicated endpoints, besides CCF's built-in :http:GET:`/node/receipt`, in which they can selectively expand claims, as illustrated in :ref:`build_apps/example_cpp:User-Defined Claims in Receipts`.
 If some claims must stay confidential, applications should encrypt them rather than merely digest them. They key can be kept in a private table for example, which like the claim will be available through the historical query API. The application logic can then decide whether to decrypt the claim for the caller depending on its authorisation policy.
 
 Commit Evidence

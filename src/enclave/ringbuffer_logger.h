@@ -28,6 +28,7 @@ namespace ccf
         line.file_name,
         line.line_number,
         line.log_level,
+        line.tag,
         line.thread_id,
         line.msg);
     }
