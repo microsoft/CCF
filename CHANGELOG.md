@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was in flight (#4018).
+
 ### Deprecated
 
 - The previous logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) have been deprecated, and should no longer be used by application code. Replace with the `CCF_APP_*` equivalent.
