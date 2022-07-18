@@ -802,9 +802,7 @@ class Network:
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
         self.consortium.retire_node(
-            remote_node,
-            node_to_retire,
-            timeout=timeout,
+            remote_node, node_to_retire, timeout=timeout, network=self
         )
         self.nodes.remove(node_to_retire)
 

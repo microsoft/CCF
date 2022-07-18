@@ -325,7 +325,7 @@ class Consortium:
             assert r.status_code == http.HTTPStatus.OK.value
             return r.body.json()
 
-    def retire_node(self, remote_node, node_to_retire, timeout=10):
+    def retire_node(self, remote_node, node_to_retire, timeout=10, network=None):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "remove_node",
@@ -333,6 +333,8 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
+        if remote_node == node_to_retire:
+            remote_node, _ = network.wait_for_new_primary(remote_node)
         end_time = time.time() + timeout
         r = None
         while time.time() < end_time:

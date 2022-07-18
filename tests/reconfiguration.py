@@ -605,8 +605,7 @@ def run(args):
             # TODO: work out why broken
             # test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
-            # TODO: make election-proof
-            # test_retire_primary(network, args)
+            test_retire_primary(network, args)
 
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)
