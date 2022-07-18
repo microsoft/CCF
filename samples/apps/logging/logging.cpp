@@ -211,6 +211,24 @@ namespace loggingapp
                                  PUBLIC_RECORDS;
     }
 
+    // Wrap all endpoints with trace logging of their invocation
+    ccf::endpoints::Endpoint make_endpoint(
+      const std::string& method,
+      ccf::RESTVerb verb,
+      const ccf::endpoints::EndpointFunction& f,
+      const ccf::AuthnPolicies& ap) override
+    {
+      return ccf::UserEndpointRegistry::make_endpoint(
+        method,
+        verb,
+        [method, verb, f](ccf::endpoints::EndpointContext& args) {
+          CCF_APP_TRACE("BEGIN {} {}", verb.c_str(), method);
+          f(args);
+          CCF_APP_TRACE("END   {} {}", verb.c_str(), method);
+        },
+        ap);
+    }
+
   public:
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),

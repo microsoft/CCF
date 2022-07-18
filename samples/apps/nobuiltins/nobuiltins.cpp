@@ -6,8 +6,6 @@
 #include "ccf/ds/json.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
-#include "node/rpc/call_types.h"
-#include "node/rpc/serialization.h"
 
 #include <charconv>
 
@@ -58,6 +56,13 @@ namespace nobuiltins
 
   DECLARE_JSON_TYPE(TimeResponse)
   DECLARE_JSON_REQUIRED_FIELDS(TimeResponse, timestamp)
+
+  struct GetCommit
+  {
+    ccf::TxID transaction_id;
+  };
+  DECLARE_JSON_TYPE(GetCommit)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit, transaction_id)
 
   // SNIPPET: registry_inheritance
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
@@ -184,7 +189,7 @@ namespace nobuiltins
       };
       make_endpoint(
         "/api", HTTP_GET, ccf::json_adapter(openapi), ccf::no_auth_required)
-        .set_auto_schema<void, ccf::GetAPI::Out>()
+        .set_auto_schema<void, nlohmann::json>()
         .install();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
@@ -194,7 +199,7 @@ namespace nobuiltins
 
         if (result == ccf::ApiResult::OK)
         {
-          ccf::GetCommit::Out out;
+          GetCommit out;
           out.transaction_id.view = view;
           out.transaction_id.seqno = seqno;
           return ccf::make_success(out);
@@ -214,7 +219,7 @@ namespace nobuiltins
         HTTP_GET,
         ccf::json_command_adapter(get_commit),
         ccf::no_auth_required)
-        .set_auto_schema<void, ccf::GetCommit::Out>()
+        .set_auto_schema<void, GetCommit>()
         .install();
 
       auto get_txid = [this](auto& ctx, nlohmann::json&&) {

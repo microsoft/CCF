@@ -72,6 +72,10 @@ option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
+# Allow framework code to use LOG_*_FMT macros. These will be removed from
+# public headers in future
+add_compile_definitions(CCF_LOGGER_NO_DEPRECATE)
+
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
@@ -231,11 +235,8 @@ add_custom_target(
   signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
-# Add Logging app.
-add_subdirectory(${CCF_DIR}/samples/apps/logging)
-
-# Add NoBuiltins app
-add_subdirectory(${CCF_DIR}/samples/apps/nobuiltins)
+# Add sample apps
+add_subdirectory(${CCF_DIR}/samples)
 
 if(BUILD_TESTS)
   enable_testing()

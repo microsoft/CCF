@@ -156,7 +156,7 @@ namespace ccf::endpoints
      * ccf::EndpointDefinition::authn_policies
      * @return The new Endpoint for further modification
      */
-    Endpoint make_endpoint(
+    virtual Endpoint make_endpoint(
       const std::string& method,
       RESTVerb verb,
       const EndpointFunction& f,
@@ -164,7 +164,7 @@ namespace ccf::endpoints
 
     /** Create a read-only endpoint.
      */
-    Endpoint make_read_only_endpoint(
+    virtual Endpoint make_read_only_endpoint(
       const std::string& method,
       RESTVerb verb,
       const ReadOnlyEndpointFunction& f,
@@ -175,7 +175,7 @@ namespace ccf::endpoints
      * Commands are endpoints which do not read or write from the KV. See
      * make_endpoint().
      */
-    Endpoint make_command_endpoint(
+    virtual Endpoint make_command_endpoint(
       const std::string& method,
       RESTVerb verb,
       const CommandEndpointFunction& f,

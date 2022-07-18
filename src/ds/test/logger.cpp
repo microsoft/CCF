@@ -23,7 +23,7 @@ public:
 using TestTextLogger = TestLogger<logger::TextConsoleLogger>;
 using TestJsonLogger = TestLogger<logger::JsonConsoleLogger>;
 
-TEST_CASE("Standard logging macros")
+TEST_CASE("Framework logging macros")
 {
   std::vector<std::string> logs;
 
@@ -63,6 +63,58 @@ TEST_CASE("Standard logging macros")
 
     const auto& log = logs[0];
     REQUIRE(log.find("fatal") != std::string::npos);
+    REQUIRE(log.find("logger.cpp") != std::string::npos);
+    REQUIRE(log.find("Hello C") != std::string::npos);
+
+    logs.clear();
+  }
+
+  logger::config::loggers().clear();
+}
+
+TEST_CASE("Application logging macros")
+{
+  std::vector<std::string> logs;
+
+  logger::config::loggers().emplace_back(
+    std::make_unique<TestTextLogger>(logs));
+
+  {
+    REQUIRE(logs.empty());
+    CCF_APP_INFO("Hello A");
+    REQUIRE(logs.size() == 1);
+
+    const auto& log = logs[0];
+    REQUIRE(log.find("info") != std::string::npos);
+    REQUIRE(log.find("[app]") != std::string::npos);
+    REQUIRE(log.find("logger.cpp") != std::string::npos);
+    REQUIRE(log.find("Hello A") != std::string::npos);
+
+    logs.clear();
+  }
+
+  {
+    REQUIRE(logs.empty());
+    CCF_APP_FAIL("Hello B");
+    REQUIRE(logs.size() == 1);
+
+    const auto& log = logs[0];
+    REQUIRE(log.find("fail") != std::string::npos);
+    REQUIRE(log.find("[app]") != std::string::npos);
+    REQUIRE(log.find("logger.cpp") != std::string::npos);
+    REQUIRE(log.find("Hello B") != std::string::npos);
+
+    logs.clear();
+  }
+
+  {
+    REQUIRE(logs.empty());
+    REQUIRE_THROWS(CCF_APP_FATAL("Hello C"));
+    REQUIRE(logs.size() == 1);
+
+    const auto& log = logs[0];
+    REQUIRE(log.find("fatal") != std::string::npos);
+    REQUIRE(log.find("[app]") != std::string::npos);
     REQUIRE(log.find("logger.cpp") != std::string::npos);
     REQUIRE(log.find("Hello C") != std::string::npos);
 
