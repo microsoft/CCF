@@ -699,38 +699,11 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
     offsets.head = offsets.head_cache = offsets.tail =
       UINT64_MAX - (rand() % (4ull * ringbuffer::Const::max_size()));
 
-    auto print_offsets = [&offsets, &bd]() {
-      fmt::print(
-        "  hc={:X}, h={:X}, t={:X}\n",
-        offsets.head_cache,
-        offsets.head,
-        offsets.tail);
-
-      fmt::print(
-        "  Modulo indices: hc={:X}, h={:X}, t={:X}\n",
-        offsets.head_cache % bd.size,
-        offsets.head % bd.size,
-        offsets.tail % bd.size);
-    };
-
     SparseReader r(bd);
     SparseWriter w(r);
 
-    auto print_writes = [&r]() {
-      fmt::print("  {} writes:\n", r.writes.size());
-      for (const auto& [k, v] : r.writes)
-      {
-        fmt::print("   {:X} = {:X}\n", k, v);
-      }
-    };
-
-    auto i = 0ull;
     while (true)
     {
-      std::cout << std::endl;
-      std::cout << "Loop " << i << std::endl;
-      ++i;
-
       std::queue<std::pair<Message, size_t>> messages;
 
       const auto message_count = (rand() % 5) + 1;
@@ -738,32 +711,20 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
       {
         const auto message_type = rand_message_type();
         const auto message_size = rand_message_size();
-        fmt::print(
-          " Trying to write a {:X} byte message ({}/0x{:X})\n",
-          message_size,
-          message_type,
-          message_type);
         auto marker = w.prepare(message_type, message_size, false);
         if (!marker.has_value())
         {
-          REQUIRE(m > 0);
-          fmt::print(" Ringbuffer full, early out\n");
+          REQUIRE(!messages.empty());
+          // Ring-buffer is full (but at least one message has been written)
           break;
         }
         messages.push({message_type, message_size});
         w.finish(marker);
-
-        std::cout << " After write:" << std::endl;
-        print_offsets();
-        print_writes();
       }
-
-      fmt::print(" Wrote {} messages\n", messages.size());
 
       for (size_t i = 0; i < 2; ++i)
       {
         r.read(-1, [&messages](Message m, const uint8_t* data, size_t size) {
-          fmt::print("Processing {:X} byte message ({}/0x{:X})\n", size, m, m);
           REQUIRE(!messages.empty());
           const auto expected = messages.front();
           REQUIRE(m == expected.first);
@@ -772,17 +733,11 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
         });
       }
 
-      std::cout << " After read:" << std::endl;
-      print_offsets();
-      print_writes();
-
-      if (!messages.empty())
-      {
-        std::cout << messages.size() << " messages remain" << std::endl;
-      }
       REQUIRE(messages.empty());
 
-      if (offsets.head_cache < UINT64_MAX / 2)
+      if (
+        (offsets.head_cache < UINT64_MAX / 2) &&
+        offsets.head_cache > ringbuffer::Const::max_size())
       {
         break;
       }
