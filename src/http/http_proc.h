@@ -15,6 +15,9 @@
 
 namespace http
 {
+  // Only used for HTTP/2
+  constexpr static int32_t DEFAULT_STREAM_ID = 0;
+
   class RequestProcessor
   {
   public:
@@ -22,7 +25,8 @@ namespace http
       llhttp_method method,
       const std::string_view& url,
       HeaderMap&& headers,
-      std::vector<uint8_t>&& body) = 0;
+      std::vector<uint8_t>&& body,
+      int32_t stream_id = DEFAULT_STREAM_ID) = 0;
   };
 
   class ResponseProcessor

@@ -353,7 +353,7 @@ namespace ccfapp
             if (key.verb == other_key.verb)
             {
               const auto opt_spec =
-                ccf::endpoints::parse_path_template(other_key.uri_path);
+                ccf::endpoints::PathTemplateSpec::parse(other_key.uri_path);
               if (opt_spec.has_value())
               {
                 const auto& template_spec = opt_spec.value();
@@ -423,7 +423,8 @@ namespace ccfapp
         tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
-        const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
+        const auto opt_spec =
+          ccf::endpoints::PathTemplateSpec::parse(key.uri_path);
         if (opt_spec.has_value())
         {
           const auto& template_spec = opt_spec.value();

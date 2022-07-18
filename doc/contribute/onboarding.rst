@@ -23,7 +23,7 @@ First complete :doc:`/contribute/build_setup`, and see :doc:`/contribute/build_c
 Walk through a sample application
 ---------------------------------
 
-:doc:`/build_apps/logging_cpp` documents the sample native app under ``/samples/apps/logging`` in the repo.
+:doc:`/build_apps/example_cpp` documents the sample C++ app under ``/samples/apps/logging`` in the repo.
 
 The logging application is simple, but exercises most features of the framework, and is extensively used in the end to end tests.
 

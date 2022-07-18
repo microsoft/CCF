@@ -304,6 +304,10 @@ class CurlClient:
         self.signing_auth = signing_auth
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
+        if kwargs.get("http2"):
+            # Currently not supported. This is because we cannot easily construct
+            # a Response via from_raw() for HTTP/2
+            raise RuntimeError("HTTP/2 is not currently supported with CurlClient")
 
     def request(
         self,
@@ -318,13 +322,7 @@ class CurlClient:
 
             url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
 
-            cmd += [
-                url,
-                "-X",
-                request.http_verb,
-                "-i",
-                f"-m {timeout}",
-            ]
+            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
             if request.allow_redirects:
                 cmd.append("-L")
@@ -499,7 +497,9 @@ class RequestClient:
         except httpx.NetworkError as exc:
             raise CCFConnectionException from exc
         except Exception as exc:
-            raise RuntimeError("Request client failed with unexpected error") from exc
+            raise RuntimeError(
+                f"Request client failed with unexpected error: {exc}"
+            ) from exc
 
         return Response.from_requests_response(response)
 
@@ -553,7 +553,9 @@ class CCFClient:
         self.sign = bool(signing_auth)
 
         if curl or os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
+            self.client_impl = CurlClient(
+                host, port, ca, session_auth, signing_auth, **kwargs
+            )
         else:
             self.client_impl = RequestClient(
                 host, port, ca, session_auth, signing_auth, common_headers, **kwargs

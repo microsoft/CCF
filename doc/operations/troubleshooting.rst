@@ -87,3 +87,5 @@ There is an option to generate machine-readable logs for monitoring. To enable t
 - ``number`` is the line number in the file the log originated from
 - ``level`` is the level of the log message [info, debug, trace, fail, fatal]
 - ``msg`` is the log message
+
+See :ref:`this page <build_apps/logging:Logging>` for steps to add application-specific logging, which will have an additional ``tag`` field set to ``app``.
