@@ -18,6 +18,7 @@ import shutil
 import tempfile
 import glob
 import datetime
+import time
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
@@ -332,6 +333,26 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
+        end_time = time.time() + timeout
+        r = None
+        while time.time() < end_time:
+            try:
+                with remote_node.client(connection_timeout=timeout) as c:
+                    r = c.get(f"/node/network/removable_nodes").body.json()
+                    if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
+                        check_commit = infra.checker.Checker(c)
+                        r = c.delete(f"/node/network/nodes/{node_to_retire.node_id}")
+                        check_commit(r)
+                        break
+                    else:
+                        r = c.get(
+                            f"/node/network/nodes/{node_to_retire.node_id}"
+                        ).body.json()
+            except ConnectionRefusedError:
+                pass
+            time.sleep(0.1)
+        else:
+            raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
 
     def trust_node(
         self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
