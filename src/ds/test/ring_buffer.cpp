@@ -673,8 +673,8 @@ public:
 };
 
 // This test checks that the ringbuffer functions correctly when the offsets
-// wrap around from their maximum representable size to 0
-TEST_CASE("Offsets wrap" * doctest::test_suite("ringbuffer"))
+// overflow and wrap around from their maximum representable size to 0
+TEST_CASE("Offset overflow" * doctest::test_suite("ringbuffer"))
 {
   srand(time(NULL));
 
@@ -710,7 +710,7 @@ TEST_CASE("Offsets wrap" * doctest::test_suite("ringbuffer"))
     SparseReader r(bd);
     SparseWriter w(r);
 
-    // Loop until we've wrapped the offsets
+    // Loop until we've overflowed the offsets
     while (true)
     {
       // Record each message type and size that was written, for validation when
@@ -735,8 +735,8 @@ TEST_CASE("Offsets wrap" * doctest::test_suite("ringbuffer"))
         w.finish(marker);
       }
 
-      // Read twice, because .read will early-out when it reaches the end of the
-      // buffer
+      // Read twice, because read() will early-out when it reaches the end of
+      // the buffer
       for (size_t i = 0; i < 2; ++i)
       {
         r.read(-1, [&messages](Message m, const uint8_t* data, size_t size) {
@@ -756,8 +756,8 @@ TEST_CASE("Offsets wrap" * doctest::test_suite("ringbuffer"))
         (offsets.head_cache < UINT64_MAX / 2) &&
         offsets.head_cache > ringbuffer::Const::max_size())
       {
-        // If we have wrapped around, and correctly written a chunk after
-        // wrapping, then exit this iteration
+        // If we have overflowed, and correctly written several messages
+        // after wrapping, then exit this iteration
         break;
       }
     }
