@@ -108,6 +108,12 @@ namespace ringbuffer
       size_ = previous_power_of_2(size);
       return true;
     }
+
+    static uint64_t make_header(Message m, size_t size, bool pending = true)
+    {
+      return (((uint64_t)m) << 32) |
+        ((size & length_mask) | (pending ? pending_write_flag : 0u));
+    }
   };
 
   struct BufferDef
@@ -116,6 +122,22 @@ namespace ringbuffer
     size_t size;
 
     Offsets* offsets;
+
+    void check_access(size_t index, size_t access_size)
+    {
+      if (index + access_size > size)
+      {
+#ifdef RINGBUFFER_USE_ABORT
+        abort();
+#else
+        throw std::runtime_error(fmt::format(
+          "Ringbuffer access out of bounds - attempting to access {}, max "
+          "index is {}",
+          index + access_size,
+          size));
+#endif
+      }
+    }
   };
 
   namespace
@@ -146,6 +168,7 @@ namespace ringbuffer
 
     virtual uint64_t read64(size_t index)
     {
+      bd.check_access(index, sizeof(uint64_t));
       return read64_impl(bd, index);
     }
 
@@ -212,6 +235,7 @@ namespace ringbuffer
       if (advance > 0)
       {
         // Zero the buffer and advance the head.
+        bd.check_access(hd_index, advance);
         clear_mem(hd_index, advance);
         bd.offsets->head.store(hd + advance, std::memory_order_release);
       }
@@ -225,8 +249,6 @@ namespace ringbuffer
   protected:
     BufferDef bd; // copy of reader's buffer definition
     const size_t rmax;
-
-    virtual void checkAccess(size_t, size_t) {}
 
     struct Reservation
     {
@@ -308,7 +330,7 @@ namespace ringbuffer
       // Write the preliminary header and return the buffer pointer.
       // The initial header length has high bit set to indicate a pending
       // message. We rewrite the real length after the message data.
-      write64(r.value().index, make_header(m, size));
+      write64(r.value().index, Const::make_header(m, size));
 
       if (identifier != nullptr)
         *identifier = r.value().identifier;
@@ -325,7 +347,7 @@ namespace ringbuffer
         const auto header = read64(index);
         const auto size = length(header);
         const auto m = message(header);
-        const auto finished_header = make_header(m, size, false);
+        const auto finished_header = Const::make_header(m, size, false);
         write64(index, finished_header);
       }
     }
@@ -346,7 +368,7 @@ namespace ringbuffer
 
       const auto index = marker.value();
 
-      checkAccess(index, size);
+      bd.check_access(index, size);
 
       // Standard says memcpy(x, null, 0) is undefined, so avoid it
       if (size > 0)
@@ -372,20 +394,15 @@ namespace ringbuffer
 
     virtual uint64_t read64(size_t index)
     {
+      bd.check_access(index, sizeof(uint64_t));
       return read64_impl(bd, index);
     }
 
     virtual void write64(size_t index, uint64_t value)
     {
       atomic_thread_fence(std::memory_order_acq_rel);
-      checkAccess(index, sizeof(value));
+      bd.check_access(index, sizeof(value));
       *reinterpret_cast<volatile uint64_t*>(bd.data + index) = value;
-    }
-
-    uint64_t make_header(Message m, size_t size, bool pending = true)
-    {
-      return (((uint64_t)m) << 32) |
-        ((size & length_mask) | (pending ? pending_write_flag : 0u));
     }
 
     std::optional<Reservation> reserve(size_t size)
@@ -466,7 +483,7 @@ namespace ringbuffer
 
       if (padding != 0)
       {
-        write64(tl_index, make_header(Const::msg_pad, padding, false));
+        write64(tl_index, Const::make_header(Const::msg_pad, padding, false));
         tl_index = 0;
       }
 
