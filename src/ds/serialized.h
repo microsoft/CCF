@@ -60,20 +60,6 @@ namespace serialized
     return v;
   }
 
-  // Read a length-prefixed (uint16_t) buffer into a string view
-  inline std::string_view read_lpsv(const uint8_t*& data, size_t& size)
-  {
-    auto len = read<uint16_t>(data, size);
-    if (size < len)
-      throw std::logic_error(
-        "Insufficient space (read block: " + std::to_string(size) + " < " +
-        std::to_string(len) + ")");
-    std::string_view v((char*)data, len);
-    data += len;
-    size -= len;
-    return v;
-  };
-
   template <class T>
   void write(uint8_t*& data, size_t& size, const T& v)
   {
