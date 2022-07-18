@@ -360,22 +360,9 @@ namespace ringbuffer
   private:
     static bool greater_with_wraparound(size_t a, size_t b)
     {
-      if (a > b)
-      {
-        return true;
-      }
+      static constexpr auto switch_point = UINT64_MAX / 2;
 
-      // a and b are near each other, relative to the total range of size_t
-      // Sometimes, a has wrapped (past MAX), but b hasn't. In that window, we
-      // also consider a > b to be true
-      static constexpr auto wrap_window_end = UINT64_MAX / 4;
-      static constexpr auto wrap_window_begin = 3 * wrap_window_end;
-      if (a < wrap_window_end && b > wrap_window_begin)
-      {
-        return true;
-      }
-
-      return false;
+      return (a != b) && ((a - b) < switch_point);
     }
 
     virtual uint64_t read64(size_t index)

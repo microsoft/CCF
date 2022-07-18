@@ -674,10 +674,10 @@ public:
 
 TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
 {
-  // srand(time(NULL));
-  srand(3);
+  srand(time(NULL));
 
   const std::vector<size_t> message_sizes = {
+    0,
     3,
     ringbuffer::Const::max_size() / 3,
     ringbuffer::Const::max_size() - 3,
@@ -691,13 +691,13 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
     return message_sizes[rand() % message_sizes.size()];
   };
 
-  for (size_t iteration = 0; iteration < 1; ++iteration)
+  for (size_t iteration = 0; iteration < 100; ++iteration)
   {
     ringbuffer::Offsets offsets;
     ringbuffer::BufferDef bd{nullptr, 1ull << 32, &offsets};
 
     offsets.head = offsets.head_cache = offsets.tail =
-      UINT64_MAX - (3ull * UINT32_MAX);
+      UINT64_MAX - (rand() % (4ull * ringbuffer::Const::max_size()));
 
     auto print_offsets = [&offsets, &bd]() {
       fmt::print(
@@ -724,10 +724,12 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
       }
     };
 
-    for (size_t i = 0; i < 10; ++i)
+    auto i = 0ull;
+    while (true)
     {
       std::cout << std::endl;
       std::cout << "Loop " << i << std::endl;
+      ++i;
 
       std::queue<std::pair<Message, size_t>> messages;
 
@@ -779,6 +781,11 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
         std::cout << messages.size() << " messages remain" << std::endl;
       }
       REQUIRE(messages.empty());
+
+      if (offsets.head_cache < UINT64_MAX / 2)
+      {
+        break;
+      }
     }
   }
 }
