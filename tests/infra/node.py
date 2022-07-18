@@ -459,7 +459,7 @@ class Node:
                 rep = nc.get("/node/commit")
                 assert (
                     rep.status_code == 200
-                ), f"An error occured after node {self.local_node_id} joined the network: {rep.body}"
+                ), f"An error occurred after node {self.local_node_id} joined the network: {rep.body}"
                 self.network_state = infra.node.NodeNetworkState.joined
         except infra.clients.CCFConnectionException as e:
             raise TimeoutError(
