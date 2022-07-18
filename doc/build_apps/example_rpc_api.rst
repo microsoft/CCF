@@ -1,5 +1,5 @@
-Logging RPC API
-===============
+Example app RPC API
+===================
 
 .. openapi:: ../schemas/app_openapi.json
    :examples:

@@ -27,7 +27,9 @@ def run(args):
             ]
     else:
         hosts = args.node or DEFAULT_NODES
-        hosts = [infra.interfaces.HostSpec.from_str(node) for node in hosts]
+        hosts = [
+            infra.interfaces.HostSpec.from_str(node, http2=args.http2) for node in hosts
+        ]
 
     if not args.verbose:
         LOG.remove()

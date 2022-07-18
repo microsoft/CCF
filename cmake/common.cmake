@@ -185,20 +185,10 @@ set(CCF_ENDPOINTS_SOURCES
 find_library(CRYPTO_LIBRARY crypto)
 find_library(TLS_LIBRARY ssl)
 
-list(APPEND COMPILE_LIBCXX -stdlib=libc++)
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-  list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
-else()
-  # Clang <9 needs to link libc++fs when using <filesystem>
-  list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
-endif()
-
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
-if(ENABLE_HTTP2)
-  include(${CCF_DIR}/cmake/nghttp2.cmake)
-endif()
+include(${CCF_DIR}/cmake/nghttp2.cmake)
 
 # Unit test wrapper
 function(add_unit_test name)

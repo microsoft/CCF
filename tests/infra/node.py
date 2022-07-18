@@ -616,6 +616,9 @@ class Node:
         akwargs["protocol"] = (
             kwargs.get("protocol") if "protocol" in kwargs else "https"
         )
+        if rpc_interface.app_protocol == infra.interfaces.AppProtocol.HTTP2:
+            akwargs["http1"] = False
+            akwargs["http2"] = True
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[

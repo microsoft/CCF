@@ -45,11 +45,12 @@ namespace asynchost
              file_name,
              line_number,
              log_level,
+             tag,
              thread_id,
              msg] = ringbuffer::read_message<AdminMessage::log_msg>(data, size);
 
           logger::LogLine ll(
-            log_level, file_name.c_str(), line_number, thread_id);
+            log_level, tag, file_name.c_str(), line_number, thread_id);
           ll.msg = msg;
 
           // Represent offset as a real (counting seconds) to handle both small

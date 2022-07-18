@@ -165,7 +165,7 @@ namespace ACME
     virtual void on_certificate(const std::string& certificate) = 0;
     virtual void on_http_request(
       const http::URL& url,
-      std::vector<uint8_t>&& req,
+      http::Request&& req,
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) = 0;
@@ -201,7 +201,7 @@ namespace ACME
 
         on_http_request(
           url,
-          std::move(req),
+          std::move(r),
           [this, expected_status, ok_callback](
             http_status status,
             http::HeaderMap&& headers,
