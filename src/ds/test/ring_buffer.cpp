@@ -672,10 +672,14 @@ public:
   }
 };
 
-TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
+// This test checks that the ringbuffer functions correctly when the offsets
+// wrap around from their maximum representable size to 0
+TEST_CASE("Offsets wrap" * doctest::test_suite("ringbuffer"))
 {
   srand(time(NULL));
 
+  // Pass a randomly constructed list of messages of mixed size, some extremely
+  // large
   const std::vector<size_t> message_sizes = {
     0,
     3,
@@ -691,22 +695,31 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
     return message_sizes[rand() % message_sizes.size()];
   };
 
+  // Repeat test many times, with randomised parameters each time
   for (size_t iteration = 0; iteration < 100; ++iteration)
   {
     ringbuffer::Offsets offsets;
     ringbuffer::BufferDef bd{nullptr, 1ull << 32, &offsets};
 
+    // Initially set the offsets to a large value (within a few max-sized
+    // message writes of their maximum)
     offsets.head = offsets.head_cache = offsets.tail =
       UINT64_MAX - (rand() % (4ull * ringbuffer::Const::max_size()));
 
+    // Construct test reader/writer which don't require huge allocations.
     SparseReader r(bd);
     SparseWriter w(r);
 
+    // Loop until we've wrapped the offsets
     while (true)
     {
+      // Record each message type and size that was written, for validation when
+      // reading
       std::queue<std::pair<Message, size_t>> messages;
 
-      const auto message_count = (rand() % 5) + 1;
+      // Write a few messages this time. Deliberately randomised so it may fill
+      // the buffer, may wrap, or may write a few small messages.
+      const auto message_count = (rand() % 4) + 1;
       for (size_t m = 0; m < message_count; ++m)
       {
         const auto message_type = rand_message_type();
@@ -722,9 +735,12 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
         w.finish(marker);
       }
 
+      // Read twice, because .read will early-out when it reaches the end of the
+      // buffer
       for (size_t i = 0; i < 2; ++i)
       {
         r.read(-1, [&messages](Message m, const uint8_t* data, size_t size) {
+          // Validate and pop each message as it is seen, in-order
           REQUIRE(!messages.empty());
           const auto expected = messages.front();
           REQUIRE(m == expected.first);
@@ -733,12 +749,15 @@ TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
         });
       }
 
+      // Confirm that all messages were processed
       REQUIRE(messages.empty());
 
       if (
         (offsets.head_cache < UINT64_MAX / 2) &&
         offsets.head_cache > ringbuffer::Const::max_size())
       {
+        // If we have wrapped around, and correctly written a chunk after
+        // wrapping, then exit this iteration
         break;
       }
     }
