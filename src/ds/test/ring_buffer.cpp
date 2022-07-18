@@ -6,6 +6,8 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <map>
+#include <queue>
 #include <thread>
 #include <vector>
 
@@ -626,3 +628,160 @@ TEST_CASE("Multiple threads can wait" * doctest::test_suite("ringbuffer"))
     }
   }
 }
+
+class SparseReader : public ringbuffer::Reader
+{
+public:
+  std::map<size_t, uint64_t> writes;
+
+  using ringbuffer::Reader::Reader;
+
+  uint64_t read64(size_t index) override
+  {
+    const auto it = writes.find(index);
+    if (it != writes.end())
+    {
+      return it->second;
+    }
+
+    return 0;
+  }
+
+  virtual void clear_mem(size_t index, size_t advance) override
+  {
+    writes.erase(
+      writes.lower_bound(index), writes.upper_bound(index + advance));
+  }
+};
+
+class SparseWriter : public ringbuffer::Writer
+{
+public:
+  SparseReader& nr;
+
+  SparseWriter(SparseReader& nr_) : ringbuffer::Writer(nr_), nr(nr_) {}
+
+  uint64_t read64(size_t index) override
+  {
+    return nr.read64(index);
+  }
+
+  void write64(size_t index, uint64_t value) override
+  {
+    nr.writes[index] = value;
+  }
+};
+
+TEST_CASE("Index wrap" * doctest::test_suite("ringbuffer"))
+{
+  // srand(time(NULL));
+  srand(3);
+
+  const std::vector<size_t> message_sizes = {
+    3,
+    ringbuffer::Const::max_size() / 3,
+    ringbuffer::Const::max_size() - 3,
+    ringbuffer::Const::max_size()};
+
+  auto rand_message_type = []() {
+    return (rand() % 100) + ringbuffer::Const::msg_min;
+  };
+
+  auto rand_message_size = [&message_sizes]() {
+    return message_sizes[rand() % message_sizes.size()];
+  };
+
+  for (size_t iteration = 0; iteration < 1; ++iteration)
+  {
+    ringbuffer::Offsets offsets;
+    ringbuffer::BufferDef bd{nullptr, 1ull << 32, &offsets};
+
+    offsets.head = offsets.head_cache = offsets.tail =
+      UINT64_MAX - (3ull * UINT32_MAX);
+
+    auto print_offsets = [&offsets, &bd]() {
+      fmt::print(
+        "  hc={:X}, h={:X}, t={:X}\n",
+        offsets.head_cache,
+        offsets.head,
+        offsets.tail);
+
+      fmt::print(
+        "  Modulo indices: hc={:X}, h={:X}, t={:X}\n",
+        offsets.head_cache % bd.size,
+        offsets.head % bd.size,
+        offsets.tail % bd.size);
+    };
+
+    SparseReader r(bd);
+    SparseWriter w(r);
+
+    auto print_writes = [&r]() {
+      fmt::print("  {} writes:\n", r.writes.size());
+      for (const auto& [k, v] : r.writes)
+      {
+        fmt::print("   {:X} = {:X}\n", k, v);
+      }
+    };
+
+    for (size_t i = 0; i < 10; ++i)
+    {
+      std::cout << std::endl;
+      std::cout << "Loop " << i << std::endl;
+
+      std::queue<std::pair<Message, size_t>> messages;
+
+      const auto message_count = (rand() % 5) + 1;
+      for (size_t m = 0; m < message_count; ++m)
+      {
+        const auto message_type = rand_message_type();
+        const auto message_size = rand_message_size();
+        fmt::print(
+          " Trying to write a {:X} byte message ({}/0x{:X})\n",
+          message_size,
+          message_type,
+          message_type);
+        auto marker = w.prepare(message_type, message_size, false);
+        if (!marker.has_value())
+        {
+          REQUIRE(m > 0);
+          fmt::print(" Ringbuffer full, early out\n");
+          break;
+        }
+        messages.push({message_type, message_size});
+        w.finish(marker);
+
+        std::cout << " After write:" << std::endl;
+        print_offsets();
+        print_writes();
+      }
+
+      fmt::print(" Wrote {} messages\n", messages.size());
+
+      for (size_t i = 0; i < 2; ++i)
+      {
+        r.read(-1, [&messages](Message m, const uint8_t* data, size_t size) {
+          fmt::print("Processing {:X} byte message ({}/0x{:X})\n", size, m, m);
+          REQUIRE(!messages.empty());
+          const auto expected = messages.front();
+          REQUIRE(m == expected.first);
+          REQUIRE(size == expected.second);
+          messages.pop();
+        });
+      }
+
+      std::cout << " After read:" << std::endl;
+      print_offsets();
+      print_writes();
+
+      if (!messages.empty())
+      {
+        std::cout << messages.size() << " messages remain" << std::endl;
+      }
+      REQUIRE(messages.empty());
+    }
+  }
+}
+
+// TODO: Can a malicious writer cause a Reader to read OOB?
+// TODO: Can a malicious writer cause a Reader to clear OOB memory?

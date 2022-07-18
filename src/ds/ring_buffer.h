@@ -120,7 +120,7 @@ namespace ringbuffer
 
   namespace
   {
-    static inline uint64_t read64(const BufferDef& bd, size_t index)
+    static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
       uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
       atomic_thread_fence(std::memory_order_acq_rel);
@@ -143,6 +143,16 @@ namespace ringbuffer
     friend class Writer;
 
     BufferDef bd;
+
+    virtual uint64_t read64(size_t index)
+    {
+      return read64_impl(bd, index);
+    }
+
+    virtual void clear_mem(size_t index, size_t advance)
+    {
+      ::memset(bd.data + index, 0, advance);
+    }
 
   public:
     Reader(const BufferDef& bd_) : bd(bd_)
@@ -171,7 +181,7 @@ namespace ringbuffer
       while ((advance < block) && (count < limit))
       {
         auto msg_index = hd_index + advance;
-        auto header = read64(bd, msg_index);
+        auto header = read64(msg_index);
         auto size = length(header);
 
         // If we see a pending write, we're done.
@@ -202,7 +212,7 @@ namespace ringbuffer
       if (advance > 0)
       {
         // Zero the buffer and advance the head.
-        ::memset(bd.data + hd_index, 0, advance);
+        clear_mem(hd_index, advance);
         bd.offsets->head.store(hd + advance, std::memory_order_release);
       }
 
@@ -312,7 +322,7 @@ namespace ringbuffer
       {
         // Fix up the size to indicate we're done writing - unset pending bit.
         const auto index = marker.value() - Const::header_size();
-        const auto header = read64(bd, index);
+        const auto header = read64(index);
         const auto size = length(header);
         const auto m = message(header);
         const auto finished_header = make_header(m, size, false);
@@ -348,7 +358,32 @@ namespace ringbuffer
     }
 
   private:
-    void write64(size_t index, uint64_t value)
+    static bool greater_with_wraparound(size_t a, size_t b)
+    {
+      if (a > b)
+      {
+        return true;
+      }
+
+      // a and b are near each other, relative to the total range of size_t
+      // Sometimes, a has wrapped (past MAX), but b hasn't. In that window, we
+      // also consider a > b to be true
+      static constexpr auto wrap_window_end = UINT64_MAX / 4;
+      static constexpr auto wrap_window_begin = 3 * wrap_window_end;
+      if (a < wrap_window_end && b > wrap_window_begin)
+      {
+        return true;
+      }
+
+      return false;
+    }
+
+    virtual uint64_t read64(size_t index)
+    {
+      return read64_impl(bd, index);
+    }
+
+    virtual void write64(size_t index, uint64_t value)
     {
       atomic_thread_fence(std::memory_order_acq_rel);
       checkAccess(index, sizeof(value));
@@ -389,8 +424,10 @@ namespace ringbuffer
           // This happens if the head has passed the tail we previously loaded.
           // It is safe to continue here, as the compare_exchange_weak is
           // guaranteed to fail and update tl.
-          if (hd > tl)
+          if (greater_with_wraparound(hd, tl))
+          {
             continue;
+          }
 
           avail = bd.size - (tl - hd);
 
