@@ -273,28 +273,36 @@ namespace aft
 
   class ConfigurationChangeHook : public kv::ConsensusHook
   {
-    kv::Configuration::Nodes new_nodes;
+    kv::Configuration::Nodes
+      new_configuration; // Absence of node means that node has been retired
     kv::Version version;
 
   public:
     ConfigurationChangeHook(
-      kv::Configuration::Nodes new_nodes_, kv::Version version_) :
-      new_nodes(new_nodes_),
+      kv::Configuration::Nodes new_configuration_, kv::Version version_) :
+      new_configuration(new_configuration_),
       version(version_)
-    {
-      // Note: Does not support retired nodes (yet!)
-    }
+    {}
 
     void call(kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
 
-      for (const auto& [node_id, _] : new_nodes)
+      std::unordered_set<ccf::NodeId> retired_nodes = {};
+      for (const auto& [node_id, _] : configuration)
+      {
+        if (new_configuration.find(node_id) == new_configuration.end())
+        {
+          retired_nodes.emplace(node_id);
+        }
+      }
+
+      for (const auto& [node_id, _] : new_configuration)
       {
         configuration[node_id] = {};
       }
 
-      consensus->add_configuration(version, configuration, {}, {});
+      consensus->add_configuration(version, configuration, {}, retired_nodes);
     }
   };
 
