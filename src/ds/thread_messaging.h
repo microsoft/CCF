@@ -225,6 +225,11 @@ namespace threading
       tasks(num_threads)
     {}
 
+    ~ThreadMessaging()
+    {
+      drop_tasks();
+    }
+
     // Drop all pending tasks, this is only ever to be used
     // on shutdown, to avoid leaks, and after all thread but
     // the main one have been shut down.
