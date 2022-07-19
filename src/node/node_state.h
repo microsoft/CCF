@@ -131,7 +131,7 @@ namespace ccf
     // this node's core state
     //
     ds::StateMachine<NodeStartupState> sm;
-    ccf::Mutex lock;
+    ccf::Pal::Mutex lock;
 
     crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
@@ -307,7 +307,7 @@ namespace ccf
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::uninitialized);
 
       consensus_config = consensus_config_;
@@ -335,7 +335,7 @@ namespace ccf
     //
     NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
 
       config = std::move(config_);
@@ -507,7 +507,7 @@ namespace ccf
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
-          std::lock_guard<ccf::Mutex> guard(lock);
+          std::lock_guard<ccf::Pal::Mutex> guard(lock);
           if (!sm.check(NodeStartupState::pending))
           {
             return;
@@ -690,7 +690,7 @@ namespace ccf
           }
         },
         [this](const std::string& error_msg) {
-          std::lock_guard<ccf::Mutex> guard(lock);
+          std::lock_guard<ccf::Pal::Mutex> guard(lock);
           auto long_error_msg = fmt::format(
             "Early error when joining existing network at {}: {}. Shutting "
             "down node gracefully...",
@@ -732,7 +732,7 @@ namespace ccf
     // (https://github.com/microsoft/CCF/issues/2981)
     void initiate_join()
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       initiate_join_unsafe();
     }
 
@@ -760,7 +760,7 @@ namespace ccf
 
     void join()
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       start_join_timer();
     }
 
@@ -801,7 +801,7 @@ namespace ccf
     //
     void start_ledger_recovery()
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       if (
         !sm.check(NodeStartupState::readingPublicLedger) &&
         !sm.check(NodeStartupState::verifyingSnapshot))
@@ -820,7 +820,7 @@ namespace ccf
 
     void recover_public_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       std::shared_ptr<kv::Store> store;
       if (sm.check(NodeStartupState::readingPublicLedger))
@@ -1008,13 +1008,13 @@ namespace ccf
 
     void verify_snapshot_end()
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       verify_snapshot_end_unsafe();
     }
 
     void advance_part_of_public_network()
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::readingPublicLedger);
       history->start_signature_emit_timer();
       sm.advance(NodeStartupState::partOfPublicNetwork);
@@ -1134,7 +1134,7 @@ namespace ccf
     //
     void recover_private_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
@@ -1306,7 +1306,7 @@ namespace ccf
     //
     void recover_ledger_end()
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       if (is_reading_public_ledger())
       {
@@ -1477,7 +1477,7 @@ namespace ccf
       kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       auto service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
@@ -1576,7 +1576,7 @@ namespace ccf
 
     void initiate_private_recovery(kv::Tx& tx) override
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
       recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
@@ -1726,7 +1726,7 @@ namespace ccf
 
     ExtendedState state() override
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       auto s = sm.value();
       if (s == NodeStartupState::readingPrivateLedger)
       {
@@ -1740,7 +1740,7 @@ namespace ccf
 
     bool rekey_ledger(kv::Tx& tx) override
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfNetwork);
 
       // The ledger should not be re-keyed when the service is not open
@@ -1775,7 +1775,7 @@ namespace ccf
 
     kv::Version get_startup_snapshot_seqno() override
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       return startup_seqno;
     }
 
@@ -1786,7 +1786,7 @@ namespace ccf
 
     crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       return self_signed_node_cert;
     }
 
@@ -2241,7 +2241,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<ccf::Mutex> guard(lock);
+              std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
               endorsed_node_cert = endorsed_certificate.value();
               history->set_endorsed_certificate(endorsed_node_cert.value());
@@ -2342,7 +2342,7 @@ namespace ccf
       // from. If the primary changes while the network is public-only, the
       // new primary should also know at which version the new ledger secret
       // is applicable from.
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       return last_recovered_signed_idx;
     }
 
