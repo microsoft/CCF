@@ -26,7 +26,7 @@ Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
     $ cd CCF
     $ mkdir build
     $ cd build
-    $ cmake -GNinja -DTARGET=virtual ..
+    $ cmake -GNinja -DCOMPILE_TARGETS=virtual ..
     $ ninja
 
 .. note:::
