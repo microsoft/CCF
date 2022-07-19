@@ -342,9 +342,6 @@ extern "C"
                threading::ThreadMessaging::thread_count - 1)
         {
         }
-        // All threads are done, we can drop any remaining tasks safely and
-        // completely
-        threading::ThreadMessaging::thread_messaging.drop_tasks();
         return s;
       }
       else
