@@ -209,6 +209,11 @@ public:
     }
   }
 
+  ~RaftDriver()
+  {
+    threading::ThreadMessaging::thread_messaging.drop_tasks();
+  }
+
   void create_new_node(std::string node_id_s)
   {
     ccf::NodeId node_id(node_id_s);
