@@ -699,7 +699,10 @@ TEST_CASE("Offset overflow" * doctest::test_suite("ringbuffer"))
   for (size_t iteration = 0; iteration < 100; ++iteration)
   {
     ringbuffer::Offsets offsets;
-    ringbuffer::BufferDef bd{nullptr, 1ull << 32, &offsets};
+
+    // bd points to a single real byte, not null, so we can do maths on it
+    auto buffer_start = std::make_unique<uint8_t>();
+    ringbuffer::BufferDef bd{buffer_start.get(), 1ull << 32, &offsets};
 
     // Initially set the offsets to a large value (within a few max-sized
     // message writes of their maximum)
