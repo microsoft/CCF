@@ -287,16 +287,19 @@ namespace aft
     void call(kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
+      std::unordered_set<ccf::NodeId> retired_nodes;
 
-      std::unordered_set<ccf::NodeId> retired_nodes = {};
-      for (const auto& [node_id, _] : configuration)
+      // Remove and track retired nodes
+      for (auto it = configuration.begin(); it != configuration.end(); ++it)
       {
-        if (new_configuration.find(node_id) == new_configuration.end())
+        if (new_configuration.find(it->first) == new_configuration.end())
         {
-          retired_nodes.emplace(node_id);
+          retired_nodes.emplace(it->first);
+          it = configuration.erase(it);
         }
       }
 
+      // Add new node to configuration
       for (const auto& [node_id, _] : new_configuration)
       {
         configuration[node_id] = {};

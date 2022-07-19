@@ -168,7 +168,7 @@ private:
     raft->replicate(kv::BatchVector{{idx, d, true, hooks}}, term);
   }
 
-  std::shared_ptr<TRaft> add_node(ccf::NodeId node_id)
+  void add_node(ccf::NodeId node_id)
   {
     auto kv = std::make_shared<Store>(node_id);
     const consensus::Configuration settings{
@@ -181,6 +181,7 @@ private:
       std::make_shared<aft::State>(node_id),
       nullptr,
       nullptr);
+    raft->start_ticking();
 
     if (_nodes.find(node_id) != _nodes.end())
     {
@@ -188,30 +189,31 @@ private:
     }
 
     _nodes.emplace(node_id, NodeDriver{kv, raft});
-    return raft;
   }
 
 public:
-  RaftDriver(std::vector<std::string> node_ids)
-  {
-    kv::Configuration::Nodes configuration;
+  RaftDriver() = default;
 
-    for (const auto& node_id_s : node_ids)
+  ~RaftDriver()
+  {
+    threading::ThreadMessaging::thread_messaging.drop_tasks();
+  }
+
+  void create_new_nodes(std::vector<std::string> node_ids)
+  {
+    // Opinionated way to create network. Initial configuration is automatically
+    // added to all nodes.
+    kv::Configuration::Nodes configuration;
+    for (auto const& n : node_ids)
     {
-      auto raft = add_node(node_id_s);
-      raft->start_ticking();
-      configuration.try_emplace(node_id_s);
+      add_node(n);
+      configuration.try_emplace(n);
     }
 
     for (auto& node : _nodes)
     {
       node.second.raft->add_configuration(0, configuration);
     }
-  }
-
-  ~RaftDriver()
-  {
-    threading::ThreadMessaging::thread_messaging.drop_tasks();
   }
 
   void create_new_node(std::string node_id_s)
@@ -714,6 +716,19 @@ public:
              "  Note over {}: Node is not in expected state: primary", node_id)
         << std::endl;
       throw std::runtime_error("Node not in expected state primary");
+    }
+  }
+
+  void assert_is_candidate(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_candidate())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: candidate",
+             node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state candidate");
     }
   }
 

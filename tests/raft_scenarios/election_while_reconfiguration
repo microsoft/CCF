@@ -1,6 +1,8 @@
 # This scenario checks that an election completes successfully and with the right 
 # quorums when a reconfiguration is in flight
-nodes,0,1,2
+create_new_node,0
+create_new_node,1
+create_new_node,2
 connect,0,1
 connect,0,2
 connect,1,2
@@ -9,12 +11,13 @@ periodic_one,0,110
 dispatch_all
 
 assert_is_primary,0
-assert_is_backup,1
 
-periodic_all,10
+replicate_new_configuration,1,0,1,2 # Initial configuration: [0,1,2]
+periodic_all,30
 dispatch_all
 
-state_all
+assert_is_backup,1
+assert_is_backup,2
 
 # Reconfiguration: add three nodes and remove one so that new node 3
 # requires votes from a majority (2) of nodes in first configuration ([1,2])
@@ -39,18 +42,36 @@ connect,2,5
 connect,3,5
 connect,4,5
 
+dispatch_all
+
+state_all
+
 replicate_new_configuration,1,1,2,3,4,5 # New configuration: [1,2,3,4,5] in term 1 (quorum=3)
 periodic_all,10
-dispatch_one,0
 
-state_all # All nodes have seen the reconfiguration entry
+# New nodes first respond with NACKs as they don't have full history
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
 
 # One new node calls for an election (e.g. because primary 1 is dead)
 periodic_one,3,100
+
+state_all
 
 dispatch_one,3
 dispatch_one,1
 dispatch_one,2
 
+assert_is_candidate,3
+
+# Node 3 currently needs 4 votes (majority in union of 2 configuration
+#, i.e. 6 nodes) to become primary
+dispatch_one,4
+
 state_all
+
 assert_is_primary,3
