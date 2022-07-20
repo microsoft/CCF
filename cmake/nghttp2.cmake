@@ -25,6 +25,7 @@ set(NGHTTP2_SRCS
     ${NGHTTP2_PREFIX}/nghttp2_priority_spec.c
     ${NGHTTP2_PREFIX}/nghttp2_queue.c
     ${NGHTTP2_PREFIX}/nghttp2_rcbuf.c
+    ${NGHTTP2_PREFIX}/nghttp2_extpri.c
     ${NGHTTP2_PREFIX}/nghttp2_session.c
     ${NGHTTP2_PREFIX}/nghttp2_stream.c
     ${NGHTTP2_PREFIX}/nghttp2_submit.c
