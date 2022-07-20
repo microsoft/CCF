@@ -221,24 +221,11 @@ namespace ringbuffer
         else if (m == Const::msg_pad)
         {
           // If we see padding, skip it.
-          advance += size;
-
-          // Most message sizes don't include the size of the header, but
-          // msg_pad is unique and _does_ include the header. Anything smaller
-          // than header_size() is thus invalid, and a value of 0 could cause
-          // the reader to spin forever. Disallow that here
-          if (size < Const::header_size())
-          {
-#ifdef RINGBUFFER_USE_ABORT
-            abort();
-#else
-            throw std::runtime_error(fmt::format(
-              "Ringbuffer padding message is too small ({} < {})",
-              size,
-              Const::header_size()));
-#endif
-          }
-
+          // NB: Padding messages are potentially unaligned, where other
+          // messages are aligned by calls to entry_size(). Even for an empty
+          // padding message (size == 0), we need to skip past the message
+          // header.
+          advance += Const::header_size() + size;
           continue;
         }
 
@@ -501,7 +488,10 @@ namespace ringbuffer
 
       if (padding != 0)
       {
-        write64(tl_index, Const::make_header(Const::msg_pad, padding, false));
+        write64(
+          tl_index,
+          Const::make_header(
+            Const::msg_pad, padding - Const::header_size(), false));
         tl_index = 0;
       }
 

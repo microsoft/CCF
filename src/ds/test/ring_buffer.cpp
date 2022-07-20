@@ -800,12 +800,8 @@ TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
         ringbuffer::Const::make_header(m, write_size, false);
       serialized::write(data, size, bad_header);
 
-      // msg_pad has unique semantics, where the written size should _include_
-      // the header's size
-      const auto should_throw = m == ringbuffer::Const::msg_pad ?
-        (write_size < ringbuffer::Const::header_size() ||
-         write_size > buffer_size) :
-        (write_size > buffer_size - ringbuffer::Const::header_size());
+      const auto should_throw =
+        write_size > buffer_size - ringbuffer::Const::header_size();
       if (should_throw)
       {
         REQUIRE_THROWS(r.read(-1, read_fn));
