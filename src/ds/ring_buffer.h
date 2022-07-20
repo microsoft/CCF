@@ -218,14 +218,15 @@ namespace ringbuffer
           // There is no message here, we're done.
           break;
         }
-        else if (m == Const::msg_pad)
+
+        advance += Const::entry_size(size);
+
+        if (m == Const::msg_pad)
         {
           // If we see padding, skip it.
-          advance += size;
           continue;
         }
 
-        advance += Const::entry_size(size);
         ++count;
 
         // Call the handler function for this message.
