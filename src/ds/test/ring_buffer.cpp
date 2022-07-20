@@ -785,29 +785,36 @@ TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
   };
 
   for (const TestSpec& ts :
+       
        {TestSpec{0, false},
         {buffer_size - ringbuffer::Const::header_size(), false},
         {buffer_size - ringbuffer::Const::header_size() + 1, true},
         {buffer_size, true},
         {UINT32_MAX, true}})
   {
-    buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-    Reader r(buffer->bd);
-
-    auto data = buffer->storage.data();
-    auto size = buffer->storage.size();
-
-    uint64_t bad_header =
-      ringbuffer::Const::make_header(small_message, ts.write_size, false);
-    serialized::write(data, size, bad_header);
-
-    if (ts.should_throw)
+    for (ringbuffer::Message m :
+         {
+          (ringbuffer::Message)empty_message,
+          (ringbuffer::Message)small_message,
+          (ringbuffer::Message)ringbuffer::Const::msg_pad})
     {
-      REQUIRE_THROWS(r.read(-1, read_fn));
-    }
-    else
-    {
-      REQUIRE_NOTHROW(r.read(-1, read_fn));
+      buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+      Reader r(buffer->bd);
+
+      auto data = buffer->storage.data();
+      auto size = buffer->storage.size();
+      uint64_t bad_header =
+        ringbuffer::Const::make_header(m, ts.write_size, false);
+      serialized::write(data, size, bad_header);
+
+      if (ts.should_throw)
+      {
+        REQUIRE_THROWS(r.read(-1, read_fn));
+      }
+      else
+      {
+        REQUIRE_NOTHROW(r.read(-1, read_fn));
+      }
     }
   }
 }
