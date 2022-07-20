@@ -194,11 +194,6 @@ private:
 public:
   RaftDriver() = default;
 
-  ~RaftDriver()
-  {
-    threading::ThreadMessaging::thread_messaging.drop_tasks();
-  }
-
   void create_new_nodes(std::vector<std::string> node_ids)
   {
     // Opinionated way to create network. Initial configuration is automatically
