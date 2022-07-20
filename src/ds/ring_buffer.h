@@ -382,9 +382,9 @@ namespace ringbuffer
   private:
     // We use this to detect whether the head is ahead of the tail. In real
     // operation they should be close to each, relative to the total range of a
-    // uint64_t. To handle wrap-around (ie - when a write has overflowed past the max
-    // value), we consider it larger if the distance between a and b is less
-    // than half the total range (and positive).
+    // uint64_t. To handle wrap-around (ie - when a write has overflowed past
+    // the max value), we consider it larger if the distance between a and b is
+    // less than half the total range (and positive).
     static bool greater_with_wraparound(size_t a, size_t b)
     {
       static constexpr auto switch_point = UINT64_MAX / 2;
