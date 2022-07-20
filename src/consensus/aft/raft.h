@@ -2038,6 +2038,7 @@ namespace aft
     {
       size_t quorum = -1; // TODO: Delete
       // TODO: Do configuration quorum logic for 2tx scheme as well
+      std::cout << "Add vote for me " << from << std::endl;
 
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
@@ -2076,6 +2077,9 @@ namespace aft
         }
       }
 
+      std::cout << "Votes for me: " << votes_for_me.size() << std::endl;
+      std::cout << "confs: " << votes_for_me.size() << std::endl;
+
       // If we have a quorum of votes in all configurations, we become leader
       bool is_elected = true;
       for (auto const& v : votes_for_me)
@@ -2083,7 +2087,8 @@ namespace aft
         auto const& quorum = v.second.quorum;
         auto const& votes = v.second.votes;
 
-        LOG_FAIL_FMT("{} < {}?", votes.size(), quorum);
+        std::cout << votes.size() << " < " << quorum << "?"
+                  << std::endl; //("{} < {}?", votes.size(), quorum);
         if (votes.size() < quorum)
         {
           is_elected = false;
