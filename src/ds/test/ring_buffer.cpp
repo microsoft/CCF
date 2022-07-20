@@ -771,12 +771,6 @@ TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
 {
   constexpr auto buffer_size = 256ull;
 
-  struct TestSpec
-  {
-    size_t write_size;
-    bool should_throw;
-  };
-
   std::unique_ptr<ringbuffer::TestBuffer> buffer;
 
   const auto read_fn = [&buffer](Message m, const uint8_t* data, size_t size) {
@@ -784,17 +778,16 @@ TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
     REQUIRE(data + size <= buffer->storage.data() + buffer->storage.size());
   };
 
-  for (const TestSpec& ts :
-       
-       {TestSpec{0, false},
-        {buffer_size - ringbuffer::Const::header_size(), false},
-        {buffer_size - ringbuffer::Const::header_size() + 1, true},
-        {buffer_size, true},
-        {UINT32_MAX, true}})
+  for (size_t write_size :
+       {(size_t)0,
+        (size_t)1,
+        (size_t)(buffer_size - ringbuffer::Const::header_size()),
+        (size_t)(buffer_size - ringbuffer::Const::header_size() + 1),
+        (size_t)(buffer_size),
+        (size_t)UINT32_MAX})
   {
     for (ringbuffer::Message m :
-         {
-          (ringbuffer::Message)empty_message,
+         {(ringbuffer::Message)empty_message,
           (ringbuffer::Message)small_message,
           (ringbuffer::Message)ringbuffer::Const::msg_pad})
     {
@@ -804,10 +797,16 @@ TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
       auto data = buffer->storage.data();
       auto size = buffer->storage.size();
       uint64_t bad_header =
-        ringbuffer::Const::make_header(m, ts.write_size, false);
+        ringbuffer::Const::make_header(m, write_size, false);
       serialized::write(data, size, bad_header);
 
-      if (ts.should_throw)
+      // msg_pad has unique semantics, where the written size should _include_
+      // the header's size
+      const auto should_throw = m == ringbuffer::Const::msg_pad ?
+        (write_size < ringbuffer::Const::header_size() ||
+         write_size > buffer_size) :
+        (write_size > buffer_size - ringbuffer::Const::header_size());
+      if (should_throw)
       {
         REQUIRE_THROWS(r.read(-1, read_fn));
       }
