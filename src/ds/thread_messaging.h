@@ -213,6 +213,17 @@ namespace threading
     std::atomic<bool> finished;
     std::vector<Task> tasks;
 
+    // Drop all pending tasks, this is only ever to be used
+    // on shutdown, to avoid leaks, and after all thread but
+    // the main one have been shut down.
+    void drop_tasks()
+    {
+      for (auto& t : tasks)
+      {
+        t.drop();
+      }
+    }
+
   public:
     static ThreadMessaging thread_messaging;
     static std::atomic<uint16_t> thread_count;
@@ -225,15 +236,9 @@ namespace threading
       tasks(num_threads)
     {}
 
-    // Drop all pending tasks, this is only ever to be used
-    // on shutdown, to avoid leaks, and after all thread but
-    // the main one have been shut down.
-    void drop_tasks()
+    ~ThreadMessaging()
     {
-      for (auto& t : tasks)
-      {
-        t.drop();
-      }
+      drop_tasks();
     }
 
     void set_finished(bool v = true)
