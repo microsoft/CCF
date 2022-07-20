@@ -267,6 +267,11 @@ namespace aft
       return leadership_state == kv::LeadershipState::Leader;
     }
 
+    bool is_candidate() override
+    {
+      return leadership_state == kv::LeadershipState::Candidate;
+    }
+
     bool can_replicate() override
     {
       std::unique_lock<ccf::Mutex> guard(state->lock);
