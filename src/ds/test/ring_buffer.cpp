@@ -777,7 +777,12 @@ TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
     bool should_throw;
   };
 
-  const auto read_fn = [](Message m, const uint8_t* data, size_t size) {};
+  std::unique_ptr<ringbuffer::TestBuffer> buffer;
+
+  const auto read_fn = [&buffer](Message m, const uint8_t* data, size_t size) {
+    REQUIRE(data > buffer->storage.data());
+    REQUIRE(data + size <= buffer->storage.data() + buffer->storage.size());
+  };
 
   for (const TestSpec& ts :
        {TestSpec{0, false},
@@ -786,7 +791,7 @@ TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
         {buffer_size, true},
         {UINT32_MAX, true}})
   {
-    auto buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+    buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
     Reader r(buffer->bd);
 
     auto data = buffer->storage.data();

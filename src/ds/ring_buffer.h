@@ -229,6 +229,7 @@ namespace ringbuffer
         ++count;
 
         // Call the handler function for this message.
+        bd.check_access(hd_index, advance);
         f(m, bd.data + msg_index + Const::header_size(), (size_t)size);
       }
 
