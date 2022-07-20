@@ -2082,18 +2082,13 @@ namespace aft
         }
       }
 
-      std::cout << "Votes for me: " << votes_for_me.size() << std::endl;
-      std::cout << "confs: " << votes_for_me.size() << std::endl;
-
-      // If we have a quorum of votes in all configurations, we become leader
+      // We need a quorum of votes in _all_ configurations to become leader
       bool is_elected = true;
       for (auto const& v : votes_for_me)
       {
         auto const& quorum = v.second.quorum;
         auto const& votes = v.second.votes;
 
-        std::cout << votes.size() << " < " << quorum << "?"
-                  << std::endl; //("{} < {}?", votes.size(), quorum);
         if (votes.size() < quorum)
         {
           is_elected = false;
@@ -2321,7 +2316,8 @@ namespace aft
             !resharing_tracker->have_resharing_result_for(rr.value(), idx))
           {
             LOG_TRACE_FMT(
-              "Configurations: not switching to next configuration, resharing "
+              "Configurations: not switching to next configuration, "
+              "resharing "
               "not completed yet.");
             break;
           }
