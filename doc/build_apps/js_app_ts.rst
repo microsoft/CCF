@@ -75,7 +75,7 @@ An endpoint handler, here named ``abc``, has the following structure:
 
 .. code-block:: ts
 
-    import * as ccfapp from 'ccf-app';
+    import * as ccfapp from "@microsoft/ccf-app";
 
     interface AbcRequest {
         ...
