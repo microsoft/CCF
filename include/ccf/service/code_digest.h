@@ -14,6 +14,8 @@ namespace ccf
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;
+
+    CodeDigest& operator=(const CodeDigest&) = default;
   };
 
   inline void to_json(nlohmann::json& j, const CodeDigest& code_digest)
