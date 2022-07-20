@@ -134,16 +134,6 @@ def test_new_service(
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
     test_service_cert_renewal(network, args, valid_from=valid_from)
 
-    LOG.info("Waiting for retired nodes to be automatically removed")
-    for node in all_nodes:
-        network.wait_for_node_in_store(
-            primary,
-            node.node_id,
-            node_status=ccf.ledger.NodeStatus.TRUSTED
-            if node.is_joined()
-            else ccf.ledger.NodeStatus.REMOVED,
-        )
-
     if args.check_2tx_reconfig_migration:
         test_migration_2tx_reconfiguration(
             network,
