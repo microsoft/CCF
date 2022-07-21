@@ -108,6 +108,12 @@ namespace ringbuffer
       size_ = previous_power_of_2(size);
       return true;
     }
+
+    static uint64_t make_header(Message m, size_t size, bool pending = true)
+    {
+      return (((uint64_t)m) << 32) |
+        ((size & length_mask) | (pending ? pending_write_flag : 0u));
+    }
   };
 
   struct BufferDef
@@ -116,11 +122,27 @@ namespace ringbuffer
     size_t size;
 
     Offsets* offsets;
+
+    void check_access(size_t index, size_t access_size)
+    {
+      if (index + access_size > size)
+      {
+#ifdef RINGBUFFER_USE_ABORT
+        abort();
+#else
+        throw std::runtime_error(fmt::format(
+          "Ringbuffer access out of bounds - attempting to access {}, max "
+          "index is {}",
+          index + access_size,
+          size));
+#endif
+      }
+    }
   };
 
   namespace
   {
-    static inline uint64_t read64(const BufferDef& bd, size_t index)
+    static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
       uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
       atomic_thread_fence(std::memory_order_acq_rel);
@@ -143,6 +165,17 @@ namespace ringbuffer
     friend class Writer;
 
     BufferDef bd;
+
+    virtual uint64_t read64(size_t index)
+    {
+      bd.check_access(index, sizeof(uint64_t));
+      return read64_impl(bd, index);
+    }
+
+    virtual void clear_mem(size_t index, size_t advance)
+    {
+      ::memset(bd.data + index, 0, advance);
+    }
 
   public:
     Reader(const BufferDef& bd_) : bd(bd_)
@@ -171,7 +204,7 @@ namespace ringbuffer
       while ((advance < block) && (count < limit))
       {
         auto msg_index = hd_index + advance;
-        auto header = read64(bd, msg_index);
+        auto header = read64(msg_index);
         auto size = length(header);
 
         // If we see a pending write, we're done.
@@ -188,7 +221,11 @@ namespace ringbuffer
         else if (m == Const::msg_pad)
         {
           // If we see padding, skip it.
-          advance += size;
+          // NB: Padding messages are potentially unaligned, where other
+          // messages are aligned by calls to entry_size(). Even for an empty
+          // padding message (size == 0), we need to skip past the message
+          // header.
+          advance += Const::header_size() + size;
           continue;
         }
 
@@ -196,13 +233,15 @@ namespace ringbuffer
         ++count;
 
         // Call the handler function for this message.
+        bd.check_access(hd_index, advance);
         f(m, bd.data + msg_index + Const::header_size(), (size_t)size);
       }
 
       if (advance > 0)
       {
         // Zero the buffer and advance the head.
-        ::memset(bd.data + hd_index, 0, advance);
+        bd.check_access(hd_index, advance);
+        clear_mem(hd_index, advance);
         bd.offsets->head.store(hd + advance, std::memory_order_release);
       }
 
@@ -215,8 +254,6 @@ namespace ringbuffer
   protected:
     BufferDef bd; // copy of reader's buffer definition
     const size_t rmax;
-
-    virtual void checkAccess(size_t, size_t) {}
 
     struct Reservation
     {
@@ -298,7 +335,7 @@ namespace ringbuffer
       // Write the preliminary header and return the buffer pointer.
       // The initial header length has high bit set to indicate a pending
       // message. We rewrite the real length after the message data.
-      write64(r.value().index, make_header(m, size));
+      write64(r.value().index, Const::make_header(m, size));
 
       if (identifier != nullptr)
         *identifier = r.value().identifier;
@@ -312,10 +349,10 @@ namespace ringbuffer
       {
         // Fix up the size to indicate we're done writing - unset pending bit.
         const auto index = marker.value() - Const::header_size();
-        const auto header = read64(bd, index);
+        const auto header = read64(index);
         const auto size = length(header);
         const auto m = message(header);
-        const auto finished_header = make_header(m, size, false);
+        const auto finished_header = Const::make_header(m, size, false);
         write64(index, finished_header);
       }
     }
@@ -336,7 +373,7 @@ namespace ringbuffer
 
       const auto index = marker.value();
 
-      checkAccess(index, size);
+      bd.check_access(index, size);
 
       // Standard says memcpy(x, null, 0) is undefined, so avoid it
       if (size > 0)
@@ -348,17 +385,29 @@ namespace ringbuffer
     }
 
   private:
-    void write64(size_t index, uint64_t value)
+    // We use this to detect whether the head is ahead of the tail. In real
+    // operation they should be close to each, relative to the total range of a
+    // uint64_t. To handle wrap-around (ie - when a write has overflowed past
+    // the max value), we consider it larger if the distance between a and b is
+    // less than half the total range (and positive).
+    static bool greater_with_wraparound(size_t a, size_t b)
     {
-      atomic_thread_fence(std::memory_order_acq_rel);
-      checkAccess(index, sizeof(value));
-      *reinterpret_cast<volatile uint64_t*>(bd.data + index) = value;
+      static constexpr auto switch_point = UINT64_MAX / 2;
+
+      return (a != b) && ((a - b) < switch_point);
     }
 
-    uint64_t make_header(Message m, size_t size, bool pending = true)
+    virtual uint64_t read64(size_t index)
     {
-      return (((uint64_t)m) << 32) |
-        ((size & length_mask) | (pending ? pending_write_flag : 0u));
+      bd.check_access(index, sizeof(uint64_t));
+      return read64_impl(bd, index);
+    }
+
+    virtual void write64(size_t index, uint64_t value)
+    {
+      atomic_thread_fence(std::memory_order_acq_rel);
+      bd.check_access(index, sizeof(value));
+      *reinterpret_cast<volatile uint64_t*>(bd.data + index) = value;
     }
 
     std::optional<Reservation> reserve(size_t size)
@@ -389,8 +438,10 @@ namespace ringbuffer
           // This happens if the head has passed the tail we previously loaded.
           // It is safe to continue here, as the compare_exchange_weak is
           // guaranteed to fail and update tl.
-          if (hd > tl)
+          if (greater_with_wraparound(hd, tl))
+          {
             continue;
+          }
 
           avail = bd.size - (tl - hd);
 
@@ -437,7 +488,10 @@ namespace ringbuffer
 
       if (padding != 0)
       {
-        write64(tl_index, make_header(Const::msg_pad, padding, false));
+        write64(
+          tl_index,
+          Const::make_header(
+            Const::msg_pad, padding - Const::header_size(), false));
         tl_index = 0;
       }
 
