@@ -6,4 +6,5 @@ Example app RPC API
    :include:
       /app/log/.*
       /app/api
-      /app/tx
+
+There are also built-in endpoints added by CCF which are described in :doc:`/use_apps/rpc_api`.
