@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/pal.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
-#include "ds/ccf_exception.h"
 #include "ds/serialized.h"
 #include "enclave/reconfiguration_type.h"
 #include "impl/state.h"

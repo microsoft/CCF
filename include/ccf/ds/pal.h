@@ -9,6 +9,10 @@
 #  include <cstring>
 #  include <mutex>
 #else
+#  include "ccf/ds/ccf_exception.h"
+#  include "ccf/ds/logger.h"
+
+#  include <openenclave/advanced/mallinfo.h>
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/bits/defs.h>
 #  include <openenclave/bits/security.h>
@@ -26,7 +30,7 @@
  * platform-specific types to the rest of the code and have a good overview of
  * all the functionality that is custom to a given platform. The platform
  * abstraction layer can also be used in code shared between the host and the
- * enclave as there is a host implementation for it is well.
+ * enclave as there is a host implementation for it as well.
  */
 namespace ccf
 {
@@ -84,18 +88,23 @@ namespace ccf
 #else
   class OEPal
   {
+    /**
+     * Temporary workaround until the fix for
+     * https://github.com/openenclave/openenclave/issues/4555 is available in a
+     * release.
+     */
     class MutexImpl
     {
     private:
       pthread_spinlock_t sl;
 
     public:
-      Mutex()
+      MutexImpl()
       {
         pthread_spin_init(&sl, PTHREAD_PROCESS_PRIVATE);
       }
 
-      ~Mutex()
+      ~MutexImpl()
       {
         pthread_spin_destroy(&sl);
       }
@@ -164,10 +173,11 @@ namespace ccf
       info.max_total_heap_size = oe_info.max_total_heap_size;
       info.current_allocated_heap_size = oe_info.current_allocated_heap_size;
       info.peak_allocated_heap_size = oe_info.peak_allocated_heap_size;
+      return true;
     }
 
   private:
-    void open_enclave_logging_callback(
+    static void open_enclave_logging_callback(
       void* context,
       oe_log_level_t level,
       uint64_t thread_id,
@@ -176,23 +186,23 @@ namespace ccf
       switch (level)
       {
         case OE_LOG_LEVEL_FATAL:
-          LOG_FATAL_FMT("OE: {}", message);
+          CCF_LOG_FMT(FATAL, "")("OE: {}", message);
           break;
         case OE_LOG_LEVEL_ERROR:
-          LOG_FAIL_FMT("OE: {}", message);
+          CCF_LOG_FMT(FAIL, "")("OE: {}", message);
           break;
         case OE_LOG_LEVEL_WARNING:
-          LOG_FAIL_FMT("OE: {}", message);
+          CCF_LOG_FMT(FAIL, "")("OE: {}", message);
           break;
         case OE_LOG_LEVEL_INFO:
-          LOG_INFO_FMT("OE: {}", message);
+          CCF_LOG_FMT(INFO, "")("OE: {}", message);
           break;
         case OE_LOG_LEVEL_VERBOSE:
-          LOG_DEBUG_FMT("OE: {}", message);
+          CCF_LOG_FMT(DEBUG, "")("OE: {}", message);
           break;
         case OE_LOG_LEVEL_MAX:
         case OE_LOG_LEVEL_NONE:
-          LOG_TRACE_FMT("OE: {}", message);
+          CCF_LOG_FMT(TRACE, "")("OE: {}", message);
           break;
       }
     }

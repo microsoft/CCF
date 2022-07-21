@@ -8,7 +8,7 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
-#include "ds/ccf_exception.h"
+#include "ccf/ds/ccf_exception.h"
 
 namespace ccf
 {

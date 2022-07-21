@@ -3,10 +3,10 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/ds/ccf_exception.h"
 #include "ccf/kv/read_only_store.h"
 #include "consensus/aft/request.h"
 #include "deserialise.h"
-#include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
 #include "kv/snapshot.h"
 #include "kv/untyped_map.h"
