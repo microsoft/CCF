@@ -130,7 +130,7 @@ namespace aft
     std::list<Configuration> configurations;
     // Union of other nodes (i.e. all nodes but us) in all active
     // configurations. This should be used for diagnostic or broadcasting
-    // messages but *not* for counting quorums, which should be done for all
+    // messages but _not_ for counting quorums, which should be done for all
     // active configurations.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
@@ -2041,45 +2041,24 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
-      size_t quorum = -1; // TODO: Delete
-      // TODO: Do configuration quorum logic for 2tx scheme as well
-      std::cout << "Add vote for me " << from << std::endl;
-
-      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
+      // Add vote for from node in all configuration where it is present
+      for (auto const& conf : configurations)
       {
-        const auto& cfg = configurations.front();
+        auto const& nodes = conf.nodes;
+        votes_for_me[conf.idx].quorum = get_quorum(nodes.size());
 
-        if (cfg.nodes.find(from) == cfg.nodes.end())
+        if (nodes.find(from) == nodes.end())
         {
-          LOG_INFO_FMT("Ignoring vote from ineligible voter {}", from);
-          return;
+          continue;
         }
 
-        // Need 50% + 1 of the total nodes in the current config (including us).
-        votes_for_me[0].votes.insert(from);
-        quorum = get_quorum(cfg.nodes.size());
-      }
-      else
-      {
-        // Add vote for from node in all configuration where it is present
-        for (auto const& conf : configurations)
-        {
-          auto const& nodes = conf.nodes;
-          votes_for_me[conf.idx].quorum = get_quorum(nodes.size());
-
-          if (nodes.find(from) == nodes.end())
-          {
-            continue;
-          }
-
-          votes_for_me[conf.idx].votes.insert(from);
-          LOG_DEBUG_FMT(
-            "Node {} voted for {} in configuration {} with quorum {}",
-            from,
-            state->my_node_id,
-            conf.idx,
-            votes_for_me[conf.idx].quorum);
-        }
+        votes_for_me[conf.idx].votes.insert(from);
+        LOG_DEBUG_FMT(
+          "Node {} voted for {} in configuration {} with quorum {}",
+          from,
+          state->my_node_id,
+          conf.idx,
+          votes_for_me[conf.idx].quorum);
       }
 
       // We need a quorum of votes in _all_ configurations to become leader
