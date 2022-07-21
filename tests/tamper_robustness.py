@@ -126,7 +126,7 @@ def modify_file(src_path):
             content = list(f.read())
             size = len(content)
             for idx in (size // 3, size // 2, int(size // 1.5)):
-                content[idx] //= 2
+                content[idx] ^= 0b01010101
             f.seek(0)
             f.write(bytes(content))
             f.truncate()
