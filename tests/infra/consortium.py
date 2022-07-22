@@ -346,7 +346,9 @@ class Consortium:
                         # TODO: if we've just retired the primary, we need to find a new primary here
                         if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                             check_commit = infra.checker.Checker(c)
-                            r = c.delete(f"/node/network/nodes/{node_to_retire.node_id}")
+                            r = c.delete(
+                                f"/node/network/nodes/{node_to_retire.node_id}"
+                            )
                             check_commit(r)
                             break
                         else:
