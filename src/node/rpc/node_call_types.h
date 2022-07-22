@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
+#include "ccf/ds/pal.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
@@ -15,7 +16,6 @@
 #include "service/tables/config.h"
 
 #include <nlohmann/json.hpp>
-#include <openenclave/advanced/mallinfo.h>
 
 namespace ccf
 {
@@ -153,7 +153,7 @@ namespace ccf
 
     struct Out
     {
-      Out(const oe_mallinfo_t& info) :
+      Out(const MallocInfo& info) :
         max_total_heap_size(info.max_total_heap_size),
         current_allocated_heap_size(info.current_allocated_heap_size),
         peak_allocated_heap_size(info.peak_allocated_heap_size)

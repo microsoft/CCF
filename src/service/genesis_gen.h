@@ -12,7 +12,6 @@
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
-#include <fstream>
 #include <ostream>
 
 namespace ccf

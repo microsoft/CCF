@@ -9,7 +9,7 @@
 #include "node/rpc/node_frontend.h"
 
 #define FMT_HEADER_ONLY
-#include "ccf/ds/mutex.h"
+#include "ccf/ds/pal.h"
 
 #include <fmt/format.h>
 
