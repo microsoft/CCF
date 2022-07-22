@@ -948,7 +948,7 @@ TEST_CASE("StateCache concurrent access")
     {
       std::vector<StubWriter::Write> writes;
       {
-        std::lock_guard<ccf::Mutex> guard(writer->writes_mutex);
+        std::lock_guard<ccf::Pal::Mutex> guard(writer->writes_mutex);
         auto finished_write_it = std::partition_point(
           writer->writes.begin() + last_handled_write,
           writer->writes.end(),

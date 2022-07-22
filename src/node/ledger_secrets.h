@@ -21,7 +21,7 @@ namespace ccf
   class LedgerSecrets
   {
   private:
-    ccf::Mutex lock;
+    ccf::Pal::Mutex lock;
     LedgerSecretsMap ledger_secrets;
 
     // Set once when the LedgerSecrets are initialised. This prevents a backup
@@ -108,7 +108,7 @@ namespace ccf
 
     void init(kv::Version initial_version = 1)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       ledger_secrets.emplace(initial_version, make_ledger_secret());
       initial_latest_ledger_secret_version = initial_version;
@@ -116,7 +116,7 @@ namespace ccf
 
     void init_from_map(LedgerSecretsMap&& ledger_secrets_)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       CCF_ASSERT_FMT(
         ledger_secrets.empty(), "Should only init an empty LedgerSecrets");
@@ -132,7 +132,7 @@ namespace ccf
       // complete should point to the version at which the past ledger secret
       // has just been written to the store. This can only be done once the
       // private recovery is complete.
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       if (ledger_secrets.empty())
       {
@@ -145,7 +145,7 @@ namespace ccf
 
     bool is_empty()
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       return ledger_secrets.empty();
     }
@@ -154,7 +154,7 @@ namespace ccf
     {
       // This does not need a transaction as the first ledger secret is
       // considered stable with regards to concurrent rekey transactions
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       if (ledger_secrets.empty())
       {
@@ -167,7 +167,7 @@ namespace ccf
 
     VersionedLedgerSecret get_latest(kv::ReadOnlyTx& tx)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       take_dependency_on_secrets(tx);
 
@@ -183,7 +183,7 @@ namespace ccf
     std::pair<VersionedLedgerSecret, std::optional<VersionedLedgerSecret>>
     get_latest_and_penultimate(kv::ReadOnlyTx& tx)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       take_dependency_on_secrets(tx);
 
@@ -205,7 +205,7 @@ namespace ccf
     LedgerSecretsMap get(
       kv::ReadOnlyTx& tx, std::optional<kv::Version> up_to = std::nullopt)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       take_dependency_on_secrets(tx);
 
@@ -226,7 +226,7 @@ namespace ccf
 
     void restore_historical(LedgerSecretsMap&& restored_ledger_secrets)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       if (
         !ledger_secrets.empty() && !restored_ledger_secrets.empty() &&
@@ -246,7 +246,7 @@ namespace ccf
     std::shared_ptr<crypto::KeyAesGcm> get_encryption_key_for(
       kv::Version version, bool historical_hint = false)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       auto ls = get_secret_for_version(version, historical_hint);
       if (ls == nullptr)
       {
@@ -258,13 +258,13 @@ namespace ccf
     LedgerSecretPtr get_secret_for(
       kv::Version version, bool historical_hint = false)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       return get_secret_for_version(version, historical_hint);
     }
 
     void set_secret(kv::Version version, LedgerSecretPtr&& secret)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
       CCF_ASSERT_FMT(
         ledger_secrets.find(version) == ledger_secrets.end(),
@@ -278,7 +278,7 @@ namespace ccf
 
     void rollback(kv::Version version)
     {
-      std::lock_guard<ccf::Mutex> guard(lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
       if (ledger_secrets.empty())
       {
         return;
