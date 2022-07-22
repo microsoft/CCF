@@ -384,9 +384,7 @@ def test_node_replacement(network, args):
     LOG.info(f"Retiring node {node_to_replace.local_node_id}")
     network.retire_node(primary, node_to_replace)
     node_to_replace.stop()
-
     check_can_progress(primary)
-    # TODO: actually delete the node!
 
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
