@@ -196,9 +196,6 @@ class Node:
     def __eq__(self, other):
         return self.local_node_id == other.local_node_id
 
-    def __str__(self):
-        return str(self.local_node_id)
-
     def start(
         self,
         lib_name,
@@ -463,9 +460,6 @@ class Node:
                         self.network_state = infra.node.NodeNetworkState.joined
                         return
                     time.sleep(0.1)
-                    # assert (
-                    #     rep.status_code == 200
-                    # ), f"An error occurred after node {self.local_node_id} joined the network: {rep.body}"
             except infra.clients.CCFConnectionException as e:
                 raise TimeoutError(
                     f"Node {self.local_node_id} failed to join the network"
