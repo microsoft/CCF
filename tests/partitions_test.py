@@ -278,44 +278,6 @@ def test_new_joiner_helps_liveness(network, args):
 
 @reqs.description("Test election while reconfiguration is in flight")
 @reqs.at_least_n_nodes(3)
-def test_configuration_quorums(network, args):
-    # Test for issue described in https://github.com/microsoft/CCF/issues/3948
-    primary, backups = network.find_nodes()
-
-    new_nodes = []
-    for _ in range(len(backups) + 2):
-        new_node = network.create_node("local://localhost")
-        network.join_node(new_node, args.package, args, from_snapshot=False)
-        new_nodes.append(new_node)
-
-    LOG.info(f"Isolate original backups and issue reconfiguration of another quorum")
-    with network.partitioner.partition(backups):
-        LOG.info(
-            "Trust new node (commit stuck as majority of nodes in old configuration are isolated)"
-        )
-        network.consortium.trust_nodes(
-            primary,
-            [n.node_id for n in new_nodes],
-            valid_from=datetime.utcnow(),
-            wait_for_commit=False,
-        )
-
-        primary.stop()
-
-        try:
-            network.wait_for_new_primary(primary, nodes=new_nodes)
-        except infra.network.PrimaryNotFound:
-            LOG.info(
-                "New primary could not be elected as old configuration could not make progress"
-            )
-        else:
-            assert False, "No new primary should be elected while partition is up"
-
-    network.wait_for_new_primary(primary, nodes=new_nodes)
-
-
-@reqs.description("Test election while reconfiguration is in flight")
-@reqs.at_least_n_nodes(3)
 def test_election_reconfiguration(network, args):
     # Test for issue described in https://github.com/microsoft/CCF/issues/3948
     # Note: this test makes use of node-endorsed secondary RPC interface since
@@ -325,9 +287,9 @@ def test_election_reconfiguration(network, args):
 
     LOG.info("Join new nodes without trusting them just yet")
     new_nodes = []
-    # Start N+1 new nodes to make sure they cannot elected of them as a primary
+    # Start N+1 new nodes to make sure they cannot elect of them as a primary
     # without approval from the original configuration
-    for _ in range(len(backups) + 1):
+    for _ in range(len(network.nodes) + 1):
         rpc_interfaces = {
             infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                 host="localhost"
@@ -354,7 +316,7 @@ def test_election_reconfiguration(network, args):
             node.wait_for_node_to_join(
                 interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE
             )
-            # Wait for configuration tx to be committed on new node
+            # Wait for configuration tx to be replicated to new node
             network.wait_for_node_in_store(
                 node,
                 node.node_id,
@@ -377,7 +339,7 @@ def test_election_reconfiguration(network, args):
             )
         except infra.network.PrimaryNotFound:
             LOG.info(
-                "New primary could not be elected as old configuration could not make progress"
+                "As expected, new primary could not be elected as old configuration could not make progress"
             )
         else:
             assert False, "No new primary should be elected while partition is up"
@@ -389,11 +351,9 @@ def test_election_reconfiguration(network, args):
     LOG.info(
         "As partition is lifted, check that isolated original backups elect primary"
     )
-    network.wait_for_new_primary(primary, nodes=backups)
+    network.wait_for_primary_unanimity(nodes=backups)
 
-    LOG.info(
-        "Retire former primary and add new node to leave network as close as original"
-    )
+    LOG.info("Retire former primary and add new node")
     network.retire_node(backups[0], primary)
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
@@ -516,13 +476,12 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_invalid_partitions(network, args)
-        # test_partition_majority(network, args)
-        # test_isolate_primary_from_one_backup(network, args)
-        # test_new_joiner_helps_liveness(network, args)
-        # for n in range(5):
-        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
-        # test_configuration_quorums(network, args)
+        test_invalid_partitions(network, args)
+        test_partition_majority(network, args)
+        test_isolate_primary_from_one_backup(network, args)
+        test_new_joiner_helps_liveness(network, args)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_election_reconfiguration(network, args)
 
 
