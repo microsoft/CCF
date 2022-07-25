@@ -449,25 +449,29 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
 
-    def wait_for_node_to_join(self, timeout=3):
+    def wait_for_node_to_join(self, timeout=3, *args, **kwargs):
         """
         This function can be used to check that a node has successfully
         joined a network and that it is part of the consensus.
         """
-        # Until the node has joined, the SSL handshake will fail as the node
-        # is not yet endorsed by the service certificate
+        start_time = time.time()
+        while time.time() < start_time + timeout:
+            try:
+                with self.client(connection_timeout=timeout, *args, **kwargs) as nc:
+                    rep = nc.get("/node/commit")
+                    if rep.status_code == 200:
+                        self.network_state = infra.node.NodeNetworkState.joined
+                        return
+                    time.sleep(0.1)
+                    # assert (
+                    #     rep.status_code == 200
+                    # ), f"An error occurred after node {self.local_node_id} joined the network: {rep.body}"
+            except infra.clients.CCFConnectionException as e:
+                raise TimeoutError(
+                    f"Node {self.local_node_id} failed to join the network"
+                ) from e
 
-        try:
-            with self.client(connection_timeout=timeout) as nc:
-                rep = nc.get("/node/commit")
-                assert (
-                    rep.status_code == 200
-                ), f"An error occurred after node {self.local_node_id} joined the network: {rep.body}"
-                self.network_state = infra.node.NodeNetworkState.joined
-        except infra.clients.CCFConnectionException as e:
-            raise TimeoutError(
-                f"Node {self.local_node_id} failed to join the network"
-            ) from e
+        raise TimeoutError(f"Node {self.local_node_id} failed to join the network")
 
     def get_ledger_public_tables_at(self, seqno, insecure=False):
         validator = ccf.ledger.LedgerValidator() if not insecure else None

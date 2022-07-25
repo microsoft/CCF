@@ -14,6 +14,7 @@ from infra.tx_status import TxStatus
 import time
 import http
 import contextlib
+import ccf.ledger
 
 from loguru import logger as LOG
 
@@ -317,19 +318,31 @@ def test_configuration_quorums(network, args):
 @reqs.at_least_n_nodes(3)
 def test_election_reconfiguration(network, args):
     # Test for issue described in https://github.com/microsoft/CCF/issues/3948
+    # Note: this test makes use of node-endorsed secondary RPC interface since
+    # new nodes never observe commit of their configuration and thus never
+    # open their service-endorsed primary RPC interface.
     primary, backups = network.find_nodes()
 
+    LOG.info("Join new nodes without trusting them just yet")
     new_nodes = []
-    for _ in range(1):
-        new_node = network.create_node("local://localhost")
+    # Start N+1 new nodes to make sure they cannot elected of them as a primary
+    # without approval from the original configuration
+    for _ in range(len(backups) + 1):
+        rpc_interfaces = {
+            infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                host="localhost"
+            )
+        }
+        rpc_interfaces.update(infra.interfaces.make_secondary_interface())
+        new_node = network.create_node(infra.interfaces.HostSpec(rpc_interfaces))
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
     LOG.info(f"Isolate original backups and issue reconfiguration of another quorum")
     with network.partitioner.partition(backups):
-        LOG.info(
-            "Trust new node (commit stuck as majority of nodes in old configuration are isolated)"
-        )
+        LOG.info("Trust all new nodes in one single proposal")
+        # Note: Commit is stuck since a majority of backups in initial configuration
+        # are isolated
         network.consortium.trust_nodes(
             primary,
             [n.node_id for n in new_nodes],
@@ -337,19 +350,31 @@ def test_election_reconfiguration(network, args):
             wait_for_commit=False,
         )
 
-        # TODO: Cannot use wait_for_node_to_join here as new node needs to have global commit
-        # on node endorsed certificate to open primary RPC endorsed interface
-        LOG.info("Wait for new node to join")
-        import time
+        for node in new_nodes:
+            node.wait_for_node_to_join(
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE
+            )
+            # Wait for configuration tx to be committed on new node
+            network.wait_for_node_in_store(
+                node,
+                node.node_id,
+                ccf.ledger.NodeStatus.TRUSTED,
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
+            )
 
-        time.sleep(10)
-
+        LOG.info(f"Stop primary node {primary.local_node_id} to trigger election")
         primary.stop()
 
-        # for node in new_nodes:
-        #     node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+        LOG.info(
+            f"Make sure that new nodes cannot elect a primary node among themselves"
+        )
         try:
-            network.wait_for_new_primary(primary, nodes=new_nodes)
+            network.wait_for_new_primary(
+                primary,
+                nodes=new_nodes,
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
+                timeout_multiplier=1,
+            )
         except infra.network.PrimaryNotFound:
             LOG.info(
                 "New primary could not be elected as old configuration could not make progress"
@@ -357,7 +382,24 @@ def test_election_reconfiguration(network, args):
         else:
             assert False, "No new primary should be elected while partition is up"
 
-    network.wait_for_new_primary(primary, nodes=new_nodes)
+        LOG.info("Stop all new nodes")
+        for node in new_nodes:
+            node.stop()
+
+    LOG.info(
+        "As partition is lifted, check that isolated original backups elect primary"
+    )
+    network.wait_for_new_primary(primary, nodes=backups)
+
+    LOG.info(
+        "Retire former primary and add new node to leave network as close as original"
+    )
+    network.retire_node(backups[0], primary)
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
+
+    return network
 
 
 @reqs.description("Add a learner, partition nodes, check that there is no progress")

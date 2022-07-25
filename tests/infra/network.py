@@ -877,7 +877,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, nodes=None, timeout=3, log_capture=None):
+    def find_primary(self, nodes=None, timeout=3, log_capture=None, *args, **kwargs):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -891,7 +891,7 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in asked_nodes:
-                with node.client() as c:
+                with node.client(*args, **kwargs) as c:
                     try:
                         logs = []
                         res = c.get("/node/network", timeout=1, log_capture=logs)
@@ -1042,8 +1042,10 @@ class Network:
         remote_node,
         node_id,
         node_status,  # None indicates that the node should not be present
+        *args,
+        **kwargs,
     ):
-        with remote_node.client() as c:
+        with remote_node.client(*args, **kwargs) as c:
             r = c.get(f"/node/network/nodes/{node_id}")
             resp = r.body.json()
             return (
@@ -1057,17 +1059,15 @@ class Network:
             )
 
     def wait_for_node_in_store(
-        self,
-        remote_node,
-        node_id,
-        node_status,
-        timeout=3,
+        self, remote_node, node_id, node_status, timeout=3, *args, **kwargs
     ):
         success = False
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                if self._check_node_status(remote_node, node_id, node_status):
+                if self._check_node_status(
+                    remote_node, node_id, node_status, *args, **kwargs
+                ):
                     success = True
                     break
             except TimeoutError:
@@ -1085,7 +1085,12 @@ class Network:
             )
 
     def wait_for_new_primary(
-        self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER
+        self,
+        old_primary,
+        nodes=None,
+        timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER,
+        *args,
+        **kwargs,
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
@@ -1098,22 +1103,12 @@ class Network:
         error = TimeoutError
         logs = []
 
-        backup = self.find_any_backup(old_primary)
-        if backup.get_consensus() == "BFT":
-            try:
-                with backup.client("user0") as c:
-                    _ = c.post(
-                        "/app/log/private",
-                        {"id": -1, "msg": "This is submitted to force a view change"},
-                    )
-                time.sleep(1)
-            except CCFConnectionException:
-                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
-
         while time.time() < end_time:
             try:
                 logs = []
-                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
+                new_primary, new_term = self.find_primary(
+                    nodes=nodes, log_capture=logs, *args, **kwargs
+                )
                 if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)
                     delay = time.time() - start_time
