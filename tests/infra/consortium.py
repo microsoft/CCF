@@ -341,9 +341,7 @@ class Consortium:
             while time.time() < end_time:
                 try:
                     with remote_node.client(connection_timeout=timeout) as c:
-                        # TODO: must be guarded in LTS tests
-                        r = c.get(f"/node/network/removable_nodes").body.json()
-                        # TODO: if we've just retired the primary, we need to find a new primary here
+                        r = c.get("/node/network/removable_nodes").body.json()
                         if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                             check_commit = infra.checker.Checker(c)
                             r = c.delete(

@@ -49,7 +49,6 @@ class NodeStatus(Enum):
     RETIRED = "Retired"
     LEARNER = "Learner"
     RETIRING = "Retiring"
-    REMOVED = "Removed"
 
 
 class EntryType(Enum):

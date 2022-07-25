@@ -371,7 +371,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.27.0";
+      openapi_info.document_version = "2.28.0";
     }
 
     void init_handlers() override
@@ -632,12 +632,12 @@ namespace ccf
             node_info.status == ccf::NodeStatus::RETIRED &&
             node_id != this->context.get_node_id())
           {
-            // Only set to REMOVED nodes for which RETIRED status
+            // Set retired_committed nodes for which RETIRED status
             // has been committed.
             auto node = nodes->get_globally_committed(node_id);
             if (node.has_value())
             {
-              node->status = ccf::NodeStatus::REMOVED;
+              node->retired_committed = true;
               nodes->put(node_id, node.value());
             }
 
@@ -971,7 +971,9 @@ namespace ccf
         nodes->foreach(
           [this, &out, nodes](const NodeId& node_id, const NodeInfo& ni) {
             auto node = nodes->get_globally_committed(node_id);
-            if (node.has_value() && node->status == ccf::NodeStatus::REMOVED)
+            if (
+              node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+              node->retired_committed)
             {
               out.nodes.push_back(
                 {node_id,
@@ -1013,7 +1015,9 @@ namespace ccf
         auto nodes = args.tx.rw(this->network.nodes);
 
         auto node = nodes->get_globally_committed(node_id);
-        if (node.has_value() && node->status == ccf::NodeStatus::REMOVED)
+        if (
+          node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+          node->retired_committed)
         {
           nodes->remove(node_id);
         }

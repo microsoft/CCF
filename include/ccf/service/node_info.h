@@ -20,8 +20,7 @@ namespace ccf
     TRUSTED = 1,
     RETIRED = 2,
     LEARNER = 3,
-    RETIRING = 4,
-    REMOVED = 5
+    RETIRING = 4
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
@@ -29,8 +28,7 @@ namespace ccf
      {NodeStatus::TRUSTED, "Trusted"},
      {NodeStatus::RETIRED, "Retired"},
      {NodeStatus::LEARNER, "Learner"},
-     {NodeStatus::RETIRING, "Retiring"},
-     {NodeStatus::REMOVED, "Removed"}});
+     {NodeStatus::RETIRING, "Retiring"}});
 
   struct NodeInfo : NodeInfoNetwork
   {
@@ -71,6 +69,13 @@ namespace ccf
      * node identity in `public_key` field. Service-endorsed certificate is
      * recorded in "public:ccf.nodes.endorsed_certificates" table */
     std::optional<crypto::Pem> cert = std::nullopt;
+
+    /** Commit state for Retired state
+     *
+     * Introduced during 2.x (2.0.5), and so optional for backward
+     * compatibility.
+     */
+    bool retired_committed = false;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -82,7 +87,8 @@ namespace ccf
     code_digest,
     certificate_signing_request,
     public_key,
-    node_data);
+    node_data,
+    retired_committed);
 }
 
 FMT_BEGIN_NAMESPACE
@@ -120,10 +126,6 @@ struct formatter<ccf::NodeStatus>
       case (ccf::NodeStatus::RETIRING):
       {
         return format_to(ctx.out(), "RETIRING");
-      }
-      case (ccf::NodeStatus::REMOVED):
-      {
-        return format_to(ctx.out(), "REMOVED");
       }
     }
   }
