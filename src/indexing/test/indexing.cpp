@@ -574,41 +574,41 @@ TEST_CASE("multi-threaded indexing" * doctest::test_suite("indexing"))
     }
   };
 
-  // auto fetch_index_a = [&]() {
-  //   while (!finished)
-  //   {
-  //     const auto a = index_a->get_all_write_txs("hello");
-  //     if (a.has_value())
-  //     {
-  //       fmt::print("hello: {}\n", a->size());
-  //     }
-  //     const auto b = index_a->get_all_write_txs("saluton");
-  //     if (b.has_value())
-  //     {
-  //       fmt::print("saluton: {}\n", b->size());
-  //     }
-  //   }
-  // };
+  auto fetch_index_a = [&]() {
+    while (!finished)
+    {
+      const auto a = index_a->get_all_write_txs("hello");
+      if (a.has_value())
+      {
+        fmt::print("hello: {}\n", a->size());
+      }
+      const auto b = index_a->get_all_write_txs("saluton");
+      if (b.has_value())
+      {
+        fmt::print("saluton: {}\n", b->size());
+      }
+    }
+  };
 
-  // auto fetch_index_b = [&]() {
-  //   while (!finished)
-  //   {
-  //     const auto c = index_b->get_all_write_txs(42);
-  //     if (c.has_value())
-  //     {
-  //       fmt::print("42: {}\n", c->size());
-  //     }
-  //   }
-  // };
+  auto fetch_index_b = [&]() {
+    while (!finished)
+    {
+      const auto c = index_b->get_all_write_txs(42);
+      if (c.has_value())
+      {
+        fmt::print("42: {}\n", c->size());
+      }
+    }
+  };
 
   std::vector<std::thread> threads;
   threads.emplace_back(tx_advancer);
   threads.emplace_back(index_ticker);
-  // threads.emplace_back(fetch_index_a);
-  // threads.emplace_back(fetch_index_a);
-  // threads.emplace_back(fetch_index_a);
-  // threads.emplace_back(fetch_index_b);
-  // threads.emplace_back(fetch_index_b);
+  threads.emplace_back(fetch_index_a);
+  threads.emplace_back(fetch_index_a);
+  threads.emplace_back(fetch_index_a);
+  threads.emplace_back(fetch_index_b);
+  threads.emplace_back(fetch_index_b);
 
   for (auto& thread : threads)
   {
