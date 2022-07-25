@@ -17,6 +17,8 @@ namespace aft
   protected:
     ccf::NodeId _id;
 
+    std::mutex ledger_access;
+
   public:
     std::vector<std::vector<uint8_t>> ledger;
     uint64_t skip_count = 0;
@@ -31,6 +33,8 @@ namespace aft
       kv::Term term,
       kv::Version index)
     {
+      std::lock_guard<std::mutex> lock(ledger_access);
+
       // The payload that we eventually deserialise must include the
       // ledger entry as well as the View and Index that identify it. In
       // the real entries, they are nested in the payload and the IV. For
@@ -73,6 +77,8 @@ namespace aft
 
     std::optional<std::vector<uint8_t>> get_entry_by_idx(size_t idx)
     {
+      std::lock_guard<std::mutex> lock(ledger_access);
+
       // Ledger indices are 1-based, hence the -1
       if (idx > 0 && idx <= ledger.size())
       {
