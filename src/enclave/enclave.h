@@ -3,7 +3,7 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "ds/ccf_memcpy.h"
+#include "ccf/ds/pal.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
@@ -23,10 +23,10 @@
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
-#include "oe_init.h"
 #include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
+#include "verify.h"
 
 #include <openssl/engine.h>
 
@@ -89,7 +89,8 @@ namespace ccf
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
-      ccf::initialize_oe();
+      ccf::Pal::initialize_enclave();
+      ccf::initialize_verifiers();
 
       // From
       // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
@@ -181,7 +182,8 @@ namespace ccf
         ENGINE_free(rdrand_engine);
       }
       LOG_TRACE_FMT("Shutting down enclave");
-      ccf::shutdown_oe();
+      ccf::shutdown_verifiers();
+      ccf::Pal::shutdown_enclave();
     }
 
     CreateNodeStatus create_new_node(
@@ -224,7 +226,7 @@ namespace ccf
           r.self_signed_node_cert.size());
         return CreateNodeStatus::InternalError;
       }
-      ccf_memcpy(
+      Pal::safe_memcpy(
         node_cert,
         r.self_signed_node_cert.data(),
         r.self_signed_node_cert.size());
@@ -242,7 +244,8 @@ namespace ccf
             r.service_cert.size());
           return CreateNodeStatus::InternalError;
         }
-        ccf_memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
+        Pal::safe_memcpy(
+          service_cert, r.service_cert.data(), r.service_cert.size());
         *service_cert_len = r.service_cert.size();
       }
 

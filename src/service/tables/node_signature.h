@@ -36,6 +36,8 @@ namespace ccf
     NodeSignature(const NodeId& node_) : node(node_) {}
     NodeSignature() = default;
 
+    NodeSignature& operator=(const NodeSignature& ns) = default;
+
     bool operator==(const NodeSignature& o) const
     {
       return sig == o.sig && hashed_nonce == o.hashed_nonce;

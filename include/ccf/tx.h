@@ -213,7 +213,7 @@ namespace kv
       return get_handle_by_name<typename M::Handle>(m.get_name());
     }
 
-    /** Get a read-write handle by map name. Map type must be specified
+    /** Get a write-only handle by map name. Map type must be specified
      * as explicit template parameter.
      *
      * @param map_name Name of map

@@ -4,6 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/ds/pal.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
@@ -1216,12 +1217,11 @@ namespace ccf
 
       auto memory_usage = [](auto& args) {
 
-// Do not attempt to call oe_allocator_mallinfo when used from
+// Do not attempt to call get_mallinfo when used from
 // unit tests such as the frontend_test
 #ifdef INSIDE_ENCLAVE
-        oe_mallinfo_t info;
-        auto rc = oe_allocator_mallinfo(&info);
-        if (rc == OE_OK)
+        ccf::MallocInfo info;
+        if (ccf::Pal::get_mallinfo(info))
         {
           MemoryUsage::Out mu(info);
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
