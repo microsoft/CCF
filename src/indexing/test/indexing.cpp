@@ -500,19 +500,25 @@ TEST_CASE("multi-threaded indexing" * doctest::test_suite("indexing"))
   }
 
   std::atomic<bool> finished = false;
+  std::atomic<size_t> writes_to_hello = 0;
+  std::atomic<size_t> writes_to_saluton = 0;
+  std::atomic<size_t> writes_to_42 = 0;
 
   auto tx_advancer = [&]() {
     size_t i = 0;
-    while (i < 1000)
+    while (i < 1'000)
     {
       auto tx = kv_store.create_tx();
       tx.wo(map_a)->put(fmt::format("hello"), fmt::format("Value {}", i));
+      ++writes_to_hello;
       if (i % 2 == 0)
       {
+        ++writes_to_saluton;
         tx.wo(map_a)->put(fmt::format("saluton"), fmt::format("Value2 {}", i));
       }
       if (i % 3 == 0)
       {
+        ++writes_to_42;
         tx.wo(map_b)->put(42, i);
       }
 
@@ -575,28 +581,29 @@ TEST_CASE("multi-threaded indexing" * doctest::test_suite("indexing"))
   };
 
   auto fetch_index_a = [&]() {
-    while (!finished)
+    while (true)
     {
-      const auto a = index_a->get_all_write_txs("hello");
-      if (a.has_value())
+      const auto hello = index_a->get_all_write_txs("hello");
+      const auto saluton = index_a->get_all_write_txs("saluton");
+
+      if (
+        finished && hello.has_value() && hello->size() == writes_to_hello &&
+        saluton.has_value() && saluton->size() == writes_to_saluton)
       {
-        fmt::print("hello: {}\n", a->size());
-      }
-      const auto b = index_a->get_all_write_txs("saluton");
-      if (b.has_value())
-      {
-        fmt::print("saluton: {}\n", b->size());
+        break;
       }
     }
   };
 
   auto fetch_index_b = [&]() {
-    while (!finished)
+    while (true)
     {
-      const auto c = index_b->get_all_write_txs(42);
-      if (c.has_value())
+      const auto forty_two = index_b->get_all_write_txs(42);
+
+      if (
+        finished && forty_two.has_value() && forty_two->size() == writes_to_42)
       {
-        fmt::print("42: {}\n", c->size());
+        break;
       }
     }
   };
@@ -610,8 +617,28 @@ TEST_CASE("multi-threaded indexing" * doctest::test_suite("indexing"))
   threads.emplace_back(fetch_index_b);
   threads.emplace_back(fetch_index_b);
 
+  std::atomic<bool> work_done = false;
+
+  std::thread watchdog([&]() {
+    using Clock = std::chrono::system_clock;
+    const auto start_time = Clock::now();
+
+    using namespace std::chrono_literals;
+    const auto max_run_time = 10s;
+
+    while (!work_done)
+    {
+      const auto now = Clock::now();
+      REQUIRE(now - start_time < max_run_time);
+      std::this_thread::sleep_for(50ms);
+    }
+  });
+
   for (auto& thread : threads)
   {
     thread.join();
   }
+
+  work_done = true;
+  watchdog.join();
 }
