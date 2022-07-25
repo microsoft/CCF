@@ -6,7 +6,7 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from infra.clients import CCFConnectionException, flush_info
+from infra.clients import flush_info
 import infra.path
 import infra.proc
 import infra.service_load
@@ -877,7 +877,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, nodes=None, timeout=3, log_capture=None, *args, **kwargs):
+    def find_primary(self, nodes=None, timeout=3, log_capture=None, **kwargs):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -891,7 +891,7 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in asked_nodes:
-                with node.client(*args, **kwargs) as c:
+                with node.client(**kwargs) as c:
                     try:
                         logs = []
                         res = c.get("/node/network", timeout=1, log_capture=logs)
@@ -1042,10 +1042,9 @@ class Network:
         remote_node,
         node_id,
         node_status,  # None indicates that the node should not be present
-        *args,
         **kwargs,
     ):
-        with remote_node.client(*args, **kwargs) as c:
+        with remote_node.client(**kwargs) as c:
             r = c.get(f"/node/network/nodes/{node_id}")
             resp = r.body.json()
             return (
@@ -1059,15 +1058,13 @@ class Network:
             )
 
     def wait_for_node_in_store(
-        self, remote_node, node_id, node_status, timeout=3, *args, **kwargs
+        self, remote_node, node_id, node_status, timeout=3, **kwargs
     ):
         success = False
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                if self._check_node_status(
-                    remote_node, node_id, node_status, *args, **kwargs
-                ):
+                if self._check_node_status(remote_node, node_id, node_status, **kwargs):
                     success = True
                     break
             except TimeoutError:
@@ -1089,7 +1086,6 @@ class Network:
         old_primary,
         nodes=None,
         timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER,
-        *args,
         **kwargs,
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
@@ -1107,7 +1103,7 @@ class Network:
             try:
                 logs = []
                 new_primary, new_term = self.find_primary(
-                    nodes=nodes, log_capture=logs, *args, **kwargs
+                    nodes=nodes, log_capture=logs, **kwargs
                 )
                 if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)

@@ -300,7 +300,7 @@ def test_election_reconfiguration(network, args):
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
-    LOG.info(f"Isolate original backups and issue reconfiguration of another quorum")
+    LOG.info("Isolate original backups and issue reconfiguration of another quorum")
     with network.partitioner.partition(backups):
         LOG.info("Trust all new nodes in one single proposal")
         # Note: Commit is stuck since a majority of backups in initial configuration
@@ -328,7 +328,7 @@ def test_election_reconfiguration(network, args):
         primary.stop()
 
         LOG.info(
-            f"Make sure that new nodes cannot elect a primary node among themselves"
+            "Make sure that new nodes cannot elect a primary node among themselves"
         )
         try:
             network.wait_for_new_primary(

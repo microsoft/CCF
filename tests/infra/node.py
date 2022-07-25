@@ -449,7 +449,7 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
 
-    def wait_for_node_to_join(self, timeout=3, *args, **kwargs):
+    def wait_for_node_to_join(self, *args, timeout=3, **kwargs):
         """
         This function can be used to check that a node has successfully
         joined a network and that it is part of the consensus.
