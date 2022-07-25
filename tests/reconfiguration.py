@@ -600,8 +600,7 @@ def run(args):
             test_add_node_from_backup(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
-            # TODO: work out why broken
-            # test_add_as_many_pending_nodes(network, args)
+            test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
             test_retire_primary(network, args)
 
