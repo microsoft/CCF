@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "ccf/ds/mutex.h"
+#include "ccf/ds/pal.h"
 #include "ccf/kv/untyped_map_handle.h"
 #include "ds/dl_list.h"
 #include "kv/kv_serialiser.h"
@@ -82,7 +82,7 @@ namespace kv::untyped
     CommitHook global_hook = nullptr;
     MapHook hook = nullptr;
     std::list<std::pair<Version, Write>> commit_deltas;
-    ccf::Mutex sl;
+    ccf::Pal::Mutex sl;
     const SecurityDomain security_domain;
     const bool replicated;
     const bool include_conflict_read_version;

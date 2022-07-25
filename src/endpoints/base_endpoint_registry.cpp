@@ -287,7 +287,7 @@ namespace ccf
     EndpointMetrics& endpoint_metrics)
   {
     endpoint_metrics.metrics.clear();
-    std::lock_guard<ccf::Mutex> guard(metrics_lock);
+    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
     for (const auto& [path, verb_metrics] : metrics)
     {
       for (const auto& [verb, metric] : verb_metrics)

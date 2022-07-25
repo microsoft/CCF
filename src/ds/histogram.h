@@ -6,7 +6,7 @@
 #  include <intrin.h>
 #endif
 
-#include "ccf/ds/mutex.h"
+#include "ccf/ds/pal.h"
 
 #include <cassert>
 #include <chrono>
@@ -253,7 +253,7 @@ namespace histogram
   class Global
   {
   private:
-    ccf::Mutex m;
+    ccf::Pal::Mutex m;
     std::string name;
     std::string file;
     size_t line;
@@ -271,7 +271,7 @@ namespace histogram
 
     void add(H& histogram)
     {
-      std::lock_guard<ccf::Mutex> lock(m);
+      std::lock_guard<ccf::Pal::Mutex> lock(m);
       histogram.next = head;
       head = &histogram;
     }
