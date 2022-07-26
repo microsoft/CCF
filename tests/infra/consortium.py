@@ -339,7 +339,6 @@ class Consortium:
         node_ids,
         valid_from,
         validity_period_days=None,
-        *args,
         **kwargs,
     ):
         proposal_body = {"actions": []}
@@ -355,7 +354,6 @@ class Consortium:
             remote_node,
             proposal,
             {"ballot": "export function vote (proposal, proposer_id) { return true }"},
-            *args,
             **kwargs,
         )
 
