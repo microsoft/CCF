@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- New `GET /node/network/removable_nodes` and `DELETE /node/network/nodes/{node_id}` exposed to allow operator to decide which nodes can be safely shut down after retirement, and clear their state from the Key-Value Store.
+
 ### Deprecated
 
 - The previous logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) have been deprecated, and should no longer be used by application code. Replace with the `CCF_APP_*` equivalent.
