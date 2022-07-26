@@ -1,10 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "ds/test/stub_writer.h"
+#include "host/lfs_file_handler.h"
+#include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/test/common.h"
 #include "node/share_manager.h"
@@ -450,7 +453,7 @@ TEST_CASE_TEMPLATE(
 }
 
 // Uses the real classes, and access + update them concurrently
-TEST_CASE("multi-threaded indexing" * doctest::test_suite("indexing"))
+TEST_CASE("multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
@@ -642,3 +645,267 @@ TEST_CASE("multi-threaded indexing" * doctest::test_suite("indexing"))
   work_done = true;
   watchdog.join();
 }
+
+// // Uses the real classes, and access + update them concurrently
+// using IndexA_Bucketed =
+//   ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
+// TEST_CASE_TEMPLATE(
+//   "multi-threaded indexing - bucketed" * doctest::test_suite("indexing"),
+//   AA,
+//   // IndexA
+//   // ,
+//   IndexA_Bucketed)
+// {
+//   auto kv_store_p = std::make_shared<kv::Store>();
+//   auto& kv_store = *kv_store_p;
+
+//   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+//   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
+
+//   auto stub_writer = std::make_shared<StubWriter>();
+//   auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
+//     kv_store, ledger_secrets, stub_writer);
+
+//   auto fetcher = std::make_shared<TestTransactionFetcher>();
+//   auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
+//   auto& indexer = *indexer_p;
+
+//   messaging::BufferProcessor host_bp("lfs_host");
+//   messaging::BufferProcessor enclave_bp("lfs_enclave");
+
+//   constexpr size_t buf_size = 1 << 16;
+//   auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+//   ringbuffer::Reader inbound_reader(inbound_buffer->bd);
+//   auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
+
+//   ringbuffer::Reader outbound_reader(outbound_buffer->bd);
+//   asynchost::LFSFileHandler host_files(
+//     std::make_shared<ringbuffer::Writer>(inbound_reader));
+//   host_files.register_message_handlers(host_bp.get_dispatcher());
+
+//   auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
+//     std::make_shared<ringbuffer::Writer>(outbound_reader));
+//   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+
+//   ccfapp::AbstractNodeContext node_context;
+//   node_context.install_subsystem(enclave_lfs);
+
+//   ccf::indexing::StrategyPtr index_a = nullptr;
+//   if constexpr (std::is_same_v<AA, IndexA_Bucketed>)
+//   {
+//     index_a = std::make_shared<AA>(map_a, node_context, 100, 5);
+//   }
+//   else
+//   {
+//     index_a = std::make_shared<AA>(map_a);
+//   }
+
+//   REQUIRE(indexer.install_strategy(index_a));
+
+//   auto index_b = std::make_shared<IndexB>(map_b);
+//   REQUIRE(indexer.install_strategy(index_b));
+
+//   auto ledger = add_raft_consensus(kv_store_p, indexer_p);
+
+//   ledger_secrets->init();
+//   {
+//     INFO("Store one recovery member");
+//     // This is necessary to rekey the ledger and issue recovery shares for the
+//     // new ledger secret
+//     auto tx = kv_store.create_tx();
+//     auto config = tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION);
+//     constexpr size_t recovery_threshold = 1;
+//     config->put({recovery_threshold});
+//     auto member_info = tx.rw<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
+//     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
+//       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+//     auto kp = crypto::make_key_pair();
+//     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
+//     auto member_id =
+//       crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+
+//     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
+//     member_public_encryption_keys->put(
+//       member_id, crypto::make_rsa_key_pair()->public_key_pem());
+//     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+//   }
+
+//   std::atomic<bool> finished = false;
+//   std::atomic<size_t> writes_to_hello = 0;
+//   std::atomic<size_t> writes_to_saluton = 0;
+//   std::atomic<size_t> writes_to_42 = 0;
+
+//   auto tx_advancer = [&]() {
+//     size_t i = 0;
+//     while (i < 1'000)
+//     {
+//       auto tx = kv_store.create_tx();
+//       tx.wo(map_a)->put(fmt::format("hello"), fmt::format("Value {}", i));
+//       ++writes_to_hello;
+//       if (i % 2 == 0)
+//       {
+//         ++writes_to_saluton;
+//         tx.wo(map_a)->put(fmt::format("saluton"), fmt::format("Value2 {}", i));
+//       }
+//       if (i % 3 == 0)
+//       {
+//         ++writes_to_42;
+//         tx.wo(map_b)->put(42, i);
+//       }
+
+//       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+//       ++i;
+//     }
+//     finished = true;
+//   };
+
+//   auto index_ticker = [&]() {
+//     while (!finished)
+//     {
+//       std::lock_guard<std::mutex> guard(fetcher->lock);
+//       while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
+//              !fetcher->requested.empty())
+//       {
+//         // Do the fetch, simulating an asynchronous fetch by the historical
+//         // query system
+//         for (auto seqno : fetcher->requested)
+//         {
+//           const auto entry = ledger->get_raw_entry_by_idx(seqno);
+//           REQUIRE(entry.has_value());
+//           fetcher->fetched_stores[seqno] = fetcher->deserialise_transaction(
+//             seqno, entry->data(), entry->size());
+//         }
+//         fetcher->requested.clear();
+//       }
+//     }
+//   };
+
+//   auto fetch_index_a = [&]() {
+//     while (true)
+//     {
+//       std::optional<ccf::SeqNoCollection> hello;
+//       std::optional<ccf::SeqNoCollection> saluton;
+
+//       auto idx_a = std::dynamic_pointer_cast<AA>(index_a);
+//       if constexpr (std::is_same_v<AA, IndexA_Bucketed>)
+//       {
+//         auto get_all = [&](const std::string& key) {
+//           const auto max_range = idx_a->max_requestable_range();
+//           const auto end_seqno = kv_store.get_txid().seqno;
+//           auto range_start = 0;
+
+//           ccf::SeqNoCollection all_results;
+
+//           auto next_end = [&]() {
+//             return std::min(end_seqno, range_start + max_range);
+//           };
+
+//           auto range_end = next_end();
+
+//           while (true)
+//           {
+//             auto results =
+//               idx_a->get_write_txs_in_range(key, range_start, range_end);
+
+//             if (!results.has_value())
+//             {
+//               // This required an async load from disk
+//               std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+//               results =
+//                 idx_a->get_write_txs_in_range(key, range_start, range_end);
+//               REQUIRE(results.has_value());
+//             }
+
+//             for (auto seqno : *results)
+//             {
+//               all_results.insert(seqno);
+//             }
+
+//             if (range_end == end_seqno)
+//             {
+//               return all_results;
+//             }
+//             else
+//             {
+//               range_start = range_end + 1;
+//               range_end = next_end();
+//             }
+//           }
+//         };
+
+//         hello = get_all("hello");
+//         saluton = get_all("saluton");
+//       }
+//       else
+//       {
+//         hello = idx_a->get_all_write_txs("hello");
+//         saluton = idx_a->get_all_write_txs("saluton");
+//       }
+
+//       if (
+//         finished && hello.has_value() && hello->size() == writes_to_hello &&
+//         saluton.has_value() && saluton->size() == writes_to_saluton)
+//       {
+//         break;
+//       }
+//     }
+//   };
+
+//   auto fetch_index_b = [&]() {
+//     while (true)
+//     {
+//       const auto forty_two = index_b->get_all_write_txs(42);
+
+//       if (
+//         finished && forty_two.has_value() && forty_two->size() == writes_to_42)
+//       {
+//         break;
+//       }
+//     }
+//   };
+
+//   std::vector<std::thread> threads;
+//   threads.emplace_back(tx_advancer);
+//   threads.emplace_back(index_ticker);
+//   threads.emplace_back(fetch_index_a);
+//   threads.emplace_back(fetch_index_a);
+//   threads.emplace_back(fetch_index_a);
+//   threads.emplace_back(fetch_index_b);
+//   threads.emplace_back(fetch_index_b);
+
+//   std::atomic<bool> work_done = false;
+
+//   std::thread ringbuffer_flusher([&]() {
+//     while (!work_done)
+//     {
+//       host_bp.read_all(outbound_reader);
+//       enclave_bp.read_all(inbound_reader);
+//     }
+//   });
+
+//   std::thread watchdog([&]() {
+//     using Clock = std::chrono::system_clock;
+//     const auto start_time = Clock::now();
+
+//     using namespace std::chrono_literals;
+//     const auto max_run_time = 10s;
+
+//     while (!work_done)
+//     {
+//       const auto now = Clock::now();
+//       REQUIRE(now - start_time < max_run_time);
+//       std::this_thread::sleep_for(50ms);
+//     }
+//   });
+
+//   for (auto& thread : threads)
+//   {
+//     thread.join();
+//   }
+
+//   work_done = true;
+//   ringbuffer_flusher.join();
+//   watchdog.join();
+// }
