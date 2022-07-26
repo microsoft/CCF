@@ -137,7 +137,7 @@ If a Key-Value pair was written to a :cpp:type:`kv::Map` by a previous :cpp:clas
 Global commit
 -------------
 
-A transaction is automatically globally committed once the consensus protocol has established that a majority of nodes in the CCF network have successfully received and acknowledged that transaction. To operate on durable state, an application may want to query the globally committed state rather than the *current* state of the KV.
+A transaction is automatically (globally) committed once the consensus protocol has established that a majority of nodes in the CCF network have successfully received and acknowledged that transaction. To operate on durable state, an application may want to query the globally committed state rather than the *current* state of the KV.
 
 The :cpp:func:`kv::MapHandle::get_globally_committed` member function returns the value of a key that we know has been globally committed.
 
