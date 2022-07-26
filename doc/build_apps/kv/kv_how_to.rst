@@ -21,7 +21,7 @@ A reference to a new :cpp:class:`kv::Tx` is passed to each endpoint handler, and
 
 Each :cpp:class:`kv::Tx` gets a consistent, opaque view of the KV, including the values which have been left by previous writes. Any writes produced by this transaction will be visible to all future transactions.
 
-When the endpoint handler indicates that its :cpp:class:`kv::Tx` should be applied (see :ref:`this section <build_apps/kv/kv_how_to:Applying and reverting writes>` for details), the executing node attempts to apply the changes to its local KV. If this produces conflicts with concurrently executing transactions, it will be automatically re-executed. Once the transaction is applied successfully, it is automatically replicated to other nodes and will, if the network is healthy, eventually be globally committed.
+When the endpoint handler indicates that its :cpp:class:`kv::Tx` should be applied (see :ref:`this section <build_apps/kv/kv_how_to:Applying and reverting writes>` for details), the executing node attempts to apply the changes to its local KV. If this produces conflicts with concurrently executing transactions, it will be automatically re-executed. Once the transaction is applied successfully, it is automatically replicated to other nodes and will, if the network is healthy, eventually be committed.
 
 For each :cpp:type:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:type:`kv::Map` instance which defines both the map's name and key-value types.
 
@@ -137,7 +137,7 @@ If a Key-Value pair was written to a :cpp:type:`kv::Map` by a previous :cpp:clas
 Global commit
 -------------
 
-A transaction is automatically globally committed once the consensus protocol has established that a majority of nodes in the CCF network have successfully received and acknowledged that transaction. To operate on durable state, an application may want to query the globally committed state rather than the current state of the KV.
+A transaction is automatically globally committed once the consensus protocol has established that a majority of nodes in the CCF network have successfully received and acknowledged that transaction. To operate on durable state, an application may want to query the globally committed state rather than the *current* state of the KV.
 
 The :cpp:func:`kv::MapHandle::get_globally_committed` member function returns the value of a key that we know has been globally committed.
 
