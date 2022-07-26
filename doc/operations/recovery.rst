@@ -120,4 +120,4 @@ Notes
 
 .. rubric:: Footnotes
 
-.. [#crash] When using CFT as consensus algorithm, CCF tolerates up to `N/2 - 1` crashed nodes (where `N` is the number of trusted nodes constituting the network) before having to perform a recovery procedure. For example, in a 5-node network, no more than 2 nodes are allowed to fail for the service to be able to commit new transactions.
+.. [#crash] When using CFT as consensus algorithm, CCF tolerates up to `(N-1)/2` crashed nodes (where `N` is the number of trusted nodes constituting the network) before having to perform a recovery procedure. For example, in a 5-node network, no more than 2 nodes are allowed to fail for the service to be able to commit new transactions.
