@@ -71,4 +71,15 @@ dispatch_one,1 # 1 sends vote response to 2
 state_all
 assert_is_primary,2
 
+# Node 1 appends a new committable entry to confirm its primaryship
+replicate,2,ConfirmCommit
+
+periodic_all,10
+dispatch_all
+
+dispatch_all
+
+state_all
+assert_state_sync
+
 

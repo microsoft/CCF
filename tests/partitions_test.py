@@ -287,7 +287,7 @@ def test_election_reconfiguration(network, args):
 
     LOG.info("Join new nodes without trusting them just yet")
     new_nodes = []
-    # Start N+1 new nodes to make sure they cannot elect of them as a primary
+    # Start N+1 new nodes to make sure they cannot elect one of them as a primary
     # without approval from the original configuration
     for _ in range(len(network.nodes) + 1):
         rpc_interfaces = {
@@ -335,7 +335,7 @@ def test_election_reconfiguration(network, args):
                 primary,
                 nodes=new_nodes,
                 interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
-                timeout_multiplier=1,
+                timeout_multiplier=3,
             )
         except infra.network.PrimaryNotFound:
             LOG.info(
