@@ -271,7 +271,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, ballot, wait_for_global_commit=True, timeout=3
+        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=3
     ):
         response = None
 
@@ -301,7 +301,7 @@ class Consortium:
             view = response.view
 
         # Wait for proposal completion to be committed, even if no votes are issued
-        if wait_for_global_commit:
+        if wait_for_commit:
             with remote_node.client() as c:
                 infra.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
@@ -347,7 +347,7 @@ class Consortium:
             remote_node,
             proposal,
             careful_vote,
-            wait_for_global_commit=True,
+            wait_for_commit=True,
             timeout=timeout,
         )
 
@@ -604,7 +604,7 @@ class Consortium:
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
-            remote_node, proposal, careful_vote, wait_for_global_commit=True
+            remote_node, proposal, careful_vote, wait_for_commit=True
         )
         # If the node was already in state "PartOfNetwork", the open network
         # proposal should open the service
