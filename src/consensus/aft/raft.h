@@ -128,8 +128,8 @@ namespace aft
 
     // Configurations
     std::list<Configuration> configurations;
-    // Union of other nodes (i.e. all nodes but us) in all active
-    // configurations. This should be used for diagnostic or broadcasting
+    // Union of other nodes (i.e. all nodes but us) in each active
+    // configuration. This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
@@ -942,8 +942,8 @@ namespace aft
 
           if (backup_ack_timeout_count < get_quorum(conf.nodes.size() - 1))
           {
-            // If primary has quorum of active backups in any configuration, it
-            // should remain primary
+            // If primary has quorum of active backups in _any_ configuration,
+            // it should remain primary
             has_quorum_of_backups = true;
             break;
           }
@@ -951,9 +951,9 @@ namespace aft
 
         if (!has_quorum_of_backups)
         {
-          // CheckQuorum: The primary automatically steps down if it has not
-          // heard back from a majority of backups in _all_ active
-          // configurations during an election timeout.
+          // CheckQuorum: The primary automatically steps down if there are no
+          // active configuration in which it has heard back from a majority of
+          // backups within an election timeout.
           LOG_INFO_FMT(
             "Stepping down as follower {}: No ack received from a majority of "
             "backups in last {}",
@@ -2264,7 +2264,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
-      // Examine all configurations that are followed by a globally committed
+      // Examine each configuration that is followed by a globally committed
       // configuration.
       bool changed = false;
 
@@ -2296,8 +2296,7 @@ namespace aft
             !resharing_tracker->have_resharing_result_for(rr.value(), idx))
           {
             LOG_TRACE_FMT(
-              "Configurations: not switching to next configuration, "
-              "resharing "
+              "Configurations: not switching to next configuration, resharing "
               "not completed yet.");
             break;
           }
