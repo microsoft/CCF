@@ -4,7 +4,7 @@ Performance
 Overview
 --------
 
-CCF pairs strong confidentiality guarantees with `very high performance <TR_>`_. CCF can sustain high transaction throughput, while also reaching consensus over global commits with low latency.
+CCF pairs strong confidentiality guarantees with `very high performance <TR_>`_. CCF can sustain high transaction throughput, while also reaching consensus over commits with low latency.
 
 .. _TR: https://github.com/microsoft/CCF/blob/main/CCF-TECHNICAL-REPORT.pdf
 
