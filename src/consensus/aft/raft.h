@@ -1835,6 +1835,7 @@ namespace aft
 
     void reset_votes_for_me()
     {
+      votes_for_me.clear();
       for (auto const& conf : configurations)
       {
         votes_for_me[conf.idx].quorum = get_quorum(conf.nodes.size());
