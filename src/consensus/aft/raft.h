@@ -69,7 +69,7 @@ namespace aft
     std::optional<ccf::NodeId> voted_for = std::nullopt;
     std::optional<ccf::NodeId> leader_id = std::nullopt;
 
-    // Keep track of votes in all active configuration
+    // Keep track of votes in each active configuration
     struct Votes
     {
       std::unordered_set<ccf::NodeId> votes;
@@ -130,8 +130,8 @@ namespace aft
     std::list<Configuration> configurations;
     // Union of other nodes (i.e. all nodes but us) in all active
     // configurations. This should be used for diagnostic or broadcasting
-    // messages but _not_ for counting quorums, which should be done for all
-    // active configurations.
+    // messages but _not_ for counting quorums, which should be done for each
+    // active configuration.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
@@ -2042,7 +2042,7 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
-      // Add vote for from node in all configuration where it is present
+      // Add vote for from node in each configuration where it is present
       for (auto const& conf : configurations)
       {
         auto const& nodes = conf.nodes;
