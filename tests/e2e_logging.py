@@ -1297,7 +1297,7 @@ def test_tx_statuses(network, args):
     with primary.client("user0") as c:
         check = infra.checker.Checker()
         r = network.txs.issue(network, 1, idx=0, send_public=False, msg="Ignored")
-        # Until this tx is globally committed, poll for the status of this and some other
+        # Until this tx is committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
         target_view = r.view
         target_seqno = r.seqno
@@ -1309,7 +1309,7 @@ def test_tx_statuses(network, args):
         while True:
             if time.time() > end_time:
                 raise TimeoutError(
-                    f"Took too long waiting for global commit of {target_view}.{target_seqno}"
+                    f"Took too long waiting for commit of {target_view}.{target_seqno}"
                 )
 
             done = False
