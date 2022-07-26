@@ -469,7 +469,8 @@ namespace aft
       const std::unordered_set<ccf::NodeId>& new_learner_nodes = {},
       const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
     {
-      LOG_DEBUG_FMT("Configurations: add new conf at {}: {{{}}}", idx, conf);
+      LOG_DEBUG_FMT(
+        "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
       if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
@@ -2305,7 +2306,7 @@ namespace aft
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
           LOG_DEBUG_FMT(
-            "Configurations: discard committed conf at {}", conf->idx);
+            "Configurations: discard committed configuration at {}", conf->idx);
           configurations.pop_front();
           changed = true;
 
@@ -2501,7 +2502,8 @@ namespace aft
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         LOG_DEBUG_FMT(
-          "Configurations: rollback conf at {}", configurations.back().idx);
+          "Configurations: rollback configuration at {}",
+          configurations.back().idx);
         configurations.pop_back();
         changed = true;
       }
