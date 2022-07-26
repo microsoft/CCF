@@ -81,17 +81,17 @@ Now we can submit a first command, to find the current commit index of the test 
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/commit -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
+    $ curl https://127.0.0.1:8000/app/commit -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
     {"transaction_id": 2.30}
 
 This should look much like a standard HTTP server, with error codes for missing resources or resources the caller is not authorized to access:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/not/a/real/resource -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
+    $ curl https://127.0.0.1:8000/app/not/a/real/resource -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
     HTTP/1.1 404 Not Found
 
-    $ curl https://127.251.192.205:36981/gov/proposals -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
+    $ curl https://127.0.0.1:8000/gov/proposals -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
     HTTP/1.1 403 Forbidden
 
 Logging App Commands
@@ -109,24 +109,24 @@ This is available at the ``/app/log/private`` path:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/log/private -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to private table"}'
+    $ curl https://127.0.0.1:8000/app/log/private -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to private table"}'
     true
 
 This has written an entry to the CCF KV, which can be retrieved by a future request:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/log/private?id=42 -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
+    $ curl https://127.0.0.1:8000/app/log/private?id=42 -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
     {"msg":"Logged to private table"}
 
 We can log messages in the public table via the ``/app/log/public`` path:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/log/public -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to public table"}'
+    $ curl https://127.0.0.1:8000/app/log/public -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to public table"}'
     true
 
-    $ curl https://127.251.192.205:36981/app/log/public?id=42 -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
+    $ curl https://127.0.0.1:8000/app/log/public?id=42 -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
     {"msg":"Logged to public table"}
 
 Note that the paths to these handlers is arbitrary. The names of the endpoints do not affect whether the result works with public or private tables - that is determined entirely by the application code. The logging app contains very simple examples, and real business transactions are likely to read and write from multiple tables. The difference between public and private tables is that private tables are encrypted before being written to the ledger, so their contents are only visible within the service's enclaves, whereas public tables can be read and audited directly from the ledger. This can be crudely checked by grepping the produced ledger files:
