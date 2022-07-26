@@ -1833,6 +1833,15 @@ namespace aft
       timeout_elapsed = std::chrono::milliseconds(distrib(rand));
     }
 
+    void reset_votes_for_me()
+    {
+      for (auto const& conf : configurations)
+      {
+        votes_for_me[conf.idx].quorum = get_quorum(conf.nodes.size());
+        votes_for_me[conf.idx].votes.clear();
+      }
+    }
+
     void become_candidate()
     {
       leadership_state = kv::LeadershipState::Candidate;
@@ -1840,11 +1849,12 @@ namespace aft
       clear_orc_sets();
 
       voted_for = state->my_node_id;
-      votes_for_me.clear();
+      reset_votes_for_me();
       state->current_view++;
 
       restart_election_timeout();
       reset_last_ack_timeouts();
+
       add_vote_for_me(state->my_node_id);
 
       LOG_INFO_FMT(
@@ -1971,7 +1981,7 @@ namespace aft
 
       state->current_view = term;
       voted_for.reset();
-      votes_for_me.clear();
+      reset_votes_for_me();
       become_follower();
       is_new_follower = true;
     }
@@ -2046,10 +2056,9 @@ namespace aft
       for (auto const& conf : configurations)
       {
         auto const& nodes = conf.nodes;
-        votes_for_me[conf.idx].quorum = get_quorum(nodes.size());
-
         if (nodes.find(from) == nodes.end())
         {
+          // from node is no longer in any active configuration.
           continue;
         }
 

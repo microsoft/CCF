@@ -77,9 +77,8 @@ replicate,2,ConfirmCommit
 periodic_all,10
 dispatch_all
 
+periodic_all,10
 dispatch_all
 
 state_all
 assert_state_sync
-
-
