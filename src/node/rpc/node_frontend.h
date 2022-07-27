@@ -632,8 +632,11 @@ namespace ccf
             node_info.status == ccf::NodeStatus::RETIRED &&
             node_id != this->context.get_node_id())
           {
-            // Set retired_committed nodes for which RETIRED status
-            // has been committed.
+            // Set retired_committed on nodes for which RETIRED status
+            // has been committed. Note that this is a rare situation
+            // where get_globally_committed() makes sense, and the transaction
+            // effectively takes a dependency on something that is neither
+            // in the KV nor in the request (ie. the status of the consensus).
             auto node = nodes->get_globally_committed(node_id);
             if (node.has_value())
             {
