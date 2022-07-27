@@ -1013,6 +1013,7 @@ namespace ccf
         }
 
         auto nodes = args.tx.rw(this->network.nodes);
+        auto node_endorsed_certificates = args.tx.rw(network.node_endorsed_certificates);
 
         auto node = nodes->get_globally_committed(node_id);
         if (
@@ -1020,6 +1021,7 @@ namespace ccf
           node->retired_committed)
         {
           nodes->remove(node_id);
+          node_endorsed_certificates->remove(node_id);
         }
 
         return make_success(true);
