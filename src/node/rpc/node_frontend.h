@@ -1013,7 +1013,8 @@ namespace ccf
         }
 
         auto nodes = args.tx.rw(this->network.nodes);
-        auto node_endorsed_certificates = args.tx.rw(network.node_endorsed_certificates);
+        auto node_endorsed_certificates =
+          args.tx.rw(network.node_endorsed_certificates);
 
         auto node = nodes->get_globally_committed(node_id);
         if (
