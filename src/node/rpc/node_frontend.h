@@ -620,7 +620,7 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto remove_retired_nodes = [this](auto& ctx, nlohmann::json&&) {
+      auto set_retired_committed = [this](auto& ctx, nlohmann::json&&) {
         // This endpoint should only be called internally once it is certain
         // that all nodes recorded as Retired will no longer issue transactions.
         auto nodes = ctx.tx.rw(network.nodes);
@@ -633,18 +633,16 @@ namespace ccf
             node_id != this->context.get_node_id())
           {
             // Set retired_committed on nodes for which RETIRED status
-            // has been committed. Note that this is a rare situation
-            // where get_globally_committed() makes sense, and the transaction
-            // effectively takes a dependency on something that is neither
-            // in the KV nor in the request (ie. the status of the consensus).
-            auto node = nodes->get_globally_committed(node_id);
+            // has been committed. This endpoint is only triggered for a
+            // a given node once their retirement has been committed.
+            auto node = nodes->get(node_id);
             if (node.has_value())
             {
               node->retired_committed = true;
               nodes->put(node_id, node.value());
             }
 
-            LOG_DEBUG_FMT("Removing retired node {}", node_id);
+            LOG_DEBUG_FMT("Setting retired_committed on node {}", node_id);
           }
           return true;
         });
@@ -652,9 +650,9 @@ namespace ccf
         return make_success();
       };
       make_endpoint(
-        "network/nodes/retired",
-        HTTP_DELETE,
-        json_adapter(remove_retired_nodes),
+        "network/nodes/set_retired_committed",
+        HTTP_POST,
+        json_adapter(set_retired_committed),
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
@@ -973,6 +971,12 @@ namespace ccf
         auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach(
           [this, &out, nodes](const NodeId& node_id, const NodeInfo& ni) {
+            // Only nodes whose retire_committed status is committed can be
+            // safely removed, because any primary elected from here on would
+            // consider them retired, and would consequently not need their
+            // input in any quorum. We must therefore read the KV at its
+            // globally committed watermark, for the purpose of this RPC. Since
+            // this transaction does not perform a write, it is safe to do this.
             auto node = nodes->get_globally_committed(node_id);
             if (
               node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
@@ -1000,41 +1004,68 @@ namespace ccf
         .set_auto_schema<void, GetNodes::Out>()
         .install();
 
-      auto delete_removed_node = [this](auto& args, nlohmann::json&&) {
-        GetNodes::Out out;
+      auto delete_retired_committed_node =
+        [this](auto& args, nlohmann::json&&) {
+          GetNodes::Out out;
 
-        std::string node_id;
-        std::string error;
-        if (!get_path_param(
-              args.rpc_ctx->get_request_path_params(),
-              "node_id",
-              node_id,
-              error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
+          std::string node_id;
+          std::string error;
+          if (!get_path_param(
+                args.rpc_ctx->get_request_path_params(),
+                "node_id",
+                node_id,
+                error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
 
-        auto nodes = args.tx.rw(this->network.nodes);
-        auto node_endorsed_certificates =
-          args.tx.rw(network.node_endorsed_certificates);
+          auto nodes = args.tx.rw(this->network.nodes);
+          if (!nodes->has(node_id))
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "No such node");
+          }
 
-        auto node = nodes->get_globally_committed(node_id);
-        if (
-          node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
-          node->retired_committed)
-        {
-          nodes->remove(node_id);
-          node_endorsed_certificates->remove(node_id);
-        }
+          auto node_endorsed_certificates =
+            args.tx.rw(network.node_endorsed_certificates);
 
-        return make_success(true);
-      };
+          // A node's retirement is only complete when the
+          // transition of retired_committed is itself committed,
+          // i.e. when the next eligible primary is guaranteed to
+          // be aware the retirement is committed.
+          // As a result, the handler must check node info at the
+          // current committed level, rather than at the end of the
+          // local suffix.
+          // While this transaction does execute a write, it specifically
+          // deletes the value it reads from. It is therefore safe to
+          // execute on the basis of a potentially stale read-set,
+          // which get_globally_committed() typically produces.
+          auto node = nodes->get_globally_committed(node_id);
+          if (
+            node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+            node->retired_committed)
+          {
+            nodes->remove(node_id);
+            node_endorsed_certificates->remove(node_id);
+          }
+          else
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::NodeNotRetiredCommitted,
+              "Node is not completely retired");
+          }
+
+          return make_success(true);
+        };
 
       make_endpoint(
         "/network/nodes/{node_id}",
         HTTP_DELETE,
-        json_adapter(delete_removed_node),
+        json_adapter(delete_retired_committed_node),
         no_auth_required)
         .set_auto_schema<void, bool>()
         .install();
