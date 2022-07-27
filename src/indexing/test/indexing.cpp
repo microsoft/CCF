@@ -453,6 +453,9 @@ TEST_CASE_TEMPLATE(
     index_b);
 }
 
+using namespace std::chrono_literals;
+const auto max_multithread_run_time = 10s;
+
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
@@ -628,13 +631,10 @@ TEST_CASE(
     using Clock = std::chrono::system_clock;
     const auto start_time = Clock::now();
 
-    using namespace std::chrono_literals;
-    const auto max_run_time = 10s;
-
     while (!work_done)
     {
       const auto now = Clock::now();
-      REQUIRE(now - start_time < max_run_time);
+      REQUIRE(now - start_time < max_multithread_run_time);
       std::this_thread::sleep_for(50ms);
     }
   });
@@ -695,7 +695,6 @@ public:
       const auto entry = ledger->get_raw_entry_by_idx(seqno);
       if (!entry.has_value())
       {
-        fmt::print("Ledger still has no entry for {}\n", seqno);
         return {};
       }
 
@@ -805,6 +804,7 @@ TEST_CASE(
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
       ++i;
+      std::this_thread::yield();
     }
     all_submitted = true;
   };
@@ -824,15 +824,15 @@ TEST_CASE(
       auto results =
         index_a->get_write_txs_in_range(key, range_start, range_end);
 
+      std::chrono::milliseconds sleep_time(10);
       while (!results.has_value())
       {
-        std::this_thread::yield();
-        fmt::print(
-          "Got empty result for {} between {} and {}, yielding\n",
-          key,
-          range_start,
-          range_end);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // May be contesting for limited cached buckets with other users of this
+        // index (no handle for unique claims). Back-off exponentially, with
+        // random variation, to break deadlock
+        std::this_thread::sleep_for(sleep_time);
+
+        sleep_time += std::chrono::milliseconds(rand() % sleep_time.count());
 
         results = index_a->get_write_txs_in_range(key, range_start, range_end);
       }
@@ -866,6 +866,8 @@ TEST_CASE(
       {
         break;
       }
+
+      std::this_thread::yield();
     }
   };
 
@@ -880,6 +882,8 @@ TEST_CASE(
       {
         break;
       }
+
+      std::this_thread::yield();
     }
   };
 
@@ -898,6 +902,7 @@ TEST_CASE(
     {
       host_bp.read_all(outbound_reader);
       enclave_bp.read_all(inbound_reader);
+      std::this_thread::yield();
     }
   });
 
@@ -915,13 +920,10 @@ TEST_CASE(
     using Clock = std::chrono::system_clock;
     const auto start_time = Clock::now();
 
-    using namespace std::chrono_literals;
-    const auto max_run_time = 5s;
-
     while (!work_done)
     {
       const auto now = Clock::now();
-      REQUIRE(now - start_time < max_run_time);
+      REQUIRE(now - start_time < max_multithread_run_time);
       std::this_thread::sleep_for(50ms);
     }
   });
