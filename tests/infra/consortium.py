@@ -18,7 +18,6 @@ import shutil
 import tempfile
 import glob
 import datetime
-import time
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
