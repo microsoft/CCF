@@ -465,6 +465,7 @@ namespace kv
     virtual NodeId id() = 0;
     virtual bool is_primary() = 0;
     virtual bool is_backup() = 0;
+    virtual bool is_candidate() = 0;
     virtual bool can_replicate() = 0;
 
     enum class SignatureDisposition
