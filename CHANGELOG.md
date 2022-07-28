@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- New `GET /node/network/removable_nodes` and `DELETE /node/network/nodes/{node_id}` exposed to allow operator to decide which nodes can be safely shut down after retirement, and clear their state from the Key-Value Store.
+
 ### Dependencies
 
 - Upgraded Open Enclave to 0.18.1 (#4023).

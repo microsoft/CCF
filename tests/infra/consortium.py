@@ -325,6 +325,10 @@ class Consortium:
             return r.body.json()
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
+        pending = False
+        with remote_node.client(connection_timeout=timeout) as c:
+            r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
+            pending = r.body.json()["status"] == infra.node.State.PENDING.value
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "remove_node",
@@ -332,6 +336,7 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
+        return pending
 
     def trust_node(
         self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
