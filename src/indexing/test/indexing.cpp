@@ -786,7 +786,14 @@ TEST_CASE(
 
   auto tx_advancer = [&]() {
     size_t i = 0;
-    while (i < 1'000)
+    constexpr auto tx_count =
+#if NDEBUG
+      1'000;
+#else
+      100;
+#endif
+
+    while (i < tx_count)
     {
       auto tx = kv_store.create_tx();
       tx.wo(map_a)->put(fmt::format("hello"), fmt::format("Value {}", i));
