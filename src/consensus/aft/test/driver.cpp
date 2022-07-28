@@ -26,7 +26,7 @@ int main(int argc, char** argv)
 {
   const regex delim{","};
   size_t lineno = 1;
-  auto driver = shared_ptr<RaftDriver>(nullptr);
+  auto driver = make_shared<RaftDriver>();
 
   if (argc < 2)
   {
@@ -65,7 +65,7 @@ int main(int argc, char** argv)
       case shash("nodes"):
         assert(items.size() >= 2);
         items.erase(items.begin());
-        driver = make_shared<RaftDriver>(items);
+        driver->create_new_nodes(items);
         break;
       case shash("connect"):
         assert(items.size() == 3);
@@ -148,6 +148,10 @@ int main(int argc, char** argv)
       case shash("assert_is_primary"):
         assert(items.size() == 2);
         driver->assert_is_primary(items[1]);
+        break;
+      case shash("assert_is_candidate"):
+        assert(items.size() == 2);
+        driver->assert_is_candidate(items[1]);
         break;
       case shash("assert_commit_idx"):
         assert(items.size() == 3);

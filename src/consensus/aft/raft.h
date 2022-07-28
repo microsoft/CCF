@@ -68,7 +68,14 @@ namespace aft
     // Volatile
     std::optional<ccf::NodeId> voted_for = std::nullopt;
     std::optional<ccf::NodeId> leader_id = std::nullopt;
-    std::unordered_set<ccf::NodeId> votes_for_me;
+
+    // Keep track of votes in each active configuration
+    struct Votes
+    {
+      std::unordered_set<ccf::NodeId> votes;
+      size_t quorum;
+    };
+    std::map<Index, Votes> votes_for_me;
 
     // Replicas start in leadership state Follower. Apart from a single forced
     // transition from Follower to Leader on the initial node at startup,
@@ -121,7 +128,11 @@ namespace aft
 
     // Configurations
     std::list<Configuration> configurations;
-    std::unordered_map<ccf::NodeId, NodeState> nodes;
+    // Union of other nodes (i.e. all nodes but us) in each active
+    // configuration. This should be used for diagnostic or broadcasting
+    // messages but _not_ for counting quorums, which should be done for each
+    // active configuration.
+    std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
@@ -254,6 +265,11 @@ namespace aft
     bool is_primary() override
     {
       return leadership_state == kv::LeadershipState::Leader;
+    }
+
+    bool is_candidate() override
+    {
+      return leadership_state == kv::LeadershipState::Candidate;
     }
 
     bool can_replicate() override
@@ -453,7 +469,8 @@ namespace aft
       const std::unordered_set<ccf::NodeId>& new_learner_nodes = {},
       const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
     {
-      LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
+      LOG_DEBUG_FMT(
+        "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
       if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
@@ -519,7 +536,7 @@ namespace aft
           for (const auto& [nid, _] : conf)
           {
             if (
-              nodes.find(nid) != nodes.end() &&
+              all_other_nodes.find(nid) != all_other_nodes.end() &&
               learner_nodes.find(nid) != learner_nodes.end() &&
               new_learner_nodes.find(nid) == new_learner_nodes.end())
             {
@@ -596,7 +613,7 @@ namespace aft
 
     void reset_last_ack_timeouts()
     {
-      for (auto& node : nodes)
+      for (auto& node : all_other_nodes)
       {
         using namespace std::chrono_literals;
         node.second.last_ack_timeout = 0ms;
@@ -699,11 +716,11 @@ namespace aft
       {
         details.retirement_phase = retirement_phase;
       }
-      for (auto& config : configurations)
+      for (auto const& conf : configurations)
       {
-        details.configs.push_back(config);
+        details.configs.push_back(conf);
       }
-      for (auto& [k, v] : nodes)
+      for (auto& [k, v] : all_other_nodes)
       {
         details.acks[k] = {
           v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
@@ -797,7 +814,7 @@ namespace aft
           update_batch_size();
           entry_count = 0;
           entry_size_not_limited = 0;
-          for (const auto& it : nodes)
+          for (const auto& it : all_other_nodes)
           {
             LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
@@ -806,7 +823,7 @@ namespace aft
       }
 
       // If we are the only node, attempt to commit immediately.
-      if (nodes.size() == 0)
+      if (all_other_nodes.size() == 0)
       {
         update_commit();
       }
@@ -889,32 +906,58 @@ namespace aft
           timeout_elapsed = 0ms;
 
           update_batch_size();
-          // Send newly available entries to all nodes.
-          for (const auto& it : nodes)
+          // Send newly available entries to all other nodes.
+          for (const auto& node : all_other_nodes)
           {
-            send_append_entries(it.first, it.second.sent_idx + 1);
+            send_append_entries(node.first, node.second.sent_idx + 1);
           }
         }
 
-        size_t backup_ack_timeout_count = 0;
-        for (auto& node : nodes)
+        for (auto& node : all_other_nodes)
         {
           node.second.last_ack_timeout += elapsed;
-          if (node.second.last_ack_timeout >= election_timeout)
+        }
+
+        bool has_quorum_of_backups = false;
+        for (auto const& conf : configurations)
+        {
+          size_t backup_ack_timeout_count = 0;
+          for (auto const& node : conf.nodes)
           {
-            backup_ack_timeout_count++;
+            auto search = all_other_nodes.find(node.first);
+            if (search == all_other_nodes.end())
+            {
+              // Ignore ourselves as primary
+              continue;
+            }
+            if (search->second.last_ack_timeout >= election_timeout)
+            {
+              LOG_DEBUG_FMT(
+                "No ack received from {} in last {}",
+                node.first,
+                election_timeout);
+              backup_ack_timeout_count++;
+            }
+          }
+
+          if (backup_ack_timeout_count < get_quorum(conf.nodes.size() - 1))
+          {
+            // If primary has quorum of active backups in _any_ configuration,
+            // it should remain primary
+            has_quorum_of_backups = true;
+            break;
           }
         }
 
-        if (backup_ack_timeout_count >= get_quorum(nodes.size()))
+        if (!has_quorum_of_backups)
         {
-          // CheckQuorum: The primary automatically steps down if it has not
-          // heard back from a majority of backups during an election timeout.
+          // CheckQuorum: The primary automatically steps down if there are no
+          // active configuration in which it has heard back from a majority of
+          // backups within an election timeout.
           LOG_INFO_FMT(
-            "Stepping down as follower {}: No ack received from a majority {} "
-            "of backups in last {}",
+            "Stepping down as follower {}: No ack received from a majority of "
+            "backups in last {}",
             state->my_node_id,
-            backup_ack_timeout_count,
             election_timeout);
           become_follower();
         }
@@ -1083,7 +1126,7 @@ namespace aft
         term_of_idx,
         contains_new_view};
 
-      auto& node = nodes.at(to);
+      auto& node = all_other_nodes.at(to);
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
@@ -1490,8 +1533,8 @@ namespace aft
         return;
       }
 
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = all_other_nodes.find(from);
+      if (node == all_other_nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -1732,8 +1775,8 @@ namespace aft
       }
 
       // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = all_other_nodes.find(from);
+      if (node == all_other_nodes.end())
       {
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: unknown node",
@@ -1790,6 +1833,16 @@ namespace aft
       timeout_elapsed = std::chrono::milliseconds(distrib(rand));
     }
 
+    void reset_votes_for_me()
+    {
+      votes_for_me.clear();
+      for (auto const& conf : configurations)
+      {
+        votes_for_me[conf.idx].quorum = get_quorum(conf.nodes.size());
+        votes_for_me[conf.idx].votes.clear();
+      }
+    }
+
     void become_candidate()
     {
       leadership_state = kv::LeadershipState::Candidate;
@@ -1797,11 +1850,12 @@ namespace aft
       clear_orc_sets();
 
       voted_for = state->my_node_id;
-      votes_for_me.clear();
+      reset_votes_for_me();
       state->current_view++;
 
       restart_election_timeout();
       reset_last_ack_timeouts();
+
       add_vote_for_me(state->my_node_id);
 
       LOG_INFO_FMT(
@@ -1809,7 +1863,7 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        for (auto const& node : nodes)
+        for (auto const& node : all_other_nodes)
         {
           send_request_vote(node.first);
         }
@@ -1863,7 +1917,7 @@ namespace aft
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
       // Immediately commit if there are no other nodes.
-      if (nodes.size() == 0)
+      if (all_other_nodes.size() == 0)
       {
         commit(state->last_idx);
         return;
@@ -1872,7 +1926,7 @@ namespace aft
       // Reset next, match, and sent indices for all nodes.
       auto next = state->last_idx + 1;
 
-      for (auto& node : nodes)
+      for (auto& node : all_other_nodes)
       {
         node.second.match_idx = 0;
         node.second.sent_idx = next - 1;
@@ -1928,7 +1982,7 @@ namespace aft
 
       state->current_view = term;
       voted_for.reset();
-      votes_for_me.clear();
+      reset_votes_for_me();
       become_follower();
       is_new_follower = true;
     }
@@ -1999,30 +2053,40 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
-      size_t quorum = -1;
-
-      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
+      // Add vote for from node in each configuration where it is present
+      for (auto const& conf : configurations)
       {
-        const auto& cfg = configurations.front();
-
-        if (cfg.nodes.find(from) == cfg.nodes.end())
+        auto const& nodes = conf.nodes;
+        if (nodes.find(from) == nodes.end())
         {
-          LOG_INFO_FMT("Ignoring vote from ineligible voter {}", from);
-          return;
+          // from node is no longer in any active configuration.
+          continue;
         }
 
-        // Need 50% + 1 of the total nodes in the current config (including us).
-        votes_for_me.insert(from);
-        quorum = get_quorum(cfg.nodes.size());
-      }
-      else
-      {
-        // Need 50% + 1 of the total nodes, which are the other nodes plus us.
-        votes_for_me.insert(from);
-        quorum = get_quorum(nodes.size() + 1);
+        votes_for_me[conf.idx].votes.insert(from);
+        LOG_DEBUG_FMT(
+          "Node {} voted for {} in configuration {} with quorum {}",
+          from,
+          state->my_node_id,
+          conf.idx,
+          votes_for_me[conf.idx].quorum);
       }
 
-      if (votes_for_me.size() >= quorum)
+      // We need a quorum of votes in _all_ configurations to become leader
+      bool is_elected = true;
+      for (auto const& v : votes_for_me)
+      {
+        auto const& quorum = v.second.quorum;
+        auto const& votes = v.second.votes;
+
+        if (votes.size() < quorum)
+        {
+          is_elected = false;
+          break;
+        }
+      }
+
+      if (is_elected)
       {
         become_leader();
       }
@@ -2036,7 +2100,7 @@ namespace aft
       auto new_commit_cft_idx = std::numeric_limits<Index>::max();
 
       // Obtain CFT watermarks
-      for (auto& c : configurations)
+      for (auto const& c : configurations)
       {
         // The majority must be checked separately for each active
         // configuration.
@@ -2051,7 +2115,7 @@ namespace aft
           }
           else
           {
-            match.push_back(nodes.at(node.first).match_idx);
+            match.push_back(all_other_nodes.at(node.first).match_idx);
           }
         }
 
@@ -2124,7 +2188,7 @@ namespace aft
       for (const auto& [id, _] : c.nodes)
       {
         if (
-          (nodes.find(id) != nodes.end() &&
+          (all_other_nodes.find(id) != all_other_nodes.end() &&
            learner_nodes.find(id) == learner_nodes.end()) ||
           (id == state->my_node_id && !is_learner()))
         {
@@ -2210,7 +2274,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
-      // Examine all configurations that are followed by a globally committed
+      // Examine each configuration that is followed by a globally committed
       // configuration.
       bool changed = false;
 
@@ -2218,14 +2282,20 @@ namespace aft
       {
         auto conf = configurations.begin();
         if (conf == configurations.end())
+        {
           break;
+        }
 
         auto next = std::next(conf);
         if (next == configurations.end())
+        {
           break;
+        }
 
         if (idx < next->idx)
+        {
           break;
+        }
 
         if (require_identity_for_reconfig)
         {
@@ -2244,6 +2314,8 @@ namespace aft
 
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
+          LOG_DEBUG_FMT(
+            "Configurations: discard committed configuration at {}", conf->idx);
           configurations.pop_front();
           changed = true;
 
@@ -2438,6 +2510,9 @@ namespace aft
 
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
+        LOG_DEBUG_FMT(
+          "Configurations: rollback configuration at {}",
+          configurations.back().idx);
         configurations.pop_back();
         changed = true;
       }
@@ -2481,9 +2556,9 @@ namespace aft
       // Find all nodes present in any active configuration.
       Configuration::Nodes active_nodes;
 
-      for (auto& conf : configurations)
+      for (auto const& conf : configurations)
       {
-        for (auto node : conf.nodes)
+        for (auto const& node : conf.nodes)
         {
           active_nodes.emplace(node.first, node.second);
         }
@@ -2493,7 +2568,7 @@ namespace aft
       // configuration.
       std::vector<ccf::NodeId> to_remove;
 
-      for (const auto& node : nodes)
+      for (const auto& node : all_other_nodes)
       {
         if (active_nodes.find(node.first) == active_nodes.end())
         {
@@ -2503,7 +2578,7 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        nodes.erase(node_id);
+        all_other_nodes.erase(node_id);
         LOG_INFO_FMT("Removed raft node {}", node_id);
       }
 
@@ -2515,7 +2590,7 @@ namespace aft
           continue;
         }
 
-        if (nodes.find(node_info.first) == nodes.end())
+        if (all_other_nodes.find(node_info.first) == all_other_nodes.end())
         {
           if (!channels->have_channel(node_info.first))
           {
@@ -2531,7 +2606,8 @@ namespace aft
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;
-          nodes.try_emplace(node_info.first, node_info.second, index, 0);
+          all_other_nodes.try_emplace(
+            node_info.first, node_info.second, index, 0);
 
           if (leadership_state == kv::LeadershipState::Leader)
           {
