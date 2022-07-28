@@ -333,23 +333,32 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def trust_node(
-        self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
+    def trust_nodes(
+        self,
+        remote_node,
+        node_ids,
+        valid_from,
+        validity_period_days=None,
+        **kwargs,
     ):
-        proposal_body, careful_vote = self.make_proposal(
-            "transition_node_to_trusted",
-            node_id=node_id,
-            valid_from=valid_from,
-            validity_period_days=validity_period_days,
-        )
+        proposal_body = {"actions": []}
+        for node_id in node_ids:
+            proposal_args = {"node_id": node_id, "valid_from": str(valid_from)}
+            if validity_period_days is not None:
+                proposal_args["validity_period_days"] = validity_period_days
+            proposal_body["actions"].append(
+                {"name": "transition_node_to_trusted", "args": proposal_args}
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,
             proposal,
-            careful_vote,
-            wait_for_commit=True,
-            timeout=timeout,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+            **kwargs,
         )
+
+    def trust_node(self, remote_node, node_id, *args, **kwargs):
+        return self.trust_nodes(remote_node, [node_id], *args, **kwargs)
 
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")
