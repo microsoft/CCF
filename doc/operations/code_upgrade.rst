@@ -156,7 +156,7 @@ Procedure
             end
         end
 
-4. Once all old nodes ``0``, ``1`` and ``2`` have been retired (and their retirement committed, as per :ref:`use_apps/verify_tx:Checking for Commit`), operators can safely stop them:
+4. Once all old nodes ``0``, ``1`` and ``2`` have been retired, and they are listed under :http:GET:`/node/network/removable_nodes`, operators can safely stop them and delete them from the state (:http:DELETE:`/node/network/nodes/{node_id}`):
 
 .. mermaid::
 
