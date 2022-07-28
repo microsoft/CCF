@@ -295,7 +295,7 @@ def test_election_reconfiguration(network, args):
             primary,
             [n.node_id for n in new_nodes],
             valid_from=datetime.utcnow(),
-            wait_for_commit=False,
+            wait_for_global_commit=False,
         )
 
         for node in new_nodes:
