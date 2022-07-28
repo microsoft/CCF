@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
+
 ### Dependencies
 
 - Upgraded Open Enclave to 0.18.1 (#4023).
