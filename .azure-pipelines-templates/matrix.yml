@@ -66,6 +66,7 @@ jobs:
           artifact_name: "SGX_Perf"
           ctest_filter: "${{ parameters.test.perf.ctest_args }}"
           fetch_v8: release
+          depends_on: configure
 
   # Performance (NoSGX)
   # NOTE: CI doesn't support SGX and NoSGX perf tests at the same time.
