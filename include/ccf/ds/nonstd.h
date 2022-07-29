@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -171,4 +172,12 @@ namespace nonstd
 
     return s;
   }
+
+  template <typename T>
+  struct is_optional : std::false_type
+  {};
+
+  template <typename T>
+  struct is_optional<std::optional<T>> : std::true_type
+  {};
 }
