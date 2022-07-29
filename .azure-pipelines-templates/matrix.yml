@@ -95,6 +95,7 @@ jobs:
           suffix: "Release"
           artifact_name: "SGX_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
+          depends_on: configure
 
       # Build that produces unsafe binaries for troubleshooting purposes
       - template: common.yml
@@ -105,6 +106,7 @@ jobs:
           suffix: "Unsafe"
           artifact_name: "SGX_Unsafe"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
+          depends_on: configure
 
       - template: release.yml
         parameters:
