@@ -57,11 +57,10 @@ jobs:
             echo " - Source has changed"
             echo "##vso[task.setvariable variable=docOnly;isOutput=true]false" #set variable docOnly to false
           fi
-          echo "docOnly = $(docOnly)"
         displayName: "Check for runtime changes"
         name: setVarStep
 
-  - ${{ if eq(variables['docOnly'], false) }}:
+  - ${{ if eq(setVarStep.variables['docOnly'], false) }}:
       - template: .azure-pipelines-templates/matrix.yml
         parameters:
           perf_or_release: ${{ variables['perf_or_release'] }}
