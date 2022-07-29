@@ -57,6 +57,7 @@ jobs:
             echo " - Source has changed"
             echo "##vso[task.setvariable variable=docOnly;isOutput=true]false" #set variable docOnly to false
           fi
+          echo "docOnly = $(docOnly)"
         displayName: "Check for runtime changes"
         name: setVarStep
 
