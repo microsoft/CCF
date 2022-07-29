@@ -50,7 +50,7 @@ jobs:
     steps:
       - script: |
           echo "Determine if any code has changed."
-          if git diff --ignore-submodules=dirty --quiet origin/master -- ':!docs' ':!*.md' ':!*.txt'; then
+          if git diff --ignore-submodules=dirty --quiet origin/main -- ':!docs' ':!*.md' ':!*.txt'; then
             echo " - Documentation change only"
             echo "##vso[task.setvariable variable=docOnly;isOutput=true]true" #set variable docOnly to true
           else
