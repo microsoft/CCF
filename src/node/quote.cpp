@@ -39,9 +39,13 @@ namespace ccf
   {
     CodeDigest unique_id = {};
     crypto::Sha256Hash h = {};
-    if (!Pal::verify_quote(quote_info, unique_id.data, h.h))
+    try
     {
-      LOG_FAIL_FMT("Failed to verify quote");
+      Pal::verify_quote(quote_info, unique_id.data, h.h);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
       return std::nullopt;
     }
 
@@ -56,8 +60,13 @@ namespace ccf
       CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
-    if (!Pal::verify_quote(quote_info, code_digest.data, quoted_hash.h))
+    try
     {
+      Pal::verify_quote(quote_info, code_digest.data, quoted_hash.h);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
       return QuoteVerificationResult::Failed;
     }
 

@@ -205,9 +205,6 @@ namespace ccf
       QuoteInfo node_quote_info = {};
       node_quote_info.format = QuoteFormat::oe_sgx_v1;
 
-      // crypto::Sha256Hash h{report_data}; // TODO: Remove deps on crypto
-      // TODO: Check size of report data
-
       Evidence evidence;
       Endorsements endorsements;
       SerialisedClaims serialised_custom_claims;
@@ -256,7 +253,7 @@ namespace ccf
       return node_quote_info;
     }
 
-    static bool verify_quote(
+    static void verify_quote(
       const QuoteInfo& quote_info,
       std::array<uint8_t, 32>& unique_id,
       std::array<uint8_t, 32>& report_data)
@@ -275,8 +272,7 @@ namespace ccf
         &claims.length);
       if (rc != OE_OK)
       {
-        // LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
-        return false;
+        throw std::logic_error(fmt::format("Failed to verify evidence: {}", oe_result_str(rc)));
       }
 
       bool unique_id_found = false;
@@ -331,12 +327,16 @@ namespace ccf
         }
       }
 
-      if (!unique_id_found || !sgx_report_data_found)
+      if (!unique_id_found)
       {
-        return false;
+        throw std::logic_error("Could not find measurement");
       }
 
-      return true;
+      if (!sgx_report_data_found)
+      {
+        throw std::logic_error("Could not find report data");
+      }
+
     }
 
   private:
