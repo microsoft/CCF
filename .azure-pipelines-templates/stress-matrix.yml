@@ -11,3 +11,4 @@ jobs:
       artifact_name: "StressTest"
       ctest_filter: '-L "vegeta" -C "long_stress"'
       ctest_timeout: "0" # No timeout
+      depends_on: configure
