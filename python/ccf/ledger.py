@@ -367,7 +367,7 @@ class LedgerValidator:
 
     accept_deprecated_entry_types: bool = True
     node_certificates: Dict[str, str] = {}
-    node_activity_status: Dict[str, Tuple[str, int]] = {}
+    node_activity_status: Dict[str, Tuple[str, int, bool]] = {}
     signature_count: int = 0
 
     def __init__(self, accept_deprecated_entry_types: bool = True):
@@ -425,6 +425,7 @@ class LedgerValidator:
                 self.node_activity_status[node_id] = (
                     node_info["status"],
                     transaction_public_domain.get_seqno(),
+                    node_info.get("retired_committed", False),
                 )
 
         if ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables:
@@ -517,12 +518,13 @@ class LedgerValidator:
         """Verify item 1, The merkle root is signed by a valid node in the given network"""
         # Note: A retired primary will still issue signature transactions until
         # its retirement is committed
-        node_status = NodeStatus(tx_info.node_activity[tx_info.signing_node][0])
+        node_info = tx_info.node_activity[tx_info.signing_node]
+        node_status = NodeStatus(node_info[0])
         if node_status not in (
             NodeStatus.TRUSTED,
             NodeStatus.RETIRING,
             NodeStatus.RETIRED,
-        ):
+        ) or (node_status == NodeStatus.RETIRED and node_info[2]):
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )

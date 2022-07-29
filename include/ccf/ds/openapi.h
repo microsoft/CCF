@@ -421,6 +421,11 @@ namespace ds
       const nlohmann::json& param)
     {
       auto& params = parameters(path(document, uri));
+      for (auto& p : params)
+      {
+        if (p["name"] == param["name"])
+          return;
+      }
       params.push_back(param);
     }
 
