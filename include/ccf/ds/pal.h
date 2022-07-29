@@ -272,7 +272,8 @@ namespace ccf
         &claims.length);
       if (rc != OE_OK)
       {
-        throw std::logic_error(fmt::format("Failed to verify evidence: {}", oe_result_str(rc)));
+        throw std::logic_error(
+          fmt::format("Failed to verify evidence: {}", oe_result_str(rc)));
       }
 
       bool unique_id_found = false;
@@ -336,7 +337,6 @@ namespace ccf
       {
         throw std::logic_error("Could not find report data");
       }
-
     }
 
   private:

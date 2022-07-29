@@ -414,7 +414,7 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp ${CCF_DIR}/src/node/quote.cpp
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
@@ -438,7 +438,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       node_frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp ${CCF_DIR}/src/node/quote.cpp
     )
     target_link_libraries(
       node_frontend_test
