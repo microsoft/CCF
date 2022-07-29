@@ -298,12 +298,6 @@ def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.retire_node(primary, backup_to_retire)
-    network.wait_for_node_in_store(
-        primary,
-        backup_to_retire.node_id,
-        node_status=None,
-        timeout=3,
-    )
     backup_to_retire.stop()
     check_can_progress(primary)
     wait_for_reconfiguration_to_complete(network)
@@ -323,14 +317,6 @@ def test_retire_primary(network, args):
     new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
     # See https://github.com/microsoft/CCF/issues/1713
     check_can_progress(new_primary)
-    # The old primary should automatically be removed from the store
-    # once a new primary is elected
-    network.wait_for_node_in_store(
-        new_primary,
-        primary.node_id,
-        node_status=None,
-        timeout=3,
-    )
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
