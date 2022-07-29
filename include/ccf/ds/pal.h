@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/attestation_types.h"
 #include "ccf/ds/quote_info.h"
 
 #include <cstdint>
@@ -11,7 +12,6 @@
 #  include <cstring>
 #  include <mutex>
 #else
-#  include "ccf/ds/attestation_types.h"
 #  include "ccf/ds/ccf_exception.h"
 #  include "ccf/ds/logger.h"
 
@@ -85,23 +85,26 @@ namespace ccf
       return true;
     }
 
-    static QuoteInfo generate_quote(std::array<uint8_t, 32>&&)
+    static QuoteInfo generate_quote(attestation_report_data&&)
     {
       QuoteInfo node_quote_info = {};
       node_quote_info.format = QuoteFormat::insecure_virtual;
       return node_quote_info;
     }
 
-    static bool verify_quote(
+    static void verify_quote(
       const QuoteInfo& quote_info,
-      std::array<uint8_t, 32>& unique_id,
-      std::array<uint8_t, 32>& report_data)
+      attestation_measurement& unique_id,
+      attestation_report_data& report_data)
     {
-      // LOG_INFO_FMT("Skipping attestation report verification");
       unique_id = {};
       report_data = {};
-      // Virtual enclave cannot verify true (i.e. sgx) enclave quotes
-      return (quote_info.format == QuoteFormat::insecure_virtual);
+      if (quote_info.format != QuoteFormat::insecure_virtual)
+      {
+        // Virtual enclave cannot verify true (i.e. sgx) enclave quotes
+        throw std::logic_error(
+          "Cannot verify real attestation report on virtual build");
+      }
     }
   };
 
@@ -146,8 +149,6 @@ namespace ccf
         pthread_spin_unlock(&sl);
       }
     };
-
-    static constexpr size_t report_data_max_size = 32;
 
   public:
     using Mutex = MutexImpl;
@@ -255,8 +256,8 @@ namespace ccf
 
     static void verify_quote(
       const QuoteInfo& quote_info,
-      std::array<uint8_t, 32>& unique_id,
-      std::array<uint8_t, 32>& report_data)
+      attestation_measurement& unique_id,
+      attestation_report_data& report_data)
     {
       Claims claims;
 

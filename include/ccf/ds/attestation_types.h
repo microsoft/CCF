@@ -8,8 +8,20 @@
 #  include <openenclave/attestation/sgx/evidence.h>
 #  include <openenclave/attestation/verifier.h>
 
+#endif
+
+#include <array>
+
 namespace ccf
 {
+  static constexpr size_t attestation_report_data_size = 32;
+  static constexpr size_t attestation_measurement_size = 32;
+  using attestation_report_data =
+    std::array<uint8_t, attestation_report_data_size>;
+  using attestation_measurement =
+    std::array<uint8_t, attestation_measurement_size>;
+
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
   // Set of wrappers for safe memory management
   struct Claims
   {
@@ -68,5 +80,5 @@ namespace ccf
 
   static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
   static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
-}
 #endif
+}
