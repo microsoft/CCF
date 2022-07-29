@@ -97,14 +97,14 @@ namespace ccf
       attestation_measurement& unique_id,
       attestation_report_data& report_data)
     {
-      unique_id = {};
-      report_data = {};
       if (quote_info.format != QuoteFormat::insecure_virtual)
       {
         // Virtual enclave cannot verify true (i.e. sgx) enclave quotes
         throw std::logic_error(
           "Cannot verify real attestation report on virtual build");
       }
+      unique_id = {};
+      report_data = {};
     }
   };
 

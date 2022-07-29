@@ -49,6 +49,11 @@ namespace ccf
       return std::nullopt;
     }
 
+    if (quote_info.format == QuoteFormat::insecure_virtual)
+    {
+      LOG_FAIL_FMT("Skipped attestation report verification");
+    }
+
     return unique_id;
   }
 
@@ -68,6 +73,11 @@ namespace ccf
     {
       LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
       return QuoteVerificationResult::Failed;
+    }
+
+    if (quote_info.format == QuoteFormat::insecure_virtual)
+    {
+      LOG_FAIL_FMT("Skipped attestation report verification");
     }
 
     auto rc = verify_enclave_measurement_against_store(tx, code_digest);
