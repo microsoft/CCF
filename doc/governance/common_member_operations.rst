@@ -15,9 +15,11 @@ Once the proposal successfully completes, the new node automatically becomes par
 Removing an Existing Node
 -------------------------
 
-A node that is already part of the service can safely be retired using the ``remove_node`` proposal.
+A node that is already part of the service can be retired using the ``remove_node`` proposal.
 
-.. note:: If the now-retired node was the primary node, once the proposal successfully completes, a new primary node will have to be elected.
+The operator can establish if it is safe to remove a node by calling :http:GET:`/node/network/removable_nodes`. Nodes that have been shut down must be cleaned up from the store by calling :http:DELETE:`/node/network/nodes/{node_id}`.
+
+.. note:: If the now-retired node was the primary node, once the proposal successfully completes, an election will take place to elect a new primary.
 
 
 Updating Code Version

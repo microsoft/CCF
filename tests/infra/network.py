@@ -792,11 +792,35 @@ class Network:
             self.wait_for_all_nodes_to_commit(primary=primary)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
-        self.consortium.retire_node(
-            remote_node,
-            node_to_retire,
-            timeout=timeout,
+        pending = self.consortium.retire_node(
+            remote_node, node_to_retire, timeout=timeout
         )
+        if remote_node == node_to_retire:
+            remote_node, _ = self.wait_for_new_primary(remote_node)
+        if remote_node.version_after("ccf-2.0.4") and not pending:
+            end_time = time.time() + timeout
+            r = None
+            while time.time() < end_time:
+                try:
+                    with remote_node.client(connection_timeout=timeout) as c:
+                        r = c.get("/node/network/removable_nodes").body.json()
+                        if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
+                            check_commit = infra.checker.Checker(c)
+                            r = c.delete(
+                                f"/node/network/nodes/{node_to_retire.node_id}"
+                            )
+                            check_commit(r)
+                            break
+                        else:
+                            r = c.get(
+                                f"/node/network/nodes/{node_to_retire.node_id}"
+                            ).body.json()
+                except ConnectionRefusedError:
+                    pass
+                time.sleep(0.1)
+            else:
+                raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
+
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
