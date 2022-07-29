@@ -48,6 +48,8 @@ jobs:
     pool:
       vmImage: "ubuntu-20.04"
     steps:
+      - checkout: self
+        clean: true
       - script: |
           echo "Determine if any code has changed."
           if git diff --ignore-submodules=dirty --quiet origin/main -- ':!docs' ':!*.md' ':!*.txt'; then
@@ -60,7 +62,7 @@ jobs:
         displayName: "Check for runtime changes"
         name: setVarStep
 
-  - ${{ if eq(variables['setVarStep.docOnly'], false) }}:
+  - ${{ if eq(variables.setVarStep.docOnly, false) }}:
       - template: .azure-pipelines-templates/matrix.yml
         parameters:
           perf_or_release: ${{ variables['perf_or_release'] }}
