@@ -43,7 +43,25 @@ variables:
     perf_tests: run
 
 jobs:
-  - template: .azure-pipelines-templates/matrix.yml
-    parameters:
-      perf_or_release: ${{ variables['perf_or_release'] }}
-      perf_tests: ${{ variables['perf_tests'] }}
+  - job: configure
+    displayName: "Configure CI"
+    pool:
+      vmImage: "ubuntu-20.04"
+    steps:
+      - script: |
+          echo "Determine if any code has changed."
+          if git diff --ignore-submodules=dirty --quiet origin/master -- ':!docs' ':!*.md' ':!*.txt'; then
+            echo " - Documentation change only"
+            echo "##vso[task.setvariable variable=docOnly;isOutput=true]true" #set variable docOnly to true
+          else
+            echo " - Source has changed"
+            echo "##vso[task.setvariable variable=docOnly;isOutput=true]false" #set variable docOnly to false
+          fi
+        displayName: "Check for runtime changes"
+        name: setVarStep
+
+  - ${{ if eq(dependencies.ConfigureCIRun.outputs['setVarStep.docOnly'], 'false') }}:
+      - template: .azure-pipelines-templates/matrix.yml
+        parameters:
+          perf_or_release: ${{ variables['perf_or_release'] }}
+          perf_tests: ${{ variables['perf_tests'] }}
