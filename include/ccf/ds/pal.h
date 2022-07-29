@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/quote_info.h"
+
 #include <cstdint>
 #include <cstdlib>
 
@@ -9,6 +11,7 @@
 #  include <cstring>
 #  include <mutex>
 #else
+#  include "ccf/ds/attestation_types.h"
 #  include "ccf/ds/ccf_exception.h"
 #  include "ccf/ds/logger.h"
 
@@ -81,6 +84,13 @@ namespace ccf
       info.peak_allocated_heap_size = 0;
       return true;
     }
+
+    static QuoteInfo generate_quote(const std::array<uint8_t, 32>&)
+    {
+      QuoteInfo node_quote_info = {};
+      node_quote_info.format = QuoteFormat::insecure_virtual;
+      return node_quote_info;
+    }
   };
 
   using Pal = HostPal;
@@ -124,6 +134,8 @@ namespace ccf
         pthread_spin_unlock(&sl);
       }
     };
+
+    constexpr size_t report_data_max_size = 32;
 
   public:
     using Mutex = MutexImpl;
@@ -174,6 +186,62 @@ namespace ccf
       info.current_allocated_heap_size = oe_info.current_allocated_heap_size;
       info.peak_allocated_heap_size = oe_info.peak_allocated_heap_size;
       return true;
+    }
+
+    static QuoteInfo generate_quote(const std::array<uint8_t, 32>& report_data)
+    {
+      QuoteInfo node_quote_info = {};
+      node_quote_info.format = QuoteFormat::oe_sgx_v1;
+
+      // crypto::Sha256Hash h{report_data}; // TODO: Remove deps on crypto
+      // TODO: Check size of report data
+
+      Evidence evidence;
+      Endorsements endorsements;
+      SerialisedClaims serialised_custom_claims;
+
+      // Serialise hash of node's public key as a custom claim
+      const size_t custom_claim_length = 1;
+      oe_claim_t custom_claim;
+      custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
+      custom_claim.value = report_data.data();
+      custom_claim.value_size = report_data.size();
+
+      auto rc = oe_serialize_custom_claims(
+        &custom_claim,
+        custom_claim_length,
+        &serialised_custom_claims.buffer,
+        &serialised_custom_claims.size);
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "Could not serialise node's public key as quote custom claim: {}",
+          oe_result_str(rc)));
+      }
+
+      rc = oe_get_evidence(
+        &oe_quote_format,
+        0,
+        serialised_custom_claims.buffer,
+        serialised_custom_claims.size,
+        nullptr,
+        0,
+        &evidence.buffer,
+        &evidence.size,
+        &endorsements.buffer,
+        &endorsements.size);
+      if (rc != OE_OK)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
+      }
+
+      node_quote_info.quote.assign(
+        evidence.buffer, evidence.buffer + evidence.size);
+      node_quote_info.endorsements.assign(
+        endorsements.buffer, endorsements.buffer + endorsements.size);
+
+      return node_quote_info;
     }
 
   private:

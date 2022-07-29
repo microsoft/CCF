@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifdef GET_QUOTE
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>
 #  include <openenclave/attestation/sgx/evidence.h>
