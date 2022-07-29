@@ -97,6 +97,7 @@ namespace ccf
       std::array<uint8_t, 32>& unique_id,
       std::array<uint8_t, 32>& report_data)
     {
+      // LOG_INFO_FMT("Skipping attestation report verification");
       unique_id = {};
       report_data = {};
       // Virtual enclave cannot verify true (i.e. sgx) enclave quotes

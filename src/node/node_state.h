@@ -226,16 +226,8 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest) override
     {
-#ifdef GET_QUOTE
       return EnclaveAttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
-#else
-      (void)tx;
-      (void)quote_info;
-      (void)expected_node_public_key_der;
-      (void)code_digest;
-      return QuoteVerificationResult::Verified;
-#endif
     }
 
     //
@@ -296,7 +288,6 @@ namespace ccf
 
       quote_info = Pal::generate_quote(
         crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
-#ifdef GET_QUOTE
       auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
@@ -306,7 +297,6 @@ namespace ccf
       {
         throw std::logic_error("Failed to extract code id from quote");
       }
-#endif
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered

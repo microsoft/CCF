@@ -3,10 +3,9 @@
 
 #include "ccf/node/quote.h"
 
-#ifdef GET_QUOTE
-#  include "ccf/ds/attestation_types.h"
-#  include "ccf/ds/pal.h"
-#  include "ccf/service/tables/code_id.h"
+#include "ccf/ds/attestation_types.h"
+#include "ccf/ds/pal.h"
+#include "ccf/service/tables/code_id.h"
 
 namespace ccf
 {
@@ -39,7 +38,7 @@ namespace ccf
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
-    crypto::Sha256Hash h;
+    crypto::Sha256Hash h = {};
     if (!Pal::verify_quote(quote_info, unique_id.data, h.h))
     {
       LOG_FAIL_FMT("Failed to verify quote");
@@ -72,4 +71,3 @@ namespace ccf
       expected_node_public_key_der, quoted_hash);
   }
 }
-#endif

@@ -111,8 +111,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
 
-  enable_quote_code(ccf.enclave)
-
   add_lvi_mitigations(ccf.enclave)
 
   install(

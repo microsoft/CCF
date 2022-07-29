@@ -259,7 +259,6 @@ namespace ccf
 
       CodeDigest code_digest;
 
-#ifdef GET_QUOTE
       QuoteVerificationResult verify_result = this->node_operation.verify_quote(
         tx, in.quote_info, pubk_der, code_digest);
       if (verify_result != QuoteVerificationResult::Verified)
@@ -267,9 +266,6 @@ namespace ccf
         const auto [code, message] = quote_verification_error(verify_result);
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
-#else
-      LOG_INFO_FMT("Skipped joining node quote verification");
-#endif
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
       if (
@@ -698,7 +694,6 @@ namespace ccf
           q.endorsements = node_quote_info.endorsements;
           q.format = node_quote_info.format;
 
-#ifdef GET_QUOTE
           // get_code_id attempts to re-validate the quote to extract mrenclave
           // and the Open Enclave is insufficiently flexible to allow quotes
           // with expired collateral to be parsed at all. Recent nodes therefore
@@ -727,7 +722,6 @@ namespace ccf
                 "Failed to extract code id from node quote.");
             }
           }
-#endif
 
           return make_success(q);
         }
@@ -771,7 +765,6 @@ namespace ccf
             q.endorsements = node_info.quote_info.endorsements;
             q.format = node_info.quote_info.format;
 
-#ifdef GET_QUOTE
             // get_code_id attempts to re-validate the quote to extract
             // mrenclave and the Open Enclave is insufficiently flexible to
             // allow quotes with expired collateral to be parsed at all. Recent
@@ -791,7 +784,6 @@ namespace ccf
                 q.mrenclave = ds::to_hex(code_id.value().data);
               }
             }
-#endif
             quotes.emplace_back(q);
           }
           return true;
@@ -1520,10 +1512,7 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key};
         g.add_node(in.node_id, node_info);
-
-#ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);
-#endif
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
