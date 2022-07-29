@@ -60,7 +60,7 @@ jobs:
         displayName: "Check for runtime changes"
         name: setVarStep
 
-  - ${{ if eq(dependencies.ConfigureCIRun.outputs['setVarStep.docOnly'], 'false') }}:
+  - ${{ if eq(configure.outputs['setVarStep.docOnly'], 'false') }}:
       - template: .azure-pipelines-templates/matrix.yml
         parameters:
           perf_or_release: ${{ variables['perf_or_release'] }}
