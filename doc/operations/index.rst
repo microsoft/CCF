@@ -98,6 +98,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
     code_upgrade_1x
     certificates
     recovery
+    data_persistence
     network
     troubleshooting
     resource_usage

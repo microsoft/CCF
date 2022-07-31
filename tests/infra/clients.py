@@ -236,6 +236,10 @@ class Response:
         # But in the case of a redirect, it is multiple concatenated responses.
         # We want the final response, so we keep constructing new responses from this stream until we have reached the end
         while True:
+            # This may contain a stringified HTTP/2 response, which HTTPResponse can't parse.
+            # Replace the HTTP version in the status line in this case - we don't care what version it parses.
+            if raw.startswith(b"HTTP/2"):
+                raw = raw.replace(b"HTTP/2", b"HTTP/1.1", 1)
             sock = FakeSocket(raw)
             response = HTTPResponse(sock)
             response.begin()
@@ -304,10 +308,9 @@ class CurlClient:
         self.signing_auth = signing_auth
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
+        self.extra_args = []
         if kwargs.get("http2"):
-            # Currently not supported. This is because we cannot easily construct
-            # a Response via from_raw() for HTTP/2
-            raise RuntimeError("HTTP/2 is not currently supported with CurlClient")
+            self.extra_args.append("--http2")
 
     def request(
         self,
@@ -365,6 +368,9 @@ class CurlClient:
             if self.signing_auth:
                 cmd.extend(["--signing-key", self.signing_auth.key])
                 cmd.extend(["--signing-cert", self.signing_auth.cert])
+
+            for arg in self.extra_args:
+                cmd.append(arg)
 
             cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
