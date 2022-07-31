@@ -5,6 +5,7 @@
 
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
+#include "ccf/ds/pal.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
 #include "indexing/lfs_interface.h"
@@ -31,6 +32,8 @@ namespace ccf::indexing::strategies
     // result, after fetch completes, at which point the first is set to nullptr
     using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
     LRU<BucketKey, BucketValue> old_results;
+
+    ccf::Pal::Mutex results_access;
 
     std::string name;
 
@@ -206,6 +209,8 @@ namespace ccf::indexing::strategies
 
       while (true)
       {
+        std::lock_guard<ccf::Pal::Mutex> guard(results_access);
+
         const auto bucket_key = std::make_pair(serialised_key, from_range);
         const auto old_it = old_results.find(bucket_key);
         if (old_it != old_results.end())
@@ -349,6 +354,8 @@ namespace ccf::indexing::strategies
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
   {
     const auto range = impl->get_range_for(tx_id.seqno);
+
+    std::lock_guard<ccf::Pal::Mutex> guard(impl->results_access);
 
     auto it = impl->current_results.find(k);
     if (it != impl->current_results.end())
