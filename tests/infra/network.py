@@ -768,7 +768,7 @@ class Network:
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=timeout,
+                    timeout=args.ledger_recovery_timeout,
                 )
                 self.wait_for_node_in_store(
                     primary, node.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
@@ -777,7 +777,7 @@ class Network:
                 # Here, quote verification has already been run when the node
                 # was added as pending. Only wait for the join timer for the
                 # joining node to retrieve network secrets.
-                node.wait_for_node_to_join(timeout=ceil(args.join_timer_s * 2))
+                node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()
@@ -815,7 +815,7 @@ class Network:
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             ).body.json()
                 except (ConnectionRefusedError, TimeoutError):
-                    # Before pre-vote, it is possible that an election is called by 
+                    # Before pre-vote, it is possible that an election is called by
                     # the retired node so retry sending delete command in that case
                     pass
                 time.sleep(0.1)
