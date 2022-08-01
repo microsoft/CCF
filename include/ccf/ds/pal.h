@@ -259,6 +259,12 @@ namespace ccf
       attestation_measurement& unique_id,
       attestation_report_data& report_data)
     {
+      if (quote_info.format != QuoteFormat::oe_sgx_v1)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot verify non OE SGX report: {}", quote_info.format));
+      }
+
       Claims claims;
 
       auto rc = oe_verify_evidence(
