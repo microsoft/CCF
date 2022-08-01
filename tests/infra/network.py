@@ -805,17 +805,18 @@ class Network:
                     with remote_node.client(connection_timeout=timeout) as c:
                         r = c.get("/node/network/removable_nodes").body.json()
                         if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
-                            check_commit = infra.checker.Checker(c)
                             r = c.delete(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             )
-                            check_commit(r)
+                            c.wait_for_commit(r)
                             break
                         else:
                             r = c.get(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             ).body.json()
-                except ConnectionRefusedError:
+                except (ConnectionRefusedError, TimeoutError):
+                    # Before pre-vote, it is possible that an election is called by 
+                    # the retired node so retry sending delete command in that case
                     pass
                 time.sleep(0.1)
             else:
