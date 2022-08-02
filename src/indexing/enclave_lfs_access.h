@@ -6,7 +6,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/hex.h"
-#include "ccf/ds/pal.h"
+#include "ccf/ds/mutex.h"
 #include "ds/messaging.h"
 #include "indexing/lfs_interface.h"
 #include "indexing/lfs_ringbuffer_types.h"
@@ -87,7 +87,7 @@ namespace ccf::indexing
     using PendingResult = std::weak_ptr<FetchResult>;
 
     std::unordered_map<LFSKey, PendingResult> pending;
-    ccf::Pal::Mutex pending_access;
+    ccf::Mutex pending_access;
 
     ringbuffer::WriterPtr to_host;
 
@@ -138,7 +138,7 @@ namespace ccf::indexing
         dispatcher, LFSMsg::response, [this](const uint8_t* data, size_t size) {
           auto [obfuscated, encrypted] =
             ringbuffer::read_message<LFSMsg::response>(data, size);
-          std::lock_guard<ccf::Pal::Mutex> guard(pending_access);
+          std::lock_guard<ccf::Mutex> guard(pending_access);
           auto it = pending.find(obfuscated);
           if (it != pending.end())
           {
@@ -196,7 +196,7 @@ namespace ccf::indexing
         [this](const uint8_t* data, size_t size) {
           auto [obfuscated] =
             ringbuffer::read_message<LFSMsg::not_found>(data, size);
-          std::lock_guard<ccf::Pal::Mutex> guard(pending_access);
+          std::lock_guard<ccf::Mutex> guard(pending_access);
           auto it = pending.find(obfuscated);
           if (it != pending.end())
           {
@@ -262,7 +262,7 @@ namespace ccf::indexing
     FetchResultPtr fetch(const LFSKey& key) override
     {
       const auto obfuscated = obfuscate_key(key);
-      std::lock_guard<ccf::Pal::Mutex> guard(pending_access);
+      std::lock_guard<ccf::Mutex> guard(pending_access);
       auto it = pending.find(obfuscated);
 
       FetchResultPtr result;
