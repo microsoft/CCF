@@ -797,6 +797,11 @@ class Network:
         )
         if remote_node == node_to_retire:
             remote_node, _ = self.wait_for_new_primary(remote_node)
+        if not node_to_retire.version_after("ccf-2.0.0"):
+            # A 1.x retired node may trigger an election before being
+            # stopped so stop it early, to not cause disruption
+            # while node is deleted by operator
+            node_to_retire.stop()
         if remote_node.version_after("ccf-2.0.4") and not pending:
             end_time = time.time() + timeout
             r = None
@@ -814,9 +819,7 @@ class Network:
                             r = c.get(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             ).body.json()
-                except (ConnectionRefusedError, TimeoutError):
-                    # Before pre-vote, it is possible that an election is called by
-                    # the retired node so retry sending delete command in that case
+                except ConnectionRefusedError:
                     pass
                 time.sleep(0.1)
             else:
