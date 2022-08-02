@@ -57,8 +57,8 @@ namespace tls
       SSL_set_ciphersuites(ssl, ciphersuites);
 
       // Restrict the curves to approved ones
-      SSL_CTX_set1_curves_list(cfg, "P-521:P-384");
-      SSL_set1_curves_list(ssl, "P-521:P-384");
+      SSL_CTX_set1_curves_list(cfg, "P-521:P-384:P-256");
+      SSL_set1_curves_list(ssl, "P-521:P-384:P-256");
 
       // Initialise connection
       if (client)
