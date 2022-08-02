@@ -375,6 +375,25 @@ def test_version(network, args):
             )
 
 
+@reqs.description("Issue fake join request as client")
+def test_issue_fake_join(network, args):
+    primary, _ = network.find_primary()
+
+    net = {"bind_address": "0:0", "published_address": "0:0", "protocol": "tcp"}
+    req = {}
+    req["node_info_network"] = {
+        "node_to_node_interface": net,
+        "rpc_interfaces": {"name": net},
+    }
+    req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
+    req["public_encryption_key"] = ""
+    # TODO: Pass certificate to client
+    with primary.client() as c:
+        c.post("/node/join", body=req)
+
+    return network
+
+
 @reqs.description("Replace a node on the same addresses")
 @reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
@@ -590,6 +609,9 @@ def run(args):
         network.start_and_open(args)
 
         test_version(network, args)
+        test_issue_fake_join(network, args)
+
+        return
 
         if args.consensus != "BFT":
             test_add_node_invalid_service_cert(network, args)
@@ -804,8 +826,8 @@ def run_migration_tests(args):
 
 def run_all(args):
     run(args)
-    if cr.args.consensus != "BFT":
-        run_join_old_snapshot(args)
+    # if cr.args.consensus != "BFT":
+    #     run_join_old_snapshot(args)
 
 
 if __name__ == "__main__":
