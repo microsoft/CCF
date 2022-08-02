@@ -798,9 +798,11 @@ class Network:
         if remote_node == node_to_retire:
             remote_node, _ = self.wait_for_new_primary(remote_node)
         if not node_to_retire.version_after("ccf-2.0.0"):
-            # A 1.x retired node may trigger an election before being
-            # stopped so stop it early, to not cause disruption
-            # while node is deleted by operator
+            # A 1.x retired node is likely to not observe its own retirement as
+            # the primary node will stop sending it AEs as soon as its retirement is committed
+            # (i.e. via other backups). In such scenario, the retired backup will trigger
+            # an election so stop it early, to not cause disruption while it is
+            # deleted by the operator.
             node_to_retire.stop()
         if remote_node.version_after("ccf-2.0.4") and not pending:
             end_time = time.time() + timeout
