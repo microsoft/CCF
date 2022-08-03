@@ -14,6 +14,7 @@ from infra.tx_status import TxStatus
 import time
 import http
 import contextlib
+import ccf.ledger
 
 from loguru import logger as LOG
 
@@ -261,6 +262,92 @@ def test_new_joiner_helps_liveness(network, args):
         network.wait_for_all_nodes_to_commit(primary=primary)
 
 
+@reqs.description("Test election while reconfiguration is in flight")
+@reqs.at_least_n_nodes(3)
+def test_election_reconfiguration(network, args):
+    # Test for issue described in https://github.com/microsoft/CCF/issues/3948
+    # Note: this test makes use of node-endorsed secondary RPC interface since
+    # new nodes never observe commit of their configuration and thus never
+    # open their service-endorsed primary RPC interface.
+    primary, backups = network.find_nodes()
+
+    LOG.info("Join new nodes without trusting them just yet")
+    new_nodes = []
+    # Start N+1 new nodes to make sure they cannot elect one of them as a primary
+    # without approval from the original configuration
+    for _ in range(len(network.nodes) + 1):
+        rpc_interfaces = {
+            infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                host="localhost"
+            )
+        }
+        rpc_interfaces.update(infra.interfaces.make_secondary_interface())
+        new_node = network.create_node(infra.interfaces.HostSpec(rpc_interfaces))
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_nodes.append(new_node)
+
+    LOG.info("Isolate original backups and issue reconfiguration of another quorum")
+    with network.partitioner.partition(backups):
+        LOG.info("Trust all new nodes in one single proposal")
+        # Note: Commit is stuck since a majority of backups in initial configuration
+        # are isolated
+        network.consortium.trust_nodes(
+            primary,
+            [n.node_id for n in new_nodes],
+            valid_from=datetime.utcnow(),
+            wait_for_global_commit=False,
+        )
+
+        for node in new_nodes:
+            node.wait_for_node_to_join(
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE
+            )
+            # Wait for configuration tx to be replicated to new node
+            network.wait_for_node_in_store(
+                node,
+                node.node_id,
+                ccf.ledger.NodeStatus.TRUSTED,
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
+            )
+
+        LOG.info(f"Stop primary node {primary.local_node_id} to trigger election")
+        primary.stop()
+
+        LOG.info(
+            "Make sure that new nodes cannot elect a primary node among themselves"
+        )
+        try:
+            network.wait_for_new_primary(
+                primary,
+                nodes=new_nodes,
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
+                timeout_multiplier=3,
+            )
+        except infra.network.PrimaryNotFound:
+            LOG.info(
+                "As expected, new primary could not be elected as old configuration could not make progress"
+            )
+        else:
+            assert False, "No new primary should be elected while partition is up"
+
+        LOG.info("Stop all new nodes")
+        for node in new_nodes:
+            node.stop()
+
+    LOG.info(
+        "As partition is lifted, check that isolated original backups elect primary"
+    )
+    network.wait_for_primary_unanimity(nodes=backups)
+
+    LOG.info("Retire former primary and add new node")
+    network.retire_node(backups[0], primary)
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
+
+    return network
+
+
 @reqs.description("Add a learner, partition nodes, check that there is no progress")
 def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
@@ -385,6 +472,7 @@ def run(args):
         test_new_joiner_helps_liveness(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
+        test_election_reconfiguration(network, args)
 
 
 if __name__ == "__main__":

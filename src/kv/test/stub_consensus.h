@@ -57,6 +57,11 @@ namespace kv::test
       return state == Primary;
     }
 
+    virtual bool is_candidate() override
+    {
+      return state == Candidate;
+    }
+
     virtual bool can_replicate() override
     {
       return state == Primary;

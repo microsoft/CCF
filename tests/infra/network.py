@@ -768,7 +768,7 @@ class Network:
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=timeout,
+                    timeout=args.ledger_recovery_timeout,
                 )
                 self.wait_for_node_in_store(
                     primary, node.node_id, ccf.ledger.NodeStatus.TRUSTED, timeout
@@ -777,7 +777,7 @@ class Network:
                 # Here, quote verification has already been run when the node
                 # was added as pending. Only wait for the join timer for the
                 # joining node to retrieve network secrets.
-                node.wait_for_node_to_join(timeout=ceil(args.join_timer_s * 2))
+                node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()
@@ -797,6 +797,13 @@ class Network:
         )
         if remote_node == node_to_retire:
             remote_node, _ = self.wait_for_new_primary(remote_node)
+        if not node_to_retire.version_after("ccf-2.0.0"):
+            # A 1.x retired node is likely to not observe its own retirement as
+            # the primary node will stop sending it AEs as soon as its retirement is committed
+            # (i.e. via other backups). In such scenario, the retired backup will trigger
+            # an election so stop it early, to not cause disruption while it is
+            # deleted by the operator.
+            node_to_retire.stop()
         if remote_node.version_after("ccf-2.0.4") and not pending:
             end_time = time.time() + timeout
             r = None
@@ -805,11 +812,10 @@ class Network:
                     with remote_node.client(connection_timeout=timeout) as c:
                         r = c.get("/node/network/removable_nodes").body.json()
                         if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
-                            check_commit = infra.checker.Checker(c)
                             r = c.delete(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             )
-                            check_commit(r)
+                            c.wait_for_commit(r)
                             break
                         else:
                             r = c.get(
@@ -892,7 +898,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, nodes=None, timeout=3, log_capture=None):
+    def find_primary(self, nodes=None, timeout=3, log_capture=None, **kwargs):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -906,7 +912,7 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in asked_nodes:
-                with node.client() as c:
+                with node.client(**kwargs) as c:
                     try:
                         logs = []
                         res = c.get("/node/network", timeout=1, log_capture=logs)
@@ -1057,8 +1063,9 @@ class Network:
         remote_node,
         node_id,
         node_status,  # None indicates that the node should not be present
+        **kwargs,
     ):
-        with remote_node.client() as c:
+        with remote_node.client(**kwargs) as c:
             r = c.get(f"/node/network/nodes/{node_id}")
             resp = r.body.json()
             return (
@@ -1072,17 +1079,13 @@ class Network:
             )
 
     def wait_for_node_in_store(
-        self,
-        remote_node,
-        node_id,
-        node_status,
-        timeout=3,
+        self, remote_node, node_id, node_status, timeout=3, **kwargs
     ):
         success = False
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                if self._check_node_status(remote_node, node_id, node_status):
+                if self._check_node_status(remote_node, node_id, node_status, **kwargs):
                     success = True
                     break
             except TimeoutError:
@@ -1100,7 +1103,11 @@ class Network:
             )
 
     def wait_for_new_primary(
-        self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER
+        self,
+        old_primary,
+        nodes=None,
+        timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER,
+        **kwargs,
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
@@ -1128,7 +1135,9 @@ class Network:
         while time.time() < end_time:
             try:
                 logs = []
-                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
+                new_primary, new_term = self.find_primary(
+                    nodes=nodes, log_capture=logs, **kwargs
+                )
                 if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)
                     delay = time.time() - start_time
@@ -1180,18 +1189,19 @@ class Network:
         raise error(f"A new primary was not elected after {timeout} seconds")
 
     def wait_for_primary_unanimity(
-        self, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
+        self, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
     ):
         timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
         start_time = time.time()
         end_time = start_time + timeout
 
+        nodes = nodes or self.get_joined_nodes()
         primaries = []
         while time.time() < end_time:
             primaries = []
             logs = []
-            for node in self.get_joined_nodes():
+            for node in nodes:
                 try:
                     primary, view = self.find_primary(nodes=[node], log_capture=logs)
                     if min_view is None or view > min_view:
@@ -1199,18 +1209,13 @@ class Network:
                 except PrimaryNotFound:
                     pass
             # Stop checking once all primaries are the same
-            if (
-                len(self.get_joined_nodes()) == len(primaries)
-                and len(set(primaries)) <= 1
-            ):
+            if len(nodes) == len(primaries) and len(set(primaries)) <= 1:
                 break
             time.sleep(0.1)
         flush_info(logs)
-        all_good = (
-            len(self.get_joined_nodes()) == len(primaries) and len(set(primaries)) <= 1
-        )
+        all_good = len(nodes) == len(primaries) and len(set(primaries)) <= 1
         if not all_good:
-            for node in self.get_joined_nodes():
+            for node in nodes:
                 with node.client() as c:
                     r = c.get("/node/consensus")
                     pprint.pprint(r.body.json())

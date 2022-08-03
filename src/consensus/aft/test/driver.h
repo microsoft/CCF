@@ -20,7 +20,7 @@ std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
   auto size = std::min(v.size(), max_size);
   return fmt::format(
-    "[{} bytes] {}", v.size(), std::string(v.begin(), v.end()));
+    "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
 }
 
 std::string stringify(const std::optional<std::vector<uint8_t>>& o)
@@ -63,16 +63,16 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
   }
 };
 
-struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
+struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSigConfig
 {
-  using LoggingStubStoreSig::LoggingStubStoreSig;
+  using LoggingStubStoreSigConfig::LoggingStubStoreSigConfig;
 
   void compact(aft::Index idx) override
   {
     RAFT_DRIVER_OUT << fmt::format(
                          "  {}->>{}: [KV] compacting to {}", _id, _id, idx)
                     << std::endl;
-    aft::LoggingStubStoreSig::compact(idx);
+    aft::LoggingStubStoreSigConfig::compact(idx);
   }
 
   void rollback(const kv::TxID& tx_id, aft::Term t) override
@@ -85,7 +85,7 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
                          tx_id.version,
                          t)
                     << std::endl;
-    aft::LoggingStubStoreSig::rollback(tx_id, t);
+    aft::LoggingStubStoreSigConfig::rollback(tx_id, t);
   }
 
   void initialise_term(aft::Term t) override
@@ -93,15 +93,8 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
     RAFT_DRIVER_OUT << fmt::format(
                          "  {}->>{}: [KV] initialising in term {}", _id, _id, t)
                     << std::endl;
-    aft::LoggingStubStoreSig::initialise_term(t);
+    aft::LoggingStubStoreSigConfig::initialise_term(t);
   }
-
-  bool flag_enabled(kv::AbstractStore::Flag)
-  {
-    return false;
-  }
-
-  void unset_flag(kv::AbstractStore::Flag) {}
 };
 
 using ms = std::chrono::milliseconds;
@@ -126,36 +119,126 @@ private:
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
-public:
-  RaftDriver(std::vector<std::string> node_ids)
+  void _replicate(
+    const std::string& term_s,
+    std::vector<uint8_t> data,
+    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt)
   {
-    kv::Configuration::Nodes configuration;
-
-    for (const auto& node_id_s : node_ids)
+    const auto opt = find_primary_in_term(term_s);
+    if (!opt.has_value())
     {
-      ccf::NodeId node_id(node_id_s);
+      RAFT_DRIVER_OUT << fmt::format(
+                           "  Note left of {}: No primary to replicate {}",
+                           _nodes.begin()->first,
+                           stringify(data))
+                      << std::endl;
+      return;
+    }
+    const auto& [term, node_id] = *opt;
+    auto& raft = _nodes.at(node_id).raft;
+    const auto idx = raft->get_last_idx() + 1;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: replicate {}.{} = {} [{}]",
+                         node_id,
+                         node_id,
+                         term_s,
+                         idx,
+                         stringify(data),
+                         configuration.has_value() ? "reconfiguration" : "raw")
+                    << std::endl;
 
-      auto kv = std::make_shared<Store>(node_id);
-      const consensus::Configuration settings{
-        ConsensusType::CFT, {"10ms"}, {"100ms"}};
-      auto raft = std::make_shared<TRaft>(
-        settings,
-        std::make_unique<Adaptor>(kv),
-        std::make_unique<LedgerStubProxy_Mermaid>(node_id),
-        std::make_shared<aft::ChannelStubProxy>(),
-        std::make_shared<aft::State>(node_id),
-        nullptr,
-        nullptr);
-      raft->start_ticking();
+    aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
+    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    if (configuration.has_value())
+    {
+      auto hook = std::make_unique<aft::ConfigurationChangeHook>(
+        configuration.value(), idx);
+      hooks->push_back(std::move(hook));
+      type = aft::ReplicatedDataType::reconfiguration;
+      auto c = nlohmann::json(configuration).dump();
 
-      _nodes.emplace(node_id, NodeDriver{kv, raft});
-      configuration.try_emplace(node_id);
+      // If the entry is a reconfiguration, the replicated data is overwritten
+      // with the serialised configuration
+      data = std::vector<uint8_t>(c.begin(), c.end());
+    }
+
+    auto s = nlohmann::json(aft::ReplicatedData{type, data}).dump();
+    auto d = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
+    // True means all these entries are committable
+    raft->replicate(kv::BatchVector{{idx, d, true, hooks}}, term);
+  }
+
+  void add_node(ccf::NodeId node_id)
+  {
+    auto kv = std::make_shared<Store>(node_id);
+    const consensus::Configuration settings{
+      ConsensusType::CFT, {"10ms"}, {"100ms"}};
+    auto raft = std::make_shared<TRaft>(
+      settings,
+      std::make_unique<Adaptor>(kv),
+      std::make_unique<LedgerStubProxy_Mermaid>(node_id),
+      std::make_shared<aft::ChannelStubProxy>(),
+      std::make_shared<aft::State>(node_id),
+      nullptr,
+      nullptr);
+    raft->start_ticking();
+
+    if (_nodes.find(node_id) != _nodes.end())
+    {
+      throw std::logic_error(fmt::format("Node {} already exists", node_id));
+    }
+
+    _nodes.emplace(node_id, NodeDriver{kv, raft});
+  }
+
+public:
+  RaftDriver() = default;
+
+  void create_new_nodes(std::vector<std::string> node_ids)
+  {
+    // Opinionated way to create network. Initial configuration is automatically
+    // added to all nodes.
+    kv::Configuration::Nodes configuration;
+    for (auto const& n : node_ids)
+    {
+      add_node(n);
+      configuration.try_emplace(n);
     }
 
     for (auto& node : _nodes)
     {
       node.second.raft->add_configuration(0, configuration);
     }
+  }
+
+  void create_new_node(std::string node_id_s)
+  {
+    ccf::NodeId node_id(node_id_s);
+    add_node(node_id);
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  Note over {}: Node {} created", node_id, node_id)
+                    << std::endl;
+  }
+
+  void replicate_new_configuration(
+    const std::string& term_s, std::vector<std::string> node_ids)
+  {
+    kv::Configuration::Nodes configuration;
+    for (const auto& node_id_s : node_ids)
+    {
+      ccf::NodeId node_id(node_id_s);
+
+      if (_nodes.find(node_id) == _nodes.end())
+      {
+        throw std::runtime_error(fmt::format(
+          "Node {} does not exist yet. Use \"create_new_node, <node_id>\"",
+          node_id));
+      }
+
+      configuration.try_emplace(node_id);
+    }
+
+    _replicate(term_s, {}, configuration);
   }
 
   void log(
@@ -525,30 +608,7 @@ public:
   void replicate(
     const std::string& term_s, std::shared_ptr<std::vector<uint8_t>> data)
   {
-    const auto opt = find_primary_in_term(term_s);
-    if (!opt.has_value())
-    {
-      RAFT_DRIVER_OUT << fmt::format(
-                           "  Note left of {}: No primary to replicate {}",
-                           _nodes.begin()->first,
-                           stringify(*data))
-                      << std::endl;
-      return;
-    }
-    const auto& [term, node_id] = *opt;
-    auto& raft = _nodes.at(node_id).raft;
-    const auto idx = raft->get_last_idx() + 1;
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: replicate {}.{} = {}",
-                         node_id,
-                         node_id,
-                         term_s,
-                         idx,
-                         stringify(*data))
-                    << std::endl;
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    // True means all these entries are committable
-    raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, term);
+    _replicate(term_s, *data);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
@@ -627,6 +687,43 @@ public:
     for (auto& [to, _] : _nodes)
     {
       drop_pending_to(from, to);
+    }
+  }
+
+  void assert_is_backup(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_backup())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: backup", node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state backup");
+    }
+  }
+
+  void assert_is_primary(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_primary())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: primary", node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state primary");
+    }
+  }
+
+  void assert_is_candidate(ccf::NodeId node_id)
+  {
+    if (!_nodes.at(node_id).raft->is_candidate())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: candidate",
+             node_id)
+        << std::endl;
+      throw std::runtime_error("Node not in expected state candidate");
     }
   }
 
@@ -711,6 +808,21 @@ public:
     if (!all_match)
     {
       throw std::runtime_error("States not in sync");
+    }
+  }
+
+  void assert_commit_idx(ccf::NodeId node_id, const std::string& idx_s)
+  {
+    auto idx = std::stol(idx_s);
+    if (_nodes.at(node_id).raft->get_committed_seqno() != idx)
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not at expected commit idx {}",
+             node_id,
+             idx)
+        << std::endl;
+      throw std::runtime_error("Node not at expected commit idx");
     }
   }
 };
