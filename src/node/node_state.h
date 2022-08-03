@@ -2301,9 +2301,6 @@ namespace ccf
 
               std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
-              // endorsed_node_cert = endorsed_certificate.value();
-              // history->set_endorsed_certificate(endorsed_node_cert.value());
-              // n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
               if (is_member_frontend_open())
@@ -2560,9 +2557,9 @@ namespace ccf
 
       // Note: The Signatures hook and SerialisedMerkleTree hook are separate
       // because the signature and the Merkle tree are recorded in distinct
-      // tables (for serialisation performance reasons). However here, they
-      // are expected to always be called together and for the same version as
-      // they are always written by each signature transaction.
+      // tables (for serialisation performance reasons). However here, they are
+      // expected to always be called together and for the same version as they
+      // are always written by each signature transaction.
 
       network.tables->set_map_hook(
         network.signatures.get_name(),
