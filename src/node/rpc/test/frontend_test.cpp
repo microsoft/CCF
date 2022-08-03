@@ -1512,7 +1512,7 @@ public:
   {
     std::mutex m;
     std::condition_variable cv;
-    bool ready;
+    bool ready = false;
 
     void wait()
     {
@@ -1530,9 +1530,10 @@ public:
     }
   };
 
-  WaitPoint pre_read_wait;
-  WaitPoint read_write_wait;
-  WaitPoint post_write_wait;
+  WaitPoint before_read;
+  WaitPoint after_read;
+  WaitPoint before_write;
+  WaitPoint after_write;
 
   TestManualConflictsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
@@ -1541,20 +1542,23 @@ public:
     auto pausable = [this](auto& ctx) {
       auto handle = ctx.tx.template rw<MyVal>(MY_VAL);
 
-      pre_read_wait.wait();
-
+      before_read.wait();
       auto val = handle->get().value_or(0); // Record a read dependency
+      after_read.notify();
 
-      read_write_wait.wait();
-
+      before_write.wait();
       handle->put(val + 1); // Create a write dependency
-
-      post_write_wait.wait();
+      after_write.notify();
 
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("/pausable", HTTP_POST, pausable, {user_cert_auth_policy})
       .install();
+  }
+
+  auto get_all_metrics()
+  {
+    return endpoints.metrics;
   }
 };
 
@@ -1588,45 +1592,67 @@ TEST_CASE("Manual conflicts")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   };
 
+  auto run_test = [&](std::function<void()>&& read_write_op) {
+    frontend.before_read.ready = false;
+    frontend.after_read.ready = false;
+    frontend.before_write.ready = false;
+    frontend.after_write.ready = false;
+
+    std::thread worker(call_pausable);
+
+    frontend.before_read.notify();
+    frontend.after_read.wait();
+
+    read_write_op();
+
+    frontend.before_write.notify();
+    frontend.after_write.wait();
+
+    worker.join();
+  };
+
   {
     INFO("No conflicts");
-    std::thread worker(call_pausable);
-    frontend.pre_read_wait.notify();
-    frontend.read_write_wait.notify();
-    frontend.post_write_wait.notify();
-    worker.join();
+
+    run_test([]() {});
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == 1);
+
+    const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
+    REQUIRE(metrics.calls == 1);
+    REQUIRE(metrics.retries == 0);
   }
 
   {
-    INFO("Post-read conflict");
-    std::thread worker(call_pausable);
-    frontend.pre_read_wait.notify();
-    update_value(7);
-    frontend.read_write_wait.notify();
-    frontend.post_write_wait.notify();
-    worker.join();
+    INFO("Inserted post-read conflict");
+
+    run_test([&]() { update_value(7); });
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == 8);
+
+    const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
+    REQUIRE(metrics.calls == 2);
+    REQUIRE(metrics.retries == 1);
   }
 
   {
-    INFO("Post-write conflict");
-    std::thread worker(call_pausable);
-    frontend.pre_read_wait.notify();
-    frontend.read_write_wait.notify();
-    update_value(3);
-    frontend.post_write_wait.notify();
-    worker.join();
+    // TODO: This is wrong! Should conflict once, then return an auth error!
+    INFO("Removed caller ident post-read");
 
-    const auto v = get_value();
-    REQUIRE(v.has_value());
-    REQUIRE(v.value() == 4);
+    run_test([&]() {
+      auto tx = network.tables->create_tx();
+      GenesisGenerator g(network, tx);
+      g.remove_user(user_id);
+      CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+    });
+
+    const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
+    REQUIRE(metrics.calls == 3);
+    REQUIRE(metrics.retries == 1);
   }
 }
 

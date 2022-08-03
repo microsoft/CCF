@@ -128,7 +128,6 @@ namespace ccf::endpoints
       templated_endpoints;
 
     ccf::Pal::Mutex metrics_lock;
-    std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     EndpointRegistry::Metrics& get_metrics_for_endpoint(
       const EndpointDefinitionPtr& e);
@@ -137,6 +136,9 @@ namespace ccf::endpoints
     kv::TxHistory* history = nullptr;
 
   public:
+    // TODO: Temp
+    std::map<std::string, std::map<std::string, Metrics>> metrics;
+
     EndpointRegistry(const std::string& method_prefix_) :
       method_prefix(method_prefix_)
     {}
