@@ -147,12 +147,26 @@ namespace ccf
 
     struct NodeStateMsg
     {
-      NodeStateMsg(NodeState& self_, View create_view_ = 0) :
+      NodeStateMsg(
+        NodeState& self_,
+        View create_view_ = 0,
+        bool create_consortium_ = true) :
         self(self_),
-        create_view(create_view_)
+        create_view(create_view_),
+        create_consortium(create_consortium_)
       {}
       NodeState& self;
       View create_view;
+      bool create_consortium;
+    };
+
+    struct CreateMsg
+    {
+      CreateMsg(std::vector<uint8_t>&& packed_request_) :
+        packed_request(std::move(packed_request_))
+      {}
+
+      std::vector<uint8_t> packed_request;
     };
 
     //
@@ -403,18 +417,36 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          if (!create_and_send_boot_request(
-                aft::starting_view_change, true /* Create new consortium */))
-          {
-            throw std::runtime_error(
-              "Genesis transaction could not be committed");
-          }
+          auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+            [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+              if (!msg->data.self.create_and_send_boot_request(
+                    msg->data.create_view, true /* Create new consortium*/))
+              {
+                throw std::runtime_error(
+                  "Genesis transaction could not be committed");
+              }
+              // msg->data.self.advance_part_of_public_network();
+              msg->data.self.advance_part_of_network();
+              // TODO: Reset quote and advance to partOfNetwork
+            },
+            *this,
+            aft::starting_view_change);
 
-          auto_refresh_jwt_keys();
+          threading::ThreadMessaging::thread_messaging.add_task(
+            threading::get_current_thread_id(), std::move(msg));
 
-          reset_data(quote_info.quote);
-          reset_data(quote_info.endorsements);
-          sm.advance(NodeStartupState::partOfNetwork);
+          // if (!create_and_send_boot_request(
+          //       aft::starting_view_change, true /* Create new consortium */))
+          // {
+          //   throw std::runtime_error(
+          //     "Genesis transaction could not be committed");
+          // }
+
+          // auto_refresh_jwt_keys();
+
+          // reset_data(quote_info.quote);
+          // reset_data(quote_info.endorsements);
+          // sm.advance(NodeStartupState::partOfNetwork);
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -1020,6 +1052,16 @@ namespace ccf
       sm.advance(NodeStartupState::partOfPublicNetwork);
     }
 
+    void advance_part_of_network()
+    {
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      sm.expect(NodeStartupState::initialized);
+      auto_refresh_jwt_keys();
+      reset_data(quote_info.quote);
+      reset_data(quote_info.endorsements);
+      sm.advance(NodeStartupState::partOfNetwork);
+    }
+
     void recover_public_ledger_end_unsafe()
     {
       sm.expect(NodeStartupState::readingPublicLedger);
@@ -1112,6 +1154,7 @@ namespace ccf
 
       // First recovery transaction is asynchronous to avoid deadlocks
       // (https://github.com/microsoft/CCF/issues/3788)
+      // TODO: Refactor with genesis
       auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
           if (!msg->data.self.create_and_send_boot_request(
@@ -2018,6 +2061,25 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
+      // auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+      //   [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+      //     if (!msg->data.self.create_and_send_boot_request(
+      //           msg->data.create_view,
+      //           false /* Restore consortium from ledger */))
+      //     {
+      //       throw std::runtime_error(
+      //         "End of public recovery transaction could not be committed");
+      //     }
+      //     msg->data.self.advance_part_of_public_network();
+      //   },
+      //   *this,
+      //   new_term);
+      // threading::ThreadMessaging::thread_messaging.add_task(
+      //   threading::get_current_thread_id(), std::move(msg));
+
+      // threading::ThreadMessaging::thread_messaging.add_task_after(
+      //   std::move(timer_msg), config.join.retry_timeout);
+
       auto node_session = std::make_shared<SessionContext>(
         InvalidSessionId, self_signed_node_cert.raw());
       auto ctx = make_rpc_context(node_session, packed);
@@ -2222,6 +2284,37 @@ namespace ccf
             return;
           }));
 
+      //
+      network.tables->set_map_hook(
+        network.node_endorsed_certificates.get_name(),
+        network.node_endorsed_certificates.wrap_map_hook(
+          [this](
+            kv::Version hook_version,
+            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            for (auto const& [node_id, endorsed_certificate] : w)
+            {
+              if (node_id != self)
+              {
+                continue;
+              }
+
+              if (!endorsed_certificate.has_value())
+              {
+                throw std::logic_error(fmt::format(
+                  "Could not find endorsed node certificate for {}", self));
+              }
+
+              std::lock_guard<ccf::Pal::Mutex> guard(lock);
+
+              // TODO: What if this is rolled back?
+              endorsed_node_cert = endorsed_certificate.value();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
+              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
+            }
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
+
       network.tables->set_global_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_commit_hook(
@@ -2243,9 +2336,9 @@ namespace ccf
 
               std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
-              endorsed_node_cert = endorsed_certificate.value();
-              history->set_endorsed_certificate(endorsed_node_cert.value());
-              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
+              // endorsed_node_cert = endorsed_certificate.value();
+              // history->set_endorsed_certificate(endorsed_node_cert.value());
+              // n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
               if (is_member_frontend_open())
@@ -2502,9 +2595,9 @@ namespace ccf
 
       // Note: The Signatures hook and SerialisedMerkleTree hook are separate
       // because the signature and the Merkle tree are recorded in distinct
-      // tables (for serialisation performance reasons). However here, they are
-      // expected to always be called together and for the same version as they
-      // are always written by each signature transaction.
+      // tables (for serialisation performance reasons). However here, they
+      // are expected to always be called together and for the same version as
+      // they are always written by each signature transaction.
 
       network.tables->set_map_hook(
         network.signatures.get_name(),
