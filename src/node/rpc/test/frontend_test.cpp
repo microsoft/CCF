@@ -1502,6 +1502,73 @@ TEST_CASE("Retry on conflict")
   }
 }
 
+class TestPausableFrontend : public BaseTestFrontend
+{
+public:
+  struct WaitPoint
+  {
+    std::mutex m;
+    std::condition_variable cv;
+    std::string message;
+  };
+  std::vector<WaitPoint> wait_points;
+
+  TestPausableFrontend(kv::Store& tables, size_t num_wait_points) :
+    BaseTestFrontend(tables),
+    wait_points(num_wait_points)
+  {
+    open();
+
+    auto pausable = [this](auto& ctx) {
+      size_t i = 0;
+      for (auto& wp : wait_points)
+      {
+        std::unique_lock lock(wp.m);
+        fmt::print("Waiting at point {}\n", ++i);
+        wp.cv.wait(lock, [&wp] { return !wp.message.empty(); });
+        fmt::print("Waited and received message: {}\n", wp.message);
+      }
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_endpoint("/pausable", HTTP_POST, pausable).install();
+  }
+};
+
+TEST_CASE("Pausable")
+{
+  NetworkState network;
+  prepare_callers(network);
+
+  constexpr auto num_wait_points = 5;
+  TestPausableFrontend frontend(*network.tables, num_wait_points);
+
+  auto call_pausable = [&]() {
+    std::cout << "Sending request" << std::endl;
+    auto req = create_simple_request("/pausable");
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+    std::cout << "Response received" << std::endl;
+  };
+
+  std::thread worker(call_pausable);
+
+  size_t i = 0;
+  for (auto& wp : frontend.wait_points)
+  {
+    std::cout << "Sleeping" << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::cout << "Woke up" << std::endl;
+    {
+      std::lock_guard lock(wp.m);
+      wp.message = fmt::format("Message at point {}", ++i);
+    }
+    wp.cv.notify_one();
+  }
+  worker.join();
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;
