@@ -389,7 +389,7 @@ def test_issue_fake_join(network, args):
     }
     req["consensus_type"] = "CFT"
     req["startup_seqno"] = 0
-    with open(os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r") as f:
+    with open(os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r", encoding="utf-8") as f:
         req["public_encryption_key"] = f.read()
     with primary.client(identity="user0") as c:
         LOG.info("Join with SGX dummy quote")
