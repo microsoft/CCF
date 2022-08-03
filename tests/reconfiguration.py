@@ -885,8 +885,8 @@ def run_migration_tests(args):
 
 def run_all(args):
     run(args)
-    # if cr.args.consensus != "BFT":
-    #     run_join_old_snapshot(args)
+    if cr.args.consensus != "BFT":
+        run_join_old_snapshot(args)
 
 
 if __name__ == "__main__":
