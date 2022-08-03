@@ -1654,6 +1654,25 @@ TEST_CASE("Manual conflicts")
     REQUIRE(metrics.calls == 3);
     REQUIRE(metrics.retries == 1);
   }
+
+  // {
+  //   auto consensus_ = network.tables->get_consensus();
+  //   auto consensus =
+  //     std::dynamic_pointer_cast<kv::test::PrimaryStubConsensus>(consensus_);
+  //   REQUIRE(consensus != nullptr);
+
+  //   fmt::print("Log contains {} entries:\n", consensus->replica.size());
+  //   for (const auto& bv : consensus->replica)
+  //   {
+  //     const auto version = std::get<0>(bv);
+  //     fmt::print("Version {}\n", version);
+  //     const auto data = std::get<1>(bv);
+  //     fmt::print(
+  //       "Data [{} bytes]: {}\n",
+  //       data->size(),
+  //       std::string((char const*)data->data(), data->size()));
+  //   }
+  // }
 }
 
 int main(int argc, char** argv)
