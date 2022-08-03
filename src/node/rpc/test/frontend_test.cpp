@@ -1502,71 +1502,132 @@ TEST_CASE("Retry on conflict")
   }
 }
 
-class TestPausableFrontend : public BaseTestFrontend
+class TestManualConflictsFrontend : public BaseTestFrontend
 {
 public:
+  using MyVal = kv::Value<size_t>;
+  static constexpr auto MY_VAL = "my_val";
+
   struct WaitPoint
   {
     std::mutex m;
     std::condition_variable cv;
-    std::string message;
-  };
-  std::vector<WaitPoint> wait_points;
+    bool ready;
 
-  TestPausableFrontend(kv::Store& tables, size_t num_wait_points) :
-    BaseTestFrontend(tables),
-    wait_points(num_wait_points)
+    void wait()
+    {
+      std::unique_lock lock(m);
+      cv.wait(lock, [this] { return ready; });
+    }
+
+    void notify()
+    {
+      {
+        std::lock_guard lock(m);
+        ready = true;
+      }
+      cv.notify_one();
+    }
+  };
+
+  WaitPoint pre_read_wait;
+  WaitPoint read_write_wait;
+  WaitPoint post_write_wait;
+
+  TestManualConflictsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
     auto pausable = [this](auto& ctx) {
-      size_t i = 0;
-      for (auto& wp : wait_points)
-      {
-        std::unique_lock lock(wp.m);
-        fmt::print("Waiting at point {}\n", ++i);
-        wp.cv.wait(lock, [&wp] { return !wp.message.empty(); });
-        fmt::print("Waited and received message: {}\n", wp.message);
-      }
+      auto handle = ctx.tx.template rw<MyVal>(MY_VAL);
+
+      pre_read_wait.wait();
+
+      auto val = handle->get().value_or(0); // Record a read dependency
+
+      read_write_wait.wait();
+
+      handle->put(val + 1); // Create a write dependency
+
+      post_write_wait.wait();
+
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("/pausable", HTTP_POST, pausable).install();
+    make_endpoint("/pausable", HTTP_POST, pausable, {user_cert_auth_policy})
+      .install();
   }
 };
 
-TEST_CASE("Pausable")
+TEST_CASE("Manual conflicts")
 {
   NetworkState network;
   prepare_callers(network);
 
-  constexpr auto num_wait_points = 5;
-  TestPausableFrontend frontend(*network.tables, num_wait_points);
+  TestManualConflictsFrontend frontend(*network.tables);
 
   auto call_pausable = [&]() {
-    std::cout << "Sending request" << std::endl;
     auto req = create_simple_request("/pausable");
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
-    std::cout << "Response received" << std::endl;
   };
 
-  std::thread worker(call_pausable);
+  auto get_value = [&]() {
+    auto tx = network.tables->create_tx();
+    using TF = TestManualConflictsFrontend;
+    auto handle = tx.ro<TF::MyVal>(TF::MY_VAL);
+    return handle->get();
+  };
 
-  size_t i = 0;
-  for (auto& wp : frontend.wait_points)
+  auto update_value = [&](size_t n) {
+    auto tx = network.tables->create_tx();
+    using TF = TestManualConflictsFrontend;
+    auto handle = tx.wo<TF::MyVal>(TF::MY_VAL);
+    handle->put(n);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  };
+
   {
-    std::cout << "Sleeping" << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    std::cout << "Woke up" << std::endl;
-    {
-      std::lock_guard lock(wp.m);
-      wp.message = fmt::format("Message at point {}", ++i);
-    }
-    wp.cv.notify_one();
+    INFO("No conflicts");
+    std::thread worker(call_pausable);
+    frontend.pre_read_wait.notify();
+    frontend.read_write_wait.notify();
+    frontend.post_write_wait.notify();
+    worker.join();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == 1);
   }
-  worker.join();
+
+  {
+    INFO("Post-read conflict");
+    std::thread worker(call_pausable);
+    frontend.pre_read_wait.notify();
+    update_value(7);
+    frontend.read_write_wait.notify();
+    frontend.post_write_wait.notify();
+    worker.join();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == 8);
+  }
+
+  {
+    INFO("Post-write conflict");
+    std::thread worker(call_pausable);
+    frontend.pre_read_wait.notify();
+    frontend.read_write_wait.notify();
+    update_value(3);
+    frontend.post_write_wait.notify();
+    worker.join();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == 4);
+  }
 }
 
 int main(int argc, char** argv)
