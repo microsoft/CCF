@@ -32,6 +32,8 @@ DOWNLOAD_FOLDER_NAME = "downloads"
 INSTALL_SUCCESS_FILE = "test_github_infra_installed"
 INSTALL_VERSION_FILE_PATH = "share/VERSION"
 
+BACKPORT_BRANCH_PREFIX = "backport/"  # Automatically added by backport CLI
+
 # Note: Releases are identified by tag since releases are not necessarily named, but all
 # releases are tagged
 
@@ -66,6 +68,12 @@ def strip_non_final_tag_name(tag_name):
     return f'{TAG_RELEASE_PREFIX}{tag_name.rsplit("-")[1]}'
 
 
+def strip_backport_prefix(branch_name):
+    if branch_name.startswith(BACKPORT_BRANCH_PREFIX):
+        return branch_name[len(BACKPORT_BRANCH_PREFIX) :]
+    return branch_name
+
+
 def get_major_version_from_release_branch_name(full_branch_name):
     return int(strip_release_branch_name(full_branch_name).split(".")[0])
 
@@ -90,6 +98,7 @@ def is_non_final_tag(tag_name):
 def sanitise_branch_name(branch_name):
     # Note: When checking out a specific tag, Azure DevOps does not know about the
     # branch but only the tag name so automatically convert release tags to release branch
+    branch_name = strip_backport_prefix(branch_name)
     if is_dev_tag(branch_name):
         # For simplification, assume that dev tags are only released from main branch
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
@@ -440,6 +449,10 @@ if __name__ == "__main__":
             env.mut(local="release/3.x"),
             exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
         ),  # Dev on rel/3.x
+        (
+            env.mut(local=f"{BACKPORT_BRANCH_PREFIX}release/3.x"),
+            exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
+        ),  # backport/ prefix is ignored
         (
             env.mut(tag="unknown-tag"),
             exp(prev="ccf-3.0.0"),
