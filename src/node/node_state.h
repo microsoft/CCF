@@ -417,36 +417,8 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-            [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-              if (!msg->data.self.create_and_send_boot_request(
-                    msg->data.create_view, true /* Create new consortium*/))
-              {
-                throw std::runtime_error(
-                  "Genesis transaction could not be committed");
-              }
-              // msg->data.self.advance_part_of_public_network();
-              msg->data.self.advance_part_of_network();
-              // TODO: Reset quote and advance to partOfNetwork
-            },
-            *this,
-            aft::starting_view_change);
-
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::get_current_thread_id(), std::move(msg));
-
-          // if (!create_and_send_boot_request(
-          //       aft::starting_view_change, true /* Create new consortium */))
-          // {
-          //   throw std::runtime_error(
-          //     "Genesis transaction could not be committed");
-          // }
-
-          // auto_refresh_jwt_keys();
-
-          // reset_data(quote_info.quote);
-          // reset_data(quote_info.endorsements);
-          // sm.advance(NodeStartupState::partOfNetwork);
+          create_and_send_boot_request(
+            aft::starting_view_change, true /* Create new consortium */);
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -1152,24 +1124,8 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      // First recovery transaction is asynchronous to avoid deadlocks
-      // (https://github.com/microsoft/CCF/issues/3788)
-      // TODO: Refactor with genesis
-      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-          if (!msg->data.self.create_and_send_boot_request(
-                msg->data.create_view,
-                false /* Restore consortium from ledger */))
-          {
-            throw std::runtime_error(
-              "End of public recovery transaction could not be committed");
-          }
-          msg->data.self.advance_part_of_public_network();
-        },
-        *this,
-        new_term);
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::get_current_thread_id(), std::move(msg));
+      create_and_send_boot_request(
+        new_term, false /* Restore consortium from ledger */);
     }
 
     //
@@ -2061,25 +2017,6 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
-      // auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-      //   [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-      //     if (!msg->data.self.create_and_send_boot_request(
-      //           msg->data.create_view,
-      //           false /* Restore consortium from ledger */))
-      //     {
-      //       throw std::runtime_error(
-      //         "End of public recovery transaction could not be committed");
-      //     }
-      //     msg->data.self.advance_part_of_public_network();
-      //   },
-      //   *this,
-      //   new_term);
-      // threading::ThreadMessaging::thread_messaging.add_task(
-      //   threading::get_current_thread_id(), std::move(msg));
-
-      // threading::ThreadMessaging::thread_messaging.add_task_after(
-      //   std::move(timer_msg), config.join.retry_timeout);
-
       auto node_session = std::make_shared<SessionContext>(
         InvalidSessionId, self_signed_node_cert.raw());
       auto ctx = make_rpc_context(node_session, packed);
@@ -2110,11 +2047,35 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_boot_request(
+    void create_and_send_boot_request(
       View create_view, bool create_consortium = true)
     {
-      return send_create_request(
-        serialize_create_request(create_view, create_consortium));
+      // Service creation transaction is asynchronous to avoid deadlocks
+      // (e.g. https://github.com/microsoft/CCF/issues/3788)
+      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+          if (!msg->data.self.send_create_request(
+                msg->data.self.serialize_create_request(
+                  msg->data.create_view, msg->data.create_consortium)))
+          {
+            throw std::runtime_error(
+              "Service creation request could not be committed");
+          }
+          if (msg->data.create_consortium)
+          {
+            msg->data.self.advance_part_of_network();
+          }
+          else
+          {
+            msg->data.self.advance_part_of_public_network();
+          }
+        },
+        *this,
+        create_view,
+        create_consortium);
+
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::get_current_thread_id(), std::move(msg));
     }
 
     void backup_initiate_private_recovery()
@@ -2284,7 +2245,12 @@ namespace ccf
             return;
           }));
 
-      //
+      // Service-endorsed certificate is passed to history as early as _local_
+      // commit since a new node may become primary (and thus, e.g. generate
+      // signatures) before the transaction that added it is _globally_
+      // committed (see https://github.com/microsoft/CCF/issues/4063). It is OK
+      // if this transaction is rolled back as the node will no longer be part
+      // of the service.
       network.tables->set_map_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_map_hook(
