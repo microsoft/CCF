@@ -16,6 +16,7 @@ import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from infra.runner import ConcurrentRunner
+import http
 
 from loguru import logger as LOG
 
@@ -375,21 +376,81 @@ def test_version(network, args):
             )
 
 
-@reqs.description("Issue fake join request as client")
+@reqs.description("Issue fake join requests as untrusted client")
 def test_issue_fake_join(network, args):
     primary, _ = network.find_primary()
 
-    net = {"bind_address": "0:0", "published_address": "0:0", "protocol": "tcp"}
+    # Assemble dummy join request body
+    net = {"bind_address": "0:0"}
     req = {}
     req["node_info_network"] = {
         "node_to_node_interface": net,
         "rpc_interfaces": {"name": net},
     }
-    req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
-    req["public_encryption_key"] = ""
-    # TODO: Pass certificate to client
-    with primary.client() as c:
-        c.post("/node/join", body=req)
+    req["consensus_type"] = "CFT"
+    req["startup_seqno"] = 0
+    with open(os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r") as f:
+        req["public_encryption_key"] = f.read()
+    with primary.client(identity="user0") as c:
+        LOG.info("Join with SGX dummy quote")
+        req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
+        r = c.post("/node/join", body=req)
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+        assert (
+            r.body.json()["error"]["code"] == "InvalidQuote"
+        ), "Quote verification should fail when OE_SGX_v1 is specified"
+
+        LOG.info("Join with SGX real quote, but different TLS key")
+        # First, retrieve real quote from primary node
+        r = c.get("/node/quotes/self").body.json()
+        req["quote_info"] = {
+            "format": "OE_SGX_v1",
+            "quote": r["raw"],
+            "endorsements": r["endorsements"],
+        }
+        r = c.post("/node/join", body=req)
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+        assert r.body.json()["error"]["code"] == "InvalidQuote"
+        if args.enclave_type == "virtual":
+            assert r.body.json()["error"]["message"] == "Quote could not be verified"
+        else:
+            assert (
+                r.body.json()["error"]["message"]
+                == "Quote report data does not contain node's public key hash"
+            )
+
+        LOG.info("Join with virtual quote")
+        req["quote_info"] = {
+            "format": "Insecure_Virtual",
+            "quote": "",
+            "endorsements": "",
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "Virtual node must never join SGX network"
+
+        LOG.info("Join with AMD SEV-SNP quote")
+        req["quote_info"] = {
+            "format": "AMD_SEV_SNP_v1",
+            "quote": "",
+            "endorsements": "",
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            # https://github.com/microsoft/CCF/issues/4072
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "SEV-SNP node cannot currently join SGX network"
 
     return network
 
@@ -610,8 +671,6 @@ def run(args):
 
         test_version(network, args)
         test_issue_fake_join(network, args)
-
-        return
 
         if args.consensus != "BFT":
             test_add_node_invalid_service_cert(network, args)
