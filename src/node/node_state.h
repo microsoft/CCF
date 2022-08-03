@@ -2272,7 +2272,6 @@ namespace ccf
 
               std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
-              // TODO: What if this is rolled back?
               endorsed_node_cert = endorsed_certificate.value();
               history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
