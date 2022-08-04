@@ -160,15 +160,6 @@ namespace ccf
       bool create_consortium;
     };
 
-    struct CreateMsg
-    {
-      CreateMsg(std::vector<uint8_t>&& packed_request_) :
-        packed_request(std::move(packed_request_))
-      {}
-
-      std::vector<uint8_t> packed_request;
-    };
-
     //
     // kv store, replication, and I/O
     //
