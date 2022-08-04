@@ -678,9 +678,7 @@ def run(args):
         network.start_and_open(args)
 
         test_version(network, args)
-
         test_issue_fake_join(network, args)
-        return
 
         if args.consensus != "BFT":
             test_add_node_invalid_service_cert(network, args)
@@ -895,8 +893,8 @@ def run_migration_tests(args):
 
 def run_all(args):
     run(args)
-    # if cr.args.consensus != "BFT":
-    #     run_join_old_snapshot(args)
+    if cr.args.consensus != "BFT":
+        run_join_old_snapshot(args)
 
 
 if __name__ == "__main__":
