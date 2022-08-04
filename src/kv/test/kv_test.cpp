@@ -2372,7 +2372,7 @@ TEST_CASE("Cross-map conflicts")
   }
 
   {
-    // Start a copying operation
+    INFO("Start an operation copying a value across tables");
     auto copy_tx = kv_store.create_tx();
     {
       auto src_handle = copy_tx.ro(source);
@@ -2382,7 +2382,9 @@ TEST_CASE("Cross-map conflicts")
       dst_handle->put("hello", v.value());
     }
 
-    // Before it commits, another operation changes the source
+    INFO(
+      "Before the copy commits, another operation changes the source, and "
+      "commits");
     {
       auto interfere_tx = kv_store.create_tx();
       auto src_handle = interfere_tx.wo(source);
@@ -2390,12 +2392,12 @@ TEST_CASE("Cross-map conflicts")
       REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
     }
 
-    // Copying operation should not succeed here, should see a conflict
+    INFO("Copying operation should conflict on commit");
     REQUIRE(copy_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
   }
 
   {
-    // Start a moving operation
+    INFO("Start an operation moving a value across tables");
     auto move_tx = kv_store.create_tx();
     {
       auto src_handle = move_tx.rw(source);
@@ -2409,7 +2411,9 @@ TEST_CASE("Cross-map conflicts")
       src_handle->remove("hello");
     }
 
-    // Before it commits, another operation changes the source
+    INFO(
+      "Before the move commits, another operation changes the source, and "
+      "commits");
     {
       auto interfere_tx = kv_store.create_tx();
       auto src_handle = interfere_tx.wo(source);
@@ -2417,7 +2421,7 @@ TEST_CASE("Cross-map conflicts")
       REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
     }
 
-    // Moving operation should not succeed here, should see a conflict
+    INFO("Moving operation should conflict on commit");
     REQUIRE(move_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
   }
 }
