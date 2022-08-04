@@ -25,4 +25,6 @@ resources:
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
+  - template: .azure-pipelines-templates/configure.yml
+
   - template: .azure-pipelines-templates/stress-matrix.yml
