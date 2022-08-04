@@ -2385,13 +2385,40 @@ TEST_CASE("Cross-map conflicts")
     // Before it commits, another operation changes the source
     {
       auto interfere_tx = kv_store.create_tx();
-      auto src_handle = copy_tx.wo(source);
+      auto src_handle = interfere_tx.wo(source);
+      src_handle->put("hello", "alice");
+      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    // Copying operation should not succeed here, should see a conflict
+    REQUIRE(copy_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+
+  {
+    // Start a moving operation
+    auto move_tx = kv_store.create_tx();
+    {
+      auto src_handle = move_tx.rw(source);
+      auto dst_handle = move_tx.wo(dest);
+      const auto v = src_handle->get("hello");
+      REQUIRE(v.has_value());
+      dst_handle->put("hello", v.value());
+
+      // Unlike copy, this operation destroys the source! That should not change
+      // its conflict set
+      src_handle->remove("hello");
+    }
+
+    // Before it commits, another operation changes the source
+    {
+      auto interfere_tx = kv_store.create_tx();
+      auto src_handle = interfere_tx.wo(source);
       src_handle->put("hello", "bob");
       REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
     }
 
-    // Copying operation should not succeed here, should see a conflict!
-    REQUIRE(copy_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+    // Moving operation should not succeed here, should see a conflict
+    REQUIRE(move_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
   }
 }
 
@@ -3106,7 +3133,7 @@ TEST_CASE("Ledger entry chunk request")
 
 int main(int argc, char** argv)
 {
-  logger::config::default_init();
+  // logger::config::default_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
