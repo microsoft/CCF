@@ -2354,6 +2354,47 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx2.commit());
 }
 
+TEST_CASE("Cross-map conflicts")
+{
+  kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  MapTypes::StringString source("public:source");
+  MapTypes::StringString dest("public:dest");
+
+  {
+    INFO("Set initial state");
+
+    auto tx = kv_store.create_tx();
+    auto source_handle = tx.wo(source);
+    source_handle->put("hello", "world");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    // Start a copying operation
+    auto copy_tx = kv_store.create_tx();
+    {
+      auto src_handle = copy_tx.ro(source);
+      auto dst_handle = copy_tx.wo(dest);
+      const auto v = src_handle->get("hello");
+      REQUIRE(v.has_value());
+      dst_handle->put("hello", v.value());
+    }
+
+    // Before it commits, another operation changes the source
+    {
+      auto interfere_tx = kv_store.create_tx();
+      auto src_handle = copy_tx.wo(source);
+      src_handle->put("hello", "bob");
+      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    // Copying operation should not succeed here, should see a conflict!
+    REQUIRE(copy_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+}
+
 std::string rand_string(size_t i)
 {
   return fmt::format("{}: {}", i, rand());
