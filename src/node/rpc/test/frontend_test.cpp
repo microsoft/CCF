@@ -1584,16 +1584,38 @@ TEST_CASE("Manual conflicts")
     CHECK(response.status == expected_status);
   };
 
+  auto get_metrics = [&]() {
+    auto req = create_simple_request("/api/metrics");
+    req.set_method(HTTP_GET);
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+    auto body = nlohmann::json::parse(response.body);
+    auto& element = body["metrics"];
+    ccf::EndpointMetricsEntry ret;
+    for (const auto& j : element)
+    {
+      if (j["path"] == "pausable")
+      {
+        ret = j.get<ccf::EndpointMetricsEntry>();
+        break;
+      }
+    }
+
+    return ret;
+  };
+
   auto get_value = [&](const std::string& table = TF::DST) {
     auto tx = network.tables->create_tx();
     auto handle = tx.ro<TF::MyVals>(table);
     return handle->get(TF::KEY);
   };
 
-  auto update_value = [&](size_t n) {
+  auto update_value = [&](size_t n, const std::string& table = TF::SRC) {
     auto tx = network.tables->create_tx();
     using TF = TestManualConflictsFrontend;
-    auto handle = tx.wo<TF::MyVals>(TF::MY_VALS);
+    auto handle = tx.wo<TF::MyVals>(table);
     handle->put(TF::KEY, n);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   };
@@ -1698,6 +1720,8 @@ TEST_CASE("Manual conflicts")
     // TODO: This is wrong! Should conflict once, then return an auth error!
     INFO("Removed caller ident post-read");
 
+    const auto metrics_before = get_metrics();
+
     run_test([&]() {
       auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);
@@ -1705,9 +1729,9 @@ TEST_CASE("Manual conflicts")
       CHECK(tx.commit() == kv::CommitResult::SUCCESS);
     });
 
-    const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
-    REQUIRE(metrics.calls == 1);
-    REQUIRE(metrics.retries == 1); // TODO: SHOULD be a retry
+    const auto metrics_after = get_metrics();
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
   }
 
   // {
