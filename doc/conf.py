@@ -105,6 +105,7 @@ linkcheck_ignore = [
     r"../js/ccf-app.*",
     r"../doxygen/index.html",
     r"https://nghttp2.org/.*",
+    r"https://www.w3.org/Protocols/rfc2616/.*",
 ]
 
 
