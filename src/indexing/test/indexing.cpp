@@ -458,7 +458,8 @@ const auto max_multithread_run_time = 10s;
 
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
-  "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
+  "multi-threaded indexing - in memory" * doctest::test_suite("indexing") *
+  doctest::may_fail(true))
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
@@ -707,7 +708,8 @@ public:
 };
 
 TEST_CASE(
-  "multi-threaded indexing - bucketed" * doctest::test_suite("indexing"))
+  "multi-threaded indexing - bucketed" * doctest::test_suite("indexing") *
+  doctest::may_fail(true))
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
