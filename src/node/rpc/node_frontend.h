@@ -139,19 +139,18 @@ namespace ccf
       {
         case QuoteVerificationResult::Failed:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
+            HTTP_STATUS_UNAUTHORIZED, "Quote could not be verified");
         case QuoteVerificationResult::FailedCodeIdNotFound:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_UNAUTHORIZED,
             "Quote does not contain known enclave measurement");
         case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_UNAUTHORIZED,
             "Quote report data does not contain node's public key hash");
         default:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Unknown quote verification error");
+            HTTP_STATUS_UNAUTHORIZED, "Unknown quote verification error");
       }
     }
 

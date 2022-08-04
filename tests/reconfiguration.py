@@ -16,6 +16,7 @@ import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from infra.runner import ConcurrentRunner
+import http
 
 from loguru import logger as LOG
 
@@ -375,6 +376,93 @@ def test_version(network, args):
             )
 
 
+@reqs.description("Issue fake join requests as untrusted client")
+def test_issue_fake_join(network, args):
+    primary, _ = network.find_primary()
+
+    # Assemble dummy join request body
+    net = {"bind_address": "0:0"}
+    req = {}
+    req["node_info_network"] = {
+        "node_to_node_interface": net,
+        "rpc_interfaces": {"name": net},
+    }
+    req["consensus_type"] = "CFT"
+    req["startup_seqno"] = 0
+    with open(
+        os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r", encoding="utf-8"
+    ) as f:
+        req["public_encryption_key"] = f.read()
+    with primary.client(identity="user0") as c:
+        LOG.info("Join with SGX dummy quote (2.x node)")
+        req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "Quote verification should fail when OE_SGX_v1 is specified"
+
+        LOG.info("Join with SGX real quote, but different TLS key")
+        # First, retrieve real quote from primary node
+        r = c.get("/node/quotes/self").body.json()
+        req["quote_info"] = {
+            "format": "OE_SGX_v1",
+            "quote": r["raw"],
+            "endorsements": r["endorsements"],
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            # Quote is not verified by virtual node
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            assert r.body.json()["error"]["code"] == "InvalidQuote"
+            assert (
+                r.body.json()["error"]["message"]
+                == "Quote report data does not contain node's public key hash"
+            )
+
+        LOG.info("Join with virtual quote (3.x node)")
+        req["quote_info"] = {
+            "format": "Insecure_Virtual",
+            "quote": "",
+            "endorsements": "",
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "Virtual node must never join SGX network"
+
+        LOG.info("Join with AMD SEV-SNP quote")
+        req["quote_info"] = {
+            "format": "AMD_SEV_SNP_v1",
+            "quote": "",
+            "endorsements": "",
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            # https://github.com/microsoft/CCF/issues/4072
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "SEV-SNP node cannot currently join SGX network"
+
+    return network
+
+
 @reqs.description("Replace a node on the same addresses")
 @reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
@@ -591,6 +679,9 @@ def run(args):
 
         test_version(network, args)
 
+        test_issue_fake_join(network, args)
+        return
+
         if args.consensus != "BFT":
             test_add_node_invalid_service_cert(network, args)
             test_add_node(network, args, from_snapshot=False)
@@ -804,8 +895,8 @@ def run_migration_tests(args):
 
 def run_all(args):
     run(args)
-    if cr.args.consensus != "BFT":
-        run_join_old_snapshot(args)
+    # if cr.args.consensus != "BFT":
+    #     run_join_old_snapshot(args)
 
 
 if __name__ == "__main__":
