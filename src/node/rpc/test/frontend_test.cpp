@@ -1769,27 +1769,30 @@ TEST_CASE("Manual conflicts")
   }
 
   {
-    // TODO: This shouldn't succeed! Should become an auth error!
     INFO("Removed caller ident post-read");
 
     const auto metrics_before = get_metrics();
 
-    const auto new_value = rand();
-    update_value(new_value);
-    run_test([&]() {
-      auto tx = network.tables->create_tx();
-      GenesisGenerator g(network, tx);
-      g.remove_user(user_id);
-      CHECK(tx.commit() == kv::CommitResult::SUCCESS);
-    });
+    const auto old_value = get_value();
+    update_value(rand());
+    run_test(
+      [&]() {
+        auto tx = network.tables->create_tx();
+        GenesisGenerator g(network, tx);
+        g.remove_user(user_id);
+        CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+      },
+      user_session,
+      HTTP_STATUS_UNAUTHORIZED);
 
     const auto v = get_value();
     REQUIRE(v.has_value());
-    REQUIRE(v.value() == new_value);
+    REQUIRE(v.value() == old_value);
 
     const auto metrics_after = get_metrics();
     REQUIRE(metrics_after.calls == metrics_before.calls + 1);
     REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+    REQUIRE(metrics_after.errors == metrics_before.errors + 1);
   }
 }
 
