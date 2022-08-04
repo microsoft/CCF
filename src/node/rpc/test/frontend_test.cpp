@@ -1559,11 +1559,6 @@ public:
     make_endpoint("/pausable", HTTP_POST, pausable, {user_cert_auth_policy})
       .install();
   }
-
-  auto get_all_metrics()
-  {
-    return endpoints.metrics;
-  }
 };
 
 TEST_CASE("Manual conflicts")
@@ -1609,16 +1604,19 @@ TEST_CASE("Manual conflicts")
   auto get_value = [&](const std::string& table = TF::DST) {
     auto tx = network.tables->create_tx();
     auto handle = tx.ro<TF::MyVals>(table);
-    return handle->get(TF::KEY);
+    auto ret = handle->get(TF::KEY);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    return ret;
   };
 
-  auto update_value = [&](size_t n, const std::string& table = TF::SRC) {
-    auto tx = network.tables->create_tx();
-    using TF = TestManualConflictsFrontend;
-    auto handle = tx.wo<TF::MyVals>(table);
-    handle->put(TF::KEY, n);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-  };
+  auto update_value =
+    [&](size_t n, const std::string& table = TF::SRC, size_t key = TF::KEY) {
+      auto tx = network.tables->create_tx();
+      using TF = TestManualConflictsFrontend;
+      auto handle = tx.wo<TF::MyVals>(table);
+      handle->put(key, n);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    };
 
   auto run_test = [&](
                     std::function<void()>&& read_write_op,
@@ -1642,86 +1640,142 @@ TEST_CASE("Manual conflicts")
     worker.join();
   };
 
-  // {
-  //   INFO("No conflicts");
+  {
+    INFO("No conflicts");
 
-  //   run_test([]() {});
+    const auto new_value = rand();
+    update_value(new_value);
 
-  //   const auto v = get_value();
-  //   REQUIRE(v.has_value());
-  //   REQUIRE(v.value() == 1);
+    const auto metrics_before = get_metrics();
+    run_test([]() {});
+    const auto metrics_after = get_metrics();
 
-  //   const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
-  //   REQUIRE(metrics.calls == 1);
-  //   REQUIRE(metrics.retries == 0);
-  // }
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
 
-  // {
-  //   INFO("Unauth'd access");
-
-  //   call_pausable(invalid_session, HTTP_STATUS_UNAUTHORIZED);
-  // }
-
-  // {
-  //   INFO("Inserted post-read conflict");
-
-  //   run_test([&]() { update_value(7); });
-
-  //   const auto v = get_value();
-  //   REQUIRE(v.has_value());
-  //   REQUIRE(v.value() == 8);
-
-  //   const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
-  //   REQUIRE(metrics.calls == 3);
-  //   REQUIRE(metrics.retries == 1);
-  // }
-
-  // {
-  //   INFO("Inserted post-read delete");
-
-  //   run_test([&]() {
-  //     auto tx = network.tables->create_tx();
-  //     using TF = TestManualConflictsFrontend;
-  //     auto handle = tx.wo<TF::MyVals>(TF::MY_VALS);
-  //     handle->remove(TF::KEY);
-  //     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-  //   });
-
-  //   const auto v = get_value();
-  //   REQUIRE(v.has_value());
-  //   REQUIRE(v.value() == 1);
-
-  //   const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
-  //   REQUIRE(metrics.calls == 4);
-  //   REQUIRE(metrics.retries == 2);
-  // }
-
-  // {
-  //   INFO("Inserted post-read clear");
-
-  //   run_test([&]() {
-  //     auto tx = network.tables->create_tx();
-  //     using TF = TestManualConflictsFrontend;
-  //     auto handle = tx.wo<TF::MyVals>(TF::MY_VALS);
-  //     handle->clear();
-  //     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-  //   });
-
-  //   const auto v = get_value();
-  //   REQUIRE(v.has_value());
-  //   REQUIRE(v.value() == 1);
-
-  //   const auto metrics = frontend.get_all_metrics()["pausable"]["POST"];
-  //   REQUIRE(metrics.calls == 5);
-  //   REQUIRE(metrics.retries == 3);
-  // }
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries);
+  }
 
   {
-    // TODO: This is wrong! Should conflict once, then return an auth error!
+    INFO("Unauth'd access");
+
+    call_pausable(invalid_session, HTTP_STATUS_UNAUTHORIZED);
+  }
+
+  {
+    INFO("Inserted post-read conflict");
+
+    const auto new_value = rand();
+    const auto metrics_before = get_metrics();
+    run_test([&]() { update_value(new_value); });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+  }
+
+  {
+    INFO("Pure reads are not a conflict");
+
+    const auto new_value = rand();
+    update_value(new_value);
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      get_value(TF::SRC);
+      get_value(TF::DST);
+      get_value("Some other table");
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries);
+  }
+
+  {
+    INFO("Unrelated writes are not a conflict");
+
+    const auto new_value = rand();
+    update_value(new_value);
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      update_value(rand(), TF::SRC, TF::KEY + 1);
+      update_value(rand(), TF::DST);
+      update_value(rand(), "Some other table");
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries);
+  }
+
+  {
+    INFO("Inserted post-read delete");
+    // Ensuring that a delete is not treated differently from a 'normal' write
+
+    update_value(rand());
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      auto tx = network.tables->create_tx();
+      using TF = TestManualConflictsFrontend;
+      auto handle = tx.wo<TF::MyVals>(TF::SRC);
+      handle->remove(TF::KEY);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == 0);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+  }
+
+  {
+    INFO("Inserted post-read clear");
+    // Ensuring that a clear is not treated differently from a 'normal' write
+
+    update_value(rand());
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      auto tx = network.tables->create_tx();
+      using TF = TestManualConflictsFrontend;
+      auto handle = tx.wo<TF::MyVals>(TF::SRC);
+      handle->clear();
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == 0);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+  }
+
+  {
+    // TODO: This shouldn't succeed! Should become an auth error!
     INFO("Removed caller ident post-read");
 
     const auto metrics_before = get_metrics();
 
+    const auto new_value = rand();
+    update_value(new_value);
     run_test([&]() {
       auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);
@@ -1729,29 +1783,14 @@ TEST_CASE("Manual conflicts")
       CHECK(tx.commit() == kv::CommitResult::SUCCESS);
     });
 
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
     const auto metrics_after = get_metrics();
     REQUIRE(metrics_after.calls == metrics_before.calls + 1);
     REQUIRE(metrics_after.retries == metrics_before.retries + 1);
   }
-
-  // {
-  //   auto consensus_ = network.tables->get_consensus();
-  //   auto consensus =
-  //     std::dynamic_pointer_cast<kv::test::PrimaryStubConsensus>(consensus_);
-  //   REQUIRE(consensus != nullptr);
-
-  //   fmt::print("Log contains {} entries:\n", consensus->replica.size());
-  //   for (const auto& bv : consensus->replica)
-  //   {
-  //     const auto version = std::get<0>(bv);
-  //     fmt::print("Version {}\n", version);
-  //     const auto data = std::get<1>(bv);
-  //     fmt::print(
-  //       "Data [{} bytes]: {}\n",
-  //       data->size(),
-  //       std::string((char const*)data->data(), data->size()));
-  //   }
-  // }
 }
 
 int main(int argc, char** argv)
