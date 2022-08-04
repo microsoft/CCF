@@ -151,7 +151,8 @@ namespace ccf
             "Quote report data does not contain node's public key hash");
         default:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED, "Unknown quote verification error");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Unknown quote verification error");
       }
     }
 
