@@ -8,6 +8,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
 #include "ccf_acme_client.h"
