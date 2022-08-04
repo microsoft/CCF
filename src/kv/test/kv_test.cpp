@@ -3137,7 +3137,7 @@ TEST_CASE("Ledger entry chunk request")
 
 int main(int argc, char** argv)
 {
-  // logger::config::default_init();
+  logger::config::default_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
