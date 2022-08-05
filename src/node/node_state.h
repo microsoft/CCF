@@ -148,12 +148,17 @@ namespace ccf
 
     struct NodeStateMsg
     {
-      NodeStateMsg(NodeState& self_, View create_view_ = 0) :
+      NodeStateMsg(
+        NodeState& self_,
+        View create_view_ = 0,
+        bool create_consortium_ = true) :
         self(self_),
-        create_view(create_view_)
+        create_view(create_view_),
+        create_consortium(create_consortium_)
       {}
       NodeState& self;
       View create_view;
+      bool create_consortium;
     };
 
     //
@@ -404,18 +409,8 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          if (!create_and_send_boot_request(
-                aft::starting_view_change, true /* Create new consortium */))
-          {
-            throw std::runtime_error(
-              "Genesis transaction could not be committed");
-          }
-
-          auto_refresh_jwt_keys();
-
-          reset_data(quote_info.quote);
-          reset_data(quote_info.endorsements);
-          sm.advance(NodeStartupState::partOfNetwork);
+          create_and_send_boot_request(
+            aft::starting_view_change, true /* Create new consortium */);
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -1021,6 +1016,16 @@ namespace ccf
       sm.advance(NodeStartupState::partOfPublicNetwork);
     }
 
+    void advance_part_of_network()
+    {
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      sm.expect(NodeStartupState::initialized);
+      auto_refresh_jwt_keys();
+      reset_data(quote_info.quote);
+      reset_data(quote_info.endorsements);
+      sm.advance(NodeStartupState::partOfNetwork);
+    }
+
     void recover_public_ledger_end_unsafe()
     {
       sm.expect(NodeStartupState::readingPublicLedger);
@@ -1111,23 +1116,8 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      // First recovery transaction is asynchronous to avoid deadlocks
-      // (https://github.com/microsoft/CCF/issues/3788)
-      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-          if (!msg->data.self.create_and_send_boot_request(
-                msg->data.create_view,
-                false /* Restore consortium from ledger */))
-          {
-            throw std::runtime_error(
-              "End of public recovery transaction could not be committed");
-          }
-          msg->data.self.advance_part_of_public_network();
-        },
-        *this,
-        new_term);
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::get_current_thread_id(), std::move(msg));
+      create_and_send_boot_request(
+        new_term, false /* Restore consortium from ledger */);
     }
 
     //
@@ -2049,11 +2039,35 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_boot_request(
+    void create_and_send_boot_request(
       View create_view, bool create_consortium = true)
     {
-      return send_create_request(
-        serialize_create_request(create_view, create_consortium));
+      // Service creation transaction is asynchronous to avoid deadlocks
+      // (e.g. https://github.com/microsoft/CCF/issues/3788)
+      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+          if (!msg->data.self.send_create_request(
+                msg->data.self.serialize_create_request(
+                  msg->data.create_view, msg->data.create_consortium)))
+          {
+            throw std::runtime_error(
+              "Service creation request could not be committed");
+          }
+          if (msg->data.create_consortium)
+          {
+            msg->data.self.advance_part_of_network();
+          }
+          else
+          {
+            msg->data.self.advance_part_of_public_network();
+          }
+        },
+        *this,
+        create_view,
+        create_consortium);
+
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::get_current_thread_id(), std::move(msg));
     }
 
     void backup_initiate_private_recovery()
@@ -2223,6 +2237,41 @@ namespace ccf
             return;
           }));
 
+      // Service-endorsed certificate is passed to history as early as _local_
+      // commit since a new node may become primary (and thus, e.g. generate
+      // signatures) before the transaction that added it is _globally_
+      // committed (see https://github.com/microsoft/CCF/issues/4063). It is OK
+      // if this transaction is rolled back as the node will no longer be part
+      // of the service.
+      network.tables->set_map_hook(
+        network.node_endorsed_certificates.get_name(),
+        network.node_endorsed_certificates.wrap_map_hook(
+          [this](
+            kv::Version hook_version,
+            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            for (auto const& [node_id, endorsed_certificate] : w)
+            {
+              if (node_id != self)
+              {
+                continue;
+              }
+
+              if (!endorsed_certificate.has_value())
+              {
+                throw std::logic_error(fmt::format(
+                  "Could not find endorsed node certificate for {}", self));
+              }
+
+              std::lock_guard<ccf::Pal::Mutex> guard(lock);
+
+              endorsed_node_cert = endorsed_certificate.value();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
+              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
+            }
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
+
       network.tables->set_global_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_commit_hook(
@@ -2244,9 +2293,6 @@ namespace ccf
 
               std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
-              endorsed_node_cert = endorsed_certificate.value();
-              history->set_endorsed_certificate(endorsed_node_cert.value());
-              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
               if (is_member_frontend_open())
