@@ -30,6 +30,7 @@ jobs:
   - job: "Make"
     displayName: "Make generator"
     ${{ insert }}: "${{ parameters.env.NoSGX }}"
+    dependsOn: configure
     steps:
       - checkout: self
         clean: true
@@ -52,6 +53,7 @@ jobs:
       artifact_name: "NoSGX_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "800"
+      depends_on: configure
 
   - template: common.yml
     parameters:
@@ -61,6 +63,7 @@ jobs:
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
 
   - template: common.yml
     parameters:
@@ -70,6 +73,7 @@ jobs:
       suffix: "Unsafe"
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
 
   - template: common.yml
     parameters:
@@ -79,3 +83,4 @@ jobs:
       suffix: "Release"
       artifact_name: "SGX_IceLake_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
