@@ -230,7 +230,7 @@
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
           },
-          "origin": {
+          "platform": {
             "$ref": "#/components/schemas/QuoteFormat"
           }
         },

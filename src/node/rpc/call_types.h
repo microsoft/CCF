@@ -42,7 +42,7 @@ namespace ccf
     {
       std::string digest;
       ccf::CodeStatus status;
-      std::optional<ccf::QuoteFormat> origin;
+      std::optional<ccf::QuoteFormat> platform;
     };
 
     struct Out

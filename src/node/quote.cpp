@@ -18,7 +18,7 @@ namespace ccf
     {
       return QuoteVerificationResult::FailedCodeIdNotFound;
     }
-    if (code_id_info->origin != quote_format) {
+    if (code_id_info->platform != quote_format) {
       return QuoteVerificationResult::FailedCodeIdNotFound;
     }
 

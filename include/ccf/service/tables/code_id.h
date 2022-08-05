@@ -9,7 +9,7 @@ namespace ccf
 {
   struct CodeInfo {
     CodeStatus status;
-    QuoteFormat origin;
+    QuoteFormat platform;
   };
   using CodeIDs = ServiceMap<CodeDigest, CodeInfo>;
   namespace Tables
@@ -19,18 +19,20 @@ namespace ccf
 
   inline void to_json(nlohmann::json& j, const CodeInfo& code_info)
   {
-      to_json(j["status"], code_info.status);
-      to_json(j["origin"], code_info.origin);
+      j["status"] = code_info.status;
+      j["platform"] = code_info.platform;
   }
 
   inline void from_json(const nlohmann::json& j, CodeInfo& code_info) {
+    // For CCF versions < 3.x, code_id table entries only contained the status.
+    // Since we only support SGX nodes in those version, we can assume it's that.
     if (j.is_string()) {
-      from_json(j, code_info.status);
-      code_info.origin = QuoteFormat::oe_sgx_v1;
+      code_info.status = j;
+      code_info.platform = QuoteFormat::oe_sgx_v1;
     }
     else {
-      from_json(j["status"], code_info.status);
-      from_json(j["origin"], code_info.origin);
+      code_info.status = j["status"];
+      code_info.platform = j["platform"];
     }
   }
 }

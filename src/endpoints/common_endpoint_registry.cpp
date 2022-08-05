@@ -158,7 +158,7 @@ namespace ccf
       codes_ids->foreach(
         [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
           auto digest = ds::to_hex(cd.data);
-          out.versions.push_back({digest, info.status, info.origin});
+          out.versions.push_back({digest, info.status, info.platform});
           return true;
         });
 
