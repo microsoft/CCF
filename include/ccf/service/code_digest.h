@@ -5,12 +5,13 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
+#include "ccf/ds/attestation_types.h"
 
 namespace ccf
 {
   struct CodeDigest
   {
-    std::array<uint8_t, crypto::Sha256Hash::SIZE> data = {};
+    std::array<uint8_t, attestation_measurement_size> data = {};
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;

@@ -15,13 +15,13 @@
 namespace ccf
 {
   static constexpr size_t attestation_report_data_size = 32;
-  static constexpr size_t attestation_measurement_size = 32;
   using attestation_report_data =
     std::array<uint8_t, attestation_report_data_size>;
-  using attestation_measurement =
-    std::array<uint8_t, attestation_measurement_size>;
 
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+  static constexpr size_t attestation_measurement_size = 32;
+  using attestation_measurement =
+    std::array<uint8_t, attestation_measurement_size>;
   // Set of wrappers for safe memory management
   struct Claims
   {
@@ -82,6 +82,9 @@ namespace ccf
   static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
 
 #else
+  static constexpr size_t attestation_measurement_size = 48;
+  using attestation_measurement =
+    std::array<uint8_t, attestation_measurement_size>;
 
   union tcb_version {
     struct _tcb_version {
@@ -113,7 +116,7 @@ namespace ccf
     uint32_t      flags;                                      /* 0x048 */
     uint32_t      reserved0;                                  /* 0x04C */
     uint8_t       report_data[64];                            /* 0x050 */
-    uint8_t       measurement[48];                            /* 0x090 */
+    uint8_t       measurement[attestation_measurement_size];  /* 0x090 */
     uint8_t       host_data[32];                              /* 0x0C0 */
     uint8_t       id_key_digest[48];                          /* 0x0E0 */
     uint8_t       author_key_digest[48];                      /* 0x110 */

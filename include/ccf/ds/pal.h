@@ -171,12 +171,13 @@ namespace ccf
         attestation_report quote = *reinterpret_cast<const attestation_report*>(quote_info.quote.data());
         std::copy(
           std::begin(quote.report_data),
-          std::begin(quote.report_data) + attestation_report_data_size, // TODO: Support full size
+          std::begin(quote.report_data) + attestation_report_data_size,
+          // quote supports 64 bytes but our code only uses 32
           report_data.begin()
         );
         std::copy(
           std::begin(quote.measurement),
-          std::begin(quote.measurement) + attestation_measurement_size, // TODO: Support full size
+          std::end(quote.measurement),
           unique_id.begin()
         );
         // TODO: Verify endorsements
