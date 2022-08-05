@@ -1004,7 +1004,7 @@ namespace ccf
 
     void advance_part_of_network()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       auto_refresh_jwt_keys();
       reset_data(quote_info.quote);
@@ -2158,7 +2158,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<ccf::Pal::Mutex> guard(lock);
+              std::lock_guard<ccf::Mutex> guard(lock);
 
               endorsed_node_cert = endorsed_certificate.value();
               history->set_endorsed_certificate(endorsed_node_cert.value());
