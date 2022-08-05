@@ -1512,7 +1512,7 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key};
         g.add_node(in.node_id, node_info);
-        g.trust_node_code_id(in.code_digest);
+        g.trust_node_code_id(in.code_digest, in.quote_info.format);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);

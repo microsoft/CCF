@@ -411,10 +411,10 @@ namespace ccf
       tx.rw(tables.constitution)->put(constitution);
     }
 
-    void trust_node_code_id(const CodeDigest& node_code_id)
+    void trust_node_code_id(const CodeDigest& node_code_id, const QuoteFormat& origin)
     {
       auto codeid = tx.rw(tables.node_code_ids);
-      codeid->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
+      codeid->put(node_code_id, {.status = CodeStatus::ALLOWED_TO_JOIN, .origin = origin});
     }
 
     void init_configuration(const ServiceConfiguration& configuration)

@@ -128,7 +128,7 @@ Versions of the code allowed to join the current network.
 
 **Value** Represented as JSON.
 
-.. doxygenenum:: ccf::CodeStatus
+.. doxygenstruct:: ccf::CodeInfo
    :project: CCF
 
 **Example**

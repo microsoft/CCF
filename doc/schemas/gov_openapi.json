@@ -142,6 +142,9 @@
           },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/QuoteFormat"
           }
         },
         "required": [

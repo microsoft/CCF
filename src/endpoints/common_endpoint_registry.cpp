@@ -156,9 +156,9 @@ namespace ccf
 
       auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
       codes_ids->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
           auto digest = ds::to_hex(cd.data);
-          out.versions.push_back({digest, cs});
+          out.versions.push_back({digest, info.status, info.origin});
           return true;
         });
 
