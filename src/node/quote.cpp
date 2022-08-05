@@ -18,19 +18,7 @@ namespace ccf
     {
       return QuoteVerificationResult::FailedCodeIdNotFound;
     }
-
-    QuoteFormat origin;
-
-    // If the value in the store is just a string, this means we're using a <3.0x
-    // version of CCF where only SGX nodes were supported.
-    if (typeid(code_id_info) == typeid(std::string)) {
-      origin = QuoteFormat::oe_sgx_v1;
-    }
-    else {
-      origin = code_id_info->origin;
-    }
-
-    if (origin != quote_format) {
+    if (code_id_info->origin != quote_format) {
       return QuoteVerificationResult::FailedCodeIdNotFound;
     }
 

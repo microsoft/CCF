@@ -16,6 +16,23 @@ namespace ccf
   {
     static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
   }
+
+  inline void to_json(nlohmann::json& j, const CodeInfo& code_info)
+  {
+      to_json(j["status"], code_info.status);
+      to_json(j["origin"], code_info.origin);
+  }
+
+  inline void from_json(const nlohmann::json& j, CodeInfo& code_info) {
+    if (j.is_string()) {
+      from_json(j, code_info.status);
+      code_info.origin = QuoteFormat::oe_sgx_v1;
+    }
+    else {
+      from_json(j["status"], code_info.status);
+      from_json(j["origin"], code_info.origin);
+    }
+  }
 }
 
 namespace kv::serialisers
@@ -34,37 +51,6 @@ namespace kv::serialisers
       ccf::CodeDigest ret;
       ds::from_hex(std::string(data.data(), data.end()), ret.data);
       return ret;
-    }
-  };
-
-  template <>
-  struct JsonSerialiser<ccf::CodeInfo>
-  {
-    static SerialisedEntry to_serialised(const ccf::CodeInfo& code_info)
-    {
-      nlohmann::json json_object = nlohmann::json::object();
-
-      json_object["status"] = code_info.status;
-      json_object["origin"] = code_info.origin;
-
-      const auto serialised = json_object.dump();
-
-      return SerialisedEntry(serialised.begin(), serialised.end());
-    }
-
-    static ccf::CodeInfo from_serialised(const SerialisedEntry& serialised_info)
-    {
-      ccf::CodeInfo code_info;
-
-      const auto json_object = nlohmann::json::parse(
-        serialised_info.begin(),
-        serialised_info.end()
-      );
-
-      code_info.status = json_object["status"];
-      code_info.origin = json_object["origin"];
-
-      return code_info;
     }
   };
 }
