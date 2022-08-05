@@ -7,13 +7,16 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <unistd.h>
+#include <fcntl.h>
+#include "ccf/ds/logger.h"
+#include <sys/ioctl.h>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <cstring>
 #  include <mutex>
 #else
 #  include "ccf/ds/ccf_exception.h"
-#  include "ccf/ds/logger.h"
 
 #  include <openenclave/advanced/mallinfo.h>
 #  include <openenclave/attestation/attester.h>
@@ -49,6 +52,13 @@ namespace ccf
   };
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+
+  // Changes on 5.19+ kernel
+  constexpr auto SEV_SNP_DEVICE = "/dev/sev";
+  #define SEV_GUEST_IOC_TYPE 'S'
+  #define SEV_SNP_GUEST_MSG_REPORT \
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct sev_snp_guest_request)
+
   /**
    * Virtual enclaves and the host code share the same PAL.
    * This PAL takes no dependence on OpenEnclave, but also does not apply
@@ -85,10 +95,54 @@ namespace ccf
       return true;
     }
 
-    static QuoteInfo generate_quote(attestation_report_data&&)
+    static QuoteInfo generate_quote(attestation_report_data&& report_data)
     {
       QuoteInfo node_quote_info = {};
-      node_quote_info.format = QuoteFormat::insecure_virtual;
+      auto is_sev_snp = access(SEV_SNP_DEVICE, F_OK) == 0;
+
+      // If there is no SEV-SNP device, assume we are using insecure virtual quotes
+      if (!is_sev_snp) {
+        node_quote_info.format = QuoteFormat::insecure_virtual;
+      }
+
+      else {
+        node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
+        int fd = open(SEV_SNP_DEVICE, O_RDWR | O_CLOEXEC);
+        if (fd < 0)
+        {
+          throw std::logic_error("Failed to open \"/dev/sev\"");
+        }
+
+        msg_report_req req = {};
+        msg_report_rsp resp = {};
+
+        // Arbitrary report data
+        memcpy(req.report_data, report_data.data(), attestation_report_data_size);
+
+        sev_snp_guest_request payload = {
+            .req_msg_type = SNP_MSG_REPORT_REQ,
+            .rsp_msg_type = SNP_MSG_REPORT_RSP,
+            .msg_version = 1,
+            .request_len = sizeof(req),
+            .request_uaddr = (uint64_t)(void*)&req,
+            .response_len = sizeof(resp),
+            .response_uaddr = (uint64_t)(void*)&resp,
+            .error = 0
+        };
+
+        int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
+        if (rc < 0)
+        {
+          CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
+          CCF_APP_FAIL("Payload error: {}", payload.error);
+          throw std::logic_error(
+            "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
+        }
+
+        auto quote = reinterpret_cast<uint8_t*>(&resp.report);
+        node_quote_info.quote.assign(quote, quote + resp.report_size);
+        // TODO: Get endorsements
+      }
       return node_quote_info;
     }
 
@@ -97,14 +151,47 @@ namespace ccf
       attestation_measurement& unique_id,
       attestation_report_data& report_data)
     {
-      if (quote_info.format != QuoteFormat::insecure_virtual)
+      auto is_sev_snp = access(SEV_SNP_DEVICE, F_OK) == 0;
+
+      if (quote_info.format == QuoteFormat::insecure_virtual)
       {
-        // Virtual enclave cannot verify true (i.e. sgx) enclave quotes
-        throw std::logic_error(
-          "Cannot verify real attestation report on virtual build");
+        if (is_sev_snp) {
+          throw std::logic_error(
+            "Cannot verify virtual quote if node is SEV-SNP");
+        }
+        unique_id = {};
+        report_data = {};
       }
-      unique_id = {};
-      report_data = {};
+
+      else if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
+        if (!is_sev_snp) {
+          throw std::logic_error(
+            "Cannot verify SEV-SNP quote if node is virtual");
+        }
+        attestation_report quote = *reinterpret_cast<const attestation_report*>(quote_info.quote.data());
+        std::copy(
+          std::begin(quote.report_data),
+          std::begin(quote.report_data) + attestation_report_data_size, // TODO: Support full size
+          report_data.begin()
+        );
+        std::copy(
+          std::begin(quote.measurement),
+          std::begin(quote.measurement) + attestation_measurement_size, // TODO: Support full size
+          unique_id.begin()
+        );
+        // TODO: Verify endorsements
+      }
+
+      else {
+        if (is_sev_snp) {
+          throw std::logic_error(
+            "Cannot verify non SEV-SNP attestation report");
+        }
+        else {
+          throw std::logic_error(
+            "Cannot verify real attestation report on virtual build");
+        }
+      }
     }
   };
 
