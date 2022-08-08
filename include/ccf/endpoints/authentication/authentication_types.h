@@ -35,10 +35,16 @@ namespace ccf
       std::string& error_reason) = 0;
 
     virtual void set_unauthenticated_error(
-      std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason);
+      std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
+    {}
 
     virtual std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const = 0;
+
+    virtual std::string get_security_scheme_name()
+    {
+      return "BaseAuthPolicy";
+    }
   };
 
   using AuthnPolicies = std::vector<std::shared_ptr<AuthnPolicy>>;

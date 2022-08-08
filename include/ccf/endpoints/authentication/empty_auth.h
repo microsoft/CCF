@@ -29,5 +29,10 @@ namespace ccf
     {
       return unauthenticated_schema;
     }
+
+    std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    }
   };
 }
