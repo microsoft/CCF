@@ -126,6 +126,11 @@ namespace loggingapp
       // return nullopt
       return std::nullopt;
     }
+
+    std::string get_security_scheme_name() override
+    {
+      return "CustomAuthPolicy";
+    }
   };
   // SNIPPET_END: custom_auth_policy
 
