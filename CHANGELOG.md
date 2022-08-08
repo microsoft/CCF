@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
+- When running with `--curve-id secp256r1`, we now correctly support temporary ECDH keys on curve secp256r1 for TLS 1.2 clients.
 
 ### Added
 
