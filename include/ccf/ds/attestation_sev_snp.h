@@ -2,14 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-#  include <openenclave/attestation/attester.h>
-#  include <openenclave/attestation/custom_claims.h>
-#  include <openenclave/attestation/sgx/evidence.h>
-#  include <openenclave/attestation/verifier.h>
-
-#endif
-
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #include <array>
 
 namespace ccf
@@ -17,75 +10,14 @@ namespace ccf
   static constexpr size_t attestation_report_data_size = 32;
   using attestation_report_data =
     std::array<uint8_t, attestation_report_data_size>;
-
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-  static constexpr size_t attestation_measurement_size = 32;
-  using attestation_measurement =
-    std::array<uint8_t, attestation_measurement_size>;
-  // Set of wrappers for safe memory management
-  struct Claims
-  {
-    oe_claim_t* data = nullptr;
-    size_t length = 0;
-
-    ~Claims()
-    {
-      oe_free_claims(data, length);
-    }
-  };
-
-  struct CustomClaims
-  {
-    oe_claim_t* data = nullptr;
-    size_t length = 0;
-
-    ~CustomClaims()
-    {
-      oe_free_custom_claims(data, length);
-    }
-  };
-
-  struct SerialisedClaims
-  {
-    uint8_t* buffer = nullptr;
-    size_t size = 0;
-
-    ~SerialisedClaims()
-    {
-      oe_free_serialized_custom_claims(buffer);
-    }
-  };
-
-  struct Evidence
-  {
-    uint8_t* buffer = NULL;
-    size_t size = 0;
-
-    ~Evidence()
-    {
-      oe_free_evidence(buffer);
-    }
-  };
-
-  struct Endorsements
-  {
-    uint8_t* buffer = NULL;
-    size_t size = 0;
-
-    ~Endorsements()
-    {
-      oe_free_endorsements(buffer);
-    }
-  };
-
-  static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
-  static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
-
-#else
   static constexpr size_t attestation_measurement_size = 48;
   using attestation_measurement =
     std::array<uint8_t, attestation_measurement_size>;
 
+  // Based on the SEV-SNP ABI Spec document at
+  // https://www.amd.com/system/files/TechDocs/56860.pdf
+
+  // Table 3
   union tcb_version {
     struct _tcb_version {
       uint8_t boot_loader;
@@ -103,6 +35,7 @@ namespace ccf
     uint8_t reserved[512-144];
   };
 
+  // Table 21
   struct attestation_report {
     uint32_t      version;                                    /* 0x000 */
     uint32_t      guest_svn;                                  /* 0x004 */
@@ -125,7 +58,6 @@ namespace ccf
     union tcb_version reported_tcb;                           /* 0x180 */
     uint8_t       reserved1[24];                              /* 0x188 */
     uint8_t       chip_id[64];                                /* 0x1A0 */
-    //   uint8_t       reserved2[192];                        /* 0x1E0 */
     union tcb_version committed_tcb;                          /* 0x1E0 */
     uint8_t current_minor;                                    /* 0x1E8 */
     uint8_t current_build;                                    /* 0x1E9 */
@@ -140,6 +72,7 @@ namespace ccf
     struct signature  signature;                              /* 0x2A0 */
   };
 
+  // Table 20
   struct msg_report_req
   {
       uint8_t report_data[attestation_report_data_size];
@@ -147,12 +80,14 @@ namespace ccf
       uint8_t reserved[28];
   };
 
+  // Table 23
   struct msg_report_rsp {
     uint32_t status;
     uint32_t report_size;
     uint8_t  reserved[0x20-0x8];
     struct attestation_report report;
-    uint8_t padding[64]; // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
+    uint8_t padding[64];
+    // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
 
   struct sev_snp_guest_request
@@ -167,6 +102,7 @@ namespace ccf
     uint32_t error; /* firmware error code on failure (see psp-sev.h) */
   };
 
+  // Table 99
   enum snp_msg_type
   {
     SNP_MSG_TYPE_INVALID = 0,
@@ -186,6 +122,6 @@ namespace ccf
     SNP_MSG_VMRK_RSP,
     SNP_MSG_TYPE_MAX
   };
+}
 
 #endif
-}

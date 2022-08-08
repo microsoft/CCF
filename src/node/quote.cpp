@@ -3,7 +3,6 @@
 
 #include "ccf/node/quote.h"
 
-#include "ccf/ds/attestation_types.h"
 #include "ccf/ds/pal.h"
 #include "ccf/service/tables/code_id.h"
 

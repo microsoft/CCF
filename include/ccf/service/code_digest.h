@@ -5,7 +5,12 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
-#include "ccf/ds/attestation_types.h"
+
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#include "ccf/ds/attestation_sev_snp.h"
+#else
+#include "ccf/ds/attestation_sgx.h"
+#endif
 
 namespace ccf
 {

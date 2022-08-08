@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/attestation_types.h"
 #include "ccf/ds/quote_info.h"
 
 #include <cstdint>
@@ -15,7 +14,9 @@
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <cstring>
 #  include <mutex>
+#  include "ccf/ds/attestation_sev_snp.h"
 #else
+#  include "ccf/ds/attestation_sgx.h"
 #  include "ccf/ds/ccf_exception.h"
 
 #  include <openenclave/advanced/mallinfo.h>
