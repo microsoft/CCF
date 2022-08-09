@@ -2354,6 +2354,78 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx2.commit());
 }
 
+TEST_CASE("Cross-map conflicts")
+{
+  kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  MapTypes::StringString source("public:source");
+  MapTypes::StringString dest("public:dest");
+
+  {
+    INFO("Set initial state");
+
+    auto tx = kv_store.create_tx();
+    auto source_handle = tx.wo(source);
+    source_handle->put("hello", "world");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Start an operation copying a value across tables");
+    auto copy_tx = kv_store.create_tx();
+    {
+      auto src_handle = copy_tx.ro(source);
+      auto dst_handle = copy_tx.wo(dest);
+      const auto v = src_handle->get("hello");
+      REQUIRE(v.has_value());
+      dst_handle->put("hello", v.value());
+    }
+
+    INFO(
+      "Before the copy commits, another operation changes the source, and "
+      "commits");
+    {
+      auto interfere_tx = kv_store.create_tx();
+      auto src_handle = interfere_tx.wo(source);
+      src_handle->put("hello", "alice");
+      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Copying operation should conflict on commit");
+    REQUIRE(copy_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+
+  {
+    INFO("Start an operation moving a value across tables");
+    auto move_tx = kv_store.create_tx();
+    {
+      auto src_handle = move_tx.rw(source);
+      auto dst_handle = move_tx.wo(dest);
+      const auto v = src_handle->get("hello");
+      REQUIRE(v.has_value());
+      dst_handle->put("hello", v.value());
+
+      // Unlike copy, this operation destroys the source! That should not change
+      // its conflict set
+      src_handle->remove("hello");
+    }
+
+    INFO(
+      "Before the move commits, another operation changes the source, and "
+      "commits");
+    {
+      auto interfere_tx = kv_store.create_tx();
+      auto src_handle = interfere_tx.wo(source);
+      src_handle->put("hello", "bob");
+      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Moving operation should conflict on commit");
+    REQUIRE(move_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+}
+
 std::string rand_string(size_t i)
 {
   return fmt::format("{}: {}", i, rand());
