@@ -5,8 +5,12 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/node_startup_state.h"
+#include "ccf/service/acme_client_config.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
 #include "common/configuration.h"
+#include "http/http_builder.h"
+#include "http/http_parser.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
@@ -30,6 +34,9 @@ namespace ccf
       kv::Tx& tx,
       const std::optional<std::vector<std::string>>& interfaces =
         std::nullopt) = 0;
+    virtual void install_custom_acme_challenge_handler(
+      const NodeInfoNetwork::RpcInterfaceID& interface_id,
+      std::shared_ptr<ACMEChallengeHandler> h) = 0;
     virtual bool is_in_initialised_state() const = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;
@@ -51,5 +58,14 @@ namespace ccf
     virtual size_t get_jwt_attempts() = 0;
     virtual crypto::Pem get_self_signed_certificate() = 0;
     virtual const StartupConfig& get_node_config() const = 0;
+    virtual crypto::Pem get_public_key() = 0;
+
+    virtual void make_http_request(
+      const http::URL& url,
+      http::Request&& req,
+      std::function<
+        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+        callback,
+      const std::vector<std::string>& ca_certs = {}) = 0;
   };
 }

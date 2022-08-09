@@ -21,6 +21,7 @@
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
+#include "http/http_parser.h"
 #include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
@@ -152,7 +153,12 @@ namespace ccf
     kv::Version startup_seqno = 0;
 
     // ACME certificate endorsement client
-    std::map<std::string, std::shared_ptr<ACMEClient>> acme_clients;
+    std::map<NodeInfoNetwork::RpcInterfaceID, std::shared_ptr<ACMEClient>>
+      acme_clients;
+    std::map<
+      NodeInfoNetwork::RpcInterfaceID,
+      std::shared_ptr<ACMEChallengeHandler>>
+      acme_challenge_handlers;
     size_t num_acme_interfaces = 0;
 
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
@@ -1365,16 +1371,22 @@ namespace ccf
           {
             const auto& cfg = cit->second;
 
-            acme_clients.emplace(
+            auto client = std::make_shared<ACMEClient>(
               cfg_name,
-              std::make_shared<ACMEClient>(
-                cfg_name,
-                cfg,
-                rpc_map,
-                rpcsessions,
-                challenge_frontend,
-                network.tables,
-                node_sign_kp));
+              cfg,
+              rpc_map,
+              rpcsessions,
+              challenge_frontend,
+              network.tables,
+              node_sign_kp);
+
+            auto chit = acme_challenge_handlers.find(iname);
+            if (chit != acme_challenge_handlers.end())
+            {
+              client->install_custom_challenge_handler(chit->second);
+            }
+
+            acme_clients.emplace(cfg_name, client);
           }
 
           auto client = acme_clients[cfg_name];
@@ -2603,6 +2615,42 @@ namespace ccf
     virtual const StartupConfig& get_node_config() const override
     {
       return config;
+    }
+
+    virtual crypto::Pem get_public_key() override
+    {
+      return node_sign_kp->public_key_pem();
+    }
+
+    virtual void install_custom_acme_challenge_handler(
+      const ccf::NodeInfoNetwork::RpcInterfaceID& interface_id,
+      std::shared_ptr<ACMEChallengeHandler> h) override
+    {
+      acme_challenge_handlers[interface_id] = h;
+    }
+
+    // Stop-gap until it becomes easier to use other HTTP clients
+    virtual void make_http_request(
+      const http::URL& url,
+      http::Request&& req,
+      std::function<
+        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+        callback,
+      const std::vector<std::string>& ca_certs = {}) override
+    {
+      auto ca = std::make_shared<tls::CA>(ca_certs, true);
+      auto ca_cert = std::make_shared<tls::Cert>(ca);
+      auto client = rpcsessions->create_client(ca_cert);
+      client->connect(
+        url.host,
+        url.port,
+        [callback](
+          http_status status,
+          http::HeaderMap&& headers,
+          std::vector<uint8_t>&& data) {
+          return callback(status, std::move(headers), std::move(data));
+        });
+      client->send_request(std::move(req));
     }
   };
 }
