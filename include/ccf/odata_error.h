@@ -7,14 +7,28 @@
 
 namespace ccf
 {
+  struct ODataErrorDetails
+  {
+    std::string auth_policy;
+    std::string code;
+    std::string message;
+
+    bool operator==(const ODataErrorDetails&) const = default;
+  };
+
+  DECLARE_JSON_TYPE(ODataErrorDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(ODataErrorDetails, auth_policy, code, message);
+
   struct ODataError
   {
     std::string code;
     std::string message;
+    std::vector<ODataErrorDetails> details = {};
   };
 
-  DECLARE_JSON_TYPE(ODataError);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ODataError);
   DECLARE_JSON_REQUIRED_FIELDS(ODataError, code, message);
+  DECLARE_JSON_OPTIONAL_FIELDS(ODataError, details);
 
   struct ODataErrorResponse
   {
