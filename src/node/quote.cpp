@@ -3,95 +3,12 @@
 
 #include "ccf/node/quote.h"
 
-#ifdef GET_QUOTE
-#  include "ccf/service/tables/code_id.h"
-#  include "node/attestation_types.h"
+#include "ccf/ds/attestation_types.h"
+#include "ccf/ds/pal.h"
+#include "ccf/service/tables/code_id.h"
 
 namespace ccf
 {
-  QuoteVerificationResult verify_quote(
-    const QuoteInfo& quote_info,
-    CodeDigest& unique_id,
-    crypto::Sha256Hash& hash_node_public_key)
-  {
-    Claims claims;
-
-    auto rc = oe_verify_evidence(
-      &oe_quote_format,
-      quote_info.quote.data(),
-      quote_info.quote.size(),
-      quote_info.endorsements.data(),
-      quote_info.endorsements.size(),
-      nullptr,
-      0,
-      &claims.data,
-      &claims.length);
-    if (rc != OE_OK)
-    {
-      LOG_FAIL_FMT("Failed to verify evidence: {}", oe_result_str(rc));
-      return QuoteVerificationResult::Failed;
-    }
-
-    bool unique_id_found = false;
-    bool sgx_report_data_found = false;
-    for (size_t i = 0; i < claims.length; i++)
-    {
-      auto& claim = claims.data[i];
-      auto claim_name = std::string(claim.name);
-      if (claim_name == OE_CLAIM_UNIQUE_ID)
-      {
-        std::copy(
-          claim.value, claim.value + claim.value_size, unique_id.data.begin());
-        unique_id_found = true;
-      }
-      else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
-      {
-        // Find sgx report data in custom claims
-        CustomClaims custom_claims;
-        rc = oe_deserialize_custom_claims(
-          claim.value,
-          claim.value_size,
-          &custom_claims.data,
-          &custom_claims.length);
-        if (rc != OE_OK)
-        {
-          throw std::logic_error(fmt::format(
-            "Failed to deserialise custom claims", oe_result_str(rc)));
-        }
-
-        for (size_t j = 0; j < custom_claims.length; j++)
-        {
-          auto& custom_claim = custom_claims.data[j];
-          if (std::string(custom_claim.name) == sgx_report_data_claim_name)
-          {
-            if (custom_claim.value_size != hash_node_public_key.SIZE)
-            {
-              throw std::logic_error(fmt::format(
-                "Expected {} of size {}, had size {}",
-                sgx_report_data_claim_name,
-                hash_node_public_key.SIZE,
-                custom_claim.value_size));
-            }
-
-            std::copy(
-              custom_claim.value,
-              custom_claim.value + custom_claim.value_size,
-              hash_node_public_key.h.begin());
-            sgx_report_data_found = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (!unique_id_found || !sgx_report_data_found)
-    {
-      return QuoteVerificationResult::Failed;
-    }
-
-    return QuoteVerificationResult::Verified;
-  }
-
   QuoteVerificationResult verify_enclave_measurement_against_store(
     kv::ReadOnlyTx& tx, const CodeDigest& unique_id)
   {
@@ -121,11 +38,14 @@ namespace ccf
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
-    crypto::Sha256Hash h;
-    auto rc = verify_quote(quote_info, unique_id, h);
-    if (rc != QuoteVerificationResult::Verified)
+    crypto::Sha256Hash h = {};
+    try
     {
-      LOG_FAIL_FMT("Failed to verify quote: {}", rc);
+      Pal::verify_quote(quote_info, unique_id.data, h.h);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
       return std::nullopt;
     }
 
@@ -140,14 +60,23 @@ namespace ccf
       CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
-
-    auto rc = verify_quote(quote_info, code_digest, quoted_hash);
-    if (rc != QuoteVerificationResult::Verified)
+    try
     {
-      return rc;
+      Pal::verify_quote(quote_info, code_digest.data, quoted_hash.h);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
+      return QuoteVerificationResult::Failed;
     }
 
-    rc = verify_enclave_measurement_against_store(tx, code_digest);
+    if (quote_info.format == QuoteFormat::insecure_virtual)
+    {
+      LOG_FAIL_FMT("Skipped attestation report verification");
+      return QuoteVerificationResult::Verified;
+    }
+
+    auto rc = verify_enclave_measurement_against_store(tx, code_digest);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;
@@ -157,4 +86,3 @@ namespace ccf
       expected_node_public_key_der, quoted_hash);
   }
 }
-#endif
