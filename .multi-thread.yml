@@ -31,6 +31,7 @@ jobs:
       cmake_args: "-DCOMPILE_TARGETS=sgx -DWORKER_THREADS=2 -DENABLE_2TX_RECONFIG=ON"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
-      ctest_filter: '-LE "perf|bft"'
+      # TODO: Remove before merging
+      ctest_filter: '-LE "perf|bft" -R indexing_test --repeat-until-fail 1000'
       ctest_timeout: "0" # No timeout
       depends_on: configure
