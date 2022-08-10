@@ -6,8 +6,10 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/attestation_types.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
 #include "ccf_acme_client.h"
@@ -22,7 +24,6 @@
 #include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
-#include "node/attestation_types.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
@@ -66,64 +67,6 @@ namespace ccf
     data.shrink_to_fit();
   }
 
-#ifdef GET_QUOTE
-  static QuoteInfo generate_quote(
-    const std::vector<uint8_t>& node_public_key_der)
-  {
-    QuoteInfo node_quote_info;
-    node_quote_info.format = QuoteFormat::oe_sgx_v1;
-
-    crypto::Sha256Hash h{node_public_key_der};
-
-    Evidence evidence;
-    Endorsements endorsements;
-    SerialisedClaims serialised_custom_claims;
-
-    // Serialise hash of node's public key as a custom claim
-    const size_t custom_claim_length = 1;
-    oe_claim_t custom_claim;
-    custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
-    custom_claim.value = h.h.data();
-    custom_claim.value_size = h.SIZE;
-
-    auto rc = oe_serialize_custom_claims(
-      &custom_claim,
-      custom_claim_length,
-      &serialised_custom_claims.buffer,
-      &serialised_custom_claims.size);
-    if (rc != OE_OK)
-    {
-      throw std::logic_error(fmt::format(
-        "Could not serialise node's public key as quote custom claim: {}",
-        oe_result_str(rc)));
-    }
-
-    rc = oe_get_evidence(
-      &oe_quote_format,
-      0,
-      serialised_custom_claims.buffer,
-      serialised_custom_claims.size,
-      nullptr,
-      0,
-      &evidence.buffer,
-      &evidence.size,
-      &endorsements.buffer,
-      &endorsements.size);
-    if (rc != OE_OK)
-    {
-      throw std::logic_error(
-        fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
-    }
-
-    node_quote_info.quote.assign(
-      evidence.buffer, evidence.buffer + evidence.size);
-    node_quote_info.endorsements.assign(
-      endorsements.buffer, endorsements.buffer + endorsements.size);
-
-    return node_quote_info;
-  }
-#endif
-
   class NodeState : public AbstractNodeState
   {
   private:
@@ -131,7 +74,7 @@ namespace ccf
     // this node's core state
     //
     ds::StateMachine<NodeStartupState> sm;
-    ccf::Pal::Mutex lock;
+    Pal::Mutex lock;
 
     crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
@@ -147,12 +90,17 @@ namespace ccf
 
     struct NodeStateMsg
     {
-      NodeStateMsg(NodeState& self_, View create_view_ = 0) :
+      NodeStateMsg(
+        NodeState& self_,
+        View create_view_ = 0,
+        bool create_consortium_ = true) :
         self(self_),
-        create_view(create_view_)
+        create_view(create_view_),
+        create_consortium(create_consortium_)
       {}
       NodeState& self;
       View create_view;
+      bool create_consortium;
     };
 
     //
@@ -284,16 +232,8 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest) override
     {
-#ifdef GET_QUOTE
       return EnclaveAttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
-#else
-      (void)tx;
-      (void)quote_info;
-      (void)expected_node_public_key_der;
-      (void)code_digest;
-      return QuoteVerificationResult::Verified;
-#endif
     }
 
     //
@@ -307,7 +247,7 @@ namespace ccf
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::uninitialized);
 
       consensus_config = consensus_config_;
@@ -335,7 +275,7 @@ namespace ccf
     //
     NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
 
       config = std::move(config_);
@@ -352,8 +292,8 @@ namespace ccf
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
-#ifdef GET_QUOTE
-      quote_info = generate_quote(node_sign_kp->public_key_der());
+      quote_info = Pal::generate_quote(
+        crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
       auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
@@ -363,7 +303,6 @@ namespace ccf
       {
         throw std::logic_error("Failed to extract code id from quote");
       }
-#endif
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
@@ -403,18 +342,8 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          if (!create_and_send_boot_request(
-                aft::starting_view_change, true /* Create new consortium */))
-          {
-            throw std::runtime_error(
-              "Genesis transaction could not be committed");
-          }
-
-          auto_refresh_jwt_keys();
-
-          reset_data(quote_info.quote);
-          reset_data(quote_info.endorsements);
-          sm.advance(NodeStartupState::partOfNetwork);
+          create_and_send_boot_request(
+            aft::starting_view_change, true /* Create new consortium */);
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -507,7 +436,7 @@ namespace ccf
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
-          std::lock_guard<ccf::Pal::Mutex> guard(lock);
+          std::lock_guard<Pal::Mutex> guard(lock);
           if (!sm.check(NodeStartupState::pending))
           {
             return;
@@ -690,7 +619,7 @@ namespace ccf
           }
         },
         [this](const std::string& error_msg) {
-          std::lock_guard<ccf::Pal::Mutex> guard(lock);
+          std::lock_guard<Pal::Mutex> guard(lock);
           auto long_error_msg = fmt::format(
             "Early error when joining existing network at {}: {}. Shutting "
             "down node gracefully...",
@@ -732,7 +661,7 @@ namespace ccf
     // (https://github.com/microsoft/CCF/issues/2981)
     void initiate_join()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       initiate_join_unsafe();
     }
 
@@ -760,7 +689,7 @@ namespace ccf
 
     void join()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       start_join_timer();
     }
 
@@ -801,7 +730,7 @@ namespace ccf
     //
     void start_ledger_recovery()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       if (
         !sm.check(NodeStartupState::readingPublicLedger) &&
         !sm.check(NodeStartupState::verifyingSnapshot))
@@ -820,7 +749,7 @@ namespace ccf
 
     void recover_public_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
 
       std::shared_ptr<kv::Store> store;
       if (sm.check(NodeStartupState::readingPublicLedger))
@@ -1008,16 +937,26 @@ namespace ccf
 
     void verify_snapshot_end()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       verify_snapshot_end_unsafe();
     }
 
     void advance_part_of_public_network()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::readingPublicLedger);
       history->start_signature_emit_timer();
       sm.advance(NodeStartupState::partOfPublicNetwork);
+    }
+
+    void advance_part_of_network()
+    {
+      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      sm.expect(NodeStartupState::initialized);
+      auto_refresh_jwt_keys();
+      reset_data(quote_info.quote);
+      reset_data(quote_info.endorsements);
+      sm.advance(NodeStartupState::partOfNetwork);
     }
 
     void recover_public_ledger_end_unsafe()
@@ -1110,23 +1049,8 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      // First recovery transaction is asynchronous to avoid deadlocks
-      // (https://github.com/microsoft/CCF/issues/3788)
-      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-          if (!msg->data.self.create_and_send_boot_request(
-                msg->data.create_view,
-                false /* Restore consortium from ledger */))
-          {
-            throw std::runtime_error(
-              "End of public recovery transaction could not be committed");
-          }
-          msg->data.self.advance_part_of_public_network();
-        },
-        *this,
-        new_term);
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::get_current_thread_id(), std::move(msg));
+      create_and_send_boot_request(
+        new_term, false /* Restore consortium from ledger */);
     }
 
     //
@@ -1134,7 +1058,7 @@ namespace ccf
     //
     void recover_private_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
@@ -1306,7 +1230,7 @@ namespace ccf
     //
     void recover_ledger_end()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
 
       if (is_reading_public_ledger())
       {
@@ -1443,7 +1367,7 @@ namespace ccf
 
             acme_clients.emplace(
               cfg_name,
-              std::make_shared<ccf::ACMEClient>(
+              std::make_shared<ACMEClient>(
                 cfg_name,
                 cfg,
                 rpc_map,
@@ -1477,7 +1401,7 @@ namespace ccf
       kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
 
       auto service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
@@ -1501,9 +1425,9 @@ namespace ccf
 
       if (service_info->status == ServiceStatus::RECOVERING)
       {
-        const auto prev_ident = tx.ro<ccf::PreviousServiceIdentity>(
-                                    ccf::Tables::PREVIOUS_SERVICE_IDENTITY)
-                                  ->get();
+        const auto prev_ident =
+          tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+            ->get();
         if (!prev_ident.has_value() || !identities.previous.has_value())
         {
           throw std::logic_error(
@@ -1576,7 +1500,7 @@ namespace ccf
 
     void initiate_private_recovery(kv::Tx& tx) override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
       recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
@@ -1726,7 +1650,7 @@ namespace ccf
 
     ExtendedState state() override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       auto s = sm.value();
       if (s == NodeStartupState::readingPrivateLedger)
       {
@@ -1740,7 +1664,7 @@ namespace ccf
 
     bool rekey_ledger(kv::Tx& tx) override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfNetwork);
 
       // The ledger should not be re-keyed when the service is not open
@@ -1775,7 +1699,7 @@ namespace ccf
 
     kv::Version get_startup_snapshot_seqno() override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       return startup_seqno;
     }
 
@@ -1786,7 +1710,7 @@ namespace ccf
 
     crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       return self_signed_node_cert;
     }
 
@@ -2048,11 +1972,35 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_boot_request(
+    void create_and_send_boot_request(
       View create_view, bool create_consortium = true)
     {
-      return send_create_request(
-        serialize_create_request(create_view, create_consortium));
+      // Service creation transaction is asynchronous to avoid deadlocks
+      // (e.g. https://github.com/microsoft/CCF/issues/3788)
+      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+          if (!msg->data.self.send_create_request(
+                msg->data.self.serialize_create_request(
+                  msg->data.create_view, msg->data.create_consortium)))
+          {
+            throw std::runtime_error(
+              "Service creation request could not be committed");
+          }
+          if (msg->data.create_consortium)
+          {
+            msg->data.self.advance_part_of_network();
+          }
+          else
+          {
+            msg->data.self.advance_part_of_public_network();
+          }
+        },
+        *this,
+        create_view,
+        create_consortium);
+
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::get_current_thread_id(), std::move(msg));
     }
 
     void backup_initiate_private_recovery()
@@ -2222,6 +2170,41 @@ namespace ccf
             return;
           }));
 
+      // Service-endorsed certificate is passed to history as early as _local_
+      // commit since a new node may become primary (and thus, e.g. generate
+      // signatures) before the transaction that added it is _globally_
+      // committed (see https://github.com/microsoft/CCF/issues/4063). It is OK
+      // if this transaction is rolled back as the node will no longer be part
+      // of the service.
+      network.tables->set_map_hook(
+        network.node_endorsed_certificates.get_name(),
+        network.node_endorsed_certificates.wrap_map_hook(
+          [this](
+            kv::Version hook_version,
+            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            for (auto const& [node_id, endorsed_certificate] : w)
+            {
+              if (node_id != self)
+              {
+                continue;
+              }
+
+              if (!endorsed_certificate.has_value())
+              {
+                throw std::logic_error(fmt::format(
+                  "Could not find endorsed node certificate for {}", self));
+              }
+
+              std::lock_guard<Pal::Mutex> guard(lock);
+
+              endorsed_node_cert = endorsed_certificate.value();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
+              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
+            }
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
+
       network.tables->set_global_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_commit_hook(
@@ -2243,9 +2226,6 @@ namespace ccf
 
               std::lock_guard<ccf::Pal::Mutex> guard(lock);
 
-              endorsed_node_cert = endorsed_certificate.value();
-              history->set_endorsed_certificate(endorsed_node_cert.value());
-              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
               if (is_member_frontend_open())
@@ -2309,8 +2289,7 @@ namespace ccf
       network.tables->set_global_hook(
         network.acme_certificates.get_name(),
         network.acme_certificates.wrap_commit_hook(
-          [this](
-            kv::Version hook_version, const ccf::ACMECertificates::Write& w) {
+          [this](kv::Version hook_version, const ACMECertificates::Write& w) {
             for (auto const& [interface_id, interface] :
                  config.network.rpc_interfaces)
             {
@@ -2342,7 +2321,7 @@ namespace ccf
       // from. If the primary changes while the network is public-only, the
       // new primary should also know at which version the new ledger secret
       // is applicable from.
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<Pal::Mutex> guard(lock);
       return last_recovered_signed_idx;
     }
 
