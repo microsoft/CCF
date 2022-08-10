@@ -709,6 +709,8 @@ public:
 TEST_CASE(
   "multi-threaded indexing - bucketed" * doctest::test_suite("indexing"))
 {
+  srand(time(NULL));
+
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
 
@@ -836,7 +838,8 @@ TEST_CASE(
         // May be contesting for limited cached buckets with other users of this
         // index (no handle for unique claims). Uniform random sleep to avoid
         // deadlock.
-        std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 100));
+        const auto sleep_time = std::chrono::milliseconds(rand() % 100);
+        std::this_thread::sleep_for(sleep_time);
 
         results = index_a->get_write_txs_in_range(key, range_start, range_end);
       }
