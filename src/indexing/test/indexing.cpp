@@ -458,8 +458,7 @@ const auto max_multithread_run_time = 10s;
 
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
-  "multi-threaded indexing - in memory" * doctest::test_suite("indexing") *
-  doctest::may_fail(true))
+  "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
@@ -708,8 +707,7 @@ public:
 };
 
 TEST_CASE(
-  "multi-threaded indexing - bucketed" * doctest::test_suite("indexing") *
-  doctest::may_fail(true))
+  "multi-threaded indexing - bucketed" * doctest::test_suite("indexing"))
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
@@ -833,15 +831,12 @@ TEST_CASE(
       auto results =
         index_a->get_write_txs_in_range(key, range_start, range_end);
 
-      std::chrono::milliseconds sleep_time(10);
       while (!results.has_value())
       {
         // May be contesting for limited cached buckets with other users of this
-        // index (no handle for unique claims). Back-off exponentially, with
-        // random variation, to break deadlock
-        std::this_thread::sleep_for(sleep_time);
-
-        sleep_time += std::chrono::milliseconds(rand() % sleep_time.count());
+        // index (no handle for unique claims). Uniform random sleep to avoid
+        // deadlock.
+        std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 100));
 
         results = index_a->get_write_txs_in_range(key, range_start, range_end);
       }
