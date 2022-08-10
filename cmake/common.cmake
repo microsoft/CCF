@@ -243,7 +243,6 @@ add_executable(cchost ${CCHOST_SOURCES})
 
 add_warning_checks(cchost)
 add_san(cchost)
-enable_quote_code(cchost)
 
 target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})

@@ -12,6 +12,9 @@ from infra.checker import check_can_progress
 
 from loguru import logger as LOG
 
+# Dummy code id used by virtual nodes
+VIRTUAL_CODE_ID = "0" * 64
+
 
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
@@ -108,6 +111,8 @@ def test_update_all_nodes(network, args):
             ],
             key=lambda x: x["digest"],
         )
+        if args.enclave_type == "virtual":
+            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
         assert versions == expected, versions
 
     LOG.info("Remove old code id")
@@ -121,6 +126,8 @@ def test_update_all_nodes(network, args):
             ],
             key=lambda x: x["digest"],
         )
+        if args.enclave_type == "virtual":
+            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
         assert versions == expected, versions
 
     old_nodes = network.nodes.copy()

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
+#include "ccf/ds/quote_info.h"
 #include "ccf/node_startup_state.h"
-#include "ccf/quote_info.h"
 #include "ccf/service/tables/code_id.h"
 #include "common/configuration.h"
 #include "node/rpc/gov_effects_interface.h"
