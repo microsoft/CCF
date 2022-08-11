@@ -9,9 +9,9 @@
 #include "ccf/tx.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
+#include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
-#include <fstream>
 #include <ostream>
 
 namespace ccf
@@ -287,13 +287,35 @@ namespace ccf
 
     // Service status should use a state machine, very much like NodeState.
     void create_service(
-      const crypto::Pem& service_cert, bool recovering = false)
+      const crypto::Pem& service_cert,
+      ccf::TxID create_txid,
+      nlohmann::json service_data = nullptr,
+      bool recovering = false)
     {
       auto service = tx.rw(tables.service);
+
+      size_t recovery_count = 0;
+
+      if (service->has())
+      {
+        const auto prev_service_info = service->get();
+        auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
+        previous_service_identity->put(prev_service_info->cert);
+
+        // Record number of recoveries for service. If the value does
+        // not exist in the table (i.e. pre 2.x ledger), assume it is the first
+        // recovery.
+        recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
+      }
+
       service->put(
         {service_cert,
          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-         recovering ? service->get_version_of_previous_write() : std::nullopt});
+         recovering ? service->get_version_of_previous_write() : std::nullopt,
+         recovery_count,
+         service_data,
+         create_txid});
     }
 
     bool is_service_created(const crypto::Pem& expected_service_cert)

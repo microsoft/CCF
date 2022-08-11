@@ -75,7 +75,7 @@ An endpoint handler, here named ``abc``, has the following structure:
 
 .. code-block:: ts
 
-    import * as ccfapp from 'ccf-app';
+    import * as ccfapp from "@microsoft/ccf-app";
 
     interface AbcRequest {
         ...
@@ -143,7 +143,7 @@ This involves the following steps:
 - store all files according to the app bundle folder structure.
 
 For this, the sample app relies on the `TypeScript compiler <https://www.npmjs.com/package/typescript>`_ and
-`rollup <https://rollupjs.org>`_. Rollup also offers tree shaking support
+`rollup <https://github.com/rollup/rollup>`_. Rollup also offers tree shaking support
 to avoid deploying unused modules. See ``package.json`` and ``rollup.config.js`` for details.
 
 The conversion command is invoked with

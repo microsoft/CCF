@@ -14,6 +14,7 @@ from infra.tx_status import TxStatus
 import time
 import http
 import contextlib
+import ccf.ledger
 
 from loguru import logger as LOG
 
@@ -175,6 +176,10 @@ def test_isolate_primary_from_one_backup(network, args):
 @reqs.description("Isolate and reconnect primary")
 def test_isolate_and_reconnect_primary(network, args, **kwargs):
     primary, backups = network.find_nodes()
+
+    with primary.client() as c:
+        primary_view = c.get("/node/consensus").body.json()["details"]["current_view"]
+
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
 
@@ -182,6 +187,16 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
             primary, nodes=backups, timeout_multiplier=6
         )
         new_tx_resp = check_can_progress(new_primary)
+
+        # CheckQuorum: the primary node should automatically step
+        # down if it has not heard back from a majority of backups.
+        # However, it is not guaranteed that the transient follower state
+        # will be observed, so wait for candidate state instead.
+        # The isolated primary will stay in follower state once Pre-Vote
+        # is implemented. https://github.com/microsoft/CCF/issues/2577
+        primary.wait_for_leadership_state(
+            primary_view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
+        )
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
@@ -261,6 +276,92 @@ def test_new_joiner_helps_liveness(network, args):
         network.wait_for_all_nodes_to_commit(primary=primary)
 
 
+@reqs.description("Test election while reconfiguration is in flight")
+@reqs.at_least_n_nodes(3)
+def test_election_reconfiguration(network, args):
+    # Test for issue described in https://github.com/microsoft/CCF/issues/3948
+    # Note: this test makes use of node-endorsed secondary RPC interface since
+    # new nodes never observe commit of their configuration and thus never
+    # open their service-endorsed primary RPC interface.
+    primary, backups = network.find_nodes()
+
+    LOG.info("Join new nodes without trusting them just yet")
+    new_nodes = []
+    # Start N+1 new nodes to make sure they cannot elect one of them as a primary
+    # without approval from the original configuration
+    for _ in range(len(network.nodes) + 1):
+        rpc_interfaces = {
+            infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                host="localhost"
+            )
+        }
+        rpc_interfaces.update(infra.interfaces.make_secondary_interface())
+        new_node = network.create_node(infra.interfaces.HostSpec(rpc_interfaces))
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_nodes.append(new_node)
+
+    LOG.info("Isolate original backups and issue reconfiguration of another quorum")
+    with network.partitioner.partition(backups):
+        LOG.info("Trust all new nodes in one single proposal")
+        # Note: Commit is stuck since a majority of backups in initial configuration
+        # are isolated
+        network.consortium.trust_nodes(
+            primary,
+            [n.node_id for n in new_nodes],
+            valid_from=datetime.utcnow(),
+            wait_for_commit=False,
+        )
+
+        for node in new_nodes:
+            node.wait_for_node_to_join(
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE
+            )
+            # Wait for configuration tx to be replicated to new node
+            network.wait_for_node_in_store(
+                node,
+                node.node_id,
+                ccf.ledger.NodeStatus.TRUSTED,
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
+            )
+
+        LOG.info(f"Stop primary node {primary.local_node_id} to trigger election")
+        primary.stop()
+
+        LOG.info(
+            "Make sure that new nodes cannot elect a primary node among themselves"
+        )
+        try:
+            network.wait_for_new_primary(
+                primary,
+                nodes=new_nodes,
+                interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
+                timeout_multiplier=3,
+            )
+        except infra.network.PrimaryNotFound:
+            LOG.info(
+                "As expected, new primary could not be elected as old configuration could not make progress"
+            )
+        else:
+            assert False, "No new primary should be elected while partition is up"
+
+        LOG.info("Stop all new nodes")
+        for node in new_nodes:
+            node.stop()
+
+    LOG.info(
+        "As partition is lifted, check that isolated original backups elect primary"
+    )
+    network.wait_for_primary_unanimity(nodes=backups)
+
+    LOG.info("Retire former primary and add new node")
+    network.retire_node(backups[0], primary)
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
+
+    return network
+
+
 @reqs.description("Add a learner, partition nodes, check that there is no progress")
 def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
@@ -301,21 +402,17 @@ def test_learner_does_not_take_part(network, args):
     # successfully.
     with network.partitioner.partition(f_backups):
 
-        check_does_not_progress(primary, timeout=5)
-
         try:
             network.consortium.trust_node(
                 primary,
                 new_node.node_id,
                 timeout=ceil(args.join_timer_s * 2),
-                valid_from=datetime.now(),
+                valid_from=datetime.utcnow(),
             )
         except TimeoutError:
             LOG.info("Trust node proposal did not commit as expected")
         else:
             raise Exception("Trust node proposal committed unexpectedly")
-
-        check_does_not_progress(primary, timeout=5)
 
         LOG.info("Majority partition can make progress")
         partition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
@@ -333,7 +430,7 @@ def test_learner_does_not_take_part(network, args):
     LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
     # Note: Because trusting the new node failed, the new node is not considered
     # in the primary unanimity. Indeed, its transition to Trusted may have been rolled back.
-    primary = network.wait_for_primary_unanimity()
+    primary = network.wait_for_primary_unanimity(timeout_multiplier=30)
     network.wait_for_all_nodes_to_commit(primary=primary)
 
     LOG.info("Trust new joiner again")
@@ -385,6 +482,7 @@ def run(args):
         test_new_joiner_helps_liveness(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
+        test_election_reconfiguration(network, args)
 
 
 if __name__ == "__main__":
@@ -398,8 +496,8 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
 
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)
     run_2tx_reconfig_tests(args)

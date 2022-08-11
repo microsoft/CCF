@@ -41,10 +41,10 @@ def get_primary(
             r = c.get(
                 "/node/consensus", timeout=client_node_timeout_s, log_capture=logs
             ).body.json()["details"]
-            return (r["primary_id"], r["current_view"]), r["acks"]
+            return (r["primary_id"], r["current_view"])
     except Exception as e:
         LOG.warning(f"Could not connect to node {node.local_node_id}: {e}")
-        return None, None
+        return (None, None)
 
 
 def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose=True):
@@ -55,9 +55,8 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
     majority = (len(nodes) // 2) + 1
 
     primaries = {}
-    acks = {}
     for node in nodes:
-        primaries[node.node_id], acks[node.node_id] = get_primary_fn(
+        primaries[node.node_id] = get_primary_fn(
             node, client_node_timeout_s, verbose=verbose
         )
     assert len(primaries) == len(nodes)
@@ -85,18 +84,9 @@ def get_network_health(network, get_primary_fn, client_node_timeout_s=3, verbose
         # about to lose its primaryship
         return HealthState.election
 
-    # The current primary is one-way partitioned from f backups, i.e. cannot
-    # receive acks from a majority of backups
-    # Note: This can be removed once the CheckQuorum extension is implemented
-    # as the partitioned primary node will automatically step down.
-    delayed_acks = [
-        ack
-        for ack in acks[most_common_primary[0]].values()
-        if ack["last_received_ms"] > network.args.election_timeout_ms
-    ]
-
-    if len(delayed_acks) >= majority:
-        return HealthState.partition
+    # Note: No longer need to check for backups' "last_received_ms" acks
+    # as the primary node will automatically step down as follower if
+    # it is isolated from a majority of backups (CheckQuorum extension)
 
     return HealthState.stable if most_common_count >= majority else HealthState.election
 

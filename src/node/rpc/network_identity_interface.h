@@ -4,6 +4,7 @@
 
 #include "ccf/node_subsystem_interface.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 

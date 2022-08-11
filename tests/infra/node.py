@@ -22,6 +22,9 @@ import json
 import time
 import http
 
+# pylint: disable=protected-access
+import ccf._versionifier
+
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
 
@@ -92,6 +95,17 @@ def version_rc(full_version):
             rc_tkn = tokens[2]
             return (int(rc_tkn[2:]), len(tokens))
     return (None, 0)
+
+
+def version_after(version, cmp_version):
+    if version is None and cmp_version is not None:
+        # It is assumed that version is None for latest development
+        # branch (i.e. main)
+        return True
+
+    return ccf._versionifier.to_python_version(
+        version
+    ) > ccf._versionifier.to_python_version(cmp_version)
 
 
 class Node:
@@ -432,25 +446,26 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
 
-    def wait_for_node_to_join(self, timeout=3):
+    def wait_for_node_to_join(self, *args, timeout=3, **kwargs):
         """
         This function can be used to check that a node has successfully
         joined a network and that it is part of the consensus.
         """
-        # Until the node has joined, the SSL handshake will fail as the node
-        # is not yet endorsed by the service certificate
+        start_time = time.time()
+        while time.time() < start_time + timeout:
+            try:
+                with self.client(connection_timeout=timeout, *args, **kwargs) as nc:
+                    rep = nc.get("/node/commit")
+                    if rep.status_code == 200:
+                        self.network_state = infra.node.NodeNetworkState.joined
+                        return
+                    time.sleep(0.1)
+            except infra.clients.CCFConnectionException as e:
+                raise TimeoutError(
+                    f"Node {self.local_node_id} failed to join the network"
+                ) from e
 
-        try:
-            with self.client(connection_timeout=timeout) as nc:
-                rep = nc.get("/node/commit")
-                assert (
-                    rep.status_code == 200
-                ), f"An error occured after node {self.local_node_id} joined the network: {rep.body}"
-                self.network_state = infra.node.NodeNetworkState.joined
-        except infra.clients.CCFConnectionException as e:
-            raise TimeoutError(
-                f"Node {self.local_node_id} failed to join the network"
-            ) from e
+        raise TimeoutError(f"Node {self.local_node_id} failed to join the network")
 
     def get_ledger_public_tables_at(self, seqno, insecure=False):
         validator = ccf.ledger.LedgerValidator() if not insecure else None
@@ -496,11 +511,32 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
-    def get_snapshots(self):
-        return self.remote.get_snapshots()
-
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        return self.remote.get_committed_snapshots(pre_condition_func)
+        (
+            main_snapshots_dir,
+            read_only_snapshots_dir,
+        ) = self.remote.get_committed_snapshots(pre_condition_func)
+
+        snapshots_dir = os.path.join(
+            self.common_dir, f"{self.local_node_id}.snapshots.committed"
+        )
+        infra.path.create_dir(snapshots_dir)
+
+        for f in os.listdir(main_snapshots_dir):
+            if is_file_committed(f):
+                infra.path.copy_dir(
+                    os.path.join(main_snapshots_dir, f),
+                    snapshots_dir,
+                )
+
+        for f in os.listdir(read_only_snapshots_dir):
+            if is_file_committed(f):
+                infra.path.copy_dir(
+                    os.path.join(read_only_snapshots_dir, f),
+                    snapshots_dir,
+                )
+
+        return snapshots_dir
 
     def identity(self, name=None):
         if name is not None:
@@ -575,6 +611,12 @@ class Node:
             == infra.interfaces.EndorsementAuthority.Node,
             verify_ca=verify_ca,
         )
+        akwargs["protocol"] = (
+            kwargs.get("protocol") if "protocol" in kwargs else "https"
+        )
+        if rpc_interface.app_protocol == infra.interfaces.AppProtocol.HTTP2:
+            akwargs["http1"] = False
+            akwargs["http2"] = True
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
@@ -678,18 +720,7 @@ class Node:
         return False
 
     def version_after(self, version):
-        rc, _ = version_rc(version)
-        if rc is None or self.version is None:
-            return True
-        self_rc, self_num_rc_tkns = version_rc(self.version)
-        ver = Version(strip_version(version))
-        self_ver = Version(strip_version(self.version))
-        return self_ver > ver or (
-            self_ver == ver
-            and (
-                not self_rc or self_rc > rc or (self_rc == rc and self_num_rc_tkns > 3)
-            )
-        )
+        return version_after(self.version, version)
 
     def get_receipt(self, view, seqno, timeout=3):
         found = False
@@ -720,6 +751,21 @@ class Node:
             raise ValueError(
                 f"Unable to retrieve entry at TxID {view}.{seqno} on node {node.local_node_id} after {timeout}s"
             )
+
+    def wait_for_leadership_state(self, min_view, leadership_state, timeout=3):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            with self.client() as c:
+                r = c.get("/node/consensus").body.json()["details"]
+                if (
+                    r["current_view"] > min_view
+                    and r["leadership_state"] == leadership_state
+                ):
+                    return
+            time.sleep(0.1)
+        raise TimeoutError(
+            f"Node {self.local_node_id} was not in leadership state {leadership_state} in view > {min_view} after {timeout}s: {r}"
+        )
 
 
 @contextmanager

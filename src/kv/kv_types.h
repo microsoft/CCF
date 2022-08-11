@@ -465,7 +465,16 @@ namespace kv
     virtual NodeId id() = 0;
     virtual bool is_primary() = 0;
     virtual bool is_backup() = 0;
+    virtual bool is_candidate() = 0;
     virtual bool can_replicate() = 0;
+
+    enum class SignatureDisposition
+    {
+      CANT_REPLICATE,
+      CAN_SIGN,
+      SHOULD_SIGN,
+    };
+    virtual SignatureDisposition get_signature_disposition() = 0;
 
     virtual void force_become_primary() = 0;
     virtual void force_become_primary(
@@ -482,7 +491,7 @@ namespace kv
       ccf::SeqNo version, previous_version;
     };
 
-    virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
+    virtual SignableTxIndices get_signable_txid() = 0;
 
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
     virtual ccf::View get_view() = 0;

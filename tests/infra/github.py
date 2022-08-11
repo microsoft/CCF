@@ -9,6 +9,7 @@ import git
 import urllib
 import shutil
 import requests
+import cimetrics.env
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -30,6 +31,8 @@ INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
 DOWNLOAD_FOLDER_NAME = "downloads"
 INSTALL_SUCCESS_FILE = "test_github_infra_installed"
 INSTALL_VERSION_FILE_PATH = "share/VERSION"
+
+BACKPORT_BRANCH_PREFIX = "backport/"  # Automatically added by backport CLI
 
 # Note: Releases are identified by tag since releases are not necessarily named, but all
 # releases are tagged
@@ -65,6 +68,12 @@ def strip_non_final_tag_name(tag_name):
     return f'{TAG_RELEASE_PREFIX}{tag_name.rsplit("-")[1]}'
 
 
+def strip_backport_prefix(branch_name):
+    if branch_name.startswith(BACKPORT_BRANCH_PREFIX):
+        return branch_name[len(BACKPORT_BRANCH_PREFIX) :]
+    return branch_name
+
+
 def get_major_version_from_release_branch_name(full_branch_name):
     return int(strip_release_branch_name(full_branch_name).split(".")[0])
 
@@ -89,6 +98,7 @@ def is_non_final_tag(tag_name):
 def sanitise_branch_name(branch_name):
     # Note: When checking out a specific tag, Azure DevOps does not know about the
     # branch but only the tag name so automatically convert release tags to release branch
+    branch_name = strip_backport_prefix(branch_name)
     if is_dev_tag(branch_name):
         # For simplification, assume that dev tags are only released from main branch
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
@@ -146,6 +156,12 @@ class GitEnv:
             == 200
         )
 
+    @staticmethod
+    def local_branch():
+        # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
+        # current branch on any environment (either local checkout or CI run)
+        return cimetrics.env.get_env().branch
+
 
 class Repository:
     """
@@ -171,11 +187,11 @@ class Repository:
         return tags[first_release_tag_idx + 1 :]
 
     def get_latest_dev_tag(self):
-        dev_tags = [t for t in self.tags if "-dev" in t]
-        dev_tags.reverse()
-
+        local_branch = cimetrics.env.get_env().branch
+        major_version = get_major_version_from_branch_name(local_branch)
+        tags = self.get_tags_for_major_version(major_version)
         # Only consider tags that have releases as a release might be in progress
-        return self._filter_released_tags(dev_tags)[0]
+        return self._filter_released_tags(tags)[0]
 
     def get_tags_for_major_version(self, major_version=None):
         version_re = f"{major_version}\\." if major_version else ""
@@ -433,6 +449,10 @@ if __name__ == "__main__":
             env.mut(local="release/3.x"),
             exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
         ),  # Dev on rel/3.x
+        (
+            env.mut(local=f"{BACKPORT_BRANCH_PREFIX}release/3.x"),
+            exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
+        ),  # backport/ prefix is ignored
         (
             env.mut(tag="unknown-tag"),
             exp(prev="ccf-3.0.0"),

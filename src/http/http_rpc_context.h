@@ -113,6 +113,21 @@ namespace http
       }
     }
 
+    http::HeaderMap get_response_headers() const
+    {
+      return response_headers;
+    }
+
+    std::vector<uint8_t>& get_response_body()
+    {
+      return response_body;
+    }
+
+    http_status get_response_http_status() const
+    {
+      return response_status;
+    }
+
     virtual ccf::FrameFormat frame_format() const override
     {
       return ccf::FrameFormat::http;

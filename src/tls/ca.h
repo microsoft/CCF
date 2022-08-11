@@ -14,18 +14,31 @@ namespace tls
   class CA
   {
   private:
-    Unique_X509 ca;
+    std::vector<Unique_X509> cas;
+    bool partial_ok = false;
 
   public:
-    CA(const std::string& ca_ = "")
+    CA(const std::string& ca_ = "", bool partial_ok = false) :
+      CA(std::vector<std::string>({ca_}), partial_ok)
+    {}
+
+    CA(
+      const std::vector<std::string>& ca_strings = {},
+      bool partial_ok = false) :
+      partial_ok(partial_ok)
     {
-      if (!ca_.empty())
+      for (const auto& ca_string : ca_strings)
       {
-        Unique_BIO bio(ca_.data(), ca_.size());
-        if (!(ca = Unique_X509(bio, true)))
+        if (!ca_string.empty())
         {
-          throw std::logic_error(
-            "Could not parse CA: " + error_string(ERR_get_error()));
+          Unique_BIO bio(ca_string.data(), ca_string.size());
+          Unique_X509 ca;
+          if (!(ca = Unique_X509(bio, true)))
+          {
+            throw std::logic_error(
+              "Could not parse CA: " + error_string(ERR_get_error()));
+          }
+          cas.push_back(std::move(ca));
         }
       }
     }
@@ -35,7 +48,14 @@ namespace tls
     void use(SSL_CTX* ssl_ctx)
     {
       X509_STORE* store = X509_STORE_new();
-      CHECK1(X509_STORE_add_cert(store, ca));
+      if (partial_ok)
+      {
+        CHECK1(X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN));
+      }
+      for (const auto& ca : cas)
+      {
+        CHECK1(X509_STORE_add_cert(store, ca));
+      }
       SSL_CTX_set_cert_store(ssl_ctx, store);
     }
   };

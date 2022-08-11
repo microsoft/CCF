@@ -30,7 +30,7 @@ if((NOT ${IS_VALID_TARGET}))
 endif()
 
 # Find OpenEnclave package
-find_package(OpenEnclave 0.17.6 CONFIG REQUIRED)
+find_package(OpenEnclave 0.18.0 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
@@ -66,6 +66,14 @@ if(LVI_MITIGATIONS)
   find_package(
     OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
   )
+endif()
+
+list(APPEND COMPILE_LIBCXX -stdlib=libc++)
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
+else()
+  # Clang <9 needs to link libc++fs when using <filesystem>
+  list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
 endif()
 
 # Sign a built enclave library with oesign
@@ -127,13 +135,6 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
               DESTINATION lib
       )
     endif()
-  endif()
-endfunction()
-
-# Util functions used by add_ccf_app and others
-function(enable_quote_code name)
-  if(QUOTES_ENABLED)
-    target_compile_definitions(${name} PUBLIC -DGET_QUOTE)
   endif()
 endfunction()
 

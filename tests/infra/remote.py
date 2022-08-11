@@ -581,6 +581,7 @@ class CCFRemote(object):
         ledger_dir=None,
         read_only_ledger_dirs=None,
         snapshots_dir=None,
+        read_only_snapshots_dir=None,
         common_read_only_ledger_dir=None,
         constitution=None,
         curve_id=None,
@@ -594,6 +595,8 @@ class CCFRemote(object):
         jwt_key_refresh_interval_s=None,
         election_timeout_ms=None,
         node_data_json_file=None,
+        service_cert_file="service_cert.pem",
+        service_data_json_file=None,
         **kwargs,
     ):
         """
@@ -609,9 +612,7 @@ class CCFRemote(object):
 
         # 1.x releases have a separate cchost.virtual binary for virtual enclaves
         if enclave_type == "virtual" and (
-            (major_version is not None and major_version <= 1)
-            # This is still present in 2.0.0-rc0
-            or (version == "ccf-2.0.0-rc0")
+            major_version is not None and major_version <= 1
         ):
             self.BIN = "cchost.virtual"
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
@@ -639,16 +640,32 @@ class CCFRemote(object):
 
         # Snapshots
         self.snapshots_dir = os.path.normpath(snapshots_dir) if snapshots_dir else None
-        self.snapshot_dir_name = (
+        self.snapshots_dir_name = (
             os.path.basename(self.snapshots_dir)
             if self.snapshots_dir
             else f"{local_node_id}.snapshots"
+        )
+        self.read_only_snapshots_dir = (
+            os.path.normpath(read_only_snapshots_dir)
+            if read_only_snapshots_dir
+            else None
+        )
+        self.read_only_snapshots_dir_name = (
+            os.path.basename(self.read_only_snapshots_dir)
+            if self.read_only_snapshots_dir
+            else None
         )
 
         # Constitution
         constitution = [
             os.path.join(self.common_dir, os.path.basename(f)) for f in constitution
         ]
+
+        # ACME
+        if "acme" in kwargs and host.acme_challenge_server_interface:
+            kwargs["acme"][
+                "challenge_server_interface"
+            ] = host.acme_challenge_server_interface
 
         # Configuration file
         if config_file:
@@ -675,7 +692,8 @@ class CCFRemote(object):
                 rpc_addresses_file=self.rpc_addresses_file,
                 ledger_dir=self.ledger_dir_name,
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
-                snapshots_dir=self.snapshot_dir_name,
+                snapshots_dir=self.snapshots_dir_name,
+                read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
                 host_log_level=host_log_level.title(),
@@ -684,6 +702,8 @@ class CCFRemote(object):
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
                 election_timeout=f"{election_timeout_ms}ms",
                 node_data_json_file=node_data_json_file,
+                service_data_json_file=service_data_json_file,
+                service_cert_file=service_cert_file,
                 **kwargs,
             )
 
@@ -697,6 +717,9 @@ class CCFRemote(object):
         exe_files += [self.BIN, enclave_file] + self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []
         data_files += [self.snapshots_dir] if self.snapshots_dir else []
+        data_files += (
+            [self.read_only_snapshots_dir] if self.read_only_snapshots_dir else []
+        )
         if self.read_only_ledger_dirs_names:
             data_files.extend(
                 [os.path.join(self.common_dir, f) for f in self.read_only_ledger_dirs]
@@ -743,7 +766,7 @@ class CCFRemote(object):
                 f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.host, primary_rpc_interface.port)}",
                 f"--rpc-address-file={self.rpc_addresses_file}",
                 f"--ledger-dir={self.ledger_dir_name}",
-                f"--snapshot-dir={self.snapshot_dir_name}",
+                f"--snapshot-dir={self.snapshots_dir_name}",
                 f"--node-cert-file={self.pem}",
                 f"--host-log-level={host_log_level}",
                 f"--raft-election-timeout-ms={election_timeout_ms}",
@@ -915,10 +938,36 @@ class CCFRemote(object):
     def set_perf(self):
         self.remote.set_perf()
 
-    def get_ledger(self, ledger_dir_name):
-        self.remote.get(
-            self.ledger_dir_name, self.common_dir, target_name=ledger_dir_name
+    def _resilient_copy(
+        self,
+        directory,
+        pre_condition_func=lambda src_dir, _: True,
+        target_name=None,
+        max_retry_count=5,
+    ):
+        # It is possible that files (ledger, snapshots) are committed
+        # while the copy is happening so retry a reasonable number of times.
+        retry_count = 0
+        while retry_count < max_retry_count:
+            try:
+                self.remote.get(
+                    directory,
+                    self.common_dir,
+                    pre_condition_func=pre_condition_func,
+                    target_name=target_name,
+                )
+                return
+            except Exception as e:
+                LOG.warning(f"Error copying file from {directory}: {e}. Retrying...")
+                retry_count += 1
+                time.sleep(0.1)
+
+        raise Exception(
+            f"Error copying files from {directory} after {retry_count} retries"
         )
+
+    def get_ledger(self, ledger_dir_name):
+        self._resilient_copy(self.ledger_dir_name, target_name=ledger_dir_name)
         read_only_ledger_dirs = []
         for read_only_ledger_dir in self.read_only_ledger_dirs:
             name = f"{read_only_ledger_dir}.ro"
@@ -930,31 +979,21 @@ class CCFRemote(object):
             read_only_ledger_dirs.append(os.path.join(self.common_dir, name))
         return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
-    def get_snapshots(self):
-        self.remote.get(self.snapshot_dir_name, self.common_dir)
-        return os.path.join(self.common_dir, self.snapshot_dir_name)
-
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
-        # It is possible that snapshots are committed while the copy is happening
-        # so retry a reasonable number of times.
-        max_retry_count = 5
-        retry_count = 0
-        while retry_count < max_retry_count:
-            try:
-                self.remote.get(
-                    self.snapshot_dir_name,
-                    self.common_dir,
-                    pre_condition_func=pre_condition_func,
-                )
-                break
-            except Exception as e:
-                LOG.warning(
-                    f"Error copying committed snapshots from {self.snapshot_dir_name}: {e}. Retrying..."
-                )
-                retry_count += 1
-                time.sleep(0.1)
+        self._resilient_copy(
+            self.snapshots_dir_name, pre_condition_func=pre_condition_func
+        )
+        read_only_snapshots_dir = None
+        if self.read_only_snapshots_dir_name:
+            self._resilient_copy(self.read_only_snapshots_dir_name)
+            read_only_snapshots_dir = os.path.join(
+                self.common_dir, self.read_only_snapshots_dir_name
+            )
 
-        return os.path.join(self.common_dir, self.snapshot_dir_name)
+        return (
+            os.path.join(self.common_dir, self.snapshots_dir_name),
+            read_only_snapshots_dir,
+        )
 
     def log_path(self):
         return self.remote.out

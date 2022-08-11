@@ -26,6 +26,7 @@ endif()
 option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
+  set(TEST_HOST_LOGGING_LEVEL "trace")
   add_compile_definitions(VERBOSE_LOGGING)
 endif()
 
@@ -118,8 +119,14 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh docker_wrap.sh config.jinja
+set(CCF_TEST_UTILITIES
+    tests.sh
+    cimetrics_env.sh
+    upload_pico_metrics.py
+    test_install.sh
+    docker_wrap.sh
+    config.jinja
+    recovery_benchmark.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -162,7 +169,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/json_handler.cpp
-    ${CCF_DIR}/src/endpoints/authentication/authentication_types.cpp
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
@@ -178,20 +184,10 @@ set(CCF_ENDPOINTS_SOURCES
 find_library(CRYPTO_LIBRARY crypto)
 find_library(TLS_LIBRARY ssl)
 
-list(APPEND COMPILE_LIBCXX -stdlib=libc++)
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-  list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
-else()
-  # Clang <9 needs to link libc++fs when using <filesystem>
-  list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
-endif()
-
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
-if(ENABLE_HTTP2)
-  include(${CCF_DIR}/cmake/nghttp2.cmake)
-endif()
+include(${CCF_DIR}/cmake/nghttp2.cmake)
 
 # Unit test wrapper
 function(add_unit_test name)
@@ -247,7 +243,6 @@ add_executable(cchost ${CCHOST_SOURCES})
 
 add_warning_checks(cchost)
 add_san(cchost)
-enable_quote_code(cchost)
 
 target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
@@ -453,6 +448,7 @@ sign_app_library(
 # SNIPPET_END: JS generic application
 
 include(${CCF_DIR}/cmake/js_v8.cmake)
+include(${CCF_DIR}/cmake/quictls.cmake)
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
         DESTINATION samples/logging

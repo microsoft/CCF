@@ -14,6 +14,7 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 
 namespace files
 {

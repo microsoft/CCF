@@ -29,16 +29,28 @@ namespace ccf::endpoints
 
   enum class ForwardingRequired
   {
+    /** ForwardingRequired::Sometimes is the default value, and should be used
+     * for most read-only operations. If this request is made to a backup node,
+     * it may be forwarded to the primary node for execution to maintain session
+     * consistency. Specifically, if this request is sent as part of a session
+     * which was already forwarded, then it will also be forwarded.
+     */
     Sometimes,
-    Always,
-    Never
-  };
 
-  enum class ExecuteOutsideConsensus
-  {
-    Never,
-    Locally,
-    Primary
+    /** ForwardingRequired::Always should be used for operations which may
+     * produce writes. If this request is made to a backup node, it will be
+     * forwarded to the primary node for execution.
+     */
+    Always,
+
+    /** ForwardingRequired::Never should be used for operations which want to
+     * read node-local state rather than the latest replicated state, such as
+     * historical queries or local consensus information. This call will never
+     * be forwarded, and is always executed on the receiving node, potentiall
+     * breaking session consistency. If this attempts to write on a backup, this
+     * will fail.
+     */
+    Never
   };
 
   enum class Mode
@@ -61,12 +73,6 @@ namespace ccf::endpoints
      {ForwardingRequired::Never, "never"}});
 
   DECLARE_JSON_ENUM(
-    ExecuteOutsideConsensus,
-    {{ExecuteOutsideConsensus::Never, "never"},
-     {ExecuteOutsideConsensus::Locally, "locally"},
-     {ExecuteOutsideConsensus::Primary, "primary"}});
-
-  DECLARE_JSON_ENUM(
     Mode,
     {{Mode::ReadWrite, "readwrite"},
      {Mode::ReadOnly, "readonly"},
@@ -78,9 +84,6 @@ namespace ccf::endpoints
     Mode mode = Mode::ReadWrite;
     /// Endpoint forwarding policy
     ForwardingRequired forwarding_required = ForwardingRequired::Always;
-    /// Execution policy
-    ExecuteOutsideConsensus execute_outside_consensus =
-      ExecuteOutsideConsensus::Never;
     /// Authentication policies
     std::vector<std::string> authn_policies = {};
     /// OpenAPI schema for endpoint
@@ -337,39 +340,49 @@ namespace ccf::endpoints
      */
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
-    /** Indicates that the execution of the Endpoint does not require
-     * consensus from other nodes in the network.
-     *
-     * By default, endpoints are not executed locally.
-     *
-     * \verbatim embed:rst:leading-asterisk
-     * .. warning::
-     *  Use with caution. This should only be used for non-critical endpoints
-     *  that do not read or mutate the state of the key-value store.
-     * \endverbatim
-     *
-     * @param v Enum indicating whether the Endpoint is executed locally,
-     * on the node receiving the request, locally on the primary or via the
-     * consensus.
-     * @return This Endpoint for further modification
-     */
-    Endpoint& set_execute_outside_consensus(ExecuteOutsideConsensus v);
-
-    void install()
-    {
-      if (installer == nullptr)
-      {
-        LOG_FATAL_FMT(
-          "Can't install this endpoint ({}) - it is not associated with an "
-          "installer",
-          full_uri_path);
-      }
-      else
-      {
-        installer->install(*this);
-      }
-    }
+    void install();
   };
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::endpoints::ForwardingRequired>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx)
+  {
+    char const* s;
+    switch (v)
+    {
+      case ccf::endpoints::ForwardingRequired::Sometimes:
+      {
+        s = "sometimes";
+        break;
+      }
+      case ccf::endpoints::ForwardingRequired::Always:
+      {
+        s = "always";
+        break;
+      }
+      case ccf::endpoints::ForwardingRequired::Never:
+      {
+        s = "never";
+        break;
+      }
+      default:
+      {
+        throw std::logic_error("Unhandled value for ForwardingRequired");
+      }
+    }
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE

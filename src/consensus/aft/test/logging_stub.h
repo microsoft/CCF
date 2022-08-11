@@ -17,6 +17,8 @@ namespace aft
   protected:
     ccf::NodeId _id;
 
+    std::mutex ledger_access;
+
   public:
     std::vector<std::vector<uint8_t>> ledger;
     uint64_t skip_count = 0;
@@ -31,6 +33,8 @@ namespace aft
       kv::Term term,
       kv::Version index)
     {
+      std::lock_guard<std::mutex> lock(ledger_access);
+
       // The payload that we eventually deserialise must include the
       // ledger entry as well as the View and Index that identify it. In
       // the real entries, they are nested in the payload and the IV. For
@@ -73,6 +77,8 @@ namespace aft
 
     std::optional<std::vector<uint8_t>> get_entry_by_idx(size_t idx)
     {
+      std::lock_guard<std::mutex> lock(ledger_access);
+
       // Ledger indices are 1-based, hence the -1
       if (idx > 0 && idx <= ledger.size())
       {
@@ -253,6 +259,62 @@ namespace aft
     }
   };
 
+  enum class ReplicatedDataType
+  {
+    raw = 0,
+    reconfiguration = 1
+  };
+  DECLARE_JSON_ENUM(
+    ReplicatedDataType,
+    {{ReplicatedDataType::raw, "raw"},
+     {ReplicatedDataType::reconfiguration, "reconfiguration"}});
+
+  struct ReplicatedData
+  {
+    ReplicatedDataType type;
+    std::vector<uint8_t> data;
+  };
+  DECLARE_JSON_TYPE(ReplicatedData);
+  DECLARE_JSON_REQUIRED_FIELDS(ReplicatedData, type, data);
+
+  class ConfigurationChangeHook : public kv::ConsensusHook
+  {
+    kv::Configuration::Nodes
+      new_configuration; // Absence of node means that node has been retired
+    kv::Version version;
+
+  public:
+    ConfigurationChangeHook(
+      kv::Configuration::Nodes new_configuration_, kv::Version version_) :
+      new_configuration(new_configuration_),
+      version(version_)
+    {}
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      auto configuration = consensus->get_latest_configuration_unsafe();
+      std::unordered_set<ccf::NodeId> retired_nodes;
+
+      // Remove and track retired nodes
+      for (auto it = configuration.begin(); it != configuration.end(); ++it)
+      {
+        if (new_configuration.find(it->first) == new_configuration.end())
+        {
+          retired_nodes.emplace(it->first);
+          it = configuration.erase(it);
+        }
+      }
+
+      // Add new node to configuration
+      for (const auto& [node_id, _] : new_configuration)
+      {
+        configuration[node_id] = {};
+      }
+
+      consensus->add_configuration(version, configuration, {}, retired_nodes);
+    }
+  };
+
   class LoggingStubStore
   {
   protected:
@@ -287,7 +349,9 @@ namespace aft
     public:
       ExecutionWrapper(
         const std::vector<uint8_t>& data_,
-        const std::optional<kv::TxID>& expected_txid)
+        const std::optional<kv::TxID>& expected_txid,
+        kv::ConsensusHookPtrs&& hooks_) :
+        hooks(std::move(hooks_))
       {
         const uint8_t* data = data_.data();
         auto size = data_.size();
@@ -365,8 +429,9 @@ namespace aft
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt)
     {
+      kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
-        data, expected_txid);
+        data, expected_txid, std::move(hooks));
     }
 
     bool flag_enabled(kv::AbstractStore::Flag)
@@ -382,22 +447,50 @@ namespace aft
   public:
     LoggingStubStoreSig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
+      kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<
-        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data, expected_txid);
+        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(
+        data, expected_txid, std::move(hooks));
     }
+  };
 
-    bool flag_enabled(kv::AbstractStore::Flag)
+  class LoggingStubStoreSigConfig : public LoggingStubStoreSig
+  {
+  public:
+    LoggingStubStoreSigConfig(ccf::NodeId id) : LoggingStubStoreSig(id) {}
+
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
+      const std::vector<uint8_t>& data,
+      ConsensusType consensus_type,
+      bool public_only = false,
+      const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
-      return false;
-    }
+      // Set reconfiguration hook if there are any new nodes
+      // Read wrapping term and version
+      auto data_ = data.data();
+      auto size = data.size();
+      serialized::read<aft::Term>(data_, size);
+      auto version = serialized::read<kv::Version>(data_, size);
+      ReplicatedData r = nlohmann::json::parse(std::span{data_, size});
+      kv::ConsensusHookPtrs hooks = {};
+      if (r.type == ReplicatedDataType::reconfiguration)
+      {
+        kv::Configuration::Nodes configuration = nlohmann::json::parse(r.data);
+        auto hook = std::make_unique<aft::ConfigurationChangeHook>(
+          configuration, version);
+        hooks.push_back(std::move(hook));
+      }
 
-    void unset_flag(kv::AbstractStore::Flag) {}
+      return std::make_unique<
+        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(
+        data, expected_txid, std::move(hooks));
+    }
   };
 
   class StubSnapshotter

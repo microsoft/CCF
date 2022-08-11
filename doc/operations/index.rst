@@ -61,10 +61,17 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
-    :fa:`file-alt` :doc:`node_output`
+    :fa:`network-wired` :doc:`network`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Configure a network to deploy a CCF service.
+
+    ---
+
+    :fa:`wrench` :doc:`troubleshooting`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Monitor node health and events using logs.
+    Troubleshooting tips for unexpected events.
 
     ---
 
@@ -91,6 +98,8 @@ This section describes how :term:`Operators` manage the different nodes constitu
     code_upgrade_1x
     certificates
     recovery
-    node_output
+    data_persistence
+    network
+    troubleshooting
     resource_usage
     operator_rpc_api

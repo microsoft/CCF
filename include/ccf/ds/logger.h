@@ -21,8 +21,8 @@ namespace logger
     TRACE,
     DEBUG, // events useful for debugging
     INFO, // important events that should be logged even in release mode
-    FAIL, // important failures that should always be logged
-    FATAL, // fatal errors that lead to a termination of the program/enclave
+    FAIL, // survivable failures that should always be logged
+    FATAL, // fatal errors that may be non-recoverable
     MAX_LOG_LEVEL
   };
 
@@ -31,18 +31,21 @@ namespace logger
   static constexpr const char* LevelNames[] = {
     "trace", "debug", "info", "fail", "fatal"};
 
-  static const char* to_string(Level l)
+  static constexpr const char* to_string(Level l)
   {
     return LevelNames[static_cast<int>(l)];
   }
 
   static constexpr long int ns_per_s = 1'000'000'000;
 
+  static constexpr auto preamble_length = 45u;
+
   struct LogLine
   {
   public:
     friend struct Out;
     Level log_level;
+    std::string tag;
     std::string file_name;
     size_t line_number;
     uint16_t thread_id;
@@ -51,13 +54,15 @@ namespace logger
     std::string msg;
 
     LogLine(
-      Level level,
-      const char* file_name,
-      size_t line_number,
+      Level level_,
+      std::string_view tag_,
+      std::string_view file_name_,
+      size_t line_number_,
       std::optional<uint16_t> thread_id_ = std::nullopt) :
-      log_level(level),
-      file_name(file_name),
-      line_number(line_number)
+      log_level(level_),
+      tag(tag_),
+      file_name(file_name_),
+      line_number(line_number_)
     {
       if (thread_id_.has_value())
       {
@@ -104,9 +109,9 @@ namespace logger
     AbstractLogger() = default;
     virtual ~AbstractLogger() = default;
 
-    virtual void emit(const std::string& s, std::ostream& os = std::cout)
+    virtual void emit(const std::string& s)
     {
-      os << s << std::flush;
+      std::cout << s << std::flush;
     }
 
     virtual void write(
@@ -149,13 +154,12 @@ namespace logger
 
         s = fmt::format(
           "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
-          "}\",\"file\":\"{}\","
-          "\"number\":\"{}\","
-          "\"msg\":{}}}\n",
+          "}\",\"tag\":\"{}\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
           get_timestamp(host_tm, host_ts),
           get_timestamp(enclave_tm, enc_ts),
           ll.thread_id,
           to_string(ll.log_level),
+          ll.tag,
           ll.file_name,
           ll.line_number,
           escaped_msg);
@@ -163,13 +167,12 @@ namespace logger
       else
       {
         s = fmt::format(
-          "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"file\":\"{"
-          "}"
-          "\",\"number\":\"{}\","
-          "\"msg\":{}}}\n",
+          "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
+          "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
           get_timestamp(host_tm, host_ts),
           ll.thread_id,
           to_string(ll.log_level),
+          ll.tag,
           ll.file_name,
           ll.line_number,
           escaped_msg);
@@ -189,15 +192,25 @@ namespace logger
     std::tm host_tm;
     ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-    auto file_line = fmt::format("{}:{}", ll.file_name, ll.line_number);
+    auto file_line = fmt::format("{}:{} ", ll.file_name, ll.line_number);
     auto file_line_data = file_line.data();
 
-    // Truncate to final characters - if too long, advance char*
-    constexpr auto max_len = 36u;
+    // The preamble is the level, then tag, then file line. If the file line is
+    // too long, the final characters are retained.
+    auto preamble = fmt::format(
+                      "[{:<5}]{} ",
+                      to_string(ll.log_level),
+                      (ll.tag.empty() ? "" : fmt::format("[{}]", ll.tag)))
+                      .substr(0, preamble_length);
+    const auto max_file_line_len = preamble_length - preamble.size();
 
     const auto len = file_line.size();
-    if (len > max_len)
-      file_line_data += len - max_len;
+    if (len > max_file_line_len)
+    {
+      file_line_data += len - max_file_line_len;
+    }
+
+    preamble += file_line_data;
 
     if (enclave_offset.has_value())
     {
@@ -205,12 +218,11 @@ namespace logger
       // that the time inside the enclave was 130 milliseconds earlier than
       // the host timestamp printed on the line
       return fmt::format(
-        "{} {:+01.3f} {:<3} [{:<5}] {:<36} | {}",
+        "{} {:+01.3f} {:<3} {:<45}| {}\n",
         get_timestamp(host_tm, host_ts),
         enclave_offset.value(),
         ll.thread_id,
-        to_string(ll.log_level),
-        file_line_data,
+        preamble,
         ll.msg);
     }
     else
@@ -218,11 +230,10 @@ namespace logger
       // Padding on the right to align the rest of the message
       // with lines that contain enclave time offsets
       return fmt::format(
-        "{}        {:<3} [{:<5}] {:<36} | {}",
+        "{}        {:<3} {:<45}| {}\n",
         get_timestamp(host_tm, host_ts),
         ll.thread_id,
-        to_string(ll.log_level),
-        file_line_data,
+        preamble,
         ll.msg);
     }
   }
@@ -306,14 +317,6 @@ namespace logger
     }
   };
 
-  // The == operator is being used to:
-  // 1. Be a lower precedence than <<, such that using << on the LogLine will
-  // happen before the LogLine is "equalitied" with the Out.
-  // 2. Be a higher precedence than &&, such that the log statement is bound
-  // more tightly than the short-circuiting.
-  // This allows:
-  // LOG_DEBUG << "info" << std::endl;
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
@@ -327,54 +330,63 @@ namespace logger
 #  define CCF_FMT_STRING(s) FMT_STRING(s)
 #endif
 
-#ifdef VERBOSE_LOGGING
-#  define LOG_TRACE \
-    logger::config::ok(logger::TRACE) && \
-      logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
-#  define LOG_TRACE_FMT(s, ...) \
-    LOG_TRACE << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+// The == operator is being used to:
+// 1. Be a lower precedence than <<, such that using << on the LogLine will
+// happen before the LogLine is "equalitied" with the Out.
+// 2. Be a higher precedence than &&, such that the log statement is bound
+// more tightly than the short-circuiting.
+// This allows:
+// CCF_LOG_OUT(DEBUG, "foo") << "this " << "msg";
+#define CCF_LOG_OUT(LVL, TAG) \
+  logger::config::ok(logger::LVL) && \
+    logger::Out() == logger::LogLine(logger::LVL, TAG, __FILE__, __LINE__)
 
-#  define LOG_DEBUG \
-    logger::config::ok(logger::DEBUG) && \
-      logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
-#  define LOG_DEBUG_FMT(s, ...) \
-    LOG_DEBUG << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+// To avoid repeating the (s, ...) args for every macro, we cheat with a curried
+// macro here by ending the macro with another macro name, which then accepts
+// the trailing arguments
+#define CCF_LOG_FMT_2(s, ...) fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_2
+
+  enum class macro
+  {
+    LOG_TRACE_FMT [[deprecated("Use CCF_APP_TRACE instead")]],
+    LOG_DEBUG_FMT [[deprecated("Use CCF_APP_DEBUG instead")]],
+    LOG_INFO_FMT [[deprecated("Use CCF_APP_INFO instead")]],
+    LOG_FAIL_FMT [[deprecated("Use CCF_APP_FAIL instead")]],
+    LOG_FATAL_FMT [[deprecated("Use CCF_APP_FATAL instead")]],
+  };
+
+#ifndef CCF_LOGGER_NO_DEPRECATE
+#  define CCF_LOGGER_DEPRECATE(MACRO) logger::macro::MACRO;
+#else
+#  define CCF_LOGGER_DEPRECATE(MACRO)
+#endif
+
+#ifdef VERBOSE_LOGGING
+#  define LOG_TRACE_FMT \
+    CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT) CCF_LOG_FMT(TRACE, "")
+#  define LOG_DEBUG_FMT \
+    CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT) CCF_LOG_FMT(DEBUG, "")
+
+#  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
+#  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
-#  define LOG_TRACE
-#  define LOG_TRACE_FMT(...)
+#  define LOG_TRACE_FMT(...) CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT)((void)0)
+#  define LOG_DEBUG_FMT(...) CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT)((void)0)
 
-#  define LOG_DEBUG
-#  define LOG_DEBUG_FMT(...)
+#  define CCF_APP_TRACE(...) ((void)0)
+#  define CCF_APP_DEBUG(...) ((void)0)
 #endif
 
-#define LOG_INFO \
-  logger::config::ok(logger::INFO) && \
-    logger::Out() == logger::LogLine(logger::INFO, __FILE__, __LINE__)
-#define LOG_INFO_FMT(s, ...) \
-  LOG_INFO << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
+#define LOG_INFO_FMT CCF_LOGGER_DEPRECATE(LOG_INFO_FMT) CCF_LOG_FMT(INFO, "")
+#define LOG_FAIL_FMT CCF_LOGGER_DEPRECATE(LOG_FAIL_FMT) CCF_LOG_FMT(FAIL, "")
+#define LOG_FATAL_FMT CCF_LOGGER_DEPRECATE(LOG_FATAL_FMT) CCF_LOG_FMT(FATAL, "")
 
-#define LOG_FAIL \
-  logger::config::ok(logger::FAIL) && \
-    logger::Out() == logger::LogLine(logger::FAIL, __FILE__, __LINE__)
-#define LOG_FAIL_FMT(s, ...) \
-  LOG_FAIL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
-
-#define LOG_FATAL \
-  logger::config::ok(logger::FATAL) && \
-    logger::Out() == logger::LogLine(logger::FATAL, __FILE__, __LINE__)
-#define LOG_FATAL_FMT(s, ...) \
-  LOG_FATAL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
-
-// Convenient wrapper to report exception errors. Exception message is only
-// displayed in debug mode
-#define LOG_FAIL_EXC(msg) \
-  do \
-  { \
-    LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__); \
-    LOG_DEBUG_FMT("Error: {}", msg); \
-  } while (0)
+#define CCF_APP_INFO CCF_LOG_FMT(INFO, "app")
+#define CCF_APP_FAIL CCF_LOG_FMT(FAIL, "app")
+#define CCF_APP_FATAL CCF_LOG_FMT(FATAL, "app")
 
 #pragma clang diagnostic pop
 }

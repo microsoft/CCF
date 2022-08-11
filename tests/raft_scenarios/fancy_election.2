@@ -1,0 +1,100 @@
+# This scenario re-creates figure 8 from the Raft paper
+
+nodes,0,1,2,3,4
+
+connect,0,1
+connect,0,2
+connect,0,3
+connect,0,4
+
+# Node 0 starts first, becomes primary
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+# Node 0 appends a single entry, replicates it to all nodes
+replicate,1,entry_1
+
+periodic_all,10
+dispatch_all
+
+# Node 0 appends a second entry, which only reaches Node 1
+disconnect_node,0
+connect,0,1
+replicate,1,entry_2
+
+periodic_all,10
+dispatch_all
+
+# Node 4 becomes primary, appends a single entry which reaches nobody
+disconnect_node,0
+connect,4,3
+connect,4,2
+
+periodic_one,4,110
+dispatch_all
+
+replicate,2,entry_3
+
+state_all
+
+# Node 0 returns, becomes primary again, manages to share second entry with additional node
+disconnect_node,4
+connect,0,1
+connect,0,2
+
+periodic_all,10
+dispatch_all
+
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all # NB: 1.2 is now present on a majority of nodes, and node 0 knows this
+
+# Node 0 now loses connectivity, Node 4 wins election in a new term
+disconnect_node,0
+connect,4,3
+connect,4,2
+connect,4,1
+
+periodic_all,10
+dispatch_all
+
+periodic_one,4,110
+dispatch_all
+
+periodic_all,10
+dispatch_all # NB: Nodes 1 and 2 have discarded their state, which a majority held
+state_all
+
+periodic_all,10
+dispatch_all
+
+# All nodes become connected - can they reach eventual agreement?
+connect,0,4
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+# Not yet! We need node 4 to produce a new entry in its current term
+replicate,4,entry_4
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync

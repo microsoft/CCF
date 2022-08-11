@@ -12,6 +12,7 @@ import governance_history
 import jwt_test
 import governance
 import e2e_operations
+import e2e_common_endpoints
 
 from inspect import signature, Parameter
 
@@ -36,6 +37,7 @@ suite_rekey_recovery = [
     e2e_logging.test_rekey,
     recovery.test_recover_service,
     e2e_logging.test_rekey,
+    recovery.test_recover_service_with_wrong_identity,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 
@@ -74,7 +76,7 @@ all_tests_suite = [
     # e2e_logging:
     e2e_logging.test,
     e2e_logging.test_illegal,
-    e2e_logging.test_large_messages,
+    e2e_common_endpoints.test_large_messages,
     e2e_logging.test_remove,
     e2e_logging.test_cert_prefix,
     e2e_logging.test_anonymous_caller,

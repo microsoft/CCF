@@ -7,11 +7,67 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- New `GET /node/network/removable_nodes` and `DELETE /node/network/nodes/{node_id}` exposed to allow operator to decide which nodes can be safely shut down after retirement, and clear their state from the Key-Value Store.
+
+### Fixed
+
+- Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
+- When running with `--curve-id secp256r1`, we now correctly support temporary ECDH keys on curve secp256r1 for TLS 1.2 clients.
+
+### Deprecated
+
+- The previous logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) have been deprecated, and should no longer be used by application code. Replace with the `CCF_APP_*` equivalent.
+
+## [3.0.0-dev1]
+
+### Added
+
+- `/node/version` now contains an `unsafe` flag reflecting the status of the build.
+- New per-interface configuration entries (`network.rpc_interfaces.http_configuration`) are added to let operators cap the maximum size of body, header value size and number of headers in client HTTP requests. The client session is automatically closed if the HTTP request exceeds one of these limits (#3941).
+- Added new `recovery_count` field to `GET /node/network` endpoint to track the number of disaster recovery procedures undergone by the service (#3982).
+- Added new `service_data_json_file` configuration entry to `cchost` to point to free-form JSON file to set arbitrary data to service (#3997).
+- Added new `current_service_create_txid` field to `GET /node/network` endpoint to indicate `TxID` at which current service was created (#3996).
+- Added new `read_only_directory` snapshots directory node configuration so that committed snapshots can be shared between nodes (#3973).
+- Experimental support for HTTP/2 (#4010).
+
 ### Changed
+
+- Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+- Application code should now use the `CCF_APP_*` macros rather than `LOG_*_FMT` (eg - `CCF_APP_INFO` replacing `LOG_INFO_FMT`). The new macros will add an `[app]` tag to all lines so they can be easily filtered from framework code (#4024).
+
+### Fixed
+
+- Fixed issue with recovery of large ledger entries (#3986).
+
+### Documentation
+
+- The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
+
+### Dependencies
+
+- Upgraded Open Enclave to 0.18.1 (#4023).
+
+## [3.0.0-dev0]
 
 ### Added
 
 - The node-to-node interface configuration now supports a `published_address` to enable networks with nodes running in different (virtual) subnets (#3867).
+- Added a `GET /node/service/previous_identity` endpoint, which can be used during a recovery to look up the identity of the service before the catastrophic failure (#3880).
+- Added an automatic certificate management environment (ACME) client to automatically manage TLS certificates that are globally endorsed by an external authority, e.g. Let's Encrypt (#3877).
+
+### Changed
+
+- Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout (#3685).
+- Node and service PEM certificates no longer contain a trailing null byte (#3885).
+- New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
+- Updated PSW in images to 2.16.100.
+- `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
+
+### Removed
+
+- Removed deprecated `set_execute_outside_consensus()` API (#3886, #3673).
 
 ## [2.0.0]
 
@@ -1501,6 +1557,8 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[3.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev1
+[3.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev0
 [2.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0
 [2.0.0-rc9]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc9
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
@@ -1585,3 +1643,4 @@ Initial pre-release
 [0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
+[unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased

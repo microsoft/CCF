@@ -126,6 +126,11 @@ namespace loggingapp
       // return nullopt
       return std::nullopt;
     }
+
+    std::string get_security_scheme_name() override
+    {
+      return "CustomAuthPolicy";
+    }
   };
   // SNIPPET_END: custom_auth_policy
 
@@ -211,6 +216,24 @@ namespace loggingapp
                                  PUBLIC_RECORDS;
     }
 
+    // Wrap all endpoints with trace logging of their invocation
+    ccf::endpoints::Endpoint make_endpoint(
+      const std::string& method,
+      ccf::RESTVerb verb,
+      const ccf::endpoints::EndpointFunction& f,
+      const ccf::AuthnPolicies& ap) override
+    {
+      return ccf::UserEndpointRegistry::make_endpoint(
+        method,
+        verb,
+        [method, verb, f](ccf::endpoints::EndpointContext& args) {
+          CCF_APP_TRACE("BEGIN {} {}", verb.c_str(), method);
+          f(args);
+          CCF_APP_TRACE("END   {} {}", verb.c_str(), method);
+        },
+        ap);
+    }
+
   public:
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
@@ -224,7 +247,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.9.3";
+      openapi_info.document_version = "1.9.4";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -377,7 +400,8 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        records_handle->put(params["id"], in.msg);
+        const auto id = params["id"].get<size_t>();
+        records_handle->put(id, in.msg);
         update_first_write(ctx.tx, in.id, false, get_scope(ctx));
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
@@ -385,6 +409,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_claims_digest(ccf::ClaimsDigest::Digest(in.msg));
         }
         // SNIPPET_END: set_claims_digest
+        CCF_APP_INFO("Storing {} = {}", id, in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -417,8 +442,12 @@ namespace loggingapp
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
+        {
+          CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
+        }
 
+        CCF_APP_INFO("Fetching - no entry for {}", id);
         return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::ResourceNotFound,
@@ -849,8 +878,6 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
       // SNIPPET_END: get_historical
 
@@ -903,8 +930,6 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
       // SNIPPET_END: get_historical_with_receipt
 
@@ -963,8 +988,6 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
       // SNIPPET_END: get_historical_with_receipt
 
@@ -1278,8 +1301,6 @@ namespace loggingapp
           "to_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       static constexpr auto get_historical_sparse_path =
@@ -1446,8 +1467,6 @@ namespace loggingapp
         .add_query_parameter<std::string>("seqnos")
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto record_admin_only = [this](

@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
+#include "ccf/ds/quote_info.h"
 #include "ccf/kv/version.h"
-#include "ccf/quote_info.h"
 #include "ccf/service/node_info_network.h"
 
 #define FMT_HEADER_ONLY
@@ -69,6 +69,13 @@ namespace ccf
      * node identity in `public_key` field. Service-endorsed certificate is
      * recorded in "public:ccf.nodes.endorsed_certificates" table */
     std::optional<crypto::Pem> cert = std::nullopt;
+
+    /** Commit state for Retired state
+     *
+     * Introduced during 2.x (2.0.5), and so optional for backward
+     * compatibility.
+     */
+    bool retired_committed = false;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -80,7 +87,8 @@ namespace ccf
     code_digest,
     certificate_signing_request,
     public_key,
-    node_data);
+    node_data,
+    retired_committed);
 }
 
 FMT_BEGIN_NAMESPACE

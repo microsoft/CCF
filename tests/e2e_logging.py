@@ -33,6 +33,7 @@ from hashlib import sha256
 import e2e_common_endpoints
 from types import MappingProxyType
 
+
 from loguru import logger as LOG
 
 
@@ -135,6 +136,7 @@ def verify_receipt(
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 @app.scoped_txs(verify=False)
 def test(network, args):
     network.txs.issue(
@@ -337,26 +339,6 @@ def test_protocols(network, args):
         on_backup=True,
     )
     network.txs.verify()
-
-    return network
-
-
-@reqs.description("Write/Read large messages on primary")
-@reqs.supports_methods("/app/log/private")
-@app.scoped_txs()
-def test_large_messages(network, args):
-    check = infra.checker.Checker()
-
-    # TLS libraries usually have 16K internal buffers, so we start at
-    # 1K and move up to 1M and make sure they can cope with it.
-    # Starting below 16K also helps identify problems (by seeing some
-    # pass but not others, and finding where does it fail).
-    log_id = 7
-    for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-        long_msg = "X" * (2**p)
-        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=long_msg)
-        check(network.txs.request(log_id, priv=True), result={"msg": long_msg})
-        log_id += 1
 
     return network
 
@@ -632,6 +614,7 @@ def test_multi_auth(network, args):
 
 @reqs.description("Call an endpoint with a custom auth policy")
 @reqs.supports_methods("/app/custom_auth")
+@reqs.no_http2()
 def test_custom_auth(network, args):
     primary, other = network.find_primary_and_any_backup()
 
@@ -672,6 +655,7 @@ def test_custom_auth(network, args):
 
 @reqs.description("Call an endpoint with a custom auth policy which throws")
 @reqs.supports_methods("/app/custom_auth")
+@reqs.no_http2()
 def test_custom_auth_safety(network, args):
     primary, other = network.find_primary_and_any_backup()
 
@@ -762,6 +746,7 @@ def test_metrics(network, args):
 
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
+@reqs.no_http2()
 @app.scoped_txs()
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
@@ -1122,6 +1107,7 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 @app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
@@ -1147,6 +1133,7 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Testing signed queries with escaped queries")
 @reqs.installed_package("samples/apps/logging/liblogging")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 def test_signed_escapes(network, args):
     node = network.find_node_by_role()
     with node.client("user0", "user0") as c:
@@ -1310,7 +1297,7 @@ def test_tx_statuses(network, args):
     with primary.client("user0") as c:
         check = infra.checker.Checker()
         r = network.txs.issue(network, 1, idx=0, send_public=False, msg="Ignored")
-        # Until this tx is globally committed, poll for the status of this and some other
+        # Until this tx is committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
         target_view = r.view
         target_seqno = r.seqno
@@ -1322,7 +1309,7 @@ def test_tx_statuses(network, args):
         while True:
             if time.time() > end_time:
                 raise TimeoutError(
-                    f"Took too long waiting for global commit of {target_view}.{target_seqno}"
+                    f"Took too long waiting for commit of {target_view}.{target_seqno}"
                 )
 
             done = False
@@ -1450,6 +1437,7 @@ def test_random_receipts(
 
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
+@reqs.no_http2()
 @app.scoped_txs()
 def test_liveness(network, args):
     network.txs.issue(
@@ -1527,7 +1515,10 @@ def run(args):
     for local_node_id, node_host in enumerate(args.nodes):
         for interface_name, host in additional_interfaces(local_node_id).items():
             node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
-                host=host
+                host=host,
+                app_protocol=infra.interfaces.AppProtocol.HTTP2
+                if args.http2
+                else infra.interfaces.AppProtocol.HTTP1,
             )
 
     txs = app.LoggingTxs("user0")
@@ -1541,36 +1532,35 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test(network, args)
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_clear(network, args)
-        network = test_record_count(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_signed_escapes(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_metrics(network, args)
+        test(network, args)
+        test_remove(network, args)
+        test_clear(network, args)
+        test_record_count(network, args)
+        test_forwarding_frontends(network, args)
+        test_signed_escapes(network, args)
+        test_user_data_ACL(network, args)
+        test_cert_prefix(network, args)
+        test_anonymous_caller(network, args)
+        test_multi_auth(network, args)
+        test_custom_auth(network, args)
+        test_custom_auth_safety(network, args)
+        test_raw_text(network, args)
+        test_historical_query(network, args)
+        test_historical_query_range(network, args)
+        test_view_history(network, args)
+        test_metrics(network, args)
         # BFT does not handle re-keying yet
         if args.consensus == "CFT":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-            network = test_random_receipts(network, args, False)
+            test_liveness(network, args)
+            test_rekey(network, args)
+            test_liveness(network, args)
+            test_random_receipts(network, args, False)
         if args.package == "samples/apps/logging/liblogging":
-            network = test_receipts(network, args)
-            network = test_historical_query_sparse(network, args)
+            test_receipts(network, args)
+            test_historical_query_sparse(network, args)
         if "v8" not in args.package:
-            network = test_historical_receipts(network, args)
-            network = test_historical_receipts_with_claims(network, args)
+            test_historical_receipts(network, args)
+            test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1585,8 +1575,8 @@ def run_parsing_errors(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_illegal(network, args)
-        network = test_protocols(network, args)
+        test_illegal(network, args)
+        test_protocols(network, args)
 
 
 if __name__ == "__main__":
@@ -1612,6 +1602,8 @@ if __name__ == "__main__":
             nodes=infra.e2e_args.max_nodes(cr.args, f=0),
             initial_user_count=4,
             initial_member_count=2,
+            election_timeout_ms=cr.args.election_timeout_ms
+            * 2,  # Larger election timeout as some large payloads may cause an election with v8
         )
 
     cr.add(
@@ -1632,19 +1624,20 @@ if __name__ == "__main__":
     )
 
     # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    if not cr.args.http2:
+        cr.add(
+            "js_illegal",
+            run_parsing_errors,
+            package="libjs_generic",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+        cr.add(
+            "cpp_illegal",
+            run_parsing_errors,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        )
 
     # This is just for the UDP echo test for now
     cr.add(

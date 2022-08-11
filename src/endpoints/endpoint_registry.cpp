@@ -68,7 +68,51 @@ namespace ccf::endpoints
           }
         }
       }
+
+      auto schema_ref_object = nlohmann::json::object();
+      schema_ref_object["$ref"] = fmt::format(
+        "#/components/x-ccf-forwarding/{}",
+        endpoint->properties.forwarding_required);
+      ds::openapi::extension(path_op, "x-ccf-forwarding") = schema_ref_object;
     }
+  }
+
+  std::optional<PathTemplateSpec> PathTemplateSpec::parse(
+    const std::string_view& uri)
+  {
+    auto template_start = uri.find_first_of('{');
+    if (template_start == std::string::npos)
+    {
+      return std::nullopt;
+    }
+
+    PathTemplateSpec spec;
+
+    std::string regex_s(uri);
+    template_start = regex_s.find_first_of('{');
+    while (template_start != std::string::npos)
+    {
+      const auto template_end = regex_s.find_first_of('}', template_start);
+      if (template_end == std::string::npos)
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid templated path - missing closing curly bracket: {}", uri));
+      }
+
+      spec.template_component_names.push_back(
+        regex_s.substr(template_start + 1, template_end - template_start - 1));
+      regex_s.replace(
+        template_start, template_end - template_start + 1, "([^/]+)");
+      template_start = regex_s.find_first_of('{', template_start + 1);
+    }
+
+    LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
+    LOG_TRACE_FMT(
+      "Component names are: {}",
+      fmt::join(spec.template_component_names, ", "));
+    spec.template_regex = std::regex(regex_s);
+
+    return spec;
   }
 
   EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_endpoint(
@@ -131,9 +175,7 @@ namespace ccf::endpoints
   {
     return make_endpoint(
              method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_execute_outside_consensus(
-        ccf::endpoints::ExecuteOutsideConsensus::Primary);
+      .set_forwarding_required(ForwardingRequired::Sometimes);
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)
@@ -147,7 +189,8 @@ namespace ccf::endpoints
       endpoint.authn_policies.pop_back();
     }
 
-    const auto template_spec = parse_path_template(endpoint.dispatch.uri_path);
+    const auto template_spec =
+      PathTemplateSpec::parse(endpoint.dispatch.uri_path);
     if (template_spec.has_value())
     {
       auto templated_endpoint =
@@ -176,6 +219,28 @@ namespace ccf::endpoints
 
   void EndpointRegistry::build_api(nlohmann::json& document, kv::ReadOnlyTx&)
   {
+    // Add common components:
+    // - Descriptions of each kind of forwarding
+    auto& forwarding_component = document["components"]["x-ccf-forwarding"];
+    auto& always = forwarding_component["always"];
+    always["value"] = ccf::endpoints::ForwardingRequired::Always;
+    always["description"] =
+      "If this request is made to a backup node, it will be forwarded to the "
+      "primary node for execution.";
+    auto& sometimes = forwarding_component["sometimes"];
+    sometimes["value"] = ccf::endpoints::ForwardingRequired::Sometimes;
+    sometimes["description"] =
+      "If this request is made to a backup node, it may be forwarded to the "
+      "primary node for execution. Specifically, if this request is sent as "
+      "part of a session which was already forwarded, then it will also be "
+      "forwarded.";
+    auto& never = forwarding_component["never"];
+    never["value"] = ccf::endpoints::ForwardingRequired::Never;
+    never["description"] =
+      "This call will never be forwarded, and is always executed on the "
+      "receiving node, potentially breaking session consistency. If this "
+      "attempts to write on a backup, this will fail.";
+
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
@@ -367,28 +432,28 @@ namespace ccf::endpoints
 
   void EndpointRegistry::increment_metrics_calls(const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<std::mutex> guard(metrics_lock);
+    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).calls++;
   }
 
   void EndpointRegistry::increment_metrics_errors(
     const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<std::mutex> guard(metrics_lock);
+    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).errors++;
   }
 
   void EndpointRegistry::increment_metrics_failures(
     const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<std::mutex> guard(metrics_lock);
+    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).failures++;
   }
 
   void EndpointRegistry::increment_metrics_retries(
     const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<std::mutex> guard(metrics_lock);
+    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).retries++;
   }
 }

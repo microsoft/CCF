@@ -57,9 +57,26 @@ namespace kv::test
       return state == Primary;
     }
 
+    virtual bool is_candidate() override
+    {
+      return state == Candidate;
+    }
+
     virtual bool can_replicate() override
     {
       return state == Primary;
+    }
+
+    virtual Consensus::SignatureDisposition get_signature_disposition() override
+    {
+      if (state == Primary)
+      {
+        return Consensus::SignatureDisposition::CAN_SIGN;
+      }
+      else
+      {
+        return Consensus::SignatureDisposition::CANT_REPLICATE;
+      }
     }
 
     virtual bool is_backup() override
@@ -152,7 +169,7 @@ namespace kv::test
       return {committed_txid.view, committed_txid.seqno};
     }
 
-    std::optional<SignableTxIndices> get_signable_txid() override
+    SignableTxIndices get_signable_txid() override
     {
       auto txid = get_committed_txid();
       SignableTxIndices r;
@@ -270,6 +287,11 @@ namespace kv::test
     {
       return false;
     }
+
+    Consensus::SignatureDisposition get_signature_disposition() override
+    {
+      return Consensus::SignatureDisposition::CANT_REPLICATE;
+    }
   };
 
   class PrimaryStubConsensus : public StubConsensus
@@ -287,6 +309,11 @@ namespace kv::test
     bool can_replicate() override
     {
       return true;
+    }
+
+    Consensus::SignatureDisposition get_signature_disposition() override
+    {
+      return Consensus::SignatureDisposition::CAN_SIGN;
     }
   };
 }

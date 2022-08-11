@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/thread_messaging.h"
 #include "node_client.h"
 
 namespace ccf
@@ -22,8 +23,8 @@ namespace ccf
         fmt::format(
           "/{}/{}",
           ccf::get_actor_prefix(ccf::ActorsType::nodes),
-          "network/nodes/retired"),
-        HTTP_DELETE);
+          "network/nodes/set_retired_committed"),
+        HTTP_POST);
       request.set_header(http::headers::CONTENT_LENGTH, fmt::format("{}", 0));
 
       node_client->make_request(request);

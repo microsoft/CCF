@@ -102,7 +102,8 @@ namespace ccf
           ccf::ProofReceipt::ProofStep::Left :
           ccf::ProofReceipt::ProofStep::Right;
         const auto hash = crypto::Sha256Hash::from_span(
-          {node.hash.bytes, sizeof(node.hash.bytes)});
+          std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
+            node.hash.bytes, sizeof(node.hash.bytes)));
         proof_receipt->proof.push_back({direction, hash});
       }
 
@@ -129,8 +130,9 @@ namespace ccf
     {
       // Signature transaction
       auto sig_receipt = std::make_shared<SignatureReceipt>();
-      sig_receipt->signed_root =
-        crypto::Sha256Hash::from_span({in.root.bytes, sizeof(in.root.bytes)});
+      sig_receipt->signed_root = crypto::Sha256Hash::from_span(
+        std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
+          in.root.bytes, sizeof(in.root.bytes)));
 
       receipt = sig_receipt;
     }
@@ -315,7 +317,8 @@ namespace ccf::historical
     auto& ctx,
     ccf::historical::StatePtr& state,
     AbstractStateCache& state_cache,
-    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem)
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem)
   {
     try
     {
@@ -401,8 +404,8 @@ namespace ccf::historical
     const TxIDExtractor& extractor)
   {
     auto& state_cache = node_context.get_historical_state();
-    std::shared_ptr<NetworkIdentitySubsystem> network_identity_subsystem =
-      node_context.get_subsystem<NetworkIdentitySubsystem>();
+    auto network_identity_subsystem =
+      node_context.get_subsystem<NetworkIdentitySubsystemInterface>();
 
     return [f, &state_cache, network_identity_subsystem, available, extractor](
              endpoints::EndpointContext& args) {

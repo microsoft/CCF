@@ -299,7 +299,6 @@
         "js_module": "endpoints/crypto.js",
         "js_function": "isValidX509CertBundle",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -329,7 +328,6 @@
         "js_module": "endpoints/crypto.js",
         "js_function": "isValidX509CertChain",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -434,7 +432,6 @@
         "js_module": "endpoints/oe.js",
         "js_function": "verifyOpenEnclaveEvidence",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -584,9 +581,22 @@
     "/rpc/apply_writes": {
       "post": {
         "js_module": "endpoints/rpc.js",
-        "js_function": "applyWrites",
+        "js_function": "postApplyWrites",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {
+          "responses": {
+            "400": {
+              "description": "Error"
+            }
+          }
+        }
+      },
+      "get": {
+        "js_module": "endpoints/rpc.js",
+        "js_function": "getApplyWrites",
+        "forwarding_required": "always",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {

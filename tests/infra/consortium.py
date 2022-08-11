@@ -271,7 +271,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, ballot, wait_for_global_commit=True, timeout=3
+        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=3
     ):
         response = None
 
@@ -301,7 +301,7 @@ class Consortium:
             view = response.view
 
         # Wait for proposal completion to be committed, even if no votes are issued
-        if wait_for_global_commit:
+        if wait_for_commit:
             with remote_node.client() as c:
                 infra.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
@@ -325,6 +325,10 @@ class Consortium:
             return r.body.json()
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
+        pending = False
+        with remote_node.client(connection_timeout=timeout) as c:
+            r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
+            pending = r.body.json()["status"] == infra.node.State.PENDING.value
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "remove_node",
@@ -332,24 +336,34 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
+        return pending
 
-    def trust_node(
-        self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
+    def trust_nodes(
+        self,
+        remote_node,
+        node_ids,
+        valid_from,
+        validity_period_days=None,
+        **kwargs,
     ):
-        proposal_body, careful_vote = self.make_proposal(
-            "transition_node_to_trusted",
-            node_id=node_id,
-            valid_from=valid_from,
-            validity_period_days=validity_period_days,
-        )
+        proposal_body = {"actions": []}
+        for node_id in node_ids:
+            proposal_args = {"node_id": node_id, "valid_from": str(valid_from)}
+            if validity_period_days is not None:
+                proposal_args["validity_period_days"] = validity_period_days
+            proposal_body["actions"].append(
+                {"name": "transition_node_to_trusted", "args": proposal_args}
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,
             proposal,
-            careful_vote,
-            wait_for_global_commit=True,
-            timeout=timeout,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+            **kwargs,
         )
+
+    def trust_node(self, remote_node, node_id, *args, **kwargs):
+        return self.trust_nodes(remote_node, [node_id], *args, **kwargs)
 
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")
@@ -604,7 +618,7 @@ class Consortium:
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
-            remote_node, proposal, careful_vote, wait_for_global_commit=True
+            remote_node, proposal, careful_vote, wait_for_commit=True
         )
         # If the node was already in state "PartOfNetwork", the open network
         # proposal should open the service
@@ -701,26 +715,38 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def check_for_service(self, remote_node, status):
+    def check_for_service(self, remote_node, status, recovery_count=None):
         """
         Check the certificate associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
         with remote_node.client() as c:
-            r = c.get("/node/network")
-            current_status = r.body.json()["service_status"]
-            current_cert = r.body.json()["service_certificate"]
+            r = c.get("/node/network").body.json()
+            current_status = r["service_status"]
+            current_cert = r["service_certificate"]
+            if remote_node.version_after("ccf-2.0.3"):
+                current_recovery_count = r["recovery_count"]
+            else:
+                assert "recovery_count" not in r
 
             expected_cert = slurp_file(
                 os.path.join(self.common_dir, "service_cert.pem")
             )
 
+            # Certs previously contained a terminating null byte. Strip it for comparison.
+            current_cert = current_cert.strip("\x00")
+            expected_cert = expected_cert.strip("\x00")
+
             assert (
-                current_cert == expected_cert[:-1]
+                current_cert == expected_cert
             ), "Current service certificate did not match with service_cert.pem"
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
+            if remote_node.version_after("ccf-2.0.3"):
+                assert (
+                    recovery_count is None or current_recovery_count == recovery_count
+                ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"
 
     def submit_2tx_migration_proposal(self, remote_node, timeout=10):
         proposal_body = {

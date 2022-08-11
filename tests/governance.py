@@ -301,8 +301,7 @@ def test_all_members(network, args):
             response_details = response_members[member.service_id]
             assert response_details["cert"] == member.cert
             assert (
-                infra.member.MemberStatus(response_details["status"])
-                == member.status_code
+                infra.member.MemberStatus(response_details["status"]) == member.status
             )
             assert response_details["member_data"] == member.member_data
             if member.is_recovery_member:
@@ -360,8 +359,8 @@ def test_invalid_client_signature(network, args):
         ).json()
         assert r["error"]["code"] == "InvalidAuthenticationInfo"
         assert (
-            expected_error_msg in r["error"]["message"]
-        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
+            expected_error_msg in r["error"]["details"][0]["message"]
+        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['details'][0]['message']}'"
 
     # Verify that _some_ HTTP signature parsing errors are communicated back to the client
     post_proposal_request_raw(
@@ -389,7 +388,7 @@ def test_invalid_client_signature(network, args):
 @reqs.description("Renew certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
-    now = datetime.now()
+    now = datetime.utcnow()
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
@@ -513,7 +512,7 @@ def test_service_cert_renewal(network, args, valid_from=None):
     return renew_service_certificate(
         network,
         args,
-        valid_from=valid_from or datetime.now(),
+        valid_from=valid_from or datetime.utcnow(),
         validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
@@ -523,7 +522,7 @@ def test_service_cert_renewal_extended(network, args):
 
     validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
-    now = datetime.now()
+    now = datetime.utcnow()
     test_vectors = [
         (now, None, None),  # Omit validity period (deduced from service configuration)
         (now, -1, infra.proposal.ProposalNotCreated),
@@ -546,7 +545,7 @@ def test_service_cert_renewal_extended(network, args):
 def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
-    valid_from = valid_from or datetime.now()
+    valid_from = valid_from or datetime.utcnow()
     validity_period_days = args.maximum_node_certificate_validity_days
 
     self_signed_node_certs_before = {}

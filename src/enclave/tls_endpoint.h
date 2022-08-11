@@ -26,6 +26,7 @@ namespace ccf
     {
       handshake,
       ready,
+      closing,
       closed,
       authfail,
       error
@@ -57,6 +58,18 @@ namespace ccf
     std::unique_ptr<tls::Context> ctx;
     Status status;
 
+    bool can_send()
+    {
+      // Closing endpoint should still be able to respond to clients (e.g. to
+      // report errors)
+      return status == ready || status == closing;
+    }
+
+    bool can_recv()
+    {
+      return status == ready || status == handshake;
+    }
+
   public:
     TLSEndpoint(
       int64_t session_id_,
@@ -75,6 +88,11 @@ namespace ccf
     ~TLSEndpoint()
     {
       RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
+    }
+
+    virtual void on_handshake_error(const std::string& error_msg)
+    {
+      LOG_TRACE_FMT("{}", error_msg);
     }
 
     std::string hostname()
@@ -99,16 +117,17 @@ namespace ccf
     // used by caller.
     size_t read(uint8_t* data, size_t size, bool exact = false)
     {
-      LOG_TRACE_FMT("Requesting up to {} bytes", size);
-
       // This will return empty if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
       if (status != ready)
       {
+        LOG_TRACE_FMT("Not ready to read {} bytes", size);
         return 0;
       }
+
+      LOG_TRACE_FMT("Requesting up to {} bytes", size);
 
       // Send pending writes.
       flush();
@@ -205,7 +224,12 @@ namespace ccf
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
-      pending_read.insert(pending_read.end(), data, data + size);
+
+      if (can_recv())
+      {
+        pending_read.insert(pending_read.end(), data, data + size);
+      }
+
       do_handshake();
     }
 
@@ -249,8 +273,10 @@ namespace ccf
         return;
       }
 
-      if (status != ready)
+      if (!can_send())
+      {
         return;
+      }
 
       pending_write.insert(pending_write.end(), data.begin(), data.end());
 
@@ -276,8 +302,10 @@ namespace ccf
 
       do_handshake();
 
-      if (status != ready)
+      if (!can_send())
+      {
         return;
+      }
 
       while (pending_write.size() > 0)
       {
@@ -312,6 +340,7 @@ namespace ccf
 
     void close()
     {
+      status = closing;
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();
 
@@ -336,6 +365,7 @@ namespace ccf
         }
 
         case ready:
+        case closing:
         {
           int r = ctx->close();
 
@@ -377,7 +407,9 @@ namespace ccf
       // This should be called when additional data is written to the
       // input buffer, until the handshake is complete.
       if (status != handshake)
+      {
         return;
+      }
 
       auto rc = ctx->handshake();
 
@@ -395,10 +427,10 @@ namespace ccf
 
         case TLS_ERR_NEED_CERT:
         {
-          LOG_TRACE_FMT(
+          on_handshake_error(fmt::format(
             "TLS {} verify error on handshake: {}",
             session_id,
-            tls::error_string(rc));
+            tls::error_string(rc)));
           stop(authfail);
           break;
         }
@@ -416,20 +448,21 @@ namespace ccf
         case TLS_ERR_X509_VERIFY:
         {
           auto err = ctx->get_verify_error();
-
-          LOG_TRACE_FMT(
+          on_handshake_error(fmt::format(
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
-            tls::error_string(rc));
+            tls::error_string(rc)));
           stop(authfail);
           return;
         }
 
         default:
         {
-          LOG_TRACE_FMT(
-            "TLS {} error on handshake: {}", session_id, tls::error_string(rc));
+          on_handshake_error(fmt::format(
+            "TLS {} error on handshake: {}",
+            session_id,
+            tls::error_string(rc)));
           stop(error);
           break;
         }
@@ -469,6 +502,7 @@ namespace ccf
 
       switch (status)
       {
+        case closing:
         case closed:
         {
           RINGBUFFER_WRITE_MESSAGE(

@@ -222,7 +222,7 @@ class LoggingTxs:
                 # As public records do not yet handle historical queries,
                 # only verify the latest entry
                 entry = pub_value[-1]
-                self._verify_tx(
+                self.verify_tx(
                     node,
                     pub_idx,
                     entry["msg"],
@@ -239,7 +239,7 @@ class LoggingTxs:
                 for v in sample_list(priv_value, sample_count):
                     is_historical_entry = v != priv_value[-1]
                     if not is_historical_entry or include_historical:
-                        self._verify_tx(
+                        self.verify_tx(
                             node,
                             priv_idx,
                             v["msg"],
@@ -254,14 +254,14 @@ class LoggingTxs:
 
         LOG.info("Successfully verified logging txs")
 
-    def _verify_tx(
+    def verify_tx(
         self,
         node,
         idx,
         msg,
         seqno,
         view,
-        scope,
+        scope=None,
         priv=True,
         historical=False,
         log_capture=None,
@@ -432,7 +432,7 @@ def scoped_txs(identity="user0", verify=False):
                 headers = infra.jwt_issuer.make_bearer_header(
                     network.jwt_issuer.issue_jwt()
                 )
-            node = network.find_random_node()
+            node, _ = network.find_primary()
             previous_scope = network.txs.scope
 
             scope = get_fresh_scope(node, identity, headers)

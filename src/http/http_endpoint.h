@@ -5,22 +5,12 @@
 #include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
+#include "error_reporter.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
 
-#ifdef ENABLE_HTTP2
-#  include <nghttp2/nghttp2.h>
-#endif
-
 namespace http
 {
-  class ErrorReporter
-  {
-  public:
-    virtual ~ErrorReporter() {}
-    virtual void report_parsing_error(tls::ConnID) = 0;
-  };
-
   class HTTPEndpoint : public ccf::TLSEndpoint
   {
   protected:
@@ -82,6 +72,40 @@ namespace http
           // Used all provided bytes - check if more are available
           n_read = read(buf.data(), buf.size(), false);
         }
+        catch (RequestPayloadTooLarge& e)
+        {
+          if (error_reporter)
+          {
+            error_reporter->report_request_payload_too_large_error(session_id);
+          }
+
+          LOG_DEBUG_FMT("Request is too large: {}", e.what());
+
+          send_raw(http::error(ccf::ErrorDetails{
+            HTTP_STATUS_PAYLOAD_TOO_LARGE,
+            ccf::errors::RequestBodyTooLarge,
+            e.what()}));
+
+          close();
+          break;
+        }
+        catch (RequestHeaderTooLarge& e)
+        {
+          if (error_reporter)
+          {
+            error_reporter->report_request_header_too_large_error(session_id);
+          }
+
+          LOG_DEBUG_FMT("Request header is too large: {}", e.what());
+
+          send_raw(http::error(ccf::ErrorDetails{
+            HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
+            ccf::errors::RequestHeaderTooLarge,
+            e.what()}));
+
+          close();
+          break;
+        }
         catch (const std::exception& e)
         {
           if (error_reporter)
@@ -130,6 +154,7 @@ namespace http
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
+      const http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       HTTPEndpoint(
         request_parser,
@@ -137,7 +162,7 @@ namespace http
         writer_factory,
         std::move(ctx),
         error_reporter),
-      request_parser(*this),
+      request_parser(*this, configuration),
       rpc_map(rpc_map),
       session_id(session_id),
       interface_id(interface_id)
@@ -152,7 +177,8 @@ namespace http
       llhttp_method verb,
       const std::string_view& url,
       http::HeaderMap&& headers,
-      std::vector<uint8_t>&& body) override
+      std::vector<uint8_t>&& body,
+      int32_t) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {} [{} bytes])",
@@ -256,15 +282,27 @@ namespace http
       response_parser(*this)
     {}
 
-    void send_request(std::vector<uint8_t>&& data) override
+    void send_request(const http::Request& request) override
     {
-      send_raw(std::move(data));
+      send_raw(request.build_request());
     }
 
     void send(std::vector<uint8_t>&&, sockaddr) override
     {
       throw std::logic_error(
         "send() should not be called directly on HTTPClient");
+    }
+
+    void on_handshake_error(const std::string& error_msg) override
+    {
+      if (handle_error_cb)
+      {
+        handle_error_cb(error_msg);
+      }
+      else
+      {
+        LOG_FAIL_FMT("{}", error_msg);
+      }
     }
 
     void handle_response(

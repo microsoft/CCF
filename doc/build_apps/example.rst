@@ -56,6 +56,5 @@ The C++ implementation of the Logging application is located in the :ccf_repo:`s
 .. toctree::
    :maxdepth: 2
 
-   logging_cpp
-   logging_rpc_api
-   logging
+   example_cpp
+   example_rpc_api

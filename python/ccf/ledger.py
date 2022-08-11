@@ -367,7 +367,7 @@ class LedgerValidator:
 
     accept_deprecated_entry_types: bool = True
     node_certificates: Dict[str, str] = {}
-    node_activity_status: Dict[str, Tuple[str, int]] = {}
+    node_activity_status: Dict[str, Tuple[str, int, bool]] = {}
     signature_count: int = 0
 
     def __init__(self, accept_deprecated_entry_types: bool = True):
@@ -425,6 +425,7 @@ class LedgerValidator:
                 self.node_activity_status[node_id] = (
                     node_info["status"],
                     transaction_public_domain.get_seqno(),
+                    node_info.get("retired_committed", False),
                 )
 
         if ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables:
@@ -517,12 +518,13 @@ class LedgerValidator:
         """Verify item 1, The merkle root is signed by a valid node in the given network"""
         # Note: A retired primary will still issue signature transactions until
         # its retirement is committed
-        node_status = NodeStatus(tx_info.node_activity[tx_info.signing_node][0])
+        node_info = tx_info.node_activity[tx_info.signing_node]
+        node_status = NodeStatus(node_info[0])
         if node_status not in (
             NodeStatus.TRUSTED,
             NodeStatus.RETIRING,
             NodeStatus.RETIRED,
-        ):
+        ) or (node_status == NodeStatus.RETIRED and node_info[2]):
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )
@@ -672,6 +674,7 @@ class Transaction(Entry):
     _next_offset: int = LEDGER_HEADER_SIZE
     _tx_offset: int = 0
     _ledger_validator: Optional[LedgerValidator] = None
+    _dgst = functools.partial(digest, hashes.SHA256())
 
     def __init__(
         self, filename: str, ledger_validator: Optional[LedgerValidator] = None
@@ -714,18 +717,24 @@ class Transaction(Entry):
     def get_offsets(self) -> Tuple[int, int]:
         return (self._tx_offset, self._next_offset)
 
+    def get_write_set_digest(self) -> bytes:
+        self._dgst = functools.partial(digest, hashes.SHA256())
+        return self._dgst(self.get_raw_tx())
+
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
         commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
-        dgst = functools.partial(digest, hashes.SHA256())
-        write_set_digest = dgst(self.get_raw_tx())
+        write_set_digest = self.get_write_set_digest()
         if claims_digest is None:
             if commit_evidence_digest is None:
                 return write_set_digest
             else:
-                return dgst(write_set_digest + commit_evidence_digest)
+                return self._dgst(write_set_digest + commit_evidence_digest)
         else:
-            return dgst(write_set_digest + commit_evidence_digest + claims_digest)
+            assert (
+                commit_evidence_digest
+            ), "Invalid transaction: commit_evidence_digest not set"
+            return self._dgst(write_set_digest + commit_evidence_digest + claims_digest)
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
@@ -1001,8 +1010,19 @@ class Ledger:
         latest_seqno = 0
         for chunk in self:
             for tx in chunk:
-                latest_seqno = tx.get_public_domain().get_seqno()
-                for table_name, records in tx.get_public_domain().get_tables().items():
+                # If a transaction cannot be read (e.g. because it was only partially written to disk
+                # before a crash), return public state so far. This is consistent with CCF's behaviour
+                # which discards the incomplete transaction on recovery.
+                try:
+                    public_domain = tx.get_public_domain()
+                except Exception:
+                    print(
+                        f"Error reading ledger entry. Latest read seqno: {latest_seqno}"
+                    )
+                    return public_tables, latest_seqno
+
+                latest_seqno = public_domain.get_seqno()
+                for table_name, records in public_domain.get_tables().items():
                     if table_name in public_tables:
                         public_tables[table_name].update(records)
                         # Remove deleted keys

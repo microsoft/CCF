@@ -3,21 +3,27 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
+#include "ccf/http_status.h"
+#include "ccf/node_context.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "common/configuration.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
+#include "node/node_configuration_subsystem.h"
 #include "rpc_exception.h"
 
 #define FMT_HEADER_ONLY
+#include "ccf/ds/pal.h"
+
 #include <fmt/format.h>
-#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -28,9 +34,10 @@ namespace ccf
   protected:
     kv::Store& tables;
     endpoints::EndpointRegistry& endpoints;
+    ccfapp::AbstractNodeContext& node_context;
 
   private:
-    std::mutex open_lock;
+    ccf::Pal::Mutex open_lock;
     bool is_open_ = false;
 
     kv::Consensus* consensus;
@@ -41,6 +48,9 @@ namespace ccf
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     crypto::Pem* service_identity = nullptr;
+
+    std::shared_ptr<NodeConfigurationSubsystem> node_configuration_subsystem =
+      nullptr;
 
     using PreExec =
       std::function<void(kv::CommittableTx& tx, ccf::RpcContextImpl& ctx)>;
@@ -133,6 +143,9 @@ namespace ccf
       kv::Version prescribed_commit_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN)
     {
+      auto sctx = ctx->get_session_context();
+      auto interface_id = sctx->interface_id;
+
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
       {
@@ -178,6 +191,61 @@ namespace ccf
         }
       }
 
+      if (consensus && interface_id)
+      {
+        if (!node_configuration_subsystem)
+        {
+          node_configuration_subsystem =
+            node_context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+            return ctx->serialise_response();
+          }
+        }
+
+        auto& ncs = node_configuration_subsystem->get();
+        auto rit = ncs.rpc_interface_regexes.find(*interface_id);
+
+        if (rit != ncs.rpc_interface_regexes.end())
+        {
+          bool ok = false;
+          for (const auto& re : rit->second)
+          {
+            std::smatch m;
+            if (std::regex_match(endpoint->full_uri_path, m, re))
+            {
+              ok = true;
+              break;
+            }
+          }
+          if (!ok)
+          {
+            ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+            return ctx->serialise_response();
+          }
+        }
+        else
+        {
+          auto icfg = ncs.node_config.network.rpc_interfaces.at(*interface_id);
+          if (icfg.endorsement->authority == Authority::UNSECURED)
+          {
+            // Unsecured interfaces are opt-in only.
+            LOG_FAIL_FMT(
+              "Request for {} rejected because the interface is unsecured and "
+              "no accepted_endpoints have been configured.",
+              endpoint->full_uri_path);
+            ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+            return ctx->serialise_response();
+          }
+        }
+      }
+      else
+      {
+        // internal or forwarded: OK because they have been checked by the
+        // forwarder (forward() happens further down).
+      }
+
       // Note: calls that could not be dispatched (cases handled above)
       // are not counted against any particular endpoint.
       endpoints.increment_metrics_calls(endpoint);
@@ -190,6 +258,7 @@ namespace ccf
         if (!endpoint->authn_policies.empty())
         {
           std::string auth_error_reason;
+          std::vector<ccf::ODataErrorDetails> error_details;
           for (const auto& policy : endpoint->authn_policies)
           {
             identity = policy->authenticate(tx, ctx, auth_error_reason);
@@ -197,13 +266,28 @@ namespace ccf
             {
               break;
             }
+            else
+            {
+              // Collate error details
+              error_details.push_back(
+                {policy->get_security_scheme_name(),
+                 ccf::errors::InvalidAuthenticationInfo,
+                 auth_error_reason});
+            }
           }
 
           if (identity == nullptr)
           {
-            // If none were accepted, let the last set an error
+            // If none were accepted, let the last set the response header
             endpoint->authn_policies.back()->set_unauthenticated_error(
               ctx, std::move(auth_error_reason));
+            // Return collated error details for the auth policies declared
+            // in the request
+            ctx->set_error(
+              HTTP_STATUS_UNAUTHORIZED,
+              ccf::errors::InvalidAuthenticationInfo,
+              "Invalid info",
+              error_details);
             update_metrics(ctx, endpoint);
             return ctx->serialise_response();
           }
@@ -232,11 +316,7 @@ namespace ccf
                 (ctx->get_session_context()->is_forwarding &&
                  consensus->type() == ConsensusType::CFT) ||
                 (consensus->type() != ConsensusType::CFT &&
-                 !ctx->execute_on_node &&
-                 (endpoint == nullptr ||
-                  (endpoint != nullptr &&
-                   endpoint->properties.execute_outside_consensus !=
-                     endpoints::ExecuteOutsideConsensus::Locally))))
+                 !ctx->execute_on_node))
               {
                 ctx->get_session_context()->is_forwarding = true;
                 return forward(ctx, tx, endpoint);
@@ -415,9 +495,13 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(kv::Store& tables_, endpoints::EndpointRegistry& handlers_) :
+    RpcFrontend(
+      kv::Store& tables_,
+      endpoints::EndpointRegistry& handlers_,
+      ccfapp::AbstractNodeContext& node_context_) :
       tables(tables_),
       endpoints(handlers_),
+      node_context(node_context_),
       consensus(nullptr),
       history(nullptr)
     {}
@@ -438,7 +522,7 @@ namespace ccf
 
     void open(std::optional<crypto::Pem*> identity = std::nullopt) override
     {
-      std::lock_guard<std::mutex> mguard(open_lock);
+      std::lock_guard<ccf::Pal::Mutex> mguard(open_lock);
       // open() without an identity unconditionally opens the frontend.
       // If an identity is passed, the frontend must instead wait for
       // the KV to read that this is identity is present and open,
@@ -459,7 +543,7 @@ namespace ccf
 
     bool is_open(kv::Tx& tx) override
     {
-      std::lock_guard<std::mutex> mguard(open_lock);
+      std::lock_guard<ccf::Pal::Mutex> mguard(open_lock);
       if (!is_open_)
       {
         auto service = tx.ro<Service>(Tables::SERVICE);
@@ -479,7 +563,7 @@ namespace ccf
 
     bool is_open() override
     {
-      std::lock_guard<std::mutex> mguard(open_lock);
+      std::lock_guard<ccf::Pal::Mutex> mguard(open_lock);
       return is_open_;
     }
 

@@ -238,12 +238,26 @@
         "scheme": "signature",
         "type": "http"
       }
+    },
+    "x-ccf-forwarding": {
+      "always": {
+        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
+        "value": "always"
+      },
+      "never": {
+        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
+        "value": "never"
+      },
+      "sometimes": {
+        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
+        "value": "sometimes"
+      }
     }
   },
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "1.9.3"
+    "version": "1.9.4"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -260,6 +274,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -276,6 +293,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -292,6 +312,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -308,6 +331,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -324,6 +350,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -350,6 +379,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -381,7 +413,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       },
       "get": {
         "parameters": [
@@ -410,7 +445,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
       },
       "post": {
         "requestBody": {
@@ -439,7 +477,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/private/admin_only": {
@@ -470,7 +511,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/private/all": {
@@ -491,7 +535,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/private/anonymous": {
@@ -517,6 +564,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -538,7 +588,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/private/historical": {
@@ -569,7 +622,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
       }
     },
     "/app/log/private/historical/sparse": {
@@ -608,7 +664,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
       }
     },
     "/app/log/private/historical_receipt": {
@@ -639,7 +698,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
       }
     },
     "/app/log/private/prefix_cert": {
@@ -670,7 +732,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/private/raw_text/{id}": {
@@ -694,7 +759,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/public": {
@@ -725,7 +793,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       },
       "get": {
         "parameters": [
@@ -754,7 +825,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
       },
       "post": {
         "requestBody": {
@@ -783,7 +857,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/public/all": {
@@ -804,7 +881,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/public/count": {
@@ -825,7 +905,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/log/public/historical/range": {
@@ -872,7 +955,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
       }
     },
     "/app/log/public/historical_receipt": {
@@ -903,7 +989,10 @@
           {
             "jwt": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
       }
     },
     "/app/log/request_query": {
@@ -919,6 +1008,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -940,7 +1032,10 @@
           {
             "user_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/multi_auth": {
@@ -968,7 +1063,10 @@
             "jwt": []
           },
           {}
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/app/receipt": {
@@ -994,6 +1092,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -1020,6 +1121,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     }

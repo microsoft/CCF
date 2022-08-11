@@ -16,6 +16,7 @@ import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from infra.runner import ConcurrentRunner
+import http
 
 from loguru import logger as LOG
 
@@ -66,6 +67,35 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
         if time.time() > end_time:
             raise Exception("Reconfiguration did not complete in time")
+
+
+@reqs.description("Adding a node with invalid target service certificate")
+def test_add_node_invalid_service_cert(network, args):
+    primary, _ = network.find_primary()
+
+    # Incorrect target service certificate file, in this case the primary's node
+    # identity
+    service_cert_file = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    new_node = network.create_node("local://localhost")
+    try:
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            service_cert_file=service_cert_file,
+            timeout=3,
+            stop_on_error=True,
+        )
+    except infra.network.ServiceCertificateInvalid:
+        LOG.info(
+            f"Node {new_node.local_node_id} with invalid service certificate failed to start, as expected"
+        )
+    else:
+        assert (
+            False
+        ), f"Node {new_node.local_node_id} with invalid service certificate unexpectedly started"
+
+    return network
 
 
 @reqs.description("Adding a valid node")
@@ -177,35 +207,21 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-def test_add_node_from_snapshot(
-    network, args, copy_ledger_read_only=True, from_backup=False
-):
+def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=False):
     # Before adding the node from a snapshot, override at least one app entry
     # and wait for a new committed snapshot covering that entry, so that there
     # is at least one historical entry to verify.
     network.txs.issue(network, number_txs=1)
-    for _ in range(1, args.snapshot_tx_interval):
-        network.txs.issue(network, number_txs=1, repeat=True)
-        last_tx = network.txs.get_last_tx(priv=True)
-        if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
-            break
-
-    target_node = None
-    snapshots_dir = None
-    if from_backup:
-        primary, target_node = network.find_primary_and_any_backup()
-        # Retrieve snapshot from primary as only primary node
-        # generates snapshots
-        snapshots_dir = network.get_committed_snapshots(primary)
+    idx, historical_entry = network.txs.get_last_tx(priv=True)
+    network.txs.issue(network, number_txs=1, repeat=True)
 
     new_node = network.create_node("local://localhost")
     network.join_node(
         new_node,
         args.package,
         args,
-        copy_ledger_read_only=copy_ledger_read_only,
-        target_node=target_node,
-        snapshots_dir=snapshots_dir,
+        copy_ledger=copy_ledger,
+        target_node=network.find_any_backup() if from_backup else None,
         from_snapshot=True,
     )
     network.trust_node(new_node, args)
@@ -217,8 +233,29 @@ def test_add_node_from_snapshot(
         ), "Node started from snapshot but reports startup seqno of 0"
 
     # Finally, verify all app entries on the new node, including historical ones
-    # from the historical ledger
-    network.txs.verify(node=new_node, include_historical=copy_ledger_read_only)
+    # from the historical ledger and skip historical entries if ledger
+    # was not copied to node.
+    network.txs.verify(node=new_node, include_historical=copy_ledger)
+
+    # Check that historical entry can be retrieved (or not, if new node does not
+    # have access to historical ledger files).
+    try:
+        network.txs.verify_tx(
+            node=new_node,
+            idx=idx,
+            msg=historical_entry["msg"],
+            seqno=historical_entry["seqno"],
+            view=historical_entry["view"],
+            historical=True,
+        )
+    except infra.logging_app.LoggingTxsVerifyException:
+        assert (
+            not copy_ledger
+        ), f"New node {new_node.local_node_id} without ledger should not be able to serve historical entries"
+    else:
+        assert (
+            copy_ledger
+        ), f"New node {new_node.local_node_id} with ledger should be able to serve historical entries"
 
     return network
 
@@ -262,12 +299,6 @@ def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.retire_node(primary, backup_to_retire)
-    network.wait_for_node_in_store(
-        primary,
-        backup_to_retire.node_id,
-        node_status=None,
-        timeout=3,
-    )
     backup_to_retire.stop()
     check_can_progress(primary)
     wait_for_reconfiguration_to_complete(network)
@@ -285,14 +316,8 @@ def test_retire_primary(network, args):
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
     new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
-    # The old primary should automatically be removed from the store
-    # once a new primary is elected
-    network.wait_for_node_in_store(
-        new_primary,
-        primary.node_id,
-        node_status=None,
-        timeout=3,
-    )
+    # See https://github.com/microsoft/CCF/issues/1713
+    check_can_progress(new_primary)
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
@@ -346,6 +371,90 @@ def test_version(network, args):
         with node.client() as c:
             r = c.get("/node/version")
             assert r.body.json()["ccf_version"] == args.ccf_version
+            assert r.body.json()["unsafe"] == os.path.exists(
+                os.path.join(args.binary_dir, "UNSAFE")
+            )
+
+
+@reqs.description("Issue fake join requests as untrusted client")
+def test_issue_fake_join(network, args):
+    primary, _ = network.find_primary()
+
+    # Assemble dummy join request body
+    net = {"bind_address": "0:0"}
+    req = {}
+    req["node_info_network"] = {
+        "node_to_node_interface": net,
+        "rpc_interfaces": {"name": net},
+    }
+    req["consensus_type"] = "CFT"
+    req["startup_seqno"] = 0
+    with open(
+        os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r", encoding="utf-8"
+    ) as f:
+        req["public_encryption_key"] = f.read()
+    with primary.client(identity="user0") as c:
+        LOG.info("Join with SGX dummy quote")
+        req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
+        r = c.post("/node/join", body=req)
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+        assert (
+            r.body.json()["error"]["code"] == "InvalidQuote"
+        ), "Quote verification should fail when OE_SGX_v1 is specified"
+
+        LOG.info("Join with SGX real quote, but different TLS key")
+        # First, retrieve real quote from primary node
+        r = c.get("/node/quotes/self").body.json()
+        req["quote_info"] = {
+            "format": "OE_SGX_v1",
+            "quote": r["raw"],
+            "endorsements": r["endorsements"],
+        }
+        r = c.post("/node/join", body=req)
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+        assert r.body.json()["error"]["code"] == "InvalidQuote"
+        if args.enclave_type == "virtual":
+            assert r.body.json()["error"]["message"] == "Quote could not be verified"
+        else:
+            assert (
+                r.body.json()["error"]["message"]
+                == "Quote report data does not contain node's public key hash"
+            )
+
+        LOG.info("Join with virtual quote")
+        req["quote_info"] = {
+            "format": "Insecure_Virtual",
+            "quote": "",
+            "endorsements": "",
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "Virtual node must never join SGX network"
+
+        LOG.info("Join with AMD SEV-SNP quote")
+        req["quote_info"] = {
+            "format": "AMD_SEV_SNP_v1",
+            "quote": "",
+            "endorsements": "",
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            # https://github.com/microsoft/CCF/issues/4072
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "SEV-SNP node cannot currently join SGX network"
+
+    return network
 
 
 @reqs.description("Replace a node on the same addresses")
@@ -407,7 +516,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(datetime.now()),
+                    "valid_from": str(datetime.utcnow()),
                 },
             },
             {
@@ -535,7 +644,7 @@ def test_add_node_with_read_only_ledger(network, args):
 
     new_node = network.create_node("local://localhost")
     network.join_node(
-        new_node, args.package, args, from_snapshot=False, copy_ledger_read_only=True
+        new_node, args.package, args, from_snapshot=False, copy_ledger=True
     )
     network.trust_node(new_node, args)
     return network
@@ -563,8 +672,10 @@ def run(args):
         network.start_and_open(args)
 
         test_version(network, args)
+        test_issue_fake_join(network, args)
 
         if args.consensus != "BFT":
+            test_add_node_invalid_service_cert(network, args)
             test_add_node(network, args, from_snapshot=False)
             test_add_node_with_read_only_ledger(network, args)
             test_join_straddling_primary_replacement(network, args)
@@ -578,7 +689,7 @@ def run(args):
 
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)
-            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            test_add_node_from_snapshot(network, args, copy_ledger=False)
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)

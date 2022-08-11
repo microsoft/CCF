@@ -236,6 +236,10 @@ class Response:
         # But in the case of a redirect, it is multiple concatenated responses.
         # We want the final response, so we keep constructing new responses from this stream until we have reached the end
         while True:
+            # This may contain a stringified HTTP/2 response, which HTTPResponse can't parse.
+            # Replace the HTTP version in the status line in this case - we don't care what version it parses.
+            if raw.startswith(b"HTTP/2"):
+                raw = raw.replace(b"HTTP/2", b"HTTP/1.1", 1)
             sock = FakeSocket(raw)
             response = HTTPResponse(sock)
             response.begin()
@@ -303,23 +307,25 @@ class CurlClient:
         self.session_auth = session_auth
         self.signing_auth = signing_auth
         self.ca_curve = get_curve(self.ca)
+        self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
+        self.extra_args = []
+        if kwargs.get("http2"):
+            self.extra_args.append("--http2")
 
-    def request(self, request, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+    def request(
+        self,
+        request: Request,
+        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+    ):
         with tempfile.NamedTemporaryFile() as nf:
             if self.signing_auth:
                 cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
 
-            url = f"https://{self.host}:{self.port}{request.path}"
+            url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
 
-            cmd += [
-                url,
-                "-X",
-                request.http_verb,
-                "-i",
-                f"-m {timeout}",
-            ]
+            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
             if request.allow_redirects:
                 cmd.append("-L")
@@ -362,6 +368,9 @@ class CurlClient:
             if self.signing_auth:
                 cmd.extend(["--signing-key", self.signing_auth.key])
                 cmd.extend(["--signing-cert", self.signing_auth.cert])
+
+            for arg in self.extra_args:
+                cmd.append(arg)
 
             cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
@@ -413,6 +422,10 @@ class RequestClient:
         cert = None
         if self.session_auth:
             cert = (self.session_auth.cert, self.session_auth.key)
+        self.protocol = "https"
+        if "protocol" in kwargs:
+            self.protocol = kwargs.get("protocol")
+            kwargs.pop("protocol")
         self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
         if self.signing_auth:
             with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
@@ -478,7 +491,7 @@ class RequestClient:
         try:
             response = self.session.request(
                 request.http_verb,
-                url=f"https://{self.host}:{self.port}{request.path}",
+                url=f"{self.protocol}://{self.host}:{self.port}{request.path}",
                 auth=auth,
                 headers=extra_headers,
                 follow_redirects=request.allow_redirects,
@@ -490,7 +503,9 @@ class RequestClient:
         except httpx.NetworkError as exc:
             raise CCFConnectionException from exc
         except Exception as exc:
-            raise RuntimeError("Request client failed with unexpected error") from exc
+            raise RuntimeError(
+                f"Request client failed with unexpected error: {exc}"
+            ) from exc
 
         return Response.from_requests_response(response)
 
@@ -544,7 +559,9 @@ class CCFClient:
         self.sign = bool(signing_auth)
 
         if curl or os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
+            self.client_impl = CurlClient(
+                host, port, ca, session_auth, signing_auth, **kwargs
+            )
         else:
             self.client_impl = RequestClient(
                 host, port, ca, session_auth, signing_auth, common_headers, **kwargs
@@ -562,7 +579,7 @@ class CCFClient:
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
-        allow_redirects=True,
+        allow_redirects: bool = True,
     ) -> Response:
         if headers is None:
             headers = {}
@@ -613,7 +630,13 @@ class CCFClient:
             try:
                 logs = []
                 response = self._call(
-                    path, body, http_verb, headers, timeout, logs, allow_redirects
+                    path,
+                    body,
+                    http_verb,
+                    headers,
+                    timeout,
+                    logs,
+                    allow_redirects,
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _call
