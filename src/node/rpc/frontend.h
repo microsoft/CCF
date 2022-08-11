@@ -185,31 +185,6 @@ namespace ccf
 
       try
       {
-        std::unique_ptr<AuthnIdentity> identity = nullptr;
-
-        // If any auth policy was required, check that at least one is accepted
-        if (!endpoint->authn_policies.empty())
-        {
-          std::string auth_error_reason;
-          for (const auto& policy : endpoint->authn_policies)
-          {
-            identity = policy->authenticate(tx, ctx, auth_error_reason);
-            if (identity != nullptr)
-            {
-              break;
-            }
-          }
-
-          if (identity == nullptr)
-          {
-            // If none were accepted, let the last set an error
-            endpoint->authn_policies.back()->set_unauthenticated_error(
-              ctx, std::move(auth_error_reason));
-            update_metrics(ctx, endpoint);
-            return ctx->serialise_response();
-          }
-        }
-
         update_history();
 
         const bool is_primary = (consensus == nullptr) ||
@@ -253,7 +228,7 @@ namespace ccf
           }
         }
 
-        auto args = endpoints::EndpointContext(ctx, std::move(identity), tx);
+        auto args = endpoints::EndpointContext(ctx, tx);
 
         size_t attempts = 0;
         constexpr auto max_attempts = 30;
@@ -277,6 +252,37 @@ namespace ccf
             if (pre_exec)
             {
               pre_exec(tx, *ctx.get());
+            }
+
+            // Check auth policies
+            {
+              std::unique_ptr<AuthnIdentity> identity = nullptr;
+
+              // If any auth policy was required, check that at least one is
+              // accepted
+              if (!endpoint->authn_policies.empty())
+              {
+                std::string auth_error_reason;
+                for (const auto& policy : endpoint->authn_policies)
+                {
+                  identity = policy->authenticate(tx, ctx, auth_error_reason);
+                  if (identity != nullptr)
+                  {
+                    break;
+                  }
+                }
+
+                if (identity == nullptr)
+                {
+                  // If none were accepted, let the last set an error
+                  endpoint->authn_policies.back()->set_unauthenticated_error(
+                    ctx, std::move(auth_error_reason));
+                  update_metrics(ctx, endpoint);
+                  return ctx->serialise_response();
+                }
+              }
+
+              args.caller = std::move(identity);
             }
 
             endpoints.execute_endpoint(endpoint, args);

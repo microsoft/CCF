@@ -108,6 +108,11 @@ namespace http
       set_path(p);
     }
 
+    void set_method(llhttp_method m)
+    {
+      method = m;
+    }
+
     llhttp_method get_method() const
     {
       return method;

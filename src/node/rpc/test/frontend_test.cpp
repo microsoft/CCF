@@ -1501,6 +1501,300 @@ TEST_CASE("Retry on conflict")
   }
 }
 
+class TestManualConflictsFrontend : public BaseTestFrontend
+{
+public:
+  using MyVals = kv::Map<size_t, size_t>;
+  static constexpr auto SRC = "source";
+  static constexpr auto DST = "destination";
+
+  static constexpr size_t KEY = 42;
+
+  struct WaitPoint
+  {
+    std::mutex m;
+    std::condition_variable cv;
+    bool ready = false;
+
+    void wait()
+    {
+      std::unique_lock lock(m);
+      cv.wait(lock, [this] { return ready; });
+    }
+
+    void notify()
+    {
+      {
+        std::lock_guard lock(m);
+        ready = true;
+      }
+      cv.notify_one();
+    }
+  };
+
+  WaitPoint before_read;
+  WaitPoint after_read;
+  WaitPoint before_write;
+  WaitPoint after_write;
+
+  TestManualConflictsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  {
+    open();
+
+    auto pausable = [this](auto& ctx) {
+      auto src_handle = ctx.tx.template rw<MyVals>(SRC);
+      auto dst_handle = ctx.tx.template rw<MyVals>(DST);
+
+      before_read.wait();
+      auto val = src_handle->get(KEY).value_or(0); // Record a read dependency
+      after_read.notify();
+
+      before_write.wait();
+      dst_handle->put(KEY, val); // Create a write dependency
+      after_write.notify();
+
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_endpoint("/pausable", HTTP_POST, pausable, {user_cert_auth_policy})
+      .install();
+  }
+};
+
+TEST_CASE("Manual conflicts")
+{
+  NetworkState network;
+  prepare_callers(network);
+
+  using TF = TestManualConflictsFrontend;
+  TF frontend(*network.tables);
+
+  auto call_pausable = [&](
+                         std::shared_ptr<ccf::SessionContext> session,
+                         http_status expected_status) {
+    auto req = create_simple_request("/pausable");
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = ccf::make_rpc_context(session, serialized_call);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == expected_status);
+  };
+
+  auto get_metrics = [&]() {
+    auto req = create_simple_request("/api/metrics");
+    req.set_method(HTTP_GET);
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+    auto body = nlohmann::json::parse(response.body);
+    auto& element = body["metrics"];
+    ccf::EndpointMetricsEntry ret;
+    for (const auto& j : element)
+    {
+      if (j["path"] == "pausable")
+      {
+        ret = j.get<ccf::EndpointMetricsEntry>();
+        break;
+      }
+    }
+
+    return ret;
+  };
+
+  auto get_value = [&](const std::string& table = TF::DST) {
+    auto tx = network.tables->create_tx();
+    auto handle = tx.ro<TF::MyVals>(table);
+    auto ret = handle->get(TF::KEY);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    return ret;
+  };
+
+  auto update_value =
+    [&](size_t n, const std::string& table = TF::SRC, size_t key = TF::KEY) {
+      auto tx = network.tables->create_tx();
+      using TF = TestManualConflictsFrontend;
+      auto handle = tx.wo<TF::MyVals>(table);
+      handle->put(key, n);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    };
+
+  auto run_test = [&](
+                    std::function<void()>&& read_write_op,
+                    std::shared_ptr<ccf::SessionContext> session = user_session,
+                    http_status expected_status = HTTP_STATUS_OK) {
+    frontend.before_read.ready = false;
+    frontend.after_read.ready = false;
+    frontend.before_write.ready = false;
+    frontend.after_write.ready = false;
+
+    std::thread worker(call_pausable, session, expected_status);
+
+    frontend.before_read.notify();
+    frontend.after_read.wait();
+
+    read_write_op();
+
+    frontend.before_write.notify();
+    frontend.after_write.wait();
+
+    worker.join();
+  };
+
+  {
+    INFO("No conflicts");
+
+    const auto new_value = rand();
+    update_value(new_value);
+
+    const auto metrics_before = get_metrics();
+    run_test([]() {});
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries);
+  }
+
+  {
+    INFO("Unauth'd access");
+
+    call_pausable(invalid_session, HTTP_STATUS_UNAUTHORIZED);
+  }
+
+  {
+    INFO("Inserted post-read conflict");
+
+    const auto new_value = rand();
+    const auto metrics_before = get_metrics();
+    run_test([&]() { update_value(new_value); });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+  }
+
+  {
+    INFO("Pure reads are not a conflict");
+
+    const auto new_value = rand();
+    update_value(new_value);
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      get_value(TF::SRC);
+      get_value(TF::DST);
+      get_value("Some other table");
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries);
+  }
+
+  {
+    INFO("Unrelated writes are not a conflict");
+
+    const auto new_value = rand();
+    update_value(new_value);
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      update_value(rand(), TF::SRC, TF::KEY + 1);
+      update_value(rand(), TF::DST);
+      update_value(rand(), "Some other table");
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == new_value);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries);
+  }
+
+  {
+    INFO("Inserted post-read delete");
+    // Ensuring that a delete is not treated differently from a 'normal' write
+
+    update_value(rand());
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      auto tx = network.tables->create_tx();
+      using TF = TestManualConflictsFrontend;
+      auto handle = tx.wo<TF::MyVals>(TF::SRC);
+      handle->remove(TF::KEY);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == 0);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+  }
+
+  {
+    INFO("Inserted post-read clear");
+    // Ensuring that a clear is not treated differently from a 'normal' write
+
+    update_value(rand());
+    const auto metrics_before = get_metrics();
+    run_test([&]() {
+      auto tx = network.tables->create_tx();
+      using TF = TestManualConflictsFrontend;
+      auto handle = tx.wo<TF::MyVals>(TF::SRC);
+      handle->clear();
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    });
+    const auto metrics_after = get_metrics();
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == 0);
+
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+  }
+
+  {
+    INFO("Removed caller ident post-read");
+
+    const auto metrics_before = get_metrics();
+
+    const auto old_value = get_value();
+    update_value(rand());
+    run_test(
+      [&]() {
+        auto tx = network.tables->create_tx();
+        GenesisGenerator g(network, tx);
+        g.remove_user(user_id);
+        CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+      },
+      user_session,
+      HTTP_STATUS_UNAUTHORIZED);
+
+    const auto v = get_value();
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == old_value);
+
+    const auto metrics_after = get_metrics();
+    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+    REQUIRE(metrics_after.errors == metrics_before.errors + 1);
+  }
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;
