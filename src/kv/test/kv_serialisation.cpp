@@ -784,3 +784,86 @@ TEST_CASE(
     REQUIRE(handle_pub->get("pubk1") == "pubv1");
   }
 }
+
+struct TypeWithOptionalFields
+{
+  size_t required = 0;
+  size_t json_optional = 0;
+  std::optional<size_t> cpp_optional;
+};
+
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TypeWithOptionalFields);
+DECLARE_JSON_REQUIRED_FIELDS(TypeWithOptionalFields, required);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  TypeWithOptionalFields, json_optional, cpp_optional);
+
+TEST_CASE(
+  "Serialise/deserialise types with optional fields" *
+  doctest::test_suite("json"))
+{
+  INFO(
+    "Serialise object with two unset optional fields, one of which is "
+    "std::nullopt");
+  {
+    TypeWithOptionalFields o;
+    auto s = nlohmann::json(o).dump();
+    REQUIRE(s == "{\"json_optional\":0,\"required\":0}");
+  }
+
+  INFO("Serialise object with two set optional fields");
+  {
+    TypeWithOptionalFields o;
+    o.json_optional = 2;
+    o.cpp_optional = 3;
+    auto s = nlohmann::json(o).dump();
+    REQUIRE(s == "{\"cpp_optional\":3,\"json_optional\":2,\"required\":0}");
+  }
+
+  INFO("Deserialise object with two unset optional fields");
+  {
+    auto j = nlohmann::json::parse("{\"required\":2}");
+    auto t = j.get<TypeWithOptionalFields>();
+    REQUIRE(t.required == 2);
+    REQUIRE(t.json_optional == 0);
+    REQUIRE(!t.cpp_optional.has_value());
+  }
+
+  INFO("Deserialise an optional with the default value set");
+  {
+    auto j = nlohmann::json::parse("{\"required\":2,\"json_optional\":0}");
+    auto t = j.get<TypeWithOptionalFields>();
+    REQUIRE(t.required == 2);
+    REQUIRE(t.json_optional == 0);
+    REQUIRE(!t.cpp_optional.has_value());
+  }
+
+  INFO("Deserialise an optional with a non-default value set");
+  {
+    auto j = nlohmann::json::parse("{\"required\":2,\"json_optional\":3}");
+    auto t = j.get<TypeWithOptionalFields>();
+    REQUIRE(t.required == 2);
+    REQUIRE(t.json_optional == 3);
+    REQUIRE(!t.cpp_optional.has_value());
+  }
+
+  INFO("Deserialise a cpp optional with the default value set");
+  {
+    auto j = nlohmann::json::parse(
+      "{\"cpp_optional\":null,\"required\":2,\"json_optional\":3}");
+    auto t = j.get<TypeWithOptionalFields>();
+    REQUIRE(t.required == 2);
+    REQUIRE(t.json_optional == 3);
+    REQUIRE(!t.cpp_optional.has_value());
+  }
+
+  INFO("Deserialise a cpp optional with a value set");
+  {
+    auto j = nlohmann::json::parse(
+      "{\"cpp_optional\":0,\"required\":2,\"json_optional\":3}");
+    auto t = j.get<TypeWithOptionalFields>();
+    REQUIRE(t.required == 2);
+    REQUIRE(t.json_optional == 3);
+    REQUIRE(t.cpp_optional.has_value());
+    REQUIRE(t.cpp_optional.value() == 0);
+  }
+}

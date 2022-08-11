@@ -375,7 +375,7 @@ namespace std
 
 #define WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    if constexpr (!nonstd::is_optional<TYPE>::value) \
+    if constexpr (nonstd::is_optional<decltype(TYPE::C_FIELD)>::value) \
     { \
       if (t.C_FIELD != t_default.C_FIELD) \
       { \
