@@ -252,47 +252,6 @@ namespace ccf
 
       try
       {
-        std::unique_ptr<AuthnIdentity> identity = nullptr;
-
-        // If any auth policy was required, check that at least one is accepted
-        if (!endpoint->authn_policies.empty())
-        {
-          std::string auth_error_reason;
-          std::vector<ccf::ODataErrorDetails> error_details;
-          for (const auto& policy : endpoint->authn_policies)
-          {
-            identity = policy->authenticate(tx, ctx, auth_error_reason);
-            if (identity != nullptr)
-            {
-              break;
-            }
-            else
-            {
-              // Collate error details
-              error_details.push_back(
-                {policy->get_security_scheme_name(),
-                 ccf::errors::InvalidAuthenticationInfo,
-                 auth_error_reason});
-            }
-          }
-
-          if (identity == nullptr)
-          {
-            // If none were accepted, let the last set the response header
-            endpoint->authn_policies.back()->set_unauthenticated_error(
-              ctx, std::move(auth_error_reason));
-            // Return collated error details for the auth policies declared
-            // in the request
-            ctx->set_error(
-              HTTP_STATUS_UNAUTHORIZED,
-              ccf::errors::InvalidAuthenticationInfo,
-              "Invalid info",
-              error_details);
-            update_metrics(ctx, endpoint);
-            return ctx->serialise_response();
-          }
-        }
-
         update_history();
 
         const bool is_primary = (consensus == nullptr) ||
@@ -332,7 +291,7 @@ namespace ccf
           }
         }
 
-        auto args = endpoints::EndpointContext(ctx, std::move(identity), tx);
+        auto args = endpoints::EndpointContext(ctx, tx);
 
         size_t attempts = 0;
         constexpr auto max_attempts = 30;
@@ -356,6 +315,53 @@ namespace ccf
             if (pre_exec)
             {
               pre_exec(tx, *ctx.get());
+            }
+
+            // Check auth policies
+            {
+              std::unique_ptr<AuthnIdentity> identity = nullptr;
+
+              // If any auth policy was required, check that at least one is
+              // accepted
+              if (!endpoint->authn_policies.empty())
+              {
+                std::string auth_error_reason;
+                std::vector<ccf::ODataErrorDetails> error_details;
+                for (const auto& policy : endpoint->authn_policies)
+                {
+                  identity = policy->authenticate(tx, ctx, auth_error_reason);
+                  if (identity != nullptr)
+                  {
+                    break;
+                  }
+                  else
+                  {
+                    // Collate error details
+                    error_details.push_back(
+                      {policy->get_security_scheme_name(),
+                       ccf::errors::InvalidAuthenticationInfo,
+                       auth_error_reason});
+                  }
+                }
+
+                if (identity == nullptr)
+                {
+                  // If none were accepted, let the last set the response header
+                  endpoint->authn_policies.back()->set_unauthenticated_error(
+                    ctx, std::move(auth_error_reason));
+                  // Return collated error details for the auth policies
+                  // declared in the request
+                  ctx->set_error(
+                    HTTP_STATUS_UNAUTHORIZED,
+                    ccf::errors::InvalidAuthenticationInfo,
+                    "Invalid info",
+                    error_details);
+                  update_metrics(ctx, endpoint);
+                  return ctx->serialise_response();
+                }
+              }
+
+              args.caller = std::move(identity);
             }
 
             endpoints.execute_endpoint(endpoint, args);
