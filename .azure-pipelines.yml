@@ -43,6 +43,8 @@ variables:
     perf_tests: run
 
 jobs:
+  - template: .azure-pipelines-templates/configure.yml
+
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}

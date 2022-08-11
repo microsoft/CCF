@@ -138,13 +138,6 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   endif()
 endfunction()
 
-# Util functions used by add_ccf_app and others
-function(enable_quote_code name)
-  if(QUOTES_ENABLED)
-    target_compile_definitions(${name} PUBLIC -DGET_QUOTE)
-  endif()
-endfunction()
-
 # Enclave library wrapper
 function(add_ccf_app name)
 

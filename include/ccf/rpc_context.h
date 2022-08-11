@@ -112,6 +112,18 @@ namespace ccf
       set_response_header(name, std::to_string(n));
     }
 
+    /// Construct OData-formatted response to capture multiple error details
+    virtual void set_error(
+      http_status status,
+      const std::string& code,
+      std::string&& msg,
+      std::vector<ccf::ODataErrorDetails>& details)
+    {
+      nlohmann::json body =
+        ccf::ODataErrorResponse{ccf::ODataError{code, std::move(msg), details}};
+      set_response(body, status);
+    }
+
     /// Construct OData-formatted error response.
     virtual void set_error(
       http_status status, const std::string& code, std::string&& msg)
@@ -124,11 +136,16 @@ namespace ccf
     {
       nlohmann::json body = ccf::ODataErrorResponse{
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      set_response(body, error.status);
+    }
+
+    virtual void set_response(nlohmann::json& body, http_status status)
+    {
       // Set error_handler to replace, to avoid throwing if the error message
       // contains non-UTF8 characters. Other args are default values
       const auto s =
         body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-      set_response_status(error.status);
+      set_response_status(status);
       set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
       set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);

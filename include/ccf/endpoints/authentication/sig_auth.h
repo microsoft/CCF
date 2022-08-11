@@ -47,6 +47,11 @@ namespace ccf
     {
       return security_schema;
     }
+
+    std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    }
   };
 
   struct MemberSignatureAuthnIdentity : public AuthnIdentity
@@ -89,6 +94,11 @@ namespace ccf
       const override
     {
       return security_schema;
+    }
+
+    std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
     }
   };
 }

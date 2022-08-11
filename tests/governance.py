@@ -359,8 +359,8 @@ def test_invalid_client_signature(network, args):
         ).json()
         assert r["error"]["code"] == "InvalidAuthenticationInfo"
         assert (
-            expected_error_msg in r["error"]["message"]
-        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
+            expected_error_msg in r["error"]["details"][0]["message"]
+        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['details'][0]['message']}'"
 
     # Verify that _some_ HTTP signature parsing errors are communicated back to the client
     post_proposal_request_raw(

@@ -69,12 +69,15 @@ namespace kv
     }
 
     bool ok = true;
-    for (auto it = views.begin(); it != views.end(); ++it)
+    if (has_writes)
     {
-      if (!it->second->prepare(track_read_versions))
+      for (auto it = views.begin(); it != views.end(); ++it)
       {
-        ok = false;
-        break;
+        if (!it->second->prepare(track_read_versions))
+        {
+          ok = false;
+          break;
+        }
       }
     }
 

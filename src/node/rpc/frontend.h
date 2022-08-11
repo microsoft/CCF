@@ -258,6 +258,7 @@ namespace ccf
         if (!endpoint->authn_policies.empty())
         {
           std::string auth_error_reason;
+          std::vector<ccf::ODataErrorDetails> error_details;
           for (const auto& policy : endpoint->authn_policies)
           {
             identity = policy->authenticate(tx, ctx, auth_error_reason);
@@ -265,13 +266,28 @@ namespace ccf
             {
               break;
             }
+            else
+            {
+              // Collate error details
+              error_details.push_back(
+                {policy->get_security_scheme_name(),
+                 ccf::errors::InvalidAuthenticationInfo,
+                 auth_error_reason});
+            }
           }
 
           if (identity == nullptr)
           {
-            // If none were accepted, let the last set an error
+            // If none were accepted, let the last set the response header
             endpoint->authn_policies.back()->set_unauthenticated_error(
               ctx, std::move(auth_error_reason));
+            // Return collated error details for the auth policies declared
+            // in the request
+            ctx->set_error(
+              HTTP_STATUS_UNAUTHORIZED,
+              ccf::errors::InvalidAuthenticationInfo,
+              "Invalid info",
+              error_details);
             update_metrics(ctx, endpoint);
             return ctx->serialise_response();
           }

@@ -169,7 +169,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/json_handler.cpp
-    ${CCF_DIR}/src/endpoints/authentication/authentication_types.cpp
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
@@ -244,7 +243,6 @@ add_executable(cchost ${CCHOST_SOURCES})
 
 add_warning_checks(cchost)
 add_san(cchost)
-enable_quote_code(cchost)
 
 target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
