@@ -539,8 +539,38 @@ TEST_CASE(
   size_t handled_writes = 0;
   const auto& writes = stub_writer->writes;
 
-  auto index_ticker = [&]() {
-    while (!finished)
+  auto fetch_index_a = [&]() {
+    while (true)
+    {
+      const auto hello = index_a->get_all_write_txs("hello");
+      const auto saluton = index_a->get_all_write_txs("saluton");
+
+      if (
+        finished && hello.has_value() && hello->size() == writes_to_hello &&
+        saluton.has_value() && saluton->size() == writes_to_saluton)
+      {
+        break;
+      }
+    }
+  };
+
+  auto fetch_index_b = [&]() {
+    while (true)
+    {
+      const auto forty_two = index_b->get_all_write_txs(42);
+
+      if (
+        finished && forty_two.has_value() && forty_two->size() == writes_to_42)
+      {
+        break;
+      }
+    }
+  };
+
+  std::atomic<bool> work_done = false;
+
+  std::thread index_ticker([&]() {
+    while (!work_done)
     {
       size_t loops = 0;
       while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
@@ -586,46 +616,15 @@ TEST_CASE(
         }
       }
     }
-  };
-
-  auto fetch_index_a = [&]() {
-    while (true)
-    {
-      const auto hello = index_a->get_all_write_txs("hello");
-      const auto saluton = index_a->get_all_write_txs("saluton");
-
-      if (
-        finished && hello.has_value() && hello->size() == writes_to_hello &&
-        saluton.has_value() && saluton->size() == writes_to_saluton)
-      {
-        break;
-      }
-    }
-  };
-
-  auto fetch_index_b = [&]() {
-    while (true)
-    {
-      const auto forty_two = index_b->get_all_write_txs(42);
-
-      if (
-        finished && forty_two.has_value() && forty_two->size() == writes_to_42)
-      {
-        break;
-      }
-    }
-  };
+  });
 
   std::vector<std::thread> threads;
   threads.emplace_back(tx_advancer);
-  threads.emplace_back(index_ticker);
   threads.emplace_back(fetch_index_a);
   threads.emplace_back(fetch_index_a);
   threads.emplace_back(fetch_index_a);
   threads.emplace_back(fetch_index_b);
   threads.emplace_back(fetch_index_b);
-
-  std::atomic<bool> work_done = false;
 
   std::thread watchdog([&]() {
     using Clock = std::chrono::system_clock;
@@ -645,6 +644,7 @@ TEST_CASE(
   }
 
   work_done = true;
+  index_ticker.join();
   watchdog.join();
 }
 
