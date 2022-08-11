@@ -10,7 +10,6 @@
 
 namespace ccf
 {
-
   struct ServiceConfiguration
   {
     // Number of recovery shares required to decrypt the latest ledger secret
