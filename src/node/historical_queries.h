@@ -47,7 +47,8 @@ struct formatter<ccf::historical::CompoundHandle>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx) const
+  auto format(
+    const ccf::historical::CompoundHandle& p, FormatContext& ctx) const
   {
     return format_to(
       ctx.out(),

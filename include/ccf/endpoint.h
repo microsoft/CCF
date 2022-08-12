@@ -357,7 +357,8 @@ struct formatter<ccf::endpoints::ForwardingRequired>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
+  auto format(
+    const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
   {
     char const* s;
     switch (v)
