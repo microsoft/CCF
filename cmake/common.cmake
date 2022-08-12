@@ -602,6 +602,8 @@ function(add_perf_test)
   set(TESTS_SUFFIX "")
   if("sgx" IN_LIST COMPILE_TARGETS)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
+  else()
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
   endif()
 
   if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
