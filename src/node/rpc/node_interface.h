@@ -58,7 +58,7 @@ namespace ccf
     virtual size_t get_jwt_attempts() = 0;
     virtual crypto::Pem get_self_signed_certificate() = 0;
     virtual const StartupConfig& get_node_config() const = 0;
-    virtual crypto::Pem get_public_key() = 0;
+    virtual crypto::Pem get_network_cert() = 0;
 
     virtual void make_http_request(
       const http::URL& url,

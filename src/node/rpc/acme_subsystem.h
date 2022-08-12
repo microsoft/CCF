@@ -45,9 +45,9 @@ namespace ccf
       }
     }
 
-    virtual crypto::Pem node_public_key() override
+    virtual crypto::Pem network_cert() override
     {
-      return node_state.get_public_key();
+      return node_state.get_network_cert();
     }
 
     // make_http_request is just a convenient way to offer https requests to

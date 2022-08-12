@@ -2617,9 +2617,9 @@ namespace ccf
       return config;
     }
 
-    virtual crypto::Pem get_public_key() override
+    virtual crypto::Pem get_network_cert() override
     {
-      return node_sign_kp->public_key_pem();
+      return network.identity->cert;
     }
 
     virtual void install_custom_acme_challenge_handler(
