@@ -797,8 +797,8 @@ struct formatter<kv::Configuration::Nodes>
   }
 
   template <typename FormatContext>
-  auto format(const kv::Configuration::Nodes& nodes, FormatContext& ctx)
-    -> decltype(ctx.out())
+  auto format(const kv::Configuration::Nodes& nodes, FormatContext& ctx) const
+    -> decltype(ctx.out()) const
   {
     std::set<ccf::NodeId> node_ids;
     for (auto& [nid, _] : nodes)
