@@ -86,7 +86,10 @@ jobs:
           target: NoSGX
           env: ${{ parameters.env.NoSGX }}
           suffix: "Perf"
-          depends_on: configure
+          depends_on:
+            - configure
+            - SGX_Perf
+            - NoSGX_Perf
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
