@@ -15,6 +15,9 @@
 #  include <cstring>
 #  include <mutex>
 #  include "ccf/ds/attestation_sev_snp.h"
+#  include "ccf/crypto/pem.h"
+#  include "ccf/crypto/verifier.h"
+#  include "crypto/ecdsa.h"
 #else
 #  include "ccf/ds/attestation_sgx.h"
 #  include "ccf/ds/ccf_exception.h"
@@ -142,7 +145,39 @@ namespace ccf
 
         auto quote = reinterpret_cast<uint8_t*>(&resp.report);
         node_quote_info.quote.assign(quote, quote + resp.report_size);
-        // TODO: Get endorsements
+
+        // TODO: Get endorsements here
+        // client::RpcTlsClient client{
+        //   "americas.test.acccache.azure.net", // TODO: Make Configurable
+        //   "443",
+        //   nullptr,
+        //   std::make_shared<tls::Cert>(
+        //     nullptr, // TODO: Use auth
+        //     std::nullopt,
+        //     std::nullopt,
+        //     std::nullopt,
+        //     false
+        //   )
+        // };
+
+        // auto params = nlohmann::json::object();
+        // params["api-version"] = "2020-10-15-preview";
+
+        // auto response = client.get(
+        //   fmt::format(
+        //     "/SevSnpVM/certificates/{}/{}",
+        //     fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
+        //     fmt::format("{:0x}", quote.reported_tcb.raw)
+        //   ),
+        //   params
+        // );
+
+        // if (response.status != HTTP_STATUS_OK) {
+        //   throw std::logic_error(
+        //     "Failed to fetch the certificate chain for this attestation");
+        // }
+
+        // quote_info.endorsements.assign(data.begin(), data.end());
       }
       return node_quote_info;
     }
@@ -165,11 +200,14 @@ namespace ccf
       }
 
       else if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
+
         if (!is_sev_snp) {
           throw std::logic_error(
             "Cannot verify SEV-SNP quote if node is virtual");
         }
+
         attestation_report quote = *reinterpret_cast<const attestation_report*>(quote_info.quote.data());
+
         std::copy(
           std::begin(quote.report_data),
           std::begin(quote.report_data) + attestation_report_data_size,
@@ -181,7 +219,70 @@ namespace ccf
           std::end(quote.measurement),
           unique_id.begin()
         );
-        // TODO: Verify endorsements
+
+        auto certificates = \
+          crypto::split_x509_cert_bundle(
+            std::string(
+              quote_info.endorsements.begin(),
+              quote_info.endorsements.end()
+            )
+          );
+        auto chip_certificate = certificates[0];
+        auto sev_version_certificate = certificates[1];
+        auto root_certificate = certificates[2];
+
+        auto root_cert_verifier = crypto::make_verifier(root_certificate);
+
+        if (root_cert_verifier->public_key_pem().str() !=
+            amd_milan_root_signing_public_key) {
+          throw std::logic_error(
+            "The root of trust public key for this attestation was not the "
+            "expected one");
+        }
+
+        if (!root_cert_verifier->verify_certificate({&root_certificate})) {
+          throw std::logic_error(
+            "The root of trust public key for this attestation was not self "
+            "signed as expected");
+        }
+
+        auto chip_cert_verifier = crypto::make_verifier(chip_certificate);
+        if (!chip_cert_verifier->verify_certificate(
+              {&root_certificate, &sev_version_certificate}
+           )) {
+          throw std::logic_error(
+            "The chain of signatures from the root of trust to this "
+            "attestation is broken");
+        }
+
+        if (quote.signature_algo != signature_algo_t::ecdsa_p384_sha384) {
+          throw std::logic_error(fmt::format(
+            "Unsupported signature algorithm: {} (supported: {})",
+            quote.signature_algo,
+            signature_algo_t::ecdsa_p384_sha384
+          ));
+        }
+
+        // Make ASN1 der signature
+        auto quote_signature = crypto::ecdsa_sig_from_r_s(
+          quote.signature.r,
+          sizeof(quote.signature.r),
+          quote.signature.s,
+          sizeof(quote.signature.s),
+          false /* little endian */
+        );
+
+        std::vector<uint8_t> quote_without_signature = {
+          quote_info.quote.begin(),
+          quote_info.quote.end() - sizeof(quote.signature)
+        };
+
+        if (!chip_cert_verifier->verify(
+          quote_without_signature,
+          quote_signature
+        )) {
+          throw std::logic_error("Chip certificate (VCEK) did not sign this attestation");
+        }
       }
 
       else {

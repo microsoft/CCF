@@ -36,6 +36,7 @@
 #include "service/genesis_gen.h"
 #include "share_manager.h"
 #include "tls/client.h"
+#include "clients/rpc_tls_client.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -293,6 +294,41 @@ namespace ccf
 
       quote_info = Pal::generate_quote(
         crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
+
+      // TODO: Make this request inside PAL
+      auto quote = *reinterpret_cast<const attestation_report*>(quote_info.quote.data());
+
+      client::RpcTlsClient client{
+        "americas.test.acccache.azure.net", // TODO: Make Configurable
+        "443",
+        nullptr,
+        std::make_shared<tls::Cert>(
+          nullptr, // TODO: Use auth
+          std::nullopt,
+          std::nullopt,
+          std::nullopt,
+          false
+        )
+      };
+
+      auto params = nlohmann::json::object();
+      params["api-version"] = "2020-10-15-preview";
+
+      auto response = client.get(
+        fmt::format(
+          "/SevSnpVM/certificates/{}/{}",
+          fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
+          fmt::format("{:0x}", quote.reported_tcb.raw)
+        ),
+        params
+      );
+
+      if (response.status != HTTP_STATUS_OK) {
+        throw std::logic_error("Failed to get attestation endorsements");
+      }
+
+      quote_info.endorsements.assign(response.body.begin(), response.body.end());
+
       auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
