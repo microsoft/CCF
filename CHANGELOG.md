@@ -13,10 +13,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [2.0.5]
 
-### Added
-
-- New `GET /node/network/removable_nodes` and `DELETE /node/network/nodes/{node_id}` exposed to allow operator to decide which nodes can be safely shut down after retirement, and clear their state from the Key-Value Store.
-
 ### Fixed
 
 - Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
