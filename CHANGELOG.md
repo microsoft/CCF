@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.5]
 
 ### Fixed
 
 - Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
+- When running with `--curve-id secp256r1`, we now correctly support temporary ECDH keys on curve secp256r1 for TLS 1.2 clients.
 
 ### Added
 
@@ -1555,6 +1556,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.5
 [2.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.4
 [2.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.3
 [2.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.2

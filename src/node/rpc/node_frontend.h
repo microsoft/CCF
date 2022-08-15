@@ -139,14 +139,14 @@ namespace ccf
       {
         case QuoteVerificationResult::Failed:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
+            HTTP_STATUS_UNAUTHORIZED, "Quote could not be verified");
         case QuoteVerificationResult::FailedCodeIdNotFound:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_UNAUTHORIZED,
             "Quote does not contain known enclave measurement");
         case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_UNAUTHORIZED,
             "Quote report data does not contain node's public key hash");
         default:
           return std::make_pair(
@@ -370,7 +370,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.28.0";
+      openapi_info.document_version = "2.29.0";
     }
 
     void init_handlers() override
