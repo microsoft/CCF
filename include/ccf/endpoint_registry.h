@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
-#include "ccf/pal.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/pal.h"
 #include "ccf/rpc_context.h"
 #include "ccf/tx.h"
 

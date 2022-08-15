@@ -7,9 +7,9 @@
 #include "ccf/ds/json.h"
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#include "ccf/pal/attestation_sev_snp.h"
+#  include "ccf/pal/attestation_sev_snp.h"
 #else
-#include "ccf/pal/attestation_sgx.h"
+#  include "ccf/pal/attestation_sgx.h"
 #endif
 
 namespace ccf

@@ -9,7 +9,9 @@
 namespace ccf
 {
   QuoteVerificationResult verify_enclave_measurement_against_store(
-    kv::ReadOnlyTx& tx, const CodeDigest& unique_id, const QuoteFormat& quote_format)
+    kv::ReadOnlyTx& tx,
+    const CodeDigest& unique_id,
+    const QuoteFormat& quote_format)
   {
     auto code_ids = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS);
     auto code_id_info = code_ids->get(unique_id);
@@ -17,7 +19,8 @@ namespace ccf
     {
       return QuoteVerificationResult::FailedCodeIdNotFound;
     }
-    if (code_id_info->platform != quote_format) {
+    if (code_id_info->platform != quote_format)
+    {
       return QuoteVerificationResult::FailedCodeIdNotFound;
     }
 
@@ -78,7 +81,8 @@ namespace ccf
       return QuoteVerificationResult::Verified;
     }
 
-    auto rc = verify_enclave_measurement_against_store(tx, code_digest, quote_info.format);
+    auto rc = verify_enclave_measurement_against_store(
+      tx, code_digest, quote_info.format);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;

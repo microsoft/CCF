@@ -7,7 +7,8 @@
 
 namespace ccf
 {
-  struct CodeInfo {
+  struct CodeInfo
+  {
     CodeStatus status;
     QuoteFormat platform;
   };
@@ -19,18 +20,22 @@ namespace ccf
 
   inline void to_json(nlohmann::json& j, const CodeInfo& code_info)
   {
-      j["status"] = code_info.status;
-      j["platform"] = code_info.platform;
+    j["status"] = code_info.status;
+    j["platform"] = code_info.platform;
   }
 
-  inline void from_json(const nlohmann::json& j, CodeInfo& code_info) {
+  inline void from_json(const nlohmann::json& j, CodeInfo& code_info)
+  {
     // For CCF versions < 3.x, code_id table entries only contained the status.
-    // Since we only support SGX nodes in those version, we can assume it's that.
-    if (j.is_string()) {
+    // Since we only support SGX nodes in those version, we can assume it's
+    // that.
+    if (j.is_string())
+    {
       code_info.status = j;
       code_info.platform = QuoteFormat::oe_sgx_v1;
     }
-    else {
+    else
+    {
       code_info.status = j["status"];
       code_info.platform = j["platform"];
     }

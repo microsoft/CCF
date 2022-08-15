@@ -4,11 +4,11 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
-#include "ccf/pal.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
+#include "ccf/pal.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
