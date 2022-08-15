@@ -11,9 +11,7 @@ namespace asynchost
 {
   class TimeUpdaterImpl
   {
-    using TClock = std::chrono::system_clock;
-
-    std::atomic<std::chrono::microseconds> time_now;
+    std::atomic<long long> time_now_us;
 
   public:
     TimeUpdaterImpl()
@@ -21,15 +19,17 @@ namespace asynchost
       on_timer();
     }
 
-    std::atomic<std::chrono::microseconds>* get_value()
+    std::atomic<long long>* get_value()
     {
-      return &time_now;
+      return &time_now_us;
     }
 
     void on_timer()
     {
-      time_now = std::chrono::duration_cast<std::chrono::microseconds>(
-        TClock::now().time_since_epoch());
+      using TClock = std::chrono::system_clock;
+      time_now_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                      TClock::now().time_since_epoch())
+                      .count();
     }
   };
 
