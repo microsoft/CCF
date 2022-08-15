@@ -20,9 +20,9 @@ struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
   }
 
   template <typename FormatContext>
-  auto format(const E& value, FormatContext& ctx)
+  auto format(const E& value, FormatContext& ctx) const
   {
-    return format_to(
+    return fmt::format_to(
       ctx.out(), "{}", static_cast<std::underlying_type_t<E>>(value));
   }
 };

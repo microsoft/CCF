@@ -122,7 +122,8 @@ struct formatter<std::optional<ccf::jsgov::Failure>>
   }
 
   template <typename FormatContext>
-  auto format(const std::optional<ccf::jsgov::Failure>& f, FormatContext& ctx)
+  auto format(
+    const std::optional<ccf::jsgov::Failure>& f, FormatContext& ctx) const
   {
     if (f.has_value())
     {

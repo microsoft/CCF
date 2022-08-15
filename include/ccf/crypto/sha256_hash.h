@@ -68,7 +68,7 @@ struct formatter<crypto::Sha256Hash>
   }
 
   template <typename FormatContext>
-  auto format(const crypto::Sha256Hash& p, FormatContext& ctx)
+  auto format(const crypto::Sha256Hash& p, FormatContext& ctx) const
   {
     return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
   }
