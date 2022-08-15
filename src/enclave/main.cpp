@@ -84,7 +84,12 @@ extern "C"
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
-    // TODO: Check alignment and size of EnclaveConfig
+    if (!is_aligned(enclave_config, 8, sizeof(EnclaveConfig)))
+    {
+      LOG_FAIL_FMT("Read source memory not aligned: enclave_config");
+      return CreateNodeStatus::UnalignedArguments;
+    }
+
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 
     // Setup logger to allow enclave logs to reach the host before node is
@@ -194,9 +199,14 @@ extern "C"
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
+    if (!is_aligned(ccf_config, 8, ccf_config_size))
+    {
+      LOG_FAIL_FMT("Read source memory not aligned: ccf_config");
+      return CreateNodeStatus::UnalignedArguments;
+    }
+
     ccf::Pal::speculation_barrier();
 
-    // TODO: Check alignment and size of StartupConfig
     StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 

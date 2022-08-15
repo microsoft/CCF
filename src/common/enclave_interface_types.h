@@ -96,6 +96,10 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "VersionMismatch";
     }
+    case CreateNodeStatus::UnalignedArguments:
+    {
+      return "UnalignedArguments";
+    }
     default:
     {
       return "Unknown CreateNodeStatus";
