@@ -296,7 +296,7 @@ namespace ccf
         crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
 
       // TODO: Make this request inside PAL
-      auto quote = *reinterpret_cast<const attestation_report*>(quote_info.quote.data());
+      auto quote = *reinterpret_cast<const SnpAttestation*>(quote_info.quote.data());
 
       client::RpcTlsClient client{
         "americas.test.acccache.azure.net", // TODO: Make Configurable
@@ -318,7 +318,7 @@ namespace ccf
         fmt::format(
           "/SevSnpVM/certificates/{}/{}",
           fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
-          fmt::format("{:0x}", quote.reported_tcb.raw)
+          fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb))
         ),
         params
       );

@@ -61,7 +61,7 @@ namespace ccf
   constexpr auto SEV_SNP_DEVICE = "/dev/sev";
   #define SEV_GUEST_IOC_TYPE 'S'
   #define SEV_SNP_GUEST_MSG_REPORT \
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct sev_snp_guest_request)
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct SnpGuestRequest)
 
   /**
    * Virtual enclaves and the host code share the same PAL.
@@ -117,13 +117,13 @@ namespace ccf
           throw std::logic_error("Failed to open \"/dev/sev\"");
         }
 
-        msg_report_req req = {};
-        msg_report_rsp resp = {};
+        SnpAttestationReq req = {};
+        SnpAttestationResp resp = {};
 
         // Arbitrary report data
         memcpy(req.report_data, report_data.data(), attestation_report_data_size);
 
-        sev_snp_guest_request payload = {
+        SnpGuestRequest payload = {
             .req_msg_type = SNP_MSG_REPORT_REQ,
             .rsp_msg_type = SNP_MSG_REPORT_RSP,
             .msg_version = 1,
@@ -206,7 +206,7 @@ namespace ccf
             "Cannot verify SEV-SNP quote if node is virtual");
         }
 
-        attestation_report quote = *reinterpret_cast<const attestation_report*>(quote_info.quote.data());
+        SnpAttestation quote = *reinterpret_cast<const SnpAttestation*>(quote_info.quote.data());
 
         std::copy(
           std::begin(quote.report_data),
@@ -255,11 +255,11 @@ namespace ccf
             "attestation is broken");
         }
 
-        if (quote.signature_algo != signature_algo_t::ecdsa_p384_sha384) {
+        if (quote.signature_algo != SignatureAlgorithm::ecdsa_p384_sha384) {
           throw std::logic_error(fmt::format(
             "Unsupported signature algorithm: {} (supported: {})",
             quote.signature_algo,
-            signature_algo_t::ecdsa_p384_sha384
+            SignatureAlgorithm::ecdsa_p384_sha384
           ));
         }
 
