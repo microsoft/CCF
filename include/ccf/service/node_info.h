@@ -102,7 +102,7 @@ struct formatter<ccf::NodeStatus>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::NodeStatus& state, FormatContext& ctx)
+  auto format(const ccf::NodeStatus& state, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
     switch (state)

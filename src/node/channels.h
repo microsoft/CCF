@@ -82,7 +82,7 @@ struct formatter<ccf::ChannelStatus>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx) const
   {
     char const* s = "Unknown";
     switch (cs)
