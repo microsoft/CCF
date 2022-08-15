@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "4f8fba14066156b73f1189a2b8bd568bde5284c5"
+          "commitHash": "bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d"
         }
       }
     },
@@ -32,7 +32,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "70f8072f9dd2292fd0b9f9e5f58e279f60483ed3"
+          "commitHash": "b9be5b9444772324459989177108a6a65b8b2769"
         }
       }
     },
