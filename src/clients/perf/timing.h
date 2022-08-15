@@ -37,7 +37,7 @@ struct formatter<timing::Measure>
   }
 
   template <typename FormatContext>
-  auto format(const timing::Measure& e, FormatContext& ctx)
+  auto format(const timing::Measure& e, FormatContext& ctx) const
   {
     return format_to(
       ctx.out(),
