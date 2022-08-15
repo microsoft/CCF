@@ -51,13 +51,13 @@ namespace ccf
 
   struct CpuidInfo
   {
-    unit64_t eax;
-    unit64_t ebx;
-    unit64_t ecx;
-    unit64_t edx;
+    uint64_t eax;
+    uint64_t ebx;
+    uint64_t ecx;
+    uint64_t edx;
   };
 
-  static void cpuid(CpuidInfo* info, unit64_t leaf, unit64_t subleaf)
+  static void cpuid(CpuidInfo* info, uint64_t leaf, uint64_t subleaf)
   {
     asm volatile(
       "cpuid"
