@@ -22,11 +22,8 @@ namespace ccf::endpoints
   // Commands are endpoints which do not interact with the kv, even to read
   struct CommandEndpointContext
   {
-    CommandEndpointContext(
-      const std::shared_ptr<ccf::RpcContext>& r,
-      std::unique_ptr<AuthnIdentity>&& c) :
-      rpc_ctx(r),
-      caller(std::move(c))
+    CommandEndpointContext(const std::shared_ptr<ccf::RpcContext>& r) :
+      rpc_ctx(r)
     {}
 
     std::shared_ptr<ccf::RpcContext> rpc_ctx;
@@ -54,11 +51,8 @@ namespace ccf::endpoints
 
   struct EndpointContext : public CommandEndpointContext
   {
-    EndpointContext(
-      const std::shared_ptr<ccf::RpcContext>& r,
-      std::unique_ptr<AuthnIdentity>&& c,
-      kv::Tx& t) :
-      CommandEndpointContext(r, std::move(c)),
+    EndpointContext(const std::shared_ptr<ccf::RpcContext>& r, kv::Tx& t) :
+      CommandEndpointContext(r),
       tx(t)
     {}
 
@@ -70,10 +64,8 @@ namespace ccf::endpoints
   struct ReadOnlyEndpointContext : public CommandEndpointContext
   {
     ReadOnlyEndpointContext(
-      const std::shared_ptr<ccf::RpcContext>& r,
-      std::unique_ptr<AuthnIdentity>&& c,
-      kv::ReadOnlyTx& t) :
-      CommandEndpointContext(r, std::move(c)),
+      const std::shared_ptr<ccf::RpcContext>& r, kv::ReadOnlyTx& t) :
+      CommandEndpointContext(r),
       tx(t)
     {}
 
