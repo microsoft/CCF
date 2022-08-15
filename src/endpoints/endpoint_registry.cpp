@@ -160,8 +160,8 @@ namespace ccf::endpoints
              method,
              verb,
              [f](EndpointContext& ctx) {
-               ReadOnlyEndpointContext ro_ctx(
-                 ctx.rpc_ctx, std::move(ctx.caller), ctx.tx);
+               ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
+               ro_ctx.caller = std::move(ctx.caller);
                f(ro_ctx);
              },
              ap)

@@ -88,7 +88,7 @@ namespace loggingapp
 
       constexpr auto age_header_key = "x-custom-auth-age";
       const auto age_header_it = headers.find(age_header_key);
-      if (name_header_it == headers.end())
+      if (age_header_it == headers.end())
       {
         error_reason =
           fmt::format("Missing required header {}", age_header_key);

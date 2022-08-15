@@ -115,10 +115,6 @@ namespace kv::untyped
       bool prepare(bool track_read_versions) override
       {
         auto& roll = map.get_roll();
-        if (change_set.writes.empty())
-        {
-          return true;
-        }
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.

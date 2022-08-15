@@ -458,8 +458,7 @@ const auto max_multithread_run_time = 10s;
 
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
-  "multi-threaded indexing - in memory" * doctest::test_suite("indexing") *
-  doctest::may_fail(true))
+  "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
@@ -540,8 +539,38 @@ TEST_CASE(
   size_t handled_writes = 0;
   const auto& writes = stub_writer->writes;
 
-  auto index_ticker = [&]() {
-    while (!finished)
+  auto fetch_index_a = [&]() {
+    while (true)
+    {
+      const auto hello = index_a->get_all_write_txs("hello");
+      const auto saluton = index_a->get_all_write_txs("saluton");
+
+      if (
+        finished && hello.has_value() && hello->size() == writes_to_hello &&
+        saluton.has_value() && saluton->size() == writes_to_saluton)
+      {
+        break;
+      }
+    }
+  };
+
+  auto fetch_index_b = [&]() {
+    while (true)
+    {
+      const auto forty_two = index_b->get_all_write_txs(42);
+
+      if (
+        finished && forty_two.has_value() && forty_two->size() == writes_to_42)
+      {
+        break;
+      }
+    }
+  };
+
+  std::atomic<bool> work_done = false;
+
+  std::thread index_ticker([&]() {
+    while (!work_done)
     {
       size_t loops = 0;
       while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
@@ -587,46 +616,15 @@ TEST_CASE(
         }
       }
     }
-  };
-
-  auto fetch_index_a = [&]() {
-    while (true)
-    {
-      const auto hello = index_a->get_all_write_txs("hello");
-      const auto saluton = index_a->get_all_write_txs("saluton");
-
-      if (
-        finished && hello.has_value() && hello->size() == writes_to_hello &&
-        saluton.has_value() && saluton->size() == writes_to_saluton)
-      {
-        break;
-      }
-    }
-  };
-
-  auto fetch_index_b = [&]() {
-    while (true)
-    {
-      const auto forty_two = index_b->get_all_write_txs(42);
-
-      if (
-        finished && forty_two.has_value() && forty_two->size() == writes_to_42)
-      {
-        break;
-      }
-    }
-  };
+  });
 
   std::vector<std::thread> threads;
   threads.emplace_back(tx_advancer);
-  threads.emplace_back(index_ticker);
   threads.emplace_back(fetch_index_a);
   threads.emplace_back(fetch_index_a);
   threads.emplace_back(fetch_index_a);
   threads.emplace_back(fetch_index_b);
   threads.emplace_back(fetch_index_b);
-
-  std::atomic<bool> work_done = false;
 
   std::thread watchdog([&]() {
     using Clock = std::chrono::system_clock;
@@ -646,6 +644,7 @@ TEST_CASE(
   }
 
   work_done = true;
+  index_ticker.join();
   watchdog.join();
 }
 
@@ -708,9 +707,10 @@ public:
 };
 
 TEST_CASE(
-  "multi-threaded indexing - bucketed" * doctest::test_suite("indexing") *
-  doctest::may_fail(true))
+  "multi-threaded indexing - bucketed" * doctest::test_suite("indexing"))
 {
+  srand(time(NULL));
+
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
 
@@ -833,15 +833,13 @@ TEST_CASE(
       auto results =
         index_a->get_write_txs_in_range(key, range_start, range_end);
 
-      std::chrono::milliseconds sleep_time(10);
       while (!results.has_value())
       {
         // May be contesting for limited cached buckets with other users of this
-        // index (no handle for unique claims). Back-off exponentially, with
-        // random variation, to break deadlock
+        // index (no handle for unique claims). Uniform random sleep to avoid
+        // deadlock.
+        const auto sleep_time = std::chrono::milliseconds(rand() % 100);
         std::this_thread::sleep_for(sleep_time);
-
-        sleep_time += std::chrono::milliseconds(rand() % sleep_time.count());
 
         results = index_a->get_write_txs_in_range(key, range_start, range_end);
       }
