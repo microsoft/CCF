@@ -19,63 +19,66 @@ namespace ccf::pal
   using attestation_measurement =
     std::array<uint8_t, attestation_measurement_size>;
 
-  // Set of wrappers for safe memory management
-  struct Claims
+  namespace sgx
   {
-    oe_claim_t* data = nullptr;
-    size_t length = 0;
-
-    ~Claims()
+    // Set of wrappers for safe memory management
+    struct Claims
     {
-      oe_free_claims(data, length);
-    }
-  };
+      oe_claim_t* data = nullptr;
+      size_t length = 0;
 
-  struct CustomClaims
-  {
-    oe_claim_t* data = nullptr;
-    size_t length = 0;
+      ~Claims()
+      {
+        oe_free_claims(data, length);
+      }
+    };
 
-    ~CustomClaims()
+    struct CustomClaims
     {
-      oe_free_custom_claims(data, length);
-    }
-  };
+      oe_claim_t* data = nullptr;
+      size_t length = 0;
 
-  struct SerialisedClaims
-  {
-    uint8_t* buffer = nullptr;
-    size_t size = 0;
+      ~CustomClaims()
+      {
+        oe_free_custom_claims(data, length);
+      }
+    };
 
-    ~SerialisedClaims()
+    struct SerialisedClaims
     {
-      oe_free_serialized_custom_claims(buffer);
-    }
-  };
+      uint8_t* buffer = nullptr;
+      size_t size = 0;
 
-  struct Evidence
-  {
-    uint8_t* buffer = NULL;
-    size_t size = 0;
+      ~SerialisedClaims()
+      {
+        oe_free_serialized_custom_claims(buffer);
+      }
+    };
 
-    ~Evidence()
+    struct Evidence
     {
-      oe_free_evidence(buffer);
-    }
-  };
+      uint8_t* buffer = NULL;
+      size_t size = 0;
 
-  struct Endorsements
-  {
-    uint8_t* buffer = NULL;
-    size_t size = 0;
+      ~Evidence()
+      {
+        oe_free_evidence(buffer);
+      }
+    };
 
-    ~Endorsements()
+    struct Endorsements
     {
-      oe_free_endorsements(buffer);
-    }
-  };
+      uint8_t* buffer = NULL;
+      size_t size = 0;
 
-  static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
-  static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
+      ~Endorsements()
+      {
+        oe_free_endorsements(buffer);
+      }
+    };
+
+    static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
+    static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
+  }
 }
 #endif

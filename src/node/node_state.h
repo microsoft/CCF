@@ -296,7 +296,7 @@ namespace ccf
         crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
 
       // TODO: Make this request inside PAL
-      auto quote = *reinterpret_cast<const pal::SnpAttestation*>(quote_info.quote.data());
+      auto quote = *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
 
       client::RpcTlsClient client{
         "americas.test.acccache.azure.net", // TODO: Make Configurable

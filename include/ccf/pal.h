@@ -93,7 +93,7 @@ namespace ccf::pal
     static QuoteInfo generate_quote(attestation_report_data&& report_data)
     {
       QuoteInfo node_quote_info = {};
-      auto is_sev_snp = access(SEV_SNP_DEVICE, F_OK) == 0;
+      auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
 
       // If there is no SEV-SNP device, assume we are using insecure virtual quotes
       if (!is_sev_snp) {
@@ -102,21 +102,21 @@ namespace ccf::pal
 
       else {
         node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
-        int fd = open(SEV_SNP_DEVICE, O_RDWR | O_CLOEXEC);
+        int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
         if (fd < 0)
         {
           throw std::logic_error("Failed to open \"/dev/sev\"");
         }
 
-        SnpAttestationReq req = {};
-        SnpAttestationResp resp = {};
+        snp::AttestationReq req = {};
+        snp::AttestationResp resp = {};
 
         // Arbitrary report data
         memcpy(req.report_data, report_data.data(), attestation_report_data_size);
 
-        SnpGuestRequest payload = {
-            .req_msg_type = SNP_MSG_REPORT_REQ,
-            .rsp_msg_type = SNP_MSG_REPORT_RSP,
+        snp::GuestRequest payload = {
+            .req_msg_type = snp::MSG_REPORT_REQ,
+            .rsp_msg_type = snp::MSG_REPORT_RSP,
             .msg_version = 1,
             .request_len = sizeof(req),
             .request_uaddr = (uint64_t)(void*)&req,
@@ -178,7 +178,7 @@ namespace ccf::pal
       attestation_measurement& unique_id,
       attestation_report_data& report_data)
     {
-      auto is_sev_snp = access(SEV_SNP_DEVICE, F_OK) == 0;
+      auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
 
       if (quote_info.format == QuoteFormat::insecure_virtual)
       {
@@ -197,7 +197,7 @@ namespace ccf::pal
             "Cannot verify SEV-SNP quote if node is virtual");
         }
 
-        SnpAttestation quote = *reinterpret_cast<const SnpAttestation*>(quote_info.quote.data());
+        auto quote = *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
 
         std::copy(
           std::begin(quote.report_data),
@@ -225,7 +225,7 @@ namespace ccf::pal
         auto root_cert_verifier = crypto::make_verifier(root_certificate);
 
         if (root_cert_verifier->public_key_pem().str() !=
-            amd_milan_root_signing_public_key) {
+            snp::amd_milan_root_signing_public_key) {
           throw std::logic_error(
             "The root of trust public key for this attestation was not the "
             "expected one");
@@ -246,11 +246,11 @@ namespace ccf::pal
             "attestation is broken");
         }
 
-        if (quote.signature_algo != SignatureAlgorithm::ecdsa_p384_sha384) {
+        if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384) {
           throw std::logic_error(fmt::format(
             "Unsupported signature algorithm: {} (supported: {})",
             quote.signature_algo,
-            SignatureAlgorithm::ecdsa_p384_sha384
+            snp::SignatureAlgorithm::ecdsa_p384_sha384
           ));
         }
 
@@ -382,9 +382,9 @@ namespace ccf::pal
       QuoteInfo node_quote_info = {};
       node_quote_info.format = QuoteFormat::oe_sgx_v1;
 
-      Evidence evidence;
-      Endorsements endorsements;
-      SerialisedClaims serialised_custom_claims;
+      sgx::Evidence evidence;
+      sgx::Endorsements endorsements;
+      sgx::SerialisedClaims serialised_custom_claims;
 
       // Serialise hash of node's public key as a custom claim
       const size_t custom_claim_length = 1;
@@ -474,7 +474,7 @@ namespace ccf::pal
         else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
         {
           // Find sgx report data in custom claims
-          CustomClaims custom_claims;
+          sgx::CustomClaims custom_claims;
           rc = oe_deserialize_custom_claims(
             claim.value,
             claim.value_size,
