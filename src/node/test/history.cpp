@@ -20,8 +20,8 @@ using MapT = kv::Map<size_t, size_t>;
 
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
-auto valid_from = ds::to_x509_time_string(
-  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
+auto valid_from =
+  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
@@ -80,6 +80,8 @@ TEST_CASE("Check signature verification")
 
   auto kp = crypto::make_key_pair();
 
+  const auto self_signed = kp->self_sign("CN=Node", valid_from, valid_to);
+
   std::shared_ptr<kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
   primary_store.set_consensus(consensus);
@@ -90,13 +92,13 @@ TEST_CASE("Check signature verification")
   std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
       primary_store, kv::test::PrimaryNodeId, *kp);
-  primary_history->set_endorsed_certificate({});
+  primary_history->set_endorsed_certificate(self_signed);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
       backup_store, kv::test::FirstBackupNodeId, *kp);
-  backup_history->set_endorsed_certificate({});
+  backup_history->set_endorsed_certificate(self_signed);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
@@ -104,7 +106,8 @@ TEST_CASE("Check signature verification")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp->self_sign("CN=name", valid_from, valid_to);
+    ni.encryption_pub_key = kp->public_key_pem();
+    ni.cert = self_signed;
     tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
@@ -142,6 +145,8 @@ TEST_CASE("Check signing works across rollback")
 
   auto kp = crypto::make_key_pair();
 
+  const auto self_signed = kp->self_sign("CN=Node", valid_from, valid_to);
+
   std::shared_ptr<kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
   primary_store.set_consensus(consensus);
@@ -152,13 +157,13 @@ TEST_CASE("Check signing works across rollback")
   std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
       primary_store, kv::test::PrimaryNodeId, *kp);
-  primary_history->set_endorsed_certificate({});
+  primary_history->set_endorsed_certificate(self_signed);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
       backup_store, kv::test::FirstBackupNodeId, *kp);
-  backup_history->set_endorsed_certificate({});
+  backup_history->set_endorsed_certificate(self_signed);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
@@ -166,7 +171,8 @@ TEST_CASE("Check signing works across rollback")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp->self_sign("CN=name", valid_from, valid_to);
+    ni.encryption_pub_key = kp->public_key_pem();
+    ni.cert = self_signed;
     tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }

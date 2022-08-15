@@ -70,7 +70,7 @@ namespace crypto
     return digest;
   }
 
-  Sha256Hash Sha256Hash::from_span(const std::span<uint8_t, SIZE>& sp)
+  Sha256Hash Sha256Hash::from_span(const std::span<const uint8_t, SIZE>& sp)
   {
     Sha256Hash digest;
     std::copy(sp.begin(), sp.end(), digest.h.begin());
@@ -103,6 +103,22 @@ namespace crypto
         value,
         e.what()));
     }
+  }
+
+  std::string schema_name(const Sha256Hash*)
+  {
+    return "Sha256Digest";
+  }
+
+  void fill_json_schema(nlohmann::json& schema, const Sha256Hash*)
+  {
+    schema["type"] = "string";
+
+    // According to the spec, "format is an open value, so you can use any
+    // formats, even not those defined by the OpenAPI Specification"
+    // https://swagger.io/docs/specification/data-models/data-types/#format
+    schema["format"] = "hex";
+    schema["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", Sha256Hash::SIZE);
   }
 
   bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs)

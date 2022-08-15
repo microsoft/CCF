@@ -7,12 +7,14 @@ import infra.logging_app as app
 import infra.utils
 import infra.github
 import infra.jwt_issuer
-import cimetrics.env
+import infra.crypto
+import infra.node
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
 import time
+import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from reconfiguration import test_migration_2tx_reconfiguration
@@ -93,6 +95,9 @@ def test_new_service(
     nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
     nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
 
+    # Pre-2.0 nodes require X509 time format
+    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
+
     for _ in range(0, nodes_to_add_count):
         new_node = network.create_node(
             "local://localhost",
@@ -101,7 +106,11 @@ def test_new_service(
             version=version,
         )
         network.join_node(new_node, args.package, args)
-        network.trust_node(new_node, args)
+        network.trust_node(
+            new_node,
+            args,
+            valid_from=valid_from,
+        )
         new_node.verify_certificate_validity_period(
             expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
         )
@@ -111,18 +120,19 @@ def test_new_service(
         network.retire_node(primary, node)
         if primary == node:
             primary, _ = network.wait_for_new_primary(primary)
+            # Stopping a node immediately after its removal being
+            # committed and an election is not safe: the successor
+            # primary may need to re-establish commit on a config
+            # that includes the retire node.
+            # See https://github.com/microsoft/CCF/issues/1713
+            # for more detail. Until the dedicated endpoint exposing
+            # this safely is implemented, we work around this by
+            # submitting and waiting for commit on another transaction.
+            network.txs.issue(network, number_txs=1, repeat=True)
         node.stop()
 
-    test_all_nodes_cert_renewal(network, args)
-    test_service_cert_renewal(network, args)
-
-    LOG.info("Waiting for retired nodes to be automatically removed")
-    for node in all_nodes:
-        network.wait_for_node_in_store(
-            primary,
-            node.node_id,
-            node_status=ccf.ledger.NodeStatus.TRUSTED if node.is_joined() else None,
-        )
+    test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
+    test_service_cert_renewal(network, args, valid_from=valid_from)
 
     if args.check_2tx_reconfig_migration:
         test_migration_2tx_reconfiguration(
@@ -132,6 +142,7 @@ def test_new_service(
             binary_dir=binary_dir,
             library_dir=library_dir,
             version=version,
+            valid_from=valid_from,
         )
 
     LOG.info("Apply transactions to new nodes only")
@@ -200,6 +211,7 @@ def run_code_upgrade_from(
 
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
+            from_major_version = primary.major_version
 
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
@@ -225,7 +237,13 @@ def run_code_upgrade_from(
                 network.join_node(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
-                network.trust_node(new_node, args)
+                network.trust_node(
+                    new_node,
+                    args,
+                    valid_from=str(  # Pre-2.0 nodes require X509 time format
+                        infra.crypto.datetime_to_X509time(datetime.datetime.utcnow())
+                    ),
+                )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,
                 # the node certificate validity period is set by the joining node itself
                 # as [node startup time, node startup time + 365 days]
@@ -264,6 +282,9 @@ def run_code_upgrade_from(
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
+                    # Submit tx and wait for commit after node retirement. See
+                    # https://github.com/microsoft/CCF/issues/1713 for more detail.
+                    network.txs.issue(network, number_txs=1, repeat=True)
                     # This block is here to test the transition period from a network that
                     # does not support custom claims to one that does. It can be removed after
                     # the transition is complete.
@@ -308,13 +329,13 @@ def run_code_upgrade_from(
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
+            primary, _ = network.find_nodes()
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
             if not os.getenv("CONTAINER_NODES"):
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
-                primary, _ = network.find_nodes()
                 if not primary.major_version or primary.major_version > 1:
                     jwt_issuer.wait_for_refresh(network)
                 else:
@@ -338,7 +359,17 @@ def run_code_upgrade_from(
             )
 
             # Check that the ledger can be parsed
-            network.get_latest_ledger_public_state()
+            # Note: When upgrading from 1.x to 2.x, it is possible that ledger chunk are not
+            # in sync between nodes, which may cause some chunks to differ when starting
+            # from a snapshot. See https://github.com/microsoft/ccf/issues/3613. In such case,
+            # we only verify that the ledger can be parsed, even if some chunks are duplicated.
+            # This can go once 2.0 is released.
+            insecure_ledger_verification = (
+                from_major_version == 1 and primary.version_after("ccf-2.0.0-rc7")
+            )
+            network.get_latest_ledger_public_state(
+                insecure=insecure_ledger_verification
+            )
 
 
 @reqs.description("Run live compatibility with latest LTS")
@@ -394,6 +425,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
     lts_releases = repo.get_lts_releases(local_branch)
+    has_pre_2_rc7_ledger = False
 
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
@@ -406,6 +438,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
+    previous_version = None
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -446,7 +479,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
                     )
-                    network.recover(args)
+                    # Recovery count is not stored in pre-2.0.3 ledgers
+                    network.recover(
+                        args,
+                        expected_recovery_count=1
+                        if not infra.node.version_after(previous_version, "ccf-2.0.3")
+                        else None,
+                    )
+
+                previous_version = version
 
                 nodes = network.get_joined_nodes()
                 primary, _ = network.find_primary()
@@ -485,12 +526,30 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
+                # We accept ledger chunk file differences during upgrades
+                # from 1.x to 2.x post rc7 ledger. This is necessary because
+                # the ledger files may not be chunked at the same interval
+                # between those versions (see https://github.com/microsoft/ccf/issues/3613;
+                # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
+                # This can go once 2.0 is released.
+                current_version_past_2_rc7 = primary.version_after("ccf-2.0.0-rc7")
+                has_pre_2_rc7_ledger = (
+                    not current_version_past_2_rc7 or has_pre_2_rc7_ledger
+                )
+                is_ledger_chunk_breaking = (
+                    has_pre_2_rc7_ledger and current_version_past_2_rc7
+                )
+
                 snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
-                network.stop_all_nodes(skip_verification=True)
-                ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
                 network.save_service_identity(args)
+                network.stop_all_nodes(
+                    skip_verification=True,
+                    accept_ledger_diff=is_ledger_chunk_breaking,
+                )
+                ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()
@@ -540,10 +599,7 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     repo = infra.github.Repository()
-    # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
-    # current branch on any environment (either local checkout or CI run)
-    env = cimetrics.env.get_env()
-    local_branch = env.branch
+    local_branch = infra.github.GitEnv.local_branch()
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")

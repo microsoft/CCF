@@ -102,14 +102,14 @@ namespace ccf
   }
 
   template <typename FmtExtender>
-  inline std::string schema_name(const EntityId<FmtExtender>&)
+  inline std::string schema_name(const EntityId<FmtExtender>*)
   {
     return FmtExtender::ID_LABEL;
   }
 
   template <typename FmtExtender>
   inline void fill_json_schema(
-    nlohmann::json& schema, const EntityId<FmtExtender>&)
+    nlohmann::json& schema, const EntityId<FmtExtender>*)
   {
     schema["type"] = "string";
 
@@ -193,7 +193,7 @@ struct formatter<ccf::EntityId<FmtExtender>>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
+  auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx) const
   {
     std::stringstream ss;
     ss << v;

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/tx.h"
 #include "forwarder_types.h"
 
@@ -32,6 +33,7 @@ namespace ccf
     virtual void tick(std::chrono::milliseconds) {}
     virtual void open(std::optional<crypto::Pem*> identity = std::nullopt) = 0;
     virtual bool is_open(kv::Tx& tx) = 0;
+    virtual bool is_open() = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(

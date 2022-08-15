@@ -22,6 +22,7 @@ static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
 static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
 static constexpr auto snapshot_dir = "snapshot_dir";
+static constexpr auto snapshot_dir_read_only = "snapshot_dir_ro";
 
 static const auto dummy_snapshot = std::vector<uint8_t>(128, 42);
 static const auto dummy_receipt = std::vector<uint8_t>(64, 1);
@@ -110,7 +111,7 @@ size_t number_of_committed_files_in_ledger_dir(bool allow_recovery = false)
     if (
       (allow_recovery && is_ledger_file_name_recovery(file_name) &&
        file_name.find(ledger_committed_suffix) != std::string::npos) ||
-      is_ledger_file_committed(file_name))
+      is_ledger_file_name_committed(file_name))
     {
       committed_file_count++;
     }
@@ -169,9 +170,13 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
   REQUIRE(TestLedgerEntry(data, size).value() == idx);
 }
 
-void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
+void read_entries_range_from_ledger(
+  Ledger& ledger,
+  size_t from,
+  size_t to,
+  std::optional<size_t> max_entries_size = std::nullopt)
 {
-  auto entries = ledger.read_entries(from, to);
+  auto entries = ledger.read_entries(from, to, true, max_entries_size);
   if (!entries.has_value())
   {
     throw std::logic_error(
@@ -201,8 +206,7 @@ public:
     return last_idx;
   }
 
-  void write(
-    bool is_committable, bool force_chunk = false, uint8_t header_flags = 0)
+  void write(bool is_committable, uint8_t header_flags = 0)
   {
     auto e = TestLedgerEntry(++last_idx);
     std::vector<uint8_t> framed_entry(
@@ -218,10 +222,7 @@ public:
     serialized::write(data, size, e);
     REQUIRE(
       ledger.write_entry(
-        framed_entry.data(),
-        framed_entry.size(),
-        is_committable,
-        force_chunk) == last_idx);
+        framed_entry.data(), framed_entry.size(), is_committable) == last_idx);
   }
 
   void truncate(size_t idx)
@@ -351,23 +352,20 @@ TEST_CASE("Regular chunking")
 
     // Write a new committable entry that forces a new ledger chunk
     is_committable = true;
-    bool force_new_chunk = true;
-    entry_submitter.write(is_committable, force_new_chunk);
+    entry_submitter.write(is_committable, kv::FORCE_LEDGER_CHUNK_AFTER);
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after);
 
     // Because of forcing a new chunk, the next entry will create a new chunk
     is_committable = false;
     entry_submitter.write(is_committable);
 
-    // A new chunk is created as the entry is committable _and_ forced
+    // A new chunk is created as the previous entry was committable _and_ forced
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
 
     is_committable = true;
-    force_new_chunk = true;
-    entry_submitter.write(is_committable, force_new_chunk);
-    // No new chunk is created as the entry is committable but doesn't force a
-    // new chunk
-    REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
+    entry_submitter.write(is_committable, kv::FORCE_LEDGER_CHUNK_BEFORE);
+    // A new chunk is created before, as the entry is committable and forced
+    REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 2);
   }
 
   INFO("Reading entries across all chunks");
@@ -435,6 +433,55 @@ TEST_CASE("Regular chunking")
     entries = ledger.read_entries(end_of_first_chunk_idx, 2 * last_idx, strict);
     verify_framed_entries_range(
       entries.value(), end_of_first_chunk_idx, last_idx);
+  }
+
+  INFO("Read range of entries with size limit");
+  {
+    auto last_idx = entry_submitter.get_last_idx();
+
+    // Reading entries larger than the max entries size fails
+    REQUIRE_FALSE(
+      ledger.read_entries(1, 1, true, 0 /* max_entries_size */).has_value());
+    REQUIRE_FALSE(
+      ledger.read_entries(1, end_of_first_chunk_idx + 1, true, 0).has_value());
+
+    // Reading entries larger than max entries size returns some entries
+    size_t max_entries_size = chunk_threshold / entries_per_chunk;
+
+    auto e =
+      ledger.read_entries(1, end_of_first_chunk_idx, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(e.value(), 1, 1);
+
+    e = ledger.read_entries(
+      1, end_of_first_chunk_idx + 1, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(e.value(), 1, 1);
+
+    max_entries_size = 2 * chunk_threshold;
+
+    // All entries are returned
+    read_entries_range_from_ledger(
+      ledger, 1, end_of_first_chunk_idx, max_entries_size);
+    read_entries_range_from_ledger(
+      ledger,
+      end_of_first_chunk_idx + 1,
+      2 * end_of_first_chunk_idx + 1,
+      max_entries_size);
+    read_entries_range_from_ledger(
+      ledger, last_idx - 1, last_idx, max_entries_size);
+
+    // Only some entries are returned
+    e = ledger.read_entries(
+      1, 2 * end_of_first_chunk_idx, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(e.value(), 1, end_of_first_chunk_idx + 1);
+
+    e = ledger.read_entries(
+      end_of_first_chunk_idx + 1, last_idx, true, max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(
+      e.value(), end_of_first_chunk_idx + 1, 2 * end_of_first_chunk_idx + 1);
   }
 }
 
@@ -573,6 +620,12 @@ TEST_CASE("Commit")
     ledger.commit(last_idx);
     REQUIRE(number_of_committed_files_in_ledger_dir() == 4);
     read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+
+  INFO("Commit past last idx");
+  {
+    ledger.commit(last_idx + 1); // No effect
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 4);
   }
 
   INFO("Ledger cannot be truncated earlier than commit");
@@ -865,7 +918,7 @@ TEST_CASE("Multiple ledger paths")
     fs::create_directory(ledger_dir_2);
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!is_ledger_file_committed(f.path().filename()))
+      if (!is_ledger_file_name_committed(f.path().filename()))
       {
         fs::copy(f.path(), ledger_dir_2);
       }
@@ -1051,7 +1104,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(f.path(), false, true /* corrupt_first_hdr */);
       }
@@ -1075,7 +1128,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_committed(f.path().filename()))
+      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(
           f.path(), false, false, true /* corrupt_last_entry */);
@@ -1249,12 +1302,15 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 {
   auto dir = AutoDeleteFolder(ledger_dir);
   auto snap_dir = AutoDeleteFolder(snapshot_dir);
+  auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
+  fs::create_directory(snapshot_dir_read_only);
 
   Ledger ledger(ledger_dir, wf, 1);
-  SnapshotManager snapshots(snapshot_dir, ledger);
+  SnapshotManager snapshots(snapshot_dir, ledger, snapshot_dir_read_only);
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
+  size_t last_snapshot_idx = 0;
 
   INFO("Generate snapshots");
   {
@@ -1280,12 +1336,44 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      const auto& snapshot = latest_committed_snapshot.value();
+      const auto& snapshot = latest_committed_snapshot->second;
       REQUIRE(get_snapshot_idx_from_file_name(snapshot) == i);
+      last_snapshot_idx = i;
       REQUIRE(get_snapshot_evidence_idx_from_file_name(snapshot) == i + 1);
       REQUIRE_FALSE(
         get_evidence_commit_idx_from_file_name(snapshot).has_value());
     }
+  }
+
+  INFO("Move committed snapshots to ro directory");
+  {
+    for (auto const& f : fs::directory_iterator(snapshot_dir))
+    {
+      fs::copy(f.path(), snapshot_dir_read_only);
+      fs::remove(f.path());
+    }
+
+    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    REQUIRE(latest_committed_snapshot.has_value());
+    const auto& snapshot = latest_committed_snapshot->second;
+    REQUIRE(get_snapshot_idx_from_file_name(snapshot) == last_snapshot_idx);
+  }
+
+  INFO("Commit and retrieve new snapshot");
+  {
+    size_t new_snapshot_idx = last_snapshot_idx + 1;
+    snapshots.write_snapshot(
+      new_snapshot_idx,
+      new_snapshot_idx + 1,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
+    snapshots.commit_snapshot(
+      new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
+
+    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    REQUIRE(latest_committed_snapshot.has_value());
+    const auto& snapshot = latest_committed_snapshot->second;
+    REQUIRE(get_snapshot_idx_from_file_name(snapshot) == new_snapshot_idx);
   }
 }
 
@@ -1377,7 +1465,7 @@ TEST_CASE(
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      const auto& snapshot = latest_committed_snapshot.value();
+      const auto& snapshot = latest_committed_snapshot->second;
       REQUIRE(
         get_snapshot_idx_from_file_name(snapshot) ==
         latest_committed_snapshot_idx);
@@ -1407,7 +1495,7 @@ TEST_CASE(
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
       REQUIRE(
-        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        get_snapshot_idx_from_file_name(latest_committed_snapshot->second) ==
         latest_committed_snapshot_idx);
     }
   }
@@ -1423,15 +1511,15 @@ TEST_CASE(
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      REQUIRE_FALSE(is_snapshot_file_1_x(latest_committed_snapshot.value()));
+      REQUIRE_FALSE(is_snapshot_file_1_x(latest_committed_snapshot->second));
       REQUIRE(
-        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        get_snapshot_idx_from_file_name(latest_committed_snapshot->second) ==
         i);
       REQUIRE(
         get_snapshot_evidence_idx_from_file_name(
-          latest_committed_snapshot.value()) == i + 1);
+          latest_committed_snapshot->second) == i + 1);
       REQUIRE_FALSE(get_evidence_commit_idx_from_file_name(
-                      latest_committed_snapshot.value())
+                      latest_committed_snapshot->second)
                       .has_value());
     }
   }
@@ -1475,11 +1563,9 @@ TEST_CASE(
 
     auto snapshot_file_name = commit_1_x_snapshot(snapshot_dir, snapshot_idx);
 
-    LOG_DEBUG_FMT("{}", snapshot_file_name.value());
-
     REQUIRE(snapshot_file_name.has_value());
     REQUIRE(
-      snapshots.find_latest_committed_snapshot().value() ==
+      snapshots.find_latest_committed_snapshot()->second ==
       snapshot_file_name.value());
 
     fs::remove(fmt::format("{}/{}", snapshot_dir, snapshot_file_name.value()));
@@ -1506,7 +1592,7 @@ TEST_CASE(
     // Snapshot is now valid
     auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
     REQUIRE(latest_committed_snapshot.has_value());
-    REQUIRE(latest_committed_snapshot.value() == snapshot_file_name);
+    REQUIRE(latest_committed_snapshot->second == snapshot_file_name);
   }
 }
 
@@ -1535,7 +1621,7 @@ TEST_CASE("Chunking according to entry header flag")
   INFO("Write an entry with the ledger chunking after header flag enabled");
   {
     entry_submitter.write(
-      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+      is_committable, kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
 
     REQUIRE(number_of_files_in_ledger_dir() == 1);
 
@@ -1558,7 +1644,7 @@ TEST_CASE("Chunking according to entry header flag")
   {
     auto ledger_files_count = number_of_files_in_ledger_dir();
     entry_submitter.write(
-      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
+      is_committable, kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
 
     // Forcing a new chunk before creating a new chunk to store this entry
     REQUIRE(number_of_files_in_ledger_dir() == ledger_files_count + 1);

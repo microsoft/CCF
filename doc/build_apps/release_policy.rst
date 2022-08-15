@@ -12,7 +12,7 @@ User-facing API
 As defined under :ref:`use_apps/rpc_api:Built-ins`.
 
 These endpoints are expected to be quite stable across releases, but it is difficult for CCF itself to version them because its own versioning scheme may not be in-sync with a given application: release dates and numbers will differ.
-It is instead recommended that applications programmatically disable these endpoints as exposed by CCF now, and replace them with their own as illustrated in :ref:`build_apps/logging_cpp:Default Endpoints`. This is currently only supported for C++ applications.
+It is instead recommended that applications programmatically disable these endpoints as exposed by CCF now, and replace them with their own as illustrated in :ref:`build_apps/example_cpp:Default Endpoints`. This is currently only supported for C++ applications.
 
 CCF exposes its implementation of the user built-in endpoints as a public, versioned C++ API and application code can dispatch to the chosen implementation for each of its own versions.
 
@@ -83,6 +83,6 @@ REST API guarantees spelled out in the first section apply across releases, but 
 CCF 1.0 Sunset
 -----------------
 
-[CCF 1.0](https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0) was released on April 30, 2021, and will go out of support after the June 2022 release of Open Enclave, which will remove support for mbedTLS 2.16 that CCF 1.0 depends on. Porting CCF 1.0 to mbedTLS 2.28 would not make sense now that CCF 2.0 has migrated completely to OpenSSL.
+`CCF 1.0 <https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0>`_ was released on April 30, 2021, and will go out of support after the June 2022 release of Open Enclave, which will remove support for mbedTLS 2.16 that CCF 1.0 depends on. The latest 1.0 release is `1.0.19 <https://github.com/microsoft/CCF/releases/tag/ccf-1.0.19>`_. Porting CCF 1.0 to mbedTLS 2.28 would not make sense now that CCF 2.0 has migrated completely to OpenSSL.
 
-Users are encouraged to try the latest [CCF 2.0 release candidate](https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc4), and to consider migrating.
+Users are encouraged to try the `CCF 2.0 release <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0>`_, and to consider migrating.

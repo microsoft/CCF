@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/rpc_context.h"
+#include "node/rpc/claims.h"
 
 namespace ccf
 {
@@ -23,7 +24,7 @@ namespace ccf
       return session;
     }
 
-    ccf::ClaimsDigest claims;
+    ccf::ClaimsDigest claims = ccf::empty_claims();
     void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {
       claims.set(std::move(digest));
@@ -33,6 +34,12 @@ namespace ccf
     virtual const ccf::PathParams& get_request_path_params() override
     {
       return path_params;
+    }
+
+    ccf::PathParams decoded_path_params = {};
+    virtual const ccf::PathParams& get_decoded_request_path_params() override
+    {
+      return decoded_path_params;
     }
 
     bool is_create_request = false;

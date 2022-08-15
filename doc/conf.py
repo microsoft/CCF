@@ -93,15 +93,19 @@ language = "en"
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "zenburn"
+pygments_style = "default"
+pygments_dark_style = "zenburn"
 
-# Ignore main index file that has clickable images, JS/Doxygen output and
-# github anchors https://github.com/sphinx-doc/sphinx/issues/9016)
+# Ignore main index file that has clickable images, JS/Doxygen output,
+# github anchors https://github.com/sphinx-doc/sphinx/issues/9016), and nghttp2
+# (which is now HTTP2-only)
 linkcheck_exclude_documents = [r"^index$"]
 linkcheck_ignore = [
     r"https://github.com/.*#",
     r"../js/ccf-app.*",
     r"../doxygen/index.html",
+    r"https://nghttp2.org/.*",
+    r"https://www.w3.org/Protocols/rfc2616/.*",
 ]
 
 
@@ -116,9 +120,7 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    "announcement": 'CCF 2.0 release candidate <a href="https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0"> is now available </a> <br/> We are <a href="https://careers.microsoft.com/us/en/search-results?keywords=confidential%20consortium%20framework">hiring</a>!'
-}
+html_theme_options = {}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -215,12 +217,12 @@ breathe_default_project = "CCF"
 # Set up multiversion extension
 
 smv_tag_whitelist = None
-smv_branch_whitelist = r"^(main)|(release\/\d+\.x)$"
+smv_branch_whitelist = r"^(main)|(release\/([2-9]|\d\d\d*)\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
 assert re.match(smv_branch_whitelist, "main")
-assert re.match(smv_branch_whitelist, "release/1.x")
+assert not re.match(smv_branch_whitelist, "release/1.x")
 assert re.match(smv_branch_whitelist, "release/2.x")
 assert re.match(smv_branch_whitelist, "release/100.x")
 assert not re.match(smv_branch_whitelist, "release/1.x_feature")

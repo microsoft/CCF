@@ -35,8 +35,10 @@ namespace loggingapp
   static constexpr auto PUBLIC_FIRST_WRITES = "public:first_write_version";
   static constexpr auto FIRST_WRITES = "first_write_version";
 
+  // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
     ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
+  // SNIPPET_END: indexing_strategy_definition
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -86,7 +88,7 @@ namespace loggingapp
 
       constexpr auto age_header_key = "x-custom-auth-age";
       const auto age_header_it = headers.find(age_header_key);
-      if (name_header_it == headers.end())
+      if (age_header_it == headers.end())
       {
         error_reason =
           fmt::format("Missing required header {}", age_header_key);
@@ -123,6 +125,11 @@ namespace loggingapp
       // There is no OpenAPI-compliant way to describe this auth scheme, so we
       // return nullopt
       return std::nullopt;
+    }
+
+    std::string get_security_scheme_name() override
+    {
+      return "CustomAuthPolicy";
     }
   };
   // SNIPPET_END: custom_auth_policy
@@ -209,6 +216,24 @@ namespace loggingapp
                                  PUBLIC_RECORDS;
     }
 
+    // Wrap all endpoints with trace logging of their invocation
+    ccf::endpoints::Endpoint make_endpoint(
+      const std::string& method,
+      ccf::RESTVerb verb,
+      const ccf::endpoints::EndpointFunction& f,
+      const ccf::AuthnPolicies& ap) override
+    {
+      return ccf::UserEndpointRegistry::make_endpoint(
+        method,
+        verb,
+        [method, verb, f](ccf::endpoints::EndpointContext& args) {
+          CCF_APP_TRACE("BEGIN {} {}", verb.c_str(), method);
+          f(args);
+          CCF_APP_TRACE("END   {} {}", verb.c_str(), method);
+        },
+        ap);
+    }
+
   public:
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
@@ -222,7 +247,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.9.1";
+      openapi_info.document_version = "1.9.4";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 1000, 200);
@@ -375,7 +400,8 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        records_handle->put(params["id"], in.msg);
+        const auto id = params["id"].get<size_t>();
+        records_handle->put(id, in.msg);
         update_first_write(ctx.tx, in.id, false, get_scope(ctx));
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
@@ -383,6 +409,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_claims_digest(ccf::ClaimsDigest::Digest(in.msg));
         }
         // SNIPPET_END: set_claims_digest
+        CCF_APP_INFO("Storing {} = {}", id, in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -415,8 +442,12 @@ namespace loggingapp
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
+        {
+          CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
+        }
 
+        CCF_APP_INFO("Fetching - no entry for {}", id);
         return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::ResourceNotFound,
@@ -847,8 +878,6 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
       // SNIPPET_END: get_historical
 
@@ -884,7 +913,7 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
-            out.receipt = ccf::describe_receipt(historical_state->receipt);
+            out.receipt = ccf::describe_receipt_v1(*historical_state->receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
@@ -901,8 +930,6 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
       // SNIPPET_END: get_historical_with_receipt
 
@@ -938,10 +965,12 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
-            out.receipt = ccf::describe_receipt(historical_state->receipt);
             // Claims are expanded as out.msg, so the claims digest is removed
             // from the receipt to force verification to re-compute it.
-            out.receipt.leaf_components->claims_digest = std::nullopt;
+            auto full_receipt =
+              ccf::describe_receipt_v1(*historical_state->receipt);
+            out.receipt = full_receipt;
+            out.receipt["leaf_components"].erase("claims_digest");
             // SNIPPET_END: claims_digest_in_receipt
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
@@ -959,8 +988,6 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
       // SNIPPET_END: get_historical_with_receipt
 
@@ -1130,9 +1157,11 @@ namespace loggingapp
         const auto range_end =
           std::min(to_seqno, range_begin + max_seqno_per_page);
 
+        // SNIPPET_START: indexing_strategy_use
         const auto interesting_seqnos =
           index_per_public_key->get_write_txs_in_range(
             id, range_begin, range_end);
+        // SNIPPET_END: indexing_strategy_use
         if (!interesting_seqnos.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
@@ -1163,23 +1192,33 @@ namespace loggingapp
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        auto stores =
-          historical_cache.get_stores_for(handle, interesting_seqnos.value());
-        if (stores.empty())
+        std::vector<kv::ReadOnlyStorePtr> stores;
+        if (!interesting_seqnos->empty())
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-          static constexpr size_t retry_after_seconds = 3;
-          ctx.rpc_ctx->set_response_header(
-            http::headers::RETRY_AFTER, retry_after_seconds);
-          ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
-            "Historical transactions from {} to {} are not yet "
-            "available, fetching now",
-            range_begin,
-            range_end));
-          return;
+          stores =
+            historical_cache.get_stores_for(handle, interesting_seqnos.value());
+          if (stores.empty())
+          {
+            // Empty response indicates these stores are still being fetched.
+            // Return a retry response
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+            static constexpr size_t retry_after_seconds = 3;
+            ctx.rpc_ctx->set_response_header(
+              http::headers::RETRY_AFTER, retry_after_seconds);
+            ctx.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::TEXT);
+            ctx.rpc_ctx->set_response_body(fmt::format(
+              "Historical transactions from {} to {} are not yet "
+              "available, fetching now",
+              range_begin,
+              range_end));
+            return;
+          }
         }
+        // else the index authoritatvely tells us there are _no_ interesting
+        // seqnos in this range, so we have no stores to process, but can return
+        // a complete result
 
         // Process the fetched Stores
         LoggingGetHistoricalRange::Out response;
@@ -1198,7 +1237,7 @@ namespace loggingapp
             e.msg = v.value();
             response.entries.push_back(e);
           }
-          // This response do not include any entry when the given key wasn't
+          // This response does not include any entry when the given key wasn't
           // modified at this seqno. It could instead indicate that the store
           // was checked with an empty tombstone object, but this approach gives
           // smaller responses
@@ -1262,8 +1301,6 @@ namespace loggingapp
           "to_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       static constexpr auto get_historical_sparse_path =
@@ -1430,8 +1467,6 @@ namespace loggingapp
         .add_query_parameter<std::string>("seqnos")
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto record_admin_only = [this](

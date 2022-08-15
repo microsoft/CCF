@@ -1,0 +1,99 @@
+nodes,0,1,2
+
+# Node 2 is initially partitioned
+connect,0,1
+
+# Node 0 starts first, and begins sending messages first
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+replicate,1,helloworld
+periodic_all,10
+dispatch_all
+
+# Build an uncommitted suffix
+replicate,1,salutonmondo
+replicate,1,hallo
+replicate,1,hullo
+replicate,1,ahoyhoy
+
+# Dispatch AppendEntries containing this suffix, which will be received by Node 1, making
+# it committed (known by a majority of nodes), though its commit status remains unknown
+periodic_all,10
+dispatch_one,0
+
+# Receive ACKs from Node 1, allowing commit to advance on Node 0
+# NB: This is not strictly necessary - the suffix is retained by Node 1 and election rules
+# because it _could_ be committed. Here we show that Node 0 could hear this (and then advertise
+# this commit point to clients), but even if that didn't happen the decision taken locally by
+# Node 1 and the final result are the same
+dispatch_one,1
+
+state_all
+
+# Build a further suffix which is _not_ shared in time
+replicate,1,z
+replicate,1,zz
+replicate,1,zzz
+
+state_all
+
+# Now the partition shifts - 0 is partitioned, but 1 and 2 can communicate
+disconnect,0,1
+connect,1,2
+
+# Since 2 has been partitioned, it is likely to call an election (though it will lose)
+periodic_one,2,110
+dispatch_all
+
+# Eventually, Node 1 (the only live/connected node who has the committed suffix), will call
+# an election and win
+periodic_one,1,110
+
+# Node 1 asks for votes
+dispatch_one,1
+
+# Node 2 responds in support
+dispatch_one,2
+
+# Node 1 appends a new committable entry to confirm its primaryship
+replicate,2,ConfirmCommit
+
+# Node 1 sends an initial AppendEntries probe
+periodic_one,1,10
+dispatch_one,1
+
+# Node 2 indicates it is behind
+dispatch_one,2
+
+# Node 1 sends its committable suffix
+periodic_all,10
+dispatch_one,1
+
+# Node 2 ACKs all of that, advancing commit on Node 1
+dispatch_one,2
+
+# Node 1 sends Node 2 a heartbeat indicating the current commit index
+periodic_all,10
+dispatch_one,1
+
+state_all
+
+# Node 0 rejoins the network
+connect,0,1
+connect,0,2
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+assert_state_sync

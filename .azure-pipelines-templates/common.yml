@@ -2,6 +2,7 @@ jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
+    condition: eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false')
 
     ${{ insert }}: ${{ parameters.env }}
 
@@ -18,6 +19,12 @@ jobs:
             parameters:
               target: ${{ parameters.target }}
               v8_mode: ${{ parameters.fetch_v8 }}
+
+      - ${{ if parameters.fetch_quictls }}:
+          - template: fetch_quictls.yml
+            parameters:
+              target: ${{ parameters.target }}
+              quictls_mode: ${{ parameters.fetch_quictls }}
 
       - template: cmake.yml
         parameters:

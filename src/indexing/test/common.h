@@ -9,10 +9,16 @@
 #include "kv/test/null_encryptor.h"
 
 using MapA = kv::Map<std::string, std::string>;
-static kv::Map<std::string, std::string> map_a("public:map_a");
+static MapA map_a("public:map_a");
 
 using MapB = kv::Map<size_t, size_t>;
-static kv::Map<size_t, size_t> map_b("public:map_b");
+static MapB map_b("public:map_b");
+
+using ValueA = kv::Value<std::string>;
+static ValueA value_a("public:value_a");
+
+using SetA = kv::Set<std::string>;
+static SetA set_a("public:set_a");
 
 static const std::chrono::milliseconds step_time(10);
 
@@ -107,7 +113,7 @@ static inline bool check_seqnos(
 {
   // Check that actual is a contiguous subrange of expected. May actually be a
   // perfect match, that is fine too, and required if complete_match is true
-  if (!actual.has_value() || actual->empty())
+  if (!actual.has_value())
   {
     LOG_FAIL_FMT("No actual result");
     return false;
@@ -122,64 +128,62 @@ static inline bool check_seqnos(
     }
   }
 
-  size_t idx = 0;
-  auto actual_it = actual->begin();
-  auto expected_it = expected.find(*actual_it);
-  while (true)
+  if (actual->size() > 0)
   {
-    if (actual_it == actual->end())
+    size_t idx = 0;
+    auto actual_it = actual->begin();
+    auto expected_it = expected.find(*actual_it);
+    while (true)
     {
-      break;
-    }
-    else if (expected_it == expected.end())
-    {
-      LOG_FAIL_FMT(
-        "Too many results. Reached end of expected values at {}", idx);
-      return false;
-    }
+      if (actual_it == actual->end())
+      {
+        break;
+      }
+      else if (expected_it == expected.end())
+      {
+        LOG_FAIL_FMT(
+          "Too many results. Reached end of expected values at {}", idx);
+        return false;
+      }
 
-    if (*actual_it != *expected_it)
-    {
-      LOG_FAIL_FMT(
-        "Mismatch at {}th result, {} != {}", idx, *actual_it, *expected_it);
-      return false;
-    }
+      if (*actual_it != *expected_it)
+      {
+        LOG_FAIL_FMT(
+          "Mismatch at {}th result, {} != {}", idx, *actual_it, *expected_it);
+        return false;
+      }
 
-    ++idx;
-    ++actual_it;
-    ++expected_it;
+      ++idx;
+      ++actual_it;
+      ++expected_it;
+    }
   }
 
   return true;
 }
 
+using Action = std::function<bool(size_t, kv::Tx&)>;
+struct ActionDesc
+{
+  ExpectedSeqNos& expected;
+  Action action;
+};
+
 static inline bool create_transactions(
   kv::Store& kv_store,
-  ExpectedSeqNos& seqnos_hello,
-  ExpectedSeqNos& seqnos_saluton,
-  ExpectedSeqNos& seqnos_1,
-  ExpectedSeqNos& seqnos_2,
+  const std::vector<ActionDesc>& actions,
   size_t count = ccf::indexing::Indexer::MAX_REQUESTABLE * 3)
 {
   for (size_t i = 0; i < count; ++i)
   {
-    const auto write_saluton = i % 3 == 0;
-    const auto write_1 = i % 5 == 0;
-    const auto write_2 = rand() % 4 != 0;
-
+    std::vector<ExpectedSeqNos*> modified;
     auto tx = kv_store.create_tx();
-    tx.wo(map_a)->put("hello", "value doesn't matter");
-    if (write_saluton)
+    for (auto& [expected, action] : actions)
     {
-      tx.wo(map_a)->put("saluton", "value doesn't matter");
-    }
-    if (write_1)
-    {
-      tx.wo(map_b)->put(1, 42);
-    }
-    if (write_2)
-    {
-      tx.wo(map_b)->put(2, 42);
+      if (action(i, tx))
+      {
+        modified.push_back(&expected);
+      }
     }
 
     if (tx.commit() != kv::CommitResult::SUCCESS)
@@ -188,18 +192,10 @@ static inline bool create_transactions(
     }
 
     const auto seqno = tx.get_txid()->version;
-    seqnos_hello.insert(seqno);
-    if (write_saluton)
+
+    for (auto p_exp : modified)
     {
-      seqnos_saluton.insert(seqno);
-    }
-    if (write_1)
-    {
-      seqnos_1.insert(seqno);
-    }
-    if (write_2)
-    {
-      seqnos_2.insert(seqno);
+      p_exp->insert(seqno);
     }
   }
 

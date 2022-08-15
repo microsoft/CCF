@@ -1,12 +1,12 @@
 TLA+ model of CCF's Raft modifications
 ======================================
 
-CCF implements some modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were signed by the primary can be committed. Any other entry that has not been globally committed is rolled back. Additionally, the CCF implementation introduced a variant of the reconfiguration that is different from the one proposed by the original Raft paper. In CCF CFT, reconfigurations are  done via one transaction (as described :doc:`here </architecture/consensus/1tx-reconfig>`).
+CCF implements some modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were *signed* by the primary can be committed. Any other entry that has *not* been signed is rolled back. Additionally, the CCF implementation introduced a variant of the reconfiguration that is different from the one proposed by the original Raft paper. In CCF CFT, reconfigurations are  done via one transaction (as described :doc:`here </architecture/consensus/1tx-reconfig>`).
 
 
 The TLA+ specification models the intended behavior of Raft as it is modified for CCF. Below, we explain several core parts of the specification in more detail.
 
-You can find the full specification in the :ccf_repo:`tla/` folder and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is `this guide <https://www.learntla.com/introduction/about-this-guide/>`_.
+You can find the full specification in the :ccf_repo:`tla/` folder and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is `this guide <https://www.learntla.com>`_.
 
 
 Building blocks of the TLA+ spec
@@ -32,7 +32,7 @@ During the model check, the model checker will exhaustively search through all p
 
 Variables and their initial state
 ---------------------------------
-The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similiar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in ``MCraft.tla``.
+The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in ``MCraft.tla``.
 
 .. literalinclude:: ../../tla/raft_spec/ccfraft.tla
     :language: text

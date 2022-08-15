@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "4f8fba14066156b73f1189a2b8bd568bde5284c5"
+          "commitHash": "bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d"
         }
       }
     },
@@ -32,7 +32,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "70f8072f9dd2292fd0b9f9e5f58e279f60483ed3"
+          "commitHash": "b9be5b9444772324459989177108a6a65b8b2769"
         }
       }
     },
@@ -41,7 +41,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "b6f4ceaed0a0a24ccf575fab6c56dd50ccf6f1a9"
+          "commitHash": "c4ee726532178e556d923372f29163bd206d7732"
         }
       }
     },
@@ -86,7 +86,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "4bfeb625ce4961bd539c95593529936503be7db4"
+          "commitHash": "6d954cbdc7f641f0a63a4427cf4d6be397f74ee8"
         }
       }
     },
@@ -113,7 +113,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nghttp2/nghttp2",
-          "commitHash": "d9f580c3cb419e77474da507eef20f1c81ecff32"
+          "commitHash": "b5c4ba83222606b145e6a49c63d7ea53019f65e6"
         }
       }
     },

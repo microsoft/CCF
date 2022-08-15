@@ -21,7 +21,7 @@ To create a new CCF network, the first node of the network should be started wit
         Uninitialized-- config -->Initialized;
         Initialized-- start -->PartOfNetwork;
 
-The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest the public key contained in its identity certificate (e.g. ``50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007``). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when :ref:`governance/common_member_operations:Trusting a New Node`).
+The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest of the public key contained in its identity certificate (e.g. ``50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007``). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when :ref:`governance/common_member_operations:Trusting a New Node`).
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then a ``dNSName`` subject alternative name should be specified as part of the ``node_certificate.subject_alt_names`` configuration entry. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
@@ -132,6 +132,14 @@ To run a CCF node on a system without hardware TEE support, or to debug an appli
 To start a CCF node in ``virtual`` mode, the JSON configuration file should specify the path of a ``*.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
+
+Node and Service Data
+---------------------
+
+To be able to better identify a specific service and its nodes, operators can specify arbitrary JSON data to attach to each service/node:
+
+- The optional :ref:`operations/configuration:``node_data_json_file``` configuration entry specifies the path to a JSON file containing node-specific information, e.g. the pod identifier in a Kubernetes deployment. This data is recorded in the :ref:`audit/builtin_maps:``nodes.info``` table and accessible via the :http:GET:`/node/network/nodes` endpoint.
+- The optional :ref:`operations/configuration:``service_data_json_file``` configuration entry specifies the path to a JSON file containing service-specific information, e.g. the timestamp at which the service started or the cluster identifier in a Kubernetes deployment. This data is recorded in the :ref:`audit/builtin_maps:``service.info``` table and accessible via the :http:GET:`/node/network` endpoint.
 
 .. rubric:: Footnotes
 

@@ -26,18 +26,6 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
 
     ---
 
-    .. image:: ../img/python.svg
-      :alt: Python
-      :align: left
-      :class: ccf-tile-icon
-
-    :doc:`python_tutorial`
-    ^^^^^^^^^^^^^^^^^^^^^^
-
-    **[Removed]** Common user operations from a Python client.
-
-    ---
-
     :fa:`terminal` :doc:`rpc_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -50,5 +38,4 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     issue_commands
     verify_tx
     verify_quote
-    python_tutorial
     rpc_api

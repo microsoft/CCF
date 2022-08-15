@@ -11,6 +11,7 @@ namespace ccf
     members = 0,
     users,
     nodes,
+    well_known,
     // not to be used
     unknown
   };
@@ -30,6 +31,10 @@ namespace ccf
       case ActorsType::nodes:
       {
         return "node";
+      }
+      case ActorsType::well_known:
+      {
+        return ".well-known";
       }
       default:
       {

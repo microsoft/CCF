@@ -5,48 +5,17 @@
 #include "before_io.h"
 #include "ccf/ds/logger.h"
 #include "dns.h"
+#include "ds/pending_io.h"
 #include "proxy.h"
+#include "socket.h"
 
+#include <netinet/in.h>
 #include <optional>
 
 namespace asynchost
 {
   class TCPImpl;
   using TCP = proxy_ptr<TCPImpl>;
-
-  class TCPBehaviour
-  {
-  public:
-    virtual ~TCPBehaviour() {}
-
-    virtual void on_resolve_failed() {}
-    virtual void on_listen_failed() {}
-    virtual void on_listening(
-      const std::string& host, const std::string& service)
-    {
-      LOG_INFO_FMT("Listening on {}:{}", host, service);
-    }
-    virtual void on_accept(TCP&) {}
-    virtual void on_bind_failed() {}
-    virtual void on_connect() {}
-    virtual void on_connect_failed() {}
-    virtual void on_read(size_t, uint8_t*&) {}
-    virtual void on_disconnect() {}
-  };
-
-  class TCPServerBehaviour : public TCPBehaviour
-  {
-  public:
-    virtual void on_resolve_failed() override
-    {
-      throw std::runtime_error("TCP server resolve failed");
-    }
-
-    virtual void on_listen_failed() override
-    {
-      throw std::runtime_error("TCP server listen failed");
-    }
-  };
 
   class TCPImpl : public with_uv_handle<uv_tcp_t>
   {
@@ -77,32 +46,15 @@ namespace asynchost
       RECONNECTING
     };
 
-    struct PendingWrite
-    {
-      uv_write_t* req;
-      size_t len;
-
-      PendingWrite(uv_write_t* req, size_t len) : req(req), len(len) {}
-
-      PendingWrite(PendingWrite&& that) : req(that.req), len(that.len)
-      {
-        that.req = nullptr;
-      }
-
-      ~PendingWrite()
-      {
-        free_write(req);
-      }
-    };
-
     bool is_client;
     std::optional<std::chrono::milliseconds> connection_timeout = std::nullopt;
     Status status;
-    std::unique_ptr<TCPBehaviour> behaviour;
-    std::vector<PendingWrite> pending_writes;
+    std::unique_ptr<SocketBehaviour<TCP>> behaviour;
+    using PendingWrites = std::vector<PendingIO<uv_write_t>>;
+    PendingWrites pending_writes;
 
     std::string host;
-    std::string service;
+    std::string port;
     std::optional<std::string> client_host = std::nullopt;
     std::optional<std::string> listen_name = std::nullopt;
 
@@ -110,15 +62,15 @@ namespace asynchost
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
 
-    bool service_assigned() const
+    bool port_assigned() const
     {
-      return service != "0";
+      return port != "0";
     }
 
     std::string get_address_name() const
     {
       const std::string port_suffix =
-        service_assigned() ? fmt::format(":{}", service) : "";
+        port_assigned() ? fmt::format(":{}", port) : "";
 
       if (addr_current != nullptr && addr_current->ai_family == AF_INET6)
       {
@@ -149,7 +101,7 @@ namespace asynchost
     ~TCPImpl()
     {
       {
-        std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+        std::unique_lock<ccf::Pal::Mutex> guard(pending_resolve_requests_mtx);
         for (auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
@@ -176,7 +128,7 @@ namespace asynchost
       remaining_read_quota = max_read_quota;
     }
 
-    void set_behaviour(std::unique_ptr<TCPBehaviour> b)
+    void set_behaviour(std::unique_ptr<SocketBehaviour<TCP>> b)
     {
       behaviour = std::move(b);
     }
@@ -186,9 +138,39 @@ namespace asynchost
       return host;
     }
 
-    std::string get_service() const
+    std::string get_port() const
     {
-      return service;
+      return port;
+    }
+
+    std::string get_peer_name() const
+    {
+      sockaddr_storage sa = {};
+      int name_len = sizeof(sa);
+      if (uv_tcp_getpeername(&uv_handle, (sockaddr*)&sa, &name_len) < 0)
+      {
+        LOG_FAIL_FMT("uv_tcp_getpeername failed");
+        return "";
+      }
+      switch (sa.ss_family)
+      {
+        case AF_INET:
+        {
+          char tmp[INET_ADDRSTRLEN];
+          sockaddr_in* sa4 = (sockaddr_in*)&sa;
+          uv_ip4_name(sa4, tmp, sizeof(tmp));
+          return tmp;
+        }
+        case AF_INET6:
+        {
+          char tmp[INET6_ADDRSTRLEN];
+          sockaddr_in6* sa6 = (sockaddr_in6*)&sa;
+          uv_ip6_name(sa6, tmp, sizeof(tmp));
+          return tmp;
+        }
+        default:
+          return fmt::format("unknown family: {}", sa.ss_family);
+      }
     }
 
     std::optional<std::string> get_listen_name() const
@@ -214,7 +196,7 @@ namespace asynchost
         }
         else
         {
-          resolve(this->host, this->service, true);
+          resolve(this->host, this->port, true);
         }
       }
     }
@@ -245,9 +227,12 @@ namespace asynchost
       delete req;
     }
 
+    /// This is to mimic UDP's implementation. TCP's start is on_accept.
+    void start(int64_t id) {}
+
     bool connect(
       const std::string& host,
-      const std::string& service,
+      const std::string& port,
       const std::optional<std::string>& client_host = std::nullopt)
     {
       // If a client host is set, bind to this first. Otherwise, connect
@@ -256,7 +241,7 @@ namespace asynchost
       {
         this->client_host = client_host;
         this->host = host;
-        this->service = service;
+        this->port = port;
 
         if (client_addr_base != nullptr)
         {
@@ -276,7 +261,7 @@ namespace asynchost
       else
       {
         assert_status(FRESH, CONNECTING_RESOLVING);
-        return resolve(host, service, true);
+        return resolve(host, port, true);
       }
 
       return true;
@@ -291,7 +276,7 @@ namespace asynchost
           // Try again, from the start.
           LOG_DEBUG_FMT("Reconnect from initial state");
           assert_status(BINDING_FAILED, BINDING);
-          return connect(host, service, client_host);
+          return connect(host, port, client_host);
         }
         case RESOLVING_FAILED:
         case CONNECTING_FAILED:
@@ -299,7 +284,7 @@ namespace asynchost
           // Try again, starting with DNS.
           LOG_DEBUG_FMT("Reconnect from DNS");
           status = CONNECTING_RESOLVING;
-          return resolve(host, service, true);
+          return resolve(host, port, true);
         }
 
         case DISCONNECTED:
@@ -329,16 +314,16 @@ namespace asynchost
 
     bool listen(
       const std::string& host,
-      const std::string& service,
+      const std::string& port,
       const std::optional<std::string>& name = std::nullopt)
     {
       assert_status(FRESH, LISTENING_RESOLVING);
-      bool ret = resolve(host, service, false);
+      bool ret = resolve(host, port, false);
       listen_name = name;
       return ret;
     }
 
-    bool write(size_t len, const uint8_t* data)
+    bool write(size_t len, const uint8_t* data, sockaddr addr = {})
     {
       auto req = new uv_write_t;
       char* copy = new char[len];
@@ -356,7 +341,7 @@ namespace asynchost
         case CONNECTING_FAILED:
         case RECONNECTING:
         {
-          pending_writes.emplace_back(req, len);
+          pending_writes.emplace_back(req, len, sockaddr{}, free_write);
           break;
         }
 
@@ -451,32 +436,10 @@ namespace asynchost
 
     void update_resolved_address(int address_family, sockaddr* sa)
     {
-      constexpr auto buf_len = UV_IF_NAMESIZE;
-      char buf[buf_len] = {};
-      int rc;
-
-      if (address_family == AF_INET6)
-      {
-        const auto in6 = (const sockaddr_in6*)sa;
-        if ((rc = uv_ip6_name(in6, buf, buf_len)) != 0)
-        {
-          LOG_FAIL_FMT("uv_ip6_name failed: {}", uv_strerror(rc));
-        }
-
-        host = buf;
-        service = fmt::format("{}", ntohs(in6->sin6_port));
-      }
-      else
-      {
-        const auto in4 = (const sockaddr_in*)sa;
-        if ((rc = uv_ip4_name(in4, buf, buf_len)) != 0)
-        {
-          LOG_FAIL_FMT("uv_ip4_name failed: {}", uv_strerror(rc));
-        }
-
-        host = buf;
-        service = fmt::format("{}", ntohs(in4->sin_port));
-      }
+      auto [h, p] = addr_to_str(sa, address_family);
+      host = h;
+      port = p;
+      LOG_TRACE_FMT("TCP update address to {}:{}", host, port);
     }
 
     void listen_resolved()
@@ -508,7 +471,7 @@ namespace asynchost
         // If bound on port 0 (ie - asking the OS to assign a port), then we
         // need to call uv_tcp_getsockname to retrieve the bound port
         // (addr_current will not contain it)
-        if (!service_assigned())
+        if (!port_assigned())
         {
           sockaddr_storage sa_storage;
           const auto sa = (sockaddr*)&sa_storage;
@@ -521,7 +484,7 @@ namespace asynchost
         }
 
         assert_status(LISTENING_RESOLVING, LISTENING);
-        behaviour->on_listening(host, service);
+        behaviour->on_listening(host, port);
         return;
       }
 
@@ -554,9 +517,7 @@ namespace asynchost
 
       // This should show even when verbose logs are off
       LOG_INFO_FMT(
-        "Unable to connect: all resolved addresses failed: {}:{}",
-        host,
-        service);
+        "Unable to connect: all resolved addresses failed: {}:{}", host, port);
 
       behaviour->on_connect_failed();
       return false;
@@ -577,10 +538,10 @@ namespace asynchost
     }
 
     bool resolve(
-      const std::string& host, const std::string& service, bool async = true)
+      const std::string& host, const std::string& port, bool async = true)
     {
       this->host = host;
-      this->service = service;
+      this->port = port;
 
       if (addr_base != nullptr)
       {
@@ -589,7 +550,7 @@ namespace asynchost
         addr_current = nullptr;
       }
 
-      if (!DNS::resolve(host, service, this, on_resolved, async))
+      if (!DNS::resolve(host, port, this, on_resolved, async))
       {
         LOG_DEBUG_FMT("Resolving '{}' failed", host);
         status = RESOLVING_FAILED;
@@ -601,7 +562,7 @@ namespace asynchost
 
     static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
     {
-      std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+      std::unique_lock<ccf::Pal::Mutex> guard(pending_resolve_requests_mtx);
       pending_resolve_requests.erase(req);
 
       if (req->data)
@@ -738,7 +699,7 @@ namespace asynchost
           w.req = nullptr;
         }
 
-        std::vector<PendingWrite>().swap(pending_writes);
+        PendingWrites().swap(pending_writes);
         behaviour->on_connect();
       }
     }
@@ -821,10 +782,12 @@ namespace asynchost
       }
 
       uint8_t* p = (uint8_t*)buf->base;
-      behaviour->on_read((size_t)sz, p);
+      behaviour->on_read((size_t)sz, p, {});
 
       if (p != nullptr)
+      {
         on_free(buf);
+      }
     }
 
     static void on_write(uv_write_t* req, int)
@@ -835,7 +798,9 @@ namespace asynchost
     static void free_write(uv_write_t* req)
     {
       if (req == nullptr)
+      {
         return;
+      }
 
       char* copy = (char*)req->data;
       delete[] copy;

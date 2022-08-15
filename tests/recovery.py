@@ -15,6 +15,9 @@ from infra.consortium import slurp_file
 import infra.health_watcher
 import time
 from e2e_logging import verify_receipt
+import infra.service_load
+import ccf.tx_id
+import tempfile
 
 from loguru import logger as LOG
 
@@ -39,9 +42,17 @@ def get_and_verify_historical_receipt(network, ref_msg):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=False):
+def test_recover_service(network, args, from_snapshot=True):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
+
+    prev_ident = open(args.previous_service_identity_file, "r", encoding="utf-8").read()
+    # Strip trailing null byte
+    prev_ident = prev_ident.strip("\x00")
+    with old_primary.client() as c:
+        r = c.get("/node/service/previous_identity")
+        assert r.status_code in (200, 404), r.status_code
+        prev_view = c.get("/node/network").body.json()["current_view"]
 
     snapshots_dir = None
     if from_snapshot:
@@ -57,9 +68,6 @@ def test_recover_service(network, args, from_snapshot=False):
 
     watcher.wait_for_recovery()
 
-    # Stop remaining nodes
-    network.stop_all_nodes()
-
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     recovered_network = infra.network.Network(
@@ -69,17 +77,50 @@ def test_recover_service(network, args, from_snapshot=False):
         args.perf_nodes,
         existing_network=network,
     )
-    recovered_network.start_in_recovery(
-        args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-        snapshots_dir=snapshots_dir,
-    )
+    with tempfile.NamedTemporaryFile(mode="w+") as ntf:
+        service_data = {"this is a": "recovery service"}
+        json.dump(service_data, ntf)
+        ntf.flush()
+        recovered_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+            service_data_json_file=ntf.name,
+        )
+        LOG.info("Check that service data has been set")
+        primary, _ = recovered_network.find_primary()
+        with primary.client() as c:
+            r = c.get("/node/network").body.json()
+            assert r["service_data"] == service_data
+
     recovered_network.verify_service_certificate_validity_period(
         args.initial_service_cert_validity_days
     )
 
+    new_nodes = recovered_network.find_primary_and_any_backup()
+    for n in new_nodes:
+        with n.client() as c:
+            r = c.get("/node/service/previous_identity")
+            assert r.status_code == 200, r.status_code
+            body = r.body.json()
+            assert "previous_service_identity" in body, body
+            received_prev_ident = body["previous_service_identity"]
+            assert (
+                received_prev_ident == prev_ident
+            ), f"Response doesn't match previous identity: {received_prev_ident} != {prev_ident}"
+
     recovered_network.recover(args)
+
+    LOG.info("Check that new service view is as expected")
+    new_primary, _ = recovered_network.find_primary()
+    with new_primary.client() as c:
+        assert (
+            ccf.tx_id.TxID.from_str(
+                c.get("/node/network").body.json()["current_service_create_txid"]
+            ).view
+            == prev_view + 2
+        )
 
     return recovered_network
 
@@ -91,10 +132,10 @@ def test_recover_service_with_wrong_identity(network, args):
 
     snapshots_dir = network.get_committed_snapshots(old_primary)
 
-    network.stop_all_nodes()
-
     network.save_service_identity(args)
     first_service_identity_file = args.previous_service_identity_file
+
+    network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
@@ -112,14 +153,11 @@ def test_recover_service_with_wrong_identity(network, args):
 
     exception = None
     try:
-        # The first remote.get() will fail because the node aborts before it
-        # writes its node cert, so we want a short file_timeout.
         broken_network.start_in_recovery(
             args,
             ledger_dir=current_ledger_dir,
             committed_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
-            file_timeout=3,
         )
     except Exception as ex:
         exception = ex
@@ -132,9 +170,42 @@ def test_recover_service_with_wrong_identity(network, args):
     if not broken_network.nodes[0].check_log_for_error_message(
         "Error starting node: Previous service identity does not endorse the node identity that signed the snapshot"
     ):
-        raise ValueError("Node log does not contain the expect error message")
+        raise ValueError("Node log does not contain the expected error message")
 
-    # Recover, now with the right service identity
+    # Attempt a second recovery with the broken cert but no snapshot
+    # Now the mismatch is only noticed when the transition proposal is submitted
+
+    broken_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+
+    broken_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+
+    exception = None
+    try:
+        broken_network.recover(args)
+    except Exception as ex:
+        exception = ex
+
+    broken_network.ignoring_shutdown_errors = True
+    broken_network.stop_all_nodes(skip_verification=True)
+
+    if exception is None:
+        raise ValueError("Recovery should have failed")
+    if not broken_network.nodes[0].check_log_for_error_message(
+        "Unable to open service: Previous service identity does not match."
+    ):
+        raise ValueError("Node log does not contain the expected error message")
+
+    # Recover, now with the correct service identity
 
     args.previous_service_identity_file = first_service_identity_file
 
@@ -320,10 +391,15 @@ def test_share_resilience(network, args, from_snapshot=False):
             timeout=args.ledger_recovery_timeout,
         )
 
+    recovered_network.recovery_count += 1
     recovered_network.consortium.check_for_service(
         new_primary,
         infra.network.ServiceStatus.OPEN,
+        recovery_count=recovered_network.recovery_count,
     )
+
+    if recovered_network.service_load:
+        recovered_network.service_load.set_network(recovered_network)
     return recovered_network
 
 
@@ -476,17 +552,19 @@ def check_snapshots(args, network):
     seqno = find_recovery_tx_seqno(primary)
 
     if seqno:
-        # Check that all active nodes have produced a snapshot. The wait timeout is larger than the
+        # Check that primary node has produced a snapshot. The wait timeout is larger than the
         # signature interval, so the snapshots should become available within the timeout.
         assert args.sig_ms_interval < 3000
-        if not network.wait_for_snapshot_committed_for(
-            seqno, timeout=3, on_all_nodes=True
+        if not network.get_committed_snapshots(
+            primary, target_seqno=True, issue_txs=False
         ):
-            raise ValueError(f"No snapshot after seqno={seqno} on some nodes")
+            raise ValueError(
+                f"No snapshot found after seqno={seqno} on primary {primary.local_node_id}"
+            )
 
 
 def run(args):
-    recoveries_count = 5
+    recoveries_count = 3
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -498,6 +576,29 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        LOG.info("Check for well-known genesis service TxID")
+        with primary.client() as c:
+            r = c.get("/node/network").body.json()
+            assert ccf.tx_id.TxID.from_str(
+                r["current_service_create_txid"]
+            ) == ccf.tx_id.TxID(2, 1)
+
+        if args.with_load:
+            # See https://github.com/microsoft/CCF/issues/3788 for justification
+            LOG.info("Loading service before recovery...")
+            primary, _ = network.find_primary()
+            with infra.service_load.load() as load:
+                load.begin(network, rate=infra.service_load.DEFAULT_REQUEST_RATE_S * 10)
+                while True:
+                    with primary.client() as c:
+                        r = c.get("/node/commit", log_capture=[]).body.json()
+                        tx_id = ccf.tx_id.TxID.from_str(r["transaction_id"])
+                        if tx_id.seqno > args.sig_tx_interval:
+                            LOG.info(f"Loaded service successfully: tx_id, {tx_id}")
+                            break
+                    time.sleep(0.1)
 
         ref_msg = get_and_verify_historical_receipt(network, None)
 
@@ -512,8 +613,7 @@ def run(args):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % recoveries_count == 0:
-                if args.consensus != "BFT":
-                    network = test_share_resilience(network, args, from_snapshot=True)
+                network = test_share_resilience(network, args, from_snapshot=True)
             elif i % recoveries_count == 1:
                 network = test_recover_service_aborted(
                     network, args, from_snapshot=False
@@ -530,12 +630,13 @@ def run(args):
             LOG.success("Recovery complete on all nodes")
 
         primary, _ = network.find_primary()
+        network.stop_all_nodes()
 
     # Verify that a new ledger chunk was created at the start of each recovery
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,
-        validator=ccf.ledger.LedgerValidator(),
+        validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
     )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()
@@ -563,7 +664,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.description = """
-This test_recover_service executes multiple recoveries (as specified by the "--recovery" arg),
+This test_recover_service executes multiple recoveries,
 with a fixed number of messages applied between each network crash (as
 specified by the "--msgs-per-recovery" arg). After the network is recovered
 and before applying new transactions, all transactions previously applied are
@@ -575,10 +676,16 @@ checked. Note that the key for each logging message is unique (per table).
             type=int,
             default=5,
         )
+        parser.add_argument(
+            "--with-load",
+            help="If set, the service is loaded before being recovered",
+            action="store_true",
+            default=False,
+        )
 
     args = infra.e2e_args.cli_args(add)
 
-    cr = ConcurrentRunner()
+    cr = ConcurrentRunner(add)
 
     cr.add(
         "recovery",

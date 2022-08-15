@@ -7,6 +7,14 @@ unset(CCF_VERSION_SUFFIX)
 
 option(UNSAFE_VERSION "Produce build with unsafe logging levels" OFF)
 
+set(CCF_PROJECT "ccf")
+if(UNSAFE_VERSION)
+  set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
+  add_compile_definitions(UNSAFE_VERSION)
+  file(WRITE ${CMAKE_BINARY_DIR}/UNSAFE "UNSAFE")
+  install(FILES ${CMAKE_BINARY_DIR}/UNSAFE DESTINATION share)
+endif()
+
 # If possible, deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   find_package(Git)
@@ -20,10 +28,6 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   )
   if(NOT RETURN_CODE STREQUAL "0")
     message(FATAL_ERROR "Error calling git describe")
-  endif()
-
-  if(UNSAFE_VERSION)
-    set(CCF_VERSION "${CCF_VERSION}+unsafe")
   endif()
 
   # Convert git description into cmake list, separated at '-'
@@ -45,10 +49,6 @@ else()
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-
-  if(UNSAFE_VERSION)
-    set(CCF_VERSION "${CCF_VERSION}+unsafe")
-  endif()
 
   # Convert directory name into cmake list, separated at '-'
   string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})

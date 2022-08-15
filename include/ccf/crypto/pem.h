@@ -16,14 +16,25 @@ namespace crypto
   // Convenience class ensuring null termination of PEM-encoded certificates
   class Pem
   {
+  private:
     std::string s;
+
+    void check_pem_format()
+    {
+      if (s.find("-----BEGIN") == std::string::npos)
+      {
+        throw std::runtime_error(
+          fmt::format("PEM constructed with non-PEM data: {}", s));
+      }
+    }
 
   public:
     Pem() = default;
 
-    Pem(const std::string& s_) : s(s_) {}
-
-    Pem(size_t size) : s(size, '0') {}
+    Pem(const std::string& s_) : s(s_)
+    {
+      check_pem_format();
+    }
 
     Pem(const uint8_t* data, size_t size)
     {
@@ -36,11 +47,13 @@ namespace crypto
         size -= 1;
 
       s.assign(reinterpret_cast<const char*>(data), size);
+
+      check_pem_format();
     }
 
-    Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
+    explicit Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
 
-    Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
+    explicit Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 
     bool operator==(const Pem& rhs) const
     {
@@ -74,8 +87,7 @@ namespace crypto
 
     size_t size() const
     {
-      // +1 for null termination
-      return s.size() + 1;
+      return s.size();
     }
 
     bool empty() const
@@ -117,12 +129,12 @@ namespace crypto
     }
   }
 
-  inline std::string schema_name(const Pem&)
+  inline std::string schema_name(const Pem*)
   {
     return "Pem";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const Pem&)
+  inline void fill_json_schema(nlohmann::json& schema, const Pem*)
   {
     schema["type"] = "string";
   }

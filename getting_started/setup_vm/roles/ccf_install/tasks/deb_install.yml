@@ -5,7 +5,7 @@
   shell:
     cmd: |
       if [ "{{ ccf_ver }}" = "latest" ]; then
-        curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | cut -d\" -f4
+        curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | egrep -v unsafe | cut -d\" -f4
       else
         echo "https://github.com/microsoft/CCF/releases/download/ccf-{{ ccf_ver }}/ccf_{{ ccf_ver | replace('-', '_') }}_amd64.deb"
       fi
@@ -24,6 +24,22 @@
     mode: a=rx
   become: true
   when: run_only|bool
+
+- name: Create ccf folder in /usr/lib
+  file:
+    path: "/usr/lib/ccf"
+    state: directory
+    recurse: yes
+  become: true
+  when: run_js|bool
+
+- name: Copy JS generic
+  copy:
+    src: "/opt/ccf/lib/{{ ccf_js_app_name }}"
+    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}"
+    remote_src: true
+  become: true
+  when: run_js|bool
 
 - name: Remove release
   apt:

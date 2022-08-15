@@ -36,6 +36,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   std::string,
   size_t,
   logger::Level,
+  std::string,
   uint16_t,
   std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);

@@ -5,6 +5,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
+#include "ccf/ds/pal.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
 #include "kv/kv_types.h"
@@ -140,7 +141,7 @@ namespace aft
   {
     State(const ccf::NodeId& my_node_id_) : my_node_id(my_node_id_) {}
 
-    std::mutex lock;
+    ccf::Pal::Mutex lock;
 
     ccf::NodeId my_node_id;
     ccf::View current_view = 0;

@@ -49,13 +49,11 @@ namespace ccf::js
   struct TxContext
   {
     kv::Tx* tx = nullptr;
-    TxAccess access = js::TxAccess::APP;
   };
 
   struct ReadOnlyTxContext
   {
     kv::ReadOnlyTx* tx = nullptr;
-    TxAccess access = js::TxAccess::APP;
   };
 
   struct HistoricalStateContext
@@ -180,7 +178,7 @@ namespace ccf::js
     ReadOnlyTxContext* historical_txctx,
     ccf::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptPtr receipt,
+    ccf::TxReceiptImplPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
@@ -251,10 +249,11 @@ namespace ccf::js
   class Context
   {
     JSContext* ctx;
-    bool ok_to_free = true;
 
   public:
-    Context(JSRuntime* rt)
+    const TxAccess access;
+
+    Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -264,18 +263,9 @@ namespace ccf::js
       JS_SetContextOpaque(ctx, this);
     }
 
-    Context(JSContext* other)
-    {
-      ctx = other;
-      ok_to_free = false;
-    }
-
     ~Context()
     {
-      if (ok_to_free)
-      {
-        JS_FreeContext(ctx);
-      }
+      JS_FreeContext(ctx);
     }
 
     operator JSContext*() const

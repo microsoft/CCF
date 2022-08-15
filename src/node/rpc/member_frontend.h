@@ -224,9 +224,9 @@ namespace ccf
       for (const auto& [mid, mb] : pi_->ballots)
       {
         js::Runtime rt;
-        js::Context context(rt);
+        js::Context context(rt, js::TxAccess::GOV_RO);
         rt.add_ccf_classdefs();
-        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::TxContext txctx{&tx};
         js::populate_global(
           &txctx,
           nullptr,
@@ -268,9 +268,9 @@ namespace ccf
 
       {
         js::Runtime rt;
-        js::Context js_context(rt);
+        js::Context js_context(rt, js::TxAccess::GOV_RO);
         rt.add_ccf_classdefs();
-        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::TxContext txctx{&tx};
         js::populate_global(
           &txctx,
           nullptr,
@@ -373,9 +373,9 @@ namespace ccf
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
             js::Runtime rt;
-            js::Context js_context(rt);
+            js::Context js_context(rt, js::TxAccess::GOV_RW);
             rt.add_ccf_classdefs();
-            js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
+            js::TxContext txctx{&tx};
 
             auto gov_effects =
               context.get_subsystem<AbstractGovernanceEffects>();
@@ -493,7 +493,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.7.1";
+      openapi_info.document_version = "2.7.3";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -901,7 +901,7 @@ namespace ccf
         auto validate_script = constitution.value();
 
         js::Runtime rt;
-        js::Context context(rt);
+        js::Context context(rt, js::TxAccess::GOV_RO);
         rt.add_ccf_classdefs();
         js::populate_global(
           nullptr,
@@ -1305,7 +1305,7 @@ namespace ccf
 
         {
           js::Runtime rt;
-          js::Context context(rt);
+          js::Context context(rt, js::TxAccess::GOV_RO);
           auto ballot_func =
             context.function(params["ballot"], "vote", "body[\"ballot\"]");
         }
@@ -1476,7 +1476,7 @@ namespace ccf
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
-      RpcFrontend(*network.tables, member_endpoints),
+      RpcFrontend(*network.tables, member_endpoints, context),
       member_endpoints(network, context, share_manager)
     {}
   };

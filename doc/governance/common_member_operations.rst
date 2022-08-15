@@ -15,9 +15,11 @@ Once the proposal successfully completes, the new node automatically becomes par
 Removing an Existing Node
 -------------------------
 
-A node that is already part of the service can safely be retired using the ``remove_node`` proposal.
+A node that is already part of the service can be retired using the ``remove_node`` proposal.
 
-.. note:: If the now-retired node was the primary node, once the proposal successfully completes, a new primary node will have to be elected.
+The operator can establish if it is safe to remove a node by calling :http:GET:`/node/network/removable_nodes`. Nodes that have been shut down must be cleaned up from the store by calling :http:DELETE:`/node/network/nodes/{node_id}`.
+
+.. note:: If the now-retired node was the primary node, once the proposal successfully completes, an election will take place to elect a new primary.
 
 
 Updating Code Version
@@ -153,8 +155,9 @@ Renewing Node Certificate
 
 To renew the soon-to-be-expired certificate of a node, members should issue a ``set_node_certificate_validity`` proposal, specifying the date at which the validity period of the renewed certificate should start (``valid_from``), as well as its validity period in days (``validity_period_days`` -- optional).
 
-- The ``valid_from`` date argument should be a ASN1 UTCTime string, i.e. ``"YYMMDDhhmmssZ"``.
+- The ``valid_from`` date/time argument accepts time points in ASN.1 UTCTime format (``"YYMMDDhhmmssZ"``) or ISO 8601 format (``"YYYY-MM-DD HH:MM:SS.ssssss+HH:MM"``), with optional fractional seconds and timezone offset. For details see :ccf_repo:`src/ds/x509_time_fmt.h`.
 - If set, the ``validity_period_days`` should be less than the service-wide maximum validity period configured by operators. If omitted, the ``validity_period_days`` defaults to the service-wide maximum validity period configured by operators (see :ref:`operations/certificates:Node Certificates`).
+- Both Service-endorsed and self-signed node certificates are renewed by this proposal.
 
 A sample proposal is:
 

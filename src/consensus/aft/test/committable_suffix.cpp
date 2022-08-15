@@ -91,7 +91,6 @@ void keep_earliest_append_entries_for_each_target(
     std::make_unique<AllSigsAdaptor>(store##N), \
     std::make_unique<aft::LedgerStubProxy>(node_id##N), \
     std::make_shared<aft::ChannelStubProxy>(), \
-    std::make_shared<aft::StubSnapshotter>(), \
     std::make_shared<aft::State>(node_id##N), \
     nullptr, \
     nullptr); \
@@ -662,7 +661,8 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   const auto num_terms = 16;
   for (size_t i = 0; i < num_terms; ++i)
   {
-    create_term_on(rand() % 2 == 0, rand() % 6);
+    // Always produce at least one entry in the new term
+    create_term_on(rand() % 2 == 0, rand() % 6 + 1);
   }
 
   // Ensure at least one term on each
@@ -727,8 +727,12 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     auto& channelsPrimary = rA.is_primary() ? channelsA : channelsB;
     {
       DOCTEST_INFO("Catch node C up");
+      auto attempts = 0u;
+
       while (rC.get_last_idx() < rPrimary.get_last_idx())
       {
+        // Avoid infinite loop
+        DOCTEST_REQUIRE(attempts++ < rPrimary.get_last_idx());
         rPrimary.periodic(request_timeout);
         dispatch_all(nodes, id_primary);
         dispatch_all(nodes, node_idC);
@@ -772,7 +776,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     // Dispatch messages until coherence, bounded by expected max iterations
     auto iterations = 0;
     const auto max_iterations = get_max_iterations();
-    logger::config::level() = logger::MOST_VERBOSE;
 
     const auto id_other = rA.is_primary() ? node_idB : node_idA;
 

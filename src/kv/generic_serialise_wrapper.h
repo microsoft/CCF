@@ -31,6 +31,9 @@ namespace kv
     // must only be set by set_current_domain, since it affects current_writer
     SecurityDomain current_domain;
 
+    // If true, consider historical ledger secrets when encrypting entries
+    bool historical_hint;
+
     template <typename T>
     void serialise_internal(const T& t)
     {
@@ -60,12 +63,16 @@ namespace kv
       const TxID& tx_id_,
       EntryType entry_type_,
       SerialisedEntryFlags header_flags_,
+      // The evidence and claims digest must be systematically present
+      // in regular transactions, but absent in snapshots.
       const crypto::Sha256Hash& commit_evidence_digest_ = {},
-      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
+      bool historical_hint_ = false) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
-      crypto_util(e)
+      crypto_util(e),
+      historical_hint(historical_hint_)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
@@ -199,7 +206,8 @@ namespace kv
             serialised_hdr,
             encrypted_private_domain,
             tx_id,
-            entry_type))
+            entry_type,
+            historical_hint))
       {
         throw KvSerialiserException(fmt::format(
           "Could not serialise transaction at seqno {}", tx_id.version));
@@ -235,7 +243,9 @@ namespace kv
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
+    // Present systematically in regular transactions, but absent from snapshots
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
+    // Present systematically in regular transactions, but absent from snapshots
     std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;

@@ -244,19 +244,8 @@
         ],
         "type": "string"
       },
-      "NodeId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
       "Pem": {
         "type": "string"
-      },
-      "Pem_array": {
-        "items": {
-          "$ref": "#/components/schemas/Pem"
-        },
-        "type": "array"
       },
       "Proposal": {
         "properties": {
@@ -340,71 +329,6 @@
         ],
         "type": "string"
       },
-      "Receipt": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf_components": {
-            "$ref": "#/components/schemas/Receipt__LeafComponents"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/NodeId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/Receipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "service_endorsements": {
-            "$ref": "#/components/schemas/Pem_array"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "proof",
-          "node_id"
-        ],
-        "type": "object"
-      },
-      "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "Receipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/Receipt__Element"
-        },
-        "type": "array"
-      },
-      "Receipt__LeafComponents": {
-        "properties": {
-          "claims_digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "commit_evidence": {
-            "$ref": "#/components/schemas/string"
-          },
-          "write_set_digest": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -476,12 +400,26 @@
         "scheme": "signature",
         "type": "http"
       }
+    },
+    "x-ccf-forwarding": {
+      "always": {
+        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
+        "value": "always"
+      },
+      "never": {
+        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
+        "value": "never"
+      },
+      "sometimes": {
+        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
+        "value": "sometimes"
+      }
     }
   },
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.7.1"
+    "version": "2.7.3"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -506,7 +444,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/gov/ack/update_state_digest": {
@@ -527,7 +468,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/gov/api": {
@@ -543,6 +487,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -559,6 +506,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -575,6 +525,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -591,6 +544,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -607,6 +563,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -633,6 +592,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -649,6 +611,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -680,7 +645,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/gov/proposals/{proposal_id}": {
@@ -701,7 +669,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
       },
       "parameters": [
         {
@@ -732,7 +703,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
       },
       "parameters": [
         {
@@ -783,7 +757,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/gov/proposals/{proposal_id}/ballots/{member_id}": {
@@ -804,7 +781,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
       },
       "parameters": [
         {
@@ -853,7 +833,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/gov/receipt": {
@@ -873,12 +856,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -900,7 +886,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       },
       "post": {
         "requestBody": {
@@ -929,7 +918,10 @@
           {
             "member_signature": []
           }
-        ]
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
       }
     },
     "/gov/tx": {
@@ -955,6 +947,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     }

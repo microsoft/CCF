@@ -3,15 +3,15 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/ds/ccf_exception.h"
 #include "ccf/kv/read_only_store.h"
 #include "consensus/aft/request.h"
 #include "deserialise.h"
-#include "ds/ccf_exception.h"
 #include "kv/committable_tx.h"
+#include "kv/snapshot.h"
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "snapshot.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -26,16 +26,16 @@ namespace kv
     // indicates the version at which the Map was created.
     using Maps = std::
       map<std::string, std::pair<kv::Version, std::shared_ptr<untyped::Map>>>;
-    std::mutex maps_lock;
+    ccf::Pal::Mutex maps_lock;
     Maps maps;
 
-    std::mutex version_lock;
+    ccf::Pal::Mutex version_lock;
     Version version = 0;
     Version last_new_map = kv::NoVersion;
     Version compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
-    std::mutex commit_lock;
+    ccf::Pal::Mutex commit_lock;
 
     // Term at which write future transactions should be committed.
     Term term_of_next_version = 0;
@@ -47,17 +47,20 @@ namespace kv
     Term term_of_last_version = 0;
 
     Version last_replicated = 0;
+    // Version of the latest committable entry committed in this term and by
+    // _this_ store.
     Version last_committable = 0;
+
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::pair<std::unique_ptr<PendingTx>, bool>>
+    std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
       pending_txs;
 
   public:
     void clear()
     {
-      std::lock_guard<std::mutex> mguard(maps_lock);
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> mguard(maps_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
 
       maps.clear();
       pending_txs.clear();
@@ -86,9 +89,9 @@ namespace kv
     MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
-
     std::shared_ptr<TxHistory> history = nullptr;
     EncryptorPtr encryptor = nullptr;
+    SnapshotterPtr snapshotter = nullptr;
 
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
@@ -124,7 +127,7 @@ namespace kv
         return false;
       }
       {
-        std::lock_guard<std::mutex> vguard(version_lock);
+        std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
         version = v;
         last_replicated = version;
         term_of_last_version = term;
@@ -186,7 +189,7 @@ namespace kv
       return consensus;
     }
 
-    void set_consensus(std::shared_ptr<Consensus> consensus_)
+    void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
       consensus = consensus_;
     }
@@ -196,7 +199,7 @@ namespace kv
       return history;
     }
 
-    void set_history(std::shared_ptr<TxHistory> history_)
+    void set_history(const std::shared_ptr<TxHistory>& history_)
     {
       history = history_;
     }
@@ -209,6 +212,11 @@ namespace kv
     EncryptorPtr get_encryptor() override
     {
       return encryptor;
+    }
+
+    void set_snapshotter(const SnapshotterPtr& snapshotter_)
+    {
+      snapshotter = snapshotter_;
     }
 
     /** Get a map by name, iff it exists at the given version.
@@ -348,7 +356,7 @@ namespace kv
       auto snapshot = std::make_unique<StoreSnapshot>(v);
 
       {
-        std::lock_guard<std::mutex> mguard(maps_lock);
+        std::lock_guard<ccf::Pal::Mutex> mguard(maps_lock);
 
         for (auto& it : maps)
         {
@@ -413,7 +421,7 @@ namespace kv
       }
       auto v = v_.value();
 
-      std::lock_guard<std::mutex> mguard(maps_lock);
+      std::lock_guard<ccf::Pal::Mutex> mguard(maps_lock);
 
       for (auto& it : maps)
       {
@@ -510,10 +518,9 @@ namespace kv
       }
 
       {
-        std::lock_guard<std::mutex> vguard(version_lock);
+        std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
         version = v;
         last_replicated = v;
-        last_committable = v;
       }
 
       if (h)
@@ -537,7 +544,15 @@ namespace kv
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
-      std::lock_guard<std::mutex> mguard(maps_lock);
+
+      if (snapshotter)
+      {
+        auto c = get_consensus();
+        bool generate_snapshot = c && c->is_primary();
+        snapshotter->commit(v, generate_snapshot);
+      }
+
+      std::lock_guard<ccf::Pal::Mutex> mguard(maps_lock);
 
       if (v > current_version())
       {
@@ -563,7 +578,7 @@ namespace kv
       }
 
       {
-        std::lock_guard<std::mutex> vguard(version_lock);
+        std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
         compacted = v;
 
         auto h = get_history();
@@ -585,10 +600,16 @@ namespace kv
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
-      std::lock_guard<std::mutex> mguard(maps_lock);
+
+      if (snapshotter)
+      {
+        snapshotter->rollback(tx_id.version);
+      }
+
+      std::lock_guard<ccf::Pal::Mutex> mguard(maps_lock);
 
       {
-        std::lock_guard<std::mutex> vguard(version_lock);
+        std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
         if (tx_id.version < compacted)
         {
           throw std::logic_error(fmt::format(
@@ -617,7 +638,6 @@ namespace kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        last_committable = tx_id.version;
         unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
@@ -666,7 +686,7 @@ namespace kv
     {
       // Note: This should only be called once, when the store is first
       // initialised. term_of_next_version is later updated via rollback.
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       if (term_of_next_version != 0)
       {
         throw std::logic_error("term_of_next_version is already initialised");
@@ -743,7 +763,7 @@ namespace kv
       // rather than with the actual value read. As a result, they don't
       // need snapshot isolation on the map state, and so do not need to
       // lock each of the maps before creating the transaction.
-      std::lock_guard<std::mutex> mguard(maps_lock);
+      std::lock_guard<ccf::Pal::Mutex> mguard(maps_lock);
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
@@ -790,6 +810,7 @@ namespace kv
         LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
         return false;
       }
+
       return true;
     }
 
@@ -844,14 +865,14 @@ namespace kv
     Version current_version() override
     {
       // Must lock in case the version is being incremented.
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return version;
     }
 
     kv::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return current_txid_unsafe();
     }
 
@@ -864,21 +885,21 @@ namespace kv
     std::pair<TxID, Term> current_txid_and_commit_term() override
     {
       // Must lock in case the version or commit term is being incremented.
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return {current_txid_unsafe(), term_of_next_version};
     }
 
     Version compacted_version() override
     {
       // Must lock in case the store is being compacted.
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return compacted;
     }
 
     Term commit_view() override
     {
       // Must lock in case the commit_view is being incremented.
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return term_of_next_version;
     }
 
@@ -893,7 +914,7 @@ namespace kv
         return CommitResult::SUCCESS;
       }
 
-      std::lock_guard<std::mutex> cguard(commit_lock);
+      std::lock_guard<ccf::Pal::Mutex> cguard(commit_lock);
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
@@ -907,7 +928,7 @@ namespace kv
       ccf::View replication_view = 0;
 
       {
-        std::lock_guard<std::mutex> vguard(version_lock);
+        std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
         if (txid.term != term_of_next_version && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
@@ -927,7 +948,7 @@ namespace kv
 
         pending_txs.insert(
           {txid.version,
-           std::make_pair(std::move(pending_tx), globally_committable)});
+           std::make_tuple(std::move(pending_tx), globally_committable)});
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
@@ -1005,7 +1026,7 @@ namespace kv
 
       if (c->replicate(batch, replication_view))
       {
-        std::lock_guard<std::mutex> vguard(version_lock);
+        std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count &&
@@ -1022,6 +1043,29 @@ namespace kv
       }
     }
 
+    bool must_force_ledger_chunk(Version version) override
+    {
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
+      return must_force_ledger_chunk_unsafe(version);
+    }
+
+    bool must_force_ledger_chunk_unsafe(Version version) override
+    {
+      // Note that snapshotter->record_committable, and therefore this function,
+      // assumes that `version` is a committable entry/signature.
+
+      bool r = flag_enabled_unsafe(
+                 AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
+        flag_enabled_unsafe(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      if (snapshotter)
+      {
+        r |= snapshotter->record_committable(version);
+      }
+
+      return r;
+    }
+
     void lock() override
     {
       maps_lock.lock();
@@ -1034,7 +1078,7 @@ namespace kv
 
     std::tuple<Version, Version> next_version(bool commit_new_map) override
     {
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       Version v = next_version_unsafe();
 
       auto previous_last_new_map = last_new_map;
@@ -1048,21 +1092,21 @@ namespace kv
 
     Version next_version() override
     {
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return next_version_unsafe();
     }
 
     TxID next_txid() override
     {
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       next_version_unsafe();
 
       return {term_of_next_version, version};
     }
 
-    size_t commit_gap() override
+    size_t committable_gap() override
     {
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return version - last_committable;
     }
 
@@ -1093,8 +1137,8 @@ namespace kv
         }
       }
 
-      std::lock_guard<std::mutex> this_maps_guard(maps_lock);
-      std::lock_guard<std::mutex> other_maps_guard(store.maps_lock);
+      std::lock_guard<ccf::Pal::Mutex> this_maps_guard(maps_lock);
+      std::lock_guard<ccf::Pal::Mutex> other_maps_guard(store.maps_lock);
 
       // Each entry is (Name, MyMap, TheirMap)
       using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;
@@ -1228,19 +1272,19 @@ namespace kv
 
     virtual void set_flag(Flag f) override
     {
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       set_flag_unsafe(f);
     }
 
     virtual void unset_flag(Flag f) override
     {
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       unset_flag_unsafe(f);
     }
 
     virtual bool flag_enabled(Flag f) override
     {
-      std::lock_guard<std::mutex> vguard(version_lock);
+      std::lock_guard<ccf::Pal::Mutex> vguard(version_lock);
       return flag_enabled_unsafe(f);
     }
 

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
@@ -39,6 +40,7 @@ using ResolvedAddresses = std::
   map<ccf::NodeInfoNetwork::RpcInterfaceID, ccf::NodeInfoNetwork::NetAddress>;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
+size_t asynchost::UDPImpl::remaining_read_quota;
 
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
@@ -48,10 +50,19 @@ void print_version(size_t)
   exit(0);
 }
 
+static void _signal_handler(int sig_num)
+{
+  LOG_INFO_FMT("Ignoring signal: {}", sig_num);
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
-  signal(SIGPIPE, SIG_IGN);
+  {
+    // Avoiding use of SIG_IGN due to OE issue:
+    // https://github.com/openenclave/openenclave/issues/4542
+    signal(SIGPIPE, _signal_handler);
+  }
 
   CLI::App app{"ccf"};
 
@@ -77,19 +88,17 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  host::CCHostConfig config = {};
   std::string config_str = files::slurp_string(config_file_path);
+  nlohmann::json config_json;
   try
   {
-    config = nlohmann::json::parse(config_str);
+    config_json = nlohmann::json::parse(config_str);
   }
   catch (const std::exception& e)
   {
     throw std::logic_error(fmt::format(
       "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
-
-  auto config_json = nlohmann::json(config);
   auto schema_json = nlohmann::json::parse(host::host_config_schema);
 
   auto schema_error_msg = json::validate_json(config_json, schema_json);
@@ -100,6 +109,8 @@ int main(int argc, char** argv)
       config_file_path,
       schema_error_msg.value()));
   }
+
+  host::CCHostConfig config = config_json;
 
   if (config.logging.format == host::LogFormat::JSON)
   {
@@ -239,6 +250,9 @@ int main(int argc, char** argv)
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
 
+    // reset the inbound-UDP processing quota each iteration
+    asynchost::ResetUDPReadQuota reset_udp_quota;
+
     // regularly update the time given to the enclave
     asynchost::TimeUpdater time_updater(1ms);
 
@@ -260,7 +274,8 @@ int main(int argc, char** argv)
       config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(config.snapshots.directory, ledger);
+    asynchost::SnapshotManager snapshots(
+      config.snapshots.directory, ledger, config.snapshots.read_only_directory);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // handle LFS-related messages from the enclave
@@ -284,6 +299,11 @@ int main(int argc, char** argv)
       config.client_connection_timeout);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);
+    if (config.network.node_to_node_interface.published_address.empty())
+    {
+      config.network.node_to_node_interface.published_address =
+        config.network.node_to_node_interface.bind_address;
+    }
     if (!config.output_files.node_to_node_address_file.empty())
     {
       ResolvedAddresses resolved_node_address;
@@ -294,15 +314,44 @@ int main(int argc, char** argv)
         config.output_files.node_to_node_address_file);
     }
 
-    asynchost::RPCConnections rpc(
-      writer_factory, config.client_connection_timeout);
+    asynchost::ConnIDGenerator idGen;
+
+    asynchost::RPCConnections<asynchost::TCP> rpc(
+      writer_factory, idGen, config.client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
+
+    // This is a temporary solution to keep UDP RPC handlers in the same
+    // way as the TCP ones without having to parametrize per connection,
+    // which is not yet possible, due to UDP and TCP not being derived
+    // from the same abstract class.
+    asynchost::RPCConnections<asynchost::UDP> rpc_udp(
+      writer_factory, idGen, config.client_connection_timeout);
+    rpc_udp.register_quic_message_handlers(bp.get_dispatcher());
 
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
     {
       auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
-      rpc.listen(0, rpc_host, rpc_port, name);
+      LOG_INFO_FMT(
+        "Registering RPC interface {}, on {} {}:{}",
+        name,
+        interface.protocol,
+        rpc_host,
+        rpc_port);
+      if (interface.protocol == "udp")
+      {
+        rpc_udp.listen(0, rpc_host, rpc_port, name);
+      }
+      else
+      {
+        rpc.listen(0, rpc_host, rpc_port, name);
+      }
+      LOG_INFO_FMT(
+        "Registered RPC interface {}, on {} {}:{}",
+        name,
+        interface.protocol,
+        rpc_host,
+        rpc_port);
 
       resolved_rpc_addresses[name] = fmt::format("{}:{}", rpc_host, rpc_port);
 
@@ -360,24 +409,39 @@ int main(int argc, char** argv)
         files::slurp_json(config.node_data_json_file.value());
     }
 
+    if (config.service_data_json_file.has_value())
+    {
+      if (
+        config.command.type == StartType::Start ||
+        config.command.type == StartType::Recover)
+      {
+        startup_config.service_data =
+          files::slurp_json(config.service_data_json_file.value());
+      }
+      else
+      {
+        LOG_FAIL_FMT(
+          "Service data is ignored for start type {}", config.command.type);
+      }
+    }
+
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
-    startup_config.startup_host_time = ds::to_x509_time_string(
-      std::chrono::system_clock::to_time_t(startup_host_time));
+    startup_config.startup_host_time =
+      ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
       for (auto const& m : config.command.start.members)
       {
-        std::optional<std::vector<uint8_t>> public_encryption_key =
-          std::nullopt;
+        std::optional<crypto::Pem> public_encryption_key = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key =
-            files::slurp(m.encryption_public_key_file.value());
+            crypto::Pem(files::slurp(m.encryption_public_key_file.value()));
         }
 
         nlohmann::json md = nullptr;
@@ -387,7 +451,9 @@ int main(int argc, char** argv)
         }
 
         startup_config.start.members.emplace_back(
-          files::slurp(m.certificate_file), public_encryption_key, md);
+          crypto::Pem(files::slurp(m.certificate_file)),
+          public_encryption_key,
+          md);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :
@@ -450,23 +516,25 @@ int main(int argc, char** argv)
       config.command.type == StartType::Join ||
       config.command.type == StartType::Recover)
     {
-      auto snapshot_file = snapshots.find_latest_committed_snapshot();
-      if (snapshot_file.has_value())
+      auto latest_committed_snapshot =
+        snapshots.find_latest_committed_snapshot();
+      if (latest_committed_snapshot.has_value())
       {
-        auto& snapshot = snapshot_file.value();
-        startup_config.startup_snapshot = snapshots.read_snapshot(snapshot);
+        auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
+        startup_config.startup_snapshot =
+          files::slurp(snapshot_dir / snapshot_file);
 
-        if (asynchost::is_snapshot_file_1_x(snapshot))
+        if (asynchost::is_snapshot_file_1_x(snapshot_file))
         {
           // Snapshot evidence seqno is only specified for 1.x snapshots which
           // need to be verified by deserialising the ledger suffix.
           startup_config.startup_snapshot_evidence_seqno_for_1_x =
-            asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
+            asynchost::get_snapshot_evidence_idx_from_file_name(snapshot_file);
         }
 
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {})",
-          snapshot,
+          snapshot_dir / snapshot_file,
           startup_config.startup_snapshot.size());
       }
       else
@@ -485,6 +553,11 @@ int main(int argc, char** argv)
       LOG_FAIL_FMT(
         "Selected consensus BFT is not supported in {}", ccf::ccf_version);
 #endif
+    }
+
+    if (config.network.acme)
+    {
+      startup_config.network.acme = config.network.acme;
     }
 
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");

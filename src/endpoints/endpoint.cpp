@@ -69,10 +69,18 @@ namespace ccf::endpoints
     return *this;
   }
 
-  Endpoint& Endpoint::set_execute_outside_consensus(
-    endpoints::ExecuteOutsideConsensus v)
+  void Endpoint::install()
   {
-    properties.execute_outside_consensus = v;
-    return *this;
+    if (installer == nullptr)
+    {
+      LOG_FATAL_FMT(
+        "Can't install this endpoint ({}) - it is not associated with an "
+        "installer",
+        full_uri_path);
+    }
+    else
+    {
+      installer->install(*this);
+    }
   }
 }

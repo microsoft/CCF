@@ -25,6 +25,12 @@ def nodes(args, n):
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                     max_open_sessions_soft=args.max_open_sessions,
                     max_open_sessions_hard=args.max_open_sessions_hard,
+                    max_http_body_size=args.max_http_body_size,
+                    max_http_header_size=args.max_http_header_size,
+                    max_http_headers_count=args.max_http_headers_count,
+                    app_protocol=infra.interfaces.AppProtocol.HTTP2
+                    if args.http2
+                    else infra.interfaces.AppProtocol.HTTP1,
                 )
             }
         )
@@ -108,7 +114,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("release", "debug", "virtual"),
     )
     parser.add_argument(
-        "-l",
         "--host-log-level",
         help="Runtime host log level",
         default="info",
@@ -203,7 +208,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Subject Name in node certificate, eg. CN=CCF Node",
     )
     parser.add_argument(
-        "--subject_alt_names",
+        "--subject-alt-names",
         help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
         action="append",
         default=[],
@@ -219,7 +224,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--join-timer-s",
         help="Timer period when trying to join an existing network",
         type=int,
-        default=4,  # Set higher than cchost default to avoid swamping joinee with requests during slow quote verification
+        default=1,
     )
     parser.add_argument(
         "--initial-member-count",
@@ -342,6 +347,27 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--config-file",
         help="Absolute path to node JSON configuration file",
         default=None,
+    )
+    parser.add_argument(
+        "--max-http-body-size",
+        help="Maximum allowed size for body of single HTTP request",
+        default=1024 * 1024,  # 1MB
+    )
+    parser.add_argument(
+        "--max-http-header-size",
+        help="Maximum allowed size of single header in single HTTP request",
+        default=1024 * 16,  # 16KB
+    )
+    parser.add_argument(
+        "--max-http-headers-count",
+        help="Maximum number of headers in single HTTP request",
+        default=256,
+    )
+    parser.add_argument(
+        "--http2",
+        help="Enable HTTP/2 for all interfaces",
+        action="store_true",
+        default=False,
     )
 
     add(parser)

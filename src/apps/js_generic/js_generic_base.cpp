@@ -270,7 +270,7 @@ namespace ccfapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       kv::ReadOnlyTx* historical_tx,
       const std::optional<ccf::TxID>& transaction_id,
-      ccf::TxReceiptPtr receipt)
+      ccf::TxReceiptImplPtr receipt)
     {
       js::Runtime rt;
       rt.add_ccf_classdefs();
@@ -278,9 +278,9 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::Context ctx(rt);
-      js::TxContext txctx{&endpoint_ctx.tx, js::TxAccess::APP};
-      js::ReadOnlyTxContext historical_txctx{historical_tx, js::TxAccess::APP};
+      js::Context ctx(rt, js::TxAccess::APP);
+      js::TxContext txctx{&endpoint_ctx.tx};
+      js::ReadOnlyTxContext historical_txctx{historical_tx};
 
       js::register_request_body_class(ctx);
       js::populate_global(
@@ -524,7 +524,7 @@ namespace ccfapp
             if (key.verb == other_key.verb)
             {
               const auto opt_spec =
-                ccf::endpoints::parse_path_template(other_key.uri_path);
+                ccf::endpoints::PathTemplateSpec::parse(other_key.uri_path);
               if (opt_spec.has_value())
               {
                 const auto& template_spec = opt_spec.value();
@@ -594,7 +594,8 @@ namespace ccfapp
         tx.ro<ccf::endpoints::EndpointsMap>(ccf::endpoints::Tables::ENDPOINTS);
 
       endpoints->foreach_key([this, &verbs, &method](const auto& key) {
-        const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
+        const auto opt_spec =
+          ccf::endpoints::PathTemplateSpec::parse(key.uri_path);
         if (opt_spec.has_value())
         {
           const auto& template_spec = opt_spec.value();

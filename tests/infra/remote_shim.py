@@ -27,7 +27,9 @@ def map_azure_devops_docker_workspace_dir(workspace_dir):
 
 
 # Docker image name prefix
-DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
+# To update when runtime images are pushed to ACR
+MICROSOFT_REGISTRY_NAME = "mcr.microsoft.com"
+DOCKER_IMAGE_NAME_PREFIX = "ccf/app/run"
 
 # Network name
 AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR = "AGENT_CONTAINERNETWORK"
@@ -133,13 +135,11 @@ class DockerShim(infra.remote.CCFRemote):
         repo = infra.github.Repository()
         image_name = kwargs.get("node_container_image")
         if image_name is None:
-            image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
+            image_name = f"{MICROSOFT_REGISTRY_NAME}/{DOCKER_IMAGE_NAME_PREFIX}:"
             if ccf_version is not None:
                 image_name += ccf_version
             else:
-                image_name += infra.github.strip_release_tag_name(
-                    repo.get_latest_dev_tag()
-                )
+                image_name += f"{infra.github.strip_release_tag_name(repo.get_latest_dev_tag())}-sgx"
 
         try:
             self.docker_client.images.get(image_name)
@@ -210,3 +210,11 @@ class DockerShim(infra.remote.CCFRemote):
 
     def resume(self):
         self.container.unpause()
+
+    def check_done(self):
+        try:
+            self.container.reload()
+            LOG.debug(self.container.attrs["State"])
+            return self.container.attrs["State"]["Status"] != "running"
+        except docker.errors.NotFound:
+            return True

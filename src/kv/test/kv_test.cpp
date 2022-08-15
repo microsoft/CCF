@@ -2354,6 +2354,78 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx2.commit());
 }
 
+TEST_CASE("Cross-map conflicts")
+{
+  kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  MapTypes::StringString source("public:source");
+  MapTypes::StringString dest("public:dest");
+
+  {
+    INFO("Set initial state");
+
+    auto tx = kv_store.create_tx();
+    auto source_handle = tx.wo(source);
+    source_handle->put("hello", "world");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Start an operation copying a value across tables");
+    auto copy_tx = kv_store.create_tx();
+    {
+      auto src_handle = copy_tx.ro(source);
+      auto dst_handle = copy_tx.wo(dest);
+      const auto v = src_handle->get("hello");
+      REQUIRE(v.has_value());
+      dst_handle->put("hello", v.value());
+    }
+
+    INFO(
+      "Before the copy commits, another operation changes the source, and "
+      "commits");
+    {
+      auto interfere_tx = kv_store.create_tx();
+      auto src_handle = interfere_tx.wo(source);
+      src_handle->put("hello", "alice");
+      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Copying operation should conflict on commit");
+    REQUIRE(copy_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+
+  {
+    INFO("Start an operation moving a value across tables");
+    auto move_tx = kv_store.create_tx();
+    {
+      auto src_handle = move_tx.rw(source);
+      auto dst_handle = move_tx.wo(dest);
+      const auto v = src_handle->get("hello");
+      REQUIRE(v.has_value());
+      dst_handle->put("hello", v.value());
+
+      // Unlike copy, this operation destroys the source! That should not change
+      // its conflict set
+      src_handle->remove("hello");
+    }
+
+    INFO(
+      "Before the move commits, another operation changes the source, and "
+      "commits");
+    {
+      auto interfere_tx = kv_store.create_tx();
+      auto src_handle = interfere_tx.wo(source);
+      src_handle->put("hello", "bob");
+      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Moving operation should conflict on commit");
+    REQUIRE(move_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+}
+
 std::string rand_string(size_t i)
 {
   return fmt::format("{}: {}", i, rand());
@@ -3022,6 +3094,43 @@ TEST_CASE("Ledger entry chunk request")
       auto header = serialized::peek<kv::SerialisedEntryHeader>(
         entry_data, entry_data_size);
       REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0);
+    }
+  }
+
+  SUBCASE("Chunk when the snapshotter requires one")
+  {
+    store.set_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+    INFO("Add a signature that triggers a snapshot");
+    {
+      auto txid = store.next_txid();
+      auto tx = store.create_reserved_tx(txid);
+
+      // The store must know that we need a new ledger chunk at this version
+      REQUIRE(store.must_force_ledger_chunk(txid.version));
+
+      // Add the signature
+      auto sig_handle = tx.rw(signatures);
+      auto tree_handle = tx.rw(serialised_tree);
+      ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+      sig_handle->put(sigv);
+      tree_handle->put({});
+      auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
+        tx.commit_reserved();
+      auto& success = success_;
+      auto& data = data_;
+      REQUIRE(success == kv::CommitResult::SUCCESS);
+
+      REQUIRE(
+        store.deserialize(data, ConsensusType::CFT)->apply() ==
+        kv::ApplyResult::PASS_SIGNATURE);
+
+      // Check that the ledger chunk header flag is set in the last entry
+      const uint8_t* entry_data = data.data();
+      size_t entry_data_size = data.size();
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+        entry_data, entry_data_size);
+      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
     }
   }
 }

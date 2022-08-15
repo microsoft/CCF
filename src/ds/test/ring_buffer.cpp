@@ -6,6 +6,8 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <map>
+#include <queue>
 #include <thread>
 #include <vector>
 
@@ -250,23 +252,20 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
   const bool v2 = false;
   const TEnum v3 = Baz;
   const std::vector<uint8_t> v4 = {0xab, 0xac, 0xad, 0xae, 0xaf};
-
   const size_t v5_limit = 3;
   const char v6 = 'x';
+  const std::vector<uint8_t> v7 = {0x1a, 0x1b, 0x1c};
 
-  // NB: byte-vector is dumped directly, not length-prefixed, so length must be
-  // manually inserted where required
   w.write(
     Const::msg_min,
     v0,
     v1,
     v2,
     v3,
-    v4.size(),
     v4,
-    v5_limit,
     serializer::ByteRange{v4.data(), v5_limit},
-    v6);
+    v6,
+    v7);
 
   r.read(1, [&](Message m, const uint8_t* data, size_t size) {
     REQUIRE(Const::msg_min == m);
@@ -283,6 +282,7 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
     auto r3 = serialized::read<std::remove_const_t<decltype(v3)>>(data, size);
     REQUIRE(v3 == r3);
 
+    // Size prefix is inserted by writer
     auto s4 =
       serialized::read<std::remove_const_t<decltype(v4.size())>>(data, size);
     REQUIRE(v4.size() == s4);
@@ -295,6 +295,7 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
       REQUIRE(v4[i] == r4i);
     }
 
+    // Size prefix is inserted by writer
     auto s5 =
       serialized::read<std::remove_const_t<decltype(v5_limit)>>(data, size);
     REQUIRE(v5_limit == s5);
@@ -309,6 +310,10 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
 
     auto r6 = serialized::read<std::remove_const_t<decltype(v6)>>(data, size);
     REQUIRE(v6 == r6);
+
+    // Trailing variably sized value is not size-prefixed
+    auto r7 = serialized::read(data, size, size);
+    REQUIRE(v7 == r7);
 
     REQUIRE(size == 0);
   });
@@ -620,6 +625,191 @@ TEST_CASE("Multiple threads can wait" * doctest::test_suite("ringbuffer"))
     for (auto& thr : writer_threads)
     {
       thr.join();
+    }
+  }
+}
+
+class SparseReader : public ringbuffer::Reader
+{
+public:
+  std::map<size_t, uint64_t> writes;
+
+  using ringbuffer::Reader::Reader;
+
+  uint64_t read64(size_t index) override
+  {
+    const auto it = writes.find(index);
+    if (it != writes.end())
+    {
+      return it->second;
+    }
+
+    return 0;
+  }
+
+  virtual void clear_mem(size_t index, size_t advance) override
+  {
+    writes.erase(
+      writes.lower_bound(index), writes.upper_bound(index + advance));
+  }
+};
+
+class SparseWriter : public ringbuffer::Writer
+{
+public:
+  SparseReader& nr;
+
+  SparseWriter(SparseReader& nr_) : ringbuffer::Writer(nr_), nr(nr_) {}
+
+  uint64_t read64(size_t index) override
+  {
+    return nr.read64(index);
+  }
+
+  void write64(size_t index, uint64_t value) override
+  {
+    nr.writes[index] = value;
+  }
+};
+
+// This test checks that the ringbuffer functions correctly when the offsets
+// overflow and wrap around from their maximum representable size to 0
+TEST_CASE("Offset overflow" * doctest::test_suite("ringbuffer"))
+{
+  srand(time(NULL));
+
+  // Pass a randomly constructed list of messages of mixed size, some extremely
+  // large
+  const std::vector<size_t> message_sizes = {
+    0,
+    3,
+    ringbuffer::Const::max_size() / 3,
+    ringbuffer::Const::max_size() - 3,
+    ringbuffer::Const::max_size()};
+
+  auto rand_message_type = []() {
+    return (rand() % 100) + ringbuffer::Const::msg_min;
+  };
+
+  auto rand_message_size = [&message_sizes]() {
+    return message_sizes[rand() % message_sizes.size()];
+  };
+
+  // Repeat test many times, with randomised parameters each time
+  for (size_t iteration = 0; iteration < 100; ++iteration)
+  {
+    ringbuffer::Offsets offsets;
+
+    // bd points to a single real byte, not null, so we can do maths on it
+    auto buffer_start = std::make_unique<uint8_t>();
+    ringbuffer::BufferDef bd{buffer_start.get(), 1ull << 32, &offsets};
+
+    // Initially set the offsets to a large value (within a few max-sized
+    // message writes of their maximum)
+    offsets.head = offsets.head_cache = offsets.tail =
+      UINT64_MAX - (rand() % (4ull * ringbuffer::Const::max_size()));
+
+    // Construct test reader/writer which don't require huge allocations.
+    SparseReader r(bd);
+    SparseWriter w(r);
+
+    // Loop until we've overflowed the offsets
+    while (true)
+    {
+      // Record each message type and size that was written, for validation when
+      // reading
+      std::queue<std::pair<Message, size_t>> messages;
+
+      // Write a few messages this time. Deliberately randomised so it may fill
+      // the buffer, may wrap, or may write a few small messages.
+      const auto message_count = (rand() % 4) + 1;
+      for (size_t m = 0; m < message_count; ++m)
+      {
+        const auto message_type = rand_message_type();
+        const auto message_size = rand_message_size();
+        auto marker = w.prepare(message_type, message_size, false);
+        if (!marker.has_value())
+        {
+          REQUIRE(!messages.empty());
+          // Ring-buffer is full (but at least one message has been written)
+          break;
+        }
+        messages.push({message_type, message_size});
+        w.finish(marker);
+      }
+
+      // Read twice, because read() will early-out when it reaches the end of
+      // the buffer
+      for (size_t i = 0; i < 2; ++i)
+      {
+        r.read(-1, [&messages](Message m, const uint8_t* data, size_t size) {
+          // Validate and pop each message as it is seen, in-order
+          REQUIRE(!messages.empty());
+          const auto expected = messages.front();
+          REQUIRE(m == expected.first);
+          REQUIRE(size == expected.second);
+          messages.pop();
+        });
+      }
+
+      // Confirm that all messages were processed
+      REQUIRE(messages.empty());
+
+      if (
+        (offsets.head_cache < UINT64_MAX / 2) &&
+        offsets.head_cache > ringbuffer::Const::max_size())
+      {
+        // If we have overflowed, and correctly written several messages
+        // after wrapping, then exit this iteration
+        break;
+      }
+    }
+  }
+}
+
+TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
+{
+  constexpr auto buffer_size = 256ull;
+
+  std::unique_ptr<ringbuffer::TestBuffer> buffer;
+
+  const auto read_fn = [&buffer](Message m, const uint8_t* data, size_t size) {
+    REQUIRE(data > buffer->storage.data());
+    REQUIRE(data + size <= buffer->storage.data() + buffer->storage.size());
+  };
+
+  for (size_t write_size :
+       {(size_t)0,
+        (size_t)1,
+        (size_t)(buffer_size - ringbuffer::Const::header_size()),
+        (size_t)(buffer_size - ringbuffer::Const::header_size() + 1),
+        (size_t)(buffer_size),
+        (size_t)UINT32_MAX})
+  {
+    for (ringbuffer::Message m :
+         {(ringbuffer::Message)empty_message,
+          (ringbuffer::Message)small_message,
+          (ringbuffer::Message)ringbuffer::Const::msg_pad})
+    {
+      buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+      Reader r(buffer->bd);
+
+      auto data = buffer->storage.data();
+      auto size = buffer->storage.size();
+      uint64_t bad_header =
+        ringbuffer::Const::make_header(m, write_size, false);
+      serialized::write(data, size, bad_header);
+
+      const auto should_throw =
+        write_size > buffer_size - ringbuffer::Const::header_size();
+      if (should_throw)
+      {
+        REQUIRE_THROWS(r.read(-1, read_fn));
+      }
+      else
+      {
+        REQUIRE_NOTHROW(r.read(-1, read_fn));
+      }
     }
   }
 }

@@ -1,10 +1,19 @@
 {
   "components": {
     "schemas": {
+      "ApplicationProtocol": {
+        "enum": [
+          "HTTP1",
+          "HTTP2"
+        ],
+        "type": "string"
+      },
       "Authority": {
         "enum": [
           "Node",
-          "Service"
+          "Service",
+          "ACME",
+          "Unsecured"
         ],
         "type": "string"
       },
@@ -67,7 +76,7 @@
       "ConsensusDetails": {
         "properties": {
           "acks": {
-            "$ref": "#/components/schemas/NodeId_to_uint64"
+            "$ref": "#/components/schemas/NodeId_to_ConsensusDetails__Ack"
           },
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
@@ -107,6 +116,21 @@
         ],
         "type": "object"
       },
+      "ConsensusDetails__Ack": {
+        "properties": {
+          "last_received_ms": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "seqno",
+          "last_received_ms"
+        ],
+        "type": "object"
+      },
       "ConsensusNodeConfig": {
         "properties": {
           "address": {
@@ -127,6 +151,9 @@
       },
       "Endorsement": {
         "properties": {
+          "acme_configuration": {
+            "$ref": "#/components/schemas/string"
+          },
           "authority": {
             "$ref": "#/components/schemas/Authority"
           }
@@ -229,14 +256,23 @@
       },
       "GetNetworkInfo__Out": {
         "properties": {
+          "current_service_create_txid": {
+            "$ref": "#/components/schemas/TransactionId"
+          },
           "current_view": {
             "$ref": "#/components/schemas/uint64"
           },
           "primary_id": {
             "$ref": "#/components/schemas/NodeId"
           },
+          "recovery_count": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "service_certificate": {
             "$ref": "#/components/schemas/Pem"
+          },
+          "service_data": {
+            "$ref": "#/components/schemas/json"
           },
           "service_status": {
             "$ref": "#/components/schemas/ServiceStatus"
@@ -246,7 +282,10 @@
           "service_status",
           "service_certificate",
           "current_view",
-          "primary_id"
+          "primary_id",
+          "recovery_count",
+          "service_data",
+          "current_service_create_txid"
         ],
         "type": "object"
       },
@@ -309,6 +348,17 @@
         ],
         "type": "object"
       },
+      "GetServicePreviousIdentity__Out": {
+        "properties": {
+          "previous_service_identity": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "previous_service_identity"
+        ],
+        "type": "object"
+      },
       "GetState__Out": {
         "properties": {
           "last_recovered_seqno": {
@@ -360,11 +410,15 @@
           },
           "quickjs_version": {
             "$ref": "#/components/schemas/string"
+          },
+          "unsafe": {
+            "$ref": "#/components/schemas/boolean"
           }
         },
         "required": [
           "ccf_version",
-          "quickjs_version"
+          "quickjs_version",
+          "unsafe"
         ],
         "type": "object"
       },
@@ -445,6 +499,12 @@
         },
         "type": "object"
       },
+      "NodeId_to_ConsensusDetails__Ack": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ConsensusDetails__Ack"
+        },
+        "type": "object"
+      },
       "NodeId_to_uint64": {
         "additionalProperties": {
           "$ref": "#/components/schemas/uint64"
@@ -453,17 +513,29 @@
       },
       "NodeInfoNetwork_v2__NetInterface": {
         "properties": {
+          "accepted_endpoints": {
+            "$ref": "#/components/schemas/string_array"
+          },
+          "app_protocol": {
+            "$ref": "#/components/schemas/ApplicationProtocol"
+          },
           "bind_address": {
             "$ref": "#/components/schemas/string"
           },
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
+          "http_configuration": {
+            "$ref": "#/components/schemas/ParserConfiguration"
+          },
           "max_open_sessions_hard": {
             "$ref": "#/components/schemas/uint64"
           },
           "max_open_sessions_soft": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/string"
           },
           "published_address": {
             "$ref": "#/components/schemas/string"
@@ -495,14 +567,22 @@
         ],
         "type": "string"
       },
+      "ParserConfiguration": {
+        "properties": {
+          "max_body_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
+          "max_header_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
+          "max_headers_count": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "type": "object"
+      },
       "Pem": {
         "type": "string"
-      },
-      "Pem_array": {
-        "items": {
-          "$ref": "#/components/schemas/Pem"
-        },
-        "type": "array"
       },
       "Quote": {
         "properties": {
@@ -532,7 +612,9 @@
       },
       "QuoteFormat": {
         "enum": [
-          "OE_SGX_v1"
+          "OE_SGX_v1",
+          "Insecure_Virtual",
+          "AMD_SEV_SNP_v1"
         ],
         "type": "string"
       },
@@ -541,71 +623,6 @@
           "$ref": "#/components/schemas/Quote"
         },
         "type": "array"
-      },
-      "Receipt": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "leaf_components": {
-            "$ref": "#/components/schemas/Receipt__LeafComponents"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/NodeId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/Receipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "service_endorsements": {
-            "$ref": "#/components/schemas/Pem_array"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "proof",
-          "node_id"
-        ],
-        "type": "object"
-      },
-      "Receipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "Receipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/Receipt__Element"
-        },
-        "type": "array"
-      },
-      "Receipt__LeafComponents": {
-        "properties": {
-          "claims_digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "commit_evidence": {
-            "$ref": "#/components/schemas/string"
-          },
-          "write_set_digest": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
       },
       "ReconfigurationType": {
         "enum": [
@@ -622,6 +639,17 @@
           "Completed"
         ],
         "type": "string"
+      },
+      "SelfSignedNodeCertificateInfo": {
+        "properties": {
+          "self_signed_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          }
+        },
+        "required": [
+          "self_signed_certificate"
+        ],
+        "type": "object"
       },
       "ServiceConfiguration": {
         "properties": {
@@ -678,10 +706,18 @@
         "properties": {
           "parsing": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "request_header_too_large": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "request_payload_too_large": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
-          "parsing"
+          "parsing",
+          "request_payload_too_large",
+          "request_header_too_large"
         ],
         "type": "object"
       },
@@ -711,6 +747,10 @@
           "errors"
         ],
         "type": "object"
+      },
+      "TimeString": {
+        "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+        "type": "string"
       },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
@@ -749,6 +789,12 @@
       "string": {
         "type": "string"
       },
+      "string_array": {
+        "items": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "array"
+      },
       "string_to_ConsensusNodeConfig": {
         "additionalProperties": {
           "$ref": "#/components/schemas/ConsensusNodeConfig"
@@ -777,12 +823,26 @@
         "minimum": 0,
         "type": "integer"
       }
+    },
+    "x-ccf-forwarding": {
+      "always": {
+        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
+        "value": "always"
+      },
+      "never": {
+        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
+        "value": "never"
+      },
+      "sometimes": {
+        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
+        "value": "sometimes"
+      }
     }
   },
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.16.1"
+    "version": "2.29.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -799,6 +859,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -815,6 +878,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -831,6 +897,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -847,6 +916,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -863,6 +935,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -879,6 +954,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -895,6 +973,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -911,6 +992,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -937,6 +1021,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -953,6 +1040,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -969,6 +1059,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -985,6 +1078,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1027,6 +1123,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1036,6 +1135,9 @@
           "200": {
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1045,10 +1147,30 @@
           "200": {
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
     "/node/network/nodes/{node_id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      },
       "get": {
         "responses": {
           "200": {
@@ -1061,6 +1183,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       },
       "parameters": [
@@ -1074,12 +1199,34 @@
         }
       ]
     },
+    "/node/network/removable_nodes": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNodes__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/node/primary": {
       "head": {
         "responses": {
           "200": {
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1096,6 +1243,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1112,6 +1262,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1132,12 +1285,34 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/node/self_signed_certificate": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfSignedNodeCertificateInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1154,6 +1329,28 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/node/service/previous_identity": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetServicePreviousIdentity__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1170,6 +1367,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1196,6 +1396,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1212,6 +1415,9 @@
             },
             "description": "Default response description"
           }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     }

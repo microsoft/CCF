@@ -40,7 +40,7 @@ namespace kv
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
-      const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
+      const ccf::ClaimsDigest& claims_digest_,
       bool include_reads = false)
     {
       if (!committed)
@@ -48,6 +48,9 @@ namespace kv
 
       if (!success)
         throw std::logic_error("Transaction aborted");
+
+      if (claims_digest_.empty())
+        throw std::logic_error("Missing claims");
 
       // If no transactions made changes, return a zero length vector.
       const bool any_changes =
@@ -72,14 +75,7 @@ namespace kv
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
       crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
-      auto entry_type = claims_digest.empty() ?
-        EntryType::WriteSetWithCommitEvidence :
-        EntryType::WriteSetWithCommitEvidenceAndClaims;
-
-      LOG_TRACE_FMT(
-        "Serialising claim digest {} {}",
-        claims_digest.value(),
-        claims_digest.empty());
+      auto entry_type = EntryType::WriteSetWithCommitEvidenceAndClaims;
 
       if (flag_enabled(Flag::LEDGER_CHUNK_BEFORE_THIS_TX))
       {
@@ -92,7 +88,7 @@ namespace kv
         entry_type,
         entry_flags,
         tx_commit_evidence_digest,
-        claims_digest);
+        claims_digest_);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -131,7 +127,7 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
-      const ccf::ClaimsDigest& claims = ccf::no_claims(),
+      const ccf::ClaimsDigest& claims = ccf::empty_claims(),
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
@@ -427,13 +423,7 @@ namespace kv
       // This is a signature and, if the ledger chunking or snapshot flags are
       // enabled, we want the host to create a chunk when it sees this entry.
       // version_lock held by Store::commit
-      bool force_ledger_chunk =
-        pimpl->store->flag_enabled_unsafe(
-          AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
-        pimpl->store->flag_enabled_unsafe(
-          AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
-
-      if (force_ledger_chunk)
+      if (pimpl->store->must_force_ledger_chunk_unsafe(version))
       {
         entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
@@ -443,8 +433,8 @@ namespace kv
       }
 
       committed = true;
-      auto data =
-        serialise(commit_evidence_digest, commit_evidence, ccf::no_claims());
+      auto claims = ccf::empty_claims();
+      auto data = serialise(commit_evidence_digest, commit_evidence, claims);
 
       // Reset ledger chunk flag in the store
       pimpl->store->unset_flag_unsafe(
@@ -453,7 +443,7 @@ namespace kv
       return {
         CommitResult::SUCCESS,
         std::move(data),
-        ccf::no_claims(),
+        ccf::empty_claims(),
         std::move(commit_evidence_digest),
         std::move(hooks)};
     }

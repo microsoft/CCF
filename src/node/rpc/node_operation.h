@@ -55,7 +55,7 @@ namespace ccf
       return impl.get_last_recovered_signed_idx();
     }
 
-    std::optional<kv::Version> get_startup_snapshot_seqno() override
+    kv::Version get_startup_snapshot_seqno() override
     {
       return impl.get_startup_snapshot_seqno();
     }
@@ -83,6 +83,11 @@ namespace ccf
     void initiate_private_recovery(kv::Tx& tx) override
     {
       impl.initiate_private_recovery(tx);
+    }
+
+    crypto::Pem get_self_signed_node_certificate() override
+    {
+      return impl.get_self_signed_certificate();
     }
   };
 }

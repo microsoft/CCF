@@ -571,7 +571,8 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     llhttp_method method,
     const std::string_view& url,
     http::HeaderMap&& headers,
-    std::vector<uint8_t>&& body) override
+    std::vector<uint8_t>&& body,
+    int32_t stream_id = 0) override
   {
     const auto signed_req = http::HttpSignatureVerifier::parse(
       llhttp_method_name(method), url, headers, body);
@@ -582,7 +583,7 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     }
 
     http::SimpleRequestProcessor::handle_request(
-      method, url, std::move(headers), std::move(body));
+      method, url, std::move(headers), std::move(body), stream_id);
   }
 };
 

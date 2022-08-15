@@ -177,9 +177,9 @@ class JSONConverter<T extends JsonCompatible<T>> implements DataConverter<T> {
   }
 }
 
-type TypedArray = ArrayBufferView;
+export type TypedArray = ArrayBufferView;
 
-interface TypedArrayConstructor<T extends TypedArray> {
+export interface TypedArrayConstructor<T extends TypedArray> {
   new (buffer: ArrayBuffer, byteOffset?: number, length?: number): T;
 }
 

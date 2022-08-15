@@ -13,7 +13,7 @@ namespace ccf
 
     // Current time, as us duration since epoch (from system_clock). Used to
     // produce offsets to host time when logging from inside the enclave
-    std::atomic<std::chrono::microseconds> us;
+    std::atomic<std::chrono::microseconds> us = {};
 
   public:
     RingbufferLogger(const ringbuffer::WriterPtr& writer_) : writer(writer_) {}
@@ -28,6 +28,7 @@ namespace ccf
         line.file_name,
         line.line_number,
         line.log_level,
+        line.tag,
         line.thread_id,
         line.msg);
     }

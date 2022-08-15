@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/service/signed_req.h"
+#include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
@@ -76,10 +77,11 @@ namespace ccf
     UserInfo user_info;
 
     //
-    // Node table
+    // Node tables
     //
     Nodes nodes;
     NodeEndorsedCertificates node_endorsed_certificates;
+    ACMECertificates acme_certificates;
 
     //
     // Internal CCF tables
@@ -125,6 +127,7 @@ namespace ccf
       user_info(Tables::USER_INFO),
       nodes(Tables::NODES),
       node_endorsed_certificates(Tables::NODE_ENDORSED_CERTIFICATES),
+      acme_certificates(Tables::ACME_CERTIFICATES),
       service(Tables::SERVICE),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),

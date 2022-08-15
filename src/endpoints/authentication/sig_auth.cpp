@@ -4,6 +4,7 @@
 #include "ccf/endpoints/authentication/sig_auth.h"
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/pal.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/users.h"
@@ -26,7 +27,7 @@ namespace ccf
   {
     static constexpr size_t DEFAULT_MAX_VERIFIERS = 50;
 
-    std::mutex verifiers_lock;
+    ccf::Pal::Mutex verifiers_lock;
     LRU<crypto::Pem, crypto::VerifierPtr> verifiers;
 
     VerifierCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
@@ -35,7 +36,7 @@ namespace ccf
 
     crypto::VerifierPtr get_verifier(const crypto::Pem& pem)
     {
-      std::lock_guard<std::mutex> guard(verifiers_lock);
+      std::lock_guard<ccf::Pal::Mutex> guard(verifiers_lock);
 
       crypto::VerifierPtr verifier = nullptr;
 

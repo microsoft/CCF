@@ -8,11 +8,11 @@ parameters:
       pool: 1es-dcv2-focal
     SGXIceLake:
       container: sgx
-      pool: 1es-dcv3-focal
+      pool: 1es-dcdv3-focal
 
   build:
     common:
-      cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON"
+      cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON -DENABLE_HTTP2=ON"
     NoSGX:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
@@ -23,11 +23,14 @@ parameters:
       cmake_args: "-DENABLE_V8=ON -DV8_DEBUG=ON"
     unsafe:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
+    QUICTLS:
+      cmake_args: "-DENABLE_QUICTLS=ON"
 
 jobs:
   - job: "Make"
     displayName: "Make generator"
     ${{ insert }}: "${{ parameters.env.NoSGX }}"
+    dependsOn: configure
     steps:
       - checkout: self
         clean: true
@@ -44,11 +47,13 @@ jobs:
       target: NoSGX
       env: "${{ parameters.env.NoSGX }}"
       fetch_v8: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.V8Debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
+      fetch_quictls: debug
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.V8Debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: "600"
+      ctest_timeout: "800"
+      depends_on: configure
 
   - template: common.yml
     parameters:
@@ -58,6 +63,7 @@ jobs:
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
 
   - template: common.yml
     parameters:
@@ -67,6 +73,7 @@ jobs:
       suffix: "Unsafe"
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
 
   - template: common.yml
     parameters:
@@ -76,3 +83,4 @@ jobs:
       suffix: "Release"
       artifact_name: "SGX_IceLake_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure

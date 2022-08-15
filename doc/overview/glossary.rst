@@ -22,6 +22,9 @@ Glossary
   Constitution
     JavaScript module that defines possible governance actions, and how members' proposals are validated, resolved and applied to the service.
 
+  Commit Evidence
+    A :ref:`unique string <use_apps/verify_tx:Commit Evidence>` produced per transaction, and included in the Merkle Tree along with the :term:`Write Set` digest and the `claims_digest`. The reveal of that string guarantees the transaction is committed.
+
   CFT
     Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
     a given limit. CFT however does not account for any nodes behaving maliciously (in contrast to :term:`BFT`). Read more on CFT :ref:`here <architecture/consensus/index:CFT Consensus Protocol>`.
@@ -47,11 +50,12 @@ Glossary
   Observed Reconfiguration Commit (ORC)
     A particular kind of remote procedure call submitted by a replica when it has observed the commit of a transaction that changes the network configuration. See :ref:`Two-transaction Reconfiguration <architecture/consensus/2tx-reconfig:Two-transaction Reconfiguration>`.
 
+  Omission Fault
+    Type of failure where consensus messages exchanged between nodes are lost due to unreliable network. This may cause one or more nodes to be isolated from the rest of the network.
+  
   Open Enclave
     `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
 
-  Open Enclave Engine
-    `Open Enclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
 
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
@@ -81,7 +85,10 @@ Glossary
     `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.
 
   Transaction ID
-    Unique transaction identifier in CCF, composed of a View and a Sequence Number. Sequence Numbers start from 1, and are contiguous. Views are monotonic.
+    Unique transaction identifier in CCF, composed of a View and a Sequence Number separated by a period. Sequence Numbers start from 1, and are contiguous. Views are monotonic. E.g. The transaction ID ``2.15`` indicates the View is ``2`` and the Sequence Number is ``15``.  
 
   Users
     Directly interact with the application running in CCF. Their public identity should be voted in by members before they are allowed to issue requests.
+
+  Write Set
+    The keys and values written to during a CCF transaction. The state of the Key Value store at a given :term:`Transaction ID` is logically the successive application of all write sets up to that point.

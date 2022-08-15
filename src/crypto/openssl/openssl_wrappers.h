@@ -5,6 +5,8 @@
 #include "ccf/crypto/pem.h"
 
 #define FMT_HEADER_ONLY
+#include <chrono>
+#include <ds/x509_time_fmt.h>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
@@ -286,11 +288,15 @@ namespace crypto
       Unique_X509_TIME(const std::string& s) :
         Unique_SSL_OBJECT(ASN1_TIME_new(), ASN1_TIME_free, /*check_null=*/false)
       {
-        CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
+        auto t = ds::to_x509_time_string(s);
+        CHECK1(ASN1_TIME_set_string(*this, t.c_str()));
         CHECK1(ASN1_TIME_normalize(*this));
       }
       Unique_X509_TIME(ASN1_TIME* t) :
         Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
+      {}
+      Unique_X509_TIME(const std::chrono::system_clock::time_point& t) :
+        Unique_X509_TIME(ds::to_x509_time_string(t))
       {}
     };
 
@@ -312,9 +318,12 @@ namespace crypto
     struct Unique_EC_POINT
       : public Unique_SSL_OBJECT<EC_POINT, nullptr, nullptr>
     {
-      Unique_EC_POINT(EC_GROUP* group) :
+      Unique_EC_POINT(const EC_GROUP* group) :
         Unique_SSL_OBJECT(
           EC_POINT_new(group), EC_POINT_free, /*check_null=*/true)
+      {}
+      Unique_EC_POINT(EC_POINT* point) :
+        Unique_SSL_OBJECT(point, EC_POINT_free, /*check_null=*/true)
       {}
     };
 
@@ -323,6 +332,9 @@ namespace crypto
       Unique_EC_KEY(int nid) :
         Unique_SSL_OBJECT(
           EC_KEY_new_by_curve_name(nid), EC_KEY_free, /*check_null=*/true)
+      {}
+      Unique_EC_KEY(EC_KEY* key) :
+        Unique_SSL_OBJECT(key, EC_KEY_free, /*check_null=*/true)
       {}
     };
 

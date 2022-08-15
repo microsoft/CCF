@@ -40,29 +40,25 @@ namespace tls
           SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
           SSL_OP_NO_RENEGOTIATION);
 
-      // Set cipher for TLS 1.2 (TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
-      SSL_CTX_set_cipher_list(
-        cfg,
+      // Set cipher for TLS 1.2
+      const auto cipher_list =
         "ECDHE-ECDSA-AES256-GCM-SHA384:"
-        "ECDHE-ECDSA-AES128-GCM-SHA256");
-      SSL_set_cipher_list(
-        ssl,
-        "ECDHE-ECDSA-AES256-GCM-SHA384:"
-        "ECDHE-ECDSA-AES128-GCM-SHA256");
+        "ECDHE-ECDSA-AES128-GCM-SHA256:"
+        "ECDHE-RSA-AES256-GCM-SHA384:"
+        "ECDHE-RSA-AES128-GCM-SHA256";
+      SSL_CTX_set_cipher_list(cfg, cipher_list);
+      SSL_set_cipher_list(ssl, cipher_list);
 
-      // Set cipher for TLS 1.3 (same as above)
-      SSL_CTX_set_ciphersuites(
-        cfg,
+      // Set cipher for TLS 1.3
+      const auto ciphersuites =
         "TLS_AES_256_GCM_SHA384:"
-        "TLS_AES_128_GCM_SHA256");
-      SSL_set_ciphersuites(
-        ssl,
-        "TLS_AES_256_GCM_SHA384:"
-        "TLS_AES_128_GCM_SHA256");
+        "TLS_AES_128_GCM_SHA256";
+      SSL_CTX_set_ciphersuites(cfg, ciphersuites);
+      SSL_set_ciphersuites(ssl, ciphersuites);
 
       // Restrict the curves to approved ones
-      SSL_CTX_set1_curves_list(cfg, "P-521:P-384");
-      SSL_set1_curves_list(ssl, "P-521:P-384");
+      SSL_CTX_set1_curves_list(cfg, "P-521:P-384:P-256");
+      SSL_set1_curves_list(ssl, "P-521:P-384:P-256");
 
       // Initialise connection
       if (client)
@@ -73,7 +69,8 @@ namespace tls
 
     virtual ~Context() = default;
 
-    void set_bio(void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
+    virtual void set_bio(
+      void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
     {
       // Read/Write BIOs will be used by TLS
       BIO* rbio = BIO_new(BIO_s_mem());
@@ -89,7 +86,7 @@ namespace tls
       SSL_set0_wbio(ssl, wbio);
     }
 
-    int handshake()
+    virtual int handshake()
     {
       if (SSL_is_init_finished(ssl))
         return 0;
@@ -125,7 +122,7 @@ namespace tls
       return -SSL_get_error(ssl, rc);
     }
 
-    int read(uint8_t* buf, size_t len)
+    virtual int read(uint8_t* buf, size_t len)
     {
       if (len == 0)
         return 0;
@@ -147,7 +144,7 @@ namespace tls
       return -SSL_get_error(ssl, rc);
     }
 
-    int write(const uint8_t* buf, size_t len)
+    virtual int write(const uint8_t* buf, size_t len)
     {
       if (len == 0)
         return 0;
@@ -169,18 +166,18 @@ namespace tls
       return -SSL_get_error(ssl, rc);
     }
 
-    int close()
+    virtual int close()
     {
       LOG_TRACE_FMT("Context::close() : Shutdown");
       return SSL_shutdown(ssl);
     }
 
-    bool peer_cert_ok()
+    virtual bool peer_cert_ok()
     {
       return SSL_get_verify_result(ssl) == X509_V_OK;
     }
 
-    std::string get_verify_error()
+    virtual std::string get_verify_error()
     {
       return X509_verify_cert_error_string(SSL_get_verify_result(ssl));
     }
@@ -190,7 +187,7 @@ namespace tls
       return {};
     }
 
-    std::vector<uint8_t> peer_cert()
+    virtual std::vector<uint8_t> peer_cert()
     {
       // CodeQL complains that we don't verify the peer certificate. We don't
       // need to do that because it's been verified before and we use

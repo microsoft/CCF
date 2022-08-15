@@ -50,7 +50,7 @@ namespace ccf
   public:
     virtual ~RpcContext() = default;
 
-    /// @name Access request
+    /// \defgroup Access request
     /// Methods to access fields of the received request. Describes fields
     /// parsed from HTTP, but aims to generalise across other request protocols.
     ///@{
@@ -72,6 +72,12 @@ namespace ccf
     /// {"name": "bob", "age": "42"}
     virtual const PathParams& get_request_path_params() = 0;
 
+    /// Decodes the path before returning a map of all PathParams.
+    /// For example, if the endpoint was installed at `/foo/{name}/{age}`, and
+    /// for the request path `/foo/bob%3A/42`, this would return the map:
+    /// {"name": "bob:", "age": "42"}
+    virtual const PathParams& get_decoded_request_path_params() = 0;
+
     /// Returns map of all headers found in the request.
     virtual const http::HeaderMap& get_request_headers() const = 0;
 
@@ -89,7 +95,7 @@ namespace ccf
     virtual ccf::FrameFormat frame_format() const = 0;
     ///@}
 
-    /// @name Construct response
+    /// \defgroup Construct response
     /// Methods to set sections of response, which will be serialised and
     /// transmitted to client.
     ///@{
@@ -112,6 +118,18 @@ namespace ccf
       set_response_header(name, std::to_string(n));
     }
 
+    /// Construct OData-formatted response to capture multiple error details
+    virtual void set_error(
+      http_status status,
+      const std::string& code,
+      std::string&& msg,
+      std::vector<ccf::ODataErrorDetails>& details)
+    {
+      nlohmann::json body =
+        ccf::ODataErrorResponse{ccf::ODataError{code, std::move(msg), details}};
+      set_response(body, status);
+    }
+
     /// Construct OData-formatted error response.
     virtual void set_error(
       http_status status, const std::string& code, std::string&& msg)
@@ -124,18 +142,23 @@ namespace ccf
     {
       nlohmann::json body = ccf::ODataErrorResponse{
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      set_response(body, error.status);
+    }
+
+    virtual void set_response(nlohmann::json& body, http_status status)
+    {
       // Set error_handler to replace, to avoid throwing if the error message
       // contains non-UTF8 characters. Other args are default values
       const auto s =
         body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-      set_response_status(error.status);
+      set_response_status(status);
       set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
       set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     }
     ///@}
 
-    /// @name Framework metadata
+    /// \defgroup Framework metadata
     /// Methods which affect how the framework processes this transaction.
     ///@{
 

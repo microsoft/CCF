@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
+#include "ccf/ds/pal.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/rpc_context.h"
@@ -27,6 +28,8 @@ namespace ccf::endpoints
   {
     std::regex template_regex;
     std::vector<std::string> template_component_names;
+
+    static std::optional<PathTemplateSpec> parse(const std::string_view& uri);
   };
 
   struct PathTemplatedEndpoint : public Endpoint
@@ -35,44 +38,6 @@ namespace ccf::endpoints
 
     PathTemplateSpec spec;
   };
-
-  inline std::optional<PathTemplateSpec> parse_path_template(
-    const std::string& uri)
-  {
-    auto template_start = uri.find_first_of('{');
-    if (template_start == std::string::npos)
-    {
-      return std::nullopt;
-    }
-
-    PathTemplateSpec spec;
-
-    std::string regex_s = uri;
-    template_start = regex_s.find_first_of('{');
-    while (template_start != std::string::npos)
-    {
-      const auto template_end = regex_s.find_first_of('}', template_start);
-      if (template_end == std::string::npos)
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid templated path - missing closing curly bracket: {}", uri));
-      }
-
-      spec.template_component_names.push_back(
-        regex_s.substr(template_start + 1, template_end - template_start - 1));
-      regex_s.replace(
-        template_start, template_end - template_start + 1, "([^/]+)");
-      template_start = regex_s.find_first_of('{', template_start + 1);
-    }
-
-    LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
-    LOG_TRACE_FMT(
-      "Component names are: {}",
-      fmt::join(spec.template_component_names, ", "));
-    spec.template_regex = std::regex(regex_s);
-
-    return spec;
-  }
 
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
@@ -162,7 +127,7 @@ namespace ccf::endpoints
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
-    std::mutex metrics_lock;
+    ccf::Pal::Mutex metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     EndpointRegistry::Metrics& get_metrics_for_endpoint(
@@ -191,7 +156,7 @@ namespace ccf::endpoints
      * ccf::EndpointDefinition::authn_policies
      * @return The new Endpoint for further modification
      */
-    Endpoint make_endpoint(
+    virtual Endpoint make_endpoint(
       const std::string& method,
       RESTVerb verb,
       const EndpointFunction& f,
@@ -199,7 +164,7 @@ namespace ccf::endpoints
 
     /** Create a read-only endpoint.
      */
-    Endpoint make_read_only_endpoint(
+    virtual Endpoint make_read_only_endpoint(
       const std::string& method,
       RESTVerb verb,
       const ReadOnlyEndpointFunction& f,
@@ -210,7 +175,7 @@ namespace ccf::endpoints
      * Commands are endpoints which do not read or write from the KV. See
      * make_endpoint().
      */
-    Endpoint make_command_endpoint(
+    virtual Endpoint make_command_endpoint(
       const std::string& method,
       RESTVerb verb,
       const CommandEndpointFunction& f,

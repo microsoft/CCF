@@ -19,6 +19,7 @@ import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
 import tempfile
+import infra.interfaces
 
 from loguru import logger as LOG
 
@@ -175,7 +176,9 @@ def test_no_quote(network, args):
         infra.interfaces.HostSpec(
             rpc_interfaces={
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    endorsement=infra.interfaces.Endorsement(authority="Node")
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    )
                 )
             }
         )
@@ -212,7 +215,9 @@ def test_node_data(network, args):
                 infra.interfaces.HostSpec(
                     rpc_interfaces={
                         infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                            endorsement=infra.interfaces.Endorsement(authority="Node")
+                            endorsement=infra.interfaces.Endorsement(
+                                authority=infra.interfaces.EndorsementAuthority.Node
+                            )
                         )
                     }
                 ),
@@ -296,8 +301,7 @@ def test_all_members(network, args):
             response_details = response_members[member.service_id]
             assert response_details["cert"] == member.cert
             assert (
-                infra.member.MemberStatus(response_details["status"])
-                == member.status_code
+                infra.member.MemberStatus(response_details["status"]) == member.status
             )
             assert response_details["member_data"] == member.member_data
             if member.is_recovery_member:
@@ -355,8 +359,8 @@ def test_invalid_client_signature(network, args):
         ).json()
         assert r["error"]["code"] == "InvalidAuthenticationInfo"
         assert (
-            expected_error_msg in r["error"]["message"]
-        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
+            expected_error_msg in r["error"]["details"][0]["message"]
+        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['details'][0]['message']}'"
 
     # Verify that _some_ HTTP signature parsing errors are communicated back to the client
     post_proposal_request_raw(
@@ -384,7 +388,7 @@ def test_invalid_client_signature(network, args):
 @reqs.description("Renew certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
-    now = datetime.now()
+    now = datetime.utcnow()
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
@@ -397,61 +401,101 @@ def test_each_node_cert_renewal(network, args):
 
     for (valid_from, validity_period_days, expected_exception) in test_vectors:
         for node in network.get_joined_nodes():
-            with node.client() as c:
-                c.get("/node/network/nodes")
+            LOG.info(f"Renewing certificate for node {node.local_node_id}")
+            for interface_name, rpc_interface in node.host.rpc_interfaces.items():
+                LOG.debug(f"On interface {interface_name}")
+                with node.client(interface_name=interface_name) as c:
+                    c.get("/node/network/nodes")
 
-                node_cert_tls_before = node.get_tls_certificate_pem()
-                assert (
-                    infra.crypto.compute_public_key_der_hash_hex_from_pem(
-                        node_cert_tls_before
+                    node_cert_tls_before = node.get_tls_certificate_pem(
+                        interface_name=interface_name
                     )
-                    == node.node_id
-                )
 
-                try:
-                    valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
-                    network.consortium.set_node_certificate_validity(
-                        primary,
-                        node,
-                        valid_from=valid_from_x509,
-                        validity_period_days=validity_period_days,
+                    # Verify that presented self-signed certificate matches the one returned by
+                    # operator endpoint
+                    self_signed_cert = node.retrieve_self_signed_cert(
+                        interface_name=interface_name
                     )
-                    node.set_certificate_validity_period(
-                        valid_from_x509,
-                        validity_period_days
-                        or args.maximum_node_certificate_validity_days,
-                    )
-                except Exception as e:
-                    if expected_exception is None:
-                        raise e
-                    assert isinstance(e, expected_exception)
-                    continue
-                else:
+                    if (
+                        rpc_interface.endorsement.authority
+                        == infra.interfaces.EndorsementAuthority.Node
+                    ):
+                        assert node_cert_tls_before == self_signed_cert
+
                     assert (
-                        expected_exception is None
-                    ), "Proposal should have not succeeded"
+                        infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                            node_cert_tls_before
+                        )
+                        == node.node_id
+                    )
 
-                # Node certificate is updated on global commit hook
-                network.wait_for_all_nodes_to_commit(primary)
+                    try:
+                        network.consortium.set_node_certificate_validity(
+                            primary,
+                            node,
+                            valid_from=valid_from,
+                            validity_period_days=validity_period_days,
+                        )
+                        node.set_certificate_validity_period(
+                            valid_from,
+                            validity_period_days
+                            or args.maximum_node_certificate_validity_days,
+                        )
+                    except Exception as e:
+                        if expected_exception is None:
+                            raise e
+                        assert isinstance(e, expected_exception)
+                        continue
+                    else:
+                        assert (
+                            expected_exception is None
+                        ), "Proposal should have not succeeded"
 
-                node_cert_tls_after = node.get_tls_certificate_pem()
-                assert (
-                    node_cert_tls_before != node_cert_tls_after
-                ), f"Node {node.local_node_id} certificate was not renewed"
-                node.verify_certificate_validity_period()
-                LOG.info(
-                    f"Certificate for node {node.local_node_id} has successfully been renewed"
-                )
+                    # Node certificate is updated on global commit hook
+                    network.wait_for_all_nodes_to_commit(primary)
 
-                # Long-connected client is still connected after certificate renewal
-                c.get("/node/network/nodes")
+                    node_cert_tls_after = node.get_tls_certificate_pem(
+                        interface_name=interface_name
+                    )
+                    assert (
+                        node_cert_tls_before != node_cert_tls_after
+                    ), f"Node {node.local_node_id} certificate was not renewed"
+
+                    # verify_ca is false since the certificate has been renewed and
+                    # it needs to be retrieved from the node
+                    self_signed_cert = node.retrieve_self_signed_cert(
+                        interface_name=interface_name,
+                        verify_ca=rpc_interface.endorsement.authority
+                        != infra.interfaces.EndorsementAuthority.Node,
+                    )
+                    if (
+                        rpc_interface.endorsement.authority
+                        == infra.interfaces.EndorsementAuthority.Node
+                    ):
+                        assert node_cert_tls_after == self_signed_cert
+
+                    # Once the self-signed certificate has been retrieved and stored
+                    # on disk, it can be used to verify the server identity
+                    node.retrieve_self_signed_cert(
+                        interface_name=interface_name, verify_ca=True
+                    )
+
+                    node.verify_certificate_validity_period(
+                        interface_name=interface_name
+                    )
+                    LOG.info(
+                        f"Certificate for node {node.local_node_id} has successfully been renewed"
+                    )
+
+                    # Long-connected client is still connected after certificate renewal
+                    c.get("/node/network/nodes")
 
     return network
 
 
 def renew_service_certificate(network, args, valid_from, validity_period_days):
     primary, _ = network.find_primary()
-    valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
+    valid_from_x509 = str(valid_from)
     network.consortium.set_service_certificate_validity(
         primary,
         valid_from=valid_from_x509,
@@ -464,11 +508,11 @@ def renew_service_certificate(network, args, valid_from, validity_period_days):
 
 
 @reqs.description("Renew service certificate")
-def test_service_cert_renewal(network, args):
+def test_service_cert_renewal(network, args, valid_from=None):
     return renew_service_certificate(
         network,
         args,
-        valid_from=datetime.now(),
+        valid_from=valid_from or datetime.utcnow(),
         validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
@@ -478,7 +522,7 @@ def test_service_cert_renewal_extended(network, args):
 
     validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
-    now = datetime.now()
+    now = datetime.utcnow()
     test_vectors = [
         (now, None, None),  # Omit validity period (deduced from service configuration)
         (now, -1, infra.proposal.ProposalNotCreated),
@@ -497,12 +541,20 @@ def test_service_cert_renewal_extended(network, args):
     return network
 
 
-@reqs.description("Update certificates of all nodes, one by one")
-def test_all_nodes_cert_renewal(network, args):
+@reqs.description("Update certificates of all nodes at once")
+def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
-    valid_from = str(infra.crypto.datetime_to_X509time(datetime.now()))
+    valid_from = valid_from or datetime.utcnow()
     validity_period_days = args.maximum_node_certificate_validity_days
+
+    self_signed_node_certs_before = {}
+    for node in network.get_joined_nodes():
+        # Note: GET /node/self_signed_certificate endpoint was added after 2.0.0-r6
+        if node.version_after("ccf-2.0.0-rc6"):
+            self_signed_node_certs_before[
+                node.local_node_id
+            ] = node.retrieve_self_signed_cert()
 
     network.consortium.set_all_nodes_certificate_validity(
         primary,
@@ -510,11 +562,22 @@ def test_all_nodes_cert_renewal(network, args):
         validity_period_days=validity_period_days,
     )
 
+    # Node certificates are updated on global commit hook
+    network.wait_for_all_nodes_to_commit(primary)
+
     for node in network.get_joined_nodes():
         node.set_certificate_validity_period(valid_from, validity_period_days)
+        if node.version_after("ccf-2.0.0-rc6"):
+            assert (
+                self_signed_node_certs_before[node.local_node_id]
+                != node.retrieve_self_signed_cert()
+            ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
 
 
 def gov(args):
+    for node in args.nodes:
+        node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
