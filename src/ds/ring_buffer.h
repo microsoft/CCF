@@ -237,7 +237,7 @@ namespace ringbuffer
         // Call the handler function for this message.
         bd.check_access(hd_index, advance);
 
-        if (ccf::Pal::require_alignment_for_untrusted_reads())
+        if (ccf::Pal::require_alignment_for_untrusted_reads() && size > 0)
         {
           // To prevent unaligned reads during message processing, copy aligned
           // chunk into enclave memory
