@@ -38,7 +38,7 @@ struct formatter<ccf::ByteVector>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::ByteVector& e, FormatContext& ctx)
+  auto format(const ccf::ByteVector& e, FormatContext& ctx) const
   {
     if (std::find(e.begin(), e.end(), '\0') != e.end())
     {

@@ -65,7 +65,7 @@ struct formatter<crypto::SubjectAltName>
   }
 
   template <typename FormatContext>
-  auto format(const crypto::SubjectAltName& san, FormatContext& ctx)
+  auto format(const crypto::SubjectAltName& san, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
     std::string prefix;

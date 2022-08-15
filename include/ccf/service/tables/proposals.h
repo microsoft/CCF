@@ -51,7 +51,7 @@ struct formatter<ccf::ProposalState>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::ProposalState& state, FormatContext& ctx)
+  auto format(const ccf::ProposalState& state, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
     switch (state)

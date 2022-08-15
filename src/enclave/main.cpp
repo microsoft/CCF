@@ -111,7 +111,7 @@ extern "C"
         LOG_FAIL_FMT(
           "Version mismatch: host {}, enclave {}",
           ccf_version_string,
-          enclave_version);
+          std::string(enclave_version, enclave_version + enclave_version_size));
         return CreateNodeStatus::VersionMismatch;
       }
 
