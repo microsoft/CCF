@@ -153,7 +153,7 @@ namespace ccf
 
     struct Out
     {
-      Out(const MallocInfo& info) :
+      Out(const pal::MallocInfo& info) :
         max_total_heap_size(info.max_total_heap_size),
         current_allocated_heap_size(info.current_allocated_heap_size),
         peak_allocated_heap_size(info.peak_allocated_heap_size)

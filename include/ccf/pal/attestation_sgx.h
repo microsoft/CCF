@@ -10,7 +10,7 @@
 
 #include <array>
 
-namespace ccf
+namespace ccf::pal
 {
   static constexpr size_t attestation_report_data_size = 32;
   using attestation_report_data =

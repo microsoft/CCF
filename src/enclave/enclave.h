@@ -89,7 +89,7 @@ namespace ccf
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
-      ccf::Pal::initialize_enclave();
+      ccf::pal::initialize_enclave();
       ccf::initialize_verifiers();
 
       // From
@@ -183,7 +183,7 @@ namespace ccf
       }
       LOG_TRACE_FMT("Shutting down enclave");
       ccf::shutdown_verifiers();
-      ccf::Pal::shutdown_enclave();
+      ccf::pal::shutdown_enclave();
     }
 
     CreateNodeStatus create_new_node(
@@ -226,7 +226,7 @@ namespace ccf
           r.self_signed_node_cert.size());
         return CreateNodeStatus::InternalError;
       }
-      Pal::safe_memcpy(
+      pal::safe_memcpy(
         node_cert,
         r.self_signed_node_cert.data(),
         r.self_signed_node_cert.size());
@@ -244,7 +244,7 @@ namespace ccf
             r.service_cert.size());
           return CreateNodeStatus::InternalError;
         }
-        Pal::safe_memcpy(
+        pal::safe_memcpy(
           service_cert, r.service_cert.data(), r.service_cert.size());
         *service_cert_len = r.service_cert.size();
       }

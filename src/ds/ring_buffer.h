@@ -378,7 +378,7 @@ namespace ringbuffer
       // Standard says memcpy(x, null, 0) is undefined, so avoid it
       if (size > 0)
       {
-        ccf::Pal::safe_memcpy(bd.data + index, bytes, size);
+        ccf::pal::safe_memcpy(bd.data + index, bytes, size);
       }
 
       return {index + size};

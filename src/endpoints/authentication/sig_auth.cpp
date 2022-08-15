@@ -27,7 +27,7 @@ namespace ccf
   {
     static constexpr size_t DEFAULT_MAX_VERIFIERS = 50;
 
-    ccf::Pal::Mutex verifiers_lock;
+    ccf::pal::Mutex verifiers_lock;
     LRU<crypto::Pem, crypto::VerifierPtr> verifiers;
 
     VerifierCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
@@ -36,7 +36,7 @@ namespace ccf
 
     crypto::VerifierPtr get_verifier(const crypto::Pem& pem)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(verifiers_lock);
+      std::lock_guard<ccf::pal::Mutex> guard(verifiers_lock);
 
       crypto::VerifierPtr verifier = nullptr;
 

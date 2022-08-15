@@ -33,7 +33,7 @@ namespace ccf::indexing::strategies
     using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
     LRU<BucketKey, BucketValue> old_results;
 
-    ccf::Pal::Mutex results_access;
+    ccf::pal::Mutex results_access;
 
     std::string name;
 
@@ -209,7 +209,7 @@ namespace ccf::indexing::strategies
 
       while (true)
       {
-        std::lock_guard<ccf::Pal::Mutex> guard(results_access);
+        std::lock_guard<ccf::pal::Mutex> guard(results_access);
 
         const auto bucket_key = std::make_pair(serialised_key, from_range);
         const auto old_it = old_results.find(bucket_key);
@@ -355,7 +355,7 @@ namespace ccf::indexing::strategies
   {
     const auto range = impl->get_range_for(tx_id.seqno);
 
-    std::lock_guard<ccf::Pal::Mutex> guard(impl->results_access);
+    std::lock_guard<ccf::pal::Mutex> guard(impl->results_access);
 
     auto it = impl->current_results.find(k);
     if (it != impl->current_results.end())

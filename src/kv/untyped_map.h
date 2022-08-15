@@ -82,7 +82,7 @@ namespace kv::untyped
     CommitHook global_hook = nullptr;
     MapHook hook = nullptr;
     std::list<std::pair<Version, Write>> commit_deltas;
-    ccf::Pal::Mutex sl;
+    ccf::pal::Mutex sl;
     const SecurityDomain security_domain;
     const bool replicated;
     const bool include_conflict_read_version;

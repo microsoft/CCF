@@ -1324,8 +1324,8 @@ namespace ccf
 // Do not attempt to call get_mallinfo when used from
 // unit tests such as the frontend_test
 #ifdef INSIDE_ENCLAVE
-        ccf::MallocInfo info;
-        if (ccf::Pal::get_mallinfo(info))
+        ccf::pal::MallocInfo info;
+        if (ccf::pal::get_mallinfo(info))
         {
           MemoryUsage::Out mu(info);
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);

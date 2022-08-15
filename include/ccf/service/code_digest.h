@@ -16,7 +16,7 @@ namespace ccf
 {
   struct CodeDigest
   {
-    std::array<uint8_t, attestation_measurement_size> data = {};
+    std::array<uint8_t, pal::attestation_measurement_size> data = {};
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;

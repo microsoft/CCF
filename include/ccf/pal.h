@@ -42,7 +42,7 @@
  * abstraction layer can also be used in code shared between the host and the
  * enclave as there is a host implementation for it as well.
  */
-namespace ccf
+namespace ccf::pal
 {
   /**
    * Malloc information formatted based on the OE type, but avoiding to expose
@@ -57,20 +57,11 @@ namespace ccf
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-  // Changes on 5.19+ kernel
-  constexpr auto SEV_SNP_DEVICE = "/dev/sev";
-  #define SEV_GUEST_IOC_TYPE 'S'
-  #define SEV_SNP_GUEST_MSG_REPORT \
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct SnpGuestRequest)
-
   /**
    * Virtual enclaves and the host code share the same PAL.
    * This PAL takes no dependence on OpenEnclave, but also does not apply
    * security hardening.
    */
-  class HostPal
-  {
-  public:
     using Mutex = std::mutex;
 
     static inline void* safe_memcpy(void* dest, const void* src, size_t count)
@@ -296,13 +287,9 @@ namespace ccf
         }
       }
     }
-  };
 
-  using Pal = HostPal;
 
 #else
-  class OEPal
-  {
     /**
      * Temporary workaround until the fix for
      * https://github.com/openenclave/openenclave/issues/4555 is available in a
@@ -340,7 +327,6 @@ namespace ccf
       }
     };
 
-  public:
     using Mutex = MutexImpl;
     static inline void* safe_memcpy(void* dest, const void* src, size_t count)
     {
@@ -536,7 +522,6 @@ namespace ccf
       }
     }
 
-  private:
     static void open_enclave_logging_callback(
       void* context,
       oe_log_level_t level,
@@ -566,9 +551,6 @@ namespace ccf
           break;
       }
     }
-  };
-
-  using Pal = OEPal;
-
 #endif
+
 }

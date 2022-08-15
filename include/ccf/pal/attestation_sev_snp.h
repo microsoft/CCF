@@ -5,7 +5,7 @@
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #include <array>
 
-namespace ccf
+namespace ccf::pal
 {
   static constexpr size_t attestation_report_data_size = 32;
   using attestation_report_data =
@@ -144,6 +144,13 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     SNP_MSG_VMRK_RSP,
     SNP_MSG_TYPE_MAX
   };
+
+  // Changes on 5.19+ kernel
+  constexpr auto SEV_SNP_DEVICE = "/dev/sev";
+  #define SEV_GUEST_IOC_TYPE 'S'
+  #define SEV_SNP_GUEST_MSG_REPORT \
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct SnpGuestRequest)
+
 }
 
 #endif

@@ -253,7 +253,7 @@ namespace histogram
   class Global
   {
   private:
-    ccf::Pal::Mutex m;
+    ccf::pal::Mutex m;
     std::string name;
     std::string file;
     size_t line;
@@ -271,7 +271,7 @@ namespace histogram
 
     void add(H& histogram)
     {
-      std::lock_guard<ccf::Pal::Mutex> lock(m);
+      std::lock_guard<ccf::pal::Mutex> lock(m);
       histogram.next = head;
       head = &histogram;
     }

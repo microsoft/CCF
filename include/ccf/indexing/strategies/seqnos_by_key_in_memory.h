@@ -17,7 +17,7 @@ namespace ccf::indexing::strategies
     std::unordered_map<ccf::ByteVector, SeqNoCollection> seqnos_by_key;
 
     // Mutex guarding access to seqnos_by_key
-    ccf::Pal::Mutex lock;
+    ccf::pal::Mutex lock;
 
     void visit_entry(
       const ccf::TxID& tx_id,

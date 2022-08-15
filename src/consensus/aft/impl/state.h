@@ -141,7 +141,7 @@ namespace aft
   {
     State(const ccf::NodeId& my_node_id_) : my_node_id(my_node_id_) {}
 
-    ccf::Pal::Mutex lock;
+    ccf::pal::Mutex lock;
 
     ccf::NodeId my_node_id;
     ccf::View current_view = 0;
