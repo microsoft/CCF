@@ -22,7 +22,7 @@ struct formatter<std::vector<uint8_t>>
   }
 
   template <typename FormatContext>
-  auto format(const std::vector<uint8_t>& v, FormatContext& ctx)
+  auto format(const std::vector<uint8_t>& v, FormatContext& ctx) const
   {
     return format_to(
       ctx.out(), "<vec[{}]: {:02x}>", v.size(), fmt::join(v, " "));
@@ -39,7 +39,7 @@ struct formatter<std::array<uint8_t, N>>
   }
 
   template <typename FormatContext>
-  auto format(const std::array<uint8_t, N>& a, FormatContext& ctx)
+  auto format(const std::array<uint8_t, N>& a, FormatContext& ctx) const
   {
     return format_to(ctx.out(), "<arr[{}]: {:02x}>", N, fmt::join(a, " "));
   }

@@ -182,7 +182,7 @@ struct formatter<ccf::Authority>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::Authority& authority, FormatContext& ctx)
+  auto format(const ccf::Authority& authority, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
     switch (authority)

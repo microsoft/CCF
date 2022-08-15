@@ -255,6 +255,23 @@ public:
   }
 };
 
+class TestDecodedTemplatedPaths : public BaseTestFrontend
+{
+public:
+  TestDecodedTemplatedPaths(kv::Store& tables) : BaseTestFrontend(tables)
+  {
+    open();
+
+    auto endpoint = [this](auto& ctx) {
+      nlohmann::json response_body =
+        ctx.rpc_ctx->get_decoded_request_path_params();
+      ctx.rpc_ctx->set_response_body(response_body.dump(2));
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_endpoint("/{foo}/{bar}/{baz}", HTTP_POST, endpoint).install();
+  }
+};
+
 class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
@@ -1059,7 +1076,7 @@ TEST_CASE("Templated paths")
   TestTemplatedPaths frontend(*network.tables);
 
   {
-    auto request = create_simple_request("/fin/fang/foom");
+    auto request = create_simple_request("/fin%3A/fang/foom");
     const auto serialized_request = request.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
@@ -1067,7 +1084,7 @@ TEST_CASE("Templated paths")
     CHECK(response.status == HTTP_STATUS_OK);
 
     std::map<std::string, std::string> expected_mapping;
-    expected_mapping["foo"] = "fin";
+    expected_mapping["foo"] = "fin%3A";
     expected_mapping["bar"] = "fang";
     expected_mapping["baz"] = "foom";
 
@@ -1089,6 +1106,32 @@ TEST_CASE("Templated paths")
     expected_mapping["foo"] = "users";
     expected_mapping["bar"] = "1";
     expected_mapping["baz"] = "address";
+
+    const auto response_json = nlohmann::json::parse(response.body);
+    const auto actual_mapping = response_json.get<decltype(expected_mapping)>();
+
+    CHECK(expected_mapping == actual_mapping);
+  }
+}
+
+TEST_CASE("Decoded Templated paths")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestDecodedTemplatedPaths frontend(*network.tables);
+
+  {
+    auto request = create_simple_request("/fin%3A/fang%2F/foom");
+    const auto serialized_request = request.build_request();
+
+    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+
+    std::map<std::string, std::string> expected_mapping;
+    expected_mapping["foo"] = "fin:";
+    expected_mapping["bar"] = "fang/";
+    expected_mapping["baz"] = "foom";
 
     const auto response_json = nlohmann::json::parse(response.body);
     const auto actual_mapping = response_json.get<decltype(expected_mapping)>();

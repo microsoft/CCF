@@ -4,6 +4,7 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "http/http_parser.h"
 #include "node/rpc/rpc_context_impl.h"
 
 namespace ccf::endpoints
@@ -240,7 +241,6 @@ namespace ccf::endpoints
     kv::Tx&, ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
-
     auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
     if (endpoints_for_exact_method != fully_qualified_endpoints.end())
     {
@@ -279,6 +279,7 @@ namespace ccf::endpoints
                 throw std::logic_error("Unexpected type of RpcContext");
               }
               auto& path_params = ctx_impl->path_params;
+              auto& decoded_path_params = ctx_impl->decoded_path_params;
               for (size_t i = 0;
                    i < endpoint->spec.template_component_names.size();
                    ++i)
@@ -286,7 +287,9 @@ namespace ccf::endpoints
                 const auto& template_name =
                   endpoint->spec.template_component_names[i];
                 const auto& template_value = match[i + 1].str();
+                auto decoded_value = http::url_decode(template_value);
                 path_params[template_name] = template_value;
+                decoded_path_params[template_name] = decoded_value;
               }
             }
 

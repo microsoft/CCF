@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Added a new method `get_decoded_request_path_params` that returns a map of decoded path parameters (#4126)
+
 ## [2.0.5]
 
 ### Fixed
