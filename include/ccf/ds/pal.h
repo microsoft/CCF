@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <set>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <cstring>
@@ -47,6 +48,47 @@ namespace ccf
     size_t current_allocated_heap_size = 0;
     size_t peak_allocated_heap_size = 0;
   };
+
+  struct CpuidInfo
+  {
+    unit64_t eax;
+    unit64_t ebx;
+    unit64_t ecx;
+    unit64_t edx;
+  };
+
+  static void cpuid(CpuidInfo* info, unit64_t leaf, unit64_t subleaf)
+  {
+    asm volatile(
+      "cpuid"
+      : "=a"(info->eax), "=b"(info->ebx), "=c"(info->ecx), "=d"(info->edx)
+      : "a"(leaf), "c"(subleaf));
+  }
+
+  static bool is_intel_cpu()
+  {
+    static int intel_cpu = -1;
+
+    if (intel_cpu == -1)
+    {
+      CpuidInfo info;
+      cpuid(&info, 0, 0);
+
+      if (
+        memcmp((char*)&info.ebx, "Genu", 4) ||
+        memcmp((char*)&info.edx, "ineI", 4) ||
+        memcmp((char*)&info.ecx, "ntel", 4))
+      {
+        intel_cpu = 1;
+      }
+      else
+      {
+        intel_cpu = 0;
+      }
+    }
+
+    return intel_cpu == 1;
+  }
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
   /**
@@ -105,6 +147,15 @@ namespace ccf
       }
       unique_id = {};
       report_data = {};
+    }
+
+    static bool require_alignment_for_untrusted_reads()
+    {
+#  ifdef FORCE_ENABLE_XAPIC_MITIGATION
+      return true;
+#  else
+      return false;
+#  endif
     }
   };
 
@@ -346,6 +397,20 @@ namespace ccf
       }
     }
 
+    static bool require_alignment_for_untrusted_reads()
+    {
+#  ifdef FORCE_ENABLE_XAPIC_MITIGATION
+      return true;
+#  else
+      static std::optional<bool> required = std::nullopt;
+      if (!required.has_value())
+      {
+        required = is_intel_cpu() && is_vulnerable_to_stale_xapic_read();
+      }
+      return required.value();
+#  endif
+    }
+
   private:
     static void open_enclave_logging_callback(
       void* context,
@@ -375,6 +440,43 @@ namespace ccf
           CCF_LOG_FMT(TRACE, "")("OE: {}", message);
           break;
       }
+    }
+
+    static bool is_vulnerable_to_stale_xapic_read()
+    {
+      ccf::CpuidInfo info;
+
+      ccf::cpuid(&info, 1, 0);
+
+      // Ignores stepping, looks only at model and family: potentially
+      // includes safe instances which differ only by stepping from a vulnerable
+      // instance.
+      constexpr uint64_t proc_id_mask = 0x000F'0FF0;
+      const uint64_t proc_id = info.eax & proc_id_mask;
+
+      // https://www.intel.com/content/www/us/en/developer/topic-technology/software-security-guidance/processors-affected-consolidated-product-cpu-model.html
+      // 2022 tab, column "Stale Data Read from Legacy xAPIC, CVE-2022-21233,
+      // INTEL-SA-00657"
+      const std::set<uint64_t> vulnerable_proc_ids{
+        0x506C0, // Apollo Lake
+        0x506F0, // Denverton (Goldmont)
+        0x606A0, // Ice Lake Xeon-SP
+        0x606C0, // Ice Lake D
+        0x706A0, // Gemini Lake
+        0x706E0, // Ice Lake U, Y
+        0x80660, // Snow Ridge BTS (Tremont)
+        0x806A0, // Lakefield B-step (Tremont)
+        0x806C0, // Tiger Lake U
+        0x806D0, // Tiger Lake H
+        0x90660, // Elkhart Lake (Tremont)
+        0x90670, // Alder Lake S (Golden Cove, Gracemont)
+        0x906A0, // Alder Lake H (Golden Cove, Gracemont)
+        0x906C0, // Jasper Lake (Tremont)
+        0xA0670 // Rocket Lake
+      };
+
+      const auto it = vulnerable_proc_ids.find(proc_id);
+      return it != vulnerable_proc_ids.end();
     }
   };
 
