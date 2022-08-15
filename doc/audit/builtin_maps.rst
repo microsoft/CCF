@@ -128,6 +128,16 @@ Versions of the code allowed to join the current network.
 
 **Value** Represented as JSON.
 
+**Pre 3.0.0-dev2**
+
+``enum class ccf::CodeStatus``
+
+   *Values:*
+
+      ``enumerator ALLOWED_TO_JOIN``
+
+**After 3.0.0-dev2**
+
 .. doxygenstruct:: ccf::CodeInfo
    :project: CCF
 
@@ -139,7 +149,7 @@ Versions of the code allowed to join the current network.
    * - Code ID
      - Status
    * - ``cae46d1...bb908b64e``
-     - ``ALLOWED_TO_JOIN``
+     - ``{status: ALLOWED_TO_JOIN, platform: "OE_SGX_v1"}``
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
