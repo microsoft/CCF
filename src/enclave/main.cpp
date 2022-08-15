@@ -3,7 +3,7 @@
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "enclave.h"

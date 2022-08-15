@@ -4,7 +4,7 @@
 
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/logger.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "ds/serialized.h"

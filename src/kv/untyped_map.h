@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 #include "ccf/kv/untyped_map_handle.h"
 #include "ds/dl_list.h"
 #include "kv/kv_serialiser.h"

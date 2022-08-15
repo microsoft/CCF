@@ -21,7 +21,7 @@
 #include "rpc_exception.h"
 
 #define FMT_HEADER_ONLY
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 
 #include <fmt/format.h>
 #include <utility>

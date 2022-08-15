@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 #include "channels.h"
 #include "node/node_to_node.h"
 

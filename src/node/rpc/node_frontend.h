@@ -4,7 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"

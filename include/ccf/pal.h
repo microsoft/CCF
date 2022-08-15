@@ -14,12 +14,12 @@
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <cstring>
 #  include <mutex>
-#  include "ccf/ds/attestation_sev_snp.h"
+#  include "ccf/pal/attestation_sev_snp.h"
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
 #  include "crypto/ecdsa.h"
 #else
-#  include "ccf/ds/attestation_sgx.h"
+#  include "ccf/pal/attestation_sgx.h"
 #  include "ccf/ds/ccf_exception.h"
 
 #  include <openenclave/advanced/mallinfo.h>

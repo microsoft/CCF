@@ -6,7 +6,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/hex.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 #include "ds/messaging.h"
 #include "indexing/lfs_interface.h"
 #include "indexing/lfs_ringbuffer_types.h"

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
