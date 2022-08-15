@@ -11,6 +11,7 @@
 #include "ringbuffer_logger.h"
 
 #include <chrono>
+#include <cstdint>
 #include <thread>
 
 // the central enclave object
@@ -25,6 +26,13 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
   2'000'000);
+
+static bool is_aligned(void* p, size_t align, size_t count = 0)
+{
+  const auto start = reinterpret_cast<std::uintptr_t>(p);
+  const auto end = start + count;
+  return (start % align == 0) && (end % align == 0);
+}
 
 extern "C"
 {
@@ -76,6 +84,7 @@ extern "C"
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
+    // TODO: Check alignment and size of EnclaveConfig
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 
     // Setup logger to allow enclave logs to reach the host before node is
@@ -131,13 +140,21 @@ extern "C"
 
       // Check that where we expect arguments to be in host-memory, they really
       // are. lfence after these checks to prevent speculative execution
-      if (!ccf::Pal::is_outside_enclave(time_location, sizeof(ccf::host_time)))
+      if (!ccf::Pal::is_outside_enclave(
+            time_location, sizeof(*ccf::host_time_us)))
       {
         LOG_FAIL_FMT("Memory outside enclave: time_location");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      ccf::host_time = static_cast<decltype(ccf::host_time)>(time_location);
+      if (!is_aligned(time_location, 8, sizeof(*ccf::host_time_us)))
+      {
+        LOG_FAIL_FMT("Read source memory not aligned: time_location");
+        return CreateNodeStatus::UnalignedArguments;
+      }
+
+      ccf::host_time_us =
+        static_cast<decltype(ccf::host_time_us)>(time_location);
 
       // Check that ringbuffer memory ranges are entirely outside of the enclave
       if (!ccf::Pal::is_outside_enclave(
@@ -179,6 +196,7 @@ extern "C"
 
     ccf::Pal::speculation_barrier();
 
+    // TODO: Check alignment and size of StartupConfig
     StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
