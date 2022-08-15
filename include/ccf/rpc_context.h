@@ -72,6 +72,12 @@ namespace ccf
     /// {"name": "bob", "age": "42"}
     virtual const PathParams& get_request_path_params() = 0;
 
+    /// Decodes the path before returning a map of all PathParams.
+    /// For example, if the endpoint was installed at `/foo/{name}/{age}`, and
+    /// for the request path `/foo/bob%3A/42`, this would return the map:
+    /// {"name": "bob:", "age": "42"}
+    virtual const PathParams& get_decoded_request_path_params() = 0;
+
     /// Returns map of all headers found in the request.
     virtual const http::HeaderMap& get_request_headers() const = 0;
 
