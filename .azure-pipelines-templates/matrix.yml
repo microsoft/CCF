@@ -40,6 +40,8 @@ parameters:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
       ctest_args: '-LE "benchmark|perf"'
+    nosgx_perf:
+      ctest_args: '-L "perf|vegeta"'
 
 jobs:
   # Debug
@@ -68,18 +70,28 @@ jobs:
           fetch_v8: release
           depends_on: configure
 
-  # Performance (NoSGX)
-  # NOTE: CI doesn't support SGX and NoSGX perf tests at the same time.
-  # - ${{ if eq(parameters.perf_tests, 'run') }}:
-  #     - template: common.yml
-  #       parameters:
-  #         target: NoSGX
-  #         env: ${{ parameters.env.NoSGX }}
-  #         fetch_v8: release
-  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
-  #         suffix: "Perf"
-  #         artifact_name: "NoSGX_Perf"
-  #         ctest_filter: "${{ parameters.test.perf.ctest_args }}"
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
+      - template: common.yml
+        parameters:
+          target: NoSGX
+          env: ${{ parameters.env.NoSGX }}
+          fetch_v8: release
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
+          suffix: "Perf"
+          artifact_name: "NoSGX_Perf"
+          ctest_filter: "${{ parameters.test.nosgx_perf.ctest_args }}"
+          depends_on: configure
+
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
+      - template: cimetrics.yml
+        parameters:
+          target: NoSGX
+          env: ${{ parameters.env.NoSGX }}
+          suffix: "Perf"
+          depends_on:
+            - configure
+            - SGX_Perf
+            - NoSGX_Perf
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
