@@ -3,7 +3,7 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "ccf/pal.h"
+#include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
