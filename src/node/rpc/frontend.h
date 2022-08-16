@@ -5,6 +5,7 @@
 #include "ccf/endpoint_registry.h"
 #include "ccf/http_status.h"
 #include "ccf/node_context.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
@@ -21,7 +22,6 @@
 #include "rpc_exception.h"
 
 #define FMT_HEADER_ONLY
-#include "ccf/pal.h"
 
 #include <fmt/format.h>
 #include <utility>

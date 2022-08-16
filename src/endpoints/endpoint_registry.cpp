@@ -4,6 +4,7 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "ccf/pal/locking.h"
 #include "node/rpc/rpc_context_impl.h"
 
 namespace ccf::endpoints

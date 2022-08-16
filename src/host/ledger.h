@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
-#include "ccf/pal.h"
+#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
 #include "ds/messaging.h"

@@ -4,7 +4,7 @@
 #include "ccf/endpoints/authentication/sig_auth.h"
 
 #include "ccf/crypto/verifier.h"
-#include "ccf/pal.h"
+#include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/users.h"

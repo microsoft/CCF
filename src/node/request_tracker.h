@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/ccf_assert.h"
+#include "ccf/pal/locking.h"
 #include "ds/dl_list.h"
 
 #include <array>

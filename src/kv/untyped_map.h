@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/kv/untyped_map_handle.h"
-#include "ccf/pal.h"
+#include "ccf/pal/locking.h"
 #include "ds/dl_list.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"

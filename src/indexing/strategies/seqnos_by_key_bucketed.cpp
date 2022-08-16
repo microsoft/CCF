@@ -5,7 +5,7 @@
 
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
-#include "ccf/pal.h"
+#include "ccf/pal/locking.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
 #include "indexing/lfs_interface.h"

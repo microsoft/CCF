@@ -6,7 +6,7 @@
 #  include <intrin.h>
 #endif
 
-#include "ccf/pal.h"
+#include "ccf/pal/locking.h"
 
 #include <cassert>
 #include <chrono>

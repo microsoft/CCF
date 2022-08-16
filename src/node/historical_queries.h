@@ -4,6 +4,7 @@
 
 #include "ccf/ccf_assert.h"
 #include "ccf/historical_queries_interface.h"
+#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
