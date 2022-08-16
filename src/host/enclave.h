@@ -179,6 +179,16 @@ namespace host
 
       auto config = nlohmann::json(ccf_config).dump();
 
+      // Pad config with NULLs to a multiple of 8
+      const auto padded_size = (config.size() + 7) & ~(7ull);
+      if (config.size() != padded_size)
+      {
+        LOG_INFO_FMT(
+          "Padding config with {} additional nulls",
+          padded_size - config.size());
+        config.resize(padded_size);
+      }
+
 #define CREATE_NODE_ARGS \
   &status, (void*)&enclave_config, config.data(), config.size(), \
     node_cert.data(), node_cert.size(), &node_cert_len, service_cert.data(), \
