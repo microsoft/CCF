@@ -40,6 +40,8 @@ parameters:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
       ctest_args: '-LE "benchmark|perf"'
+    nosgx_perf:
+      ctest_args: '-L "perf|vegeta"'
 
 jobs:
   # Debug
@@ -77,7 +79,7 @@ jobs:
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
           suffix: "Perf"
           artifact_name: "NoSGX_Perf"
-          ctest_filter: "${{ parameters.test.perf.ctest_args }}"
+          ctest_filter: "${{ parameters.test.nosgx_perf.ctest_args }}"
           depends_on: configure
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
