@@ -295,6 +295,7 @@ namespace ccf
       quote_info = pal::generate_quote(
         crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
 
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
       // TODO: Make this request inside PAL
       auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
         quote_info.quote.data());
@@ -327,6 +328,7 @@ namespace ccf
 
       quote_info.endorsements.assign(
         response.body.begin(), response.body.end());
+#endif
 
       auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())

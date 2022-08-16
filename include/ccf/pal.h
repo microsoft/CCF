@@ -339,6 +339,36 @@ namespace ccf::pal
     oe_lfence();
   }
 
+  static void open_enclave_logging_callback(
+    void* context,
+    oe_log_level_t level,
+    uint64_t thread_id,
+    const char* message)
+  {
+    switch (level)
+    {
+      case OE_LOG_LEVEL_FATAL:
+        CCF_LOG_FMT(FATAL, "")("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_ERROR:
+        CCF_LOG_FMT(FAIL, "")("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_WARNING:
+        CCF_LOG_FMT(FAIL, "")("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_INFO:
+        CCF_LOG_FMT(INFO, "")("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_VERBOSE:
+        CCF_LOG_FMT(DEBUG, "")("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_MAX:
+      case OE_LOG_LEVEL_NONE:
+        CCF_LOG_FMT(TRACE, "")("OE: {}", message);
+        break;
+    }
+  }
+
   static inline void redirect_platform_logging()
   {
     oe_enclave_log_set_callback(nullptr, &open_enclave_logging_callback);
@@ -390,7 +420,7 @@ namespace ccf::pal
     // Serialise hash of node's public key as a custom claim
     const size_t custom_claim_length = 1;
     oe_claim_t custom_claim;
-    custom_claim.name = const_cast<char*>(sgx_report_data_claim_name);
+    custom_claim.name = const_cast<char*>(sgx::report_data_claim_name);
     custom_claim.value = report_data.data();
     custom_claim.value_size = report_data.size();
 
@@ -407,7 +437,7 @@ namespace ccf::pal
     }
 
     rc = oe_get_evidence(
-      &oe_quote_format,
+      &sgx::oe_quote_format,
       0,
       serialised_custom_claims.buffer,
       serialised_custom_claims.size,
@@ -442,10 +472,10 @@ namespace ccf::pal
         fmt::format("Cannot verify non OE SGX report: {}", quote_info.format));
     }
 
-    Claims claims;
+    sgx::Claims claims;
 
     auto rc = oe_verify_evidence(
-      &oe_quote_format,
+      &sgx::oe_quote_format,
       quote_info.quote.data(),
       quote_info.quote.size(),
       quote_info.endorsements.data(),
@@ -490,13 +520,13 @@ namespace ccf::pal
         for (size_t j = 0; j < custom_claims.length; j++)
         {
           auto& custom_claim = custom_claims.data[j];
-          if (std::string(custom_claim.name) == sgx_report_data_claim_name)
+          if (std::string(custom_claim.name) == sgx::report_data_claim_name)
           {
             if (custom_claim.value_size != report_data.size())
             {
               throw std::logic_error(fmt::format(
                 "Expected {} of size {}, had size {}",
-                sgx_report_data_claim_name,
+                sgx::report_data_claim_name,
                 report_data.size(),
                 custom_claim.value_size));
             }
@@ -520,36 +550,6 @@ namespace ccf::pal
     if (!sgx_report_data_found)
     {
       throw std::logic_error("Could not find report data");
-    }
-  }
-
-  static void open_enclave_logging_callback(
-    void* context,
-    oe_log_level_t level,
-    uint64_t thread_id,
-    const char* message)
-  {
-    switch (level)
-    {
-      case OE_LOG_LEVEL_FATAL:
-        CCF_LOG_FMT(FATAL, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_ERROR:
-        CCF_LOG_FMT(FAIL, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_WARNING:
-        CCF_LOG_FMT(FAIL, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_INFO:
-        CCF_LOG_FMT(INFO, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_VERBOSE:
-        CCF_LOG_FMT(DEBUG, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_MAX:
-      case OE_LOG_LEVEL_NONE:
-        CCF_LOG_FMT(TRACE, "")("OE: {}", message);
-        break;
     }
   }
 #endif

@@ -77,7 +77,7 @@ namespace ccf::pal
     };
 
     static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
-    static constexpr auto sgx_report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
+    static constexpr auto report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
   }
 }
 #endif
