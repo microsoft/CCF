@@ -8,7 +8,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
-#include "ccf/pal.h"
+#include "ccf/pal/mem.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"

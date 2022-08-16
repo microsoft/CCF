@@ -4,6 +4,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
 #include "ccf/pal.h"
+#include "ccf/pal/mem.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"

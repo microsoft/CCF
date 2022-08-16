@@ -25,7 +25,6 @@
 #  include <openenclave/advanced/mallinfo.h>
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/bits/defs.h>
-#  include <openenclave/bits/security.h>
 #  include <openenclave/enclave.h>
 #  include <openenclave/log.h>
 #  include <openenclave/tracee.h>
@@ -43,23 +42,7 @@
  */
 namespace ccf::pal
 {
-  /**
-   * Malloc information formatted based on the OE type, but avoiding to expose
-   * the actual OE type in non-OE code.
-   */
-  struct MallocInfo
-  {
-    size_t max_total_heap_size = 0;
-    size_t current_allocated_heap_size = 0;
-    size_t peak_allocated_heap_size = 0;
-  };
-
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-
-  static inline void* safe_memcpy(void* dest, const void* src, size_t count)
-  {
-    return ::memcpy(dest, src, count);
-  }
 
   static inline void redirect_platform_logging() {}
 
@@ -69,14 +52,6 @@ namespace ccf::pal
 
   static inline bool is_outside_enclave(const void* ptr, std::size_t size)
   {
-    return true;
-  }
-
-  static inline bool get_mallinfo(MallocInfo& info)
-  {
-    info.max_total_heap_size = std::numeric_limits<size_t>::max();
-    info.current_allocated_heap_size = 0;
-    info.peak_allocated_heap_size = 0;
     return true;
   }
 
@@ -280,10 +255,6 @@ namespace ccf::pal
   }
 
 #else
-  static inline void* safe_memcpy(void* dest, const void* src, size_t count)
-  {
-    return oe_memcpy_with_barrier(dest, src, count);
-  }
 
   static void open_enclave_logging_callback(
     void* context,
@@ -338,20 +309,6 @@ namespace ccf::pal
   static bool is_outside_enclave(const void* ptr, size_t size)
   {
     return oe_is_outside_enclave(ptr, size);
-  }
-
-  static bool get_mallinfo(MallocInfo& info)
-  {
-    oe_mallinfo_t oe_info;
-    auto rc = oe_allocator_mallinfo(&oe_info);
-    if (rc != OE_OK)
-    {
-      return false;
-    }
-    info.max_total_heap_size = oe_info.max_total_heap_size;
-    info.current_allocated_heap_size = oe_info.current_allocated_heap_size;
-    info.peak_allocated_heap_size = oe_info.peak_allocated_heap_size;
-    return true;
   }
 
   static QuoteInfo generate_quote(std::array<uint8_t, 32>&& report_data)
