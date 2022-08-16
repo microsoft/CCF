@@ -33,7 +33,7 @@ struct formatter<kv::TxHistory::RequestID>
   }
 
   template <typename FormatContext>
-  auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
+  auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx) const
   {
     return format_to(
       ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));

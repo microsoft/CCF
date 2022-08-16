@@ -509,7 +509,7 @@ struct formatter<ds::ContiguousSet<T>>
   }
 
   template <typename FormatContext>
-  auto format(const ds::ContiguousSet<T>& v, FormatContext& ctx)
+  auto format(const ds::ContiguousSet<T>& v, FormatContext& ctx) const
   {
     std::vector<std::string> ranges;
     for (const auto& [from, additional] : v.get_ranges())
