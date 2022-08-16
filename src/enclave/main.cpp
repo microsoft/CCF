@@ -233,7 +233,7 @@ extern "C"
       LOG_FAIL_FMT("Read source memory not aligned: ccf_config");
       return CreateNodeStatus::UnalignedArguments;
     }
-    
+
     oe_lfence();
 
     StartupConfig cc =
