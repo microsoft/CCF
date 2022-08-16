@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Dependencies
+
+- Upgraded OpenEnclave to 0.18.2 (#4132).
+
 ### Added
 
 - Added a new method `get_decoded_request_path_params` that returns a map of decoded path parameters (#4126)
