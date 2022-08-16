@@ -12,9 +12,6 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-dcv2-focal
-    SGXIceLake:
-      container: sgx
-      pool: 1es-dcdv3-focal
 
   build:
     common:
@@ -62,9 +59,8 @@ jobs:
   - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: common.yml
         parameters:
-          ## TODO: Don't merge
-          target: SGXIceLake
-          env: ${{ parameters.env.SGXIceLake }}
+          target: SGX
+          env: ${{ parameters.env.SGX }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
           suffix: "Perf"
           artifact_name: "SGX_Perf"
