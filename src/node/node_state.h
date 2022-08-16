@@ -7,6 +7,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
+#include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/serdes.h"
 #include "ccf/service/node_info_network.h"

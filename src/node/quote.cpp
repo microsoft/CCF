@@ -3,7 +3,7 @@
 
 #include "ccf/node/quote.h"
 
-#include "ccf/pal.h"
+#include "ccf/pal/attestation.h"
 #include "ccf/service/tables/code_id.h"
 
 namespace ccf
