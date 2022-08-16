@@ -13,6 +13,10 @@ namespace crypto
   /** Converts R and S signature parameters to RFC 3279 DER
    * encoding.
    * @param r The raw r signature parameter
+   * @param r_size The size of the r signature parameter
+   * @param s The raw s signature parameter
+   * @param s_size The size of the s signature parameter
+   * @param big_endian True if the parameters are big endian, else False
    */
   static std::vector<uint8_t> ecdsa_sig_from_r_s(
     const uint8_t* r,

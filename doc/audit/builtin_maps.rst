@@ -132,9 +132,9 @@ Versions of the code allowed to join the current network.
 
 ``enum class ccf::CodeStatus``
 
-   *Values:*
+*Values:*
 
-      ``enumerator ALLOWED_TO_JOIN``
+``enumerator ALLOWED_TO_JOIN``
 
 **After 3.0.0-dev2**
 

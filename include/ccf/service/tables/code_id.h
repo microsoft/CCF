@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/quote_info.h"
 #include "ccf/service/code_digest.h"
 #include "ccf/service/map.h"
 
