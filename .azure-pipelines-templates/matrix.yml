@@ -12,7 +12,10 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-dcv2-focal
-
+    SGXIceLake:
+      container: sgx
+      pool: 1es-dcdv3-focal
+  
   build:
     common:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
@@ -59,8 +62,9 @@ jobs:
   - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: common.yml
         parameters:
-          target: SGX
-          env: ${{ parameters.env.SGX }}
+          ## TODO: Don't merge
+          target: SGXIceLake
+          env: ${{ parameters.env.SGXIceLake }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
           suffix: "Perf"
           artifact_name: "SGX_Perf"
