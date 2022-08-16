@@ -3,7 +3,8 @@
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal/enclave.h"
+#include "ccf/pal/locking.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "enclave.h"
@@ -15,7 +16,7 @@
 #include <thread>
 
 // the central enclave object
-static ccf::Pal::Mutex create_lock;
+static ccf::pal::Mutex create_lock;
 static std::atomic<ccf::Enclave*> e;
 
 std::atomic<uint16_t> num_pending_threads = 0;
@@ -41,7 +42,7 @@ extern "C"
   void enclave_sanity_checks()
   {
     {
-      ccf::Pal::Mutex m;
+      ccf::pal::Mutex m;
       m.lock();
       if (m.try_lock())
       {
@@ -71,14 +72,14 @@ extern "C"
     size_t num_worker_threads,
     void* time_location)
   {
-    std::lock_guard<ccf::Pal::Mutex> guard(create_lock);
+    std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
     if (e != nullptr)
     {
       return CreateNodeStatus::NodeAlreadyCreated;
     }
 
-    if (!ccf::Pal::is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
+    if (!ccf::pal::is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
     {
       LOG_FAIL_FMT("Memory outside enclave: enclave_config");
       return CreateNodeStatus::MemoryNotOutsideEnclave;
@@ -113,7 +114,7 @@ extern "C"
     auto ringbuffer_logger = new_logger.get();
     logger::config::loggers().push_back(std::move(new_logger));
 
-    ccf::Pal::redirect_platform_logging();
+    ccf::pal::redirect_platform_logging();
 
     enclave_sanity_checks();
 
@@ -145,7 +146,7 @@ extern "C"
 
       // Check that where we expect arguments to be in host-memory, they really
       // are. lfence after these checks to prevent speculative execution
-      if (!ccf::Pal::is_outside_enclave(
+      if (!ccf::pal::is_outside_enclave(
             time_location, sizeof(*ccf::host_time_us)))
       {
         LOG_FAIL_FMT("Memory outside enclave: time_location");
@@ -162,38 +163,38 @@ extern "C"
         static_cast<decltype(ccf::host_time_us)>(time_location);
 
       // Check that ringbuffer memory ranges are entirely outside of the enclave
-      if (!ccf::Pal::is_outside_enclave(
+      if (!ccf::pal::is_outside_enclave(
             ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
       {
         LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer start");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      if (!ccf::Pal::is_outside_enclave(
+      if (!ccf::pal::is_outside_enclave(
             ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
       {
         LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer start");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      if (!ccf::Pal::is_outside_enclave(
+      if (!ccf::pal::is_outside_enclave(
             ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
         LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer offset");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      if (!ccf::Pal::is_outside_enclave(
+      if (!ccf::pal::is_outside_enclave(
             ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
         LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer offset");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      ccf::Pal::speculation_barrier();
+      ccf::pal::speculation_barrier();
     }
 
-    if (!ccf::Pal::is_outside_enclave(ccf_config, ccf_config_size))
+    if (!ccf::pal::is_outside_enclave(ccf_config, ccf_config_size))
     {
       LOG_FAIL_FMT("Memory outside enclave: ccf_config");
       return CreateNodeStatus::MemoryNotOutsideEnclave;
@@ -205,7 +206,7 @@ extern "C"
       return CreateNodeStatus::UnalignedArguments;
     }
 
-    ccf::Pal::speculation_barrier();
+    ccf::pal::speculation_barrier();
 
     StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
@@ -317,7 +318,7 @@ extern "C"
     {
       uint16_t tid;
       {
-        std::lock_guard<ccf::Pal::Mutex> guard(create_lock);
+        std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
         tid = threading::ThreadMessaging::thread_count.fetch_add(1);
         threading::thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
@@ -328,8 +329,7 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {
-      }
+      {}
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -338,8 +338,7 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::thread_count - 1)
-        {
-        }
+        {}
         return s;
       }
       else

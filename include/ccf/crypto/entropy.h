@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/pal.h"
+#include "ccf/pal/mem.h"
 
 #include <cassert>
 #include <cstdint>
@@ -64,11 +64,11 @@ namespace crypto
       {
         drng_features = DRNG_NO_SUPPORT;
 
-        if (ccf::is_intel_cpu())
+        if (ccf::pal::is_intel_cpu())
         {
-          ccf::CpuidInfo info;
+          ccf::pal::CpuidInfo info;
 
-          ccf::cpuid(&info, 1, 0);
+          ccf::pal::cpuid(&info, 1, 0);
 
           if ((info.ecx & 0x40000000) == 0x40000000)
             drng_features |= DRNG_HAS_RDRAND;
