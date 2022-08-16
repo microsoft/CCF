@@ -20,7 +20,7 @@
 
 namespace ccf
 {
-  std::atomic<std::chrono::microseconds>* host_time = nullptr;
+  std::atomic<long long>* host_time_us = nullptr;
   std::chrono::microseconds last_value(0);
 }
 
