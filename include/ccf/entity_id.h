@@ -193,7 +193,7 @@ struct formatter<ccf::EntityId<FmtExtender>>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
+  auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx) const
   {
     std::stringstream ss;
     ss << v;
