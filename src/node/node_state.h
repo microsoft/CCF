@@ -14,7 +14,6 @@
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
 #include "ccf_acme_client.h"
-#include "clients/rpc_tls_client.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -296,41 +295,6 @@ namespace ccf
 
       quote_info = pal::generate_quote(
         crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
-
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-      // TODO: Make this request inside PAL
-      auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
-        quote_info.quote.data());
-
-      client::RpcTlsClient client{
-        "americas.test.acccache.azure.net", // TODO: Make Configurable
-        "443",
-        nullptr,
-        std::make_shared<tls::Cert>(
-          nullptr, // TODO: Use auth
-          std::nullopt,
-          std::nullopt,
-          std::nullopt,
-          false)};
-
-      auto params = nlohmann::json::object();
-      params["api-version"] = "2020-10-15-preview";
-
-      auto response = client.get(
-        fmt::format(
-          "/SevSnpVM/certificates/{}/{}",
-          fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
-          fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb))),
-        params);
-
-      if (response.status != HTTP_STATUS_OK)
-      {
-        throw std::logic_error("Failed to get attestation endorsements");
-      }
-
-      quote_info.endorsements.assign(
-        response.body.begin(), response.body.end());
-#endif
 
       auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())

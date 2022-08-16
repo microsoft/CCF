@@ -9,6 +9,7 @@
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
 #  include "ccf/pal/attestation_sev_snp.h"
+#  include "clients/rpc_tls_client.h"
 #  include "crypto/ecdsa.h"
 
 #  include <fcntl.h>
@@ -70,42 +71,40 @@ namespace ccf::pal
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
       }
 
-      auto quote = reinterpret_cast<uint8_t*>(&resp.report);
-      node_quote_info.quote.assign(quote, quote + resp.report_size);
+      auto quote = &resp.report;
+      auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
+      node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
 
-      // TODO: Get endorsements here
-      // client::RpcTlsClient client{
-      //   "americas.test.acccache.azure.net", // TODO: Make Configurable
-      //   "443",
-      //   nullptr,
-      //   std::make_shared<tls::Cert>(
-      //     nullptr, // TODO: Use auth
-      //     std::nullopt,
-      //     std::nullopt,
-      //     std::nullopt,
-      //     false
-      //   )
-      // };
+      client::RpcTlsClient client{
+        "americas.test.acccache.azure.net", // TODO: Make Configurable
+        "443",
+        nullptr,
+        std::make_shared<tls::Cert>(
+          nullptr, // TODO: Use auth
+          std::nullopt,
+          std::nullopt,
+          std::nullopt,
+          false)};
 
-      // auto params = nlohmann::json::object();
-      // params["api-version"] = "2020-10-15-preview";
+      auto params = nlohmann::json::object();
+      params["api-version"] = "2020-10-15-preview";
 
-      // auto response = client.get(
-      //   fmt::format(
-      //     "/SevSnpVM/certificates/{}/{}",
-      //     fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
-      //     fmt::format("{:0x}", quote.reported_tcb.raw)
-      //   ),
-      //   params
-      // );
+      auto response = client.get(
+        fmt::format(
+          "/SevSnpVM/certificates/{}/{}",
+          fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
+          fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
+        params);
 
-      // if (response.status != HTTP_STATUS_OK) {
-      //   throw std::logic_error(
-      //     "Failed to fetch the certificate chain for this attestation");
-      // }
+      if (response.status != HTTP_STATUS_OK)
+      {
+        throw std::logic_error("Failed to get attestation endorsements");
+      }
 
-      // quote_info.endorsements.assign(data.begin(), data.end());
+      node_quote_info.endorsements.assign(
+        response.body.begin(), response.body.end());
     }
+
     return node_quote_info;
   }
 
