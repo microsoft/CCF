@@ -25,7 +25,7 @@ namespace ccf::pal
 {
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-  static QuoteInfo generate_quote(attestation_report_data&& report_data)
+  static QuoteInfo generate_quote(attestation_report_data& report_data)
   {
     QuoteInfo node_quote_info = {};
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -43,7 +43,8 @@ namespace ccf::pal
       int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
       {
-        throw std::logic_error("Failed to open \"/dev/sev\"");
+        throw std::logic_error(
+          fmt::format("Failed to open \"{}\"", snp::DEVICE));
       }
 
       snp::AttestationReq req = {};
@@ -52,6 +53,8 @@ namespace ccf::pal
       // Arbitrary report data
       memcpy(req.report_data, report_data.data(), attestation_report_data_size);
 
+      // Documented at
+      // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
       snp::GuestRequest payload = {
         .req_msg_type = snp::MSG_REPORT_REQ,
         .rsp_msg_type = snp::MSG_REPORT_RSP,
@@ -139,8 +142,7 @@ namespace ccf::pal
 
       std::copy(
         std::begin(quote.report_data),
-        std::begin(quote.report_data) + attestation_report_data_size,
-        // quote supports 64 bytes but our code only uses 32
+        std::end(quote.report_data),
         report_data.begin());
       std::copy(
         std::begin(quote.measurement),
@@ -159,9 +161,10 @@ namespace ccf::pal
         root_cert_verifier->public_key_pem().str() !=
         snp::amd_milan_root_signing_public_key)
       {
-        throw std::logic_error(
+        throw std::logic_error(fmt::format(
           "The root of trust public key for this attestation was not the "
-          "expected one");
+          "expected one {}",
+          root_cert_verifier->public_key_pem().str()));
       }
 
       if (!root_cert_verifier->verify_certificate({&root_certificate}))
@@ -188,7 +191,7 @@ namespace ccf::pal
           snp::SignatureAlgorithm::ecdsa_p384_sha384));
       }
 
-      // Make ASN1 der signature
+      // Make ASN1 DER signature
       auto quote_signature = crypto::ecdsa_sig_from_r_s(
         quote.signature.r,
         sizeof(quote.signature.r),
@@ -197,10 +200,9 @@ namespace ccf::pal
         false /* little endian */
       );
 
-      std::vector<uint8_t> quote_without_signature = {
-        quote_info.quote.begin(),
-        quote_info.quote.end() - sizeof(quote.signature)};
-
+      std::span quote_without_signature{
+        quote_info.quote.data(),
+        quote_info.quote.size() - sizeof(quote.signature)};
       if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
       {
         throw std::logic_error(
@@ -224,7 +226,7 @@ namespace ccf::pal
 
 #else
 
-  static QuoteInfo generate_quote(std::array<uint8_t, 32>&& report_data)
+  static QuoteInfo generate_quote(attestation_report_data& report_data)
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::oe_sgx_v1;

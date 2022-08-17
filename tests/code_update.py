@@ -13,7 +13,7 @@ from infra.checker import check_can_progress
 from loguru import logger as LOG
 
 # Dummy code id used by virtual nodes
-VIRTUAL_CODE_ID = "0" * 64
+VIRTUAL_CODE_ID = "0" * 96
 
 
 @reqs.description("Verify node evidence")

@@ -43,10 +43,10 @@ namespace ccf
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
-    crypto::Sha256Hash h = {};
+    pal::attestation_report_data r = {};
     try
     {
-      pal::verify_quote(quote_info, unique_id.data, h.h);
+      pal::verify_quote(quote_info, unique_id.data, r);
     }
     catch (const std::exception& e)
     {
@@ -65,9 +65,16 @@ namespace ccf
       CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
+    pal::attestation_report_data report;
     try
     {
-      pal::verify_quote(quote_info, code_digest.data, quoted_hash.h);
+      pal::verify_quote(quote_info, code_digest.data, report);
+
+      // Attestation report may be different sizes depending on the platform.
+      std::copy(
+        report.begin(),
+        report.begin() + crypto::Sha256Hash::SIZE,
+        quoted_hash.h.begin());
     }
     catch (const std::exception& e)
     {

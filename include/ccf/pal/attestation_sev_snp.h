@@ -7,7 +7,10 @@
 
 namespace ccf::pal
 {
-  static constexpr size_t attestation_report_data_size = 32;
+  // Based on the SEV-SNP ABI Spec document at
+  // https://www.amd.com/system/files/TechDocs/56860.pdf
+
+  static constexpr size_t attestation_report_data_size = 64;
   using attestation_report_data =
     std::array<uint8_t, attestation_report_data_size>;
   static constexpr size_t attestation_measurement_size = 48;
@@ -33,9 +36,6 @@ pCCoMNit2uLo9M18fHz10lOMT8nWAUvRZFzteXCm+7PHdYPlmQwUw3LvenJ/ILXo
 QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
-
-    // Based on the SEV-SNP ABI Spec document at
-    // https://www.amd.com/system/files/TechDocs/56860.pdf
 
     // Table 3
     struct TcbVersion
@@ -64,6 +64,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       ecdsa_p384_sha384 = 1
     };
 
+#  pragma pack(push, 1)
     // Table 21
     struct Attestation
     {
@@ -78,7 +79,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint64_t platform_info; /* 0x040 */
       uint32_t flags; /* 0x048 */
       uint32_t reserved0; /* 0x04C */
-      uint8_t report_data[64]; /* 0x050 */
+      uint8_t report_data[attestation_report_data_size]; /* 0x050 */
       uint8_t measurement[attestation_measurement_size]; /* 0x090 */
       uint8_t host_data[32]; /* 0x0C0 */
       uint8_t id_key_digest[48]; /* 0x0E0 */
@@ -101,6 +102,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t reserved4[168]; /* 0x1F8 */
       struct Signature signature; /* 0x2A0 */
     };
+#  pragma pack(pop)
 
     // Table 20
     struct AttestationReq
