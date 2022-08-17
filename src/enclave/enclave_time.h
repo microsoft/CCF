@@ -7,18 +7,18 @@
 
 namespace ccf
 {
-  extern std::atomic<std::chrono::microseconds>* host_time;
+  extern std::atomic<long long>* host_time_us;
   extern std::chrono::microseconds last_value;
 
   static std::chrono::microseconds get_enclave_time()
   {
     // Update cached value if possible, but never move backwards
-    if (host_time != nullptr)
+    if (host_time_us != nullptr)
     {
-      const auto current_time = host_time->load();
-      if (current_time > last_value)
+      const auto current_time = host_time_us->load();
+      if (current_time > last_value.count())
       {
-        last_value = current_time;
+        last_value = std::chrono::microseconds(current_time);
       }
     }
 
