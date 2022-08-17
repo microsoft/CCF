@@ -491,7 +491,10 @@ class LedgerValidator:
             elif self.service_status == updated_status:
                 pass
             elif self.service_status == "Opening":
-                assert updated_status in ["Open", "WaitingForRecoveryShares"], updated_status
+                assert updated_status in [
+                    "Open",
+                    "WaitingForRecoveryShares",
+                ], updated_status
             elif self.service_status == "Recovering":
                 assert updated_status in ["WaitingForRecoveryShares"], updated_status
             elif self.service_status == "WaitingForRecoveryShares":
