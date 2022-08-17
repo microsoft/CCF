@@ -6,6 +6,7 @@
 #include "ccf/ds/mutex.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+#include "ds/ccf_exception.h"
 #include "ds/serialized.h"
 #include "enclave/reconfiguration_type.h"
 #include "impl/state.h"

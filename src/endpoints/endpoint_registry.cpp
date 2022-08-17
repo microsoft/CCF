@@ -78,6 +78,44 @@ namespace ccf::endpoints
     }
   }
 
+  std::optional<PathTemplateSpec> PathTemplateSpec::parse(
+    const std::string_view& uri)
+  {
+    auto template_start = uri.find_first_of('{');
+    if (template_start == std::string::npos)
+    {
+      return std::nullopt;
+    }
+
+    PathTemplateSpec spec;
+
+    std::string regex_s(uri);
+    template_start = regex_s.find_first_of('{');
+    while (template_start != std::string::npos)
+    {
+      const auto template_end = regex_s.find_first_of('}', template_start);
+      if (template_end == std::string::npos)
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid templated path - missing closing curly bracket: {}", uri));
+      }
+
+      spec.template_component_names.push_back(
+        regex_s.substr(template_start + 1, template_end - template_start - 1));
+      regex_s.replace(
+        template_start, template_end - template_start + 1, "([^/]+)");
+      template_start = regex_s.find_first_of('{', template_start + 1);
+    }
+
+    LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
+    LOG_TRACE_FMT(
+      "Component names are: {}",
+      fmt::join(spec.template_component_names, ", "));
+    spec.template_regex = std::regex(regex_s);
+
+    return spec;
+  }
+
   EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_endpoint(
     const EndpointDefinitionPtr& e)
   {
@@ -152,7 +190,8 @@ namespace ccf::endpoints
       endpoint.authn_policies.pop_back();
     }
 
-    const auto template_spec = parse_path_template(endpoint.dispatch.uri_path);
+    const auto template_spec =
+      PathTemplateSpec::parse(endpoint.dispatch.uri_path);
     if (template_spec.has_value())
     {
       auto templated_endpoint =

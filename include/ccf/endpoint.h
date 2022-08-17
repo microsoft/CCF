@@ -360,20 +360,7 @@ namespace ccf::endpoints
     CCF_DEPRECATED("Will be removed in 3.0, has no effect in 2.0.")
     Endpoint& set_execute_outside_consensus(ExecuteOutsideConsensus v);
 
-    void install()
-    {
-      if (installer == nullptr)
-      {
-        LOG_FATAL_FMT(
-          "Can't install this endpoint ({}) - it is not associated with an "
-          "installer",
-          full_uri_path);
-      }
-      else
-      {
-        installer->install(*this);
-      }
-    }
+    void install();
   };
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
