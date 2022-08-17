@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Application code should now use the `CCF_APP_*` macros rather than `LOG_*_FMT` (eg - `CCF_APP_INFO` replacing `LOG_INFO_FMT`). The new macros will add an `[app]` tag to all lines so they can be easily filtered from framework code (#4024).
 
+### Deprecated
+
+- The previous logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) have been deprecated, and should no longer be used by application code. Replace with the `CCF_APP_*` equivalent.
+
 ## [2.0.6]
 
 ### Dependencies
