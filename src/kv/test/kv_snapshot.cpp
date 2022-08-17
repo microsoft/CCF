@@ -350,8 +350,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(local_map_writes.size(), 1);
         auto writes = local_map_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE_EQ(writes.at("foo"), "foo");
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE_EQ(writes.at("baz"), "baz");
         local_map_writes.clear();
       }
@@ -367,8 +369,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(local_set_writes.size(), 1);
         auto writes = local_set_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE(writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE(writes.at("baz").has_value());
         local_set_writes.clear();
       }
@@ -381,8 +385,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(global_map_writes.size(), 1);
         auto writes = global_map_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE_EQ(writes.at("foo"), "foo");
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE_EQ(writes.at("baz"), "baz");
         global_map_writes.clear();
       }
@@ -398,8 +404,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(global_set_writes.size(), 1);
         auto writes = global_set_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE(writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE(writes.at("baz").has_value());
         global_set_writes.clear();
       }
@@ -443,27 +451,17 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     INFO("Verify local hook execution");
     {
       {
-        REQUIRE_EQ(local_map_writes.size(), 1);
-        auto writes = local_map_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(local_map_writes.size(), 0);
         local_map_writes.clear();
       }
 
       {
-        REQUIRE_EQ(local_value_writes.size(), 1);
-        auto write = local_value_writes.at(0);
-        REQUIRE(!write.has_value());
+        REQUIRE_EQ(local_value_writes.size(), 0);
         local_value_writes.clear();
       }
 
       {
-        REQUIRE_EQ(local_set_writes.size(), 1);
-        auto writes = local_set_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(local_set_writes.size(), 0);
         local_set_writes.clear();
       }
     }
@@ -473,27 +471,17 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       new_store.compact(snapshot_version);
 
       {
-        REQUIRE_EQ(global_map_writes.size(), 1);
-        auto writes = global_map_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(global_map_writes.size(), 0);
         global_map_writes.clear();
       }
 
       {
-        REQUIRE_EQ(global_value_writes.size(), 1);
-        auto write = global_value_writes.at(0);
-        REQUIRE(!write.has_value());
+        REQUIRE_EQ(global_value_writes.size(), 0);
         global_value_writes.clear();
       }
 
       {
-        REQUIRE_EQ(global_set_writes.size(), 1);
-        auto writes = global_set_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(global_set_writes.size(), 0);
         global_set_writes.clear();
       }
     }
