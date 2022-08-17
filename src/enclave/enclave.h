@@ -15,6 +15,7 @@
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/node_types.h"
+#include "node/rpc/acme_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/host_processes.h"
@@ -146,6 +147,8 @@ namespace ccf
       context->install_subsystem(
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
 
+      context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -158,6 +161,9 @@ namespace ccf
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
+      // Note: for ACME challenges, the well-known frontend should really only
+      // listen on the interface specified in the ACMEClientConfig, but we don't
+      // have support for frontends restricted to particular interfaces yet.
       rpc_map->register_frontend<ccf::ActorsType::well_known>(
         std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 

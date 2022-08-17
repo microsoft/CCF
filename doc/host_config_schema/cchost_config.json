@@ -181,11 +181,11 @@
                   "challenge_type": {
                     "type": "string",
                     "default": "http-01",
-                    "description": "Type of the ACME challenge (currently only http-01 supported)"
+                    "description": "Type of the ACME challenge (usually http-01; others are supported but require a custom challenge handler)"
                   },
                   "challenge_server_interface": {
                     "type": "string",
-                    "description": "Name of the interface for the (http-01) challenge server to listen on"
+                    "description": "Name of the interface for the http-01 challenge frontend to listen on"
                   }
                 },
                 "description": "ACME Configurations",
