@@ -780,13 +780,15 @@ def test_historical_query(network, args):
 @app.scoped_txs()
 def test_historical_query_on_missing_files(network, args):
     primary, _ = network.find_nodes()
+    LOG.info("Create a gap in the ledger sequence")
     chunk, (start, end) = primary.hide_committed_ledger_chunk()
-    # Historical requests in the range should fail
     primary, _ = network.find_primary_and_any_backup()
 
     all_missing = list(range(start, end + 1))
     some_missing = random.sample(all_missing, 3)
 
+    # TODO: look up view
+    LOG.info("Check historical queries return ACCEPTED")
     with primary.client("user0") as c:
         for seqno in some_missing:
             rc = c.get(f"/app/receipt?transaction_id=2.{seqno}")
@@ -795,9 +797,24 @@ def test_historical_query_on_missing_files(network, args):
             rc = c.get(f"/app/receipt?transaction_id=2.{seqno}")
             assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
 
+    LOG.info("Restore gap in the ledger sequence")
     primary.unhide_committed_ledger_chunk(chunk)
 
+    LOG.info("Check historial queries work again")
+    with primary.client("user0") as c:
+        for seqno in some_missing:
+            start_time = time.time()
+            while time.time() < (start_time + 3.0):
+                rc = c.get(f"/app/receipt?transaction_id=2.{seqno}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    assert False, rc
+
     return network
+
 
 @reqs.description("Read historical receipts")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical_receipt")

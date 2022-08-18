@@ -3,7 +3,6 @@
 
 from contextlib import contextmanager, closing
 from enum import Enum, auto
-from tempfile import tempdir
 import infra.crypto
 import infra.remote
 import infra.remote_shim
@@ -518,21 +517,20 @@ class Node:
     def hide_committed_ledger_chunk(self):
         ledger_dir = self.remote.ledger_paths()[0]
         ledger_chunks = list(pathlib.Path(ledger_dir).glob("*.committed"))
-        def range(path):
-            start, end = path.stem.rsplit('_')[-1].split('-')
+
+        def interval(path):
+            start, end = path.stem.rsplit("_")[-1].split("-")
             return int(start), int(end)
 
-        def key(path):
-            start, _ = range(path)
-            return start
-
-        chunk_to_hide, = random.sample(ledger_chunks, 1)
+        (chunk_to_hide,) = random.sample(ledger_chunks, 1)
         chunk_to_hide.replace(os.path.join(tempfile.gettempdir(), chunk_to_hide.name))
 
-        return chunk_to_hide, range(chunk_to_hide)
+        return chunk_to_hide, interval(chunk_to_hide)
 
     def unhide_committed_ledger_chunk(self, previously_hidden_chunk):
-        hidden_chunk = pathlib.Path(os.path.join(tempfile.gettempdir(), previously_hidden_chunk.name))
+        hidden_chunk = pathlib.Path(
+            os.path.join(tempfile.gettempdir(), previously_hidden_chunk.name)
+        )
         hidden_chunk.replace(previously_hidden_chunk)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
