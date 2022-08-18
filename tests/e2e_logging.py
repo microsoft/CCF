@@ -774,6 +774,31 @@ def test_historical_query(network, args):
     return network
 
 
+@reqs.description("Attempt to read historical state from missing files")
+@reqs.supports_methods("/app/log/private", "/app/log/private/historical")
+@reqs.no_http2()
+@app.scoped_txs()
+def test_historical_query_on_missing_files(network, args):
+    primary, _ = network.find_nodes()
+    chunk, (start, end) = primary.hide_committed_ledger_chunk()
+    # Historical requests in the range should fail
+    primary, _ = network.find_primary_and_any_backup()
+
+    all_missing = list(range(start, end + 1))
+    some_missing = random.sample(all_missing, 3)
+
+    with primary.client("user0") as c:
+        for seqno in some_missing:
+            rc = c.get(f"/app/receipt?transaction_id=2.{seqno}")
+            assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
+            time.sleep(3)
+            rc = c.get(f"/app/receipt?transaction_id=2.{seqno}")
+            assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
+
+    primary.unhide_committed_ledger_chunk(chunk)
+
+    return network
+
 @reqs.description("Read historical receipts")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical_receipt")
 def test_historical_receipts(network, args):
@@ -1561,6 +1586,7 @@ def run(args):
         if "v8" not in args.package:
             test_historical_receipts(network, args)
             test_historical_receipts_with_claims(network, args)
+        test_historical_query_on_missing_files(network, args)
 
 
 def run_parsing_errors(args):
@@ -1581,6 +1607,16 @@ def run_parsing_errors(args):
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
+
+    cr.add(
+        "cpp",
+        run,
+        package="samples/apps/logging/liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     cr.add(
         "js",
@@ -1605,16 +1641,6 @@ if __name__ == "__main__":
             election_timeout_ms=cr.args.election_timeout_ms
             * 2,  # Larger election timeout as some large payloads may cause an election with v8
         )
-
-    cr.add(
-        "cpp",
-        run,
-        package="samples/apps/logging/liblogging",
-        js_app_bundle=None,
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
 
     cr.add(
         "common",
