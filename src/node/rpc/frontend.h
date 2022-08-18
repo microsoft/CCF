@@ -21,7 +21,7 @@
 #include "rpc_exception.h"
 
 #define FMT_HEADER_ONLY
-#include "ccf/ds/pal.h"
+#include "ccf/pal/locking.h"
 
 #include <fmt/format.h>
 #include <utility>
@@ -37,7 +37,7 @@ namespace ccf
     ccfapp::AbstractNodeContext& node_context;
 
   private:
-    ccf::Pal::Mutex open_lock;
+    ccf::pal::Mutex open_lock;
     bool is_open_ = false;
 
     kv::Consensus* consensus;
@@ -528,7 +528,7 @@ namespace ccf
 
     void open(std::optional<crypto::Pem*> identity = std::nullopt) override
     {
-      std::lock_guard<ccf::Pal::Mutex> mguard(open_lock);
+      std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
       // open() without an identity unconditionally opens the frontend.
       // If an identity is passed, the frontend must instead wait for
       // the KV to read that this is identity is present and open,
@@ -549,7 +549,7 @@ namespace ccf
 
     bool is_open(kv::Tx& tx) override
     {
-      std::lock_guard<ccf::Pal::Mutex> mguard(open_lock);
+      std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
       if (!is_open_)
       {
         auto service = tx.ro<Service>(Tables::SERVICE);
@@ -569,7 +569,7 @@ namespace ccf
 
     bool is_open() override
     {
-      std::lock_guard<ccf::Pal::Mutex> mguard(open_lock);
+      std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
       return is_open_;
     }
 

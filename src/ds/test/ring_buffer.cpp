@@ -679,7 +679,7 @@ TEST_CASE(
   doctest::test_suite("ringbuffer")
   // Skip when xAPIC mitigations are enabled, which are not correctly handled by
   // SparseReader
-  * doctest::skip(ccf::Pal::require_alignment_for_untrusted_reads()))
+  * doctest::skip(ccf::pal::require_alignment_for_untrusted_reads()))
 {
   srand(time(NULL));
 
@@ -777,7 +777,7 @@ TEST_CASE(
   doctest::test_suite("ringbuffer")
   // Skip when xAPIC mitigations are enabled, since the core assertion that
   // reads are within the original buffer is deliberately broken by the Reader
-  * doctest::skip(ccf::Pal::require_alignment_for_untrusted_reads()))
+  * doctest::skip(ccf::pal::require_alignment_for_untrusted_reads()))
 {
   constexpr auto buffer_size = 256ull;
 

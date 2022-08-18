@@ -4,11 +4,11 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
-#include "ccf/ds/pal.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
+#include "ccf/pal/mem.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
@@ -1324,8 +1324,8 @@ namespace ccf
 // Do not attempt to call get_mallinfo when used from
 // unit tests such as the frontend_test
 #ifdef INSIDE_ENCLAVE
-        ccf::MallocInfo info;
-        if (ccf::Pal::get_mallinfo(info))
+        ccf::pal::MallocInfo info;
+        if (ccf::pal::get_mallinfo(info))
         {
           MemoryUsage::Out mu(info);
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
