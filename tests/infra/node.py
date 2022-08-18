@@ -24,6 +24,7 @@ import http
 import pathlib
 import random
 import tempfile
+import shutil
 
 # pylint: disable=protected-access
 import ccf._versionifier
@@ -522,8 +523,11 @@ class Node:
             start, end = path.stem.rsplit("_")[-1].split("-")
             return int(start), int(end)
 
-        (chunk_to_hide,) = random.sample(ledger_chunks, 1)
-        chunk_to_hide.replace(os.path.join(tempfile.gettempdir(), chunk_to_hide.name))
+        # Pick a random chunk, near the start of the ledger, to avoid the cache
+        (chunk_to_hide,) = random.sample(ledger_chunks[:5], 1)
+        shutil.move(
+            chunk_to_hide, os.path.join(tempfile.gettempdir(), chunk_to_hide.name)
+        )
 
         return chunk_to_hide, interval(chunk_to_hide)
 
@@ -531,7 +535,7 @@ class Node:
         hidden_chunk = pathlib.Path(
             os.path.join(tempfile.gettempdir(), previously_hidden_chunk.name)
         )
-        hidden_chunk.replace(previously_hidden_chunk)
+        shutil.move(hidden_chunk, previously_hidden_chunk)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         (
