@@ -277,9 +277,8 @@ TEST_CASE("sets and values")
         REQUIRE(local_writes.size() == 1);
         const auto& latest_writes = local_writes.front();
         REQUIRE(latest_writes.at(k1).has_value());
-        INFO("Local removals are not seen");
-        REQUIRE(latest_writes.size() == 1);
-        REQUIRE(latest_writes.find(k2) == latest_writes.end());
+        REQUIRE(!latest_writes.at(k2).has_value());
+        REQUIRE(latest_writes.size() == 2);
 
         local_writes.clear();
       }
@@ -313,10 +312,12 @@ TEST_CASE("sets and values")
         kv_store.compact(kv_store.current_version());
 
         REQUIRE(global_writes.size() == 4);
-        REQUIRE(global_writes.at(0).size() == 1);
+        REQUIRE(global_writes.at(0).size() == 2);
         REQUIRE(!global_writes.at(0).at(k1).has_value());
-        REQUIRE(global_writes.at(1).size() == 1);
+        REQUIRE(!global_writes.at(0).at(k2).has_value());
+        REQUIRE(global_writes.at(1).size() == 2);
         REQUIRE(global_writes.at(1).at(k1).has_value());
+        REQUIRE(!global_writes.at(1).at(k2).has_value());
         REQUIRE(global_writes.at(2).size() == 2);
         REQUIRE(!global_writes.at(2).at(k1).has_value());
         REQUIRE(global_writes.at(2).at(k2).has_value());
@@ -1731,9 +1732,8 @@ TEST_CASE("Local commit hooks")
       const auto& latest_writes = local_writes.back();
       REQUIRE(latest_writes.at("key1").has_value());
       REQUIRE(latest_writes.at("key1").value() == "value1");
-      INFO("Local removals are not seen");
-      REQUIRE(latest_writes.find("key2") == latest_writes.end());
-      REQUIRE(latest_writes.size() == 1);
+      REQUIRE(!latest_writes.at("key2").has_value());
+      REQUIRE(latest_writes.size() == 2);
       local_writes.clear();
     }
 
