@@ -268,7 +268,6 @@ namespace http
   inline static std::optional<std::string> extract_actor(HttpRpcContext& ctx)
   {
     const auto path = ctx.get_method();
-
     const auto first_slash = path.find_first_of('/');
     const auto second_slash = path.find_first_of('/', first_slash + 1);
 
@@ -284,8 +283,18 @@ namespace http
     {
       return std::nullopt;
     }
-
-    ctx.set_method(remaining_path);
+    // TODO: Remove ActorType hardcoding
+    // if the extracted actor is a known type, set the remaining path
+    if (
+      actor == "gov" || actor == "node" || actor == ".well-known" ||
+      actor == "app")
+    {
+      ctx.set_method(remaining_path);
+    }
+    else
+    {
+      ctx.set_method(path);
+    }
     return actor;
   }
 }
