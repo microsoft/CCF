@@ -6,8 +6,8 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/attestation_types.h"
 #include "ccf/ds/logger.h"
+#include "ccf/pal/attestation.h"
 #include "ccf/serdes.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/acme_certificates.h"
@@ -21,6 +21,7 @@
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
+#include "http/http_parser.h"
 #include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
@@ -74,7 +75,7 @@ namespace ccf
     // this node's core state
     //
     ds::StateMachine<NodeStartupState> sm;
-    Pal::Mutex lock;
+    pal::Mutex lock;
 
     crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
@@ -152,7 +153,12 @@ namespace ccf
     kv::Version startup_seqno = 0;
 
     // ACME certificate endorsement client
-    std::map<std::string, std::shared_ptr<ACMEClient>> acme_clients;
+    std::map<NodeInfoNetwork::RpcInterfaceID, std::shared_ptr<ACMEClient>>
+      acme_clients;
+    std::map<
+      NodeInfoNetwork::RpcInterfaceID,
+      std::shared_ptr<ACMEChallengeHandler>>
+      acme_challenge_handlers;
     size_t num_acme_interfaces = 0;
 
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
@@ -247,7 +253,7 @@ namespace ccf
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::uninitialized);
 
       consensus_config = consensus_config_;
@@ -275,7 +281,7 @@ namespace ccf
     //
     NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
 
       config = std::move(config_);
@@ -292,7 +298,7 @@ namespace ccf
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
-      quote_info = Pal::generate_quote(
+      quote_info = pal::generate_quote(
         crypto::Sha256Hash((node_sign_kp->public_key_der())).h);
       auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
@@ -436,7 +442,7 @@ namespace ccf
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
-          std::lock_guard<Pal::Mutex> guard(lock);
+          std::lock_guard<pal::Mutex> guard(lock);
           if (!sm.check(NodeStartupState::pending))
           {
             return;
@@ -619,7 +625,7 @@ namespace ccf
           }
         },
         [this](const std::string& error_msg) {
-          std::lock_guard<Pal::Mutex> guard(lock);
+          std::lock_guard<pal::Mutex> guard(lock);
           auto long_error_msg = fmt::format(
             "Early error when joining existing network at {}: {}. Shutting "
             "down node gracefully...",
@@ -661,7 +667,7 @@ namespace ccf
     // (https://github.com/microsoft/CCF/issues/2981)
     void initiate_join()
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       initiate_join_unsafe();
     }
 
@@ -689,7 +695,7 @@ namespace ccf
 
     void join()
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       start_join_timer();
     }
 
@@ -730,7 +736,7 @@ namespace ccf
     //
     void start_ledger_recovery()
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       if (
         !sm.check(NodeStartupState::readingPublicLedger) &&
         !sm.check(NodeStartupState::verifyingSnapshot))
@@ -749,7 +755,7 @@ namespace ccf
 
     void recover_public_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
 
       std::shared_ptr<kv::Store> store;
       if (sm.check(NodeStartupState::readingPublicLedger))
@@ -937,13 +943,13 @@ namespace ccf
 
     void verify_snapshot_end()
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       verify_snapshot_end_unsafe();
     }
 
     void advance_part_of_public_network()
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::readingPublicLedger);
       history->start_signature_emit_timer();
       sm.advance(NodeStartupState::partOfPublicNetwork);
@@ -951,7 +957,7 @@ namespace ccf
 
     void advance_part_of_network()
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       auto_refresh_jwt_keys();
       reset_data(quote_info.quote);
@@ -1058,7 +1064,7 @@ namespace ccf
     //
     void recover_private_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
@@ -1230,7 +1236,7 @@ namespace ccf
     //
     void recover_ledger_end()
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
 
       if (is_reading_public_ledger())
       {
@@ -1365,16 +1371,22 @@ namespace ccf
           {
             const auto& cfg = cit->second;
 
-            acme_clients.emplace(
+            auto client = std::make_shared<ACMEClient>(
               cfg_name,
-              std::make_shared<ACMEClient>(
-                cfg_name,
-                cfg,
-                rpc_map,
-                rpcsessions,
-                challenge_frontend,
-                network.tables,
-                node_sign_kp));
+              cfg,
+              rpc_map,
+              rpcsessions,
+              challenge_frontend,
+              network.tables,
+              node_sign_kp);
+
+            auto chit = acme_challenge_handlers.find(iname);
+            if (chit != acme_challenge_handlers.end())
+            {
+              client->install_custom_challenge_handler(chit->second);
+            }
+
+            acme_clients.emplace(cfg_name, client);
           }
 
           auto client = acme_clients[cfg_name];
@@ -1401,7 +1413,7 @@ namespace ccf
       kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
 
       auto service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
@@ -1500,7 +1512,7 @@ namespace ccf
 
     void initiate_private_recovery(kv::Tx& tx) override
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
       recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
@@ -1650,7 +1662,7 @@ namespace ccf
 
     ExtendedState state() override
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       auto s = sm.value();
       if (s == NodeStartupState::readingPrivateLedger)
       {
@@ -1664,7 +1676,7 @@ namespace ccf
 
     bool rekey_ledger(kv::Tx& tx) override
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfNetwork);
 
       // The ledger should not be re-keyed when the service is not open
@@ -1699,7 +1711,7 @@ namespace ccf
 
     kv::Version get_startup_snapshot_seqno() override
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       return startup_seqno;
     }
 
@@ -1710,7 +1722,7 @@ namespace ccf
 
     crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       return self_signed_node_cert;
     }
 
@@ -2195,7 +2207,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<Pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(lock);
 
               endorsed_node_cert = endorsed_certificate.value();
               history->set_endorsed_certificate(endorsed_node_cert.value());
@@ -2224,7 +2236,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<ccf::Pal::Mutex> guard(lock);
+              std::lock_guard<ccf::pal::Mutex> guard(lock);
 
               accept_network_tls_connections();
 
@@ -2321,7 +2333,7 @@ namespace ccf
       // from. If the primary changes while the network is public-only, the
       // new primary should also know at which version the new ledger secret
       // is applicable from.
-      std::lock_guard<Pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       return last_recovered_signed_idx;
     }
 
@@ -2603,6 +2615,42 @@ namespace ccf
     virtual const StartupConfig& get_node_config() const override
     {
       return config;
+    }
+
+    virtual crypto::Pem get_network_cert() override
+    {
+      return network.identity->cert;
+    }
+
+    virtual void install_custom_acme_challenge_handler(
+      const ccf::NodeInfoNetwork::RpcInterfaceID& interface_id,
+      std::shared_ptr<ACMEChallengeHandler> h) override
+    {
+      acme_challenge_handlers[interface_id] = h;
+    }
+
+    // Stop-gap until it becomes easier to use other HTTP clients
+    virtual void make_http_request(
+      const http::URL& url,
+      http::Request&& req,
+      std::function<
+        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+        callback,
+      const std::vector<std::string>& ca_certs = {}) override
+    {
+      auto ca = std::make_shared<tls::CA>(ca_certs, true);
+      auto ca_cert = std::make_shared<tls::Cert>(ca);
+      auto client = rpcsessions->create_client(ca_cert);
+      client->connect(
+        url.host,
+        url.port,
+        [callback](
+          http_status status,
+          http::HeaderMap&& headers,
+          std::vector<uint8_t>&& data) {
+          return callback(status, std::move(headers), std::move(data));
+        });
+      client->send_request(std::move(req));
     }
   };
 }

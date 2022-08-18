@@ -3,8 +3,8 @@
 
 #include "ccf/node/quote.h"
 
-#include "ccf/ds/attestation_types.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal/attestation.h"
+#include "ccf/pal/attestation_types.h"
 #include "ccf/service/tables/code_id.h"
 
 namespace ccf
@@ -41,7 +41,7 @@ namespace ccf
     crypto::Sha256Hash h = {};
     try
     {
-      Pal::verify_quote(quote_info, unique_id.data, h.h);
+      pal::verify_quote(quote_info, unique_id.data, h.h);
     }
     catch (const std::exception& e)
     {
@@ -62,7 +62,7 @@ namespace ccf
     crypto::Sha256Hash quoted_hash;
     try
     {
-      Pal::verify_quote(quote_info, code_digest.data, quoted_hash.h);
+      pal::verify_quote(quote_info, code_digest.data, quoted_hash.h);
     }
     catch (const std::exception& e)
     {

@@ -3,12 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-
-enum ReconfigurationType
-{
-  ONE_TRANSACTION = 0,
-  TWO_TRANSACTION = 1
-};
+#include "ccf/service/reconfiguration_type.h"
 
 DECLARE_JSON_ENUM(
   ReconfigurationType,

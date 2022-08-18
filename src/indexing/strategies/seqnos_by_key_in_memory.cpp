@@ -8,7 +8,7 @@ namespace ccf::indexing::strategies
   void SeqnosByKey_InMemory_Untyped::visit_entry(
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
   {
-    std::lock_guard<ccf::Pal::Mutex> guard(lock);
+    std::lock_guard<ccf::pal::Mutex> guard(lock);
     seqnos_by_key[k].insert(tx_id.seqno);
   }
 
@@ -19,7 +19,7 @@ namespace ccf::indexing::strategies
       ccf::SeqNo to,
       std::optional<size_t> max_seqnos)
   {
-    std::lock_guard<ccf::Pal::Mutex> guard(lock);
+    std::lock_guard<ccf::pal::Mutex> guard(lock);
     const auto it = seqnos_by_key.find(serialised_key);
     if (it != seqnos_by_key.end())
     {

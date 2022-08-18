@@ -3,12 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-
-enum ConsensusType
-{
-  CFT = 0,
-  BFT = 1
-};
+#include "ccf/service/consensus_type.h"
 
 DECLARE_JSON_ENUM(
   ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}})
