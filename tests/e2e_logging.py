@@ -1603,7 +1603,8 @@ def run(args):
         if "v8" not in args.package:
             test_historical_receipts(network, args)
             test_historical_receipts_with_claims(network, args)
-        test_historical_query_on_missing_files(network, args)
+        if args.package == "samples/apps/logging/liblogging":
+            test_historical_query_on_missing_files(network, args)
 
 
 def run_parsing_errors(args):
