@@ -29,15 +29,16 @@ namespace ccf
     // conditions for the CA
     bool terms_of_service_agreed = false;
 
-    // Type of the ACME challenge (currently only http-01 supported)
+    // Type of the ACME challenge
     std::string challenge_type = "http-01";
 
     // Validity range (Note: not supported by Let's Encrypt)
     std::optional<std::string> not_before;
     std::optional<std::string> not_after;
 
-    // Name of the interface that the challenge server listens on
-    std::string challenge_server_interface;
+    // Name of the interface that the challenge server listens on (if using the
+    // built-in http-01 challenge server frontend)
+    std::optional<std::string> challenge_server_interface = std::nullopt;
 
     bool operator==(const ACMEClientConfig& other) const = default;
   };
@@ -50,7 +51,19 @@ namespace ccf
     service_dns_name,
     contact,
     terms_of_service_agreed,
-    challenge_type,
-    challenge_server_interface);
-  DECLARE_JSON_OPTIONAL_FIELDS(ACMEClientConfig, not_before, not_after);
+    challenge_type);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    ACMEClientConfig, not_before, not_after, challenge_server_interface);
+
+  class ACMEChallengeHandler
+  {
+  public:
+    std::map<std::string, std::string> token_responses;
+
+    ACMEChallengeHandler() {}
+    virtual ~ACMEChallengeHandler() = default;
+
+    virtual bool ready(const std::string& token) = 0;
+    virtual void remove(const std::string& token) = 0;
+  };
 }

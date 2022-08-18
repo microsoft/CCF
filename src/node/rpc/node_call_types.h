@@ -13,7 +13,6 @@
 #include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
-#include "service/tables/config.h"
 
 #include <nlohmann/json.hpp>
 
