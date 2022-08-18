@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
 #include "ds/messaging.h"
@@ -133,7 +133,7 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file = nullptr;
-    ccf::Pal::Mutex file_lock;
+    ccf::pal::Mutex file_lock;
 
     size_t start_idx = 1;
     size_t total_len = 0; // Points to end of last written entry
@@ -406,7 +406,7 @@ namespace asynchost
         return std::nullopt;
       }
 
-      std::unique_lock<ccf::Pal::Mutex> guard(file_lock);
+      std::unique_lock<ccf::pal::Mutex> guard(file_lock);
       auto [size, to_] = entries_size(from, to, max_size);
       if (size == 0)
       {
@@ -612,7 +612,7 @@ namespace asynchost
     // Cache of ledger files for reading
     size_t max_read_cache_files;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
-    ccf::Pal::Mutex read_cache_lock;
+    ccf::pal::Mutex read_cache_lock;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
@@ -653,7 +653,7 @@ namespace asynchost
       }
 
       {
-        std::unique_lock<ccf::Pal::Mutex> guard(read_cache_lock);
+        std::unique_lock<ccf::pal::Mutex> guard(read_cache_lock);
 
         // First, try to find file from read cache
         for (auto const& f : files_read_cache)
@@ -708,7 +708,7 @@ namespace asynchost
       }
 
       {
-        std::unique_lock<ccf::Pal::Mutex> guard(read_cache_lock);
+        std::unique_lock<ccf::pal::Mutex> guard(read_cache_lock);
 
         files_read_cache.emplace_back(match_file);
         if (files_read_cache.size() > max_read_cache_files)
