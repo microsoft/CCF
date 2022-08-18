@@ -2359,14 +2359,12 @@ TEST_CASE("Conflict resolution - removals")
   kv::Store kv_store;
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
-  MapTypes::StringString foo("public:foo");
-  MapTypes::StringString bar("public:bar");
+  MapTypes::StringString map("public:map");
 
   {
     // Ensure maps already exist, by making prior writes
     auto tx = kv_store.create_tx();
-    tx.rw(foo)->put("", "");
-    tx.rw(bar)->put("", "");
+    tx.rw(map)->put("", "");
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -2375,32 +2373,24 @@ TEST_CASE("Conflict resolution - removals")
   auto tx2 = kv_store.create_tx();
 
   {
-    auto foo_h = tx1.rw(foo);
-    auto bar_h = tx1.rw(bar);
+    auto handle = tx1.rw(map);
 
     SUBCASE("Read of same")
     {
-      bar_h->has("key");
+      handle->has("key");
     }
     SUBCASE("Read of other")
     {
-      foo_h->has("unrelated");
+      handle->has("unrelated");
     }
     SUBCASE("No reads") {}
 
-    if (bar_h->remove("key"))
-    {
-      foo_h->put("result", "Successfully removed key");
-    }
-    else
-    {
-      foo_h->put("result", "Unable to remove key");
-    }
+    handle->remove("key");
   }
 
   {
-    auto bar_h = tx2.rw(bar);
-    bar_h->put("key", "hello");
+    auto handle = tx2.rw(map);
+    handle->put("key", "hello");
     REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -2408,8 +2398,8 @@ TEST_CASE("Conflict resolution - removals")
 
   {
     auto tx3 = kv_store.create_tx();
-    auto bar_h = tx3.rw(bar);
-    const auto v = bar_h->get("key");
+    auto handle = tx3.rw(map);
+    const auto v = handle->get("key");
     CHECK(v.has_value());
     CHECK_EQ(v.value(), "hello");
   }
