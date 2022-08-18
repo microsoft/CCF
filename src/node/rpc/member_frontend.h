@@ -164,20 +164,16 @@ namespace ccf
         [&tx_modules, &prefix](const std::string& name, const Module&) {
           if (nonstd::starts_with(name, prefix))
           {
-            if (!tx_modules->remove(name))
-            {
-              throw std::logic_error(
-                fmt::format("Unexpected error while removing module {}", name));
-            }
+            tx_modules->remove(name);
           }
           return true;
         });
     }
 
-    bool remove_module(kv::Tx& tx, std::string name)
+    void remove_module(kv::Tx& tx, std::string name)
     {
       auto tx_modules = tx.rw(network.modules);
-      return tx_modules->remove(name);
+      tx_modules->remove(name);
     }
 
     void remove_endpoints(kv::Tx& tx) {}
