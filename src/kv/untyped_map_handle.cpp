@@ -159,35 +159,14 @@ namespace kv::untyped
   bool MapHandle::remove(const MapHandle::KeyType& key)
   {
     LOG_TRACE_FMT("KV[{}]::remove({})", map_name, key);
-    auto write = tx_changes.writes.find(key);
+    auto exists_in_write =
+      tx_changes.writes.find(key) != tx_changes.writes.end();
     auto exists_in_state = tx_changes.state.getp(key) != nullptr;
 
-    if (write != tx_changes.writes.end())
-    {
-      if (!exists_in_state)
-      {
-        // this key only exists locally, there is no reason to maintain and
-        // serialise it
-        tx_changes.writes.erase(key);
-      }
-      else
-      {
-        // If we have written, change the write set to indicate a remove.
-        write->second = std::nullopt;
-      }
-
-      return true;
-    }
-
-    // If the key doesn't exist, return false.
-    if (!exists_in_state)
-    {
-      return false;
-    }
-
-    // Record in the write set.
+    // Record in the write set
     tx_changes.writes[key] = std::nullopt;
-    return true;
+
+    return exists_in_write || exists_in_state;
   }
 
   void MapHandle::clear()
