@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/actors.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
 #include "http_parser.h"
@@ -283,11 +284,9 @@ namespace http
     {
       return std::nullopt;
     }
-    // TODO: Remove ActorType hardcoding
+
     // if the extracted actor is a known type, set the remaining path
-    if (
-      actor == "gov" || actor == "node" || actor == ".well-known" ||
-      actor == "app")
+    if (ccf::is_valid_actor(actor))
     {
       ctx.set_method(remaining_path);
     }
