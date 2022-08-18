@@ -156,17 +156,11 @@ namespace kv::untyped
     tx_changes.writes[key] = value;
   }
 
-  bool MapHandle::remove(const MapHandle::KeyType& key)
+  void MapHandle::remove(const MapHandle::KeyType& key)
   {
     LOG_TRACE_FMT("KV[{}]::remove({})", map_name, key);
-    auto exists_in_write =
-      tx_changes.writes.find(key) != tx_changes.writes.end();
-    auto exists_in_state = tx_changes.state.getp(key) != nullptr;
-
     // Record in the write set
     tx_changes.writes[key] = std::nullopt;
-
-    return exists_in_write || exists_in_state;
   }
 
   void MapHandle::clear()
