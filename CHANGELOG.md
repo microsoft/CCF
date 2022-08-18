@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New `GET /node/network/removable_nodes` and `DELETE /node/network/nodes/{node_id}` exposed to allow operator to decide which nodes can be safely shut down after retirement, and clear their state from the Key-Value Store.
 - Added a new method `get_decoded_request_path_params` that returns a map of decoded path parameters (#4126)
 
+### Changed
+
+- Calling `remove(K)` on a KV handle no longer returns a bool indicating if the key was previously present. This can be simulated by calling `has(K)` beforehand. This avoids introducing a read-dependency with every call to `remove()`.
+
 ### Fixed
 
 - Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
