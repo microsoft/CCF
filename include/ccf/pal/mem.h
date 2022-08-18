@@ -2,13 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <set>
 #include <stdlib.h>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <cstring>
 #  include <limits>
 #else
+#  include "ccf/pal/hardware_info.h"
+
 #  include <openenclave/advanced/mallinfo.h>
 #  include <openenclave/bits/security.h>
 #endif
@@ -25,47 +26,6 @@ namespace ccf::pal
     size_t current_allocated_heap_size = 0;
     size_t peak_allocated_heap_size = 0;
   };
-
-  struct CpuidInfo
-  {
-    uint64_t eax;
-    uint64_t ebx;
-    uint64_t ecx;
-    uint64_t edx;
-  };
-
-  static void cpuid(CpuidInfo* info, uint64_t leaf, uint64_t subleaf)
-  {
-    asm volatile(
-      "cpuid"
-      : "=a"(info->eax), "=b"(info->ebx), "=c"(info->ecx), "=d"(info->edx)
-      : "a"(leaf), "c"(subleaf));
-  }
-
-  static bool is_intel_cpu()
-  {
-    static int intel_cpu = -1;
-
-    if (intel_cpu == -1)
-    {
-      CpuidInfo info;
-      cpuid(&info, 0, 0);
-
-      if (
-        memcmp((char*)&info.ebx, "Genu", 4) ||
-        memcmp((char*)&info.edx, "ineI", 4) ||
-        memcmp((char*)&info.ecx, "ntel", 4))
-      {
-        intel_cpu = 1;
-      }
-      else
-      {
-        intel_cpu = 0;
-      }
-    }
-
-    return intel_cpu == 1;
-  }
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
