@@ -37,8 +37,9 @@ static bool is_aligned(void* p, size_t align, size_t count = 0)
 
 extern "C"
 {
-  // Confirming in-enclave behaviour in separate unit tests is tricky, so we do
-  // final sanity checks on some basic behaviour here, on every enclave launch.
+  // Confirming in-enclave behaviour in separate unit tests is tricky, so we
+  // do final sanity checks on some basic behaviour here, on every enclave
+  // launch.
   void enclave_sanity_checks()
   {
     {
@@ -144,8 +145,9 @@ extern "C"
         return CreateNodeStatus::TooManyThreads;
       }
 
-      // Check that where we expect arguments to be in host-memory, they really
-      // are. lfence after these checks to prevent speculative execution
+      // Check that where we expect arguments to be in host-memory, they
+      // really are. lfence after these checks to prevent speculative
+      // execution
       if (!ccf::pal::is_outside_enclave(
             time_location, sizeof(*ccf::host_time_us)))
       {
@@ -162,7 +164,8 @@ extern "C"
       ccf::host_time_us =
         static_cast<decltype(ccf::host_time_us)>(time_location);
 
-      // Check that ringbuffer memory ranges are entirely outside of the enclave
+      // Check that ringbuffer memory ranges are entirely outside of the
+      // enclave
       if (!ccf::pal::is_outside_enclave(
             ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
       {
@@ -269,14 +272,15 @@ extern "C"
     }
     catch (const std::exception& e)
     {
-      // In most places, logging exception messages directly is unsafe because
-      // they may contain confidential information. In this instance the chance
-      // of confidential information is extremely low - this is early during
-      // node startup, when it has not communicated with any other nodes to
-      // retrieve confidential state, and any secrets it may have generated are
-      // about to be discarded as this node terminates. The debugging benefit is
-      // substantial, while the risk is low, so in this case we promote the
-      // generic exception message to FAIL.
+      // In most places, logging exception messages directly is unsafe
+      // because they may contain confidential information. In this
+      // instance the chance of confidential information is extremely low
+      // - this is early during node startup, when it has not communicated
+      // with any other nodes to retrieve confidential state, and any
+      // secrets it may have generated are about to be discarded as this
+      // node terminates. The debugging benefit is substantial, while the
+      // risk is low, so in this case we promote the generic exception
+      // message to FAIL.
       LOG_FAIL_FMT("exception during enclave init: {}", e.what());
       return CreateNodeStatus::EnclaveInitFailed;
     }
@@ -329,7 +333,8 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {}
+      {
+      }
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -338,7 +343,8 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::thread_count - 1)
-        {}
+        {
+        }
         return s;
       }
       else
