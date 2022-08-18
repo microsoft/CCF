@@ -229,9 +229,6 @@
           },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/QuoteFormat"
           }
         },
         "required": [

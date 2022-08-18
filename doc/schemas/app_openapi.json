@@ -7,14 +7,6 @@
         ],
         "type": "string"
       },
-      "QuoteFormat": {
-        "enum": [
-          "OE_SGX_v1",
-          "Insecure_Virtual",
-          "AMD_SEV_SNP_v1"
-        ],
-        "type": "string"
-      },
       "EndpointMetrics": {
         "properties": {
           "metrics": {
@@ -81,9 +73,6 @@
           },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/QuoteFormat"
           }
         },
         "required": [

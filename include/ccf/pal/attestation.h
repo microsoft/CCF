@@ -79,15 +79,11 @@ namespace ccf::pal
       node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
 
       client::RpcTlsClient client{
-        "americas.test.acccache.azure.net", // TODO: Make Configurable
+        "americas.test.acccache.azure.net",
         "443",
         nullptr,
         std::make_shared<tls::Cert>(
-          nullptr, // TODO: Use auth
-          std::nullopt,
-          std::nullopt,
-          std::nullopt,
-          false)};
+          nullptr, std::nullopt, std::nullopt, std::nullopt, false)};
 
       auto params = nlohmann::json::object();
       params["api-version"] = "2020-10-15-preview";
