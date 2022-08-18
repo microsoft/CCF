@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/pal.h"
 #include "ccf/indexing/strategies/visit_each_entry_in_map.h"
+#include "ccf/pal/locking.h"
 #include "ccf/seq_no_collection.h"
 
 namespace ccf::indexing::strategies
@@ -17,7 +17,7 @@ namespace ccf::indexing::strategies
     std::unordered_map<ccf::ByteVector, SeqNoCollection> seqnos_by_key;
 
     // Mutex guarding access to seqnos_by_key
-    ccf::Pal::Mutex lock;
+    ccf::pal::Mutex lock;
 
     void visit_entry(
       const ccf::TxID& tx_id,
