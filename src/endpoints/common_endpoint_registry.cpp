@@ -241,6 +241,7 @@ namespace ccf
       ccf::historical::adapter_v3(
         get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
       .set_auto_schema<void, nlohmann::json>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .install();

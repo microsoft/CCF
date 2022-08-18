@@ -515,7 +515,7 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
-    def hide_committed_ledger_chunk(self):
+    def hide_committed_ledger_chunk(self, index):
         ledger_dir = self.remote.ledger_paths()[0]
         ledger_chunks = list(pathlib.Path(ledger_dir).glob("*.committed"))
 
