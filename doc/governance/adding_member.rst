@@ -55,7 +55,8 @@ First, the new member should update and retrieve the latest state digest via the
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/gov/ack/update_state_digest -X POST --cacert service_cert.pem --key new_member_privk.pem --cert new_member_cert.pem
+    $ curl https://<ccf-node-address>/gov/ack/update_state_digest -X POST --cacert service_cert.pem --key new_member_privk.pem --cert new_member_cert.pem --silent | jq > request.json
+    $ cat request.json
     {
         "state_digest": <...>
     }
@@ -65,9 +66,21 @@ Then, the new member should sign the state digest returned by the :http:POST:`/g
 
 .. code-block:: bash
 
-    $ scurl.sh https://<ccf-node-address>/gov/ack  --cacert service_cert.pem --signing-key new_member_privk.pem --signing-cert new_member_cert.pem --header "Content-Type: application/json" --data-binary '{"state_digest": <...>}'
+    $ scurl.sh https://<ccf-node-address>/gov/ack  --cacert service_cert.pem --signing-key new_member_privk.pem --signing-cert new_member_cert.pem --header "Content-Type: application/json" --data-binary @request.json
     true
 
-Once the command completes, the new member becomes active and can take part in governance operations (e.g. creating a new proposal or voting for an existing one).
+Once the command completes, the new member becomes active and can take part in governance operations (e.g. creating a new proposal or voting for an existing one). You can verify the activation of the member at `/gov/members`.
+
+.. code-block:: bash
+
+    $ curl https://<ccf-node-address>/gov/members --silent | jq
+    {
+        "<member_id>": {
+            "cert": <...>,
+            "member_data": <...>,
+            "public_encryption_key": <...>,
+            "status": "Active"
+        }
+    }
 
 .. note:: The newly-activated member is also given a recovery share that can be used :ref:`to recover a defunct service <governance/accept_recovery:Submitting Recovery Shares>`.
