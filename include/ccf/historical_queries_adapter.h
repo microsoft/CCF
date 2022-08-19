@@ -22,15 +22,16 @@ namespace ccf::historical
   using HandleReadWriteHistoricalQuery =
     std::function<void(ccf::endpoints::EndpointContext& args, StatePtr state)>;
 
-  using HandleReadOnlyHistoricalQuery =
-    std::function<void(ccf::endpoints::ReadOnlyEndpointContext& args, StatePtr state)>;
+  using HandleReadOnlyHistoricalQuery = std::function<void(
+    ccf::endpoints::ReadOnlyEndpointContext& args, StatePtr state)>;
 
   using HandleHistoricalQuery = HandleReadWriteHistoricalQuery;
 
-  using TxIDExtractor =
-    std::function<std::optional<ccf::TxID>(endpoints::CommandEndpointContext& args)>;
+  using TxIDExtractor = std::function<std::optional<ccf::TxID>(
+    endpoints::CommandEndpointContext& args)>;
 
-  std::optional<ccf::TxID> txid_from_header(endpoints::CommandEndpointContext& args);
+  std::optional<ccf::TxID> txid_from_header(
+    endpoints::CommandEndpointContext& args);
 
   bool is_tx_committed_v1(
     kv::Consensus* consensus,

@@ -159,7 +159,8 @@ namespace ccf
 
 namespace ccf::historical
 {
-  std::optional<ccf::TxID> txid_from_header(endpoints::CommandEndpointContext& args)
+  std::optional<ccf::TxID> txid_from_header(
+    endpoints::CommandEndpointContext& args)
   {
     const auto tx_id_header =
       args.rpc_ctx->get_request_header(http::headers::CCF_TX_ID);
@@ -397,7 +398,7 @@ namespace ccf::historical
     return true;
   }
 
-  template<class HQY, class EFN, class CTX>
+  template <class HQY, class EFN, class CTX>
   EFN _adapter_v3(
     const HQY& f,
     ccfapp::AbstractNodeContext& node_context,
@@ -502,7 +503,10 @@ namespace ccf::historical
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {
-    return _adapter_v3<HandleHistoricalQuery, ccf::endpoints::EndpointFunction, ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
+    return _adapter_v3<
+      HandleHistoricalQuery,
+      ccf::endpoints::EndpointFunction,
+      ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
   }
 
   ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
@@ -511,7 +515,11 @@ namespace ccf::historical
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {
-    return _adapter_v3<HandleReadOnlyHistoricalQuery, ccf::endpoints::ReadOnlyEndpointFunction, ccf::endpoints::ReadOnlyEndpointContext>(f, node_context, available, extractor);
+    return _adapter_v3<
+      HandleReadOnlyHistoricalQuery,
+      ccf::endpoints::ReadOnlyEndpointFunction,
+      ccf::endpoints::ReadOnlyEndpointContext>(
+      f, node_context, available, extractor);
   }
 
   ccf::endpoints::EndpointFunction read_write_adapter_v3(
@@ -520,7 +528,10 @@ namespace ccf::historical
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {
-    return _adapter_v3<HandleReadWriteHistoricalQuery, ccf::endpoints::EndpointFunction, ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
+    return _adapter_v3<
+      HandleReadWriteHistoricalQuery,
+      ccf::endpoints::EndpointFunction,
+      ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
   }
 
   ccf::endpoints::EndpointFunction adapter_v2(
