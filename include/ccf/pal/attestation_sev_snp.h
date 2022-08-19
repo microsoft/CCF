@@ -38,6 +38,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 )";
 
     // Table 3
+#  pragma pack(push, 1)
     struct TcbVersion
     {
       uint8_t boot_loader;
@@ -46,16 +47,19 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t snp;
       uint8_t microcode;
     };
+#  pragma pack(pop)
     static_assert(
       sizeof(TcbVersion) == sizeof(uint64_t),
       "Can't cast TcbVersion to uint64_t");
 
+#  pragma pack(push, 1)
     struct Signature
     {
       uint8_t r[72];
       uint8_t s[72];
       uint8_t reserved[512 - 144];
     };
+#  pragma pack(pop)
 
     // Table. 105
     enum class SignatureAlgorithm : uint32_t
@@ -113,6 +117,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     };
 
     // Table 23
+#  pragma pack(push, 1)
     struct AttestationResp
     {
       uint32_t status;
@@ -122,6 +127,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t padding[64];
       // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
     };
+#  pragma pack(pop)
 
     struct GuestRequest
     {

@@ -36,7 +36,6 @@ namespace ccf::pal
     {
       node_quote_info.format = QuoteFormat::insecure_virtual;
     }
-
     else
     {
       node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
@@ -124,7 +123,6 @@ namespace ccf::pal
       unique_id = {};
       report_data = {};
     }
-
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
       if (!is_sev_snp)
@@ -205,7 +203,6 @@ namespace ccf::pal
           "Chip certificate (VCEK) did not sign this attestation");
       }
     }
-
     else
     {
       if (is_sev_snp)
