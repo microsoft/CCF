@@ -3,6 +3,8 @@
 
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 
+#include "ccf/pal/locking.h"
+
 namespace ccf::indexing::strategies
 {
   void SeqnosByKey_InMemory_Untyped::visit_entry(

@@ -4,7 +4,7 @@
 
 #include "ccf/ds/json_schema.h"
 #include "ccf/node_startup_state.h"
-#include "ccf/pal/locking.h"
+#include "ccf/pal/mem.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/members.h"

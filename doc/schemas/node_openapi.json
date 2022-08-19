@@ -227,6 +227,9 @@
           "digest": {
             "$ref": "#/components/schemas/string"
           },
+          "platform": {
+            "$ref": "#/components/schemas/QuoteFormat"
+          },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
           }
@@ -842,7 +845,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.29.0"
+    "version": "2.30.0"
   },
   "openapi": "3.0.0",
   "paths": {

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
