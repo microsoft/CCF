@@ -15,6 +15,7 @@ import shutil
 from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
+import pathlib
 
 from loguru import logger as LOG
 
@@ -994,6 +995,20 @@ class CCFRemote(object):
             os.path.join(self.common_dir, self.snapshots_dir_name),
             read_only_snapshots_dir,
         )
+
+    def most_recent_read_only_snapshot_seqno(self):
+        if self.read_only_snapshots_dir_name:
+            read_only_snapshots_dir = os.path.join(
+                self.remote.root, self.read_only_snapshots_dir_name
+            )
+        snapshots = list(pathlib.Path(read_only_snapshots_dir).glob("*.committed"))
+
+        def snapshot_seqno(path):
+            # snapshot_570_581.committed
+            #          ^ the sequence number of the snapshot
+            return int(path.stem.split("_")[1])
+
+        return sorted(snapshot_seqno(s) for s in snapshots)[-1]
 
     def log_path(self):
         return self.remote.out

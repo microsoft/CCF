@@ -515,6 +515,9 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
+    def most_recent_read_only_snapshot_seqno(self):
+        return self.remote.most_recent_read_only_snapshot_seqno()
+
     def hide_committed_ledger_chunk(self, index):
         ledger_dir = self.remote.ledger_paths()[0]
         ledger_chunks = list(pathlib.Path(ledger_dir).glob("*.committed"))

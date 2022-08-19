@@ -779,6 +779,7 @@ def test_historical_query(network, args):
 @reqs.no_http2()
 @app.scoped_txs()
 def test_historical_query_on_missing_files(network, args):
+    primary, _ = network.find_primary()
 
     new_node = network.create_node("local://localhost")
     network.join_node(
@@ -791,14 +792,45 @@ def test_historical_query_on_missing_files(network, args):
     )
     network.trust_node(new_node, args)
 
+    # Pick some sequence numbers before the snapshot the new node started from, and for which
+    # the new node does not have corresponding ledger chunks
+    missing_seqnos = random.sample(
+        range(0, new_node.most_recent_read_only_snapshot_seqno()), 5
+    )
+    missing_txids = []
+    with primary.client("user0") as c:
+        view = 2
+        for seqno in missing_seqnos:
+            status = TxStatus.Invalid
+            while status == TxStatus.Invalid:
+                r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
+                status = TxStatus(r.body.json()["status"])
+                if status == TxStatus.Committed:
+                    missing_txids.append(f"{view}.{seqno}")
+                else:
+                    # Should never happen, because we're looking at seqnos for which there
+                    # is a committed snapshot, and so are definitely committed.
+                    assert status != TxStatus.Pending, status
+                    view += 1
+                    # Not likely to happen on purpose
+                    assert view < 1000, view
+
     LOG.info("Check historical queries return ACCEPTED")
     with new_node.client("user0") as c:
-        for seqno in [2, 50, 100]:
-            rc = c.get(f"/app/receipt?transaction_id=2.{seqno}")
+        for txid in missing_txids:
+            # New node knows transactions are committed
+            rc = c.get(f"/node/tx?transaction_id={txid}")
+            status = TxStatus(r.body.json()["status"])
+            assert status == TxStatus.Committed
+            # But can't read their contents
+            rc = c.get(f"/app/receipt?transaction_id={txid}")
             assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
             time.sleep(3)
-            rc = c.get(f"/app/receipt?transaction_id=2.{seqno}")
+            # Not even after giving the host enough time
+            rc = c.get(f"/app/receipt?transaction_id={txid}")
             assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
+
+    network.retire_node(primary, new_node)
 
     return network
 
