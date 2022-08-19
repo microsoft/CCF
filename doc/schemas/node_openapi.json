@@ -227,6 +227,9 @@
           "digest": {
             "$ref": "#/components/schemas/string"
           },
+          "platform": {
+            "$ref": "#/components/schemas/QuoteFormat"
+          },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
           }

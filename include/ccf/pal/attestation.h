@@ -60,9 +60,9 @@ namespace ccf::pal
         .rsp_msg_type = snp::MSG_REPORT_RSP,
         .msg_version = 1,
         .request_len = sizeof(req),
-        .request_uaddr = (uint64_t)(void*)&req,
+        .request_uaddr = reinterpret_cast<uint64_t>(&req),
         .response_len = sizeof(resp),
-        .response_uaddr = (uint64_t)(void*)&resp,
+        .response_uaddr = reinterpret_cast<uint64_t>(&resp),
         .error = 0};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
