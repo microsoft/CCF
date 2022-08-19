@@ -55,7 +55,7 @@ namespace ccf
     std::shared_ptr<RPCMap> rpc_map;
     std::unordered_map<ListenInterfaceID, std::shared_ptr<tls::Cert>> certs;
 
-    ccf::Pal::Mutex lock;
+    ccf::pal::Mutex lock;
     std::unordered_map<
       tls::ConnID,
       std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
@@ -208,26 +208,26 @@ namespace ccf
 
     void report_parsing_error(tls::ConnID id) override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       get_interface_from_session_id(id).errors.parsing++;
     }
 
     void report_request_payload_too_large_error(tls::ConnID id) override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       get_interface_from_session_id(id).errors.request_payload_too_large++;
     }
 
     void report_request_header_too_large_error(tls::ConnID id) override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       get_interface_from_session_id(id).errors.request_header_too_large++;
     }
 
     void update_listening_interface_options(
       const ccf::NodeInfoNetwork& node_info)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
@@ -261,7 +261,7 @@ namespace ccf
     ccf::SessionMetrics get_session_metrics()
     {
       ccf::SessionMetrics sm;
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       sm.active = sessions.size();
       sm.peak = sessions_peak;
@@ -316,7 +316,7 @@ namespace ccf
       auto cert = std::make_shared<tls::Cert>(
         nullptr, cert_, pk, std::nullopt, /*auth_required ==*/false);
 
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       for (auto& [listen_interface_id, interface] : listening_interfaces)
       {
@@ -338,7 +338,7 @@ namespace ccf
       const ListenInterfaceID& listen_interface_id,
       bool udp = false)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       if (sessions.find(id) != sessions.end())
       {
@@ -464,7 +464,7 @@ namespace ccf
 
     bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
@@ -481,7 +481,7 @@ namespace ccf
 
     void remove_session(tls::ConnID id)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
       const auto search = sessions.find(id);
       if (search != sessions.end())
@@ -499,7 +499,7 @@ namespace ccf
       const std::shared_ptr<tls::Cert>& cert,
       ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(lock);
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
       auto id = get_next_client_id();
 

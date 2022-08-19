@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/pal.h"
+#include "ccf/pal/mem.h"
 #include "ring_buffer_types.h"
 
 #include <cstring>
@@ -237,7 +237,7 @@ namespace ringbuffer
         // Call the handler function for this message.
         bd.check_access(hd_index, advance);
 
-        if (ccf::Pal::require_alignment_for_untrusted_reads() && size > 0)
+        if (ccf::pal::require_alignment_for_untrusted_reads() && size > 0)
         {
           // To prevent unaligned reads during message processing, copy aligned
           // chunk into enclave memory
@@ -246,7 +246,7 @@ namespace ringbuffer
           {
             local_copy.resize(copy_size);
           }
-          ccf::Pal::safe_memcpy(
+          ccf::pal::safe_memcpy(
             local_copy.data(),
             bd.data + msg_index + Const::header_size(),
             copy_size);
@@ -399,7 +399,7 @@ namespace ringbuffer
       // Standard says memcpy(x, null, 0) is undefined, so avoid it
       if (size > 0)
       {
-        ccf::Pal::safe_memcpy(bd.data + index, bytes, size);
+        ccf::pal::safe_memcpy(bd.data + index, bytes, size);
       }
 
       return {index + size};

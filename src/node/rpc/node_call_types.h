@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
-#include "ccf/ds/pal.h"
 #include "ccf/node_startup_state.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/members.h"
@@ -152,7 +152,7 @@ namespace ccf
 
     struct Out
     {
-      Out(const MallocInfo& info) :
+      Out(const pal::MallocInfo& info) :
         max_total_heap_size(info.max_total_heap_size),
         current_allocated_heap_size(info.current_allocated_heap_size),
         peak_allocated_heap_size(info.peak_allocated_heap_size)
