@@ -10,7 +10,7 @@ def get_code_id(enclave_type, oe_binary_dir, package, library_dir="."):
     lib_path = infra.path.build_lib_path(package, enclave_type, library_dir)
 
     if enclave_type == "virtual":
-        return hashlib.sha256(lib_path.encode()).hexdigest()
+        return hashlib.sha384(lib_path.encode()).hexdigest()
     else:
         res = subprocess.run(
             [os.path.join(oe_binary_dir, "oesign"), "dump", "-e", lib_path],

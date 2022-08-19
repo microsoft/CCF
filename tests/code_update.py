@@ -13,7 +13,7 @@ from infra.checker import check_can_progress
 from loguru import logger as LOG
 
 # Dummy code id used by virtual nodes
-VIRTUAL_CODE_ID = "0" * 64
+VIRTUAL_CODE_ID = "0" * 96
 
 
 @reqs.description("Verify node evidence")
@@ -106,13 +106,28 @@ def test_update_all_nodes(network, args):
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = sorted(
             [
-                {"digest": first_code_id, "status": "AllowedToJoin"},
-                {"digest": new_code_id, "status": "AllowedToJoin"},
+                {
+                    "digest": first_code_id,
+                    "status": "AllowedToJoin",
+                    "platform": "OE_SGX_v1",
+                },
+                {
+                    "digest": new_code_id,
+                    "status": "AllowedToJoin",
+                    "platform": "OE_SGX_v1",
+                },
             ],
             key=lambda x: x["digest"],
         )
         if args.enclave_type == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
+            expected.insert(
+                0,
+                {
+                    "digest": VIRTUAL_CODE_ID,
+                    "status": "AllowedToJoin",
+                    "platform": "Insecure_Virtual",
+                },
+            )
         assert versions == expected, versions
 
     LOG.info("Remove old code id")
@@ -122,12 +137,23 @@ def test_update_all_nodes(network, args):
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = sorted(
             [
-                {"digest": new_code_id, "status": "AllowedToJoin"},
+                {
+                    "digest": new_code_id,
+                    "status": "AllowedToJoin",
+                    "platform": "OE_SGX_v1",
+                },
             ],
             key=lambda x: x["digest"],
         )
         if args.enclave_type == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
+            expected.insert(
+                0,
+                {
+                    "digest": VIRTUAL_CODE_ID,
+                    "status": "AllowedToJoin",
+                    "platform": "Insecure_Virtual",
+                },
+            )
         assert versions == expected, versions
 
     old_nodes = network.nodes.copy()

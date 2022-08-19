@@ -112,8 +112,9 @@ namespace ccf
   DECLARE_JSON_TYPE(VerifyReceipt::Out)
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::Out, valid)
 
-  DECLARE_JSON_TYPE(GetCode::Version)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCode::Version)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Version, digest, status)
+  DECLARE_JSON_OPTIONAL_FIELDS(GetCode::Version, platform)
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
 
