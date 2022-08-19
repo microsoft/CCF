@@ -21,7 +21,7 @@ namespace ccf
   namespace
   {
     std::optional<ccf::TxID> txid_from_query_string(
-      ccf::endpoints::EndpointContext& ctx)
+      ccf::endpoints::CommandEndpointContext& ctx)
     {
       const auto parsed_query =
         http::parse_query(ctx.rpc_ctx->get_request_query());

@@ -159,7 +159,7 @@ namespace ccf
 
 namespace ccf::historical
 {
-  std::optional<ccf::TxID> txid_from_header(endpoints::EndpointContext& args)
+  std::optional<ccf::TxID> txid_from_header(endpoints::CommandEndpointContext& args)
   {
     const auto tx_id_header =
       args.rpc_ctx->get_request_header(http::headers::CCF_TX_ID);
@@ -397,8 +397,9 @@ namespace ccf::historical
     return true;
   }
 
-  ccf::endpoints::EndpointFunction adapter_v3(
-    const HandleHistoricalQuery& f,
+  template<class HQY, class EFN, class CTX>
+  EFN _adapter_v3(
+    const HQY& f,
     ccfapp::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
@@ -408,7 +409,7 @@ namespace ccf::historical
       node_context.get_subsystem<NetworkIdentitySubsystemInterface>();
 
     return [f, &state_cache, network_identity_subsystem, available, extractor](
-             endpoints::EndpointContext& args) {
+             CTX& args) {
       // Extract the requested transaction ID
       ccf::TxID target_tx_id;
       {
@@ -493,6 +494,33 @@ namespace ccf::historical
       // Call the provided handler
       f(args, historical_state);
     };
+  }
+
+  ccf::endpoints::EndpointFunction adapter_v3(
+    const HandleHistoricalQuery& f,
+    ccfapp::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor)
+  {
+    return _adapter_v3<HandleHistoricalQuery, ccf::endpoints::EndpointFunction, ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
+  }
+
+  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
+    const HandleReadOnlyHistoricalQuery& f,
+    ccfapp::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor)
+  {
+    return _adapter_v3<HandleReadOnlyHistoricalQuery, ccf::endpoints::ReadOnlyEndpointFunction, ccf::endpoints::ReadOnlyEndpointContext>(f, node_context, available, extractor);
+  }
+
+  ccf::endpoints::EndpointFunction read_write_adapter_v3(
+    const HandleReadWriteHistoricalQuery& f,
+    ccfapp::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor)
+  {
+    return _adapter_v3<HandleReadWriteHistoricalQuery, ccf::endpoints::EndpointFunction, ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
   }
 
   ccf::endpoints::EndpointFunction adapter_v2(
