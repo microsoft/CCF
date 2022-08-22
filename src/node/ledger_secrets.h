@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/pal/locking.h"
 #include "ccf/tx.h"
 #include "kv/kv_types.h"
 #include "ledger_secret.h"

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "forwarder_types.h"

@@ -60,6 +60,7 @@ namespace client
       auto r = http::Request(path, verb);
       r.set_body(params.data(), params.size());
       r.set_header(http::headers::CONTENT_TYPE, content_type);
+      r.set_header("Host", host);
       if (auth_token != nullptr)
       {
         r.set_header(

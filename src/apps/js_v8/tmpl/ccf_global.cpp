@@ -361,23 +361,6 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(v8::Boolean::New(isolate, valid));
   }
 
-  static std::vector<crypto::Pem> split_x509_cert_bundle(
-    const std::string_view& pem)
-  {
-    std::string separator("-----END CERTIFICATE-----");
-    std::vector<crypto::Pem> pems;
-    auto separator_end = 0;
-    auto next_separator_start = pem.find(separator);
-    while (next_separator_start != std::string_view::npos)
-    {
-      pems.emplace_back(std::string(
-        pem.substr(separator_end, next_separator_start + separator.size())));
-      separator_end = next_separator_start + separator.size();
-      next_separator_start = pem.find(separator, separator_end);
-    }
-    return pems;
-  }
-
   static void js_is_valid_x509_cert_chain(
     const v8::FunctionCallbackInfo<v8::Value>& info)
   {
@@ -404,8 +387,8 @@ namespace ccf::v8_tmpl
 
     try
     {
-      auto chain_vec = split_x509_cert_bundle(chain);
-      auto trusted_vec = split_x509_cert_bundle(trusted);
+      auto chain_vec = crypto::split_x509_cert_bundle(chain);
+      auto trusted_vec = crypto::split_x509_cert_bundle(trusted);
       if (chain_vec.empty() || trusted_vec.empty())
         throw std::logic_error(
           "chain/trusted arguments must contain at least one certificate");

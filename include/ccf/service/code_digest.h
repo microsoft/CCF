@@ -6,11 +6,17 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
 
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#  include "ccf/pal/attestation_sev_snp.h"
+#else
+#  include "ccf/pal/attestation_sgx.h"
+#endif
+
 namespace ccf
 {
   struct CodeDigest
   {
-    std::array<uint8_t, crypto::Sha256Hash::SIZE> data = {};
+    std::array<uint8_t, pal::attestation_measurement_size> data = {};
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;
