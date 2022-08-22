@@ -150,9 +150,9 @@ namespace kv
       // Get the next global version
       ++version;
 
-      // If the version becomes too large to represent in a Version,
-      // wrap to 0
-      if (version > std::numeric_limits<Version>::max())
+      // Version was previously signed, with negative values representing
+      // deletions. Maintain this restriction for compatibility with old code.
+      if (version > std::numeric_limits<int64_t>::max())
       {
         LOG_FAIL_FMT("KV version too large - wrapping to 0");
         version = 0;

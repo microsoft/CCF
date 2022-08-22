@@ -87,6 +87,38 @@ namespace kv::untyped
     const bool replicated;
     const bool include_conflict_read_version;
 
+    static State deserialize_map_snapshot(
+      std::span<const uint8_t> serialized_state)
+    {
+      State map;
+      const uint8_t* data = serialized_state.data();
+      size_t size = serialized_state.size();
+
+      while (size != 0)
+      {
+        // Deserialize the key
+        size_t key_size = size;
+        K key = map::deserialize<K>(data, size);
+        key_size -= size;
+        serialized::skip(data, size, map::get_padding(key_size));
+
+        // Deserialize the value
+        size_t value_size = size;
+        VersionV value = map::deserialize<VersionV>(data, size);
+        value_size -= size;
+        serialized::skip(data, size, map::get_padding(value_size));
+
+        // Version was previously signed, with negative values indicating
+        // deletions. Maintain ability to parse those snapshots, but do not
+        // retain these deletions locally.
+        if ((int64_t)value.version >= 0)
+        {
+          map = map.put(key, value);
+        }
+      }
+      return map;
+    }
+
   public:
     class HandleCommitter : public AbstractCommitter
     {
@@ -217,8 +249,7 @@ namespace kv::untyped
           }
           else
           {
-            // Write an empty value with the deleted global version only if
-            // the key exists.
+            // Delete the key if it exists
             auto search = state.get(it->first);
             if (search.has_value())
             {
@@ -451,7 +482,7 @@ namespace kv::untyped
       auto map_snapshot = d.deserialise_raw();
 
       return std::make_unique<SnapshotChangeSet>(
-        map::deserialize_map<State>(map_snapshot), v);
+        deserialize_map_snapshot(map_snapshot), v);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)

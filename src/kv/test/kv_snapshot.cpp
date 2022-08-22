@@ -16,14 +16,14 @@ struct MapTypes
   using StringSet = kv::Set<std::string>;
 };
 
+MapTypes::StringString string_map("public:string_map");
+MapTypes::NumNum num_map("public:num_map");
+
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
-
-  MapTypes::StringString string_map("public:string_map");
-  MapTypes::NumNum num_map("public:num_map");
 
   kv::Version first_snapshot_version = kv::NoVersion;
   kv::Version second_snapshot_version = kv::NoVersion;
@@ -165,19 +165,30 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   }
 }
 
-MapTypes::StringString string_map("public:string_map");
-MapTypes::NumNum num_map("public:num_map");
-
 TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
 {
   // Test that this code can still parse snapshots produced by old versions of
   // the code
-  const auto raw_snapshot_b64 =
-    "AQDYAAAAAADQAAAAAAAAAAECAAAAAAAAAAAAAAAAAAAADgAAAAAAAABwdWJsaWM6bnVtX21hcA"
-    "IAAAAAAAAAKAAAAAAAAAACAAAAAAAAADQyAAAAAAAACwAAAAAAAAACAAAAAAAAADEyMwAAAAAA"
-    "EQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAASAAAAAAAAAAFAAAAAAAAACJiYXoiAA"
-    "AACAAAAAAAAAD+/////////"
-    "wUAAAAAAAAAImZvbyIAAAANAAAAAAAAAAEAAAAAAAAAImJhciIAAAA=";
+  // NB: These raw strings are base64 encodings from
+  // `sencond_serialised_snapshot` in the "Simple snapshot" test
+  std::string raw_snapshot_b64;
+  SUBCASE("Tombstone deletions")
+  {
+    raw_snapshot_b64 =
+      "AQDYAAAAAADQAAAAAAAAAAECAAAAAAAAAAAAAAAAAAAADgAAAAAAAABwdWJsaWM6bnVtX21h"
+      "cAIAAAAAAAAAKAAAAAAAAAACAAAAAAAAADQyAAAAAAAACwAAAAAAAAACAAAAAAAAADEyMwAA"
+      "AAAAEQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAASAAAAAAAAAAFAAAAAAAAACJi"
+      "YXoiAAAACAAAAAAAAAD+/////////"
+      "wUAAAAAAAAAImZvbyIAAAANAAAAAAAAAAEAAAAAAAAAImJhciIAAAA=";
+  }
+  else SUBCASE("True deletions")
+  {
+    raw_snapshot_b64 =
+      "AQC4AAAAAACwAAAAAAAAAAECAAAAAAAAAAAAAAAAAAAADgAAAAAAAABwdWJsaWM6bnVtX21h"
+      "cAIAAAAAAAAAKAAAAAAAAAACAAAAAAAAADQyAAAAAAAACwAAAAAAAAACAAAAAAAAADEyMwAA"
+      "AAAAEQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAAKAAAAAAAAAAFAAAAAAAAACJm"
+      "b28iAAAADQAAAAAAAAABAAAAAAAAACJiYXIiAAAA";
+  }
   const auto raw_snapshot = crypto::raw_from_b64(raw_snapshot_b64);
 
   kv::Store new_store;
