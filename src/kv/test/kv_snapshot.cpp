@@ -165,6 +165,72 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   }
 }
 
+MapTypes::StringString string_map("public:string_map");
+MapTypes::NumNum num_map("public:num_map");
+
+TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
+{
+  // Test that this code can still parse snapshots produced by old versions of
+  // the code
+  const auto raw_snapshot_b64 =
+    "AQDYAAAAAADQAAAAAAAAAAECAAAAAAAAAAAAAAAAAAAADgAAAAAAAABwdWJsaWM6bnVtX21hcA"
+    "IAAAAAAAAAKAAAAAAAAAACAAAAAAAAADQyAAAAAAAACwAAAAAAAAACAAAAAAAAADEyMwAAAAAA"
+    "EQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAASAAAAAAAAAAFAAAAAAAAACJiYXoiAA"
+    "AACAAAAAAAAAD+/////////"
+    "wUAAAAAAAAAImZvbyIAAAANAAAAAAAAAAEAAAAAAAAAImJhciIAAAA=";
+  const auto raw_snapshot = crypto::raw_from_b64(raw_snapshot_b64);
+
+  kv::Store new_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  new_store.set_encryptor(encryptor);
+
+  kv::ConsensusHookPtrs hooks;
+  new_store.deserialise_snapshot(
+    raw_snapshot.data(), raw_snapshot.size(), hooks);
+
+  REQUIRE_EQ(new_store.current_version(), 2);
+
+  {
+    auto tx1 = new_store.create_tx();
+
+    {
+      auto handle = tx1.rw(string_map);
+
+      {
+        auto v = handle->get("foo");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "bar");
+
+        const auto ver = handle->get_version_of_previous_write("foo");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), 1);
+      }
+
+      {
+        auto v = handle->get("baz");
+        REQUIRE(!v.has_value());
+
+        const auto ver = handle->get_version_of_previous_write("baz");
+        REQUIRE(!ver.has_value());
+      }
+
+      REQUIRE(!handle->has("uncommitted"));
+    }
+
+    {
+      auto num_handle = tx1.rw(num_map);
+      auto num_v = num_handle->get(42);
+      REQUIRE(num_v.has_value());
+      REQUIRE_EQ(num_v.value(), 123);
+
+      const auto ver = num_handle->get_version_of_previous_write(42);
+      REQUIRE(ver.has_value());
+      REQUIRE_EQ(ver.value(), 2);
+    }
+  }
+}
+
 TEST_CASE(
   "Commit transaction while applying snapshot" *
   doctest::test_suite("snapshot"))
