@@ -214,7 +214,7 @@ class Partitioner:
 
         # Also partition from nodes that are not explicitly passed in in a partition
         other_nodes = [
-            node for node in self.network.get_joined_nodes() if node not in nodes
+            node for node in self.network.get_live_nodes() if node not in nodes
         ]
 
         rules = []
@@ -240,3 +240,13 @@ class Partitioner:
         LOG.success(f"Created new partition {partition_name}")
 
         return Rules(rules, partition_name)
+
+    def partitions(self, *args: List[List[infra.node.Node]]):
+        rule = Rules([])
+        names = []
+        for nodes in args:
+            r = self.partition(*nodes)
+            rule.rules.extend(r.rules)
+            names.append(r.name)
+        rule.name = ", ".join(names)
+        return rule
