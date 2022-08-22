@@ -865,6 +865,9 @@ class Network:
     def get_stopped_nodes(self):
         return [node for node in self.nodes if node.is_stopped()]
 
+    def get_live_nodes(self):
+        return [node for node in self.nodes if not node.is_stopped()]
+
     def get_f(self):
         return infra.e2e_args.max_f(self.args, len(self.nodes))
 
