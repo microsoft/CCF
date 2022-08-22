@@ -367,7 +367,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.29.0";
+      openapi_info.document_version = "2.30.0";
     }
 
     void init_handlers() override
@@ -1512,7 +1512,7 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key};
         g.add_node(in.node_id, node_info);
-        g.trust_node_code_id(in.code_digest);
+        g.trust_node_code_id(in.code_digest, in.quote_info.format);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);

@@ -4,6 +4,7 @@
 
 #include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
+#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"

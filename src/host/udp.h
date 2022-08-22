@@ -4,6 +4,7 @@
 
 #include "before_io.h"
 #include "ccf/ds/logger.h"
+#include "ccf/pal/locking.h"
 #include "dns.h"
 #include "ds/pending_io.h"
 #include "proxy.h"

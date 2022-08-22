@@ -4,17 +4,22 @@
 #include "ccf/node/quote.h"
 
 #include "ccf/pal/attestation.h"
-#include "ccf/pal/attestation_types.h"
 #include "ccf/service/tables/code_id.h"
 
 namespace ccf
 {
   QuoteVerificationResult verify_enclave_measurement_against_store(
-    kv::ReadOnlyTx& tx, const CodeDigest& unique_id)
+    kv::ReadOnlyTx& tx,
+    const CodeDigest& unique_id,
+    const QuoteFormat& quote_format)
   {
     auto code_ids = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS);
-    auto code_id_status = code_ids->get(unique_id);
-    if (!code_id_status.has_value())
+    auto code_id_info = code_ids->get(unique_id);
+    if (!code_id_info.has_value())
+    {
+      return QuoteVerificationResult::FailedCodeIdNotFound;
+    }
+    if (code_id_info->platform != quote_format)
     {
       return QuoteVerificationResult::FailedCodeIdNotFound;
     }
@@ -38,10 +43,10 @@ namespace ccf
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
-    crypto::Sha256Hash h = {};
+    pal::attestation_report_data r = {};
     try
     {
-      pal::verify_quote(quote_info, unique_id.data, h.h);
+      pal::verify_quote(quote_info, unique_id.data, r);
     }
     catch (const std::exception& e)
     {
@@ -60,9 +65,16 @@ namespace ccf
       CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
+    pal::attestation_report_data report;
     try
     {
-      pal::verify_quote(quote_info, code_digest.data, quoted_hash.h);
+      pal::verify_quote(quote_info, code_digest.data, report);
+
+      // Attestation report may be different sizes depending on the platform.
+      std::copy(
+        report.begin(),
+        report.begin() + crypto::Sha256Hash::SIZE,
+        quoted_hash.h.begin());
     }
     catch (const std::exception& e)
     {
@@ -76,7 +88,8 @@ namespace ccf
       return QuoteVerificationResult::Verified;
     }
 
-    auto rc = verify_enclave_measurement_against_store(tx, code_digest);
+    auto rc = verify_enclave_measurement_against_store(
+      tx, code_digest, quote_info.format);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;

@@ -128,7 +128,7 @@ Versions of the code allowed to join the current network.
 
 **Value** Represented as JSON.
 
-.. doxygenenum:: ccf::CodeStatus
+.. doxygenstruct:: ccf::CodeInfo
    :project: CCF
 
 **Example**
@@ -139,7 +139,9 @@ Versions of the code allowed to join the current network.
    * - Code ID
      - Status
    * - ``cae46d1...bb908b64e``
-     - ``ALLOWED_TO_JOIN``
+     - ``{status: ALLOWED_TO_JOIN, platform: "OE_SGX_v1"}``
+
+.. note:: On versions ``3.0.0-dev1`` and below, value was an enum with one possible value ``ALLOWED_TO_JOIN``
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
@@ -356,7 +358,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``tree``
 ~~~~~~~~
 
-On every signature transaction, this contains the serialised Merkle Tree for the ledger, between the previous signature and this onen
+On every signature transaction, this contains the serialised Merkle Tree for the ledger, between the previous signature and this one.
 
 This is used to generate receipts for historical transactions without having the recompute hashes.
 
