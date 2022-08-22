@@ -236,7 +236,12 @@ class PublicDomain:
 
     def _read_snapshot_versioned_value(self):
         size = self._read_size()
-        _, value = self._read_versioned_value(size)
+        ver, value = self._read_versioned_value(size)
+        if ver < 0:
+            assert (
+                len(value) == 0
+            ), f"Expected empty value for tombstone deletion at {ver}"
+            value = None
         self._read_snapshot_entry_padding(size)
         return value
 
