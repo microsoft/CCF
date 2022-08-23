@@ -10,7 +10,7 @@ import time
 def test_nobuiltins_endpoints(network, args):
     primary, backups = network.find_nodes()
     with primary.client() as c:
-        r = c.get("/app/commit")
+        r = c.get("/commit")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
         tx_id = TxID.from_str(body_j["transaction_id"])
