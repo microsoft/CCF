@@ -123,7 +123,7 @@ def run(args):
                             )
                         )
                         r = clients[-1].post(
-                            "/app/log/private",
+                            "/log/private",
                             {"id": 42, "msg": "foo"},
                             log_capture=logs,
                         )
@@ -185,7 +185,7 @@ def run(args):
                     logs = []
                     try:
                         client.post(
-                            "/app/log/private",
+                            "/log/private",
                             {"id": 42, "msg": "foo"},
                             timeout=1,
                             log_capture=logs,

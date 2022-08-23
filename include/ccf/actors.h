@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace ccf
 {
@@ -15,6 +16,17 @@ namespace ccf
     // not to be used
     unknown
   };
+
+  inline bool is_valid_actor(const std::string& actor)
+  {
+    if (
+      actor != "gov" && actor != "app" && actor != "node" &&
+      actor != ".well-known")
+    {
+      return false;
+    }
+    return true;
+  }
 
   constexpr auto get_actor_prefix(ActorsType at)
   {
