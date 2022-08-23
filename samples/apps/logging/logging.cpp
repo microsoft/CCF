@@ -346,10 +346,11 @@ namespace loggingapp
 
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
-        auto removed = records_handle->remove(id);
+        auto had = records_handle->has(id);
+        records_handle->remove(id);
         update_first_write(ctx.tx, id, true, get_scope(ctx));
 
-        return ccf::make_success(LoggingRemove::Out{removed});
+        return ccf::make_success(LoggingRemove::Out{had});
       };
       make_endpoint(
         "/log/private", HTTP_DELETE, ccf::json_adapter(remove), auth_policies)
@@ -480,10 +481,11 @@ namespace loggingapp
 
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        auto removed = records_handle->remove(id);
+        auto had = records_handle->has(id);
+        records_handle->remove(id);
         update_first_write(ctx.tx, id, false, get_scope(ctx));
 
-        return ccf::make_success(LoggingRemove::Out{removed});
+        return ccf::make_success(LoggingRemove::Out{had});
       };
       make_endpoint(
         "/log/public",

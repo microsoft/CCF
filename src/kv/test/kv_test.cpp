@@ -115,11 +115,11 @@ TEST_CASE("Reads/writes and deletions")
       handle->put(k, v1);
 
       REQUIRE(!handle->has(invalid_key));
-      REQUIRE(!handle->remove(invalid_key));
+      handle->remove(invalid_key);
       REQUIRE(!handle->get_version_of_previous_write(invalid_key).has_value());
       REQUIRE(handle->get_version_of_previous_write(k).has_value());
       REQUIRE(handle->get_version_of_previous_write(k).value() == commit_v);
-      REQUIRE(handle->remove(k));
+      handle->remove(k);
       REQUIRE(handle->get_version_of_previous_write(k).has_value());
       REQUIRE(handle->get_version_of_previous_write(k).value() == commit_v);
       REQUIRE(!handle->has(k));
@@ -134,7 +134,7 @@ TEST_CASE("Reads/writes and deletions")
       auto tx2 = kv_store.create_tx();
       auto handle2 = tx2.rw(map);
       REQUIRE(handle2->has(k));
-      REQUIRE(handle2->remove(k));
+      handle2->remove(k);
     }
   }
 
@@ -153,7 +153,7 @@ TEST_CASE("Reads/writes and deletions")
       auto tx2 = kv_store.create_tx();
       auto handle2 = tx2.rw(map);
       REQUIRE(handle2->has(k));
-      REQUIRE(handle2->remove(k));
+      handle2->remove(k);
       REQUIRE(!handle2->has(k));
       REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
     }
@@ -198,7 +198,7 @@ TEST_CASE("sets and values")
       REQUIRE(set_handle->contains(k2));
       REQUIRE(set_handle->size() == 2);
 
-      REQUIRE(set_handle->remove(k2));
+      set_handle->remove(k2);
       REQUIRE(!set_handle->contains(k2));
       REQUIRE(set_handle->size() == 1);
 
@@ -231,11 +231,11 @@ TEST_CASE("sets and values")
       REQUIRE(set_handle->contains(k1));
       REQUIRE(set_handle->size() == 1);
 
-      REQUIRE(!set_handle->remove(k2));
+      set_handle->remove(k2);
       REQUIRE(set_handle->contains(k1));
       REQUIRE(set_handle->size() == 1);
 
-      REQUIRE(set_handle->remove(k1));
+      set_handle->remove(k1);
       REQUIRE(!set_handle->contains(k1));
       REQUIRE(set_handle->size() == 0);
 
@@ -277,9 +277,8 @@ TEST_CASE("sets and values")
         REQUIRE(local_writes.size() == 1);
         const auto& latest_writes = local_writes.front();
         REQUIRE(latest_writes.at(k1).has_value());
-        INFO("Local removals are not seen");
-        REQUIRE(latest_writes.size() == 1);
-        REQUIRE(latest_writes.find(k2) == latest_writes.end());
+        REQUIRE(!latest_writes.at(k2).has_value());
+        REQUIRE(latest_writes.size() == 2);
 
         local_writes.clear();
       }
@@ -313,10 +312,12 @@ TEST_CASE("sets and values")
         kv_store.compact(kv_store.current_version());
 
         REQUIRE(global_writes.size() == 4);
-        REQUIRE(global_writes.at(0).size() == 1);
+        REQUIRE(global_writes.at(0).size() == 2);
         REQUIRE(!global_writes.at(0).at(k1).has_value());
-        REQUIRE(global_writes.at(1).size() == 1);
+        REQUIRE(!global_writes.at(0).at(k2).has_value());
+        REQUIRE(global_writes.at(1).size() == 2);
         REQUIRE(global_writes.at(1).at(k1).has_value());
+        REQUIRE(!global_writes.at(1).at(k2).has_value());
         REQUIRE(global_writes.at(2).size() == 2);
         REQUIRE(!global_writes.at(2).at(k1).has_value());
         REQUIRE(global_writes.at(2).at(k2).has_value());
@@ -523,8 +524,8 @@ TEST_CASE("sets and values")
 
           if (k[0] % 3 == 0)
           {
-            REQUIRE(map_handle->remove(k));
-            REQUIRE(set_handle->remove(v));
+            map_handle->remove(k);
+            set_handle->remove(v);
 
             const auto s = k + k;
             const auto n = ~v;
@@ -1684,7 +1685,7 @@ TEST_CASE("Rollback and compact")
     auto tx = kv_store.create_tx();
     auto tx2 = kv_store.create_tx();
     auto handle = tx.rw(map);
-    REQUIRE(handle->remove(k));
+    handle->remove(k);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
@@ -1731,9 +1732,8 @@ TEST_CASE("Local commit hooks")
       const auto& latest_writes = local_writes.back();
       REQUIRE(latest_writes.at("key1").has_value());
       REQUIRE(latest_writes.at("key1").value() == "value1");
-      INFO("Local removals are not seen");
-      REQUIRE(latest_writes.find("key2") == latest_writes.end());
-      REQUIRE(latest_writes.size() == 1);
+      REQUIRE(!latest_writes.at("key2").has_value());
+      REQUIRE(latest_writes.size() == 2);
       local_writes.clear();
     }
 
@@ -2354,6 +2354,110 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx2.commit());
 }
 
+TEST_CASE("Conflict resolution - removals")
+{
+  enum class Cases : size_t
+  {
+    NoReads = 0,
+    ReadSameKey,
+    ReadOtherKey,
+    WriteSameKey,
+    WriteOtherKey,
+    MAX
+  };
+
+  for (size_t i = 0; i < (size_t)Cases::MAX; ++i)
+  {
+    auto c = Cases(i);
+    INFO("Considering case " << c);
+
+    kv::Store kv_store;
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    kv_store.set_encryptor(encryptor);
+    MapTypes::StringString map("public:map");
+
+    {
+      // Ensure maps already exist, by making prior writes
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("", "");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    // Simulate parallel execution by interleaving tx steps
+    auto tx1 = kv_store.create_tx();
+    auto tx2 = kv_store.create_tx();
+
+    constexpr auto k = "key";
+
+    auto handle_1 = tx1.rw(map);
+
+    switch (c)
+    {
+      case Cases::NoReads:
+      {
+        break;
+      }
+      case Cases::ReadSameKey:
+      {
+        handle_1->has(k);
+        break;
+      }
+      case Cases::ReadOtherKey:
+      {
+        handle_1->has("unrelated");
+        break;
+      }
+      case Cases::WriteSameKey:
+      {
+        handle_1->put(k, "saluton");
+        break;
+      }
+      case Cases::WriteOtherKey:
+      {
+        handle_1->put("unrelated", "saluton");
+        break;
+      }
+      default:
+      {
+        throw std::logic_error("Unhandled");
+        break;
+      }
+    }
+
+    handle_1->remove(k);
+
+    {
+      auto handle = tx2.rw(map);
+      handle->put(k, "hello");
+      REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    const auto expected = c == Cases::ReadSameKey ?
+      kv::CommitResult::FAIL_CONFLICT :
+      kv::CommitResult::SUCCESS;
+
+    CHECK_EQ(tx1.commit(), expected);
+
+    auto tx3 = kv_store.create_tx();
+    auto handle = tx3.rw(map);
+    if (c == Cases::ReadSameKey)
+    {
+      const auto v = handle->get(k);
+      CHECK(v.has_value());
+      CHECK_EQ(v.value(), "hello");
+    }
+    else
+    {
+      // NB: In all of these cases, this remove has been applied _after_ tx2,
+      // though it executed 'before'. This is because it has no
+      // dependencies/conflicts with tx2, so it is safe to apply its removes on
+      // the later state.
+      CHECK(!handle->has(k));
+      CHECK_GT(tx1.commit_version(), tx2.commit_version());
+    }
+  }
+}
+
 TEST_CASE("Cross-map conflicts")
 {
   kv::Store kv_store;
@@ -2901,7 +3005,7 @@ TEST_CASE("Range")
                         .at(key_to_remove));
 
       {
-        REQUIRE(h->remove(key_to_remove));
+        h->remove(key_to_remove);
         REQUIRE(ref.erase(key_to_remove) == 1);
       }
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);

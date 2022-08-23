@@ -358,7 +358,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``tree``
 ~~~~~~~~
 
-On every signature transaction, this contains the serialised Merkle Tree for the ledger, between the previous signature and this onen
+On every signature transaction, this contains the serialised Merkle Tree for the ledger, between the previous signature and this one.
 
 This is used to generate receipts for historical transactions without having the recompute hashes.
 

@@ -16,14 +16,14 @@ struct MapTypes
   using StringSet = kv::Set<std::string>;
 };
 
+MapTypes::StringString string_map("public:string_map");
+MapTypes::NumNum num_map("public:num_map");
+
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
-
-  MapTypes::StringString string_map("public:string_map");
-  MapTypes::NumNum num_map("public:num_map");
 
   kv::Version first_snapshot_version = kv::NoVersion;
   kv::Version second_snapshot_version = kv::NoVersion;
@@ -161,6 +161,83 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
       const auto ver = num_handle->get_version_of_previous_write(42);
       REQUIRE(ver.has_value());
       REQUIRE_EQ(ver.value(), second_snapshot_version);
+    }
+  }
+}
+
+TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
+{
+  // Test that this code can still parse snapshots produced by old versions of
+  // the code
+  // NB: These raw strings are base64 encodings from
+  // `sencond_serialised_snapshot` in the "Simple snapshot" test
+  std::string raw_snapshot_b64;
+  SUBCASE("Tombstone deletions")
+  {
+    raw_snapshot_b64 =
+      "AQDYAAAAAADQAAAAAAAAAAECAAAAAAAAAAAAAAAAAAAADgAAAAAAAABwdWJsaWM6bnVtX21h"
+      "cAIAAAAAAAAAKAAAAAAAAAACAAAAAAAAADQyAAAAAAAACwAAAAAAAAACAAAAAAAAADEyMwAA"
+      "AAAAEQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAASAAAAAAAAAAFAAAAAAAAACJi"
+      "YXoiAAAACAAAAAAAAAD+/////////"
+      "wUAAAAAAAAAImZvbyIAAAANAAAAAAAAAAEAAAAAAAAAImJhciIAAAA=";
+  }
+  else SUBCASE("True deletions")
+  {
+    raw_snapshot_b64 =
+      "AQC4AAAAAACwAAAAAAAAAAECAAAAAAAAAAAAAAAAAAAADgAAAAAAAABwdWJsaWM6bnVtX21h"
+      "cAIAAAAAAAAAKAAAAAAAAAACAAAAAAAAADQyAAAAAAAACwAAAAAAAAACAAAAAAAAADEyMwAA"
+      "AAAAEQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAAKAAAAAAAAAAFAAAAAAAAACJm"
+      "b28iAAAADQAAAAAAAAABAAAAAAAAACJiYXIiAAAA";
+  }
+  const auto raw_snapshot = crypto::raw_from_b64(raw_snapshot_b64);
+
+  kv::Store new_store;
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  new_store.set_encryptor(encryptor);
+
+  kv::ConsensusHookPtrs hooks;
+  new_store.deserialise_snapshot(
+    raw_snapshot.data(), raw_snapshot.size(), hooks);
+
+  REQUIRE_EQ(new_store.current_version(), 2);
+
+  {
+    auto tx1 = new_store.create_tx();
+
+    {
+      auto handle = tx1.rw(string_map);
+
+      {
+        auto v = handle->get("foo");
+        REQUIRE(v.has_value());
+        REQUIRE_EQ(v.value(), "bar");
+
+        const auto ver = handle->get_version_of_previous_write("foo");
+        REQUIRE(ver.has_value());
+        REQUIRE_EQ(ver.value(), 1);
+      }
+
+      {
+        auto v = handle->get("baz");
+        REQUIRE(!v.has_value());
+
+        const auto ver = handle->get_version_of_previous_write("baz");
+        REQUIRE(!ver.has_value());
+      }
+
+      REQUIRE(!handle->has("uncommitted"));
+    }
+
+    {
+      auto num_handle = tx1.rw(num_map);
+      auto num_v = num_handle->get(42);
+      REQUIRE(num_v.has_value());
+      REQUIRE_EQ(num_v.value(), 123);
+
+      const auto ver = num_handle->get_version_of_previous_write(42);
+      REQUIRE(ver.has_value());
+      REQUIRE_EQ(ver.value(), 2);
     }
   }
 }
@@ -350,8 +427,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(local_map_writes.size(), 1);
         auto writes = local_map_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE_EQ(writes.at("foo"), "foo");
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE_EQ(writes.at("baz"), "baz");
         local_map_writes.clear();
       }
@@ -367,8 +446,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(local_set_writes.size(), 1);
         auto writes = local_set_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE(writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE(writes.at("baz").has_value());
         local_set_writes.clear();
       }
@@ -381,8 +462,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(global_map_writes.size(), 1);
         auto writes = global_map_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE_EQ(writes.at("foo"), "foo");
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE_EQ(writes.at("baz"), "baz");
         global_map_writes.clear();
       }
@@ -398,8 +481,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       {
         REQUIRE_EQ(global_set_writes.size(), 1);
         auto writes = global_set_writes.at(0);
+        REQUIRE_EQ(writes.size(), 2);
         REQUIRE(writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        // Deletions are NOT passed to hook!
+        REQUIRE_EQ(writes.find("bar"), writes.end());
         REQUIRE(writes.at("baz").has_value());
         global_set_writes.clear();
       }
@@ -443,27 +528,17 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     INFO("Verify local hook execution");
     {
       {
-        REQUIRE_EQ(local_map_writes.size(), 1);
-        auto writes = local_map_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(local_map_writes.size(), 0);
         local_map_writes.clear();
       }
 
       {
-        REQUIRE_EQ(local_value_writes.size(), 1);
-        auto write = local_value_writes.at(0);
-        REQUIRE(!write.has_value());
+        REQUIRE_EQ(local_value_writes.size(), 0);
         local_value_writes.clear();
       }
 
       {
-        REQUIRE_EQ(local_set_writes.size(), 1);
-        auto writes = local_set_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(local_set_writes.size(), 0);
         local_set_writes.clear();
       }
     }
@@ -473,27 +548,17 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       new_store.compact(snapshot_version);
 
       {
-        REQUIRE_EQ(global_map_writes.size(), 1);
-        auto writes = global_map_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(global_map_writes.size(), 0);
         global_map_writes.clear();
       }
 
       {
-        REQUIRE_EQ(global_value_writes.size(), 1);
-        auto write = global_value_writes.at(0);
-        REQUIRE(!write.has_value());
+        REQUIRE_EQ(global_value_writes.size(), 0);
         global_value_writes.clear();
       }
 
       {
-        REQUIRE_EQ(global_set_writes.size(), 1);
-        auto writes = global_set_writes.at(0);
-        REQUIRE(!writes.at("foo").has_value());
-        REQUIRE(!writes.at("bar").has_value());
-        REQUIRE(!writes.at("baz").has_value());
+        REQUIRE_EQ(global_set_writes.size(), 0);
         global_set_writes.clear();
       }
     }

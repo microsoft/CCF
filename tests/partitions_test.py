@@ -301,7 +301,8 @@ def test_election_reconfiguration(network, args):
         new_nodes.append(new_node)
 
     LOG.info("Isolate original backups and issue reconfiguration of another quorum")
-    with network.partitioner.partition(backups):
+    # Partition backups _from each other_
+    with network.partitioner.partitions([backup] for backup in backups):
         LOG.info("Trust all new nodes in one single proposal")
         # Note: Commit is stuck since a majority of backups in initial configuration
         # are isolated

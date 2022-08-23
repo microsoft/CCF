@@ -253,9 +253,8 @@ namespace ccf::v8_tmpl
 
     auto key = v8_util::get_array_buffer_data(buffer);
 
-    bool val = handle->remove({key.data(), key.data() + key.size()});
-    v8::Local<v8::Boolean> value = v8::Boolean::New(isolate, val);
-    info.GetReturnValue().Set(value);
+    handle->remove({key.data(), key.data() + key.size()});
+    info.GetReturnValue().Set(v8::Undefined(isolate));
   }
 
   static void js_kv_map_clear(const v8::FunctionCallbackInfo<v8::Value>& info)
