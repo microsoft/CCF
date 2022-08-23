@@ -235,10 +235,10 @@ namespace ccf
         ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
       };
 
-    make_endpoint(
+    make_read_only_endpoint(
       "/receipt",
       HTTP_GET,
-      ccf::historical::adapter_v3(
+      ccf::historical::read_only_adapter_v3(
         get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
       .set_auto_schema<void, nlohmann::json>()

@@ -828,7 +828,7 @@ namespace loggingapp
 
       // SNIPPET_START: get_historical
       auto get_historical = [this](
-                              ccf::endpoints::EndpointContext& ctx,
+                              ccf::endpoints::ReadOnlyEndpointContext& ctx,
                               ccf::historical::StatePtr historical_state) {
         const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
 
@@ -870,10 +870,11 @@ namespace loggingapp
           return ccf::historical::is_tx_committed_v2(
             consensus, view, seqno, error_reason);
         };
-      make_endpoint(
+      make_read_only_endpoint(
         "/log/private/historical",
         HTTP_GET,
-        ccf::historical::adapter_v3(get_historical, context, is_tx_committed),
+        ccf::historical::read_only_adapter_v3(
+          get_historical, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
@@ -884,7 +885,7 @@ namespace loggingapp
       // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
         [this](
-          ccf::endpoints::EndpointContext& ctx,
+          ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
 
@@ -921,10 +922,10 @@ namespace loggingapp
             ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
           }
         };
-      make_endpoint(
+      make_read_only_endpoint(
         "/log/private/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v3(
+        ccf::historical::read_only_adapter_v3(
           get_historical_with_receipt, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
@@ -935,7 +936,7 @@ namespace loggingapp
 
       auto get_historical_with_receipt_and_claims =
         [this](
-          ccf::endpoints::EndpointContext& ctx,
+          ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
 
@@ -979,10 +980,10 @@ namespace loggingapp
             ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
           }
         };
-      make_endpoint(
+      make_read_only_endpoint(
         "/log/public/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter_v3(
+        ccf::historical::read_only_adapter_v3(
           get_historical_with_receipt_and_claims, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
