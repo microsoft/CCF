@@ -23,16 +23,17 @@ service KV
   rpc EndTx (ResponseDescription) returns (google.protobuf.Empty) {}
 }
 
-message Headers
+message Header
 {
-  map<string, string> headers = 1;
+  string field = 1;
+  string value = 2;
 }
 
 message RequestDescription
 {
   string method = 1;
   string uri = 2;
-  Headers headers = 3;
+  repeated Header headers = 3;
   bytes body = 4;
 }
 
@@ -62,6 +63,6 @@ message KVKeyValue
 message ResponseDescription
 {
   uint32 status_code = 1;
-  Headers headers = 2;
+  repeated Header headers = 2;
   bytes body = 3;
 }

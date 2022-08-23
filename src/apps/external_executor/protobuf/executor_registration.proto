@@ -32,7 +32,16 @@ message NewExecutor
   // establish all future TLS connections with this node.
   bytes cert = 2;
 
-  // TODO: Dispatch information?
+  message EndpointKey
+  {
+    string method = 1;
+
+    // May contain {templates}. ie "/foo/{id}/bar" will accept requests to
+    // "/foo/1/bar" and "/foo/hello/bar"
+    string uri = 2;
+  }
+
+  repeated EndpointKey supported_endpoints = 3;
 }
 
 // Responsse indicating whether a NewExecutor was accepted
