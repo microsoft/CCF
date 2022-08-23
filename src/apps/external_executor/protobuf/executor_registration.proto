@@ -17,6 +17,20 @@ service ExecutorRegistration
   rpc RegisterExecutor (NewExecutor) returns (RegistrationResult) {}
 }
 
+message Attestation
+{
+  enum Format {
+    OE_SGX_V1 = 0;
+    INSECURE_VIRTUAL = 1;
+    AMD_SEV_SNP_V1 = 2;
+  }
+  Format format = 1;
+
+  bytes quote = 2;
+
+  bytes endorsements = 3;
+}
+
 // Sent by an anonymous executor to a CCF node to provide an attestation and a
 // a stable identity which will be used for future communication.
 message NewExecutor
@@ -24,7 +38,7 @@ message NewExecutor
   // Hardware attestation of executor, proving execution of a measurement
   // trusted by the target node. NB: This attestation should be bound to the
   // presented cert, so it cannot be replayed.
-  bytes attestation = 1;
+  Attestation attestation = 1;
 
   // x509 cert describing public key that this executor intends to use.
   // Executors should generate a fresh public-private key pair on startup,
