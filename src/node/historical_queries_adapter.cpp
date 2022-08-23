@@ -398,12 +398,12 @@ namespace ccf::historical
     return true;
   }
 
-  template <class HQY, class EFN, class CTX>
+  template <class HQY, class EFN, class CTX, class EXT>
   EFN _adapter_v3(
     const HQY& f,
     ccfapp::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const TxIDExtractor& extractor)
+    const EXT& extractor)
   {
     auto& state_cache = node_context.get_historical_state();
     auto network_identity_subsystem =
@@ -513,7 +513,7 @@ namespace ccf::historical
     const HandleReadOnlyHistoricalQuery& f,
     ccfapp::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const TxIDExtractor& extractor)
+    const ReadOnlyTxIDExtractor& extractor)
   {
     return _adapter_v3<
       HandleReadOnlyHistoricalQuery,

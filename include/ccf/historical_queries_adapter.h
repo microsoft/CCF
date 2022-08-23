@@ -27,8 +27,14 @@ namespace ccf::historical
 
   using HandleHistoricalQuery = HandleReadWriteHistoricalQuery;
 
-  using TxIDExtractor = std::function<std::optional<ccf::TxID>(
+  using CommandTxIDExtractor = std::function<std::optional<ccf::TxID>(
     endpoints::CommandEndpointContext& args)>;
+
+  using ReadOnlyTxIDExtractor = std::function<std::optional<ccf::TxID>(
+    endpoints::ReadOnlyEndpointContext& args)>;
+
+  using TxIDExtractor =
+    std::function<std::optional<ccf::TxID>(endpoints::EndpointContext& args)>;
 
   std::optional<ccf::TxID> txid_from_header(
     endpoints::CommandEndpointContext& args);
@@ -66,7 +72,7 @@ namespace ccf::historical
     const HandleReadOnlyHistoricalQuery& f,
     ccfapp::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const TxIDExtractor& extractor = txid_from_header);
+    const ReadOnlyTxIDExtractor& extractor = txid_from_header);
 
   ccf::endpoints::EndpointFunction read_write_adapter_v3(
     const HandleReadWriteHistoricalQuery& f,
