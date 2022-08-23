@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/empty.proto";
+
 package ccf;
 
 // Service exposed by a CCF node for executors to interact with KV state.
@@ -26,7 +28,7 @@ message Headers
   map<string, string> headers = 1;
 }
 
-message ClientRequest
+message RequestDescription
 {
   string method = 1;
   string uri = 2;

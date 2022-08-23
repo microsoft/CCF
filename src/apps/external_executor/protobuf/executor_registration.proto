@@ -31,6 +31,8 @@ message NewExecutor
   // which lives entirely in their confidential memory space, and use this to
   // establish all future TLS connections with this node.
   bytes cert = 2;
+
+  // TODO: Dispatch information?
 }
 
 // Responsse indicating whether a NewExecutor was accepted
