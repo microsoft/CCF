@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package ccf;
+
+// Service exposed by a CCF node for registering new executor instances.
+// The set of measurements which the node will accept are dictated by
+// governance of that CCF instance.
+// This service accepts anonymous clients.
+service ExecutorRegistration
+{
+  // Register a new executor with this node. The receiving node will verify
+  // that the contained attestation is valid, then that it contains a trusted
+  // measurement, and if those succeed it will requests to the KV service from
+  // the given client cert.
+  // Returns indication of whether the registration succeeded, and error
+  // details where appropriate.
+  rpc RegisterExecutor (NewExecutor) returns (RegistrationResult) {}
+}
+
+// Sent by an anonymous executor to a CCF node to provide an attestation and a
+// a stable identity which will be used for future communication.
+message NewExecutor
+{
+  // Hardware attestation of executor, proving execution of a measurement
+  // trusted by the target node. NB: This attestation should be bound to the
+  // presented cert, so it cannot be replayed.
+  bytes attestation = 1;
+
+  // x509 cert describing public key that this executor intends to use.
+  // Executors should generate a fresh public-private key pair on startup,
+  // which lives entirely in their confidential memory space, and use this to
+  // establish all future TLS connections with this node.
+  bytes cert = 2;
+}
+
+// Responsse indicating whether a NewExecutor was accepted
+message RegistrationResult
+{
+  enum Outcome {
+    // The attestation was fully verified, and this executor is now registered
+    ACCEPTED = 0;
+
+    // Unable to verify attestation
+    ATTESTATION_VERIFICATION_FAILURE = 1;
+
+    // Measurement described by attestation is not trusted
+    MEASUREMENT_NOT_TRUSTED = 2;
+
+    // The given public cert is already registered on this node for a
+    // distinct code ID. Note that calls should be idempotent, so repeated
+    // registration with identical requests should return ACCEPTED
+    DUPLICATE_CERT = 3;
+
+    // Any error not covered above
+    REJECTED = 4;
+  }
+  Outcome outcome = 1;
+
+  // Additional context explaining outcome
+  string details = 2;
+}
