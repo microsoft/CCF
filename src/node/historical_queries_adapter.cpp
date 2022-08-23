@@ -398,19 +398,23 @@ namespace ccf::historical
     return true;
   }
 
-  template <class HQY, class EFN, class CTX, class EXT>
-  EFN _adapter_v3(
-    const HQY& f,
+  template <
+    class TQueryHandler,
+    class TEndpointFunction,
+    class TEndpointContext,
+    class TTxIDExtractor>
+  TEndpointFunction _adapter_v3(
+    const TQueryHandler& f,
     ccfapp::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const EXT& extractor)
+    const TTxIDExtractor& extractor)
   {
     auto& state_cache = node_context.get_historical_state();
     auto network_identity_subsystem =
       node_context.get_subsystem<NetworkIdentitySubsystemInterface>();
 
     return [f, &state_cache, network_identity_subsystem, available, extractor](
-             CTX& args) {
+             TEndpointContext& args) {
       // Extract the requested transaction ID
       ccf::TxID target_tx_id;
       {
