@@ -9,18 +9,30 @@ package ccf;
 // cert that has previously been accepted by the ExecutorRegistration service.
 service KV
 {
+  // Indicate to node that this executor is ready for a new request.
+  // Returns description of a client request, to be executed.
   rpc StartTx (google.protobuf.Empty) returns (stream RequestDescription) {}
 
-  // Get a single key
+  // Indicate that this executor has completed execution of the previous Tx.
+  // Contains description of response which should be forwarded to user.
+  rpc EndTx (ResponseDescription) returns (google.protobuf.Empty) {}
+
+  // Read a single key
   rpc Get (KVKey) returns (KVValue) {}
 
   // Test a single key
   rpc Has (KVKey) returns (KVHasResult) {}
-  
-  // Put a single key-value pair
+
+  // Read version of a single key
+  rpc GetVersion (KVKey) returns (KVVersion) {}
+
+  // Write a single key-value pair
   rpc Put (KVKeyValue) returns (google.protobuf.Empty) {}
 
-  rpc EndTx (ResponseDescription) returns (google.protobuf.Empty) {}
+  // Remove a single key-value pair
+  rpc Delete (KVKey) returns (google.protobuf.Empty) {}
+
+  rpc GetAll (KVTable) returns (stream KVKeyValue) {}
 }
 
 message Header
@@ -37,10 +49,22 @@ message RequestDescription
   bytes body = 4;
 }
 
+message KVTable
+{
+  string table = 1;
+}
+
 message KVKey
 {
   string table = 1;
   bytes key = 2;
+}
+
+message KVKeyValue
+{
+  string table = 1;
+  bytes key = 2;
+  bytes value = 3;
 }
 
 message KVValue
@@ -53,11 +77,9 @@ message KVHasResult
   bool present = 1;
 }
 
-message KVKeyValue
+message KVVersion
 {
-  string table = 1;
-  bytes key = 2;
-  bytes value = 3;
+  uint64 version = 1;
 }
 
 message ResponseDescription
