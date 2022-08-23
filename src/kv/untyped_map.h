@@ -87,6 +87,38 @@ namespace kv::untyped
     const bool replicated;
     const bool include_conflict_read_version;
 
+    static State deserialize_map_snapshot(
+      std::span<const uint8_t> serialized_state)
+    {
+      State map;
+      const uint8_t* data = serialized_state.data();
+      size_t size = serialized_state.size();
+
+      while (size != 0)
+      {
+        // Deserialize the key
+        size_t key_size = size;
+        K key = map::deserialize<K>(data, size);
+        key_size -= size;
+        serialized::skip(data, size, map::get_padding(key_size));
+
+        // Deserialize the value
+        size_t value_size = size;
+        VersionV value = map::deserialize<VersionV>(data, size);
+        value_size -= size;
+        serialized::skip(data, size, map::get_padding(value_size));
+
+        // Version was previously signed, with negative values indicating
+        // deletions. Maintain ability to parse those snapshots, but do not
+        // retain these deletions locally.
+        if ((int64_t)value.version >= 0)
+        {
+          map = map.put(key, value);
+        }
+      }
+      return map;
+    }
+
   public:
     class HandleCommitter : public AbstractCommitter
     {
@@ -167,7 +199,7 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v_, bool track_read_versions) override
+      void commit(Version v, bool track_read_versions) override
       {
         if (change_set.writes.empty() && !track_read_versions)
         {
@@ -177,8 +209,6 @@ namespace kv::untyped
 
         auto& roll = map.get_roll();
         auto state = roll.commits->get_tail()->state;
-
-        DeletableVersion v = static_cast<DeletableVersion>(v_);
 
         // To track conflicts the read version of all keys that are read or
         // written within a transaction must be updated.
@@ -192,8 +222,8 @@ namespace kv::untyped
             {
               continue;
             }
-            state = state.put(
-              it->first, VersionV{search->version, v_, search->value});
+            state =
+              state.put(it->first, VersionV{search->version, v, search->value});
           }
           if (change_set.writes.empty())
           {
@@ -215,17 +245,16 @@ namespace kv::untyped
           {
             // Write the new value with the global version.
             changes = true;
-            state = state.put(it->first, VersionV{v, v_, it->second.value()});
+            state = state.put(it->first, VersionV{v, v, it->second.value()});
           }
           else
           {
-            // Write an empty value with the deleted global version only if
-            // the key exists.
+            // Delete the key if it exists
             auto search = state.get(it->first);
             if (search.has_value())
             {
               changes = true;
-              state = state.put(it->first, VersionV{-v, v_, {}});
+              state = state.remove(it->first);
             }
           }
         }
@@ -433,14 +462,7 @@ namespace kv::untyped
         if (map.hook || map.global_hook)
         {
           r->state.foreach([&r](const K& k, const VersionV& v) {
-            if (is_deleted(v.version))
-            {
-              r->writes[k] = std::nullopt;
-            }
-            else
-            {
-              r->writes[k] = v.value;
-            }
+            r->writes[k] = v.value;
             return true;
           });
         }
@@ -460,7 +482,7 @@ namespace kv::untyped
       auto map_snapshot = d.deserialise_raw();
 
       return std::make_unique<SnapshotChangeSet>(
-        map::deserialize_map<State>(map_snapshot), v);
+        deserialize_map_snapshot(map_snapshot), v);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)

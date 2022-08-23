@@ -890,9 +890,10 @@ const actions = new Map([
       },
       function (args) {
         const issuerBuf = ccf.strToBuf(args.issuer);
-        if (!ccf.kv["public:ccf.gov.jwt.issuers"].delete(issuerBuf)) {
+        if (!ccf.kv["public:ccf.gov.jwt.issuers"].has(issuerBuf)) {
           return;
         }
+        ccf.kv["public:ccf.gov.jwt.issuers"].delete(issuerBuf);
         ccf.removeJwtPublicSigningKeys(args.issuer);
       }
     ),
