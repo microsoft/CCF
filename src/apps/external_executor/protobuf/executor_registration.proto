@@ -34,6 +34,7 @@ message NewExecutor
 
   message EndpointKey
   {
+    // Should be a HTTP method. No wild-carding currently supported.
     string method = 1;
 
     // May contain {templates}. ie "/foo/{id}/bar" will accept requests to
