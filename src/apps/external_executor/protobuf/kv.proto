@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package ccf;
+
+// Service exposed by a CCF node for executors to interact with KV state.
+// Communication with this service must be over TLS, authorising as a client
+// cert that has previously been accepted by the ExecutorRegistration service.
+service KV
+{
+  rpc StartTx (google.protobuf.Empty) returns (stream RequestDescription) {}
+
+  // Get a single key
+  rpc Get (KVKey) returns (KVValue) {}
+
+  // Test a single key
+  rpc Has (KVKey) returns (KVHasResult) {}
+  
+  // Put a single key-value pair
+  rpc Put (KVKeyValue) returns (google.protobuf.Empty) {}
+
+  rpc EndTx (ResponseDescription) returns (google.protobuf.Empty) {}
+}
+
+message Headers
+{
+  map<string, string> headers = 1;
+}
+
+message ClientRequest
+{
+  string method = 1;
+  string uri = 2;
+  Headers headers = 3;
+  bytes body = 4;
+}
+
+message KVKey
+{
+  string table = 1;
+  bytes key = 2;
+}
+
+message KVValue
+{
+  optional bytes value = 1;
+}
+
+message KVHasResult
+{
+  bool present = 1;
+}
+
+message KVKeyValue
+{
+  string table = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
+
+message ResponseDescription
+{
+  uint32 status_code = 1;
+  Headers headers = 2;
+  bytes body = 3;
+}
