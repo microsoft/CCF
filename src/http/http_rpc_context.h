@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/actors.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
 #include "http_parser.h"
@@ -268,7 +269,6 @@ namespace http
   inline static std::optional<std::string> extract_actor(HttpRpcContext& ctx)
   {
     const auto path = ctx.get_method();
-
     const auto first_slash = path.find_first_of('/');
     const auto second_slash = path.find_first_of('/', first_slash + 1);
 
@@ -285,7 +285,15 @@ namespace http
       return std::nullopt;
     }
 
-    ctx.set_method(remaining_path);
+    // if the extracted actor is a known type, set the remaining path
+    if (ccf::is_valid_actor(actor))
+    {
+      ctx.set_method(remaining_path);
+    }
+    else
+    {
+      ctx.set_method(path);
+    }
     return actor;
   }
 }
