@@ -4,6 +4,8 @@ import "google/protobuf/empty.proto";
 
 package ccf;
 
+option optimize_for = LITE_RUNTIME;
+
 // Service exposed by a CCF node for executors to interact with KV state.
 // Communication with this service must be over TLS, authorising as a client
 // cert that has previously been accepted by the ExecutorRegistration service.
@@ -69,7 +71,7 @@ message KVKeyValue
 
 message KVValue
 {
-  optional bytes value = 1;
+  bytes value = 1;
 }
 
 message KVHasResult
