@@ -42,7 +42,7 @@ set -e
 
 function service_http_status()
 {
-    curl -o /dev/null -s https://127.0.0.1:8000/app/commit -w "%{http_code}" --cacert ./workspace/sandbox_common/service_cert.pem
+    curl -o /dev/null -s https://127.0.0.1:8000/commit -w "%{http_code}" --cacert ./workspace/sandbox_common/service_cert.pem
 }
 
 function current_ledger_length()
