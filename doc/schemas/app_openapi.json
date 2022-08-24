@@ -272,7 +272,7 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "/api": {
+    "/app/api": {
       "get": {
         "responses": {
           "200": {
@@ -291,7 +291,7 @@
         }
       }
     },
-    "/api/metrics": {
+    "/app/api/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -310,7 +310,7 @@
         }
       }
     },
-    "/code": {
+    "/app/code": {
       "get": {
         "responses": {
           "200": {
@@ -329,7 +329,7 @@
         }
       }
     },
-    "/commit": {
+    "/app/commit": {
       "get": {
         "responses": {
           "200": {
@@ -348,7 +348,7 @@
         }
       }
     },
-    "/custom_auth": {
+    "/app/custom_auth": {
       "get": {
         "responses": {
           "200": {
@@ -367,7 +367,7 @@
         }
       }
     },
-    "/local_tx": {
+    "/app/local_tx": {
       "get": {
         "parameters": [
           {
@@ -396,7 +396,7 @@
         }
       }
     },
-    "/log/private": {
+    "/app/log/private": {
       "delete": {
         "parameters": [
           {
@@ -494,7 +494,7 @@
         }
       }
     },
-    "/log/private/admin_only": {
+    "/app/log/private/admin_only": {
       "post": {
         "requestBody": {
           "content": {
@@ -528,7 +528,7 @@
         }
       }
     },
-    "/log/private/all": {
+    "/app/log/private/all": {
       "delete": {
         "responses": {
           "200": {
@@ -552,7 +552,7 @@
         }
       }
     },
-    "/log/private/anonymous": {
+    "/app/log/private/anonymous": {
       "post": {
         "requestBody": {
           "content": {
@@ -581,7 +581,7 @@
         }
       }
     },
-    "/log/private/count": {
+    "/app/log/private/count": {
       "get": {
         "responses": {
           "200": {
@@ -605,7 +605,7 @@
         }
       }
     },
-    "/log/private/historical": {
+    "/app/log/private/historical": {
       "get": {
         "parameters": [
           {
@@ -639,7 +639,7 @@
         }
       }
     },
-    "/log/private/historical/sparse": {
+    "/app/log/private/historical/sparse": {
       "get": {
         "parameters": [
           {
@@ -681,7 +681,7 @@
         }
       }
     },
-    "/log/private/historical_receipt": {
+    "/app/log/private/historical_receipt": {
       "get": {
         "parameters": [
           {
@@ -715,7 +715,7 @@
         }
       }
     },
-    "/log/private/prefix_cert": {
+    "/app/log/private/prefix_cert": {
       "post": {
         "requestBody": {
           "content": {
@@ -749,7 +749,7 @@
         }
       }
     },
-    "/log/private/raw_text/{id}": {
+    "/app/log/private/raw_text/{id}": {
       "parameters": [
         {
           "in": "path",
@@ -776,7 +776,7 @@
         }
       }
     },
-    "/log/public": {
+    "/app/log/public": {
       "delete": {
         "parameters": [
           {
@@ -874,7 +874,7 @@
         }
       }
     },
-    "/log/public/all": {
+    "/app/log/public/all": {
       "delete": {
         "responses": {
           "200": {
@@ -898,7 +898,7 @@
         }
       }
     },
-    "/log/public/count": {
+    "/app/log/public/count": {
       "get": {
         "responses": {
           "200": {
@@ -922,7 +922,7 @@
         }
       }
     },
-    "/log/public/historical/range": {
+    "/app/log/public/historical/range": {
       "get": {
         "parameters": [
           {
@@ -972,7 +972,7 @@
         }
       }
     },
-    "/log/public/historical_receipt": {
+    "/app/log/public/historical_receipt": {
       "get": {
         "parameters": [
           {
@@ -1006,7 +1006,7 @@
         }
       }
     },
-    "/log/request_query": {
+    "/app/log/request_query": {
       "get": {
         "responses": {
           "200": {
@@ -1025,7 +1025,7 @@
         }
       }
     },
-    "/log/signed_request_query": {
+    "/app/log/signed_request_query": {
       "get": {
         "responses": {
           "200": {
@@ -1049,7 +1049,7 @@
         }
       }
     },
-    "/multi_auth": {
+    "/app/multi_auth": {
       "get": {
         "responses": {
           "200": {
@@ -1080,7 +1080,7 @@
         }
       }
     },
-    "/receipt": {
+    "/app/receipt": {
       "get": {
         "parameters": [
           {
@@ -1109,7 +1109,7 @@
         }
       }
     },
-    "/tx": {
+    "/app/tx": {
       "get": {
         "parameters": [
           {

@@ -1382,7 +1382,7 @@ def test_random_receipts(
         certs[infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)] = cert
 
     with node.client("user0") as c:
-        r = c.get("/commit")
+        r = c.get("/app/commit")
         max_view, max_seqno = [
             int(e) for e in r.body.json()["transaction_id"].split(".")
         ]
