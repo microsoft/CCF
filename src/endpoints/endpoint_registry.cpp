@@ -140,15 +140,8 @@ namespace ccf::endpoints
     {
       endpoint.dispatch.uri_path = fmt::format("/{}", method);
     }
-    if (method_prefix == "app")
-    {
-      endpoint.full_uri_path = endpoint.dispatch.uri_path;
-    }
-    else
-    {
-      endpoint.full_uri_path =
-        fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
-    }
+    endpoint.full_uri_path =
+      fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
     endpoint.authn_policies = ap;
