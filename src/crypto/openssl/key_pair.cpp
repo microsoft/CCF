@@ -45,13 +45,13 @@ namespace crypto
     key = EVP_PKEY_new();
     Unique_EVP_PKEY_CTX pkctx;
     if (
-      EVP_PKEY_paramgen_init(pkctx) < 0 ||
-      EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid) < 0 ||
-      EVP_PKEY_CTX_set_ec_param_enc(pkctx, OPENSSL_EC_NAMED_CURVE) < 0)
+      EVP_PKEY_keygen_init(pkctx) <= 0 ||
+      EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid) <= 0 ||
+      EVP_PKEY_CTX_set_ec_param_enc(pkctx, OPENSSL_EC_NAMED_CURVE) <= 0)
     {
       throw std::runtime_error("could not initialize PK context");
     }
-    if (EVP_PKEY_keygen_init(pkctx) < 0 || EVP_PKEY_keygen(pkctx, &key) < 0)
+    if (EVP_PKEY_keygen(pkctx, &key) <= 0)
     {
       throw std::runtime_error("could not generate new EC key");
     }
