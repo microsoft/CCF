@@ -5,6 +5,7 @@
 #include "apply_changes.h"
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/kv/read_only_store.h"
+#include "ccf/pal/locking.h"
 #include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "kv/committable_tx.h"
@@ -149,9 +150,9 @@ namespace kv
       // Get the next global version
       ++version;
 
-      // If the version becomes too large to represent in a DeletableVersion,
-      // wrap to 0
-      if (version > std::numeric_limits<DeletableVersion>::max())
+      // Version was previously signed, with negative values representing
+      // deletions. Maintain this restriction for compatibility with old code.
+      if (version > std::numeric_limits<int64_t>::max())
       {
         LOG_FAIL_FMT("KV version too large - wrapping to 0");
         version = 0;

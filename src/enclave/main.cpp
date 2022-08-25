@@ -164,8 +164,7 @@ extern "C"
       ccf::host_time_us =
         static_cast<decltype(ccf::host_time_us)>(time_location);
 
-      // Check that ringbuffer memory ranges are entirely outside of the
-      // enclave
+      // Check that ringbuffer memory ranges are entirely outside of the enclave
       if (!ccf::pal::is_outside_enclave(
             ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
       {

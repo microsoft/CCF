@@ -57,7 +57,7 @@ namespace kv::untyped
 
     void put(const KeyType& key, const ValueType& value);
 
-    bool remove(const KeyType& key);
+    void remove(const KeyType& key);
 
     void clear();
 
