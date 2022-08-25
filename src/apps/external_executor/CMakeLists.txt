@@ -20,7 +20,8 @@ add_custom_command(
           3072
 )
 add_custom_target(
-  external_executor_signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+  external_executor_signing_key ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
 sign_app_library(
