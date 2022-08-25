@@ -13,7 +13,6 @@ parameters:
       container: sgx
       pool: 1es-dcv2-focal
     SNP:
-      container: sgx
       pool: sev-snp-pool
 
   build:
