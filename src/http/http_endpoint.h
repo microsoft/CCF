@@ -211,7 +211,7 @@ namespace http
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         std::optional<std::shared_ptr<ccf::RpcHandler>> search;
-        ccf::ActorsType actor;
+        ccf::ActorsType actor = ccf::ActorsType::unknown;
         if (actor_opt.has_value())
         {
           const auto& actor_s = actor_opt.value();
