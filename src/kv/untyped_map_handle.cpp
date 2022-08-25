@@ -38,12 +38,6 @@ namespace kv::untyped
     tx_changes.reads.insert(std::make_pair(
       key, std::make_tuple(search->version, search->read_version)));
 
-    // If the key has been deleted, return empty.
-    if (is_deleted(search->version))
-    {
-      return nullptr;
-    }
-
     // Return the value.
     return &search->value;
   }
@@ -65,7 +59,7 @@ namespace kv::untyped
       [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
         auto write = w.find(k);
 
-        if ((write == w.end()) && !is_deleted(v.version))
+        if (write == w.end())
         {
           should_continue = f(k, v.value);
         }
@@ -128,14 +122,6 @@ namespace kv::untyped
     tx_changes.reads.insert(std::make_pair(
       key, std::make_tuple(search->version, search->read_version)));
 
-    // If the key has been deleted, return empty. NB: We still depend on this
-    // version with the call above, but we don't distinguish deleted from
-    // non-existent in the returned values.
-    if (is_deleted(search->version))
-    {
-      return std::nullopt;
-    }
-
     return search->version;
   }
 
@@ -149,15 +135,8 @@ namespace kv::untyped
       return std::nullopt;
     }
 
-    // If the key has been deleted, return empty.
-    auto& found = search.value();
-    if (is_deleted(found.version))
-    {
-      return std::nullopt;
-    }
-
     // Return the value.
-    return found.value;
+    return search->value;
   }
 
   bool MapHandle::has(const MapHandle::KeyType& key)
@@ -177,38 +156,11 @@ namespace kv::untyped
     tx_changes.writes[key] = value;
   }
 
-  bool MapHandle::remove(const MapHandle::KeyType& key)
+  void MapHandle::remove(const MapHandle::KeyType& key)
   {
     LOG_TRACE_FMT("KV[{}]::remove({})", map_name, key);
-    auto write = tx_changes.writes.find(key);
-    auto exists_in_state = tx_changes.state.getp(key) != nullptr;
-
-    if (write != tx_changes.writes.end())
-    {
-      if (!exists_in_state)
-      {
-        // this key only exists locally, there is no reason to maintain and
-        // serialise it
-        tx_changes.writes.erase(key);
-      }
-      else
-      {
-        // If we have written, change the write set to indicate a remove.
-        write->second = std::nullopt;
-      }
-
-      return true;
-    }
-
-    // If the key doesn't exist, return false.
-    if (!exists_in_state)
-    {
-      return false;
-    }
-
-    // Record in the write set.
+    // Record in the write set
     tx_changes.writes[key] = std::nullopt;
-    return true;
   }
 
   void MapHandle::clear()

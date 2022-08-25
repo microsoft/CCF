@@ -140,9 +140,9 @@ namespace ccf::endpoints
     {
       endpoint.dispatch.uri_path = fmt::format("/{}", method);
     }
-    endpoint.dispatch.verb = verb;
     endpoint.full_uri_path =
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
+    endpoint.dispatch.verb = verb;
     endpoint.func = f;
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded

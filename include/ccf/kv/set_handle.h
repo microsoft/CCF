@@ -111,16 +111,13 @@ namespace kv
 
     /** Delete an element from this set.
      *
-     * It is safe to call this on non-existent keys - it will simply return
-     * false.
+     * It is safe to call this on non-existent keys.
      *
      * @param key Key to delete
-     *
-     * @return Boolean true iff the key was present in the set
      */
-    bool remove(const K& key)
+    void remove(const K& key)
     {
-      return write_handle.remove(KSerialiser::to_serialised(key));
+      write_handle.remove(KSerialiser::to_serialised(key));
     }
 
     /** Delete every element in this set.

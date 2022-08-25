@@ -229,16 +229,13 @@ namespace kv
 
     /** Delete a key-value pair.
      *
-     * It is safe to call this on non-existent keys - it will simply return
-     * false.
+     * It is safe to call this on non-existent keys.
      *
      * @param key Key to be removed
-     *
-     * @return true if the key had a value previously
      */
-    bool remove(const K& key)
+    void remove(const K& key)
     {
-      return write_handle.remove(KSerialiser::to_serialised(key));
+      write_handle.remove(KSerialiser::to_serialised(key));
     }
 
     /** Delete every key-value pair.

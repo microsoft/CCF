@@ -4,6 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "enclave/client_endpoint.h"
+#include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http_parser.h"
@@ -209,30 +210,21 @@ namespace http
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
-        if (!actor_opt.has_value())
+        std::optional<std::shared_ptr<ccf::RpcHandler>> search;
+        ccf::ActorsType actor = ccf::ActorsType::unknown;
+        if (actor_opt.has_value())
         {
-          rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format(
-              "Request path must contain '/[actor]/[method]'. Unable to parse "
-              "'{}'.",
-              rpc_ctx->get_method()));
-          send_raw(rpc_ctx->serialise_response());
-          return;
+          const auto& actor_s = actor_opt.value();
+          actor = rpc_map->resolve(actor_s);
+          search = rpc_map->find(actor);
         }
-
-        const auto& actor_s = actor_opt.value();
-        auto actor = rpc_map->resolve(actor_s);
-        auto search = rpc_map->find(actor);
-        if (actor == ccf::ActorsType::unknown || !search.has_value())
+        if (
+          !actor_opt.has_value() || actor == ccf::ActorsType::unknown ||
+          !search.has_value())
         {
-          rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format("Unknown actor '{}'.", actor_s));
-          send_raw(rpc_ctx->serialise_response());
-          return;
+          // if there is no actor, proceed with the "app" as the ActorType and
+          // process the request
+          search = rpc_map->find(ccf::ActorsType::users);
         }
 
         auto response = search.value()->process(rpc_ctx);

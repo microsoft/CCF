@@ -214,9 +214,9 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
 
-    auto val = handle->remove({key, key + key_size});
+    handle->remove({key, key + key_size});
 
-    return JS_NewBool(ctx, val);
+    return JS_UNDEFINED;
   }
 
   static JSValue js_kv_map_delete_read_only(
