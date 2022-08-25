@@ -26,11 +26,11 @@ namespace externalexecutor
 
       auto do_echo = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto content_type =
-          ctx.rpc_ctx->get_request_header(http::headers::CONTENT_LENGTH);
+          ctx.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE);
         if (content_type.has_value())
         {
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_LENGTH, *content_type);
+            http::headers::CONTENT_TYPE, *content_type);
         }
 
         ctx.rpc_ctx->set_response_body(ctx.rpc_ctx->get_request_body());
