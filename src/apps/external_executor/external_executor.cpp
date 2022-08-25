@@ -16,6 +16,16 @@ namespace externalexecutor
 
     void install_kv_service() {}
 
+    void echo_header(
+      std::shared_ptr<ccf::RpcContext>& rpc_ctx, const std::string_view& sv)
+    {
+      const auto header_val = rpc_ctx->get_request_header(sv);
+      if (header_val.has_value())
+      {
+        rpc_ctx->set_response_header(sv, *header_val);
+      }
+    }
+
   public:
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
@@ -25,16 +35,20 @@ namespace externalexecutor
       install_kv_service();
 
       auto do_echo = [this](ccf::endpoints::EndpointContext& ctx) {
-        const auto content_type =
-          ctx.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE);
-        if (content_type.has_value())
+        CCF_APP_INFO("ECHO HANDLER BEGIN");
+
+        const auto headers = ctx.rpc_ctx->get_request_headers();
+        CCF_APP_INFO("Request contains {} headers", headers.size());
+        for (const auto& [k, v] : headers)
         {
-          ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, *content_type);
+          CCF_APP_INFO("  {} = {}", k, v);
         }
+
+        echo_header(ctx.rpc_ctx, http::headers::CONTENT_TYPE);
 
         ctx.rpc_ctx->set_response_body(ctx.rpc_ctx->get_request_body());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        CCF_APP_INFO("ECHO HANDLER END");
       };
 
       make_endpoint("ccf.Echo/Echo", HTTP_POST, do_echo, ccf::no_auth_required)
