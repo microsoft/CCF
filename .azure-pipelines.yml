@@ -50,7 +50,8 @@ jobs:
       perf_or_release: ${{ variables['perf_or_release'] }}
       perf_tests: ${{ variables['perf_tests'] }}
 
-  - job: Test
-    - pool: sev-snp-pool
-    - steps:
-      - script: echo "Hello azure"
+  - test-amd:
+      - name: Test AMD CI
+      - pool: sev-snp-pool
+      - steps:
+          - script: echo "Hello azure"
