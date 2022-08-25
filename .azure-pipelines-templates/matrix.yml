@@ -1,5 +1,5 @@
 parameters:
-  target: ["NoSGX", "SGX"]
+  target: ["NoSGX", "SGX", "SNP"]
 
   env:
     Hosted:
@@ -12,6 +12,9 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-dcv2-focal
+    SNP:
+      container: sgx
+      pool: sev-snp-pool
 
   build:
     common:
@@ -20,6 +23,8 @@ parameters:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
+    SNP:
+      cmake_args: "-DCOMPILE_TARGETS=virtual"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     v8:
@@ -35,6 +40,8 @@ parameters:
     NoSGX:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
     SGX:
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
+    SNP:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
