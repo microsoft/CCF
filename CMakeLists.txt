@@ -241,6 +241,9 @@ add_custom_target(
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
+# Add external_executor app
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
+
 if(BUILD_TESTS)
   enable_testing()
 
