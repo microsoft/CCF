@@ -420,6 +420,15 @@ namespace ccf
         {.status = CodeStatus::ALLOWED_TO_JOIN, .platform = platform});
     }
 
+    void trust_executor_code_id(
+      const CodeDigest& executor_code_id, const QuoteFormat& platform)
+    {
+      auto executor_codeid = tx.rw(tables.executor_code_ids);
+      executor_codeid->put(
+        executor_code_id,
+        {.status = CodeStatus::ALLOWED_TO_JOIN, .platform = platform});
+    }
+
     void init_configuration(const ServiceConfiguration& configuration)
     {
       auto config = tx.rw(tables.config);

@@ -7,6 +7,7 @@
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
+#include "ccf/service/tables/executor_code_id.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/modules.h"
@@ -57,6 +58,7 @@ namespace ccf
     ModulesQuickJsBytecode modules_quickjs_bytecode;
     ModulesQuickJsVersion modules_quickjs_version;
     CodeIDs node_code_ids;
+    ExecutorCodeIDs executor_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
     RecoveryShares shares;
@@ -113,6 +115,7 @@ namespace ccf
       modules_quickjs_bytecode(Tables::MODULES_QUICKJS_BYTECODE),
       modules_quickjs_version(Tables::MODULES_QUICKJS_VERSION),
       node_code_ids(Tables::NODE_CODE_IDS),
+      executor_code_ids(Tables::EXECUTOR_CODE_IDS),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),

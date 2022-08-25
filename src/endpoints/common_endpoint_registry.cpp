@@ -11,6 +11,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/executor_code_id.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
 
@@ -166,6 +167,29 @@ namespace ccf
     };
     make_read_only_endpoint(
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
+      .set_auto_schema<void, GetCode::Out>()
+      .install();
+
+    auto get_executor_code = [](auto& ctx, nlohmann::json&&) {
+      GetCode::Out out;
+
+      auto executor_codes_ids =
+        ctx.tx.template ro<ExecutorCodeIDs>(Tables::EXECUTOR_CODE_IDS);
+      executor_codes_ids->foreach(
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
+          auto digest = ds::to_hex(cd.data);
+          out.versions.push_back({digest, info.status, info.platform});
+          return true;
+        });
+
+      return make_success(out);
+    };
+
+    make_read_only_endpoint(
+      "/executor_code",
+      HTTP_GET,
+      json_read_only_adapter(get_executor_code),
+      no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
       .install();
 
