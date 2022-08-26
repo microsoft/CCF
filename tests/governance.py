@@ -356,6 +356,7 @@ def test_invalid_client_signature(network, args):
             f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/gov/proposals",
             headers=headers,
             verify=os.path.join(node.common_dir, "service_cert.pem"),
+            timeout=3,
         ).json()
         assert r["error"]["code"] == "InvalidAuthenticationInfo"
         assert (
