@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package ccf;
+
+option optimize_for = LITE_RUNTIME;
+
+// Service exposed by a CCF node for executors to interact with KV state.
+// Communication with this service must be over TLS, authorising as a client
+// cert that has previously been accepted by the ExecutorRegistration service.
+service KV
+{
+  // Indicate to node that this executor is ready for a new request.
+  // Returns description of a client request, to be executed.
+  rpc StartTx (google.protobuf.Empty) returns (stream RequestDescription) {}
+
+  // Indicate that this executor has completed execution of the previous Tx.
+  // Contains description of response which should be forwarded to user.
+  rpc EndTx (ResponseDescription) returns (google.protobuf.Empty) {}
+
+  // Read a single key
+  rpc Get (KVKey) returns (KVValue) {}
+
+  // Test a single key
+  rpc Has (KVKey) returns (KVHasResult) {}
+
+  // Read version of a single key
+  rpc GetVersion (KVKey) returns (KVVersion) {}
+
+  // Write a single key-value pair
+  rpc Put (KVKeyValue) returns (google.protobuf.Empty) {}
+
+  // Remove a single key-value pair
+  rpc Delete (KVKey) returns (google.protobuf.Empty) {}
+
+  rpc GetAll (KVTable) returns (stream KVKeyValue) {}
+}
+
+message Header
+{
+  string field = 1;
+  string value = 2;
+}
+
+message RequestDescription
+{
+  string method = 1;
+  string uri = 2;
+  repeated Header headers = 3;
+  bytes body = 4;
+}
+
+message KVTable
+{
+  string table = 1;
+}
+
+message KVKey
+{
+  string table = 1;
+  bytes key = 2;
+}
+
+message KVKeyValue
+{
+  string table = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
+
+message KVValue
+{
+  bytes value = 1;
+}
+
+message KVHasResult
+{
+  bool present = 1;
+}
+
+message KVVersion
+{
+  uint64 version = 1;
+}
+
+message ResponseDescription
+{
+  uint32 status_code = 1;
+  repeated Header headers = 2;
+  bytes body = 3;
+}
