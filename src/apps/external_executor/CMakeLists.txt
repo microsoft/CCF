@@ -17,7 +17,7 @@ add_ccf_app(external_executor SRCS external_executor.cpp)
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
   COMMAND openssl genrsa -out ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem -3
-          3072
+  3072
 )
 add_custom_target(
   external_executor_signing_key ALL
@@ -28,3 +28,9 @@ sign_app_library(
   external_executor.enclave ${CMAKE_CURRENT_SOURCE_DIR}/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
+
+# TODO:
+# 1. Include and build libprotobuf
+# 1'. Add protoc to ansible
+# 2. Create Get and Put endpoints
+# 3. Add gRPC wrappers
