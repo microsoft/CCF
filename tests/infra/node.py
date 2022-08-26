@@ -21,10 +21,6 @@ import copy
 import json
 import time
 import http
-import pathlib
-import random
-import tempfile
-import shutil
 
 # pylint: disable=protected-access
 import ccf._versionifier
@@ -517,28 +513,6 @@ class Node:
 
     def most_recent_read_only_snapshot_seqno(self):
         return self.remote.most_recent_read_only_snapshot_seqno()
-
-    def hide_committed_ledger_chunk(self, index):
-        ledger_dir = self.remote.ledger_paths()[0]
-        ledger_chunks = list(pathlib.Path(ledger_dir).glob("*.committed"))
-
-        def interval(path):
-            start, end = path.stem.rsplit("_")[-1].split("-")
-            return int(start), int(end)
-
-        # Pick a random chunk, near the start of the ledger, to avoid the cache
-        (chunk_to_hide,) = random.sample(ledger_chunks[:5], 1)
-        shutil.move(
-            chunk_to_hide, os.path.join(tempfile.gettempdir(), chunk_to_hide.name)
-        )
-
-        return chunk_to_hide, interval(chunk_to_hide)
-
-    def unhide_committed_ledger_chunk(self, previously_hidden_chunk):
-        hidden_chunk = pathlib.Path(
-            os.path.join(tempfile.gettempdir(), previously_hidden_chunk.name)
-        )
-        shutil.move(hidden_chunk, previously_hidden_chunk)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         (
