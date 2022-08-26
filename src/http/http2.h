@@ -41,11 +41,38 @@ namespace http2
 
     if (response_body.size() > 0)
     {
+      if (length < response_body.size())
+      {
+        throw std::runtime_error("Read too large");
+      }
+
       // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
       memcpy(buf, response_body.data(), response_body.size());
     }
 
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+
+    if (!stream_data->trailers.empty())
+    {
+      std::vector<nghttp2_nv> trlrs;
+      trlrs.reserve(stream_data->trailers.size());
+      for (auto& [k, v] : stream_data->trailers)
+      {
+        trlrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      int rv =
+        nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
+      if (rv != 0)
+      {
+        throw std::logic_error(
+          fmt::format("nghttp2_submit_trailer error: {}", rv));
+      }
+      else
+      {
+        *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
+      }
+    }
 
     return response_body.size();
   }
@@ -450,10 +477,15 @@ namespace http2
       StreamId stream_id,
       http_status status,
       const http::HeaderMap& headers,
+      http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
-        "http2::send_response: {} - {}", headers.size(), body.size());
+        "http2::send_response: stream {} - {} - {} - {}",
+        stream_id,
+        headers.size(),
+        body.size(),
+        trailers.size());
 
       std::string body_size = std::to_string(body.size());
       std::vector<nghttp2_nv> hdrs;
@@ -462,6 +494,24 @@ namespace http2
       hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
       hdrs.emplace_back(
         make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
+
+      std::string trailer_header_val;
+
+      for (const auto& [k, v] : trailers)
+      {
+        if (!trailer_header_val.empty())
+        {
+          trailer_header_val += ",";
+        }
+        trailer_header_val += k;
+      }
+
+      if (!trailer_header_val.empty())
+      {
+        hdrs.emplace_back(
+          make_nv(http::headers::TRAILER, trailer_header_val.c_str()));
+      }
+
       for (auto& [k, v] : headers)
       {
         hdrs.emplace_back(make_nv(k.data(), v.data()));
@@ -474,6 +524,8 @@ namespace http2
         return;
       }
       stream_data->response_body = std::move(body);
+
+      stream_data->trailers = std::move(trailers);
 
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
