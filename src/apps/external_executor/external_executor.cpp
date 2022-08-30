@@ -31,8 +31,8 @@ namespace externalexecutor
     {
       return [fn](ccf::endpoints::EndpointContext& ctx) {
         fn(ctx);
-        ctx.rpc_ctx->set_response_trailer("gprc-status", 0);
-        //ctx.rpc_ctx->set_response_trailer("gprc-message", "I'm helping!");
+        ctx.rpc_ctx->set_response_trailer("grpc-status", 0);
+        ctx.rpc_ctx->set_response_trailer("grpc-message", "Ok");
       };
     }
 
