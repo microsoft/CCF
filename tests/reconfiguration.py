@@ -5,6 +5,7 @@ import infra.network
 import infra.proc
 import infra.net
 import infra.logging_app as app
+from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
@@ -17,6 +18,7 @@ from datetime import datetime
 from infra.checker import check_can_progress
 from infra.runner import ConcurrentRunner
 import http
+import random
 
 from loguru import logger as LOG
 
@@ -257,6 +259,49 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
             copy_ledger
         ), f"New node {new_node.local_node_id} with ledger should be able to serve historical entries"
 
+    if not copy_ledger:
+        # Pick some sequence numbers before the snapshot the new node started from, and for which
+        # the new node does not have corresponding ledger chunks
+        missing_txids = []
+        with new_node.client("user0") as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            startup_seqno = r.body.json()["startup_seqno"]
+            assert startup_seqno != 0, startup_seqno
+            missing_seqnos = sorted(random.sample(range(0, startup_seqno), 5))
+            view = 2
+            for seqno in missing_seqnos:
+                status = TxStatus.Invalid
+                while status == TxStatus.Invalid:
+                    r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
+                    status = TxStatus(r.body.json()["status"])
+                    if status == TxStatus.Committed:
+                        missing_txids.append(f"{view}.{seqno}")
+                    else:
+                        # Should never happen, because we're looking at seqnos for which there
+                        # is a committed snapshot, and so are definitely committed.
+                        assert status != TxStatus.Pending, status
+                        view += 1
+                        # Not likely to happen on purpose
+                        assert view < 10, view
+
+        LOG.info("Check historical queries return ACCEPTED")
+        with new_node.client("user0") as c:
+            for txid in missing_txids:
+                # New node knows transactions are committed
+                rc = c.get(f"/node/tx?transaction_id={txid}")
+                status = TxStatus(r.body.json()["status"])
+                assert status == TxStatus.Committed
+                # But can't read their contents
+                rc = c.get(f"/app/receipt?transaction_id={txid}")
+                assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
+                time.sleep(3)
+                # Not even after giving the host enough time
+                rc = c.get(f"/app/receipt?transaction_id={txid}")
+                assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
     return network
 
 
@@ -659,7 +704,7 @@ def test_service_config_endpoint(network, args):
             assert args.reconfiguration_type == rj["reconfiguration_type"]
 
 
-def run(args):
+def run_all(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -700,6 +745,9 @@ def run(args):
         test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
+
+    if args.consensus != "BFT":
+        run_join_old_snapshot(args)
 
 
 def run_join_old_snapshot(args):
@@ -885,12 +933,6 @@ def run_migration_tests(args):
     check_2tx_ledger(ledger_paths, learner_id)
 
 
-def run_all(args):
-    run(args)
-    if cr.args.consensus != "BFT":
-        run_join_old_snapshot(args)
-
-
 if __name__ == "__main__":
 
     def add(parser):
@@ -914,7 +956,7 @@ if __name__ == "__main__":
     if cr.args.include_2tx_reconfig:
         cr.add(
             "2tx_reconfig",
-            run,
+            run_all,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             reconfiguration_type="TwoTransaction",
