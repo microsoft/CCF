@@ -49,6 +49,8 @@ namespace ccf
   {
     ForwardedMsg msg;
     ccf::FrameFormat frame_format = ccf::FrameFormat::http;
+    using ForwardedCommandId = size_t;
+    ForwardedCommandId id;
   };
 
   struct MessageHash

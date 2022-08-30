@@ -32,7 +32,73 @@ namespace ccf
     ConsensusType consensus_type;
     NodeId self;
 
+    using ForwardedCommandId = ForwardedHeader::ForwardedCommandId;
+    ForwardedCommandId next_command_id = 0;
+    // {cmd_id -> (node_id, client_session_id) }
+    std::unordered_map<ForwardedCommandId, std::pair<NodeId, size_t>>
+      active_commands;
+    ccf::pal::Mutex active_commands_lock;
+
     using IsCallerCertForwarded = bool;
+
+    struct SendTimeoutErrorMsg
+    {
+      SendTimeoutErrorMsg(
+        Forwarder<ChannelProxy>* forwarder_, ForwardedCommandId cmd_id_) :
+        forwarder(forwarder_),
+        cmd_id(cmd_id_)
+      {}
+
+      Forwarder<ChannelProxy>* forwarder;
+      ForwardedCommandId cmd_id;
+    };
+
+    std::unique_ptr<threading::Tmsg<SendTimeoutErrorMsg>>
+    create_timeout_error_task(ForwardedCommandId cmd_id)
+    {
+      return std::make_unique<threading::Tmsg<SendTimeoutErrorMsg>>(
+        [](std::unique_ptr<threading::Tmsg<SendTimeoutErrorMsg>> msg) {
+          msg->data.forwarder->check_timeout_error(msg->data.cmd_id);
+        },
+        this,
+        cmd_id);
+    }
+
+    void check_timeout_error(ForwardedCommandId cmd_id)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
+      auto command_it = active_commands.find(cmd_id);
+      if (command_it != active_commands.end())
+      {
+        auto& [to, client_session_id] = command_it->second;
+        LOG_INFO_FMT(
+          "Request {} (from session) forwarded to node {} timed out",
+          cmd_id,
+          client_session_id,
+          to);
+        send_timeout_error_response(to, client_session_id);
+        command_it = active_commands.erase(command_it);
+      }
+    }
+
+    void send_timeout_error_response(NodeId to, size_t client_session_id)
+    {
+      auto rpc_responder_shared = rpcresponder.lock();
+      if (rpc_responder_shared)
+      {
+        auto response = http::Response(HTTP_STATUS_GATEWAY_TIMEOUT);
+        auto body = fmt::format(
+          "Request was forwarded to node {}, but no response was received "
+          "after {}ms",
+          to,
+          3000); // TODO: Pass through
+        response.set_body(body);
+        response.set_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        rpc_responder_shared->reply_async(
+          client_session_id, response.build_response());
+      }
+    }
 
   public:
     Forwarder(
@@ -59,8 +125,10 @@ namespace ccf
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
       const auto& raw_request = rpc_ctx->get_serialised_request();
-      size_t size = sizeof(rpc_ctx->get_session_context()->client_session_id) +
-        sizeof(IsCallerCertForwarded) + raw_request.size();
+      auto client_session_id =
+        rpc_ctx->get_session_context()->client_session_id;
+      size_t size = sizeof(client_session_id) + sizeof(IsCallerCertForwarded) +
+        raw_request.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -70,8 +138,7 @@ namespace ccf
       std::vector<uint8_t> plain(size);
       auto data_ = plain.data();
       auto size_ = plain.size();
-      serialized::write(
-        data_, size_, rpc_ctx->get_session_context()->client_session_id);
+      serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
@@ -80,8 +147,19 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
+      ForwardedCommandId command_id;
+      {
+        std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
+        command_id = next_command_id++;
+        active_commands[command_id] = std::make_pair(to, client_session_id);
+
+        threading::ThreadMessaging::thread_messaging.add_task_after(
+          create_timeout_error_task(command_id),
+          std::chrono::milliseconds(3'000)); // TODO: Make configurable
+      }
+
       ForwardedHeader msg = {
-        ForwardedMsg::forwarded_cmd, rpc_ctx->frame_format()};
+        ForwardedMsg::forwarded_cmd, rpc_ctx->frame_format(), command_id};
 
       return n2n_channels->send_encrypted(
         to, NodeMsgType::forwarded_msg, plain, msg);
@@ -150,7 +228,11 @@ namespace ccf
 
       // frame_format is deliberately unset, the forwarder ignores it
       // and expects the same format they forwarded.
-      ForwardedHeader msg = {ForwardedMsg::forwarded_response};
+      ForwardedHeader msg{
+        ForwardedMsg::forwarded_response,
+        {},
+        0 // TODO
+      };
 
       return n2n_channels->send_encrypted(
         from_node, NodeMsgType::forwarded_msg, plain, msg);
