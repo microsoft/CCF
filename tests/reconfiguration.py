@@ -956,7 +956,7 @@ if __name__ == "__main__":
     if cr.args.include_2tx_reconfig:
         cr.add(
             "2tx_reconfig",
-            run,
+            run_all,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             reconfiguration_type="TwoTransaction",
