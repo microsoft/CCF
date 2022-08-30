@@ -1583,16 +1583,6 @@ if __name__ == "__main__":
     cr = ConcurrentRunner()
 
     cr.add(
-        "cpp",
-        run,
-        package="samples/apps/logging/liblogging",
-        js_app_bundle=None,
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
-
-    cr.add(
         "js",
         run,
         package="libjs_generic",
@@ -1615,6 +1605,16 @@ if __name__ == "__main__":
             election_timeout_ms=cr.args.election_timeout_ms
             * 2,  # Larger election timeout as some large payloads may cause an election with v8
         )
+
+    cr.add(
+        "cpp",
+        run,
+        package="samples/apps/logging/liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     cr.add(
         "common",
