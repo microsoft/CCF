@@ -268,7 +268,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
             assert r.status_code == http.HTTPStatus.OK, r
             startup_seqno = r.body.json()["startup_seqno"]
             assert startup_seqno != 0, startup_seqno
-            missing_seqnos = random.sample(range(0, startup_seqno), 5)
+            missing_seqnos = sorted(random.sample(range(0, startup_seqno), 5))
             view = 2
             for seqno in missing_seqnos:
                 status = TxStatus.Invalid
@@ -283,7 +283,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
                         assert status != TxStatus.Pending, status
                         view += 1
                         # Not likely to happen on purpose
-                        assert view < 1000, view
+                        assert view < 10, view
 
         LOG.info("Check historical queries return ACCEPTED")
         with new_node.client("user0") as c:
