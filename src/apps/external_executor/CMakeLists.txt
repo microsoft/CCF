@@ -11,13 +11,19 @@ if(NOT TARGET ${CCF_PROJECT})
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
-add_ccf_app(external_executor SRCS external_executor.cpp)
+add_subdirectory(protobuf)
+
+add_ccf_app(external_executor
+  SRCS external_executor.cpp
+  INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/protobuf"
+  LINK_LIBS_ENCLAVE kv.enclave
+  LINK_LIBS_VIRTUAL kv.virtual)
 
 # Generate an ephemeral signing key
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
   COMMAND openssl genrsa -out ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem -3
-          3072
+  3072
 )
 add_custom_target(
   external_executor_signing_key ALL

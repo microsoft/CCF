@@ -4,6 +4,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_consts.h"
+#include "kv.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -55,7 +56,7 @@ namespace externalexecutor
         .install();
     }
   };
-} // namespace app
+} // namespace externalexecutor
 
 namespace ccfapp
 {
