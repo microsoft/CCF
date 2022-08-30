@@ -54,6 +54,7 @@ namespace http2
 
     if (!stream_data->trailers.empty())
     {
+      LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
       std::vector<nghttp2_nv> trlrs;
       trlrs.reserve(stream_data->trailers.size());
       for (auto& [k, v] : stream_data->trailers)
