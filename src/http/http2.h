@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/ds/nonstd.h"
 #include "enclave/endpoint.h"
 #include "http2_types.h"
 #include "http_proc.h"
@@ -496,16 +497,11 @@ namespace http2
       hdrs.emplace_back(
         make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
 
-      std::string trailer_header_val;
-
-      for (const auto& [k, v] : trailers)
-      {
-        if (!trailer_header_val.empty())
-        {
-          trailer_header_val += ",";
-        }
-        trailer_header_val += k;
-      }
+      using HeaderKeysIt = nonstd::KeyIterator<http::HeaderMap::iterator>;
+      const auto trailer_header_val = fmt::format(
+        "{}",
+        fmt::join(
+          HeaderKeysIt(trailers.begin()), HeaderKeysIt(trailers.end()), ","));
 
       if (!trailer_header_val.empty())
       {
