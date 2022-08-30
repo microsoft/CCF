@@ -794,11 +794,13 @@ def test_historical_query_on_missing_files(network, args):
 
     # Pick some sequence numbers before the snapshot the new node started from, and for which
     # the new node does not have corresponding ledger chunks
-    missing_seqnos = random.sample(
-        range(0, new_node.most_recent_read_only_snapshot_seqno()), 5
-    )
     missing_txids = []
-    with primary.client("user0") as c:
+    with new_node.client("user0") as c:
+        r = c.get("/node/state")
+        assert r.status_code == http.HTTPStatus.OK, r
+        startup_seqno = r.body.json()["startup_seqno"]
+        assert startup_seqno != 0, startup_seqno
+        missing_seqnos = random.sample(range(0, startup_seqno), 5)
         view = 2
         for seqno in missing_seqnos:
             status = TxStatus.Invalid
@@ -1594,34 +1596,34 @@ def run(args):
         network.start_and_open(args)
 
         test(network, args)
-        test_remove(network, args)
-        test_clear(network, args)
-        test_record_count(network, args)
-        test_forwarding_frontends(network, args)
-        test_signed_escapes(network, args)
-        test_user_data_ACL(network, args)
-        test_cert_prefix(network, args)
-        test_anonymous_caller(network, args)
-        test_multi_auth(network, args)
-        test_custom_auth(network, args)
-        test_custom_auth_safety(network, args)
-        test_raw_text(network, args)
-        test_historical_query(network, args)
-        test_historical_query_range(network, args)
-        test_view_history(network, args)
-        test_metrics(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "CFT":
-            test_liveness(network, args)
-            test_rekey(network, args)
-            test_liveness(network, args)
-            test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            test_receipts(network, args)
-            test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            test_historical_receipts(network, args)
-            test_historical_receipts_with_claims(network, args)
+        # test_remove(network, args)
+        # test_clear(network, args)
+        # test_record_count(network, args)
+        # test_forwarding_frontends(network, args)
+        # test_signed_escapes(network, args)
+        # test_user_data_ACL(network, args)
+        # test_cert_prefix(network, args)
+        # test_anonymous_caller(network, args)
+        # test_multi_auth(network, args)
+        # test_custom_auth(network, args)
+        # test_custom_auth_safety(network, args)
+        # test_raw_text(network, args)
+        # test_historical_query(network, args)
+        # test_historical_query_range(network, args)
+        # test_view_history(network, args)
+        # test_metrics(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "CFT":
+        #     test_liveness(network, args)
+        #     test_rekey(network, args)
+        #     test_liveness(network, args)
+        #     test_random_receipts(network, args, False)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     test_receipts(network, args)
+        #     test_historical_query_sparse(network, args)
+        # if "v8" not in args.package:
+        #     test_historical_receipts(network, args)
+        #     test_historical_receipts_with_claims(network, args)
         if args.package == "samples/apps/logging/liblogging":
             test_historical_query_on_missing_files(network, args)
 

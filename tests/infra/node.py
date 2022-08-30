@@ -511,9 +511,6 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
-    def most_recent_read_only_snapshot_seqno(self):
-        return self.remote.most_recent_read_only_snapshot_seqno()
-
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         (
             main_snapshots_dir,
