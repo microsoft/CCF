@@ -188,6 +188,7 @@ include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
+include(${CCF_DIR}/cmake/protobuf.cmake)
 
 # Unit test wrapper
 function(add_unit_test name)

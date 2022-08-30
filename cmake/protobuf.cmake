@@ -1,0 +1,29 @@
+# Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the
+# MIT license.
+
+set(protobuf_BUILD_SHARED_LIBS_DEFAULT OFF)
+set(protobuf_BUILD_TESTS OFF)
+set(protobuf_WITH_ZLIB OFF)
+set(protobuf_BUILD_PROTOC_BINARIES OFF)
+set(protobuf_INSTALL OFF)
+
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW) # Removes warning when setting "protobuf_..." variable above
+add_subdirectory(${CCF_3RD_PARTY_INTERNAL_DIR}/protobuf EXCLUDE_FROM_ALL)
+
+add_custom_target(dummy ALL DEPENDS libprotobuf)
+
+# libprotobuf
+get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
+get_target_property(LIBPROTOBUF_INCLUDE_DIRS libprotobuf INCLUDE_DIRECTORIES)
+
+## enclave
+add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
+target_include_directories(protobuf.enclave PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
+target_compile_options(protobuf.enclave PUBLIC "-Wno-deprecated-enum-enum-conversion") # Remove warning in generated_message_tctable_impl.h
+target_compile_options(protobuf.enclave PUBLIC "-Wno-invalid-noreturn") # https://github.com/protocolbuffers/protobuf/issues/9817
+
+## virtual
+add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
+target_include_directories(protobuf.virtual PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
+target_compile_options(protobuf.virtual PUBLIC "-Wno-deprecated-enum-enum-conversion") # Remove warning in generated_message_tctable_impl.h
+target_compile_options(protobuf.virtual PUBLIC "-Wno-invalid-noreturn") # https://github.com/protocolbuffers/protobuf/issues/9817
