@@ -28,9 +28,3 @@ sign_app_library(
   external_executor.enclave ${CMAKE_CURRENT_SOURCE_DIR}/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
-
-# TODO:
-# 1. Include and build libprotobuf
-# 1'. Add protoc to ansible
-# 2. Create Get and Put endpoints
-# 3. Add gRPC wrappers
