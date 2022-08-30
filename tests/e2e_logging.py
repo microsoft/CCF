@@ -1596,34 +1596,34 @@ def run(args):
         network.start_and_open(args)
 
         test(network, args)
-        # test_remove(network, args)
-        # test_clear(network, args)
-        # test_record_count(network, args)
-        # test_forwarding_frontends(network, args)
-        # test_signed_escapes(network, args)
-        # test_user_data_ACL(network, args)
-        # test_cert_prefix(network, args)
-        # test_anonymous_caller(network, args)
-        # test_multi_auth(network, args)
-        # test_custom_auth(network, args)
-        # test_custom_auth_safety(network, args)
-        # test_raw_text(network, args)
-        # test_historical_query(network, args)
-        # test_historical_query_range(network, args)
-        # test_view_history(network, args)
-        # test_metrics(network, args)
-        # # BFT does not handle re-keying yet
-        # if args.consensus == "CFT":
-        #     test_liveness(network, args)
-        #     test_rekey(network, args)
-        #     test_liveness(network, args)
-        #     test_random_receipts(network, args, False)
-        # if args.package == "samples/apps/logging/liblogging":
-        #     test_receipts(network, args)
-        #     test_historical_query_sparse(network, args)
-        # if "v8" not in args.package:
-        #     test_historical_receipts(network, args)
-        #     test_historical_receipts_with_claims(network, args)
+        test_remove(network, args)
+        test_clear(network, args)
+        test_record_count(network, args)
+        test_forwarding_frontends(network, args)
+        test_signed_escapes(network, args)
+        test_user_data_ACL(network, args)
+        test_cert_prefix(network, args)
+        test_anonymous_caller(network, args)
+        test_multi_auth(network, args)
+        test_custom_auth(network, args)
+        test_custom_auth_safety(network, args)
+        test_raw_text(network, args)
+        test_historical_query(network, args)
+        test_historical_query_range(network, args)
+        test_view_history(network, args)
+        test_metrics(network, args)
+        # BFT does not handle re-keying yet
+        if args.consensus == "CFT":
+            test_liveness(network, args)
+            test_rekey(network, args)
+            test_liveness(network, args)
+            test_random_receipts(network, args, False)
+        if args.package == "samples/apps/logging/liblogging":
+            test_receipts(network, args)
+            test_historical_query_sparse(network, args)
+        if "v8" not in args.package:
+            test_historical_receipts(network, args)
+            test_historical_receipts_with_claims(network, args)
         if args.package == "samples/apps/logging/liblogging":
             test_historical_query_on_missing_files(network, args)
 
