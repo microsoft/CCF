@@ -774,69 +774,6 @@ def test_historical_query(network, args):
     return network
 
 
-@reqs.description("Attempt to read historical state from missing files")
-@reqs.supports_methods("/app/log/private", "/app/log/private/historical")
-@reqs.no_http2()
-@app.scoped_txs()
-def test_historical_query_on_missing_files(network, args):
-    primary, _ = network.find_primary()
-
-    new_node = network.create_node("local://localhost")
-    network.join_node(
-        new_node,
-        args.package,
-        args,
-        copy_ledger=False,
-        target_node=network.find_any_backup(),
-        from_snapshot=True,
-    )
-    network.trust_node(new_node, args)
-
-    # Pick some sequence numbers before the snapshot the new node started from, and for which
-    # the new node does not have corresponding ledger chunks
-    missing_txids = []
-    with new_node.client("user0") as c:
-        r = c.get("/node/state")
-        assert r.status_code == http.HTTPStatus.OK, r
-        startup_seqno = r.body.json()["startup_seqno"]
-        assert startup_seqno != 0, startup_seqno
-        missing_seqnos = random.sample(range(0, startup_seqno), 5)
-        view = 2
-        for seqno in missing_seqnos:
-            status = TxStatus.Invalid
-            while status == TxStatus.Invalid:
-                r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
-                status = TxStatus(r.body.json()["status"])
-                if status == TxStatus.Committed:
-                    missing_txids.append(f"{view}.{seqno}")
-                else:
-                    # Should never happen, because we're looking at seqnos for which there
-                    # is a committed snapshot, and so are definitely committed.
-                    assert status != TxStatus.Pending, status
-                    view += 1
-                    # Not likely to happen on purpose
-                    assert view < 1000, view
-
-    LOG.info("Check historical queries return ACCEPTED")
-    with new_node.client("user0") as c:
-        for txid in missing_txids:
-            # New node knows transactions are committed
-            rc = c.get(f"/node/tx?transaction_id={txid}")
-            status = TxStatus(r.body.json()["status"])
-            assert status == TxStatus.Committed
-            # But can't read their contents
-            rc = c.get(f"/app/receipt?transaction_id={txid}")
-            assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
-            time.sleep(3)
-            # Not even after giving the host enough time
-            rc = c.get(f"/app/receipt?transaction_id={txid}")
-            assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
-
-    network.retire_node(primary, new_node)
-
-    return network
-
-
 @reqs.description("Read historical receipts")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical_receipt")
 def test_historical_receipts(network, args):
@@ -1624,8 +1561,6 @@ def run(args):
         if "v8" not in args.package:
             test_historical_receipts(network, args)
             test_historical_receipts_with_claims(network, args)
-        if args.package == "samples/apps/logging/liblogging":
-            test_historical_query_on_missing_files(network, args)
 
 
 def run_parsing_errors(args):
