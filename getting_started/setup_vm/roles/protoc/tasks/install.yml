@@ -1,0 +1,20 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Download protoc
+  get_url:
+    url: https://github.com/protocolbuffers/protobuf/releases/download/v{{ protoc_version }}/protoc-{{ protoc_version }}-linux-x86_64.zip
+    dest: "{{ workspace }}/protoc.zip"
+  become: true
+
+- name: Create directory for protoc
+  file:
+    path: "{{ protoc_install_prefix }}"
+    state: directory
+  become: true
+
+- name: Unpack protoc
+  unarchive:
+    src: "{{ workspace }}/protoc.zip"
+    dest: "{{ protoc_install_prefix }}"
+  become: true
