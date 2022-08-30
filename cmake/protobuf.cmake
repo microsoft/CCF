@@ -21,16 +21,16 @@ get_target_property(LIBPROTOBUF_INCLUDE_DIRS libprotobuf INCLUDE_DIRECTORIES)
 add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
 target_include_directories(protobuf.enclave PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
 target_compile_options(
-    protobuf.enclave PUBLIC "-Wno-deprecated-enum-enum-conversion"
+  protobuf.enclave PUBLIC "-Wno-deprecated-enum-enum-conversion"
 ) # Remove warnings in generated_message_tctable_impl.h
 target_compile_options(protobuf.enclave PUBLIC "-Wno-invalid-noreturn"
-) # https://github.com/protocolbuffers/protobuf/issues/9817
+)# https://github.com/protocolbuffers/protobuf/issues/9817
 
 # virtual
 add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
 target_include_directories(protobuf.virtual PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
 target_compile_options(
-    protobuf.virtual PUBLIC "-Wno-deprecated-enum-enum-conversion"
+  protobuf.virtual PUBLIC "-Wno-deprecated-enum-enum-conversion"
 ) # Remove warnings in generated_message_tctable_impl.h
 target_compile_options(protobuf.virtual PUBLIC "-Wno-invalid-noreturn"
-) # https://github.com/protocolbuffers/protobuf/issues/9817
+)# https://github.com/protocolbuffers/protobuf/issues/9817
