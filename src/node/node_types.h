@@ -14,7 +14,7 @@ namespace ccf
   using Node2NodeMsg = uint64_t;
 
   // Type of messages exchanged between nodes
-  enum NodeMsgType : uint64_t
+  enum NodeMsgType : Node2NodeMsg
   {
     channel_msg = 0,
     consensus_msg,
@@ -49,6 +49,7 @@ namespace ccf
   {
     ForwardedMsg msg;
     ccf::FrameFormat frame_format = ccf::FrameFormat::http;
+    // TODO: How do we do breaking changes here across LTS?
     using ForwardedCommandId = size_t;
     ForwardedCommandId id;
   };

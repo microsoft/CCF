@@ -271,7 +271,9 @@ namespace ccf
     {
       try
       {
-        auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
+        const auto forwarded_hdr =
+          serialized::peek<ForwardedHeader>(data, size);
+        const auto forwarded_msg = forwarded_hdr.msg;
         LOG_TRACE_FMT(
           "recv_message({}, {} bytes) (type={})",
           from,
@@ -282,6 +284,21 @@ namespace ccf
         {
           case ForwardedMsg::forwarded_cmd:
           {
+            {
+              // Remove this request from active commands list, so it will no
+              // longer trigger a timeout error
+              std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
+              auto deleted = active_commands.erase(forwarded_hdr.id);
+              if (deleted == 0)
+              {
+                LOG_FAIL_FMT(
+                  "Response for {} received too late - already sent timeout "
+                  "error to client",
+                  forwarded_hdr.id);
+                return;
+              }
+            }
+
             std::shared_ptr<ccf::RPCMap> rpc_map_shared = rpc_map.lock();
             if (rpc_map_shared)
             {
