@@ -218,6 +218,7 @@ namespace ccf
     bool send_forwarded_response(
       size_t client_session_id,
       const NodeId& from_node,
+      ForwardedCommandId cmd_id,
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(sizeof(client_session_id) + data.size());
@@ -228,11 +229,7 @@ namespace ccf
 
       // frame_format is deliberately unset, the forwarder ignores it
       // and expects the same format they forwarded.
-      ForwardedHeader msg{
-        ForwardedMsg::forwarded_response,
-        {},
-        0 // TODO
-      };
+      ForwardedHeader msg{ForwardedMsg::forwarded_response, {}, cmd_id};
 
       return n2n_channels->send_encrypted(
         from_node, NodeMsgType::forwarded_msg, plain, msg);
@@ -284,21 +281,6 @@ namespace ccf
         {
           case ForwardedMsg::forwarded_cmd:
           {
-            {
-              // Remove this request from active commands list, so it will no
-              // longer trigger a timeout error
-              std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
-              auto deleted = active_commands.erase(forwarded_hdr.id);
-              if (deleted == 0)
-              {
-                LOG_FAIL_FMT(
-                  "Response for {} received too late - already sent timeout "
-                  "error to client",
-                  forwarded_hdr.id);
-                return;
-              }
-            }
-
             std::shared_ptr<ccf::RPCMap> rpc_map_shared = rpc_map.lock();
             if (rpc_map_shared)
             {
@@ -346,6 +328,7 @@ namespace ccf
               send_forwarded_response(
                 ctx->get_session_context()->client_session_id,
                 from,
+                forwarded_hdr.id,
                 fwd_handler->process_forwarded(ctx));
               LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             }
@@ -354,6 +337,21 @@ namespace ccf
 
           case ForwardedMsg::forwarded_response:
           {
+            {
+              // Remove this request from active commands list, so it will no
+              // longer trigger a timeout error
+              std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
+              auto deleted = active_commands.erase(forwarded_hdr.id);
+              if (deleted == 0)
+              {
+                LOG_FAIL_FMT(
+                  "Response for {} received too late - already sent timeout "
+                  "error to client",
+                  forwarded_hdr.id);
+                return;
+              }
+            }
+
             auto rep = recv_forwarded_response(from, data, size);
             if (!rep.has_value())
             {
