@@ -118,6 +118,13 @@ namespace ccf
       set_response_header(name, std::to_string(n));
     }
 
+    virtual void set_response_trailer(
+      const std::string_view& name, const std::string_view& value) = 0;
+    virtual void set_response_trailer(const std::string_view& name, size_t n)
+    {
+      set_response_trailer(name, std::to_string(n));
+    }
+
     /// Construct OData-formatted response to capture multiple error details
     virtual void set_error(
       http_status status,

@@ -84,6 +84,8 @@ namespace grpc
     }
     ctx->set_response_body(r);
     ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
+    ctx->set_response_trailer("grpc-status", 0);
+    ctx->set_response_trailer("grpc-message", "Ok");
   }
 }
 
@@ -103,6 +105,8 @@ namespace ccf
     // TODO: Return type
     return [f](endpoints::EndpointContext& ctx) {
       f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx));
+      ctx.rpc_ctx->set_response_trailer("grpc-status", 0);
+      ctx.rpc_ctx->set_response_trailer("grpc-message", "Ok");
     };
   }
 

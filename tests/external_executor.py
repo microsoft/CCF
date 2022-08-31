@@ -42,10 +42,11 @@ def test(network, args):
         kv = KV.KVKeyValue()
         kv.key = b"my_key"
         kv.value = b"my_value"
+        kv.table = b"public:app_table"
 
         stub = Service.KVStub(channel)
-        r = stub.Put(kv)
-        r = stub.Get()
+        stub.Put(kv)
+        # r = stub.Get()
 
     LOG.success("PostLog successful")
 
