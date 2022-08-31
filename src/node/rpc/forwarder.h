@@ -268,6 +268,7 @@ namespace ccf
         const auto forwarded_hdr =
           serialized::peek<ForwardedHeader>(data, size);
         const auto forwarded_msg = forwarded_hdr.msg;
+        const auto cmd_id = forwarded_hdr.id;
         LOG_TRACE_FMT(
           "recv_message({}, {} bytes) (type={})",
           from,
@@ -325,7 +326,7 @@ namespace ccf
               send_forwarded_response(
                 ctx->get_session_context()->client_session_id,
                 from,
-                forwarded_hdr.id,
+                cmd_id,
                 fwd_handler->process_forwarded(ctx));
               LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             }
@@ -338,7 +339,7 @@ namespace ccf
               // Cancel and delete the corresponding timeout task, so it will no
               // longer trigger a timeout error
               std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
-              auto it = timeout_tasks.find(forwarded_hdr.id);
+              auto it = timeout_tasks.find(cmd_id);
               if (it != timeout_tasks.end())
               {
                 threading::ThreadMessaging::thread_messaging.cancel_timer_task(
@@ -350,7 +351,7 @@ namespace ccf
                 LOG_FAIL_FMT(
                   "Response for {} received too late - already sent timeout "
                   "error to client",
-                  forwarded_hdr.id);
+                  cmd_id);
                 return;
               }
             }
