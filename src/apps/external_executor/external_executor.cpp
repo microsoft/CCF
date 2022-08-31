@@ -54,7 +54,7 @@ namespace externalexecutor
         if (!value.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          return ccf::KVValue(); // TODO: Handle error
+          return ccf::KVValue(); // Handle errors
         }
 
         ccf::KVValue r;

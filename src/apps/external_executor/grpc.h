@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license.
 
-#include "ds/serialized.h" // TODO: Private header
+#include "ccf/odata_error.h"
+#include "ds/serialized.h"
 
 #include <arpa/inet.h>
+#include <variant>
 #include <vector>
 
 namespace grpc
@@ -16,14 +18,13 @@ namespace grpc
 
   MessageLength read_message_frame(const uint8_t*& data, size_t& size)
   {
-    // TODO: Use std::span
     auto compressed_flag = serialized::read<CompressedFlag>(data, size);
     if (compressed_flag > 1)
     {
       throw std::logic_error(fmt::format(
         "gRPC compressed flag has unexpected value {}", compressed_flag));
     }
-    return serialized::read<MessageLength>(data, size);
+    return ntohl(serialized::read<MessageLength>(data, size));
   }
 
   void write_message_frame(uint8_t*& data, size_t& size, size_t message_size)
@@ -43,15 +44,27 @@ namespace grpc
     auto data = request_body.data();
     auto size = request_body.size();
 
+    // Only remove gRPC frame is content type is gRPC so that it is possible to
+    // send raw protobuf payload for debug
     if (request_content_type == http::headervalues::contenttype::GRPC)
     {
       auto message_length = grpc::read_message_frame(data, size);
-      // TODO: Check remaining message length
+      if (size != message_length)
+      {
+        throw std::logic_error(fmt::format(
+          "Error in gRPC frame: frame size is {} but messages is {} bytes",
+          size,
+          message_length));
+      }
       ctx->set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
     }
     In in;
-    in.ParseFromArray(data, size);
+    if (!in.ParseFromArray(data, size))
+    {
+      throw std::logic_error(
+        fmt::format("Error deserialising protobuf payload of size {}", size));
+    }
     return in;
   }
 
@@ -79,8 +92,7 @@ namespace grpc
     if (!resp.SerializeToArray(r_data, r_size))
     {
       throw std::logic_error(fmt::format(
-        "Error serialising protobuf response of size {} in gRPC message",
-        resp.ByteSizeLong()));
+        "Error serialising protobuf response of size {}", resp.ByteSizeLong()));
     }
     ctx->set_response_body(r);
     ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
@@ -102,15 +114,24 @@ namespace ccf
   template <typename In, typename Out = void>
   endpoints::EndpointFunction grpc_adapter(const GrpcEndpoint<In, Out>& f)
   {
-    // TODO: Return type
-    return [f](endpoints::EndpointContext& ctx) {
-      f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx));
-      ctx.rpc_ctx->set_response_trailer("grpc-status", 0);
-      ctx.rpc_ctx->set_response_trailer("grpc-message", "Ok");
-    };
+    if constexpr (std::is_same_v<Out, void>)
+    {
+      return [f](endpoints::EndpointContext& ctx) {
+        f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx));
+        ctx.rpc_ctx->set_response_trailer("grpc-status", 0);
+        ctx.rpc_ctx->set_response_trailer("grpc-message", "Ok");
+      };
+    }
+    else
+    {
+      return [f](endpoints::EndpointContext& ctx) {
+        grpc::set_grpc_response<Out>(
+          f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
+      };
+    }
   }
 
-  template <typename In, typename Out = void>
+  template <typename In, typename Out>
   endpoints::ReadOnlyEndpointFunction grpc_read_only_adapter(
     const GrpcReadOnlyEndpoint<In, Out>& f)
   {
