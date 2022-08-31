@@ -441,6 +441,40 @@ def test_learner_does_not_take_part(network, args):
     check_can_progress(new_node)
 
 
+@reqs.description("Forwarding across a partition may trigger a timeout")
+@reqs.at_least_n_nodes(3)
+def test_forwarding_timeout(network, args):
+    primary, backups = network.find_nodes()
+    backup = backups[0]
+
+    with backup.client("user0") as c:
+        LOG.info("Initial write request is forwarded and succeeds")
+        key = 42
+        original_val = "Hello world"
+        r = c.post("/app/log/private", {"id": key, "msg": original_val})
+        assert r.status_code == http.HTTPStatus.OK
+
+        network.wait_for_all_nodes_to_commit(primary=primary)
+
+        LOG.info("Cross-partition write request is forwarded and times out")
+        with network.partitioner.partition(backups):
+            # NB: Only fails if request happens soon after partition - eventually
+            # partitioned backups will have an election, and then requests will
+            # succeed again
+            r = c.post("/app/log/private", {"id": 42, "msg": "Saluton"})
+            assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
+
+            network.wait_for_new_primary(primary, nodes=backups)
+
+            # This may need a new client after https://github.com/microsoft/CCF/issues/3952
+            r = c.get(f"/app/log/private?id={key}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.json()["msg"] == original_val, r
+
+        LOG.info("Drop partition and wait for reunification")
+        network.wait_for_primary_unanimity()
+
+
 def run_2tx_reconfig_tests(args):
     if not args.include_2tx_reconfig:
         return
@@ -477,13 +511,14 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_election_reconfiguration(network, args)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
+        # test_isolate_primary_from_one_backup(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        # for n in range(5):
+        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_election_reconfiguration(network, args)
+        test_forwarding_timeout(network, args)
 
 
 if __name__ == "__main__":
