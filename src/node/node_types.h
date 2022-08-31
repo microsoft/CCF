@@ -49,7 +49,6 @@ namespace ccf
   {
     ForwardedMsg msg;
     ccf::FrameFormat frame_format = ccf::FrameFormat::http;
-    // TODO: How do we do breaking changes here across LTS?
     using ForwardedCommandId = size_t;
     ForwardedCommandId id;
   };
