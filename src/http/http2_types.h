@@ -23,6 +23,7 @@ namespace http2
   {
     StreamId id;
     http::HeaderMap headers;
+    http::HeaderMap trailers;
     std::string url;
     ccf::RESTVerb verb;
     std::vector<uint8_t> request_body;
