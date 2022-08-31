@@ -446,22 +446,24 @@ def test_learner_does_not_take_part(network, args):
 def test_forwarding_timeout(network, args):
     primary, backups = network.find_nodes()
     backup = backups[0]
+    key = 42
+    val_a = "Hello"
+    val_b = "Goodbye"
 
     with backup.client("user0") as c:
         LOG.info("Initial write request is forwarded and succeeds")
-        key = 42
-        original_val = "Hello world"
-        r = c.post("/app/log/private", {"id": key, "msg": original_val})
+        r = c.post("/app/log/private", {"id": key, "msg": val_a})
         assert r.status_code == http.HTTPStatus.OK
 
         network.wait_for_all_nodes_to_commit(primary=primary)
 
-        LOG.info("Cross-partition write request is forwarded and times out")
-        with network.partitioner.partition(backups):
+    LOG.info("Cross-partition write request is forwarded and times out")
+    with network.partitioner.partition(backups):
+        with backup.client("user0") as c:
             # NB: Only fails if request happens soon after partition - eventually
             # partitioned backups will have an election, and then requests will
             # succeed again
-            r = c.post("/app/log/private", {"id": 42, "msg": "Saluton"})
+            r = c.post("/app/log/private", {"id": key, "msg": val_b})
             assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
 
             network.wait_for_new_primary(primary, nodes=backups)
@@ -469,10 +471,35 @@ def test_forwarding_timeout(network, args):
             # This may need a new client after https://github.com/microsoft/CCF/issues/3952
             r = c.get(f"/app/log/private?id={key}")
             assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.json()["msg"] == original_val, r
+            assert r.body.json()["msg"] == val_a, r
 
-        LOG.info("Drop partition and wait for reunification")
-        network.wait_for_primary_unanimity()
+    LOG.info("Drop partition and wait for reunification")
+    network.wait_for_primary_unanimity()
+    primary, backups = network.find_nodes()
+    backup = backups[0]
+    check_can_progress(primary)
+    check_can_progress(backup)
+
+    LOG.info("One-way partition may lead to misleading response")
+    # Construct a partial partition, where the backup forwards but does not hear responses
+    rules = network.partitioner.isolate_node(
+        backup,
+        isolation_dir=infra.partitions.IsolationDir.INBOUND_REQUESTS
+        | infra.partitions.IsolationDir.OUTBOUND_RESPONSES,
+    )
+    with backup.client("user0") as c:
+        # NB: Although this backup reports a timeout, the operation was actually
+        # successfully forwarded!
+        r = c.post("/app/log/private", {"id": key, "msg": val_b})
+        assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
+
+    with primary.client("user0") as c:
+        r = c.get(f"/app/log/private?id={key}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["msg"] == val_b, r
+    
+    rules.drop()
+    network.wait_for_primary_unanimity()
 
 
 def run_2tx_reconfig_tests(args):
