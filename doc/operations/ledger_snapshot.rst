@@ -79,7 +79,9 @@ It is important to note that new nodes cannot resume from a snapshot and join a 
 Historical Transactions
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Nodes that started from a snapshot can still process historical queries if the historical ledger files (i.e. the ledger files preceding the snapshot) are made accessible to the node via the ``ledger.read_only_directories`` option to ``cchost``. Although the read-only ledger directory must be specified to the node on start-up, the historical ledger files can be copied to this directory `after` the node is started (see :ref:`operations/data_persistence:Data Persistence`).
+Nodes that started from a snapshot can still process historical queries if the historical ledger files (i.e. the ledger files preceding the snapshot) are made accessible to the node via the ``ledger.read_only_directories`` option to ``cchost``. Although the read-only ledger directory must be specified to the node on start-up, the historical ledger file contents can be copied to this directory `after` the node is started (see :ref:`operations/data_persistence:Data Persistence`).
+
+Before these ledger files are present the node will be functional, participating in consensus and able to accept new transactions, but historical queries targeting the missing entries will permanently stall. Calls to the historical query APIs will return loading responses, as these APIs do not currently distinguish between temporarily missing and permanently missing files. It is the responsibility of the operator to ensure that the ledger files visible to all nodes are complete, including back-filling missing files when required.
 
 Invariants
 ----------
