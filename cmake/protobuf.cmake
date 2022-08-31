@@ -23,7 +23,10 @@ add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
 foreach(TARGET protobuf.enclave protobuf.virtual)
   target_include_directories(${TARGET} PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
   target_compile_options(
-    ${TARGET} PUBLIC "-Wno-deprecated-enum-enum-conversion" # Remove warnings in generated_message_tctable_impl.h
-    "-Wno-invalid-noreturn" # https://github.com/protocolbuffers/protobuf/issues/9817
+    ${TARGET}
+    PUBLIC
+      "-Wno-deprecated-enum-enum-conversion" # Remove warnings in
+                                             # generated_message_tctable_impl.h
+      "-Wno-invalid-noreturn" # https://github.com/protocolbuffers/protobuf/issues/9817
   )
 endforeach()
