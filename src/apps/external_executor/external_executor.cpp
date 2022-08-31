@@ -26,6 +26,16 @@ namespace externalexecutor
       }
     }
 
+    ccf::endpoints::EndpointFunction grpc_response_status_wrapper(
+      const ccf::endpoints::EndpointFunction& fn)
+    {
+      return [fn](ccf::endpoints::EndpointContext& ctx) {
+        fn(ctx);
+        ctx.rpc_ctx->set_response_trailer("grpc-status", 0);
+        ctx.rpc_ctx->set_response_trailer("grpc-message", "Ok");
+      };
+    }
+
   public:
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
@@ -51,7 +61,11 @@ namespace externalexecutor
         CCF_APP_INFO("ECHO HANDLER END");
       };
 
-      make_endpoint("ccf.Echo/Echo", HTTP_POST, do_echo, ccf::no_auth_required)
+      make_endpoint(
+        "ccf.Echo/Echo",
+        HTTP_POST,
+        grpc_response_status_wrapper(do_echo),
+        ccf::no_auth_required)
         .install();
     }
   };

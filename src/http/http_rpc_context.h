@@ -51,6 +51,7 @@ namespace http
     std::vector<uint8_t> serialised_request = {};
 
     http::HeaderMap response_headers;
+    http::HeaderMap response_trailers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
 
@@ -117,6 +118,11 @@ namespace http
     http::HeaderMap get_response_headers() const
     {
       return response_headers;
+    }
+
+    http::HeaderMap get_response_trailers() const
+    {
+      return response_trailers;
     }
 
     std::vector<uint8_t>& get_response_body()
@@ -226,6 +232,12 @@ namespace http
       const std::string_view& name, const std::string_view& value) override
     {
       response_headers[std::string(name)] = value;
+    }
+
+    virtual void set_response_trailer(
+      const std::string_view& name, const std::string_view& value) override
+    {
+      response_trailers[std::string(name)] = value;
     }
 
     virtual void set_apply_writes(bool apply) override
