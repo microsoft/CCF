@@ -45,6 +45,31 @@ namespace externalexecutor
         ccf::grpc_adapter<ccf::KVKeyValue, void>(put),
         ccf::no_auth_required)
         .install();
+
+      auto get = [this](
+                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                   ccf::KVKey&& payload) {
+        auto records_handle = ctx.tx.template ro<Map>(payload.table());
+        auto value = records_handle->get(payload.key());
+        if (!value.has_value())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          return ccf::KVValue(); // TODO: Handle error
+        }
+
+        ccf::KVValue r;
+        r.set_value(value.value());
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return r;
+      };
+
+      make_read_only_endpoint(
+        "ccf.KV/Get",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get),
+        ccf::no_auth_required)
+        .install();
     }
   };
 } // namespace externalexecutor

@@ -5,6 +5,7 @@
 import infra.network
 import infra.e2e_args
 import infra.interfaces
+import suite.test_requirements as reqs
 
 import kv_pb2 as KV
 import kv_pb2_grpc as Service
@@ -14,7 +15,8 @@ import os
 from loguru import logger as LOG
 
 
-def test(network, args):
+@reqs.description("Store and retrieve key via external executor app")
+def test_put_get(network, args):
     primary, _ = network.find_primary()
 
     LOG.info("Check that endpoint supports HTTP/2")
@@ -27,39 +29,37 @@ def test(network, args):
             == "HTTP2"
         ), "Target node does not support HTTP/2"
 
-    LOG.info("gRPC request")
-    # Note: set following envvar for more debug info:
+    # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
+
     credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
+
+    my_key = "my_key"
+    my_value = "my_value"
+    my_table = "my_table"
+
     with grpc.secure_channel(
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        # stub = KV.KvLedgerStub(channel)
-        # assert stub.PostLog(put) == None
-        kv = KV.KVKeyValue()
-        kv.key = b"my_key"
-        kv.value = b"my_value"
-        kv.table = b"public:app_table"
+        put = KV.KVKeyValue()
+        put.key = my_key.encode()
+        put.value = my_value.encode()
+        put.table = my_table.encode()
 
+        LOG.info(f"Put key '{my_key}' in table '{my_table}'")
         stub = Service.KVStub(channel)
-        stub.Put(kv)
-        # r = stub.Get()
+        stub.Put(put)
 
-    LOG.success("PostLog successful")
-
-    # with grpc.secure_channel(
-    #     target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-    #     credentials=credentials,
-    # ) as channel:
-    #     stub = Service.KvLedgerStub(channel)
-    #     rep = stub.GetLog(get)
-    #     LOG.info(f"Value for '{get.key.decode()}': '{rep.value.decode()}'")
-    #     assert rep.value == put.value
-
-    # LOG.success("GetLog successful")
+        LOG.info(f"Get key '{my_key}' in table '{my_table}'")
+        get = KV.KVKey()
+        get.key = my_key.encode()
+        get.table = my_table.encode()
+        r = stub.Get(get)
+        assert r.value == put.value
+        LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
 
     return network
 
@@ -72,7 +72,7 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        test(network, args)
+        test_put_get(network, args)
 
 
 if __name__ == "__main__":
