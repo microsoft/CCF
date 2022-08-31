@@ -83,5 +83,4 @@ if __name__ == "__main__":
     args.http2 = True  # gRPC interface
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
 
-    # Also run $ pip install -r /opt/ccf/bin/requirements.txt
     run(args)

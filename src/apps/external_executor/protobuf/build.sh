@@ -2,7 +2,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <path_to_proto_file> <output_directory>"
+fi
+
 THIS_DIR=$( dirname "${BASH_SOURCE[0]}" )
+SOURCE_FILE=${1}
+GENERATED_DIR=${2}
 
 if [ ! -f "env/bin/activate" ]
     then
@@ -10,20 +16,13 @@ if [ ! -f "env/bin/activate" ]
 fi
 
 source env/bin/activate
-pip install -U -r "${THIS_DIR}/requirements.txt"
+pip install -U -r "${THIS_DIR}/requirements.txt" > /dev/null
 
-GENERATED_DIR="${THIS_DIR}/generated"
 mkdir -p "${GENERATED_DIR}"
 
-build_proto() {
-    echo " -- Building $1"
-
-    python -m grpc_tools.protoc \
+echo " -- Building ${SOURCE_FILE}"
+python -m grpc_tools.protoc \
         -I "${THIS_DIR}" \
         --python_out "${GENERATED_DIR}" \
         --grpc_python_out "${GENERATED_DIR}" \
-        "$1"
-}
-
-build_proto "${THIS_DIR}/executor_registration.proto"
-build_proto "${THIS_DIR}/kv.proto"
+        "${SOURCE_FILE}"
