@@ -34,54 +34,52 @@ namespace ccf
 
     using ForwardedCommandId = ForwardedHeader::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
-    // {cmd_id -> (node_id, client_session_id) }
-    std::unordered_map<ForwardedCommandId, std::pair<NodeId, size_t>>
-      active_commands;
-    ccf::pal::Mutex active_commands_lock;
+    std::unordered_map<ForwardedCommandId, threading::Task::TimerEntry>
+      timeout_tasks;
+    ccf::pal::Mutex timeout_tasks_lock;
 
     using IsCallerCertForwarded = bool;
 
     struct SendTimeoutErrorMsg
     {
       SendTimeoutErrorMsg(
-        Forwarder<ChannelProxy>* forwarder_, ForwardedCommandId cmd_id_) :
+        Forwarder<ChannelProxy>* forwarder_,
+        const ccf::NodeId& to_,
+        size_t client_session_id_,
+        const std::chrono::milliseconds& timeout_) :
         forwarder(forwarder_),
-        cmd_id(cmd_id_)
+        to(to_),
+        client_session_id(client_session_id_),
+        timeout(timeout_)
       {}
 
       Forwarder<ChannelProxy>* forwarder;
-      ForwardedCommandId cmd_id;
+      ccf::NodeId to;
+      size_t client_session_id;
+      std::chrono::milliseconds timeout;
     };
 
     std::unique_ptr<threading::Tmsg<SendTimeoutErrorMsg>>
-    create_timeout_error_task(ForwardedCommandId cmd_id)
+    create_timeout_error_task(
+      const ccf::NodeId& to,
+      size_t client_session_id,
+      const std::chrono::milliseconds& timeout)
     {
       return std::make_unique<threading::Tmsg<SendTimeoutErrorMsg>>(
         [](std::unique_ptr<threading::Tmsg<SendTimeoutErrorMsg>> msg) {
-          msg->data.forwarder->check_timeout_error(msg->data.cmd_id);
+          msg->data.forwarder->send_timeout_error_response(
+            msg->data.to, msg->data.client_session_id, msg->data.timeout);
         },
         this,
-        cmd_id);
+        to,
+        client_session_id,
+        timeout);
     }
 
-    void check_timeout_error(ForwardedCommandId cmd_id)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
-      auto command_it = active_commands.find(cmd_id);
-      if (command_it != active_commands.end())
-      {
-        auto& [to, client_session_id] = command_it->second;
-        LOG_INFO_FMT(
-          "Request {} (from session) forwarded to node {} timed out",
-          cmd_id,
-          client_session_id,
-          to);
-        send_timeout_error_response(to, client_session_id);
-        command_it = active_commands.erase(command_it);
-      }
-    }
-
-    void send_timeout_error_response(NodeId to, size_t client_session_id)
+    void send_timeout_error_response(
+      NodeId to,
+      size_t client_session_id,
+      const std::chrono::milliseconds& timeout)
     {
       auto rpc_responder_shared = rpcresponder.lock();
       if (rpc_responder_shared)
@@ -91,7 +89,7 @@ namespace ccf
           "Request was forwarded to node {}, but no response was received "
           "after {}ms",
           to,
-          3000); // TODO: Pass through
+          timeout.count());
         response.set_body(body);
         response.set_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
@@ -120,7 +118,8 @@ namespace ccf
     bool forward_command(
       std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,
       const NodeId& to,
-      const std::vector<uint8_t>& caller_cert) override
+      const std::vector<uint8_t>& caller_cert,
+      const std::chrono::milliseconds& timeout) override
     {
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
@@ -149,13 +148,11 @@ namespace ccf
 
       ForwardedCommandId command_id;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
+        std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
-        active_commands[command_id] = std::make_pair(to, client_session_id);
-
-        threading::ThreadMessaging::thread_messaging.add_task_after(
-          create_timeout_error_task(command_id),
-          std::chrono::milliseconds(3'000)); // TODO: Make configurable
+        timeout_tasks[command_id] =
+          threading::ThreadMessaging::thread_messaging.add_task_after(
+            create_timeout_error_task(to, client_session_id, timeout), timeout);
       }
 
       ForwardedHeader msg = {
@@ -338,11 +335,17 @@ namespace ccf
           case ForwardedMsg::forwarded_response:
           {
             {
-              // Remove this request from active commands list, so it will no
+              // Cancel and delete the corresponding timeout task, so it will no
               // longer trigger a timeout error
-              std::lock_guard<ccf::pal::Mutex> guard(active_commands_lock);
-              auto deleted = active_commands.erase(forwarded_hdr.id);
-              if (deleted == 0)
+              std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+              auto it = timeout_tasks.find(forwarded_hdr.id);
+              if (it != timeout_tasks.end())
+              {
+                threading::ThreadMessaging::thread_messaging.cancel_timer_task(
+                  it->second);
+                it = timeout_tasks.erase(it);
+              }
+              else
               {
                 LOG_FAIL_FMT(
                   "Response for {} received too late - already sent timeout "
