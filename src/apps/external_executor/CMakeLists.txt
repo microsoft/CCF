@@ -16,8 +16,8 @@ add_subdirectory(protobuf)
 add_ccf_app(external_executor
   SRCS external_executor.cpp
   INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/protobuf"
-  LINK_LIBS_ENCLAVE kv.enclave
-  LINK_LIBS_VIRTUAL kv.virtual)
+  LINK_LIBS_ENCLAVE kv.enclave protobuf.enclave
+  LINK_LIBS_VIRTUAL kv.virtual protobuf.virtual)
 
 # Generate an ephemeral signing key
 add_custom_command(
