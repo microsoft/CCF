@@ -18,8 +18,8 @@ namespace http
     static constexpr auto HOST = "host";
     static constexpr auto LOCATION = "location";
     static constexpr auto RETRY_AFTER = "retry-after";
-    static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
     static constexpr auto TRAILER = "trailer";
+    static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
     static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
   }
