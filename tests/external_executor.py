@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-
-
 import infra.network
 import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
+# pylint: disable=import-error
 import kv_pb2 as KV
+
+# pylint: disable=import-error
 import kv_pb2_grpc as Service
 import grpc
 import os
