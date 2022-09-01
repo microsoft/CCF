@@ -135,6 +135,15 @@
           "commitHash": "2dfc7499a31b84edef71189f4247919268ebc74e"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/protocolbuffers/protobuf",
+          "commitHash": "ab840345966d0fa8e7100d771c92a73bfbadd25c"
+        }
+      }
     }
   ],
   "Version": 1
