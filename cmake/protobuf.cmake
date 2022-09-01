@@ -17,23 +17,16 @@ add_custom_target(dummy ALL DEPENDS libprotobuf)
 get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
 get_target_property(LIBPROTOBUF_INCLUDE_DIRS libprotobuf INCLUDE_DIRECTORIES)
 
+set(PROTOBUF_TARGETS "protobuf.virtual")
+add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
+
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
-  install(
-    TARGETS protobuf.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
+  list(APPEND PROTOBUF_TARGETS "protobuf.enclave")
 endif()
 
-add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
-install(
-  TARGETS protobuf.virtual
-  EXPORT ccf
-  DESTINATION lib
-)
-
-foreach(TARGET protobuf.enclave protobuf.virtual)
+foreach(TARGET ${PROTOBUF_TARGETS})
+  message(STATUS ${TARGET})
   target_include_directories(${TARGET} PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
   target_compile_options(
     ${TARGET}
