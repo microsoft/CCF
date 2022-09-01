@@ -13,7 +13,12 @@
         },
         "type": {
           "type": "string",
-          "enum": ["Release", "Debug", "Virtual"],
+          "enum": [
+            "Release",
+            "Debug",
+            "Virtual",
+            "Snp"
+          ],
           "default": "Release",
           "description": "Type of enclave application"
         }

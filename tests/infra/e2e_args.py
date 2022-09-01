@@ -111,7 +111,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--enclave-type",
         help="Enclave type",
         default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_TYPE", "release")),
-        choices=("release", "debug", "virtual"),
+        choices=("release", "debug", "virtual", "snp"),
     )
     parser.add_argument(
         "--host-log-level",
@@ -376,6 +376,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         args, unknown_args = parser.parse_known_args()
     else:
         args = parser.parse_args()
+
+    if args.enclave_type == "virtual" and os.path.exists("/dev/sev"):
+        args.enclave_type = "snp"
 
     args.binary_dir = os.path.abspath(args.binary_dir)
 

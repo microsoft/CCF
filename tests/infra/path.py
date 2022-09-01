@@ -21,15 +21,17 @@ def mk_new(name, contents):
 
 
 def build_lib_path(lib_name, enclave_type=None, library_dir="."):
-    if enclave_type == "virtual":
+    if enclave_type in ("virtual", "snp"):
         ext = ".virtual.so"
         mode = "Virtual mode"
     elif enclave_type == "debug":
         ext = ".enclave.so.debuggable"
         mode = "Debuggable enclave"
-    else:
+    elif enclave_type == "release":
         ext = ".enclave.so.signed"
         mode = "Real enclave"
+    else:
+        raise ValueError(f"Invalid enclave_type passed {enclave_type}")
     if os.path.isfile(lib_name):
         if ext not in lib_name:
             raise ValueError(f"{mode} requires {ext} enclave image")

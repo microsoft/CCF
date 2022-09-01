@@ -82,6 +82,10 @@ def test_new_service(
     version,
     cycle_existing_nodes=False,
 ):
+    if args.enclave_type == "snp":
+        LOG.info("Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade")
+        return
+
     LOG.info("Update constitution")
     primary, _ = network.find_primary()
     new_constitution = get_new_constitution_for_install(args, install_path)
@@ -184,6 +188,10 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
 ):
+    if args.enclave_type == "snp":
+        LOG.info("Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade")
+        return
+
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
         from_install_path
     )

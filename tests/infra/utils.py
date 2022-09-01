@@ -9,7 +9,7 @@ import subprocess
 def get_code_id(enclave_type, oe_binary_dir, package, library_dir="."):
     lib_path = infra.path.build_lib_path(package, enclave_type, library_dir)
 
-    if enclave_type == "virtual":
+    if enclave_type in ("virtual", "snp"):
         return hashlib.sha384(lib_path.encode()).hexdigest()
     else:
         res = subprocess.run(

@@ -141,6 +141,7 @@ namespace host
         }
 
         case host::EnclaveType::VIRTUAL:
+        case host::EnclaveType::SNP:
         {
 #ifdef CCHOST_SUPPORTS_VIRTUAL
           expect_enclave_file_suffix(path, ".virtual.so", type);

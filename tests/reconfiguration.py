@@ -404,16 +404,16 @@ def test_issue_fake_join(network, args):
 
         LOG.info("Join with SGX real quote, but different TLS key")
         # First, retrieve real quote from primary node
-        r = c.get("/node/quotes/self").body.json()
+        own_quote = c.get("/node/quotes/self").body.json()
         req["quote_info"] = {
             "format": "OE_SGX_v1",
-            "quote": r["raw"],
-            "endorsements": r["endorsements"],
+            "quote": own_quote["raw"],
+            "endorsements": own_quote["endorsements"],
         }
         r = c.post("/node/join", body=req)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
-        if args.enclave_type == "virtual":
+        if args.enclave_type not in ("release", "debug"):
             assert r.body.json()["error"]["message"] == "Quote could not be verified"
         else:
             assert (
@@ -440,19 +440,21 @@ def test_issue_fake_join(network, args):
         LOG.info("Join with AMD SEV-SNP quote")
         req["quote_info"] = {
             "format": "AMD_SEV_SNP_v1",
-            "quote": "",
-            "endorsements": "",
+            "quote": own_quote["raw"],
+            "endorsements": own_quote["endorsements"],
         }
         r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual":
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
-        else:
+        if args.enclave_type != "snp":
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
             # https://github.com/microsoft/CCF/issues/4072
             assert (
                 r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "SEV-SNP node cannot currently join SGX network"
+            ), "SEV-SNP node cannot currently join a Non-SNP network"
+        else:
+            assert (
+                r.body.json()["error"]["message"]
+                == "Quote report data does not contain node's public key hash"
+            )
 
     return network
 
