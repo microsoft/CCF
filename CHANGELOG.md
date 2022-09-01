@@ -1661,4 +1661,3 @@ Initial pre-release
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
 [unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased
-
