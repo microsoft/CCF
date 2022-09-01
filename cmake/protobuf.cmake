@@ -17,20 +17,30 @@ add_custom_target(dummy ALL DEPENDS libprotobuf)
 get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
 get_target_property(LIBPROTOBUF_INCLUDE_DIRS libprotobuf INCLUDE_DIRECTORIES)
 
-# enclave
-add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
-target_include_directories(protobuf.enclave PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
-target_compile_options(
-  protobuf.enclave PUBLIC "-Wno-deprecated-enum-enum-conversion"
-) # Remove warnings in generated_message_tctable_impl.h
-target_compile_options(protobuf.enclave PUBLIC "-Wno-invalid-noreturn"
-)# https://github.com/protocolbuffers/protobuf/issues/9817
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
+  install(
+    TARGETS protobuf.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
-# virtual
 add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
-target_include_directories(protobuf.virtual PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
-target_compile_options(
-  protobuf.virtual PUBLIC "-Wno-deprecated-enum-enum-conversion"
-) # Remove warnings in generated_message_tctable_impl.h
-target_compile_options(protobuf.virtual PUBLIC "-Wno-invalid-noreturn"
-)# https://github.com/protocolbuffers/protobuf/issues/9817
+install(
+  TARGETS protobuf.virtual
+  EXPORT ccf
+  DESTINATION lib
+)
+
+foreach(TARGET protobuf.enclave protobuf.virtual)
+  target_include_directories(${TARGET} PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
+  target_compile_options(
+    ${TARGET}
+    PUBLIC
+    "-Wno-deprecated-enum-enum-conversion" # Remove warnings in
+
+    # generated_message_tctable_impl.h
+    "-Wno-invalid-noreturn" # https://github.com/protocolbuffers/protobuf/issues/9817
+  )
+endforeach()
