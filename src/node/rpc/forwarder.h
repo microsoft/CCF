@@ -146,7 +146,7 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-#if true
+#if false
       {
         ForwardedCommandId command_id;
         {
