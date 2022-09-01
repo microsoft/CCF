@@ -16,7 +16,7 @@ if [ ! -f "env/bin/activate" ]
 fi
 
 source env/bin/activate
-pip install -U -r "${THIS_DIR}/requirements.txt" > /dev/null
+pip install -q -U -r "${THIS_DIR}/requirements.txt"
 
 mkdir -p "${GENERATED_DIR}"
 

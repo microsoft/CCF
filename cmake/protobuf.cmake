@@ -26,14 +26,12 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 endif()
 
 foreach(TARGET ${PROTOBUF_TARGETS})
-  message(STATUS ${TARGET})
   target_include_directories(${TARGET} PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
   target_compile_options(
     ${TARGET}
     PUBLIC
-    "-Wno-deprecated-enum-enum-conversion" # Remove warnings in
-
-    # generated_message_tctable_impl.h
-    "-Wno-invalid-noreturn" # https://github.com/protocolbuffers/protobuf/issues/9817
+      "-Wno-deprecated-enum-enum-conversion" # Remove warnings in
+      # generated_message_tctable_impl.h
+      "-Wno-invalid-noreturn" # https://github.com/protocolbuffers/protobuf/issues/9817
   )
 endforeach()

@@ -58,7 +58,7 @@ def test_put_get(network, args):
         get.key = my_key.encode()
         get.table = my_table.encode()
         r = stub.Get(get)
-        assert r.value == put.value
+        assert r.value == my_value.encode()
         LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
 
     return network

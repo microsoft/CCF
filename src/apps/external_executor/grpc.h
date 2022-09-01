@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
+// Licensed under the Apache 2.0 License.
 
 #include "ccf/odata_error.h"
 #include "ds/serialized.h"
@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-namespace grpc
+namespace ccf::grpc
 {
   using CompressedFlag = uint8_t;
   using MessageLength = uint32_t;
@@ -19,7 +19,7 @@ namespace grpc
   MessageLength read_message_frame(const uint8_t*& data, size_t& size)
   {
     auto compressed_flag = serialized::read<CompressedFlag>(data, size);
-    if (compressed_flag > 1)
+    if (compressed_flag >= 1)
     {
       throw std::logic_error(fmt::format(
         "gRPC compressed flag has unexpected value {}", compressed_flag));
