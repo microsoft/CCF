@@ -32,8 +32,10 @@ namespace ccf
   // Types of frontend messages
   enum ForwardedMsg : Node2NodeMsg
   {
-    forwarded_cmd = 0,
-    forwarded_response
+    forwarded_cmd_v1 = 0,
+    forwarded_response_v1,
+    forwarded_cmd_v2,
+    forwarded_response_v2
   };
 
 #pragma pack(push, 1)
@@ -45,10 +47,14 @@ namespace ccf
   };
 
   // Frontend-specific header for forwarding
-  struct ForwardedHeader
+  struct ForwardedHeader_v1
   {
     ForwardedMsg msg;
     ccf::FrameFormat frame_format = ccf::FrameFormat::http;
+  };
+
+  struct ForwardedHeader_v2 : public ForwardedHeader_v1
+  {
     using ForwardedCommandId = size_t;
     ForwardedCommandId id;
   };

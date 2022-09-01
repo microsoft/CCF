@@ -32,7 +32,7 @@ namespace ccf
     ConsensusType consensus_type;
     NodeId self;
 
-    using ForwardedCommandId = ForwardedHeader::ForwardedCommandId;
+    using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
     std::unordered_map<ForwardedCommandId, threading::Task::TimerEntry>
       timeout_tasks;
@@ -146,33 +146,46 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedCommandId command_id;
+#if false
       {
-        std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
-        command_id = next_command_id++;
-        timeout_tasks[command_id] =
-          threading::ThreadMessaging::thread_messaging.add_task_after(
-            create_timeout_error_task(to, client_session_id, timeout), timeout);
+        ForwardedCommandId command_id;
+        {
+          std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+          command_id = next_command_id++;
+          timeout_tasks[command_id] =
+            threading::ThreadMessaging::thread_messaging.add_task_after(
+              create_timeout_error_task(to, client_session_id, timeout),
+              timeout);
+        }
+
+        ForwardedHeader_v2 msg = {
+          ForwardedMsg::forwarded_cmd_v2, rpc_ctx->frame_format(), command_id};
+
+        return n2n_channels->send_encrypted(
+          to, NodeMsgType::forwarded_msg, plain, msg);
       }
+#else
+      {
+        ForwardedHeader_v1 msg = {
+          ForwardedMsg::forwarded_cmd_v1, rpc_ctx->frame_format()};
 
-      ForwardedHeader msg = {
-        ForwardedMsg::forwarded_cmd, rpc_ctx->frame_format(), command_id};
-
-      return n2n_channels->send_encrypted(
-        to, NodeMsgType::forwarded_msg, plain, msg);
+        return n2n_channels->send_encrypted(
+          to, NodeMsgType::forwarded_msg, plain, msg);
+      }
+#endif
     }
 
+    template <typename TFwdHdr>
     std::shared_ptr<http::HttpRpcContext> recv_forwarded_command(
       const NodeId& from, const uint8_t* data, size_t size)
     {
-      std::pair<ForwardedHeader, std::vector<uint8_t>> r;
+      std::pair<TFwdHdr, std::vector<uint8_t>> r;
       try
       {
         LOG_TRACE_FMT("Receiving forwarded command of {} bytes", size);
         LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
 
-        r = n2n_channels->template recv_encrypted<ForwardedHeader>(
-          from, data, size);
+        r = n2n_channels->template recv_encrypted<TFwdHdr>(from, data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -212,10 +225,11 @@ namespace ccf
       }
     }
 
+    template <typename TFwdHdr>
     bool send_forwarded_response(
       size_t client_session_id,
       const NodeId& from_node,
-      ForwardedCommandId cmd_id,
+      const TFwdHdr& header,
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(sizeof(client_session_id) + data.size());
@@ -224,26 +238,24 @@ namespace ccf
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      // frame_format is deliberately unset, the forwarder ignores it
-      // and expects the same format they forwarded.
-      ForwardedHeader msg{ForwardedMsg::forwarded_response, {}, cmd_id};
-
       return n2n_channels->send_encrypted(
-        from_node, NodeMsgType::forwarded_msg, plain, msg);
+        from_node, NodeMsgType::forwarded_msg, plain, header);
     }
 
-    std::optional<std::pair<size_t, std::vector<uint8_t>>>
-    recv_forwarded_response(
+    using ForwardedResponseResult =
+      std::optional<std::pair<size_t, std::vector<uint8_t>>>;
+
+    template <typename TFwdHdr>
+    ForwardedResponseResult recv_forwarded_response(
       const NodeId& from, const uint8_t* data, size_t size)
     {
-      std::pair<ForwardedHeader, std::vector<uint8_t>> r;
+      std::pair<TFwdHdr, std::vector<uint8_t>> r;
       try
       {
         LOG_TRACE_FMT("Receiving response of {} bytes", size);
         LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
 
-        r = n2n_channels->template recv_encrypted<ForwardedHeader>(
-          from, data, size);
+        r = n2n_channels->template recv_encrypted<TFwdHdr>(from, data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -265,10 +277,9 @@ namespace ccf
     {
       try
       {
-        const auto forwarded_hdr =
-          serialized::peek<ForwardedHeader>(data, size);
-        const auto forwarded_msg = forwarded_hdr.msg;
-        const auto cmd_id = forwarded_hdr.id;
+        const auto forwarded_hdr_v1 =
+          serialized::peek<ForwardedHeader_v1>(data, size);
+        const auto forwarded_msg = forwarded_hdr_v1.msg;
         LOG_TRACE_FMT(
           "recv_message({}, {} bytes) (type={})",
           from,
@@ -277,12 +288,24 @@ namespace ccf
 
         switch (forwarded_msg)
         {
-          case ForwardedMsg::forwarded_cmd:
+          case ForwardedMsg::forwarded_cmd_v1:
+          case ForwardedMsg::forwarded_cmd_v2:
           {
             std::shared_ptr<ccf::RPCMap> rpc_map_shared = rpc_map.lock();
             if (rpc_map_shared)
             {
-              auto ctx = recv_forwarded_command(from, data, size);
+              std::shared_ptr<http::HttpRpcContext> ctx;
+              if (forwarded_msg == ForwardedMsg::forwarded_cmd_v2)
+              {
+                ctx =
+                  recv_forwarded_command<ForwardedHeader_v2>(from, data, size);
+              }
+              else
+              {
+                ctx =
+                  recv_forwarded_command<ForwardedHeader_v1>(from, data, size);
+              }
+
               if (ctx == nullptr)
               {
                 LOG_FAIL_FMT("Failed to receive forwarded command");
@@ -322,41 +345,84 @@ namespace ccf
                 return;
               }
 
-              // Ignore return value - false only means it is pending
-              send_forwarded_response(
-                ctx->get_session_context()->client_session_id,
-                from,
-                cmd_id,
-                fwd_handler->process_forwarded(ctx));
+              if (forwarded_msg == ForwardedMsg::forwarded_cmd_v2)
+              {
+                const auto forwarded_hdr_v2 =
+                  serialized::peek<ForwardedHeader_v2>(data, size);
+                const auto cmd_id = forwarded_hdr_v2.id;
+
+                // frame_format is deliberately unset, the forwarder ignores it
+                // and expects the same format they forwarded.
+                ForwardedHeader_v2 response_header{
+                  {ForwardedMsg::forwarded_response_v2, {}}, cmd_id};
+
+                // Ignore return value - false only means it is pending
+                send_forwarded_response(
+                  ctx->get_session_context()->client_session_id,
+                  from,
+                  response_header,
+                  fwd_handler->process_forwarded(ctx));
+              }
+              else
+              {
+                // frame_format is deliberately unset, the forwarder ignores it
+                // and expects the same format they forwarded.
+                ForwardedHeader_v1 response_header{
+                  ForwardedMsg::forwarded_response_v2};
+
+                // Ignore return value - false only means it is pending
+                send_forwarded_response(
+                  ctx->get_session_context()->client_session_id,
+                  from,
+                  response_header,
+                  fwd_handler->process_forwarded(ctx));
+              }
               LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             }
             break;
           }
 
-          case ForwardedMsg::forwarded_response:
+          case ForwardedMsg::forwarded_response_v2:
           {
+            const auto forwarded_hdr_v2 =
+              serialized::peek<ForwardedHeader_v2>(data, size);
+            const auto cmd_id = forwarded_hdr_v2.id;
+
+            // Cancel and delete the corresponding timeout task, so it will no
+            // longer trigger a timeout error
+            std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+            auto it = timeout_tasks.find(cmd_id);
+            if (it != timeout_tasks.end())
             {
-              // Cancel and delete the corresponding timeout task, so it will no
-              // longer trigger a timeout error
-              std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
-              auto it = timeout_tasks.find(cmd_id);
-              if (it != timeout_tasks.end())
-              {
-                threading::ThreadMessaging::thread_messaging.cancel_timer_task(
-                  it->second);
-                it = timeout_tasks.erase(it);
-              }
-              else
-              {
-                LOG_FAIL_FMT(
-                  "Response for {} received too late - already sent timeout "
-                  "error to client",
-                  cmd_id);
-                return;
-              }
+              threading::ThreadMessaging::thread_messaging.cancel_timer_task(
+                it->second);
+              it = timeout_tasks.erase(it);
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Response for {} received too late - already sent timeout "
+                "error to client",
+                cmd_id);
+              return;
+            }
+            // Deliberate fall-through
+          }
+
+          case ForwardedMsg::forwarded_response_v1:
+          {
+            ForwardedResponseResult rep;
+            if (forwarded_msg == ForwardedMsg::forwarded_response_v2)
+            {
+              rep =
+                recv_forwarded_response<ForwardedHeader_v2>(from, data, size);
+            }
+            else
+            {
+              rep =
+                recv_forwarded_response<ForwardedHeader_v1>(from, data, size);
             }
 
-            auto rep = recv_forwarded_response(from, data, size);
             if (!rep.has_value())
             {
               return;
