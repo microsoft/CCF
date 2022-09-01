@@ -440,6 +440,7 @@ def test_learner_does_not_take_part(network, args):
     check_can_progress(primary)
     check_can_progress(new_node)
 
+
 def run_2tx_reconfig_tests(args):
     if not args.include_2tx_reconfig:
         return
