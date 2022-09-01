@@ -368,7 +368,7 @@ namespace ccf
                 // frame_format is deliberately unset, the forwarder ignores it
                 // and expects the same format they forwarded.
                 ForwardedHeader_v1 response_header{
-                  ForwardedMsg::forwarded_response_v2};
+                  ForwardedMsg::forwarded_response_v1};
 
                 // Ignore return value - false only means it is pending
                 send_forwarded_response(
