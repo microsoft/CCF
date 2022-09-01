@@ -146,7 +146,7 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-#if false
+#if true
       {
         ForwardedCommandId command_id;
         {
@@ -159,7 +159,8 @@ namespace ccf
         }
 
         ForwardedHeader_v2 msg = {
-          ForwardedMsg::forwarded_cmd_v2, rpc_ctx->frame_format(), command_id};
+          {ForwardedMsg::forwarded_cmd_v2, rpc_ctx->frame_format()},
+          command_id};
 
         return n2n_channels->send_encrypted(
           to, NodeMsgType::forwarded_msg, plain, msg);
