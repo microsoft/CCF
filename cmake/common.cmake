@@ -8,9 +8,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Threads REQUIRED)
 
 function(message)
-    if (NOT MESSAGE_QUIET)
-        _message(${ARGN})
-    endif()
+  if(NOT MESSAGE_QUIET)
+    _message(${ARGN})
+  endif()
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
