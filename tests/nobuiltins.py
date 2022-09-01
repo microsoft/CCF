@@ -63,4 +63,6 @@ def test_nobuiltins_endpoints(network, args):
             assert (
                 node_id in known_node_ids
             ), f"Response contains '{node_id}', which is not in known IDs: {known_node_ids}"
-            assert node_info["quote_format"] == expected_format, node_info["quote_format"]
+            assert node_info["quote_format"] == expected_format, node_info[
+                "quote_format"
+            ]

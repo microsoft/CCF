@@ -83,7 +83,9 @@ def test_new_service(
     cycle_existing_nodes=False,
 ):
     if args.enclave_type == "snp":
-        LOG.info("Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade")
+        LOG.info(
+            "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
+        )
         return
 
     LOG.info("Update constitution")
@@ -189,7 +191,9 @@ def run_code_upgrade_from(
     from_container_image=None,
 ):
     if args.enclave_type == "snp":
-        LOG.info("Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade")
+        LOG.info(
+            "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
+        )
         return
 
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(

@@ -25,7 +25,9 @@ def test_verify_quotes(network, args):
         LOG.warning("Skipping quote test with virtual enclave")
         return network
     elif args.enclave_type == "snp":
-        LOG.warning("Skipping quote test until there is a separate utility to verify SNP quotes")
+        LOG.warning(
+            "Skipping quote test until there is a separate utility to verify SNP quotes"
+        )
         return network
 
     LOG.info("Check the network is stable")
