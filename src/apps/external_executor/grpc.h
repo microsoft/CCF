@@ -44,7 +44,7 @@ namespace ccf::grpc
     auto data = request_body.data();
     auto size = request_body.size();
 
-    // Only remove gRPC frame is content type is gRPC so that it is possible to
+    // Only remove gRPC frame if content type is gRPC so that it is possible to
     // send raw protobuf payload for debug
     if (request_content_type == http::headervalues::contenttype::GRPC)
     {
