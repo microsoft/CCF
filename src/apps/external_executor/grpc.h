@@ -3,6 +3,7 @@
 
 #include "ccf/odata_error.h"
 #include "ds/serialized.h"
+#include "node/rpc/rpc_exception.h"
 
 #include <arpa/inet.h>
 #include <variant>
@@ -22,7 +23,9 @@ namespace ccf::grpc
     if (compressed_flag >= 1)
     {
       throw std::logic_error(fmt::format(
-        "gRPC compressed flag has unexpected value {}", compressed_flag));
+        "gRPC compressed flag has unexpected value {} - currently only support "
+        "unencoded gRPC payloads",
+        compressed_flag));
     }
     return ntohl(serialized::read<MessageLength>(data, size));
   }
@@ -44,21 +47,27 @@ namespace ccf::grpc
     auto data = request_body.data();
     auto size = request_body.size();
 
-    // Only remove gRPC frame is content type is gRPC so that it is possible to
-    // send raw protobuf payload for debug
-    if (request_content_type == http::headervalues::contenttype::GRPC)
+    if (request_content_type != http::headervalues::contenttype::GRPC)
     {
-      auto message_length = grpc::read_message_frame(data, size);
-      if (size != message_length)
-      {
-        throw std::logic_error(fmt::format(
-          "Error in gRPC frame: frame size is {} but messages is {} bytes",
-          size,
-          message_length));
-      }
-      ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+      throw RpcException(
+        HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
+        ccf::errors::UnsupportedContentType,
+        fmt::format(
+          "Unsupported content type. Only {} is supported ",
+          http::headervalues::contenttype::GRPC));
     }
+
+    auto message_length = grpc::read_message_frame(data, size);
+    if (size != message_length)
+    {
+      throw std::logic_error(fmt::format(
+        "Error in gRPC frame: frame size is {} but messages is {} bytes",
+        size,
+        message_length));
+    }
+    ctx->set_response_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+
     In in;
     if (!in.ParseFromArray(data, size))
     {

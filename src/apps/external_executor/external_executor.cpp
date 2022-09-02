@@ -20,16 +20,8 @@ namespace externalexecutor
   {
     void install_registry_service() {}
 
-    void install_kv_service() {}
-
-  public:
-    EndpointRegistry(ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(context)
+    void install_kv_service()
     {
-      install_registry_service();
-
-      install_kv_service();
-
       auto put = [this](
                    ccf::endpoints::EndpointContext& ctx,
                    ccf::KVKeyValue&& payload) {
@@ -70,6 +62,15 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get),
         ccf::no_auth_required)
         .install();
+    }
+
+  public:
+    EndpointRegistry(ccfapp::AbstractNodeContext& context) :
+      ccf::UserEndpointRegistry(context)
+    {
+      install_registry_service();
+
+      install_kv_service();
     }
   };
 } // namespace externalexecutor
