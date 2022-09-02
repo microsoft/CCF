@@ -4,7 +4,7 @@ parameters:
 steps:
   - script: |
       set -ex
-      tests/sgxinfo.sh
+      samples/scripts/platform_info.sh
       cat /proc/cpuinfo | grep flags | uniq
       sudo groupadd -g 119 sgx_prv
       sudo usermod -a -G sgx_prv $(whoami)
