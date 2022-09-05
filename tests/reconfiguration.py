@@ -421,22 +421,6 @@ def test_issue_fake_join(network, args):
                 == "Quote report data does not contain node's public key hash"
             )
 
-        LOG.info("Join with virtual quote")
-        req["quote_info"] = {
-            "format": "Insecure_Virtual",
-            "quote": "",
-            "endorsements": "",
-        }
-        r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual":
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
-        else:
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            assert (
-                r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "Virtual node must never join SGX network"
-
         LOG.info("Join with AMD SEV-SNP quote")
         req["quote_info"] = {
             "format": "AMD_SEV_SNP_v1",
@@ -455,6 +439,22 @@ def test_issue_fake_join(network, args):
                 r.body.json()["error"]["message"]
                 == "Quote report data does not contain node's public key hash"
             )
+
+        LOG.info("Join with virtual quote")
+        req["quote_info"] = {
+            "format": "Insecure_Virtual",
+            "quote": "",
+            "endorsements": "",
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type == "virtual":
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "Virtual node must never join SGX network"
 
     return network
 
