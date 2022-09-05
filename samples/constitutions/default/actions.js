@@ -922,7 +922,7 @@ const actions = new Map([
       },
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
-        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
+        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToExecute");
         ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ALLOWED);
       }
     ),

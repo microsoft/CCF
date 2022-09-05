@@ -170,29 +170,6 @@ namespace ccf
       .set_auto_schema<void, GetCode::Out>()
       .install();
 
-    auto get_executor_code = [](auto& ctx, nlohmann::json&&) {
-      GetCode::Out out;
-
-      auto executor_codes_ids =
-        ctx.tx.template ro<ExecutorCodeIDs>(Tables::EXECUTOR_CODE_IDS);
-      executor_codes_ids->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
-          auto digest = ds::to_hex(cd.data);
-          out.versions.push_back({digest, info.status, info.platform});
-          return true;
-        });
-
-      return make_success(out);
-    };
-
-    make_read_only_endpoint(
-      "/executor_code",
-      HTTP_GET,
-      json_read_only_adapter(get_executor_code),
-      no_auth_required)
-      .set_auto_schema<void, GetCode::Out>()
-      .install();
-
     auto openapi = [this](auto& ctx, nlohmann::json&&) {
       nlohmann::json document;
       const auto result = generate_openapi_document_v1(
