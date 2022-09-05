@@ -135,7 +135,7 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
 endforeach()
 
 # Install additional utilities
-install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/platform_info.sh DESTINATION bin)
 install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
@@ -188,6 +188,7 @@ include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
+include(${CCF_DIR}/cmake/protobuf.cmake)
 
 # Unit test wrapper
 function(add_unit_test name)

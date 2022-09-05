@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+package ccf;
+
+message Test
+{
+    string content = 1;
+}
+
+service Echo
+{
+    rpc Echo (google.protobuf.Any) returns (google.protobuf.Any) {}
+}
+

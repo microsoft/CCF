@@ -4,6 +4,15 @@
 
 set +e
 
+# SEV-SNP
+AMD_SEV_SNP_DEVICE="/dev/sev"
+if test -c "$AMD_SEV_SNP_DEVICE"; then
+    echo "AMD SEV-SNP:"
+    echo "$AMD_SEV_SNP_DEVICE detected."
+    exit 0
+fi
+
+# SGX
 if grep -q "^flags.*sgx.*" < /proc/cpuinfo ; then
     echo "LINUX KERNEL WITH BUILT-IN SGX SUPPORT (5.11+):"
     uname -r

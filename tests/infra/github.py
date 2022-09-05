@@ -151,7 +151,9 @@ class GitEnv:
     def has_release_for_tag_name(self, tag_name):
         return (
             requests.head(
-                get_debian_package_url_from_tag_name(tag_name), allow_redirects=True
+                get_debian_package_url_from_tag_name(tag_name),
+                allow_redirects=True,
+                timeout=3,
             ).status_code
             == 200
         )
