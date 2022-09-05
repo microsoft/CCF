@@ -998,6 +998,12 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL perf
   )
+
+  add_e2e_test(
+    NAME external_executor_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/external_executor.py
+    CONSENSUS ${CONSENSUS_FILTER}
+  )
 endif()
 
 # Generate and install CMake export file for consumers using CMake
