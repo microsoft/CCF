@@ -108,8 +108,8 @@ namespace kv
 
     /** Iterate over all entries in the map.
      *
-     * The passed functor should have the signature `bool(const K& k, const V&
-     * v)`.
+     * The passed functor should have the signature
+     * `bool(const K& k, const V& v)`.
      * The iteration order is undefined.
      * Return true to continue iteration, or return false from any invocation to
      * terminate the iteration at that point - the functor will not be invoked
