@@ -1,5 +1,5 @@
 parameters:
-  target: ["NoSGX", "SGX", "SNP"]
+  target: ["NoSGX", "SGX", "SNPCC"]
 
   env:
     Hosted:
@@ -12,8 +12,8 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-dcv2-focal
-    SNP:
-      pool: sev-snp-pool
+    SNPCC:
+      pool: sev-snpcc-pool
 
   build:
     common:
@@ -22,7 +22,7 @@ parameters:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
-    SNP:
+    SNPCC:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
@@ -40,7 +40,7 @@ parameters:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
     SGX:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
-    SNP:
+    SNPCC:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
