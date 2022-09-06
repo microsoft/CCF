@@ -1,7 +1,7 @@
 parameters:
   env:
-    NoSGX:
-      container: nosgx
+    Virtual:
+      container: virtual
       pool: 1es-dv4-focal
     SGX:
       container: sgx
@@ -13,7 +13,7 @@ parameters:
   build:
     common:
       cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON -DENABLE_HTTP2=ON"
-    NoSGX:
+    Virtual:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
@@ -29,7 +29,7 @@ parameters:
 jobs:
   - job: "Make"
     displayName: "Make generator"
-    ${{ insert }}: "${{ parameters.env.NoSGX }}"
+    ${{ insert }}: "${{ parameters.env.Virtual }}"
     dependsOn: configure
     steps:
       - checkout: self
@@ -39,18 +39,18 @@ jobs:
           set -ex
           mkdir build_make
           cd build_make
-          cmake -L .. ${{ parameters.build.NoSGX.cmake_args }}
+          cmake -L .. ${{ parameters.build.Virtual.cmake_args }}
         displayName: CMake
 
   - template: common.yml
     parameters:
-      target: NoSGX
-      env: "${{ parameters.env.NoSGX }}"
+      target: Virtual
+      env: "${{ parameters.env.Virtual }}"
       fetch_v8: debug
       fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.V8Debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.V8Debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "Instrumented"
-      artifact_name: "NoSGX_Instrumented"
+      artifact_name: "Virtual_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "800"
       depends_on: configure
