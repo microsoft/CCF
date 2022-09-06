@@ -26,7 +26,7 @@ schedules:
 
 resources:
   containers:
-    - container: nosgx
+    - container: virtual
       image: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
