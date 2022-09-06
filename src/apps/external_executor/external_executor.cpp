@@ -48,7 +48,11 @@ namespace externalexecutor
         if (!value.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          return ccf::grpc::make_success(ccf::KVValue());
+          // return ccf::grpc::make_success(ccf::KVValue());
+          return ccf::grpc::make_error<ccf::KVValue>(
+            grpc_status::NOT_FOUND,
+            fmt::format("Key {} does not exist", payload.key()),
+            "");
         }
 
         ccf::KVValue r;
