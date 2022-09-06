@@ -132,4 +132,5 @@ UseTab:          Never
 Language: Proto
 IndentWidth:     2
 UseTab:          Never
+BreakBeforeBraces: Stroustrup
 ...
