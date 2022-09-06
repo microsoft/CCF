@@ -51,8 +51,8 @@ namespace externalexecutor
           // TODO: Can we not specify `ccf::KVValue` here?
           return ccf::grpc::make_error<ccf::KVValue>(
             grpc_status::NOT_FOUND,
-            fmt::format("Key {} does not exist", payload.key()),
-            "");
+            "",
+            fmt::format("Key {} does not exist", payload.key()));
         }
 
         ccf::KVValue r;

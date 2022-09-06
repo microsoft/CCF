@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#pragma once
 
 #include "ccf/odata_error.h"
 #include "ds/serialized.h"
@@ -21,19 +22,42 @@ namespace ccf::grpc
   //   std::string details;
   // };
 
+  // template <typename T>
+  // using GrpcAdapterResponse = std::variant<ccf::Status, T>;
+
+  struct EmptyResponse
+  {};
+
   template <typename T>
-  using GrpcAdapterResponse = std::variant<ccf::Status, T>;
-  using EmptyResponse = std::monostate;
+  struct GrpcAdapterResponse
+  {
+    // TODO: Probably has to be a variant so that make_error does not need to be
+    // templated
+    T body;
+    ccf::Status status;
+
+    GrpcAdapterResponse(T body_, ccf::Status status_) :
+      body(body_),
+      status(status_)
+    {}
+  };
+  using GrpcAdapterEmptyResponse = GrpcAdapterResponse<EmptyResponse>;
 
   template <typename T>
   GrpcAdapterResponse<T> make_success(T t)
   {
-    return t;
+    ccf::Status s;
+    s.set_code(0);
+    s.set_message("Ok");
+    return GrpcAdapterResponse(t, s);
   }
 
   GrpcAdapterResponse<EmptyResponse> make_success()
   {
-    return EmptyResponse{};
+    ccf::Status s;
+    s.set_code(0);
+    s.set_message("Ok");
+    return GrpcAdapterResponse(EmptyResponse{}, s);
   }
 
   template <typename T>
@@ -43,7 +67,7 @@ namespace ccf::grpc
     ccf::Status s;
     s.set_code(static_cast<int32_t>(code));
     s.set_message(msg);
-    return s;
+    return GrpcAdapterResponse(T{}, s);
   }
 
   using CompressedFlag = uint8_t;
@@ -117,50 +141,32 @@ namespace ccf::grpc
     const GrpcAdapterResponse<Out>& r,
     const std::shared_ptr<ccf::RpcContext>& ctx)
   {
-    auto error = std::get_if<ccf::Status>(&r);
-    if (error != nullptr)
+    if constexpr (std::is_same_v<Out, EmptyResponse>)
     {
-      // TODO: Handle errors
     }
     else
     {
-      const auto resp = std::get_if<Out>(&r);
+      const auto& resp = r.body;
+      size_t r_size = grpc::message_frame_length + resp.ByteSizeLong();
+      std::vector<uint8_t> r(r_size);
+      auto r_data = r.data();
 
-      if constexpr (std::is_same_v<Out, void>)
+      grpc::write_message_frame(r_data, r_size, resp.ByteSizeLong());
+      ctx->set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+
+      if (!resp.SerializeToArray(r_data, r_size))
       {
-        // TODO: Do we set this in the HTTP status or in the grpc-status??
-        ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+        throw std::logic_error(fmt::format(
+          "Error serialising protobuf response of size {}",
+          resp.ByteSizeLong()));
       }
-      else if constexpr (std::is_same_v<Out, EmptyResponse>)
-      {
-        // TODO: Fix
-        ctx->set_response_status(HTTP_STATUS_OK);
-      }
-      else
-      {
-        // TODO: Check that Out is protobuf-able type (for better compile-time
-        // error message)
-
-        size_t r_size = grpc::message_frame_length + resp->ByteSizeLong();
-        std::vector<uint8_t> r(r_size);
-        auto r_data = r.data();
-
-        grpc::write_message_frame(r_data, r_size, resp->ByteSizeLong());
-        ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
-
-        if (!resp->SerializeToArray(r_data, r_size))
-        {
-          throw std::logic_error(fmt::format(
-            "Error serialising protobuf response of size {}",
-            resp->ByteSizeLong()));
-        }
-        ctx->set_response_body(r);
-        ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
-      }
-      ctx->set_response_trailer("grpc-status", 0);
-      ctx->set_response_trailer("grpc-message", "Ok");
+      ctx->set_response_body(r);
+      ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
     }
+
+    ctx->set_response_trailer("grpc-status", r.status.code());
+    ctx->set_response_trailer("grpc-message", r.status.message());
   }
 }
 

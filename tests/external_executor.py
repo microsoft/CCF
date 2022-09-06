@@ -67,8 +67,13 @@ def test_put_get(network, args):
         get = KV.KVKey()
         get.key = unknown_key.encode()
         get.table = my_table.encode()
-        r = stub.Get(get)
-        LOG.error(r)
+        try:
+            r = stub.Get(get)
+        except grpc.RpcError as e:
+            assert e.code() == grpc.StatusCode.NOT_FOUND
+            assert e.details() == f"Key {unknown_key} does not exist"
+        else:
+            assert False, f"Getting unknown key {unknown_key} should raise an error"
 
     return network
 

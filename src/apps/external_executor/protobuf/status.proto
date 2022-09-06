@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "google/protobuf/any.proto";
+// import "google/protobuf/any.proto";
 
 package ccf;
 
@@ -9,5 +9,5 @@ message Status
 {
     int32 code = 1;
     string message = 2;
-    repeated google.protobuf.Any details = 3;
+    // repeated google.protobuf.Any details = 3;
 }
