@@ -130,5 +130,6 @@ UseCRLF:         false
 UseTab:          Never
 ---
 Language: Proto
-BasedOnStyle: Microsoft
+IndentWidth:     2
+UseTab:          Never
 ...
