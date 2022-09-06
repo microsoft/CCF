@@ -93,8 +93,8 @@ jobs:
     parameters:
       target: SNPCC
       env: "${{ parameters.env.SNPCC }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
-      suffix: "Release"
-      artifact_name: "SNPCC_Release"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build[target].cmake_args }}"
+      suffix: "Debug"
+      artifact_name: "SNPCC_Debug"
+      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
       depends_on: configure
