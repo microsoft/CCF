@@ -30,15 +30,13 @@ namespace externalexecutor
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
 
-        ccf::KVValue r;
-
-        return ccf::grpc::make_success<ccf::KVValue>(r);
+        return ccf::grpc::make_success();
       };
 
       make_endpoint(
         "ccf.KV/Put",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::KVKeyValue, ccf::KVValue>(put),
+        ccf::grpc_adapter<ccf::KVKeyValue, ccf::grpc::EmptyResponse>(put),
         ccf::no_auth_required)
         .install();
 
@@ -50,14 +48,14 @@ namespace externalexecutor
         if (!value.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          return ccf::KVValue(); // Handle errors
+          return ccf::grpc::make_success(ccf::KVValue());
         }
 
         ccf::KVValue r;
         r.set_value(value.value());
-
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        return r;
+
+        return ccf::grpc::make_success(r);
       };
 
       make_read_only_endpoint(

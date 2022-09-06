@@ -28,6 +28,14 @@ namespace ccf::grpc
     return t;
   }
 
+  using EmptyResponse = std::monostate;
+  using VoidGrpcAdapterResponse = GrpcAdapterResponse<EmptyResponse>;
+
+  VoidGrpcAdapterResponse make_success()
+  {
+    return std::monostate{};
+  }
+
   using CompressedFlag = uint8_t;
   using MessageLength = uint32_t;
 
@@ -108,22 +116,38 @@ namespace ccf::grpc
     {
       const auto resp = std::get_if<Out>(&r);
 
-      size_t r_size = grpc::message_frame_length + resp->ByteSizeLong();
-      std::vector<uint8_t> r(r_size);
-      auto r_data = r.data();
-
-      grpc::write_message_frame(r_data, r_size, resp->ByteSizeLong());
-      ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
-
-      if (!resp->SerializeToArray(r_data, r_size))
+      if constexpr (std::is_same_v<Out, void>)
       {
-        throw std::logic_error(fmt::format(
-          "Error serialising protobuf response of size {}",
-          resp->ByteSizeLong()));
+        // TODO: Do we set this in the HTTP status or in the grpc-status??
+        ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       }
-      ctx->set_response_body(r);
-      ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
+      else if constexpr (std::is_same_v<Out, EmptyResponse>)
+      {
+        // TODO: Fix
+        ctx->set_response_status(HTTP_STATUS_OK);
+      }
+      else
+      {
+        // TODO: Check that Out is protobuf-able type (for better compile-time
+        // error message)
+
+        size_t r_size = grpc::message_frame_length + resp->ByteSizeLong();
+        std::vector<uint8_t> r(r_size);
+        auto r_data = r.data();
+
+        grpc::write_message_frame(r_data, r_size, resp->ByteSizeLong());
+        ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+
+        if (!resp->SerializeToArray(r_data, r_size))
+        {
+          throw std::logic_error(fmt::format(
+            "Error serialising protobuf response of size {}",
+            resp->ByteSizeLong()));
+        }
+        ctx->set_response_body(r);
+        ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
+      }
       ctx->set_response_trailer("grpc-status", 0);
       ctx->set_response_trailer("grpc-message", "Ok");
     }
@@ -132,32 +156,21 @@ namespace ccf::grpc
 
 namespace ccf
 {
-  template <typename In, typename Out = void>
+  template <typename In, typename Out>
   using GrpcEndpoint = std::function<grpc::GrpcAdapterResponse<Out>(
     endpoints::EndpointContext& ctx, In&& payload)>;
 
-  template <typename In, typename Out = void>
-  using GrpcReadOnlyEndpoint =
-    std::function<Out(endpoints::ReadOnlyEndpointContext& ctx, In&& payload)>;
+  template <typename In, typename Out>
+  using GrpcReadOnlyEndpoint = std::function<grpc::GrpcAdapterResponse<Out>(
+    endpoints::ReadOnlyEndpointContext& ctx, In&& payload)>;
 
-  template <typename In, typename Out = void>
+  template <typename In, typename Out>
   endpoints::EndpointFunction grpc_adapter(const GrpcEndpoint<In, Out>& f)
   {
-    if constexpr (std::is_same_v<Out, void>)
-    {
-      return [f](endpoints::EndpointContext& ctx) {
-        f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx));
-        ctx.rpc_ctx->set_response_trailer("grpc-status", 0);
-        ctx.rpc_ctx->set_response_trailer("grpc-message", "Ok");
-      };
-    }
-    else
-    {
-      return [f](endpoints::EndpointContext& ctx) {
-        grpc::set_grpc_response<Out>(
-          f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
-      };
-    }
+    return [f](endpoints::EndpointContext& ctx) {
+      grpc::set_grpc_response<Out>(
+        f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
+    };
   }
 
   template <typename In, typename Out>
