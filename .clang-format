@@ -128,4 +128,7 @@ StatementMacros:
 TabWidth:        2
 UseCRLF:         false
 UseTab:          Never
+---
+Language: Proto
+BasedOnStyle: Microsoft
 ...
