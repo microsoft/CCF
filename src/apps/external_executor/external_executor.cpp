@@ -29,12 +29,16 @@ namespace externalexecutor
         records_handle->put(payload.key(), payload.value());
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+
+        ccf::KVValue r;
+
+        return ccf::grpc::make_success<ccf::KVValue>(r);
       };
 
       make_endpoint(
         "ccf.KV/Put",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::KVKeyValue, void>(put),
+        ccf::grpc_adapter<ccf::KVKeyValue, ccf::KVValue>(put),
         ccf::no_auth_required)
         .install();
 
