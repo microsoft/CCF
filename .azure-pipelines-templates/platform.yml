@@ -22,6 +22,6 @@ steps:
   - ${{ if ne(parameters.target, 'SGX') }}:
       - script: |
           set -ex
-          samples/scripts/snp_info.sh
+          samples/scripts/snpinfo.sh
         displayName: SEV-SNP Info
         condition: succeededOrFailed()
