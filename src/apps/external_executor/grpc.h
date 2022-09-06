@@ -5,6 +5,7 @@
 #include "ds/serialized.h"
 #include "grpc_status.h"
 #include "node/rpc/rpc_exception.h"
+#include "status.pb.h"
 
 #include <arpa/inet.h>
 #include <variant>
@@ -13,15 +14,15 @@
 namespace ccf::grpc
 {
   // As per https://cloud.google.com/apis/design/errors#error_model
-  struct ErrorDetails
-  {
-    grpc_status code;
-    std::string message;
-    std::string details;
-  };
+  // struct ErrorDetails
+  // {
+  //   grpc_status code;
+  //   std::string message;
+  //   std::string details;
+  // };
 
   template <typename T>
-  using GrpcAdapterResponse = std::variant<ErrorDetails, T>;
+  using GrpcAdapterResponse = std::variant<ccf::Status, T>;
   using EmptyResponse = std::monostate;
 
   template <typename T>
@@ -37,9 +38,12 @@ namespace ccf::grpc
 
   template <typename T>
   GrpcAdapterResponse<T> make_error(
-    grpc_status status, const std::string& code, const std::string& msg)
+    grpc_status code, const std::string& details, const std::string& msg)
   {
-    return ErrorDetails{status, code, msg};
+    ccf::Status s;
+    s.set_code(static_cast<int32_t>(code));
+    s.set_message(msg);
+    return s;
   }
 
   using CompressedFlag = uint8_t;
@@ -113,7 +117,7 @@ namespace ccf::grpc
     const GrpcAdapterResponse<Out>& r,
     const std::shared_ptr<ccf::RpcContext>& ctx)
   {
-    auto error = std::get_if<ErrorDetails>(&r);
+    auto error = std::get_if<ccf::Status>(&r);
     if (error != nullptr)
     {
       // TODO: Handle errors

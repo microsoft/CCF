@@ -47,8 +47,8 @@ namespace externalexecutor
         auto value = records_handle->get(payload.key());
         if (!value.has_value())
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          // return ccf::grpc::make_success(ccf::KVValue());
+          // ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          // TODO: Can we not specify `ccf::KVValue` here?
           return ccf::grpc::make_error<ccf::KVValue>(
             grpc_status::NOT_FOUND,
             fmt::format("Key {} does not exist", payload.key()),

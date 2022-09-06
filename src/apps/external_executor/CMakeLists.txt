@@ -17,15 +17,15 @@ add_ccf_app(
   external_executor
   SRCS external_executor.cpp
   INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/protobuf"
-  LINK_LIBS_ENCLAVE kv.enclave protobuf.enclave
-  LINK_LIBS_VIRTUAL kv.virtual protobuf.virtual
+  LINK_LIBS_ENCLAVE kv.enclave status.enclave protobuf.enclave
+  LINK_LIBS_VIRTUAL kv.virtual status.virtual protobuf.virtual
 )
 
 # Generate an ephemeral signing key
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
   COMMAND openssl genrsa -out ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem -3
-          3072
+  3072
 )
 add_custom_target(
   external_executor_signing_key ALL

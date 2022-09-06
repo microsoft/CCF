@@ -62,6 +62,14 @@ def test_put_get(network, args):
         assert r.value == my_value.encode()
         LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
 
+        unknown_key = "unknown_key"
+        LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
+        get = KV.KVKey()
+        get.key = unknown_key.encode()
+        get.table = my_table.encode()
+        r = stub.Get(get)
+        LOG.error(r)
+
     return network
 
 
