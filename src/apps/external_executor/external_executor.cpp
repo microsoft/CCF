@@ -46,6 +46,8 @@ namespace externalexecutor
         auto value = records_handle->get(payload.key());
         if (!value.has_value())
         {
+          // Note: no need to specify `make_error<ccf::KVValue>` here as lambda
+          // returns `-> ccf::grpc::GrpcAdapterResponse<ccf::KVValue>`
           return ccf::grpc::make_error(
             GRPC_STATUS_NOT_FOUND,
             fmt::format("Key {} does not exist", payload.key()));

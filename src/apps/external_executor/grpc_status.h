@@ -7,7 +7,7 @@
 #include <optional>
 #include <string>
 
-// Mapping to HTTP errors are per
+// Mapping to HTTP errors as per
 // https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto
 #define GRPC_STATUS_MAP(XX) \
   XX(0, OK, "Ok", 200) \
@@ -61,6 +61,7 @@ namespace ccf::grpc
     const std::optional<std::string>& msg = std::nullopt,
     const std::optional<std::string>& details = std::nullopt)
   {
+    // Note: details are not currently supported
     Status s;
     s.set_code(status_to_code(status));
     if (msg.has_value())
