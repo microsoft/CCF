@@ -21,9 +21,9 @@ foreach(proto_file ${PROTO_FILES})
 
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.h
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
+           ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
     COMMAND ${PROTOC_BINARY_PATH} --proto_path=${CMAKE_CURRENT_SOURCE_DIR}
-    --cpp_out=${CMAKE_CURRENT_BINARY_DIR} ${proto_file}
+            --cpp_out=${CMAKE_CURRENT_BINARY_DIR} ${proto_file}
     COMMENT "Generate C++ source files from protobuf file ${PROTO_NAME}"
     DEPENDS ${proto_file}
   )
