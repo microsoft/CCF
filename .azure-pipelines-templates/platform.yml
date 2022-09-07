@@ -1,0 +1,27 @@
+parameters:
+  target: ""
+
+steps:
+  # 119 is GID of special "sgx_prv" group on underlying VM that is
+  # required to run SGX on kernel > 5.11
+  - ${{ if or(eq(parameters.target, 'SGX'), eq(parameters.target, 'SGXIceLake')) }}:
+      - script: |
+          set -ex
+          sudo groupadd -g 119 sgx_prv
+          sudo usermod -a -G sgx_prv $(whoami)
+        displayName: SGX Group
+        condition: succeededOrFailed()
+
+      - script: |
+          set -ex
+          samples/scripts/sgxinfo.sh
+          cat /proc/cpuinfo | grep flags | uniq
+        displayName: SGX Info
+        condition: succeededOrFailed()
+
+  - ${{ if ne(parameters.target, 'SGX') }}:
+      - script: |
+          set -ex
+          samples/scripts/snpinfo.sh
+        displayName: SEV-SNP Info
+        condition: succeededOrFailed()
