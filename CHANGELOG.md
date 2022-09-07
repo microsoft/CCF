@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.0-dev3]
 
-### Changed
+### Added
 
-- `sgxinfo.sh` script has been renamed to `platform_info.sh` (#4184).
+- New `snpinfo.sh` script (#4196).
 
 ## [3.0.0-dev2]
 

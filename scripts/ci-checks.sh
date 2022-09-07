@@ -46,7 +46,7 @@ else
 fi
 
 echo "$CHECK_DELIMITER"
-echo "-- C/C++ format"
+echo "-- C/C++/Proto format"
 if [ $FIX -ne 0 ]; then
   "$SCRIPT_DIR"/check-format.sh -f include src samples
 else
