@@ -45,11 +45,8 @@ namespace ccf
 
   enum class CodeStatus
   {
-    ALLOWED_TO_JOIN = 0,
-    ALLOWED_TO_EXECUTE
+    ALLOWED_TO_JOIN = 0
   };
   DECLARE_JSON_ENUM(
-    CodeStatus,
-    {{CodeStatus::ALLOWED_TO_JOIN, "AllowedToJoin"},
-     {CodeStatus::ALLOWED_TO_EXECUTE, "AllowedToExecute"}});
+    CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "AllowedToJoin"}});
 }

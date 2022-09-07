@@ -11,7 +11,6 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/service/tables/code_id.h"
-#include "ccf/service/tables/executor_code_id.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
 
