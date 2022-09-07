@@ -7,6 +7,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+function(message)
+  if(NOT MESSAGE_QUIET)
+    _message(${ARGN})
+  endif()
+endfunction()
+
 option(PROFILE_TESTS "Profile tests" OFF)
 set(PYTHON unbuffer python3)
 
@@ -135,7 +141,8 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
 endforeach()
 
 # Install additional utilities
-install(PROGRAMS ${CCF_DIR}/samples/scripts/platform_info.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/sgxinfo.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
 install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
@@ -188,7 +195,9 @@ include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
+set(MESSAGE_QUIET ON)
 include(${CCF_DIR}/cmake/protobuf.cmake)
+unset(MESSAGE_QUIET)
 
 # Unit test wrapper
 function(add_unit_test name)
