@@ -24,7 +24,7 @@
   XX(11, OUT_OF_RANGE, "Out Of Range", 400) \
   XX(12, UNIMPLEMENTED, "Unimplemented", 501) \
   XX(13, INTERNAL, "Internal", 500) \
-  XX(14, Unavailable, "Unavailable", 503) \
+  XX(14, UNAVAILABLE, "Unavailable", 503) \
   XX(15, DATA_LOSS, "Data Loss", 500) \
   XX(16, UNAUTHENTICATED, "Unauthenticated", 401)
 
