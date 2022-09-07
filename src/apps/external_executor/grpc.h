@@ -6,7 +6,6 @@
 #include "ds/serialized.h"
 #include "grpc_status.h"
 #include "node/rpc/rpc_exception.h"
-#include "status.pb.h"
 
 #include <arpa/inet.h>
 #include <variant>
@@ -67,34 +66,6 @@ namespace ccf::grpc
 
   template <typename T>
   using GrpcAdapterResponse = std::variant<ErrorResponse, SuccessResponse<T>>;
-
-  ccf::Status make_grpc_status(
-    enum grpc_status status,
-    const std::optional<std::string>& msg = std::nullopt,
-    const std::optional<std::string>& details = std::nullopt)
-  {
-    ccf::Status s;
-    s.set_code(::grpc::status_to_code(status));
-    if (msg.has_value())
-    {
-      s.set_message(msg.value());
-    }
-    else
-    {
-      s.set_message(grpc_status_str(status));
-    }
-    if (details.has_value())
-    {
-      auto* d = s.add_details();
-      d->set_value(details.value());
-    }
-    return s;
-  }
-
-  ccf::Status make_grpc_status_ok()
-  {
-    return make_grpc_status(GRPC_STATUS_OK);
-  }
 
   template <typename T>
   GrpcAdapterResponse<T> make_success(const T& t)
@@ -190,7 +161,6 @@ namespace ccf::grpc
             resp.ByteSizeLong()));
         }
         ctx->set_response_body(r);
-        ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
       }
       ctx->set_response_trailer("grpc-status", r_->status.code());
       ctx->set_response_trailer("grpc-message", r_->status.message());

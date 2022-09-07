@@ -2,6 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "status.pb.h"
+
+#include <optional>
+#include <string>
+
 // Mapping to HTTP errors are per
 // https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto
 #define GRPC_STATUS_MAP(XX) \
@@ -44,10 +49,38 @@ static inline const char* grpc_status_str(enum grpc_status s)
   }
 }
 
-namespace grpc
+namespace ccf::grpc
 {
   int32_t status_to_code(const grpc_status& status)
   {
     return static_cast<int32_t>(status);
+  }
+
+  Status make_grpc_status(
+    enum grpc_status status,
+    const std::optional<std::string>& msg = std::nullopt,
+    const std::optional<std::string>& details = std::nullopt)
+  {
+    Status s;
+    s.set_code(status_to_code(status));
+    if (msg.has_value())
+    {
+      s.set_message(msg.value());
+    }
+    else
+    {
+      s.set_message(grpc_status_str(status));
+    }
+    if (details.has_value())
+    {
+      auto* d = s.add_details();
+      d->set_value(details.value());
+    }
+    return s;
+  }
+
+  Status make_grpc_status_ok()
+  {
+    return make_grpc_status(GRPC_STATUS_OK);
   }
 }
