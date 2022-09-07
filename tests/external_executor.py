@@ -74,6 +74,7 @@ def test_put_get(network, args):
             assert e.details() == f"Key {unknown_key} does not exist"
         else:
             assert False, f"Getting unknown key {unknown_key} should raise an error"
+        LOG.success(f"Unable to read key '{unknown_key}' as expected")
 
     return network
 

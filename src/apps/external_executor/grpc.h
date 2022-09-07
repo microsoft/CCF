@@ -14,42 +14,37 @@
 
 namespace ccf::grpc
 {
-  // As per https://cloud.google.com/apis/design/errors#error_model
-  // struct ErrorDetails
-  // {
-  //   grpc_status code;
-  //   std::string message;
-  //   std::string details;
-  // };
-
-  // template <typename T>
-  // using GrpcAdapterResponse = std::variant<ccf::Status, T>;
-
   struct EmptyResponse
   {};
 
   template <typename T>
-  struct GrpcAdapterResponse
+  struct SuccessResponse
   {
-    // TODO: Probably has to be a variant so that make_error does not need to be
-    // templated
     T body;
     ccf::Status status;
 
-    GrpcAdapterResponse(T body_, ccf::Status status_) :
+    SuccessResponse(const T& body_, ccf::Status status_) :
       body(body_),
       status(status_)
     {}
   };
-  using GrpcAdapterEmptyResponse = GrpcAdapterResponse<EmptyResponse>;
+
+  struct ErrorResponse
+  {
+    ccf::Status status;
+    ErrorResponse(ccf::Status status_) : status(status_) {}
+  };
+
+  template <typename T>
+  using GrpcAdapterResponse = std::variant<ErrorResponse, SuccessResponse<T>>;
 
   template <typename T>
   GrpcAdapterResponse<T> make_success(T t)
   {
     ccf::Status s;
-    s.set_code(0);
+    s.set_code(static_cast<int32_t>(grpc_status::OK));
     s.set_message("Ok");
-    return GrpcAdapterResponse(t, s);
+    return SuccessResponse(t, s);
   }
 
   GrpcAdapterResponse<EmptyResponse> make_success()
@@ -57,7 +52,16 @@ namespace ccf::grpc
     ccf::Status s;
     s.set_code(0);
     s.set_message("Ok");
-    return GrpcAdapterResponse(EmptyResponse{}, s);
+    return SuccessResponse(EmptyResponse{}, s);
+  }
+
+  ErrorResponse make_error(
+    grpc_status code, const std::string& details, const std::string& msg)
+  {
+    ccf::Status s;
+    s.set_code(static_cast<int32_t>(code));
+    s.set_message(msg);
+    return ErrorResponse(s);
   }
 
   template <typename T>
@@ -67,7 +71,7 @@ namespace ccf::grpc
     ccf::Status s;
     s.set_code(static_cast<int32_t>(code));
     s.set_message(msg);
-    return GrpcAdapterResponse(T{}, s);
+    return ErrorResponse(s);
   }
 
   using CompressedFlag = uint8_t;
@@ -141,32 +145,38 @@ namespace ccf::grpc
     const GrpcAdapterResponse<Out>& r,
     const std::shared_ptr<ccf::RpcContext>& ctx)
   {
-    if constexpr (std::is_same_v<Out, EmptyResponse>)
+    auto r_ = std::get_if<SuccessResponse<Out>>(&r);
+    if (r_ != nullptr)
     {
+      const auto& resp = r_->body;
+      if constexpr (!std::is_same_v<Out, EmptyResponse>)
+      {
+        size_t r_size = grpc::message_frame_length + resp.ByteSizeLong();
+        std::vector<uint8_t> r(r_size);
+        auto r_data = r.data();
+
+        grpc::write_message_frame(r_data, r_size, resp.ByteSizeLong());
+        ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+
+        if (!resp.SerializeToArray(r_data, r_size))
+        {
+          throw std::logic_error(fmt::format(
+            "Error serialising protobuf response of size {}",
+            resp.ByteSizeLong()));
+        }
+        ctx->set_response_body(r);
+        ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
+      }
+      ctx->set_response_trailer("grpc-status", r_->status.code());
+      ctx->set_response_trailer("grpc-message", r_->status.message());
     }
     else
     {
-      const auto& resp = r.body;
-      size_t r_size = grpc::message_frame_length + resp.ByteSizeLong();
-      std::vector<uint8_t> r(r_size);
-      auto r_data = r.data();
-
-      grpc::write_message_frame(r_data, r_size, resp.ByteSizeLong());
-      ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
-
-      if (!resp.SerializeToArray(r_data, r_size))
-      {
-        throw std::logic_error(fmt::format(
-          "Error serialising protobuf response of size {}",
-          resp.ByteSizeLong()));
-      }
-      ctx->set_response_body(r);
-      ctx->set_response_header(http::headers::CONTENT_LENGTH, r_size);
+      auto r_ = std::get<ErrorResponse>(r);
+      ctx->set_response_trailer("grpc-status", r_.status.code());
+      ctx->set_response_trailer("grpc-message", r_.status.message());
     }
-
-    ctx->set_response_trailer("grpc-status", r.status.code());
-    ctx->set_response_trailer("grpc-message", r.status.message());
   }
 }
 

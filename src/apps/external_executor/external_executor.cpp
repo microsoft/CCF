@@ -42,14 +42,13 @@ namespace externalexecutor
 
       auto get = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                   ccf::KVKey&& payload) {
+                   ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
         auto records_handle = ctx.tx.template ro<Map>(payload.table());
         auto value = records_handle->get(payload.key());
         if (!value.has_value())
         {
-          // ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          // TODO: Can we not specify `ccf::KVValue` here?
-          return ccf::grpc::make_error<ccf::KVValue>(
+          return ccf::grpc::make_error(
             grpc_status::NOT_FOUND,
             "",
             fmt::format("Key {} does not exist", payload.key()));
