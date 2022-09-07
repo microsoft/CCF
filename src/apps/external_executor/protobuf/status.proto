@@ -7,7 +7,7 @@ package ccf;
 // As per https://cloud.google.com/apis/design/errors#error_model
 message Status
 {
-    int32 code = 1;
-    string message = 2;
-    repeated google.protobuf.Any details = 3;
+  int32 code = 1;
+  string message = 2;
+  repeated google.protobuf.Any details = 3;
 }

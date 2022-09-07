@@ -25,7 +25,7 @@ add_ccf_app(
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
   COMMAND openssl genrsa -out ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem -3
-  3072
+          3072
 )
 add_custom_target(
   external_executor_signing_key ALL
