@@ -4,7 +4,9 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_consts.h"
+#include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "executor_code_id.h"
 #include "grpc.h"
 #include "kv.pb.h"
 
@@ -18,7 +20,32 @@ namespace externalexecutor
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
-    void install_registry_service() {}
+    void install_registry_service()
+    {
+      auto get_executor_code =
+        [](ccf::endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          GetExecutorCode::Out out;
+
+          auto executor_code_ids =
+            ctx.tx.template ro<ExecutorCodeIDs>(EXECUTOR_CODE_IDS);
+          executor_code_ids->foreach(
+            [&out](const ccf::CodeDigest& cd, const ExecutorCodeInfo& info) {
+              auto digest = ds::to_hex(cd.data);
+              out.versions.push_back({digest, info.status, info.platform});
+              return true;
+            });
+
+          return ccf::make_success(out);
+        };
+
+      make_read_only_endpoint(
+        "/executor_code",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get_executor_code),
+        ccf::no_auth_required)
+        .set_auto_schema<void, GetExecutorCode::Out>()
+        .install();
+    }
 
     void install_kv_service()
     {
