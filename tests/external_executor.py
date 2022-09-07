@@ -12,8 +12,24 @@ import kv_pb2 as KV
 import kv_pb2_grpc as Service
 import grpc
 import os
+import infra.proc
 
 from loguru import logger as LOG
+
+PROTO_SOURCES_OUTPUT_FILE = "."
+
+
+def generate_from_proto_files(proto_dir):
+    # Generate Python source files from proto definitions here rather than cmake
+    # as some CI executors do not cope well with launching the Python interpreter
+    for f in os.listdir(proto_dir):
+        if f.endswith(".proto"):
+            cmd = ["python", "-m", "grpc_tools.protoc"]
+            cmd += ["-I", proto_dir]
+            cmd += ["--python_out", PROTO_SOURCES_OUTPUT_FILE]
+            cmd += ["--grpc_python_out", PROTO_SOURCES_OUTPUT_FILE]
+            cmd += [f]
+            infra.proc.ccall(*cmd)
 
 
 @reqs.description("Store and retrieve key via external executor app")
@@ -77,11 +93,20 @@ def run(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--proto-dir",
+            help="Absolute file to directory containing protobuf files",
+            type=str,
+        )
+
+    args = infra.e2e_args.cli_args(add)
 
     args.host_log_level = "trace"
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
 
+    generate_from_proto_files(args.proto_dir)
     run(args)
