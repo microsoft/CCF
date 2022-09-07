@@ -70,8 +70,10 @@ def test_put_get(network, args):
         try:
             r = stub.Get(get)
         except grpc.RpcError as e:
-            assert e.code() == grpc.StatusCode.NOT_FOUND
-            assert e.details() == f"Key {unknown_key} does not exist"
+            assert e.code() == grpc.StatusCode.NOT_FOUND  # pylint: disable=no-member
+            assert (
+                e.details() == f"Key {unknown_key} does not exist"
+            )  # pylint: disable=no-member
         else:
             assert False, f"Getting unknown key {unknown_key} should raise an error"
         LOG.success(f"Unable to read key '{unknown_key}' as expected")
