@@ -2,6 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+// namespace grpc
+// {
+//   static constexpr auto = "Ok";
+// }
+
 // Mapping to HTTP errors are per
 // https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto
 enum class grpc_status

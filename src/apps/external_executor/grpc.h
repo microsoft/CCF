@@ -14,6 +14,36 @@
 
 namespace ccf::grpc
 {
+  namespace impl
+  {
+    using CompressedFlag = uint8_t;
+    using MessageLength = uint32_t;
+
+    static constexpr size_t message_frame_length =
+      sizeof(CompressedFlag) + sizeof(MessageLength);
+
+    MessageLength read_message_frame(const uint8_t*& data, size_t& size)
+    {
+      auto compressed_flag = serialized::read<CompressedFlag>(data, size);
+      if (compressed_flag >= 1)
+      {
+        throw std::logic_error(fmt::format(
+          "gRPC compressed flag has unexpected value {} - currently only "
+          "support "
+          "unencoded gRPC payloads",
+          compressed_flag));
+      }
+      return ntohl(serialized::read<MessageLength>(data, size));
+    }
+
+    void write_message_frame(uint8_t*& data, size_t& size, size_t message_size)
+    {
+      CompressedFlag compressed_flag = 0;
+      serialized::write(data, size, compressed_flag);
+      serialized::write(data, size, htonl(message_size));
+    }
+  }
+
   struct EmptyResponse
   {};
 
@@ -74,32 +104,6 @@ namespace ccf::grpc
     return ErrorResponse(s);
   }
 
-  using CompressedFlag = uint8_t;
-  using MessageLength = uint32_t;
-
-  static constexpr size_t message_frame_length =
-    sizeof(CompressedFlag) + sizeof(MessageLength);
-
-  MessageLength read_message_frame(const uint8_t*& data, size_t& size)
-  {
-    auto compressed_flag = serialized::read<CompressedFlag>(data, size);
-    if (compressed_flag >= 1)
-    {
-      throw std::logic_error(fmt::format(
-        "gRPC compressed flag has unexpected value {} - currently only support "
-        "unencoded gRPC payloads",
-        compressed_flag));
-    }
-    return ntohl(serialized::read<MessageLength>(data, size));
-  }
-
-  void write_message_frame(uint8_t*& data, size_t& size, size_t message_size)
-  {
-    CompressedFlag compressed_flag = 0;
-    serialized::write(data, size, compressed_flag);
-    serialized::write(data, size, htonl(message_size));
-  }
-
   template <typename In>
   In get_grpc_payload(const std::shared_ptr<ccf::RpcContext>& ctx)
   {
@@ -120,7 +124,7 @@ namespace ccf::grpc
           http::headervalues::contenttype::GRPC));
     }
 
-    auto message_length = grpc::read_message_frame(data, size);
+    auto message_length = impl::read_message_frame(data, size);
     if (size != message_length)
     {
       throw std::logic_error(fmt::format(
@@ -151,11 +155,11 @@ namespace ccf::grpc
       const auto& resp = r_->body;
       if constexpr (!std::is_same_v<Out, EmptyResponse>)
       {
-        size_t r_size = grpc::message_frame_length + resp.ByteSizeLong();
+        size_t r_size = impl::message_frame_length + resp.ByteSizeLong();
         std::vector<uint8_t> r(r_size);
         auto r_data = r.data();
 
-        grpc::write_message_frame(r_data, r_size, resp.ByteSizeLong());
+        impl::write_message_frame(r_data, r_size, resp.ByteSizeLong());
         ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
 
