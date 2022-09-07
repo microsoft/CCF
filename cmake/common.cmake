@@ -141,7 +141,8 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
 endforeach()
 
 # Install additional utilities
-install(PROGRAMS ${CCF_DIR}/samples/scripts/platform_info.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/sgxinfo.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
 install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
