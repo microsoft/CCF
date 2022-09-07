@@ -28,8 +28,6 @@ namespace externalexecutor
         auto records_handle = ctx.tx.template rw<Map>(payload.table());
         records_handle->put(payload.key(), payload.value());
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-
         return ccf::grpc::make_success();
       };
 
@@ -49,14 +47,12 @@ namespace externalexecutor
         if (!value.has_value())
         {
           return ccf::grpc::make_error(
-            grpc_status::NOT_FOUND,
-            "",
+            GRPC_STATUS_NOT_FOUND,
             fmt::format("Key {} does not exist", payload.key()));
         }
 
         ccf::KVValue r;
         r.set_value(value.value());
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
 
         return ccf::grpc::make_success(r);
       };

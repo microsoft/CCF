@@ -68,40 +68,60 @@ namespace ccf::grpc
   template <typename T>
   using GrpcAdapterResponse = std::variant<ErrorResponse, SuccessResponse<T>>;
 
-  template <typename T>
-  GrpcAdapterResponse<T> make_success(T t)
+  ccf::Status make_grpc_status(
+    enum grpc_status status,
+    const std::optional<std::string>& msg = std::nullopt,
+    const std::optional<std::string>& details = std::nullopt)
   {
     ccf::Status s;
-    s.set_code(static_cast<int32_t>(grpc_status::OK));
-    s.set_message("Ok");
-    return SuccessResponse(t, s);
+    s.set_code(::grpc::status_to_code(status));
+    if (msg.has_value())
+    {
+      s.set_message(msg.value());
+    }
+    else
+    {
+      s.set_message(grpc_status_str(status));
+    }
+    if (details.has_value())
+    {
+      auto* d = s.add_details();
+      d->set_value(details.value());
+    }
+    return s;
+  }
+
+  ccf::Status make_grpc_status_ok()
+  {
+    return make_grpc_status(GRPC_STATUS_OK);
+  }
+
+  template <typename T>
+  GrpcAdapterResponse<T> make_success(const T& t)
+  {
+    return SuccessResponse(t, make_grpc_status_ok());
   }
 
   GrpcAdapterResponse<EmptyResponse> make_success()
   {
-    ccf::Status s;
-    s.set_code(0);
-    s.set_message("Ok");
-    return SuccessResponse(EmptyResponse{}, s);
+    return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
   }
 
   ErrorResponse make_error(
-    grpc_status code, const std::string& details, const std::string& msg)
+    grpc_status code,
+    const std::string& msg,
+    const std::optional<std::string>& details = std::nullopt)
   {
-    ccf::Status s;
-    s.set_code(static_cast<int32_t>(code));
-    s.set_message(msg);
-    return ErrorResponse(s);
+    return ErrorResponse(make_grpc_status(code, msg, details));
   }
 
   template <typename T>
   GrpcAdapterResponse<T> make_error(
-    grpc_status code, const std::string& details, const std::string& msg)
+    grpc_status code,
+    const std::string& msg,
+    const std::optional<std::string>& details = std::nullopt)
   {
-    ccf::Status s;
-    s.set_code(static_cast<int32_t>(code));
-    s.set_message(msg);
-    return ErrorResponse(s);
+    return ErrorResponse(make_grpc_status(code, msg, details));
   }
 
   template <typename In>
