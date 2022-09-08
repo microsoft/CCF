@@ -62,6 +62,22 @@ def test_put_get(network, args):
         assert r.value == my_value.encode()
         LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
 
+        unknown_key = "unknown_key"
+        LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
+        get = KV.KVKey()
+        get.key = unknown_key.encode()
+        get.table = my_table.encode()
+        try:
+            r = stub.Get(get)
+        except grpc.RpcError as e:
+            assert e.code() == grpc.StatusCode.NOT_FOUND  # pylint: disable=no-member
+            assert (
+                e.details() == f"Key {unknown_key} does not exist"
+            )  # pylint: disable=no-member
+        else:
+            assert False, f"Getting unknown key {unknown_key} should raise an error"
+        LOG.success(f"Unable to read key '{unknown_key}' as expected")
+
     return network
 
 
