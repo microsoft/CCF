@@ -55,32 +55,35 @@ namespace externalexecutor
         auto records_handle = ctx.tx.template rw<Map>(payload.table());
         records_handle->put(payload.key(), payload.value());
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return ccf::grpc::make_success();
       };
 
       make_endpoint(
         "ccf.KV/Put",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::KVKeyValue, void>(put),
+        ccf::grpc_adapter<ccf::KVKeyValue, ccf::grpc::EmptyResponse>(put),
         ccf::no_auth_required)
         .install();
 
       auto get = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                   ccf::KVKey&& payload) {
+                   ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
         auto records_handle = ctx.tx.template ro<Map>(payload.table());
         auto value = records_handle->get(payload.key());
         if (!value.has_value())
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          return ccf::KVValue(); // Handle errors
+          // Note: no need to specify `make_error<ccf::KVValue>` here as lambda
+          // returns `-> ccf::grpc::GrpcAdapterResponse<ccf::KVValue>`
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND,
+            fmt::format("Key {} does not exist", payload.key()));
         }
 
         ccf::KVValue r;
         r.set_value(value.value());
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        return r;
+        return ccf::grpc::make_success(r);
       };
 
       make_read_only_endpoint(
