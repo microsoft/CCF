@@ -2,7 +2,9 @@
 # Licensed under the MIT License.
 
 import base64
+from typing import Optional
 
+import hashlib
 import cose.headers
 from cose.keys.ec2 import EC2Key
 from cose.keys.curves import P256, P384, P521
@@ -11,7 +13,8 @@ from cose.messages import Sign1Message
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, EllipticCurvePublicKey
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat
 
 Pem = str
 
@@ -73,21 +76,21 @@ def get_priv_key_type(priv_pem: str) -> str:
         return 'ec'
     raise NotImplementedError('unsupported key type')
 
-    # if kid is None:
-    #     kid = hashlib.sha256(der).hexdigest()
-    # if alg is None:
-    #     alg = default_algorithm_for_key(pub_key)
-
-def create_cose_sign1(payload: bytes, key_priv_pem: Pem, headers: dict) -> bytes:
+def create_cose_sign1(payload: bytes, key_priv_pem: Pem, cert_pem: Pem, additional_headers: Optional[dict] = None) -> bytes:
     key_type = get_priv_key_type(key_priv_pem)
 
-    headers[cose.headers.Algorithm] = headers.pop('alg')
-    headers[cose.headers.KID] = headers.pop('kid').encode('utf-8')
-    headers[cose.headers.ContentType] = headers.pop('cty')
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    pub_key = cert.public_key()
+    alg = default_algorithm_for_key(pub_key)
+    der = pub_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    kid = hashlib.sha256(der).hexdigest()
 
-    msg = Sign1Message(
-        phdr=headers,
-        payload=payload)
+    headers = {
+        cose.headers.Algorithm: alg,
+        cose.headers.KID: kid.encode('utf-8')
+    }
+    headers.update(additional_headers or {})
+    msg = Sign1Message(phdr=headers, payload=payload)
     
     key = load_pem_private_key(key_priv_pem.encode("ascii"), None, default_backend())
     if key_type == 'ec':
@@ -98,6 +101,30 @@ def create_cose_sign1(payload: bytes, key_priv_pem: Pem, headers: dict) -> bytes
 
     return msg.encode(tag=True)
 
+PRIV = """-----BEGIN EC PARAMETERS-----
+BgUrgQQAIg==
+-----END EC PARAMETERS-----
+-----BEGIN EC PRIVATE KEY-----
+MIGkAgEBBDDMwIszb3ZmKpeHq/vPoz6qnxheI89T2IZpKFQHJwQrvuaFFLDUKK9Z
+jKRMshAeALagBwYFK4EEACKhZANiAAQ38JreTF2uKVaTKBd7fAkIy2bg5U6T0O+H
+wcxJOLgqK+fwidnVlPG+GQUwIj6ik7Xp/0Ig7RVSAyAjcpYWL4dHU5gJ/g9PruHz
+cnmFtP88dARPH2EKy0n/iGh9yXD3bXw=
+-----END EC PRIVATE KEY-----
+"""
+
+PUB = """-----BEGIN CERTIFICATE-----
+MIIBtjCCATygAwIBAgIUJCUauYlNsJ76zOUomey4cF7F+pUwCgYIKoZIzj0EAwMw
+EjEQMA4GA1UEAwwHbWVtYmVyMDAeFw0yMjA5MDYxMzQ2NDlaFw0yMzA5MDYxMzQ2
+NDlaMBIxEDAOBgNVBAMMB21lbWJlcjAwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAAQ3
+8JreTF2uKVaTKBd7fAkIy2bg5U6T0O+HwcxJOLgqK+fwidnVlPG+GQUwIj6ik7Xp
+/0Ig7RVSAyAjcpYWL4dHU5gJ/g9PruHzcnmFtP88dARPH2EKy0n/iGh9yXD3bXyj
+UzBRMB0GA1UdDgQWBBTpme2NGI1y3OY8XYT5XwcuuvG55jAfBgNVHSMEGDAWgBTp
+me2NGI1y3OY8XYT5XwcuuvG55jAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMD
+A2gAMGUCMDg1QddcE5YFrcHmFvyXW2s7LaV0NYx24lwImrgWXQTOv7iNXAfrogzP
+CQxyHqkSxgIxANmkmLCojf5NCvwxI5tf37i6zGQ0c9zR0P9b4FtcznEtrbzmXfdJ
+b2H04E57XZmVdg==
+-----END CERTIFICATE-----
+"""
+
 if __name__ == "__main__":
-    pass
-    # create_cose_sign1("hello")
+    print(create_cose_sign1(b"hello", PRIV, PUB))
