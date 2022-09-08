@@ -52,9 +52,6 @@ namespace ccf
     std::shared_ptr<NodeConfigurationSubsystem> node_configuration_subsystem =
       nullptr;
 
-    using PreExec =
-      std::function<void(kv::CommittableTx& tx, ccf::RpcContextImpl& ctx)>;
-
     void update_consensus()
     {
       auto c = tables.get_consensus().get();
@@ -139,7 +136,6 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::CommittableTx& tx,
-      const PreExec& pre_exec = {},
       kv::Version prescribed_commit_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN)
     {
@@ -312,11 +308,6 @@ namespace ccf
 
           try
           {
-            if (pre_exec)
-            {
-              pre_exec(tx, *ctx.get());
-            }
-
             // Check auth policies
             {
               std::unique_ptr<AuthnIdentity> identity = nullptr;
