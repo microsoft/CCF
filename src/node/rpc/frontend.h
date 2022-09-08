@@ -85,7 +85,7 @@ namespace ccf
       }
     }
 
-    std::optional<std::vector<uint8_t>> forward(
+    void forward(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
@@ -97,7 +97,7 @@ namespace ccf
           ccf::errors::InternalError,
           "No consensus or forwarder to forward request.");
         update_metrics(ctx, endpoint);
-        return ctx->serialise_response();
+        return;
       }
 
       if (ctx->get_session_context()->is_forwarded)
@@ -109,7 +109,7 @@ namespace ccf
           ccf::errors::RequestAlreadyForwarded,
           "RPC was already forwarded.");
         update_metrics(ctx, endpoint);
-        return ctx->serialise_response();
+        return;
       }
 
       auto primary_id = consensus->primary();
@@ -120,7 +120,7 @@ namespace ccf
           ccf::errors::InternalError,
           "RPC could not be forwarded to unknown primary.");
         update_metrics(ctx, endpoint);
-        return ctx->serialise_response();
+        return;
       }
 
       // Ignore return value - false only means it is pending
@@ -130,10 +130,16 @@ namespace ccf
       LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
 
       // Indicate that the RPC has been forwarded to primary
-      return std::nullopt;
+      ctx->response_is_pending = true;
+
+      // Ensure future requests on this session are forwarded for session
+      // consistency
+      ctx->get_session_context()->is_forwarding = true;
+
+      return;
     }
 
-    std::optional<std::vector<uint8_t>> process_command(
+    void process_command(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::CommittableTx& tx,
       kv::Version prescribed_commit_version = kv::NoVersion,
@@ -152,7 +158,7 @@ namespace ccf
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             fmt::format("Unknown path: {}.", ctx->get_method()));
-          return ctx->serialise_response();
+          return;
         }
         else
         {
@@ -183,7 +189,7 @@ namespace ccf
                 ctx->get_method(),
                 allow_header_value));
           }
-          return ctx->serialise_response();
+          return;
         }
       }
 
@@ -196,7 +202,7 @@ namespace ccf
           if (!node_configuration_subsystem)
           {
             ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            return ctx->serialise_response();
+            return;
           }
         }
 
@@ -218,7 +224,7 @@ namespace ccf
           if (!ok)
           {
             ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
-            return ctx->serialise_response();
+            return;
           }
         }
         else
@@ -232,7 +238,7 @@ namespace ccf
               "no accepted_endpoints have been configured.",
               endpoint->full_uri_path);
             ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
-            return ctx->serialise_response();
+            return;
           }
         }
       }
@@ -273,16 +279,16 @@ namespace ccf
                 (consensus->type() != ConsensusType::CFT &&
                  !ctx->execute_on_node))
               {
-                ctx->get_session_context()->is_forwarding = true;
-                return forward(ctx, tx, endpoint);
+                forward(ctx, tx, endpoint);
+                return;
               }
               break;
             }
 
             case endpoints::ForwardingRequired::Always:
             {
-              ctx->get_session_context()->is_forwarding = true;
-              return forward(ctx, tx, endpoint);
+              forward(ctx, tx, endpoint);
+              return;
             }
           }
         }
@@ -348,7 +354,7 @@ namespace ccf
                     "Invalid info",
                     error_details);
                   update_metrics(ctx, endpoint);
-                  return ctx->serialise_response();
+                  return;
                 }
               }
 
@@ -360,7 +366,7 @@ namespace ccf
             if (!ctx->should_apply_writes())
             {
               update_metrics(ctx, endpoint);
-              return ctx->serialise_response();
+              return;
             }
 
             kv::CommitResult result;
@@ -407,7 +413,7 @@ namespace ccf
                 }
 
                 update_metrics(ctx, endpoint);
-                return ctx->serialise_response();
+                return;
               }
 
               case kv::CommitResult::FAIL_CONFLICT:
@@ -422,7 +428,7 @@ namespace ccf
                   ccf::errors::TransactionReplicationFailed,
                   "Transaction failed to replicate.");
                 update_metrics(ctx, endpoint);
-                return ctx->serialise_response();
+                return;
               }
             }
           }
@@ -438,7 +444,7 @@ namespace ccf
           {
             ctx->set_error(std::move(e.error));
             update_metrics(ctx, endpoint);
-            return ctx->serialise_response();
+            return;
           }
           catch (const JsonParseError& e)
           {
@@ -447,14 +453,14 @@ namespace ccf
               ccf::errors::InvalidInput,
               fmt::format("At {}: {}", e.pointer(), e.what()));
             update_metrics(ctx, endpoint);
-            return ctx->serialise_response();
+            return;
           }
           catch (const nlohmann::json::exception& e)
           {
             ctx->set_error(
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
             update_metrics(ctx, endpoint);
-            return ctx->serialise_response();
+            return;
           }
           catch (const kv::KvSerialiserException& e)
           {
@@ -485,10 +491,10 @@ namespace ccf
           ccf::errors::InternalError,
           e.what());
         update_metrics(ctx, endpoint);
-        return ctx->serialise_response();
+        return;
       }
 
-      return ctx->serialise_response();
+      return;
     }
 
   public:
@@ -591,12 +597,10 @@ namespace ccf
      * If an RPC that requires writing to the kv store is processed on a
      * backup, the serialised RPC is forwarded to the current network primary.
      *
-     * @param ctx Context for this RPC
-     * @returns nullopt if the result is pending (to be forwarded, or still
-     * to-be-executed by consensus), else the response (may contain error)
+     * @param ctx Context for this RPC. Will be populated with response details
+     * before this call returns, or else response_is_pending will be set to true
      */
-    std::optional<std::vector<uint8_t>> process(
-      std::shared_ptr<ccf::RpcContextImpl> ctx) override
+    void process(std::shared_ptr<ccf::RpcContextImpl> ctx) override
     {
       update_consensus();
 
@@ -609,22 +613,21 @@ namespace ccf
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::FrontendNotOpen,
           "Frontend is not open.");
-        return ctx->serialise_response();
+        return;
       }
-
-      // NB: If we want to re-execute on backups, the original command could be
-      // propagated from here
-      return process_command(ctx, tx);
+      else
+      {
+        // NB: If we want to re-execute on backups, the original command could
+        // be propagated from here
+        process_command(ctx, tx);
+      }
     }
 
     /** Process a serialised input forwarded from another node
      *
      * @param ctx Context for this forwarded RPC
-     *
-     * @return Serialised reply to send back to forwarder node
      */
-    std::vector<uint8_t> process_forwarded(
-      std::shared_ptr<ccf::RpcContextImpl> ctx) override
+    void process_forwarded(std::shared_ptr<ccf::RpcContextImpl> ctx) override
     {
       if (!ctx->get_session_context()->is_forwarded)
       {
@@ -638,20 +641,20 @@ namespace ccf
 
       if (consensus->type() == ConsensusType::CFT)
       {
-        auto rep = process_command(ctx, tx);
-        if (!rep.has_value())
+        process_command(ctx, tx);
+        if (ctx->response_is_pending)
         {
           // This should never be called when process_command is called with a
           // forwarded RPC context
           throw std::logic_error("Forwarded RPC cannot be forwarded");
         }
 
-        return rep.value();
+        return;
       }
       else
       {
         LOG_FAIL_FMT("Unsupported consensus type");
-        return {};
+        return;
       }
     }
 

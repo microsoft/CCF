@@ -36,14 +36,15 @@ TResponse frontend_process(
   auto session =
     std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, caller.raw());
   auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
-  auto serialised_response = frontend.process(rpc_ctx);
+  frontend.process(rpc_ctx);
 
-  CHECK(serialised_response.has_value());
+  CHECK(!rpc_ctx->response_is_pending);
+  const auto serialised_response = rpc_ctx->serialise_response();
 
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
-  parser.execute(serialised_response->data(), serialised_response->size());
+  parser.execute(serialised_response.data(), serialised_response.size());
   REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();

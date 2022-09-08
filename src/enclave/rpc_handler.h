@@ -36,7 +36,6 @@ namespace ccf
     virtual bool is_open() = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
-    virtual std::optional<std::vector<uint8_t>> process(
-      std::shared_ptr<RpcContextImpl> ctx) = 0;
+    virtual void process(std::shared_ptr<RpcContextImpl> ctx) = 0;
   };
 }
