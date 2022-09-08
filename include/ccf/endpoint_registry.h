@@ -130,8 +130,8 @@ namespace ccf::endpoints
     ccf::pal::Mutex metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
-    EndpointRegistry::Metrics& get_metrics_for_endpoint(
-      const EndpointDefinitionPtr& e);
+    EndpointRegistry::Metrics& get_metrics_for_request(
+      const ccf::RpcContext& rpc_ctx);
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -228,9 +228,9 @@ namespace ccf::endpoints
 
     void set_history(kv::TxHistory* h);
 
-    virtual void increment_metrics_calls(const EndpointDefinitionPtr& e);
-    virtual void increment_metrics_errors(const EndpointDefinitionPtr& e);
-    virtual void increment_metrics_failures(const EndpointDefinitionPtr& e);
-    virtual void increment_metrics_retries(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_calls(const ccf::RpcContext& rpc_ctx);
+    virtual void increment_metrics_errors(const ccf::RpcContext& rpc_ctx);
+    virtual void increment_metrics_failures(const ccf::RpcContext& rpc_ctx);
+    virtual void increment_metrics_retries(const ccf::RpcContext& rpc_ctx);
   };
 }

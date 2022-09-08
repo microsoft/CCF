@@ -1385,7 +1385,7 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto jwt_metrics = [this](auto&, nlohmann::json&&) {
+      auto jwt_metrics = [this](auto& ctx, nlohmann::json&&) {
         JWTMetrics m;
         // Attempts are recorded by the key refresh code itself, registering
         // before each call to each issuer's keys
@@ -1393,7 +1393,7 @@ namespace ccf
         // Success is marked by the fact that the key succeeded and called
         // our internal "jwt_keys/refresh" endpoint.
         auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
-        auto metric = get_metrics_for_endpoint(e);
+        auto metric = get_metrics_for_request(*ctx.rpc_ctx);
         m.successes = metric.calls - (metric.failures + metric.errors);
         return m;
       };
