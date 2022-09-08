@@ -4,6 +4,7 @@
 import base64
 from typing import Optional
 
+import cbor2
 import hashlib
 import cose.headers
 from cose.keys.ec2 import EC2Key
@@ -144,6 +145,16 @@ def verify_cose_sign1(buf: bytes, cert_pem: str):
         raise ValueError("signature is invalid")
     return msg
 
+def detach_content(msg: bytes):
+    m = cbor2.loads(msg)
+    content = m.value[2]
+    m.value[2] = None
+    return content, cbor2.dumps(m)
+
+def attach_content(content, detached_envelope):
+    m = cbor2.loads(detached_envelope)
+    m.value[2] = content
+    return cbor2.dumps(m)
 
 PRIV = """-----BEGIN EC PARAMETERS-----
 BgUrgQQAIg==
@@ -177,6 +188,8 @@ if __name__ == "__main__":
         msg.phdr[cose.headers.KID],
         cert_fingerprint(PUB),
     )
-    # TODO detached content
+    content, detached_envelope = detach_content(signed_statement)
+    signed_statement = attach_content(content, detached_envelope)
+    msg = verify_cose_sign1(signed_statement, PUB)
     # TODO sample with governance tags
     # TODO map to existing APIs
