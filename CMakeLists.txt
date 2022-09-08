@@ -1003,6 +1003,8 @@ if(BUILD_TESTS)
     NAME external_executor_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/external_executor.py
     CONSENSUS ${CONSENSUS_FILTER}
+    ADDITIONAL_ARGS --proto-dir
+                    ${CMAKE_SOURCE_DIR}/src/apps/external_executor/protobuf
   )
 endif()
 
