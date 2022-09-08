@@ -120,7 +120,7 @@ def create_cose_sign1(
         raise NotImplementedError("unsupported key type")
     msg.key = cose_key
 
-    return msg.encode(tag=True)  # TODO: what does tag=True do?
+    return msg.encode()
 
 
 def get_cert_key_type(cert_pem: str) -> str:
@@ -177,6 +177,6 @@ if __name__ == "__main__":
         msg.phdr[cose.headers.KID],
         cert_fingerprint(PUB),
     )
+    # TODO detached content
     # TODO sample with governance tags
     # TODO map to existing APIs
-    # TODO detached content
