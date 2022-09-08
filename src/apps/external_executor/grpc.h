@@ -140,10 +140,10 @@ namespace ccf::grpc
     const GrpcAdapterResponse<Out>& r,
     const std::shared_ptr<ccf::RpcContext>& ctx)
   {
-    auto r_ = std::get_if<SuccessResponse<Out>>(&r);
-    if (r_ != nullptr)
+    auto success_response = std::get_if<SuccessResponse<Out>>(&r);
+    if (success_response != nullptr)
     {
-      const auto& resp = r_->body;
+      const auto& resp = success_response->body;
       if constexpr (!std::is_same_v<Out, EmptyResponse>)
       {
         size_t r_size = impl::message_frame_length + resp.ByteSizeLong();
@@ -162,14 +162,16 @@ namespace ccf::grpc
         }
         ctx->set_response_body(r);
       }
-      ctx->set_response_trailer("grpc-status", r_->status.code());
-      ctx->set_response_trailer("grpc-message", r_->status.message());
+      ctx->set_response_trailer("grpc-status", success_response->status.code());
+      ctx->set_response_trailer(
+        "grpc-message", success_response->status.message());
     }
     else
     {
-      auto r_ = std::get<ErrorResponse>(r);
-      ctx->set_response_trailer("grpc-status", r_.status.code());
-      ctx->set_response_trailer("grpc-message", r_.status.message());
+      auto error_response = std::get<ErrorResponse>(r);
+      ctx->set_response_trailer("grpc-status", error_response.status.code());
+      ctx->set_response_trailer(
+        "grpc-message", error_response.status.message());
     }
   }
 }
