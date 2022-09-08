@@ -10,6 +10,9 @@ Hashing
 .. doxygenfunction:: crypto::sha256(const std::vector<uint8_t> &data)
   :project: CCF
 
+.. doxygenfunction:: crypto::hmac(MDType, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+  :project: CCF
+
 .. doxygenClass:: crypto::HashProvider
   :project: CCF
   :members:
