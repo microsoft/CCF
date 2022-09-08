@@ -16,7 +16,7 @@ service ExecutorRegistration
   // the given client cert.
   // Returns indication of whether the registration succeeded, and error
   // details where appropriate.
-  rpc RegisterExecutor (NewExecutor) returns (RegistrationResult) {}
+  rpc RegisterExecutor(NewExecutor) returns (RegistrationResult) {}
 }
 
 message Attestation

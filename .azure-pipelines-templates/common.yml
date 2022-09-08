@@ -26,6 +26,10 @@ jobs:
               target: ${{ parameters.target }}
               quictls_mode: ${{ parameters.fetch_quictls }}
 
+      - template: platform.yml
+        parameters:
+          target: "${{ parameters.target }}"
+
       - template: cmake.yml
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"

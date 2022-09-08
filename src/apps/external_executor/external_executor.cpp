@@ -4,36 +4,91 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_consts.h"
+#include "ccf/json_handler.h"
+#include "ccf/kv/map.h"
+#include "executor_code_id.h"
+#include "grpc.h"
+#include "kv.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <string>
 
 namespace externalexecutor
 {
+  using Map = kv::Map<std::string, std::string>;
+
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
-    void install_registry_service() {}
-
-    void install_kv_service() {}
-
-    void echo_header(
-      std::shared_ptr<ccf::RpcContext>& rpc_ctx, const std::string_view& sv)
+    void install_registry_service()
     {
-      const auto header_val = rpc_ctx->get_request_header(sv);
-      if (header_val.has_value())
-      {
-        rpc_ctx->set_response_header(sv, *header_val);
-      }
+      auto get_executor_code =
+        [](ccf::endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          GetExecutorCode::Out out;
+
+          auto executor_code_ids =
+            ctx.tx.template ro<ExecutorCodeIDs>(EXECUTOR_CODE_IDS);
+          executor_code_ids->foreach(
+            [&out](const ccf::CodeDigest& cd, const ExecutorCodeInfo& info) {
+              auto digest = ds::to_hex(cd.data);
+              out.versions.push_back({digest, info.status, info.platform});
+              return true;
+            });
+
+          return ccf::make_success(out);
+        };
+
+      make_read_only_endpoint(
+        "/executor_code",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get_executor_code),
+        ccf::no_auth_required)
+        .set_auto_schema<void, GetExecutorCode::Out>()
+        .install();
     }
 
-    ccf::endpoints::EndpointFunction grpc_response_status_wrapper(
-      const ccf::endpoints::EndpointFunction& fn)
+    void install_kv_service()
     {
-      return [fn](ccf::endpoints::EndpointContext& ctx) {
-        fn(ctx);
-        ctx.rpc_ctx->set_response_trailer("grpc-status", 0);
-        ctx.rpc_ctx->set_response_trailer("grpc-message", "Ok");
+      auto put = [this](
+                   ccf::endpoints::EndpointContext& ctx,
+                   ccf::KVKeyValue&& payload) {
+        auto records_handle = ctx.tx.template rw<Map>(payload.table());
+        records_handle->put(payload.key(), payload.value());
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
+
+      make_endpoint(
+        "ccf.KV/Put",
+        HTTP_POST,
+        ccf::grpc_adapter<ccf::KVKeyValue, void>(put),
+        ccf::no_auth_required)
+        .install();
+
+      auto get = [this](
+                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                   ccf::KVKey&& payload) {
+        auto records_handle = ctx.tx.template ro<Map>(payload.table());
+        auto value = records_handle->get(payload.key());
+        if (!value.has_value())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          return ccf::KVValue(); // Handle errors
+        }
+
+        ccf::KVValue r;
+        r.set_value(value.value());
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return r;
+      };
+
+      make_read_only_endpoint(
+        "ccf.KV/Get",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get),
+        ccf::no_auth_required)
+        .install();
     }
 
   public:
@@ -43,33 +98,9 @@ namespace externalexecutor
       install_registry_service();
 
       install_kv_service();
-
-      auto do_echo = [this](ccf::endpoints::EndpointContext& ctx) {
-        CCF_APP_INFO("ECHO HANDLER BEGIN");
-
-        const auto headers = ctx.rpc_ctx->get_request_headers();
-        CCF_APP_INFO("Request contains {} headers", headers.size());
-        for (const auto& [k, v] : headers)
-        {
-          CCF_APP_INFO("  {} = {}", k, v);
-        }
-
-        echo_header(ctx.rpc_ctx, http::headers::CONTENT_TYPE);
-
-        ctx.rpc_ctx->set_response_body(ctx.rpc_ctx->get_request_body());
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        CCF_APP_INFO("ECHO HANDLER END");
-      };
-
-      make_endpoint(
-        "ccf.Echo/Echo",
-        HTTP_POST,
-        grpc_response_status_wrapper(do_echo),
-        ccf::no_auth_required)
-        .install();
     }
   };
-} // namespace app
+} // namespace externalexecutor
 
 namespace ccfapp
 {

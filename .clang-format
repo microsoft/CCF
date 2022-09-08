@@ -128,4 +128,9 @@ StatementMacros:
 TabWidth:        2
 UseCRLF:         false
 UseTab:          Never
+---
+Language: Proto
+IndentWidth:     2
+UseTab:          Never
+BreakBeforeBraces: Stroustrup
 ...
