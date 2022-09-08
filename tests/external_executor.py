@@ -15,8 +15,6 @@ import os
 
 from loguru import logger as LOG
 
-PROTO_SOURCES_OUTPUT_FILE = "."
-
 
 @reqs.description("Store and retrieve key via external executor app")
 def test_put_get(network, args):
