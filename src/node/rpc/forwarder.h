@@ -146,34 +146,11 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-#if false
-      {
-        ForwardedCommandId command_id;
-        {
-          std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
-          command_id = next_command_id++;
-          timeout_tasks[command_id] =
-            threading::ThreadMessaging::thread_messaging.add_task_after(
-              create_timeout_error_task(to, client_session_id, timeout),
-              timeout);
-        }
+      ForwardedHeader_v1 msg = {
+        ForwardedMsg::forwarded_cmd_v1, rpc_ctx->frame_format()};
 
-        ForwardedHeader_v2 msg = {
-          {ForwardedMsg::forwarded_cmd_v2, rpc_ctx->frame_format()},
-          command_id};
-
-        return n2n_channels->send_encrypted(
-          to, NodeMsgType::forwarded_msg, plain, msg);
-      }
-#else
-      {
-        ForwardedHeader_v1 msg = {
-          ForwardedMsg::forwarded_cmd_v1, rpc_ctx->frame_format()};
-
-        return n2n_channels->send_encrypted(
-          to, NodeMsgType::forwarded_msg, plain, msg);
-      }
-#endif
+      return n2n_channels->send_encrypted(
+        to, NodeMsgType::forwarded_msg, plain, msg);
     }
 
     template <typename TFwdHdr>
