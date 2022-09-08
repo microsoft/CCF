@@ -99,7 +99,7 @@ def create_cose_sign1(payload: bytes, key_priv_pem: Pem, cert_pem: Pem, addition
         raise NotImplementedError('unsupported key type')
     msg.key = cose_key
 
-    return msg.encode(tag=True)
+    return msg.encode(tag=True) #TODO: what does tag=True do?
 
 PRIV = """-----BEGIN EC PARAMETERS-----
 BgUrgQQAIg==
@@ -127,4 +127,6 @@ b2H04E57XZmVdg==
 """
 
 if __name__ == "__main__":
-    print(create_cose_sign1(b"hello", PRIV, PUB))
+    signed_statement = create_cose_sign1(b"hello", PRIV, PUB)
+    print(signed_statement)
+    # TODO verify
