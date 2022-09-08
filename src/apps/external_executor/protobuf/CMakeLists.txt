@@ -37,14 +37,13 @@ foreach(proto_file ${PROTO_FILES})
     ${CMAKE_SOURCE_DIR}/tests/
     COMMENT "Generate Python source file from protobuf file ${PROTO_NAME}"
     DEPENDS ${proto_file}
-    JOB_POOL ${one_job}
+    JOB_POOL one_job
   )
   add_custom_target(
     ${PROTO_NAME_WE}_python_proto ALL
     DEPENDS ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2.py
     ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2_grpc.py
-
-    JOB_POOL ${one_job}
+    JOB_POOL one_job
   )
 
   add_enclave_library(
