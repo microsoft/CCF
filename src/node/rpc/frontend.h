@@ -645,7 +645,6 @@ namespace ccf
       auto tx = tables.create_tx();
       set_root_on_proposals(*ctx, tx);
 
-      const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (consensus->type() == ConsensusType::CFT)
       {
         auto rep = process_command(ctx, tx);
