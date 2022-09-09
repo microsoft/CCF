@@ -13,7 +13,7 @@ service KV
 {
   // Indicate to node that this executor is ready for a new request.
   // Returns description of a client request, to be executed.
-  rpc StartTx(google.protobuf.Empty) returns (stream RequestDescription) {}
+  rpc StartTx(google.protobuf.Empty) returns (RequestDescription) {}
 
   // Indicate that this executor has completed execution of the previous Tx.
   // Contains description of response which should be forwarded to user.

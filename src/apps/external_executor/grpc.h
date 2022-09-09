@@ -8,6 +8,7 @@
 #include "node/rpc/rpc_exception.h"
 
 #include <arpa/inet.h>
+#include <google/protobuf/empty.pb.h>
 #include <variant>
 #include <vector>
 
@@ -43,9 +44,6 @@ namespace ccf::grpc
     }
   }
 
-  struct EmptyResponse
-  {};
-
   template <typename T>
   struct SuccessResponse
   {
@@ -73,9 +71,9 @@ namespace ccf::grpc
     return SuccessResponse(t, make_grpc_status_ok());
   }
 
-  GrpcAdapterResponse<EmptyResponse> make_success()
+  GrpcAdapterResponse<google::protobuf::Empty> make_success()
   {
-    return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
+    return SuccessResponse(google::protobuf::Empty{}, make_grpc_status_ok());
   }
 
   ErrorResponse make_error(
@@ -144,24 +142,21 @@ namespace ccf::grpc
     if (success_response != nullptr)
     {
       const auto& resp = success_response->body;
-      if constexpr (!std::is_same_v<Out, EmptyResponse>)
+      size_t r_size = impl::message_frame_length + resp.ByteSizeLong();
+      std::vector<uint8_t> r(r_size);
+      auto r_data = r.data();
+
+      impl::write_message_frame(r_data, r_size, resp.ByteSizeLong());
+      ctx->set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+
+      if (!resp.SerializeToArray(r_data, r_size))
       {
-        size_t r_size = impl::message_frame_length + resp.ByteSizeLong();
-        std::vector<uint8_t> r(r_size);
-        auto r_data = r.data();
-
-        impl::write_message_frame(r_data, r_size, resp.ByteSizeLong());
-        ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
-
-        if (!resp.SerializeToArray(r_data, r_size))
-        {
-          throw std::logic_error(fmt::format(
-            "Error serialising protobuf response of size {}",
-            resp.ByteSizeLong()));
-        }
-        ctx->set_response_body(r);
+        throw std::logic_error(fmt::format(
+          "Error serialising protobuf response of size {}",
+          resp.ByteSizeLong()));
       }
+      ctx->set_response_body(r);
       ctx->set_response_trailer("grpc-status", success_response->status.code());
       ctx->set_response_trailer(
         "grpc-message", success_response->status.message());
