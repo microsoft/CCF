@@ -251,6 +251,56 @@ namespace ccf
       return std::make_pair(client_session_id, rpc);
     }
 
+    std::shared_ptr<ForwardedRpcHandler> get_forwarder_handler(
+      const std::shared_ptr<http::HttpRpcContext>& ctx)
+    {
+      if (ctx == nullptr)
+      {
+        LOG_FAIL_FMT("Failed to receive forwarded command");
+        return nullptr;
+      }
+
+      std::shared_ptr<ccf::RPCMap> rpc_map_shared = rpc_map.lock();
+      if (rpc_map_shared == nullptr)
+      {
+        LOG_FAIL_FMT("Failed to obtain RPCMap");
+        return nullptr;
+      }
+
+      const auto actor_opt = http::extract_actor(*ctx);
+      if (!actor_opt.has_value())
+      {
+        LOG_FAIL_FMT("Failed to extract actor from forwarded context.");
+        LOG_DEBUG_FMT(
+          "Failed to extract actor from forwarded context. Method is "
+          "'{}'",
+          ctx->get_method());
+      }
+
+      const auto& actor_s = actor_opt.value();
+      auto actor = rpc_map_shared->resolve(actor_s);
+      auto handler = rpc_map_shared->find(actor);
+      if (actor == ccf::ActorsType::unknown || !handler.has_value())
+      {
+        LOG_FAIL_FMT("Failed to process forwarded command: unknown actor");
+        LOG_DEBUG_FMT(
+          "Failed to process forwarded command: unknown actor {}", actor_s);
+        return nullptr;
+      }
+
+      auto fwd_handler =
+        std::dynamic_pointer_cast<ForwardedRpcHandler>(handler.value());
+      if (!fwd_handler)
+      {
+        LOG_FAIL_FMT(
+          "Failed to process forwarded command: handler is not a "
+          "ForwardedRpcHandler");
+        return nullptr;
+      }
+
+      return fwd_handler;
+    }
+
     void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
       try
@@ -267,96 +317,60 @@ namespace ccf
         switch (forwarded_msg)
         {
           case ForwardedMsg::forwarded_cmd_v1:
+          {
+            auto ctx =
+              recv_forwarded_command<ForwardedHeader_v1>(from, data, size);
+
+            auto fwd_handler = get_forwarder_handler(ctx);
+            if (fwd_handler == nullptr)
+            {
+              return;
+            }
+
+            // frame_format is deliberately unset, the forwarder ignores it
+            // and expects the same format they forwarded.
+            ForwardedHeader_v1 response_header{
+              ForwardedMsg::forwarded_response_v1};
+
+            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
+
+            // Ignore return value - false only means it is pending
+            send_forwarded_response(
+              ctx->get_session_context()->client_session_id,
+              from,
+              response_header,
+              fwd_handler->process_forwarded(ctx));
+            break;
+          }
+
           case ForwardedMsg::forwarded_cmd_v2:
           {
-            std::shared_ptr<ccf::RPCMap> rpc_map_shared = rpc_map.lock();
-            if (rpc_map_shared)
+            auto ctx =
+              recv_forwarded_command<ForwardedHeader_v2>(from, data, size);
+
+            auto fwd_handler = get_forwarder_handler(ctx);
+            if (fwd_handler == nullptr)
             {
-              std::shared_ptr<http::HttpRpcContext> ctx;
-              if (forwarded_msg == ForwardedMsg::forwarded_cmd_v2)
-              {
-                ctx =
-                  recv_forwarded_command<ForwardedHeader_v2>(from, data, size);
-              }
-              else
-              {
-                ctx =
-                  recv_forwarded_command<ForwardedHeader_v1>(from, data, size);
-              }
-
-              if (ctx == nullptr)
-              {
-                LOG_FAIL_FMT("Failed to receive forwarded command");
-                return;
-              }
-
-              const auto actor_opt = http::extract_actor(*ctx);
-              if (!actor_opt.has_value())
-              {
-                LOG_FAIL_FMT("Failed to extract actor from forwarded context.");
-                LOG_DEBUG_FMT(
-                  "Failed to extract actor from forwarded context. Method is "
-                  "'{}'",
-                  ctx->get_method());
-              }
-
-              const auto& actor_s = actor_opt.value();
-              auto actor = rpc_map_shared->resolve(actor_s);
-              auto handler = rpc_map_shared->find(actor);
-              if (actor == ccf::ActorsType::unknown || !handler.has_value())
-              {
-                LOG_FAIL_FMT(
-                  "Failed to process forwarded command: unknown actor");
-                LOG_DEBUG_FMT(
-                  "Failed to process forwarded command: unknown actor {}",
-                  actor_s);
-                return;
-              }
-
-              auto fwd_handler =
-                dynamic_cast<ForwardedRpcHandler*>(handler.value().get());
-              if (!fwd_handler)
-              {
-                LOG_FAIL_FMT(
-                  "Failed to process forwarded command: handler is not a "
-                  "ForwardedRpcHandler");
-                return;
-              }
-
-              if (forwarded_msg == ForwardedMsg::forwarded_cmd_v2)
-              {
-                const auto forwarded_hdr_v2 =
-                  serialized::peek<ForwardedHeader_v2>(data, size);
-                const auto cmd_id = forwarded_hdr_v2.id;
-
-                // frame_format is deliberately unset, the forwarder ignores it
-                // and expects the same format they forwarded.
-                ForwardedHeader_v2 response_header{
-                  {ForwardedMsg::forwarded_response_v2, {}}, cmd_id};
-
-                // Ignore return value - false only means it is pending
-                send_forwarded_response(
-                  ctx->get_session_context()->client_session_id,
-                  from,
-                  response_header,
-                  fwd_handler->process_forwarded(ctx));
-              }
-              else
-              {
-                // frame_format is deliberately unset, the forwarder ignores it
-                // and expects the same format they forwarded.
-                ForwardedHeader_v1 response_header{
-                  ForwardedMsg::forwarded_response_v1};
-
-                // Ignore return value - false only means it is pending
-                send_forwarded_response(
-                  ctx->get_session_context()->client_session_id,
-                  from,
-                  response_header,
-                  fwd_handler->process_forwarded(ctx));
-              }
-              LOG_DEBUG_FMT("Sending forwarded response to {}", from);
+              return;
             }
+
+            const auto forwarded_hdr_v2 =
+              serialized::peek<ForwardedHeader_v2>(data, size);
+            const auto cmd_id = forwarded_hdr_v2.id;
+
+            // frame_format is deliberately unset, the forwarder ignores it
+            // and expects the same format they forwarded.
+            ForwardedHeader_v2 response_header{
+              {ForwardedMsg::forwarded_response_v2, {}}, cmd_id};
+
+            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
+
+            // Ignore return value - false only means it is pending
+            send_forwarded_response(
+              ctx->get_session_context()->client_session_id,
+              from,
+              response_header,
+              fwd_handler->process_forwarded(ctx));
             break;
           }
 
