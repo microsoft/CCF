@@ -37,38 +37,28 @@ def test_put_get(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    my_key = "my_key"
-    my_value = "my_value"
-    my_table = "my_table"
+    my_table = b"my_table"
+    my_key = b"my_key"
+    my_value = b"my_value"
 
     with grpc.secure_channel(
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        put = KV.KVKeyValue()
-        put.key = my_key.encode()
-        put.value = my_value.encode()
-        put.table = my_table.encode()
+        stub = Service.KVStub(channel)
 
         LOG.info(f"Put key '{my_key}' in table '{my_table}'")
-        stub = Service.KVStub(channel)
-        stub.Put(put)
+        stub.Put(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
 
         LOG.info(f"Get key '{my_key}' in table '{my_table}'")
-        get = KV.KVKey()
-        get.key = my_key.encode()
-        get.table = my_table.encode()
-        r = stub.Get(get)
-        assert r.value == my_value.encode()
+        r = stub.Get(KV.KVKey(table=my_table, key=my_key))
+        assert r.value == my_value
         LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
 
-        unknown_key = "unknown_key"
+        unknown_key = b"unknown_key"
         LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
-        get = KV.KVKey()
-        get.key = unknown_key.encode()
-        get.table = my_table.encode()
         try:
-            r = stub.Get(get)
+            r = stub.Get(KV.KVKey(table=my_table, key=unknown_key))
         except grpc.RpcError as e:
             assert e.code() == grpc.StatusCode.NOT_FOUND  # pylint: disable=no-member
             assert (

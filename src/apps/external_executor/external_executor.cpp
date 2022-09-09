@@ -106,6 +106,8 @@ namespace externalexecutor
             "Already managing an active transaction");
         }
 
+        // TODO: Try to commit, and clear active_tx.
+        // Commit simply by overwriting ContextImpl's owned_tx with this?
         return ccf::grpc::make_success();
       };
 
@@ -117,6 +119,7 @@ namespace externalexecutor
         ccf::no_auth_required)
         .install();
 
+      // TODO: Use active_tx for these
       auto put = [this](
                    ccf::endpoints::EndpointContext& ctx,
                    ccf::KVKeyValue&& payload) {
