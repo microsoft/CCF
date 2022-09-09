@@ -200,5 +200,5 @@ if __name__ == "__main__":
         b"governance js here",
         PRIV,
         PUB,
-        {"ccf_governance_action": "proposal", "ccf_proposal_id": "12345"},
+        {"ccf_governance_action": "proposal", "ccf_governance_proposal_id": "12345"},
     )
