@@ -201,6 +201,11 @@ namespace ccf
       kv::CommittableTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
+      if (endpoint->authn_policies.empty())
+      {
+        return nullptr;
+      }
+
       std::unique_ptr<AuthnIdentity> identity = nullptr;
 
       std::string auth_error_reason;
@@ -306,8 +311,8 @@ namespace ccf
 
       while (attempts < max_attempts)
       {
-        auto tx = tables.create_tx();
-        set_root_on_proposals(*ctx, tx);
+        std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_p();
+        set_root_on_proposals(*ctx, *tx_p);
 
         if (attempts > 0)
         {
@@ -317,7 +322,7 @@ namespace ccf
           endpoints.increment_metrics_retries(*ctx);
         }
 
-        if (!is_open(tx))
+        if (!is_open(*tx_p))
         {
           ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
@@ -329,7 +334,7 @@ namespace ccf
         ++attempts;
         update_history();
 
-        const auto endpoint = find_endpoint(ctx, tx);
+        const auto endpoint = find_endpoint(ctx, *tx_p);
         if (endpoint == nullptr)
         {
           return;
@@ -366,7 +371,7 @@ namespace ccf
                   (consensus->type() != ConsensusType::CFT &&
                    !ctx->execute_on_node))
                 {
-                  forward(ctx, tx, endpoint);
+                  forward(ctx, *tx_p, endpoint);
                   return;
                 }
                 break;
@@ -374,24 +379,31 @@ namespace ccf
 
               case endpoints::ForwardingRequired::Always:
               {
-                forward(ctx, tx, endpoint);
+                forward(ctx, *tx_p, endpoint);
                 return;
               }
             }
           }
 
-          auto args = endpoints::EndpointContext(ctx, tx);
+          std::unique_ptr<AuthnIdentity> identity =
+            get_authenticated_identity(ctx, *tx_p, endpoint);
+
+          auto args = endpoints::EndpointContext(ctx, *tx_p);
+          // NB: tx_p is no longer valid, and must be accessed from args, which
+          // may change it!
 
           // If any auth policy was required, check that at least one is
           // accepted
           if (!endpoint->authn_policies.empty())
           {
-            auto identity = get_authenticated_identity(ctx, tx, endpoint);
             if (identity == nullptr)
             {
               return;
             }
-            args.caller = std::move(identity);
+            else
+            {
+              args.caller = std::move(identity);
+            }
           }
 
           endpoints.execute_endpoint(endpoint, args);
@@ -401,6 +413,15 @@ namespace ccf
             update_metrics(ctx);
             return;
           }
+
+          if (ctx->response_is_pending)
+          {
+            return;
+          }
+
+          // TODO: ELSE, there should be valid CommittableTx pointer in args,
+          // which we can dereference.
+          kv::CommittableTx& tx = *tx_p;
 
           kv::CommitResult result;
           bool track_read_versions =
