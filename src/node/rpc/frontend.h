@@ -296,7 +296,6 @@ namespace ccf
 
     void process_command(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
-      kv::CommittableTx& tx,
       kv::Version prescribed_commit_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN)
     {
@@ -307,14 +306,24 @@ namespace ccf
 
       while (attempts < max_attempts)
       {
+        auto tx = tables.create_tx();
+        set_root_on_proposals(*ctx, tx);
+
         if (attempts > 0)
         {
           // If the endpoint has already been executed, the effects of its
           // execution should be dropped
-          tx = tables.create_tx();
           ctx->reset_response();
-          set_root_on_proposals(*ctx, tx);
           endpoints.increment_metrics_retries(*ctx);
+        }
+
+        if (!is_open(tx))
+        {
+          ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::FrontendNotOpen,
+            "Frontend is not open.");
+          return;
         }
 
         ++attempts;
@@ -624,23 +633,9 @@ namespace ccf
     {
       update_consensus();
 
-      auto tx = tables.create_tx();
-      set_root_on_proposals(*ctx, tx);
-
-      if (!is_open(tx))
-      {
-        ctx->set_error(
-          HTTP_STATUS_NOT_FOUND,
-          ccf::errors::FrontendNotOpen,
-          "Frontend is not open.");
-        return;
-      }
-      else
-      {
-        // NB: If we want to re-execute on backups, the original command could
-        // be propagated from here
-        process_command(ctx, tx);
-      }
+      // NB: If we want to re-execute on backups, the original command could
+      // be propagated from here
+      process_command(ctx);
     }
 
     /** Process a serialised input forwarded from another node
@@ -656,12 +651,10 @@ namespace ccf
       }
 
       update_consensus();
-      auto tx = tables.create_tx();
-      set_root_on_proposals(*ctx, tx);
 
       if (consensus->type() == ConsensusType::CFT)
       {
-        process_command(ctx, tx);
+        process_command(ctx);
         if (ctx->response_is_pending)
         {
           // This should never be called when process_command is called with a
