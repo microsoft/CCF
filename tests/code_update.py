@@ -125,7 +125,7 @@ def test_update_all_nodes(network, args):
                 "platform": "OE_SGX_v1",
             },
         ]
-        if args.enclave_type == "virtual"
+        if args.enclave_type == "virtual":
             if IS_SNP:
                 expected.insert(
                     0,
