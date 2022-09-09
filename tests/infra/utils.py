@@ -4,7 +4,7 @@ import infra.path
 import hashlib
 import os
 import subprocess
-from is_snp import IS_SNP
+from infra.is_snp import IS_SNP
 
 
 def get_code_id(enclave_type, oe_binary_dir, package, library_dir="."):

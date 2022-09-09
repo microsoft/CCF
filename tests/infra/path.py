@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 from contextlib import contextmanager
-from is_snp import IS_SNP
+from infra.is_snp import IS_SNP
 from shutil import copy2, rmtree
 import hashlib
 

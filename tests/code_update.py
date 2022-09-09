@@ -8,7 +8,7 @@ import infra.utils
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
-from is_snp import IS_SNP
+from infra.is_snp import IS_SNP
 
 
 from loguru import logger as LOG

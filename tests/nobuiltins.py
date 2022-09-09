@@ -5,7 +5,7 @@ from http import HTTPStatus
 import openapi_spec_validator
 from datetime import datetime, timezone
 import time
-from is_snp import IS_SNP
+from infra.is_snp import IS_SNP
 
 
 def test_nobuiltins_endpoints(network, args):
