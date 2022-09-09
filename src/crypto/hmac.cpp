@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "hmac.h"
+#include "ccf/crypto/hmac.h"
 
 #include "crypto/openssl/hash.h"
 
