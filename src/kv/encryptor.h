@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hmac.h"
+#include "ccf/crypto/hmac.h"
 #include "kv/kv_types.h"
 
 #include <algorithm>

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/entropy.h"
+#include "ccf/crypto/hmac.h"
 #include "ccf/crypto/symmetric_key.h"
-#include "crypto/hmac.h"
 #include "kv/kv_types.h"
 #include "service/tables/secrets.h"
 #include "service/tables/shares.h"
