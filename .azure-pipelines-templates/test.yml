@@ -5,7 +5,6 @@ parameters:
   suffix: ""
 
 steps:
-
   - script: |
       set -ex
       ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
@@ -67,8 +66,3 @@ steps:
       testRunTitle: "${{ parameters.suite_name_suffix }}"
       platform: "$(Agent.MachineName)"
     condition: succeededOrFailed()
-
-  - script: |
-      df -h
-    displayName: Check Storage
-    workingDirectory: build

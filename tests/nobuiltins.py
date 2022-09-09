@@ -21,13 +21,15 @@ def test_nobuiltins_endpoints(network, args):
         body_j = r.body.json()
         assert body_j["committed_view"] >= tx_id.view
         assert body_j["committed_seqno"] >= tx_id.seqno
-        expected_format = {
-            "release": "OE_SGX_v1",
-            "debug": "OE_SGX_v1",
-            "virtual": "Insecure_Virtual",
-        }[args.enclave_type]
-        if IS_SNP:
-            expected_format = "AMD_SEV_SNP_v1"
+        if args.enclave_type in ("release", "debug"):
+            expected_format = "OE_SGX_v1"
+        elif args.enclave_type == "virtual":
+            if IS_SNP:
+                expected_format = "AMD_SEV_SNP_v1"
+            else:
+                expected_format = "Insecure_Virtual"
+        else:
+            raise ValueError(f"Unhandled enclave_type = {args.enclave_type}")
         assert body_j["quote_format"] == expected_format, body_j["quote_format"]
         assert body_j["node_id"] == primary.node_id
 

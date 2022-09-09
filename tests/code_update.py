@@ -16,7 +16,7 @@ from loguru import logger as LOG
 # Dummy code id used by virtual nodes
 VIRTUAL_CODE_ID = "0" * 96
 
-# TODO: Un-hardcode
+# Digest of the UVM, in our control as long as we have a self hosted agent pool
 SNP_CODE_ID = "ede826880a4e1a41898a96810efb09f2070513abb355e89652564cd18f1d43a7a031d1ff54490dbd61687de101b66ed1"
 
 
@@ -111,7 +111,6 @@ def test_update_all_nodes(network, args):
     LOG.info("Add new code id")
     network.consortium.add_new_code(primary, new_code_id)
     with primary.client() as uc:
-        r = uc.get("/gov/nodes/code_ids")
         r = uc.get("/node/code")
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = [
@@ -126,24 +125,25 @@ def test_update_all_nodes(network, args):
                 "platform": "OE_SGX_v1",
             },
         ]
-        if args.enclave_type == "virtual":
-            expected.insert(
-                0,
-                {
-                    "digest": VIRTUAL_CODE_ID,
-                    "status": "AllowedToJoin",
-                    "platform": "Insecure_Virtual",
-                },
-            )
-        elif IS_SNP:
-            expected.insert(
-                0,
-                {
-                    "digest": SNP_CODE_ID,
-                    "status": "AllowedToJoin",
-                    "platform": "AMD_SEV_SNP_v1",
-                },
-            )
+        if args.enclave_type == "virtual"
+            if IS_SNP:
+                expected.insert(
+                    0,
+                    {
+                        "digest": SNP_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "AMD_SEV_SNP_v1",
+                    },
+                )
+            else:
+                expected.insert(
+                    0,
+                    {
+                        "digest": VIRTUAL_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "Insecure_Virtual",
+                    },
+                )
         expected.sort(key=lambda x: x["digest"])
         assert versions == expected, [(a, b) for a, b in zip(versions, expected)]
 
@@ -160,23 +160,24 @@ def test_update_all_nodes(network, args):
             },
         ]
         if args.enclave_type == "virtual":
-            expected.insert(
-                0,
-                {
-                    "digest": VIRTUAL_CODE_ID,
-                    "status": "AllowedToJoin",
-                    "platform": "Insecure_Virtual",
-                },
-            )
-        elif IS_SNP:
-            expected.insert(
-                0,
-                {
-                    "digest": SNP_CODE_ID,
-                    "status": "AllowedToJoin",
-                    "platform": "AMD_SEV_SNP_v1",
-                },
-            )
+            if IS_SNP:
+                expected.insert(
+                    0,
+                    {
+                        "digest": SNP_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "AMD_SEV_SNP_v1",
+                    },
+                )
+            else:
+                expected.insert(
+                    0,
+                    {
+                        "digest": VIRTUAL_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "Insecure_Virtual",
+                    },
+                )
         expected.sort(key=lambda x: x["digest"])
         assert versions == expected, versions
 

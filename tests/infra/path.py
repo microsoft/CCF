@@ -22,7 +22,7 @@ def mk_new(name, contents):
 
 
 def build_lib_path(lib_name, enclave_type=None, library_dir="."):
-    if enclave_type == "virtual" or IS_SNP:
+    if enclave_type == "virtual":
         ext = ".virtual.so"
         mode = "Virtual mode"
     elif enclave_type == "debug":

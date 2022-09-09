@@ -20,7 +20,7 @@ parameters:
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
     SNPCC:
-      cmake_args: "-DCOMPILE_TARGETS=virtual"
+      cmake_args: "-DLONG_TESTS=OFF -DCOMPILE_TARGETS=virtual"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     V8Debug:

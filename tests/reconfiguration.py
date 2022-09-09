@@ -492,14 +492,14 @@ def test_issue_fake_join(network, args):
             "endorsements": "",
         }
         r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual":
+        if args.enclave_type == "virtual" and not IS_SNP:
             assert r.status_code == http.HTTPStatus.OK
             assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
         else:
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
             assert (
                 r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "Virtual node must never join SGX network"
+            ), "Virtual node must never join non-virtual network"
 
     return network
 

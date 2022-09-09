@@ -4,13 +4,12 @@ import infra.path
 import hashlib
 import os
 import subprocess
-from infra.is_snp import IS_SNP
 
 
 def get_code_id(enclave_type, oe_binary_dir, package, library_dir="."):
     lib_path = infra.path.build_lib_path(package, enclave_type, library_dir)
 
-    if enclave_type == "virtual" or IS_SNP:
+    if enclave_type == "virtual":
         return hashlib.sha384(lib_path.encode()).hexdigest()
     else:
         res = subprocess.run(
