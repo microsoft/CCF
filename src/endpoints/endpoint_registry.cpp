@@ -118,11 +118,10 @@ namespace ccf::endpoints
   }
 
   EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_request(
-    const ccf::RpcContext& rpc_ctx)
+    const std::string& method_, const std::string& verb)
   {
-    auto method = rpc_ctx.get_method();
-    method = method.substr(method.find_first_not_of('/'));
-    return metrics[method][rpc_ctx.get_request_verb().c_str()];
+    auto method = method_.substr(method_.find_first_not_of('/'));
+    return metrics[method][verb];
   }
 
   Endpoint EndpointRegistry::make_endpoint(
@@ -437,27 +436,35 @@ namespace ccf::endpoints
   void EndpointRegistry::increment_metrics_calls(const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(rpc_ctx).calls++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .calls++;
   }
 
   void EndpointRegistry::increment_metrics_errors(
     const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(rpc_ctx).errors++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .errors++;
   }
 
   void EndpointRegistry::increment_metrics_failures(
     const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(rpc_ctx).failures++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .failures++;
   }
 
   void EndpointRegistry::increment_metrics_retries(
     const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(rpc_ctx).retries++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .retries++;
   }
 }

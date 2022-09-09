@@ -131,7 +131,7 @@ namespace ccf::endpoints
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     EndpointRegistry::Metrics& get_metrics_for_request(
-      const ccf::RpcContext& rpc_ctx);
+      const std::string& method, const std::string& verb);
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;

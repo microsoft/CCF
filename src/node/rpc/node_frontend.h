@@ -1392,8 +1392,8 @@ namespace ccf
         m.attempts = node_operation.get_jwt_attempts();
         // Success is marked by the fact that the key succeeded and called
         // our internal "jwt_keys/refresh" endpoint.
-        auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
-        auto metric = get_metrics_for_request(*ctx.rpc_ctx);
+        auto metric = get_metrics_for_request(
+          "/jwt_keys/refresh", llhttp_method_name(HTTP_POST));
         m.successes = metric.calls - (metric.failures + metric.errors);
         return m;
       };
