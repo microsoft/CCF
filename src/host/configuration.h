@@ -16,13 +16,11 @@ namespace host
     SGX_RELEASE,
     SGX_DEBUG,
     VIRTUAL,
-    SNP,
   };
   DECLARE_JSON_ENUM(
     EnclaveType,
     {{EnclaveType::SGX_RELEASE, "Release"},
      {EnclaveType::SGX_DEBUG, "Debug"},
-     {EnclaveType::SNP, "Snp"},
      {EnclaveType::VIRTUAL, "Virtual"}});
 
   enum class LogFormat

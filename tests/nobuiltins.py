@@ -5,6 +5,7 @@ from http import HTTPStatus
 import openapi_spec_validator
 from datetime import datetime, timezone
 import time
+from is_snp import IS_SNP
 
 
 def test_nobuiltins_endpoints(network, args):
@@ -24,8 +25,9 @@ def test_nobuiltins_endpoints(network, args):
             "release": "OE_SGX_v1",
             "debug": "OE_SGX_v1",
             "virtual": "Insecure_Virtual",
-            "snp": "AMD_SEV_SNP_v1",
         }[args.enclave_type]
+        if IS_SNP:
+            expected_format = "AMD_SEV_SNP_v1"
         assert body_j["quote_format"] == expected_format, body_j["quote_format"]
         assert body_j["node_id"] == primary.node_id
 

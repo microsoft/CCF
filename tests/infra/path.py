@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 from contextlib import contextmanager
+from is_snp import IS_SNP
 from shutil import copy2, rmtree
 import hashlib
 
@@ -21,7 +22,7 @@ def mk_new(name, contents):
 
 
 def build_lib_path(lib_name, enclave_type=None, library_dir="."):
-    if enclave_type in ("virtual", "snp"):
+    if enclave_type == "virtual" or IS_SNP:
         ext = ".virtual.so"
         mode = "Virtual mode"
     elif enclave_type == "debug":

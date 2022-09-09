@@ -8,6 +8,7 @@ import infra.utils
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
+from is_snp import IS_SNP
 
 
 from loguru import logger as LOG
@@ -24,7 +25,7 @@ def test_verify_quotes(network, args):
     if args.enclave_type == "virtual":
         LOG.warning("Skipping quote test with virtual enclave")
         return network
-    elif args.enclave_type == "snp":
+    elif IS_SNP:
         LOG.warning(
             "Skipping quote test until there is a separate utility to verify SNP quotes"
         )
@@ -103,9 +104,6 @@ def test_update_all_nodes(network, args):
         args.enclave_type, args.oe_binary, replacement_package
     )
 
-    LOG.info(f"{first_code_id=}")
-    LOG.info(f"{new_code_id=}")
-
     if args.enclave_type not in ("release", "debug"):
         # Pretend this was already present
         network.consortium.add_new_code(primary, first_code_id)
@@ -114,8 +112,6 @@ def test_update_all_nodes(network, args):
     network.consortium.add_new_code(primary, new_code_id)
     with primary.client() as uc:
         r = uc.get("/gov/nodes/code_ids")
-        LOG.info(f"{r.body.json()=}")
-
         r = uc.get("/node/code")
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = [
@@ -139,7 +135,7 @@ def test_update_all_nodes(network, args):
                     "platform": "Insecure_Virtual",
                 },
             )
-        elif args.enclave_type == "snp":
+        elif IS_SNP:
             expected.insert(
                 0,
                 {
@@ -172,7 +168,7 @@ def test_update_all_nodes(network, args):
                     "platform": "Insecure_Virtual",
                 },
             )
-        elif args.enclave_type == "snp":
+        elif IS_SNP:
             expected.insert(
                 0,
                 {

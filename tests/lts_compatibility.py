@@ -17,6 +17,7 @@ import time
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
+from is_snp import IS_SNP
 from reconfiguration import test_migration_2tx_reconfiguration
 
 
@@ -82,7 +83,7 @@ def test_new_service(
     version,
     cycle_existing_nodes=False,
 ):
-    if args.enclave_type == "snp":
+    if IS_SNP:
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
@@ -190,7 +191,7 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
 ):
-    if args.enclave_type == "snp":
+    if IS_SNP:
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
