@@ -18,6 +18,7 @@
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
+#include "node/endpoint_context_impl.h"
 #include "node/node_configuration_subsystem.h"
 #include "rpc_exception.h"
 
@@ -388,7 +389,7 @@ namespace ccf
           std::unique_ptr<AuthnIdentity> identity =
             get_authenticated_identity(ctx, *tx_p, endpoint);
 
-          auto args = endpoints::EndpointContext(ctx, *tx_p);
+          auto args = ccf::EndpointContextImpl(ctx, std::move(tx_p));
           // NB: tx_p is no longer valid, and must be accessed from args, which
           // may change it!
 
@@ -418,10 +419,23 @@ namespace ccf
           {
             return;
           }
+          else if (args.owned_tx == nullptr)
+          {
+            LOG_FAIL_FMT(
+              "Bad endpoint: During execution of {} {}, returned a non-pending "
+              "response but stole owneship of Tx object",
+              ctx->get_request_verb().c_str(),
+              ctx->get_request_path());
 
-          // TODO: ELSE, there should be valid CommittableTx pointer in args,
-          // which we can dereference.
-          kv::CommittableTx& tx = *tx_p;
+            ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Illegal endpoint implementation");
+            return;
+          }
+          // else args owns a valid Tx relating to a non-pending response, which
+          // should be applied
+          kv::CommittableTx& tx = *args.owned_tx;
 
           kv::CommitResult result;
           bool track_read_versions =
