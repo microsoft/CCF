@@ -120,14 +120,15 @@ auto frontend_process(
     ccf::InvalidSessionId, crypto::make_verifier(caller)->cert_der());
   auto rpc_ctx = ccf::make_rpc_context(session, serialized_request);
   http::extract_actor(*rpc_ctx);
-  auto serialized_response = frontend.process(rpc_ctx);
+  frontend.process(rpc_ctx);
+  DOCTEST_CHECK(!rpc_ctx->response_is_pending);
 
-  DOCTEST_CHECK(serialized_response.has_value());
+  auto serialized_response = rpc_ctx->serialise_response();
 
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
-  parser.execute(serialized_response->data(), serialized_response->size());
+  parser.execute(serialized_response.data(), serialized_response.size());
   DOCTEST_REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
