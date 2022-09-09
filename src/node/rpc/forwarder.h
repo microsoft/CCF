@@ -18,7 +18,7 @@ namespace ccf
   public:
     virtual ~ForwardedRpcHandler() {}
 
-    virtual std::vector<uint8_t> process_forwarded(
+    virtual void process_forwarded(
       std::shared_ptr<ccf::RpcContextImpl> fwd_ctx) = 0;
   };
 
@@ -243,11 +243,13 @@ namespace ccf
                 return;
               }
 
+              fwd_handler->process_forwarded(ctx);
+
               // Ignore return value - false only means it is pending
               send_forwarded_response(
                 ctx->get_session_context()->client_session_id,
                 from,
-                fwd_handler->process_forwarded(ctx));
+                ctx->serialise_response());
               LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             }
             break;
