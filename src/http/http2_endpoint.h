@@ -177,9 +177,9 @@ namespace http
           search = rpc_map->find(ccf::ActorsType::users);
         }
 
-        auto response = search.value()->process(rpc_ctx);
+        search.value()->process(rpc_ctx);
 
-        if (!response.has_value())
+        if (rpc_ctx->response_is_pending)
         {
           // If the RPC is pending, hold the connection.
           LOG_TRACE_FMT("Pending");

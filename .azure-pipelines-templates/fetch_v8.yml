@@ -15,7 +15,7 @@ steps:
       MINOR=$(echo ${{ parameters.v8_version }} | cut -d "." -f 3,4 | sed 's/\.//')
       echo "##vso[task.setvariable variable=pkg-ver]$MAJOR.$MINOR.*"
       # Map the target parameter to the target.
-      if [ "${{ parameters.target }}" == "NoSGX" ]; then
+      if [ "${{ parameters.target }}" == "Virtual" ] || [ "${{ parameters.target }}" == "SNPCC" ]; then
         TARGET="virtual"
       elif [ "${{ parameters.target }}" == "SGX" ]; then
         TARGET="sgx"

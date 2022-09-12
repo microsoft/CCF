@@ -17,6 +17,7 @@ import time
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
+from infra.is_snp import IS_SNP
 from reconfiguration import test_migration_2tx_reconfiguration
 
 
@@ -82,6 +83,12 @@ def test_new_service(
     version,
     cycle_existing_nodes=False,
 ):
+    if IS_SNP:
+        LOG.info(
+            "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
+        )
+        return
+
     LOG.info("Update constitution")
     primary, _ = network.find_primary()
     new_constitution = get_new_constitution_for_install(args, install_path)
@@ -184,6 +191,12 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
 ):
+    if IS_SNP:
+        LOG.info(
+            "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
+        )
+        return
+
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
         from_install_path
     )

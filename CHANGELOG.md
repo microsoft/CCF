@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.0-dev3]
 
+### Added
+
+- New `snpinfo.sh` script (#4196).
+- New `crypto::hmac` API (#4204).
+
 ### Changed
 
-- `sgxinfo.sh` script has been renamed to `platform_info.sh` (#4184).
+- Application-defined endpoints are now accessible with both `/app` prefix and un-prefixed, e.g. `GET /app/log/private` and `GET /log/private` (#4147).
+
+### Changed
+
+- The method `EndpointRegistry::get_metrics_for_endpoint(const EndpointDefinitionPtr&)` has been replaced with `EndpointRegistry::get_metrics_for_endpoint(const std::string& method, const std::string& verb)`.
 
 ## [3.0.0-dev2]
 
