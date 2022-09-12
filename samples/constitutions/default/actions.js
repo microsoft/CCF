@@ -1244,4 +1244,22 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "assert_service_identity",
+    new Action(
+      function (args) {
+        checkX509CertBundle(args.service_identity, "service_identity");
+        const service_info = "public:ccf.gov.service.info";
+        const rawService = ccf.kv[service_info].get(getSingletonKvKey());
+        if (rawService === undefined) {
+          throw new Error("Service information could not be found");
+        }
+        const service = ccf.bufToJsonCompatible(rawService);
+        if (service.cert !== args.service_identity) {
+          throw new Error("Service identity certificate mismatch");
+        }
+      },
+      function (args) {}
+    ),
+  ],
 ]);
