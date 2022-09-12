@@ -3,6 +3,8 @@ Build Apps
 
 This section describes how CCF applications can be developed and deployed to a CCF network.
 
+.. tip:: The `ccf-app-template <https://github.com/microsoft/ccf-app-template>`_ repository can be used to quickly build and run a sample CCF application and provides a minimal template to create new CCF apps.
+
 Applications can be written in JavaScript/TypeScript or C++. An application consists of a collection of endpoints that can be triggered by :term:`Users`. Each endpoint can define an :ref:`build_apps/example_cpp:API Schema` to validate user requests.
 
 These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :doc:`kv/kv_how_to`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
@@ -85,7 +87,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     :fa:`rocket` :doc:`release_policy`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    CCF release cadence and compatibility committments.
+    CCF release cadence and compatibility commitments.
 
 
 .. toctree::

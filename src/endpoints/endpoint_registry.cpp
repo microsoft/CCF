@@ -117,12 +117,11 @@ namespace ccf::endpoints
     return spec;
   }
 
-  EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_endpoint(
-    const EndpointDefinitionPtr& e)
+  EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_request(
+    const std::string& method_, const std::string& verb)
   {
-    auto method = e->dispatch.uri_path;
-    method = method.substr(method.find_first_not_of('/'));
-    return metrics[method][e->dispatch.verb.c_str()];
+    auto method = method_.substr(method_.find_first_not_of('/'));
+    return metrics[method][verb];
   }
 
   Endpoint EndpointRegistry::make_endpoint(
@@ -434,30 +433,38 @@ namespace ccf::endpoints
     history = h;
   }
 
-  void EndpointRegistry::increment_metrics_calls(const EndpointDefinitionPtr& e)
+  void EndpointRegistry::increment_metrics_calls(const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).calls++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .calls++;
   }
 
   void EndpointRegistry::increment_metrics_errors(
-    const EndpointDefinitionPtr& e)
+    const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).errors++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .errors++;
   }
 
   void EndpointRegistry::increment_metrics_failures(
-    const EndpointDefinitionPtr& e)
+    const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).failures++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .failures++;
   }
 
   void EndpointRegistry::increment_metrics_retries(
-    const EndpointDefinitionPtr& e)
+    const ccf::RpcContext& rpc_ctx)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).retries++;
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .retries++;
   }
 }

@@ -701,6 +701,7 @@ def test_metrics(network, args):
             )
         except StopIteration:
             if default is None:
+                LOG.error(f"Found no metrics for {method} {path}")
                 raise
             else:
                 return default

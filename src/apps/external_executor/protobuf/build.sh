@@ -2,6 +2,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+set -e
+
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <path_to_proto_file> <output_directory>"
 fi
