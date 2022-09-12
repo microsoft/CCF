@@ -1457,6 +1457,16 @@ def test_rekey(network, args):
     return network
 
 
+@reqs.description("Test empty URI behaviour")
+def test_empty_path(network, args):
+    primary, _ = network.find_primary()
+    with primary.client() as c:
+        r = c.get("/")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
+        r = c.post("/")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+
 @reqs.description("Test UDP echo endpoint")
 @reqs.at_least_n_nodes(1)
 def test_udp_echo(network, args):
@@ -1550,6 +1560,7 @@ def run(args):
         test_historical_query_range(network, args)
         test_view_history(network, args)
         test_metrics(network, args)
+        test_empty_path(network, args)
         # BFT does not handle re-keying yet
         if args.consensus == "CFT":
             test_liveness(network, args)
