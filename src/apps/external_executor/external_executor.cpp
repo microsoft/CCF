@@ -50,7 +50,7 @@ namespace externalexecutor
 
     // Note: As a temporary solution for testing, this app stores a single Tx,
     // stolen from a StartTx RPC rather than a real client request
-    std::unique_ptr<kv::Tx> active_tx = nullptr;
+    std::unique_ptr<kv::CommittableTx> active_tx = nullptr;
 
     void install_kv_service()
     {
@@ -103,11 +103,21 @@ namespace externalexecutor
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
-            "Already managing an active transaction");
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx");
         }
 
-        // TODO: Try to commit, and clear active_tx.
-        // Commit simply by overwriting ContextImpl's owned_tx with this?
+        ccf::EndpointContextImpl* ctx_impl =
+          dynamic_cast<ccf::EndpointContextImpl*>(&ctx);
+        if (ctx_impl == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_INTERNAL, "Unexpected context type");
+        }
+
+        ctx_impl->owned_tx = std::move(active_tx);
+        active_tx = nullptr;
+
         return ccf::grpc::make_success();
       };
 
@@ -119,11 +129,18 @@ namespace externalexecutor
         ccf::no_auth_required)
         .install();
 
-      // TODO: Use active_tx for these
-      auto put = [this](
-                   ccf::endpoints::EndpointContext& ctx,
-                   ccf::KVKeyValue&& payload) {
-        auto records_handle = ctx.tx.template rw<Map>(payload.table());
+      auto put =
+        [this](ccf::endpoints::EndpointContext& ctx, ccf::KVKeyValue&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto records_handle = active_tx->rw<Map>(payload.table());
         records_handle->put(payload.key(), payload.value());
 
         return ccf::grpc::make_success();
@@ -140,7 +157,15 @@ namespace externalexecutor
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
                    ccf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
-        auto records_handle = ctx.tx.template ro<Map>(payload.table());
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto records_handle = active_tx->ro<Map>(payload.table());
         auto value = records_handle->get(payload.key());
         if (!value.has_value())
         {

@@ -10,10 +10,21 @@ import kv_pb2 as KV
 
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
+
+from google.protobuf.empty_pb2 import Empty as Empty
+
 import grpc
 import os
+import contextlib
 
 from loguru import logger as LOG
+
+
+@contextlib.contextmanager
+def wrap_tx(stub):
+    stub.StartTx(Empty())
+    yield stub
+    stub.EndTx(KV.ResponseDescription())
 
 
 @reqs.description("Store and retrieve key via external executor app")
@@ -47,26 +58,34 @@ def test_put_get(network, args):
     ) as channel:
         stub = Service.KVStub(channel)
 
-        LOG.info(f"Put key '{my_key}' in table '{my_table}'")
-        stub.Put(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
+        with wrap_tx(stub) as tx:
+            LOG.info(f"Put key '{my_key}' in table '{my_table}'")
+            tx.Put(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
 
-        LOG.info(f"Get key '{my_key}' in table '{my_table}'")
-        r = stub.Get(KV.KVKey(table=my_table, key=my_key))
-        assert r.value == my_value
-        LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
+        with wrap_tx(stub) as tx:
+            LOG.info(f"Get key '{my_key}' in table '{my_table}'")
+            r = tx.Get(KV.KVKey(table=my_table, key=my_key))
+            assert r.value == my_value
+            LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
 
         unknown_key = b"unknown_key"
-        LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
-        try:
-            r = stub.Get(KV.KVKey(table=my_table, key=unknown_key))
-        except grpc.RpcError as e:
-            assert e.code() == grpc.StatusCode.NOT_FOUND  # pylint: disable=no-member
-            assert (
-                e.details() == f"Key {unknown_key} does not exist"
-            )  # pylint: disable=no-member
-        else:
-            assert False, f"Getting unknown key {unknown_key} should raise an error"
-        LOG.success(f"Unable to read key '{unknown_key}' as expected")
+        with wrap_tx(stub) as tx:
+            try:
+                LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
+                r = tx.Get(KV.KVKey(table=my_table, key=unknown_key))
+            except grpc.RpcError as e:
+                LOG.warning(e)
+                LOG.warning(e.code())
+                LOG.warning(e.details())
+                assert (
+                    e.code() == grpc.StatusCode.NOT_FOUND
+                )  # pylint: disable=no-member
+                assert (
+                    e.details() == f"Key {unknown_key.decode()} does not exist"
+                )  # pylint: disable=no-member
+            else:
+                assert False, f"Getting unknown key {unknown_key} should raise an error"
+            LOG.success(f"Unable to read key '{unknown_key}' as expected")
 
     return network
 
