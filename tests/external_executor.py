@@ -16,6 +16,7 @@ from google.protobuf.empty_pb2 import Empty as Empty
 import grpc
 import os
 import contextlib
+import random
 
 from loguru import logger as LOG
 
@@ -48,6 +49,17 @@ def test_put_get(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
+    def require_missing(tx, table, key):
+        try:
+            tx.Get(KV.KVKey(table=table, key=key))
+        except grpc.RpcError as e:
+            assert e.code() == grpc.StatusCode.NOT_FOUND  # pylint: disable=no-member
+            assert (
+                e.details() == f"Key {key.decode()} does not exist"
+            )  # pylint: disable=no-member
+        else:
+            assert False, f"Getting unknown key {key} should raise an error"
+
     my_table = b"my_table"
     my_key = b"my_key"
     my_value = b"my_value"
@@ -70,22 +82,42 @@ def test_put_get(network, args):
 
         unknown_key = b"unknown_key"
         with wrap_tx(stub) as tx:
-            try:
-                LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
-                r = tx.Get(KV.KVKey(table=my_table, key=unknown_key))
-            except grpc.RpcError as e:
-                LOG.warning(e)
-                LOG.warning(e.code())
-                LOG.warning(e.details())
-                assert (
-                    e.code() == grpc.StatusCode.NOT_FOUND
-                )  # pylint: disable=no-member
-                assert (
-                    e.details() == f"Key {unknown_key.decode()} does not exist"
-                )  # pylint: disable=no-member
-            else:
-                assert False, f"Getting unknown key {unknown_key} should raise an error"
+            LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
+            require_missing(tx, my_table, unknown_key)
             LOG.success(f"Unable to read key '{unknown_key}' as expected")
+
+        tables = (b"table_a", b"table_b", b"table_c")
+        writes = [
+            (
+                random.choice(tables),
+                f"Key{i}".encode(),
+                str(random.random()).encode(),
+            )
+            for i in range(10)
+        ]
+
+        with wrap_tx(stub) as tx:
+            LOG.info("Write multiple entries in single transaction")
+            for t, k, v in writes:
+                tx.Put(KV.KVKeyValue(table=t, key=k, value=v))
+
+            LOG.info("Read own writes")
+            for t, k, v in writes:
+                r = tx.Get(KV.KVKeyValue(table=t, key=k))
+                assert r.value == v
+
+            # Note: It should be possible to test this here, but currently
+            # unsupported as we only allow one remote transaction at a time
+            # LOG.info("Snapshot isolation")
+            # with wrap_tx(stub) as tx2:
+            #     for t, k, v in writes:
+            #         require_missing(tx2, t, k)
+
+        with wrap_tx(stub) as tx3:
+            LOG.info("Read applied writes")
+            for t, k, v in writes:
+                r = tx3.Get(KV.KVKeyValue(table=t, key=k))
+                assert r.value == v
 
     return network
 
