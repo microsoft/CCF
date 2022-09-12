@@ -592,8 +592,8 @@ def test_npm_app(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
-        if not primary_quote_info["raw"]:
-            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, virtual mode")
+        if args.enclave_type not in ("release", "debug"):
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, non-sgx node")
         elif args.package == "libjs_v8":
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, V8")
         else:
