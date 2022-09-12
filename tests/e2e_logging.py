@@ -1463,11 +1463,7 @@ def test_empty_path(network, args):
     with primary.client() as c:
         r = c.get("/")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
-        r = c.get("")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND
         r = c.post("/")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND
-        r = c.post("")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
 
 
