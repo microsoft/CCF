@@ -8,7 +8,7 @@ function getMemberInfo(memberId) {
 // Returns true if the member is a recovery member.
 function isRecoveryMember(memberId) {
   const info = getMemberInfo(memberId);
-  if (info.member_data.encryption_pub_key) {
+  if (info.member_data !== null && info.member_data !== undefined && info.member_data.encryption_pub_key) {
     return true;
   }
   return false;
@@ -21,7 +21,7 @@ function isOperator(memberId) {
     return false;
   }
   const info = getMemberInfo(memberId);
-  return info.member_data.is_operator;
+  return info.member_data !== null && info.member_data !== undefined && info.member_data.is_operator;
 }
 
 // Defines actions that can be passed with sole operator input.
