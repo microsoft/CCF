@@ -269,12 +269,17 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
             assert r.status_code == http.HTTPStatus.OK, r
             startup_seqno = r.body.json()["startup_seqno"]
             assert startup_seqno != 0, startup_seqno
-            missing_seqnos = sorted(random.sample(range(0, startup_seqno), 5))
+            possible_seqno_range = range(1, startup_seqno)
+            num_samples = min(len(possible_seqno_range), 5)
+            missing_seqnos = sorted(random.sample(possible_seqno_range, num_samples))
+            LOG.info(f"Verifying status of transactions at seqnos: {missing_seqnos}")
             view = 2
             for seqno in missing_seqnos:
+                assert seqno != 0, "0 is not a valid seqno"
                 status = TxStatus.Invalid
                 while status == TxStatus.Invalid:
                     r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
+                    assert r.status_code == http.HTTPStatus.OK, r
                     status = TxStatus(r.body.json()["status"])
                     if status == TxStatus.Committed:
                         missing_txids.append(f"{view}.{seqno}")
