@@ -435,15 +435,16 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
     # Corrupt _uncommitted_ ledger before starting new service
     ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
 
-    chunk_filename, truncate_offset = get_truncation_point(ledger)
+    chunk_filename, truncate_offset = get_truncation_point(ledger, False)
 
     # It's possible that the current ledger doesn't yet contain a
     # signature (or whatever other type of tx we're trying to
     # truncate). Assume that is just a race condition, and sleep
     # briefly.
     if truncate_offset is None:
+        LOG.warning("Calculated empty offset, sleeping and retrying")
         time.sleep(1)
-        chunk_filename, truncate_offset = get_truncation_point(ledger)
+        chunk_filename, truncate_offset = get_truncation_point(ledger, True)
 
     assert truncate_offset is not None, "Should always truncate within tx"
 
@@ -484,26 +485,32 @@ def run_corrupted_ledger(args):
             offset, next_offset = tx.get_offsets()
             return offset + (next_offset - offset) // 2
 
-        def corrupt_first_tx(ledger):
+        def all_txs(ledger, verbose):
             for chunk in ledger:
+                if verbose:
+                    LOG.info(f"Considering chunk {chunk.filename()}")
                 for tx in chunk:
-                    return chunk.filename(), get_middle_tx_offset(tx)
+                    if verbose:
+                        LOG.info(f"Considering tx {tx.get_tx_digest()}")
+                    yield chunk, tx
+
+        def corrupt_first_tx(ledger, verbose):
+            for chunk, tx in all_txs(ledger, verbose):
+                return chunk.filename(), get_middle_tx_offset(tx)
             return None, None
 
-        def corrupt_last_tx(ledger):
+        def corrupt_last_tx(ledger, verbose):
             chunk_filename, truncate_offset = None, None
-            for chunk in ledger:
-                for tx in chunk:
-                    chunk_filename = chunk.filename()
-                    truncate_offset = get_middle_tx_offset(tx)
+            for chunk, tx in all_txs(ledger, verbose):
+                chunk_filename = chunk.filename()
+                truncate_offset = get_middle_tx_offset(tx)
             return chunk_filename, truncate_offset
 
-        def corrupt_first_sig(ledger):
-            for chunk in ledger:
-                for tx in chunk:
-                    tables = tx.get_public_domain().get_tables()
-                    if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
-                        return chunk.filename(), get_middle_tx_offset(tx)
+        def corrupt_first_sig(ledger, verbose):
+            for chunk, tx in all_txs(ledger, verbose):
+                tables = tx.get_public_domain().get_tables()
+                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
+                    return chunk.filename(), get_middle_tx_offset(tx)
             return None, None
 
         network = test_recover_service_truncated_ledger(network, args, corrupt_first_tx)
