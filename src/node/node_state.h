@@ -309,57 +309,122 @@ namespace ccf
 
       // quote_info = pal::generate_quote(report);
 
-      auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
-        nullptr, std::nullopt, std::nullopt, std::nullopt, false));
+      auto fn = [this](const pal::EndorsementEndpointConfiguration& config) {
+        LOG_INFO_FMT("here!");
 
-      client->connect(
-        "americas.test.acccache.azure.net",
-        "443",
-        [this](
-          http_status status,
-          http::HeaderMap&& headers,
-          std::vector<uint8_t>&& data) {
-          // TODO: On success
-          if (status != HTTP_STATUS_OK)
-          {
-            CCF_APP_FAIL("Error: {}", status);
-          }
+        auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
+          nullptr, std::nullopt, std::nullopt, std::nullopt, false));
 
-          pal::attestation_report_data report = {};
-          crypto::Sha256Hash node_pub_key_hash(
-            (node_sign_kp->public_key_der()));
-          std::copy(
-            node_pub_key_hash.h.begin(),
-            node_pub_key_hash.h.end(),
-            report.begin());
-          quote_info = pal::generate_quote(report);
+        client->connect(
+          config.host,
+          config.port,
+          [this](
+            http_status status,
+            http::HeaderMap&& headers,
+            std::vector<uint8_t>&& data) {
+            // TODO: On success
+            if (status != HTTP_STATUS_OK)
+            {
+              CCF_APP_FAIL("Error: {}", status);
+              // If 429, wait and retry (by creating new client)
+            }
 
-          auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
-          if (code_id.has_value())
-          {
-            node_code_id = code_id.value();
-          }
-          else
-          {
-            throw std::logic_error("Failed to extract code id from quote");
-          }
+            // auto code_id =
+            // EnclaveAttestationProvider::get_code_id(quote_info); if
+            // (code_id.has_value())
+            // {
+            //   node_code_id = code_id.value();
+            // }
+            // else
+            // {
+            //   throw std::logic_error("Failed to extract code id from quote");
+            // }
 
-          LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
+            LOG_FAIL_FMT("Got a response: {}", status);
 
-          create_and_send_boot_request(
-            aft::starting_view_change, true /* Create new consortium */);
-        },
-        [](const std::string& error_msg) {
-          // TODO: On error
-        });
+            // LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
 
-      http::Request r(
-        fmt::format("/SevSnpVM/certificates/lala/lala"), HTTP_GET);
-      r.set_query_param("api-version", "2020-10-15-preview");
-      r.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      r.set_header(http::headers::HOST, "americas.test.acccache.azure.net");
-      client->send_request(r);
+            // create_and_send_boot_request(
+            //   aft::starting_view_change, true /* Create new consortium */);
+          },
+          [](const std::string& error_msg) {
+            // TODO: On error
+            // If 429, wait and retry (by creating new client)
+          });
+
+        http::Request r(config.uri, HTTP_GET);
+        for (auto const& [k, v] : config.params)
+        {
+          r.set_query_param(k, v);
+        }
+        // r.set_header(
+        //   http::headers::CONTENT_TYPE,
+        //   http::headervalues::contenttype::JSON);
+        r.set_header(http::headers::HOST, config.host);
+        client->send_request(r);
+      };
+
+      pal::attestation_report_data report_data = {};
+      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
+      std::copy(
+        node_pub_key_hash.h.begin(),
+        node_pub_key_hash.h.end(),
+        report_data.begin());
+      quote_info = pal::generate_quote(report_data, fn);
+
+      // auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
+      //   nullptr, std::nullopt, std::nullopt, std::nullopt, false));
+
+      // client->connect(
+      //   "americas.test.acccache.azure.net",
+      //   "443",
+      //   [this](
+      //     http_status status,
+      //     http::HeaderMap&& headers,
+      //     std::vector<uint8_t>&& data) {
+      //     // TODO: On success
+      //     if (status != HTTP_STATUS_OK)
+      //     {
+      //       CCF_APP_FAIL("Error: {}", status);
+      //       // If 429, wait and retry (by creating new client)
+      //     }
+
+      //     pal::attestation_report_data report = {};
+      //     crypto::Sha256Hash node_pub_key_hash(
+      //       (node_sign_kp->public_key_der()));
+      //     std::copy(
+      //       node_pub_key_hash.h.begin(),
+      //       node_pub_key_hash.h.end(),
+      //       report.begin());
+      //     quote_info = pal::generate_quote(report);
+
+      //     auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+      //     if (code_id.has_value())
+      //     {
+      //       node_code_id = code_id.value();
+      //     }
+      //     else
+      //     {
+      //       throw std::logic_error("Failed to extract code id from quote");
+      //     }
+
+      //     LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
+
+      //     create_and_send_boot_request(
+      //       aft::starting_view_change, true /* Create new consortium */);
+      //   },
+      //   [](const std::string& error_msg) {
+      //     // TODO: On error
+      //     // If 429, wait and retry (by creating new client)
+      //   });
+
+      // http::Request r(
+      //   fmt::format("/SevSnpVM/certificates/lala/lala"), HTTP_GET);
+      // r.set_query_param("api-version", "2020-10-15-preview");
+      // r.set_header(
+      //   http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      // r.set_header(http::headers::HOST, "americas.test.acccache.azure.net");
+      // client->send_request(r);
 
       // auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       // if (code_id.has_value())

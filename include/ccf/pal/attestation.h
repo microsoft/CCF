@@ -5,6 +5,8 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 
+#include <functional>
+
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
@@ -21,9 +23,22 @@
 
 namespace ccf::pal
 {
+  struct EndorsementEndpointConfiguration
+  {
+    std::string host;
+    std::string port;
+    std::string uri;
+    std::map<std::string, std::string> params;
+  };
+  // using RetrieveEndorsements = std::function<void>();
+  using RetrieveEndorsementCallback =
+    std::function<void(const EndorsementEndpointConfiguration& config)>;
+
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-  static QuoteInfo generate_quote(attestation_report_data& report_data)
+  static QuoteInfo generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb = nullptr)
   {
     QuoteInfo node_quote_info = {};
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -75,6 +90,18 @@ namespace ccf::pal
       auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
       node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
 
+      if (endorsement_cb != nullptr)
+      {
+        endorsement_cb(
+          {"americas.test.acccache.azure.net",
+           "443",
+           fmt::format(
+             "/SevSnpVM/certificates/{}/{}",
+             fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
+             fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
+           {{"api-version", "2020-10-15-preview"}}});
+      }
+
       // auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
       //   nullptr, std::nullopt, std::nullopt, std::nullopt, false));
 
@@ -107,30 +134,30 @@ namespace ccf::pal
       // r.set_header(http::headers::HOST, "americas.test.acccache.azure.net");
       // client->send_request(r);
 
-      client::RpcTlsClient client{
-        "americas.test.acccache.azure.net",
-        "443",
-        nullptr,
-        std::make_shared<tls::Cert>(
-          nullptr, std::nullopt, std::nullopt, std::nullopt, false)};
+      // client::RpcTlsClient client{
+      //   "americas.test.acccache.azure.net",
+      //   "443",
+      //   nullptr,
+      //   std::make_shared<tls::Cert>(
+      //     nullptr, std::nullopt, std::nullopt, std::nullopt, false)};
 
-      auto params = nlohmann::json::object();
-      params["api-version"] = "2020-10-15-preview";
+      // auto params = nlohmann::json::object();
+      // params["api-version"] = "2020-10-15-preview";
 
-      auto response = client.get(
-        fmt::format(
-          "/SevSnpVM/certificates/{}/{}",
-          fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
-          fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
-        params);
+      // auto response = client.get(
+      //   fmt::format(
+      //     "/SevSnpVM/certificates/{}/{}",
+      //     fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
+      //     fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
+      //   params);
 
-      if (response.status != HTTP_STATUS_OK)
-      {
-        throw std::logic_error("Failed to get attestation endorsements");
-      }
+      // if (response.status != HTTP_STATUS_OK)
+      // {
+      //   throw std::logic_error("Failed to get attestation endorsements");
+      // }
 
-      node_quote_info.endorsements.assign(
-        response.body.begin(), response.body.end());
+      // node_quote_info.endorsements.assign(
+      //   response.body.begin(), response.body.end());
     }
 
     return node_quote_info;
@@ -249,7 +276,9 @@ namespace ccf::pal
 
 #else
 
-  static QuoteInfo generate_quote(attestation_report_data& report_data)
+  static QuoteInfo generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb = nullptr)
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::oe_sgx_v1;
