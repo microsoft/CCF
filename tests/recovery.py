@@ -495,11 +495,13 @@ def run_corrupted_ledger(args):
                     yield chunk, tx
 
         def corrupt_first_tx(ledger, verbose):
+            LOG.info("Finding first tx to corrupt")
             for chunk, tx in all_txs(ledger, verbose):
                 return chunk.filename(), get_middle_tx_offset(tx)
             return None, None
 
         def corrupt_last_tx(ledger, verbose):
+            LOG.info("Finding last tx to corrupt")
             chunk_filename, truncate_offset = None, None
             for chunk, tx in all_txs(ledger, verbose):
                 chunk_filename = chunk.filename()
@@ -507,6 +509,7 @@ def run_corrupted_ledger(args):
             return chunk_filename, truncate_offset
 
         def corrupt_first_sig(ledger, verbose):
+            LOG.info("Finding first sig to corrupt")
             for chunk, tx in all_txs(ledger, verbose):
                 tables = tx.get_public_domain().get_tables()
                 if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
