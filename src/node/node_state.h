@@ -301,22 +301,75 @@ namespace ccf
 
       // Depending on the platform, the attestation report may be larger than 32
       // bytes
-      pal::attestation_report_data report = {};
-      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
-      std::copy(
-        node_pub_key_hash.h.begin(), node_pub_key_hash.h.end(), report.begin());
+      // pal::attestation_report_data report = {};
+      // crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
+      // std::copy(
+      //   node_pub_key_hash.h.begin(), node_pub_key_hash.h.end(),
+      //   report.begin());
 
-      quote_info = pal::generate_quote(report);
+      // quote_info = pal::generate_quote(report);
 
-      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
-      if (code_id.has_value())
-      {
-        node_code_id = code_id.value();
-      }
-      else
-      {
-        throw std::logic_error("Failed to extract code id from quote");
-      }
+      auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
+        nullptr, std::nullopt, std::nullopt, std::nullopt, false));
+
+      client->connect(
+        "americas.test.acccache.azure.net",
+        "443",
+        [this](
+          http_status status,
+          http::HeaderMap&& headers,
+          std::vector<uint8_t>&& data) {
+          // TODO: On success
+          if (status != HTTP_STATUS_OK)
+          {
+            CCF_APP_FAIL("Error: {}", status);
+          }
+
+          pal::attestation_report_data report = {};
+          crypto::Sha256Hash node_pub_key_hash(
+            (node_sign_kp->public_key_der()));
+          std::copy(
+            node_pub_key_hash.h.begin(),
+            node_pub_key_hash.h.end(),
+            report.begin());
+          quote_info = pal::generate_quote(report);
+
+          auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+          if (code_id.has_value())
+          {
+            node_code_id = code_id.value();
+          }
+          else
+          {
+            throw std::logic_error("Failed to extract code id from quote");
+          }
+
+          LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
+
+          create_and_send_boot_request(
+            aft::starting_view_change, true /* Create new consortium */);
+        },
+        [](const std::string& error_msg) {
+          // TODO: On error
+        });
+
+      http::Request r(
+        fmt::format("/SevSnpVM/certificates/lala/lala"), HTTP_GET);
+      r.set_query_param("api-version", "2020-10-15-preview");
+      r.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      r.set_header(http::headers::HOST, "americas.test.acccache.azure.net");
+      client->send_request(r);
+
+      // auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+      // if (code_id.has_value())
+      // {
+      //   node_code_id = code_id.value();
+      // }
+      // else
+      // {
+      //   throw std::logic_error("Failed to extract code id from quote");
+      // }
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
@@ -356,8 +409,8 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          create_and_send_boot_request(
-            aft::starting_view_change, true /* Create new consortium */);
+          // create_and_send_boot_request(
+          //   aft::starting_view_change, true /* Create new consortium */);
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -1063,6 +1116,7 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
+      // TODO: Check that node_code_id has been set
       create_and_send_boot_request(
         new_term, false /* Restore consortium from ledger */);
     }

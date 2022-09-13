@@ -17,8 +17,6 @@
 #  include <unistd.h>
 #else
 #  include "ccf/pal/attestation_sgx.h"
-
-#  include <openenclave/attestation/attester.h>
 #endif
 
 namespace ccf::pal
@@ -76,6 +74,38 @@ namespace ccf::pal
       auto quote = &resp.report;
       auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
       node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
+
+      // auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
+      //   nullptr, std::nullopt, std::nullopt, std::nullopt, false));
+
+      // client->connect(
+      //   "americas.test.acccache.azure.net",
+      //   "443",
+      //   [](
+      //     http_status status,
+      //     http::HeaderMap&& headers,
+      //     std::vector<uint8_t>&& data) {
+      //     // TODO: On success
+      //     if (response.status != HTTP_STATUS_OK)
+      //     {
+      //       CCF_APP_FAIL("Error: {}", response.status);
+      //     }
+      //   },
+      //   [](const std::string& error_msg) {
+      //     // TODO: On error
+      //   });
+
+      // http::Request r(
+      //   fmt::format(
+      //     "/SevSnpVM/certificates/{}/{}",
+      //     fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
+      //     fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
+      //   HTTP_GET);
+      // r.set_query_param("api-version", "2020-10-15-preview");
+      // r.set_header(
+      //   http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      // r.set_header(http::headers::HOST, "americas.test.acccache.azure.net");
+      // client->send_request(r);
 
       client::RpcTlsClient client{
         "americas.test.acccache.azure.net",
