@@ -11,7 +11,6 @@
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
 #  include "ccf/pal/attestation_sev_snp.h"
-#  include "clients/rpc_tls_client.h"
 #  include "crypto/ecdsa.h"
 
 #  include <fcntl.h>
