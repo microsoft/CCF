@@ -405,11 +405,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 @reqs.description("Recover a service from malformed ledger")
 @reqs.recover(number_txs=2)
-def test_recover_service_truncated_ledger(
-    network,
-    args,
-    get_truncation_point
-):
+def test_recover_service_truncated_ledger(network, args, get_truncation_point):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -440,6 +436,15 @@ def test_recover_service_truncated_ledger(
     ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
 
     chunk_filename, truncate_offset = get_truncation_point(ledger)
+
+    # It's possible that the current ledger doesn't yet contain a
+    # signature (or whatever other type of tx we're trying to
+    # truncate). Assume that is just a race condition, and sleep
+    # briefly.
+    if truncate_offset is None:
+        time.sleep(1)
+        chunk_filename, truncate_offset = get_truncation_point(ledger)
+        
     assert truncate_offset is not None, "Should always truncate within tx"
 
     truncated_ledger_file_path = os.path.join(current_ledger_dir, chunk_filename)
