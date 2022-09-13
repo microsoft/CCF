@@ -112,12 +112,6 @@ namespace ccf::pal
   {
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
 
-    CCF_APP_FAIL(
-      "{} - [{}/{}]",
-      quote_info.format,
-      quote_info.quote.size(),
-      quote_info.endorsements.size());
-
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
       if (is_sev_snp)
