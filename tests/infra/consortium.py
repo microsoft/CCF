@@ -478,7 +478,6 @@ class Consortium:
         proposal_body, careful_vote = self.make_proposal(
             "assert_service_identity", service_identity=service_cert_pem
         )
-        print(proposal_body)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
