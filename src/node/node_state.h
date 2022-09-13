@@ -309,16 +309,16 @@ namespace ccf
 
       // quote_info = pal::generate_quote(report);
 
-      auto fn = [this](const pal::EndorsementEndpointConfiguration& config) {
-        LOG_INFO_FMT("here!");
-
+      auto fn = [this](
+                  QuoteInfo quote_info_,
+                  const pal::EndorsementEndpointConfiguration& config) {
         auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
           nullptr, std::nullopt, std::nullopt, std::nullopt, false));
 
         client->connect(
           config.host,
           config.port,
-          [this](
+          [this, quote_info_](
             http_status status,
             http::HeaderMap&& headers,
             std::vector<uint8_t>&& data) {
@@ -340,12 +340,14 @@ namespace ccf
             //   throw std::logic_error("Failed to extract code id from quote");
             // }
 
-            LOG_FAIL_FMT("Got a response: {}", status);
+            LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
+            quote_info = quote_info_;
+            quote_info.endorsements.assign(data.begin(), data.end());
 
             // LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
 
-            // create_and_send_boot_request(
-            //   aft::starting_view_change, true /* Create new consortium */);
+            create_and_send_boot_request(
+              aft::starting_view_change, true /* Create new consortium */);
           },
           [](const std::string& error_msg) {
             // TODO: On error
@@ -357,9 +359,6 @@ namespace ccf
         {
           r.set_query_param(k, v);
         }
-        // r.set_header(
-        //   http::headers::CONTENT_TYPE,
-        //   http::headervalues::contenttype::JSON);
         r.set_header(http::headers::HOST, config.host);
         client->send_request(r);
       };
@@ -370,7 +369,11 @@ namespace ccf
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
-      quote_info = pal::generate_quote(report_data, fn);
+      auto q = pal::generate_quote(report_data, fn);
+      if (q.has_value())
+      {
+        quote_info = q.value();
+      }
 
       // auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
       //   nullptr, std::nullopt, std::nullopt, std::nullopt, false));

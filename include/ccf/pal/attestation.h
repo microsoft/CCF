@@ -31,12 +31,12 @@ namespace ccf::pal
     std::map<std::string, std::string> params;
   };
   // using RetrieveEndorsements = std::function<void>();
-  using RetrieveEndorsementCallback =
-    std::function<void(const EndorsementEndpointConfiguration& config)>;
+  using RetrieveEndorsementCallback = std::function<void(
+    QuoteInfo quote_info, const EndorsementEndpointConfiguration& config)>;
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-  static QuoteInfo generate_quote(
+  static std::optional<QuoteInfo> generate_quote(
     attestation_report_data& report_data,
     RetrieveEndorsementCallback endorsement_cb = nullptr)
   {
@@ -93,6 +93,7 @@ namespace ccf::pal
       if (endorsement_cb != nullptr)
       {
         endorsement_cb(
+          node_quote_info,
           {"americas.test.acccache.azure.net",
            "443",
            fmt::format(
@@ -160,7 +161,8 @@ namespace ccf::pal
       //   response.body.begin(), response.body.end());
     }
 
-    return node_quote_info;
+    // return node_quote_info;
+    return std::nullopt;
   }
 
   static void verify_quote(
@@ -276,7 +278,7 @@ namespace ccf::pal
 
 #else
 
-  static QuoteInfo generate_quote(
+  static std::optional<QuoteInfo> generate_quote(
     attestation_report_data& report_data,
     RetrieveEndorsementCallback endorsement_cb = nullptr)
   {
