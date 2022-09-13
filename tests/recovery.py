@@ -444,7 +444,7 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
     if truncate_offset is None:
         time.sleep(1)
         chunk_filename, truncate_offset = get_truncation_point(ledger)
-        
+
     assert truncate_offset is not None, "Should always truncate within tx"
 
     truncated_ledger_file_path = os.path.join(current_ledger_dir, chunk_filename)
@@ -506,12 +506,8 @@ def run_corrupted_ledger(args):
                         return chunk.filename(), get_middle_tx_offset(tx)
             return None, None
 
-        network = test_recover_service_truncated_ledger(
-            network, args, corrupt_first_tx
-        )
-        network = test_recover_service_truncated_ledger(
-            network, args, corrupt_last_tx
-        )
+        network = test_recover_service_truncated_ledger(network, args, corrupt_first_tx)
+        network = test_recover_service_truncated_ledger(network, args, corrupt_last_tx)
         network = test_recover_service_truncated_ledger(
             network, args, corrupt_first_sig
         )
