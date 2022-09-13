@@ -438,9 +438,6 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          // create_and_send_boot_request(
-          //   aft::starting_view_change, true /* Create new consortium */);
-
           LOG_INFO_FMT("Created new node {}", self);
 
           return {self_signed_node_cert, network.identity->cert};
@@ -1139,7 +1136,6 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      // TODO: Check that node_code_id has been set
       create_and_send_boot_request(
         new_term, false /* Restore consortium from ledger */);
     }
