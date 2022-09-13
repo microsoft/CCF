@@ -426,11 +426,13 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
             f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
             for f in os.listdir(current_ledger_path)
         ):
+            LOG.warning(f"Decided to stop network after looking at ledger dir {current_ledger_path}: {os.listdir(current_ledger_path)}")
             break
 
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+    LOG.warning(f"Ledger dir after stopping node is {current_ledger_dir}: {os.listdir(current_ledger_dir)}")
 
     # Corrupt _uncommitted_ ledger before starting new service
     ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
