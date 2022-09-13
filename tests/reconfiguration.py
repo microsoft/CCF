@@ -723,6 +723,7 @@ def run_all(args):
         test_issue_fake_join(network, args)
 
         if args.consensus != "BFT":
+            test_add_as_many_pending_nodes(network, args)
             test_add_node_invalid_service_cert(network, args)
             test_add_node(network, args, from_snapshot=False)
             test_add_node_with_read_only_ledger(network, args)
@@ -731,7 +732,6 @@ def run_all(args):
             test_add_node_from_backup(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
-            test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
             test_retire_primary(network, args)
 
