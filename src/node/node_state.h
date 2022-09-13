@@ -77,6 +77,7 @@ namespace ccf
     //
     ds::StateMachine<NodeStartupState> sm;
     pal::Mutex lock;
+    StartType start_type;
 
     crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
@@ -329,10 +330,30 @@ namespace ccf
               {
                 throw std::logic_error("Failed to extract code id from quote");
               }
-              LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
 
-              create_and_send_boot_request(
-                aft::starting_view_change, true /* Create new consortium */);
+              if (start_type == StartType::Start)
+              {
+                create_and_send_boot_request(
+                  aft::starting_view_change, true /* Create new consortium */);
+              }
+              else if (start_type == StartType::Join)
+              {
+                // When joining from a snapshot, deserialise ledger suffix to
+                // verify snapshot evidence. Otherwise, attempt to join straight
+                // away
+                if (is_verifying_snapshot())
+                {
+                  start_ledger_recovery();
+                }
+                else
+                {
+                  start_join_timer();
+                }
+              }
+              else if (start_type == StartType::Recover)
+              {
+                start_ledger_recovery();
+              }
             },
             [](const std::string& error_msg) {
               // TODO: On TLS error, shutdown node
@@ -357,10 +378,11 @@ namespace ccf
       pal::generate_quote(report_data, fetch_endorsements);
     }
 
-    NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
+    NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
+      start_type = start_type_;
 
       config = std::move(config_);
       subject_alt_names = get_subject_alternative_names();
@@ -759,13 +781,6 @@ namespace ccf
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(timer_msg), config.join.retry_timeout);
-    }
-
-    void join()
-    {
-      // TODO: This feels like this should go?
-      std::lock_guard<pal::Mutex> guard(lock);
-      start_join_timer();
     }
 
     void auto_refresh_jwt_keys()
