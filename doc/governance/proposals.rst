@@ -363,3 +363,25 @@ At any stage during the voting process, before the proposal is accepted, the pro
     }
 
 This means future votes will be rejected, and the proposal will never be accepted. However it remains visible as a proposal so members can easily audit historic proposals.
+
+Binding a Proposal
+------------------
+
+A member submitting a proposal may wish to bind it to a particular service instance. This is to prevent potential unwanted re-use of that proposal on other services, in which that member may be also be part of the consortium.
+
+The `assert_service_identity` action, provided as a sample, illustrates how this can be done. It can be included in the proposal, with the service identity as a parameter:
+
+.. code-block:: bash
+
+    {
+      "actions": [
+        {
+          "name": "assert_service_identity",
+          "args": {
+            "service_identity": "-----BEGIN CERTIFICATE-----\nMIIBsjCCATigAwIBAgIUTW9Zkzdbml7R3pZlp5qMgUUjPoYwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjAwHhcNMjIwOTEyMTM1ODIzWhcNMjMwOTEyMTM1ODIz\nWjAQMQ4wDAYDVQQDDAV1c2VyMDB2MBAGByqGSM49AgEGBSuBBAAiA2IABLeWHRm2\nEkAKOrf3r0xt6jjThD1A1zeu2ONtQk87O7EpAsPRKoPyemngpTZaMkRd8TfZSsYP\nLS9OBAHtNMZ3hR8dZL0dRZcCG34zcyImAkgOk903PXKE94xzTBnfhaHG6qNTMFEw\nHQYDVR0OBBYEFArH2udKBPnWXTbJ6UTt3jh4BXziMB8GA1UdIwQYMBaAFArH2udK\nBPnWXTbJ6UTt3jh4BXziMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\nZQIxAJ7WeiDh16x4dL5tHl5SlNpBkPQW1HArvSyeG5DYDWZSFVWTHKnrkVzDvC8B\nbXtzhwIwdFM365Ag8FvDyJXPrIONfURm7fkXU2evlh6QKna3zRxcZKnLGsha01Vh\nP9BX000h\n-----END CERTIFICATE-----\n"
+          }
+        }
+      ]
+    }
+
+A constitution wishing to enforce that all proposals must be specific to a service could enforce the presence of this action in its ``validate()`` implementation.
