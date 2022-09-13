@@ -5,6 +5,7 @@ from http import HTTPStatus
 import openapi_spec_validator
 from datetime import datetime, timezone
 import time
+from infra.is_snp import IS_SNP
 
 
 def test_nobuiltins_endpoints(network, args):
@@ -20,11 +21,16 @@ def test_nobuiltins_endpoints(network, args):
         body_j = r.body.json()
         assert body_j["committed_view"] >= tx_id.view
         assert body_j["committed_seqno"] >= tx_id.seqno
-        assert (
-            body_j["quote_format"] == "Insecure_Virtual"
-            if args.enclave_type == "virtual"
-            else "OE_SGX_v1"
-        )
+        if args.enclave_type in ("release", "debug"):
+            expected_format = "OE_SGX_v1"
+        elif args.enclave_type == "virtual":
+            if IS_SNP:
+                expected_format = "AMD_SEV_SNP_v1"
+            else:
+                expected_format = "Insecure_Virtual"
+        else:
+            raise ValueError(f"Unhandled enclave_type = {args.enclave_type}")
+        assert body_j["quote_format"] == expected_format, body_j["quote_format"]
         assert body_j["node_id"] == primary.node_id
 
         r = c.get("/app/api")
@@ -60,8 +66,6 @@ def test_nobuiltins_endpoints(network, args):
             assert (
                 node_id in known_node_ids
             ), f"Response contains '{node_id}', which is not in known IDs: {known_node_ids}"
-            assert (
-                node_info["quote_format"] == "Insecure_Virtual"
-                if args.enclave_type == "virtual"
-                else "OE_SGX_v1"
-            )
+            assert node_info["quote_format"] == expected_format, node_info[
+                "quote_format"
+            ]

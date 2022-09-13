@@ -218,6 +218,11 @@ namespace http
       response_body = std::vector<uint8_t>(body.begin(), body.end());
     }
 
+    virtual const std::vector<uint8_t>& get_response_body() const override
+    {
+      return response_body;
+    }
+
     virtual void set_response_status(int status) override
     {
       response_status = (http_status)status;

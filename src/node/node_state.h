@@ -1996,32 +1996,26 @@ namespace ccf
       return request.build_request();
     }
 
-    bool parse_create_response(const std::vector<uint8_t>& response)
+    bool extract_create_result(const std::shared_ptr<RpcContext>& ctx)
     {
-      http::SimpleResponseProcessor processor;
-      http::ResponseParser parser(processor);
-
-      parser.execute(response.data(), response.size());
-
-      if (processor.received.size() != 1)
+      if (ctx == nullptr)
       {
-        LOG_FAIL_FMT(
-          "Expected single message, found {}", processor.received.size());
+        LOG_FAIL_FMT("Expected non-null context");
         return false;
       }
 
-      const auto& r = processor.received.front();
-
-      if (r.status != HTTP_STATUS_OK)
+      const auto status = ctx->get_response_status();
+      if (status != HTTP_STATUS_OK)
       {
         LOG_FAIL_FMT(
           "Create response is error: {} {}",
-          r.status,
-          http_status_str(r.status));
+          status,
+          http_status_str((http_status)status));
         return false;
       }
 
-      const auto body = serdes::unpack(r.body, serdes::Pack::Text);
+      const auto body =
+        serdes::unpack(ctx->get_response_body(), serdes::Pack::Text);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
@@ -2056,13 +2050,9 @@ namespace ccf
       }
       auto frontend = frontend_opt.value();
 
-      const auto response = frontend->process(ctx);
-      if (!response.has_value())
-      {
-        return false;
-      }
+      frontend->process(ctx);
 
-      return parse_create_response(response.value());
+      return extract_create_result(ctx);
     }
 
     void create_and_send_boot_request(
