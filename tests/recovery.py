@@ -683,15 +683,13 @@ checked. Note that the key for each logging message is unique (per table).
             default=False,
         )
 
-    args = infra.e2e_args.cli_args(add)
-
     cr = ConcurrentRunner(add)
 
     cr.add(
         "recovery",
         run,
         package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=1),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snasphot_tx_interval=30,
     )
@@ -705,7 +703,7 @@ checked. Note that the key for each logging message is unique (per table).
         "recovery_corrupt_ledger",
         run_corrupted_ledger,
         package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=0),  # 1 node suffices for recovery
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
         sig_ms_interval=1000,
         ledger_chunk_bytes="1GB",
         snasphot_tx_interval=1000000,
