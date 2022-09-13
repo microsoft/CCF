@@ -1,5 +1,13 @@
 {
   "components": {
+    "responses": {
+      "ErrorResponse": {
+        "description": "An error occurred. The possible HTTP status, code, and message strings are listed below",
+        "schema": {
+          "$ref": "#/components/schemas/CCFError"
+        }
+      }
+    },
     "schemas": {
       "Action": {
         "properties": {
@@ -32,6 +40,18 @@
           "ballot"
         ],
         "type": "object"
+      },
+      "CCFError": {
+        "error": {
+          "code": {
+            "description": "Response error code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Response error message",
+            "type": "string"
+          }
+        }
       },
       "CodeStatus": {
         "enum": [
@@ -430,7 +450,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.8.1"
+    "version": "2.8.4"
   },
   "openapi": "3.0.0",
   "paths": {

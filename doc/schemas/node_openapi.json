@@ -1,5 +1,13 @@
 {
   "components": {
+    "responses": {
+      "ErrorResponse": {
+        "description": "An error occurred. The possible HTTP status, code, and message strings are listed below",
+        "schema": {
+          "$ref": "#/components/schemas/CCFError"
+        }
+      }
+    },
     "schemas": {
       "ApplicationProtocol": {
         "enum": [
@@ -16,6 +24,18 @@
           "Unsecured"
         ],
         "type": "string"
+      },
+      "CCFError": {
+        "error": {
+          "code": {
+            "description": "Response error code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Response error message",
+            "type": "string"
+          }
+        }
       },
       "CodeStatus": {
         "enum": [
@@ -845,7 +865,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.30.1"
+    "version": "2.30.4"
   },
   "openapi": "3.0.0",
   "paths": {

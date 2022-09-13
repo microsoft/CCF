@@ -247,6 +247,26 @@ namespace ccf::endpoints
       "receiving node, potentially breaking session consistency. If this "
       "attempts to write on a backup, this will fail.";
 
+    // Add ccf OData error response schema
+    auto& schemas = document["components"]["schemas"];
+    auto& ccf_error = schemas["CCFError"];
+    auto& error = ccf_error["error"];
+    auto& code = error["code"];
+    code["description"] = "Response error code";
+    code["type"] = "string";
+    auto& message = error["message"];
+    message["description"] = "Response error message";
+    message["type"] = "string";
+
+    // Add a default error response definition
+    auto& responses = document["components"]["responses"];
+    auto& default_error = responses["ErrorResponse"];
+    default_error["description"] =
+      "An error occurred. The possible HTTP status, code, and message strings "
+      "are listed below";
+    auto& schema = default_error["schema"];
+    schema["$ref"] = "#/components/schemas/CCFError";
+
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
