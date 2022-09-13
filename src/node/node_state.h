@@ -280,6 +280,83 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
+    void initiate_quote_generation()
+    {
+      auto fetch_endorsements =
+        [this](
+          QuoteInfo quote_info_,
+          const pal::EndorsementEndpointConfiguration& config) {
+          if (!quote_info_.endorsements.empty())
+          {
+            LOG_FAIL_FMT("Endorsements already set!");
+            // If the endorsements have already been populated (e.g. SGX),
+            // return immediately.
+            quote_info = quote_info_;
+            return;
+          }
+
+          auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
+            nullptr, std::nullopt, std::nullopt, std::nullopt, false));
+
+          client->connect(
+            config.host,
+            config.port,
+            [this, quote_info_](
+              http_status status,
+              http::HeaderMap&& headers,
+              std::vector<uint8_t>&& data) {
+              // TODO: On success
+
+              if (status != HTTP_STATUS_OK)
+              {
+                CCF_APP_FAIL("Error: {}", status);
+                // If 429, wait and retry (by creating new client)
+              }
+
+              std::lock_guard<pal::Mutex> guard(lock);
+
+              LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
+              quote_info = quote_info_;
+              quote_info.endorsements.assign(data.begin(), data.end());
+
+              auto code_id =
+                EnclaveAttestationProvider::get_code_id(quote_info);
+              if (code_id.has_value())
+              {
+                node_code_id = code_id.value();
+              }
+              else
+              {
+                throw std::logic_error("Failed to extract code id from quote");
+              }
+              LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
+
+              create_and_send_boot_request(
+                aft::starting_view_change, true /* Create new consortium */);
+            },
+            [](const std::string& error_msg) {
+              // TODO: On TLS error, shutdown node
+            });
+
+          http::Request r(config.uri, HTTP_GET);
+          for (auto const& [k, v] : config.params)
+          {
+            r.set_query_param(k, v);
+          }
+          r.set_header(http::headers::HOST, config.host);
+          client->send_request(r);
+          LOG_INFO_FMT("Fetching endorsements for quote at {}", config.host);
+        };
+
+      pal::attestation_report_data report_data = {};
+      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
+      std::copy(
+        node_pub_key_hash.h.begin(),
+        node_pub_key_hash.h.end(),
+        report_data.begin());
+      pal::generate_quote(report_data, fetch_endorsements);
+    }
+
     NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -296,148 +373,10 @@ namespace ccf
         config.startup_host_time,
         config.node_certificate.initial_validity_days);
 
+      initiate_quote_generation();
+
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
-
-      // Depending on the platform, the attestation report may be larger than 32
-      // bytes
-      // pal::attestation_report_data report = {};
-      // crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
-      // std::copy(
-      //   node_pub_key_hash.h.begin(), node_pub_key_hash.h.end(),
-      //   report.begin());
-
-      // quote_info = pal::generate_quote(report);
-
-      auto fn = [this](
-                  QuoteInfo quote_info_,
-                  const pal::EndorsementEndpointConfiguration& config) {
-        auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
-          nullptr, std::nullopt, std::nullopt, std::nullopt, false));
-
-        client->connect(
-          config.host,
-          config.port,
-          [this, quote_info_](
-            http_status status,
-            http::HeaderMap&& headers,
-            std::vector<uint8_t>&& data) {
-            // TODO: On success
-            if (status != HTTP_STATUS_OK)
-            {
-              CCF_APP_FAIL("Error: {}", status);
-              // If 429, wait and retry (by creating new client)
-            }
-
-            // auto code_id =
-            // EnclaveAttestationProvider::get_code_id(quote_info); if
-            // (code_id.has_value())
-            // {
-            //   node_code_id = code_id.value();
-            // }
-            // else
-            // {
-            //   throw std::logic_error("Failed to extract code id from quote");
-            // }
-
-            LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
-            quote_info = quote_info_;
-            quote_info.endorsements.assign(data.begin(), data.end());
-
-            // LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
-
-            create_and_send_boot_request(
-              aft::starting_view_change, true /* Create new consortium */);
-          },
-          [](const std::string& error_msg) {
-            // TODO: On error
-            // If 429, wait and retry (by creating new client)
-          });
-
-        http::Request r(config.uri, HTTP_GET);
-        for (auto const& [k, v] : config.params)
-        {
-          r.set_query_param(k, v);
-        }
-        r.set_header(http::headers::HOST, config.host);
-        client->send_request(r);
-      };
-
-      pal::attestation_report_data report_data = {};
-      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
-      std::copy(
-        node_pub_key_hash.h.begin(),
-        node_pub_key_hash.h.end(),
-        report_data.begin());
-      auto q = pal::generate_quote(report_data, fn);
-      if (q.has_value())
-      {
-        quote_info = q.value();
-      }
-
-      // auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
-      //   nullptr, std::nullopt, std::nullopt, std::nullopt, false));
-
-      // client->connect(
-      //   "americas.test.acccache.azure.net",
-      //   "443",
-      //   [this](
-      //     http_status status,
-      //     http::HeaderMap&& headers,
-      //     std::vector<uint8_t>&& data) {
-      //     // TODO: On success
-      //     if (status != HTTP_STATUS_OK)
-      //     {
-      //       CCF_APP_FAIL("Error: {}", status);
-      //       // If 429, wait and retry (by creating new client)
-      //     }
-
-      //     pal::attestation_report_data report = {};
-      //     crypto::Sha256Hash node_pub_key_hash(
-      //       (node_sign_kp->public_key_der()));
-      //     std::copy(
-      //       node_pub_key_hash.h.begin(),
-      //       node_pub_key_hash.h.end(),
-      //       report.begin());
-      //     quote_info = pal::generate_quote(report);
-
-      //     auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
-      //     if (code_id.has_value())
-      //     {
-      //       node_code_id = code_id.value();
-      //     }
-      //     else
-      //     {
-      //       throw std::logic_error("Failed to extract code id from quote");
-      //     }
-
-      //     LOG_FAIL_FMT("Got code id: {}", node_code_id.data);
-
-      //     create_and_send_boot_request(
-      //       aft::starting_view_change, true /* Create new consortium */);
-      //   },
-      //   [](const std::string& error_msg) {
-      //     // TODO: On error
-      //     // If 429, wait and retry (by creating new client)
-      //   });
-
-      // http::Request r(
-      //   fmt::format("/SevSnpVM/certificates/lala/lala"), HTTP_GET);
-      // r.set_query_param("api-version", "2020-10-15-preview");
-      // r.set_header(
-      //   http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      // r.set_header(http::headers::HOST, "americas.test.acccache.azure.net");
-      // client->send_request(r);
-
-      // auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
-      // if (code_id.has_value())
-      // {
-      //   node_code_id = code_id.value();
-      // }
-      // else
-      // {
-      //   throw std::logic_error("Failed to extract code id from quote");
-      // }
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
@@ -824,6 +763,7 @@ namespace ccf
 
     void join()
     {
+      // TODO: This feels like this should go?
       std::lock_guard<pal::Mutex> guard(lock);
       start_join_timer();
     }
