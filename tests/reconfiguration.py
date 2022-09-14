@@ -16,6 +16,7 @@ import json
 import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
+from infra.is_snp import IS_SNP
 from infra.runner import ConcurrentRunner
 import http
 import random
@@ -268,12 +269,17 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
             assert r.status_code == http.HTTPStatus.OK, r
             startup_seqno = r.body.json()["startup_seqno"]
             assert startup_seqno != 0, startup_seqno
-            missing_seqnos = sorted(random.sample(range(0, startup_seqno), 5))
+            possible_seqno_range = range(1, startup_seqno)
+            num_samples = min(len(possible_seqno_range), 5)
+            missing_seqnos = sorted(random.sample(possible_seqno_range, num_samples))
+            LOG.info(f"Verifying status of transactions at seqnos: {missing_seqnos}")
             view = 2
             for seqno in missing_seqnos:
+                assert seqno != 0, "0 is not a valid seqno"
                 status = TxStatus.Invalid
                 while status == TxStatus.Invalid:
                     r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
+                    assert r.status_code == http.HTTPStatus.OK, r
                     status = TxStatus(r.body.json()["status"])
                     if status == TxStatus.Committed:
                         missing_txids.append(f"{view}.{seqno}")
@@ -449,17 +455,36 @@ def test_issue_fake_join(network, args):
 
         LOG.info("Join with SGX real quote, but different TLS key")
         # First, retrieve real quote from primary node
-        r = c.get("/node/quotes/self").body.json()
+        own_quote = c.get("/node/quotes/self").body.json()
         req["quote_info"] = {
             "format": "OE_SGX_v1",
-            "quote": r["raw"],
-            "endorsements": r["endorsements"],
+            "quote": own_quote["raw"],
+            "endorsements": own_quote["endorsements"],
         }
         r = c.post("/node/join", body=req)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
-        if args.enclave_type == "virtual":
+        if args.enclave_type not in ("release", "debug"):
             assert r.body.json()["error"]["message"] == "Quote could not be verified"
+        else:
+            assert (
+                r.body.json()["error"]["message"]
+                == "Quote report data does not contain node's public key hash"
+            )
+
+        LOG.info("Join with AMD SEV-SNP quote")
+        req["quote_info"] = {
+            "format": "AMD_SEV_SNP_v1",
+            "quote": own_quote["raw"],
+            "endorsements": own_quote["endorsements"],
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type != "snp":
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            # https://github.com/microsoft/CCF/issues/4072
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "SEV-SNP node cannot currently join a Non-SNP network"
         else:
             assert (
                 r.body.json()["error"]["message"]
@@ -473,31 +498,14 @@ def test_issue_fake_join(network, args):
             "endorsements": "",
         }
         r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual":
+        if args.enclave_type == "virtual" and not IS_SNP:
             assert r.status_code == http.HTTPStatus.OK
             assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
         else:
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
             assert (
                 r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "Virtual node must never join SGX network"
-
-        LOG.info("Join with AMD SEV-SNP quote")
-        req["quote_info"] = {
-            "format": "AMD_SEV_SNP_v1",
-            "quote": "",
-            "endorsements": "",
-        }
-        r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual":
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
-        else:
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            # https://github.com/microsoft/CCF/issues/4072
-            assert (
-                r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "SEV-SNP node cannot currently join SGX network"
+            ), "Virtual node must never join non-virtual network"
 
     return network
 
@@ -720,6 +728,7 @@ def run_all(args):
         test_issue_fake_join(network, args)
 
         if args.consensus != "BFT":
+            test_add_as_many_pending_nodes(network, args)
             test_add_node_invalid_service_cert(network, args)
             test_add_node(network, args, from_snapshot=False)
             test_add_node_with_read_only_ledger(network, args)
@@ -728,7 +737,6 @@ def run_all(args):
             test_add_node_from_backup(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
-            test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
             test_retire_primary(network, args)
 

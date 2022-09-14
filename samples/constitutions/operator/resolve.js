@@ -7,8 +7,11 @@ function getMemberInfo(memberId) {
 
 // Returns true if the member is a recovery member.
 function isRecoveryMember(memberId) {
-  const info = getMemberInfo(memberId);
-  if (info.member_data.encryption_pub_key) {
+  const key = ccf.strToBuf(memberId);
+  const value =
+    ccf.kv["public:ccf.gov.members.encryption_public_keys"].get(key);
+
+  if (value) {
     return true;
   }
   return false;
@@ -21,7 +24,7 @@ function isOperator(memberId) {
     return false;
   }
   const info = getMemberInfo(memberId);
-  return info.member_data.is_operator;
+  return info.member_data && info.member_data.is_operator;
 }
 
 // Defines actions that can be passed with sole operator input.
