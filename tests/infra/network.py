@@ -891,14 +891,18 @@ class Network:
 
     def _wait_for_app_open(self, node, timeout=3):
         end_time = time.time() + timeout
+        logs = []
         while time.time() < end_time:
             # As an operator, query a well-known /app endpoint to find out
             # if the app has been opened to users
             with node.client() as c:
-                r = c.get("/app/commit")
+                logs = []
+                r = c.get("/app/commit", log_capture=logs)
                 if not (r.status_code == http.HTTPStatus.NOT_FOUND.value):
+                    flush_info(logs, None)
                     return
                 time.sleep(0.1)
+        flush_info(logs, None)
         raise TimeoutError(f"Application frontend was not open after {timeout}s")
 
     def _get_node_by_service_id(self, node_id):
@@ -1246,10 +1250,10 @@ class Network:
                 return True
 
             LOG.info(
-                f"Waiting for a snapshot to be committed including seqno {target_seqno}"
+                f"Waiting for a snapshot to be committed including seqno {target_seqno} in {src_dir}"
             )
             end_time = time.time() + timeout
-            while time.time() < end_time:
+            while True:
                 for f in list_src_dir_func(src_dir):
                     snapshot_seqno = infra.node.get_snapshot_seqnos(f)[1]
                     if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
@@ -1260,6 +1264,12 @@ class Network:
                         )
                         return True
 
+                if time.time() > end_time:
+                    LOG.error(
+                        f"Could not find committed snapshot for seqno {target_seqno} after {timeout:.2f}s in {src_dir}: {list_src_dir_func(src_dir)}"
+                    )
+                    return False
+
                 with node.client(self.consortium.get_any_active_member().local_id) as c:
                     logs = []
                     for _ in range(self.args.snapshot_tx_interval // 2):
@@ -1269,10 +1279,6 @@ class Network:
                         ), f"Error ack/update_state_digest: {r}"
                     c.wait_for_commit(r)
                 time.sleep(0.1)
-            LOG.error(
-                f"Could not find committed snapshot for seqno {target_seqno} after {timeout:.2f}s in {src_dir}: {list_src_dir_func(src_dir)}"
-            )
-            return False
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
@@ -1306,9 +1312,12 @@ class Network:
         )
 
     @functools.cached_property
+    def cert_path(self):
+        return os.path.join(self.common_dir, "service_cert.pem")
+
+    @functools.cached_property
     def cert(self):
-        cert_path = os.path.join(self.common_dir, "service_cert.pem")
-        with open(cert_path, encoding="utf-8") as c:
+        with open(self.cert_path, encoding="utf-8") as c:
             service_cert = load_pem_x509_certificate(
                 c.read().encode("ascii"), default_backend()
             )

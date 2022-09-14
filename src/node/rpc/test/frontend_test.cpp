@@ -545,15 +545,18 @@ TEST_CASE("process with signatures")
 
   SUBCASE("missing rpc")
   {
-    constexpr auto rpc_name = "/this_rpc_doesnt_exist";
-    const auto invalid_call = create_simple_request(rpc_name);
-    const auto serialized_call = invalid_call.build_request();
-    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+    for (const std::string& rpc_name :
+         {"", "/", "/this_rpc_doesnt_exist", "/this/rpc/doesnt/exist"})
+    {
+      const auto invalid_call = create_simple_request(rpc_name);
+      const auto serialized_call = invalid_call.build_request();
+      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
-    frontend.process(rpc_ctx);
-    const auto serialized_response = rpc_ctx->serialise_response();
-    auto response = parse_response(serialized_response);
-    REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
+      frontend.process(rpc_ctx);
+      const auto serialized_response = rpc_ctx->serialise_response();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
+    }
   }
 
   SUBCASE("endpoint does not require signature")
