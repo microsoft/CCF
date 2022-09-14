@@ -888,14 +888,18 @@ class Network:
 
     def _wait_for_app_open(self, node, timeout=3):
         end_time = time.time() + timeout
+        logs = []
         while time.time() < end_time:
             # As an operator, query a well-known /app endpoint to find out
             # if the app has been opened to users
             with node.client() as c:
-                r = c.get("/app/commit")
+                logs = []
+                r = c.get("/app/commit", log_capture=logs)
                 if not (r.status_code == http.HTTPStatus.NOT_FOUND.value):
+                    flush_info(logs, None)
                     return
                 time.sleep(0.1)
+        flush_info(logs, None)
         raise TimeoutError(f"Application frontend was not open after {timeout}s")
 
     def _get_node_by_service_id(self, node_id):
