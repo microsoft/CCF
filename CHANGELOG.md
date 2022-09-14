@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.8]
+
+### Fixed
+
+- `set_user` action in sample constitutions correctly handles `user_data` (#4229).
+
 ## [2.0.7]
 
 ### Added
@@ -1576,6 +1582,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.8
 [2.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.7
 [2.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.6
 [2.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.5
@@ -1668,3 +1675,4 @@ Initial pre-release
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
 [unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased
+[3.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev4
