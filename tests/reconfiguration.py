@@ -382,7 +382,7 @@ def test_node_filter(network, args):
             nodes = r.body.json()["nodes"]
             # Primary may change during operation, so do not check for primary equality
             for node in nodes:
-              del node['primary']
+                del node["primary"]
             return sorted(nodes, key=lambda node: node["node_id"])
 
         trusted_before = get_nodes("Trusted")
