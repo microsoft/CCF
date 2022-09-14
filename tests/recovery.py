@@ -421,7 +421,9 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
             old_primary, wait_for_commit=True
         )
         # A signature will have been emitted by now (wait_for_commit)
-        network.consortium.create_and_withdraw_large_proposal(old_primary)
+        # Wait a little longer so it should have been persisted to disk, but
+        # retry if that has produced a committed chunk
+        time.sleep(0.2)
         if not all(
             f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
             for f in os.listdir(current_ledger_path)
