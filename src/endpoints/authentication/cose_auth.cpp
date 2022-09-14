@@ -21,55 +21,22 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    std::optional<SignedReq> signed_request = std::nullopt;
-
-    try
+    if (true)
     {
-      signed_request = parse_signed_request(ctx);
-    }
-    catch (const std::exception& e)
-    {
-      error_reason = e.what();
-      return nullptr;
-    }
-
-    if (signed_request.has_value())
-    {
+      /*
       MemberCerts members_certs_table(Tables::MEMBER_CERTS);
       auto member_certs = tx.ro(members_certs_table);
-      auto member_cert = member_certs->get(signed_request->key_id);
+      auto member_cert = member_certs->get(KID);
       if (member_cert.has_value())
       {
-        std::vector<uint8_t> digest;
-        auto verifier = verifiers->get_verifier(member_cert.value());
-        if (verifier->verify(
-              signed_request->req,
-              signed_request->sig,
-              signed_request->md,
-              digest))
-        {
-          auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
-          identity->member_id = signed_request->key_id;
-          identity->member_cert = member_cert.value();
-          identity->signed_request = signed_request.value();
-          identity->request_digest = std::move(digest);
-          return identity;
-        }
-        else
-        {
-          error_reason = "Signature is invalid";
-        }
+        // Verify
       }
-      else
-      {
-        error_reason = "Signer is not a known member";
-      }
-    }
-    else
-    {
-      error_reason = "Missing signature";
+      */
+      auto identity = std::make_unique<MemberCOSESign1AuthnPolicy>();
+      return identity;
     }
 
+    error_reason = "Did not validate";
     return nullptr;
   }
 
