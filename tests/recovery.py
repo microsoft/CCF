@@ -427,16 +427,24 @@ def test_recover_service_truncated_ledger(
             old_primary, wait_for_commit=True
         )
         # A signature will have been emitted by now (wait_for_commit)
-        network.consortium.create_and_withdraw_large_proposal(old_primary)
+        # Wait a little longer so it should have been persisted to disk, but
+        # retry if that has produced a committed chunk
+        time.sleep(0.2)
         if not all(
             f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
             for f in os.listdir(current_ledger_path)
         ):
+            LOG.warning(
+                f"Decided to stop network after looking at ledger dir {current_ledger_path}: {os.listdir(current_ledger_path)}"
+            )
             break
 
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+    LOG.warning(
+        f"Ledger dir after stopping node is {current_ledger_dir}: {os.listdir(current_ledger_dir)}"
+    )
 
     # Corrupt _uncommitted_ ledger before starting new service
     ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
