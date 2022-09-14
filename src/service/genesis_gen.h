@@ -420,6 +420,12 @@ namespace ccf
         {.status = CodeStatus::ALLOWED_TO_JOIN, .platform = platform});
     }
 
+    void trust_node_security_policy(const std::string& security_policy)
+    {
+      auto security_policies = tx.rw(tables.security_policies);
+      security_policies->insert(security_policy);
+    }
+
     void init_configuration(const ServiceConfiguration& configuration)
     {
       auto config = tx.rw(tables.config);

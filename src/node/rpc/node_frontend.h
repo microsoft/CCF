@@ -1513,6 +1513,8 @@ namespace ccf
           in.public_key};
         g.add_node(in.node_id, node_info);
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
+        if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
+            g.trust_node_security_policy("example_security_policy");
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
