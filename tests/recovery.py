@@ -417,6 +417,8 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
     )
     current_ledger_path = old_primary.remote.ledger_paths()[0]
     while True:
+        # NB: This is used as an app agnostic write, nothing to do with the large
+        # size, or trying to force a chunk
         network.consortium.create_and_withdraw_large_proposal(
             old_primary, wait_for_commit=True
         )
