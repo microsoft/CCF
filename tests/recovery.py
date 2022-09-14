@@ -441,16 +441,7 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
     # Corrupt _uncommitted_ ledger before starting new service
     ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
 
-    chunk_filename, truncate_offset = get_truncation_point(ledger, False)
-
-    # It's possible that the current ledger doesn't yet contain a
-    # signature (or whatever other type of tx we're trying to
-    # truncate). Assume that is just a race condition, and sleep
-    # briefly.
-    if truncate_offset is None:
-        LOG.warning("Calculated empty offset, sleeping and retrying")
-        time.sleep(1)
-        chunk_filename, truncate_offset = get_truncation_point(ledger, True)
+    chunk_filename, truncate_offset = get_truncation_point(ledger)
 
     assert truncate_offset is not None, "Should always truncate within tx"
 
@@ -500,13 +491,13 @@ def run_corrupted_ledger(args):
                         LOG.info(f"Considering tx {tx.get_tx_digest()}")
                     yield chunk, tx
 
-        def corrupt_first_tx(ledger, verbose):
+        def corrupt_first_tx(ledger, verbose=False):
             LOG.info("Finding first tx to corrupt")
             for chunk, tx in all_txs(ledger, verbose):
                 return chunk.filename(), get_middle_tx_offset(tx)
             return None, None
 
-        def corrupt_last_tx(ledger, verbose):
+        def corrupt_last_tx(ledger, verbose=False):
             LOG.info("Finding last tx to corrupt")
             chunk_filename, truncate_offset = None, None
             for chunk, tx in all_txs(ledger, verbose):
@@ -514,7 +505,7 @@ def run_corrupted_ledger(args):
                 truncate_offset = get_middle_tx_offset(tx)
             return chunk_filename, truncate_offset
 
-        def corrupt_first_sig(ledger, verbose):
+        def corrupt_first_sig(ledger, verbose=False):
             LOG.info("Finding first sig to corrupt")
             for chunk, tx in all_txs(ledger, verbose):
                 tables = tx.get_public_domain().get_tables()
