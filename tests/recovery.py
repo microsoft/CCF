@@ -507,7 +507,7 @@ def run_corrupted_ledger(args):
                 truncate_offset = get_middle_tx_offset(tx)
             return chunk_filename, truncate_offset
 
-        def corrupt_first_sig(ledger, verbose=False):
+        def corrupt_first_sig(ledger, verbose=True):
             LOG.info("Finding first sig to corrupt")
             for chunk, tx in all_txs(ledger, verbose):
                 tables = tx.get_public_domain().get_tables()
