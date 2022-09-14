@@ -380,7 +380,16 @@ def test_node_filter(network, args):
         def get_nodes(status):
             r = c.get(f"/node/network/nodes?status={status}")
             nodes = r.body.json()["nodes"]
-            return sorted(nodes, key=lambda node: node["node_id"])
+            return sorted(
+                [
+                    {
+                        "node_id": node["node_id"],
+                        "status": node["status"],
+                    }
+                    for node in nodes
+                ],
+                key=lambda node: node["node_id"],
+            )
 
         trusted_before = get_nodes("Trusted")
         pending_before = get_nodes("Pending")
