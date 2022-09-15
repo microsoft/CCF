@@ -312,7 +312,7 @@ namespace ccf
 
       while (attempts < max_attempts)
       {
-        std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_p();
+        std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
         set_root_on_proposals(*ctx, *tx_p);
 
         if (attempts > 0)

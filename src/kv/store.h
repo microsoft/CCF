@@ -1264,7 +1264,7 @@ namespace kv
       return CommittableTx(this);
     }
 
-    std::unique_ptr<CommittableTx> create_tx_p()
+    std::unique_ptr<CommittableTx> create_tx_ptr()
     {
       return std::make_unique<CommittableTx>(this);
     }
