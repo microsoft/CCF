@@ -415,7 +415,8 @@ namespace ccf
             fmt::format(
               "Node requested to join from seqno {} which is "
               "older than this node startup seqno {}. A snapshot at least ",
-              "as recent as {} must be used instead." in.startup_seqno.value(),
+              "as recent as {} must be used instead.",
+              in.startup_seqno.value(),
               this_startup_seqno,
               this_startup_seqno));
         }
