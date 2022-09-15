@@ -120,7 +120,12 @@ namespace ccf::endpoints
   EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_request(
     const std::string& method_, const std::string& verb)
   {
-    auto method = method_.substr(method_.find_first_not_of('/'));
+    auto substr_start = method_.find_first_not_of('/');
+    if (substr_start == std::string::npos)
+    {
+      substr_start = 0;
+    }
+    auto method = method_.substr(substr_start);
     return metrics[method][verb];
   }
 

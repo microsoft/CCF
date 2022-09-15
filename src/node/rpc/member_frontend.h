@@ -899,8 +899,9 @@ namespace ccf
         js::Runtime rt;
         js::Context context(rt, js::TxAccess::GOV_RO);
         rt.add_ccf_classdefs();
+        js::TxContext txctx{&ctx.tx};
         js::populate_global(
-          nullptr,
+          &txctx,
           nullptr,
           nullptr,
           std::nullopt,

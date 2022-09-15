@@ -473,6 +473,14 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def assert_service_identity(self, remote_node, service_cert_path):
+        service_cert_pem = slurp_file(service_cert_path)
+        proposal_body, careful_vote = self.make_proposal(
+            "assert_service_identity", service_identity=service_cert_pem
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def set_js_app_from_dir(
         self, remote_node, bundle_path, disable_bytecode_cache=False
     ):
