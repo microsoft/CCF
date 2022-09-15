@@ -4,9 +4,12 @@
 
 #include "ccf/service/map.h"
 
+using RawPolicy = std::string;
+using DigestedPolicy = std::array<uint8_t, 32>;
+
 namespace ccf
 {
-  using SecurityPolicies = ServiceSet<std::string>;
+  using SecurityPolicies = ServiceMap<RawPolicy, DigestedPolicy>;
   namespace Tables
   {
     static constexpr auto SECURITY_POLICIES =
