@@ -40,6 +40,7 @@ This is the simple, usual flow, where the request is submitted to a primary node
       KV-->>App: return a
       App->>KV: tx.put(B, a)
       KV-->>App: return
+      App->>App: ctx.set_claims_digest(...)
       App->>App: ctx.set_response(OK, "Copied {a} from {A} to {B}")
       App-->>Frontend: return
       Frontend->>Frontend: tx.commit()
