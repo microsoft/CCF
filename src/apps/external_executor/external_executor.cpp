@@ -140,8 +140,8 @@ namespace externalexecutor
             "a successful call to StartTx and before EndTx");
         }
 
-        auto records_handle = active_tx->rw<Map>(payload.table());
-        records_handle->put(payload.key(), payload.value());
+        auto handle = active_tx->rw<Map>(payload.table());
+        handle->put(payload.key(), payload.value());
 
         return ccf::grpc::make_success();
       };
@@ -165,21 +165,16 @@ namespace externalexecutor
             "a successful call to StartTx and before EndTx");
         }
 
-        auto records_handle = active_tx->ro<Map>(payload.table());
-        auto value = records_handle->get(payload.key());
-        if (!value.has_value())
+        auto handle = active_tx->ro<Map>(payload.table());
+        auto result = handle->get(payload.key());
+
+        ccf::KVValue response;
+        if (result.has_value())
         {
-          // Note: no need to specify `make_error<ccf::KVValue>` here as lambda
-          // returns `-> ccf::grpc::GrpcAdapterResponse<ccf::KVValue>`
-          return ccf::grpc::make_error(
-            GRPC_STATUS_NOT_FOUND,
-            fmt::format("Key {} does not exist", payload.key()));
+          response.set_value(*result);
         }
 
-        ccf::KVValue r;
-        r.set_value(value.value());
-
-        return ccf::grpc::make_success(r);
+        return ccf::grpc::make_success(response);
       };
 
       make_read_only_endpoint(
@@ -188,6 +183,128 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get),
         ccf::no_auth_required)
         .install();
+
+      auto has = [this](
+                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                   ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::KVHasResult> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_tx->ro<Map>(payload.table());
+
+        ccf::KVHasResult result;
+        result.set_present(handle->has(payload.key()));
+
+        return ccf::grpc::make_success(result);
+      };
+
+      make_read_only_endpoint(
+        "ccf.KV/Has",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVHasResult>(has),
+        ccf::no_auth_required)
+        .install();
+
+      auto get_version = [this](
+                           ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                           ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::KVVersion> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_tx->ro<Map>(payload.table());
+        auto version = handle->get_version_of_previous_write(payload.key());
+
+        ccf::KVVersion response;
+        if (version.has_value())
+        {
+          response.set_version(*version);
+        }
+
+        return ccf::grpc::make_success(response);
+      };
+
+      make_read_only_endpoint(
+        "ccf.KV/GetVersion",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVVersion>(get_version),
+        ccf::no_auth_required)
+        .install();
+
+      auto kv_delete = [this](
+                         ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                         ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_tx->wo<Map>(payload.table());
+        handle->remove(payload.key());
+
+        return ccf::grpc::make_success();
+      };
+
+      make_read_only_endpoint(
+        "ccf.KV/Delete",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, google::protobuf::Empty>(
+          kv_delete),
+        ccf::no_auth_required)
+        .install();
+
+      // TODO: Stream return type
+      // auto get_all = [this](
+      //              ccf::endpoints::ReadOnlyEndpointContext& ctx,
+      //              ccf::KVKey&& payload)
+      //   -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
+      //   if (active_tx == nullptr)
+      //   {
+      //     return ccf::grpc::make_error(
+      //       GRPC_STATUS_FAILED_PRECONDITION,
+      //       "Not managing an active transaction - this should be called after
+      //       " "a successful call to StartTx and before EndTx");
+      //   }
+
+      //   auto handle = active_tx->ro<Map>(payload.table());
+      //   auto value = handle->get(payload.key());
+      //   if (!value.has_value())
+      //   {
+      //     // Note: no need to specify `make_error<ccf::KVValue>` here as
+      //     lambda
+      //     // returns `-> ccf::grpc::GrpcAdapterResponse<ccf::KVValue>`
+      //     return ccf::grpc::make_error(
+      //       GRPC_STATUS_NOT_FOUND,
+      //       fmt::format("Key {} does not exist", payload.key()));
+      //   }
+
+      //   ccf::KVValue r;
+      //   r.set_value(value.value());
+
+      //   return ccf::grpc::make_success(r);
+      // };
+
+      // make_read_only_endpoint(
+      //   "ccf.KV/GetAll",
+      //   HTTP_POST,
+      //   ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get_version),
+      //   ccf::no_auth_required)
+      //   .install();
     }
 
   public:
