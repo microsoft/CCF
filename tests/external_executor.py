@@ -116,6 +116,40 @@ def test_put_get(network, args):
     return network
 
 
+def test_handling_reqs(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        stub = Service.KVStub(channel)
+
+        request_description = stub.StartTx(Empty())
+        assert not request_description.HasField("optional")
+        stub.EndTx(KV.ResponseDescription())
+
+        with primary.client() as c:
+            r = c.post("/foo/bar", {"a": 42})
+            r = c.get("/hello/world")
+
+        request_description = stub.StartTx(Empty())
+        assert request_description.HasField("optional")
+        print(request_description)
+        stub.EndTx(KV.ResponseDescription())
+
+        request_description = stub.StartTx(Empty())
+        assert request_description.HasField("optional")
+        print(request_description)
+        stub.EndTx(KV.ResponseDescription())
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -124,7 +158,9 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        test_put_get(network, args)
+
+        network = test_put_get(network, args)
+        network = test_handling_reqs(network, args)
 
 
 if __name__ == "__main__":

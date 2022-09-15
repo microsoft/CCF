@@ -13,14 +13,22 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <queue>
 #include <string>
 
 namespace externalexecutor
 {
+  // TODO: This should be raw bytes, not (JSON serialised!) string
   using Map = kv::Map<std::string, std::string>;
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
+    // Note: As a temporary solution for testing, this app stores a single Tx,
+    // stolen from a StartTx RPC rather than a real client request
+    std::unique_ptr<kv::CommittableTx> active_tx = nullptr;
+
+    std::queue<ccf::RequestDescription> pending_requests;
+
     void install_registry_service()
     {
       auto get_executor_code =
@@ -48,16 +56,12 @@ namespace externalexecutor
         .install();
     }
 
-    // Note: As a temporary solution for testing, this app stores a single Tx,
-    // stolen from a StartTx RPC rather than a real client request
-    std::unique_ptr<kv::CommittableTx> active_tx = nullptr;
-
     void install_kv_service()
     {
       auto start = [this](
                      ccf::endpoints::EndpointContext& ctx,
                      google::protobuf::Empty&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::RequestDescription> {
+        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalRequestDescription> {
         if (active_tx != nullptr)
         {
           return ccf::grpc::make_error(
@@ -81,17 +85,24 @@ namespace externalexecutor
         // this transaction
         ctx.rpc_ctx->set_apply_writes(false);
 
-        ccf::RequestDescription rd;
-        rd.set_method("POST");
-        rd.set_uri("/foo/bar");
-        return ccf::grpc::make_success(rd);
+        ccf::OptionalRequestDescription opt_rd;
+
+        if (!pending_requests.empty())
+        {
+          auto* rd = opt_rd.mutable_optional();
+          *rd = pending_requests.front();
+          pending_requests.pop();
+        }
+
+        return ccf::grpc::make_success(opt_rd);
       };
 
       make_endpoint(
         "ccf.KV/StartTx",
         HTTP_POST,
-        ccf::grpc_adapter<google::protobuf::Empty, ccf::RequestDescription>(
-          start),
+        ccf::grpc_adapter<
+          google::protobuf::Empty,
+          ccf::OptionalRequestDescription>(start),
         ccf::no_auth_required)
         .install();
 
@@ -310,6 +321,34 @@ namespace externalexecutor
       //   .install();
     }
 
+    void queue_request_for_external_execution(
+      ccf::endpoints::EndpointContext& endpoint_ctx)
+    {
+      ccf::RequestDescription rd;
+      {
+        // Construct rd from request
+        rd.set_method(endpoint_ctx.rpc_ctx->get_request_verb().c_str());
+        rd.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
+        for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
+        {
+          ccf::Header* header = rd.add_headers();
+          header->set_field(k);
+          header->set_value(v);
+        }
+        const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
+        rd.set_body(body.data(), body.size());
+      }
+      pending_requests.push(rd);
+
+      endpoint_ctx.rpc_ctx->set_response_status(200);
+      endpoint_ctx.rpc_ctx->set_response_body(
+        "Executing your request, but not responding to you about it (yet!)");
+    }
+
+    struct ExternallyExecutedEndpoint
+      : public ccf::endpoints::EndpointDefinition
+    {};
+
   public:
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
@@ -317,6 +356,33 @@ namespace externalexecutor
       install_registry_service();
 
       install_kv_service();
+    }
+
+    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
+    {
+      auto real_endpoint =
+        ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
+      if (real_endpoint)
+      {
+        return real_endpoint;
+      }
+
+      return std::make_shared<ExternallyExecutedEndpoint>();
+    }
+
+    void execute_endpoint(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::EndpointContext& endpoint_ctx) override
+    {
+      auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
+      if (endpoint != nullptr)
+      {
+        queue_request_for_external_execution(endpoint_ctx);
+        return;
+      }
+
+      ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
     }
   };
 } // namespace externalexecutor

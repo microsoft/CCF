@@ -13,7 +13,7 @@ service KV
 {
   // Indicate to node that this executor is ready for a new request.
   // Returns description of a client request, to be executed.
-  rpc StartTx(google.protobuf.Empty) returns (RequestDescription) {}
+  rpc StartTx(google.protobuf.Empty) returns (OptionalRequestDescription) {}
 
   // Indicate that this executor has completed execution of the previous Tx.
   // Contains description of response which should be forwarded to user.
@@ -50,6 +50,7 @@ message RequestDescription
   repeated Header headers = 3;
   bytes body = 4;
 }
+message OptionalRequestDescription { RequestDescription optional = 1; }
 
 message KVTable { string table = 1; }
 
