@@ -36,7 +36,7 @@ namespace ccf
     ForwardedCommandId next_command_id = 0;
     std::unordered_map<ForwardedCommandId, threading::Task::TimerEntry>
       timeout_tasks;
-    ccf::pal::Mutex timeout_tasks_lock;
+    ccf::Mutex timeout_tasks_lock;
 
     using IsCallerCertForwarded = bool;
 
@@ -90,7 +90,7 @@ namespace ccf
           "after {}ms",
           to,
           timeout.count());
-        response.set_body(body);
+        response.set_body((const uint8_t*)body.data(), body.size());
         response.set_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
         rpc_responder_shared->reply_async(
@@ -384,7 +384,7 @@ namespace ccf
 
             // Cancel and delete the corresponding timeout task, so it will no
             // longer trigger a timeout error
-            std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+            std::lock_guard<ccf::Mutex> guard(timeout_tasks_lock);
             auto it = timeout_tasks.find(cmd_id);
             if (it != timeout_tasks.end())
             {
