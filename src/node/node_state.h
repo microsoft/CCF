@@ -281,18 +281,49 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
+    void launch_node()
+    {
+      if (start_type == StartType::Start)
+      {
+        create_and_send_boot_request(
+          aft::starting_view_change, true /* Create new consortium */);
+      }
+      else if (start_type == StartType::Join)
+      {
+        // When joining from a snapshot, deserialise ledger suffix to
+        // verify snapshot evidence. Otherwise, attempt to join straight
+        // away
+        if (is_verifying_snapshot())
+        {
+          start_ledger_recovery();
+        }
+        else
+        {
+          start_join_timer();
+        }
+      }
+      else if (start_type == StartType::Recover)
+      {
+        start_ledger_recovery();
+      }
+    }
+
     void initiate_quote_generation()
     {
       auto fetch_endorsements =
         [this](
           QuoteInfo quote_info_,
           const pal::EndorsementEndpointConfiguration& config) {
-          if (!quote_info_.endorsements.empty())
+          LOG_FAIL_FMT(
+            "Endorsements size: {}", quote_info_.endorsements.size());
+          if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
           {
             LOG_FAIL_FMT("Endorsements already set!");
             // If the endorsements have already been populated (e.g. SGX),
             // return immediately.
+            // TODO: Need a lock here!
             quote_info = quote_info_;
+            launch_node();
             return;
           }
 
@@ -331,29 +362,7 @@ namespace ccf
                 throw std::logic_error("Failed to extract code id from quote");
               }
 
-              if (start_type == StartType::Start)
-              {
-                create_and_send_boot_request(
-                  aft::starting_view_change, true /* Create new consortium */);
-              }
-              else if (start_type == StartType::Join)
-              {
-                // When joining from a snapshot, deserialise ledger suffix to
-                // verify snapshot evidence. Otherwise, attempt to join straight
-                // away
-                if (is_verifying_snapshot())
-                {
-                  start_ledger_recovery();
-                }
-                else
-                {
-                  start_join_timer();
-                }
-              }
-              else if (start_type == StartType::Recover)
-              {
-                start_ledger_recovery();
-              }
+              launch_node();
             },
             [](const std::string& error_msg) {
               // TODO: On TLS error, shutdown node
@@ -435,6 +444,7 @@ namespace ccf
             false,
             endorsed_node_cert);
 
+          // TODO: Move later
           // Become the primary and force replication
           consensus->force_become_primary();
 
