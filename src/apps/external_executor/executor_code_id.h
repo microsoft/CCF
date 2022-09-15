@@ -7,6 +7,13 @@
 #include "ccf/service/code_digest.h"
 #include "ccf/service/map.h"
 #include "ccf/service/tables/code_id.h"
+#include "executor_registration.pb.h"
+
+struct ExecutorNodeInfo
+{
+  crypto::Pem public_key;
+  ccf::Attestation attest;
+};
 
 enum class ExecutorCodeStatus
 {

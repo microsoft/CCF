@@ -3,11 +3,16 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/entity_id.h"
 #include "ccf/http_consts.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
-#include "endpoints/grpc.h"
+#include "ccf/service/tables/nodes.h"
 #include "executor_code_id.h"
+#include "executor_registration.pb.h"
+#include "endpoints/grpc.h"
+
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
 
@@ -18,11 +23,14 @@
 namespace externalexecutor
 {
   using Map = kv::Map<std::string, std::string>;
+  using ExecutorNodeId = ccf::EntityId<ccf::NodeIdFormatter>;
+  std::map<ExecutorNodeId, ExecutorNodeInfo> ExecutorNodeIDs;
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
     void install_registry_service()
     {
+      // create an endpoint to get executor code id
       auto get_executor_code =
         [](ccf::endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           GetExecutorCode::Out out;
@@ -45,6 +53,35 @@ namespace externalexecutor
         ccf::json_read_only_adapter(get_executor_code),
         ccf::no_auth_required)
         .set_auto_schema<void, GetExecutorCode::Out>()
+        .install();
+
+      // create an endpoint to register the executor
+      auto register_executor = [this](auto& ctx, ccf::NewExecutor&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::RegistrationResult> {
+        // generate and store executor node id locally
+        crypto::Pem executor_public_key(payload.cert());
+        auto pubk_der = crypto::cert_pem_to_der(executor_public_key);
+        ExecutorNodeId executor_node_id =
+          ccf::compute_node_id_from_pubk_der(pubk_der);
+
+        ExecutorNodeInfo executor_info = {
+          executor_public_key, payload.attestation()};
+
+        ExecutorNodeIDs[executor_node_id] = executor_info;
+
+        ccf::RegistrationResult result;
+        result.set_outcome(
+          ccf::RegistrationResult_Outcome::RegistrationResult_Outcome_ACCEPTED);
+
+        return ccf::grpc::make_success(result);
+      };
+
+      make_endpoint(
+        "ccf.ExecutorRegistration/RegisterExecutor",
+        HTTP_POST,
+        ccf::grpc_adapter<ccf::NewExecutor, ccf::RegistrationResult>(
+          register_executor),
+        ccf::no_auth_required)
         .install();
     }
 
