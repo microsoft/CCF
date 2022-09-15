@@ -89,3 +89,13 @@ There is an option to generate machine-readable logs for monitoring. To enable t
 - ``msg`` is the log message
 
 See :ref:`this page <build_apps/logging:Logging>` for steps to add application-specific logging, which will have an additional ``tag`` field set to ``app``.
+
+Error Codes
+-----------
+
+StartupSeqnoIsOld
+~~~~~~~~~~~~~~~~~
+
+Returned when a node tries to join a network with too old a snapshot. See :ref:`this page <operations/ledger_snapshot:Join or Recover From Snapshot>` for more information.
+
+This can be resolved by trying to join again with a fresh snapshot.
