@@ -6,8 +6,8 @@
 #include "ccf/http_consts.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "endpoints/grpc.h"
 #include "executor_code_id.h"
-#include "grpc.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
 
