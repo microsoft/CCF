@@ -20,13 +20,13 @@ service KV
   rpc EndTx(ResponseDescription) returns (google.protobuf.Empty) {}
 
   // Read a single key
-  rpc Get(KVKey) returns (KVValue) {}
+  rpc Get(KVKey) returns (OptionalKVValue) {}
 
   // Test a single key
   rpc Has(KVKey) returns (KVHasResult) {}
 
   // Read version of a single key
-  rpc GetVersion(KVKey) returns (KVVersion) {}
+  rpc GetVersion(KVKey) returns (OptionalKVVersion) {}
 
   // Write a single key-value pair
   rpc Put(KVKeyValue) returns (google.protobuf.Empty) {}
@@ -67,10 +67,12 @@ message KVKeyValue
 }
 
 message KVValue { bytes value = 1; }
+message OptionalKVValue { KVValue optional = 1; }
 
 message KVHasResult { bool present = 1; }
 
 message KVVersion { uint64 version = 1; }
+message OptionalKVVersion { KVVersion optional = 1; }
 
 message ResponseDescription
 {

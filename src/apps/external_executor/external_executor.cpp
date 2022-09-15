@@ -156,7 +156,7 @@ namespace externalexecutor
       auto get = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
                    ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
+        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVValue> {
         if (active_tx == nullptr)
         {
           return ccf::grpc::make_error(
@@ -168,10 +168,11 @@ namespace externalexecutor
         auto handle = active_tx->ro<Map>(payload.table());
         auto result = handle->get(payload.key());
 
-        ccf::KVValue response;
+        ccf::OptionalKVValue response;
         if (result.has_value())
         {
-          response.set_value(*result);
+          ccf::KVValue* response_value = response.mutable_optional();
+          response_value->set_value(*result);
         }
 
         return ccf::grpc::make_success(response);
@@ -180,7 +181,7 @@ namespace externalexecutor
       make_read_only_endpoint(
         "ccf.KV/Get",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get),
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVValue>(get),
         ccf::no_auth_required)
         .install();
 
@@ -214,7 +215,7 @@ namespace externalexecutor
       auto get_version = [this](
                            ccf::endpoints::ReadOnlyEndpointContext& ctx,
                            ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::KVVersion> {
+        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVVersion> {
         if (active_tx == nullptr)
         {
           return ccf::grpc::make_error(
@@ -226,10 +227,11 @@ namespace externalexecutor
         auto handle = active_tx->ro<Map>(payload.table());
         auto version = handle->get_version_of_previous_write(payload.key());
 
-        ccf::KVVersion response;
+        ccf::OptionalKVVersion response;
         if (version.has_value())
         {
-          response.set_version(*version);
+          ccf::KVVersion* response_version = response.mutable_optional();
+          response_version->set_version(*version);
         }
 
         return ccf::grpc::make_success(response);
@@ -238,7 +240,8 @@ namespace externalexecutor
       make_read_only_endpoint(
         "ccf.KV/GetVersion",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVVersion>(get_version),
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVVersion>(
+          get_version),
         ccf::no_auth_required)
         .install();
 
