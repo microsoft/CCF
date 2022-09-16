@@ -100,4 +100,4 @@ Returned when a node tries to join a network with too old a snapshot, or no snap
 See :ref:`this page <operations/ledger_snapshot:Join or Recover From Snapshot>` for more information.
 
 This can be resolved by trying to join again with a fresh snapshot.
-The version of the snapshot a node started from is available as ``startup_seqno`` in :http:GET:`/node/state`.
+The seqno of the snapshot a node started from is available as ``startup_seqno`` in :http:GET:`/node/state`.
