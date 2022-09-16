@@ -3,50 +3,44 @@
 #  include "ccf/ds/logger.h"
 #  include "ccf/pal/new_attestation.h"
 
-namespace ccf::pal::attestation {
+namespace ccf::pal::attestation::insecure_virtual {
 
-    using ReportData = std::array<uint8_t, 64>;
+    ReportData make_report_data(crypto::Sha256Hash& node_public_key_hash) {
+        return {};
+    }
 
-    namespace insecure_virtual {
+    Attestation generate(ReportData& report_data) {
+        return Attestation{
+            .quote = Quote{
+                .format = QuoteFormat::insecure_virtual
+            },
+        };
+    }
 
-        ReportData make_report_data(crypto::Sha256Hash& node_public_key_hash) {
-            return {};
-        }
+    bool verify(Attestation& attestation) {
+        assert(attestation.quote.format == QuoteFormat::insecure_virtual);
+        attestation.state = VerificationState::Verified;
+        return true;
+    }
 
-        ReportData get_report_data(Attestation& attestation) {
-            return {};
-        }
+    ReportData get_report_data(Attestation& attestation) {
+        return {};
+    }
 
-        Attestation generate(ReportData& report_data) {
-            return Attestation{
-                .quote = Quote{
-                    .format = QuoteFormat::insecure_virtual
-                },
-            };
-        }
+    std::optional<MREnclave> get_mrenclave(Attestation& attestation) {
+        return std::nullopt;
+    }
 
-        bool verify(Attestation& attestation) {
-            assert(attestation.quote.format == QuoteFormat::insecure_virtual);
-            attestation.state = VerificationState::Verified;
-            return true;
-        }
+    std::optional<Measurement> get_measurement(Attestation& attestation) {
+        return std::nullopt;
+    }
 
-        std::optional<MREnclave> get_mrenclave(Attestation& attestation) {
-            return std::nullopt;
-        }
+    std::optional<HostData> get_host_data(Attestation& attestation) {
+        return std::nullopt;
+    }
 
-        std::optional<Measurement> get_measurement(Attestation& attestation) {
-            return std::nullopt;
-        }
-
-        std::optional<HostData> get_host_data(Attestation& attestation) {
-            return std::nullopt;
-        }
-
-        std::optional<SecurityPolicy> get_policy(Attestation& attestation) {
-            return std::nullopt;
-        }
-
+    std::optional<SecurityPolicy> get_policy(Attestation& attestation) {
+        return std::nullopt;
     }
 
 }

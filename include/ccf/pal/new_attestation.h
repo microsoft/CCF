@@ -31,7 +31,12 @@ namespace ccf::pal::attestation
         VerificationState state; // TODO: Make this trustworthy
     };
 
+    // TODO: Put this into the platform specific files
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
     using ReportData = std::array<uint8_t, 64>;
+#else
+    using ReportData = std::array<uint8_t, 32>;
+#endif
     ReportData make_report_data(crypto::Sha256Hash& node_public_key_hash);
 
     Attestation generate(ReportData& report_data);

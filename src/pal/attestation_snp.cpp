@@ -13,8 +13,6 @@
 
 namespace ccf::pal::attestation::snp {
 
-    using ReportData = std::array<uint8_t, 64>;
-
     namespace constants {
 
         static constexpr size_t report_data_size = 64;
