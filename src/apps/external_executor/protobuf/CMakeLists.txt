@@ -12,7 +12,7 @@ endif()
 
 set(PROTOBUF_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/3rdparty/exported/protobuf/src/)
 
-file(GLOB PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/*.proto)
+file(GLOB PROTO_FILES CONFIFURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.proto)
 
 set_property(GLOBAL PROPERTY JOB_POOLS one_job=1)
 
