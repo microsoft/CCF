@@ -164,7 +164,7 @@ namespace externalexecutor
             const auto response_v = response.build_response();
             const std::string response_s(response_v.begin(), response_v.end());
             LOG_INFO_FMT(
-              "Here's the response I'd like to send:\n{}", response_s);
+              "Preparing to send final response to user:\n{}", response_s);
             break;
           }
 
