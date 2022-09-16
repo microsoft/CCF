@@ -8,6 +8,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/new_attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/serdes.h"
 #include "ccf/service/node_info_network.h"
@@ -301,12 +302,12 @@ namespace ccf
 
       // Depending on the platform, the attestation report may be larger than 32
       // bytes
-      pal::attestation_report_data report = {};
       crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
-      std::copy(
-        node_pub_key_hash.h.begin(), node_pub_key_hash.h.end(), report.begin());
-
-      quote_info = pal::generate_quote(report);
+      auto report_data = pal::attestation::make_report_data(node_pub_key_hash);
+      auto attestation = pal::attestation::generate(report_data);
+      quote_info.format = attestation.quote.format;
+      quote_info.quote = attestation.quote.raw;
+      quote_info.endorsements = attestation.endorsements;
 
       auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
