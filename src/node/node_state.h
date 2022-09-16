@@ -285,6 +285,8 @@ namespace ccf
     {
       if (start_type == StartType::Start)
       {
+        // Become the primary and force replication
+        consensus->force_become_primary();
         create_and_send_boot_request(
           aft::starting_view_change, true /* Create new consortium */);
       }
@@ -342,7 +344,7 @@ namespace ccf
               if (status != HTTP_STATUS_OK)
               {
                 CCF_APP_FAIL("Error: {}", status);
-                // If 429, wait and retry (by creating new client)
+                // TODO: If 429, wait and retry (by creating new client)
               }
 
               std::lock_guard<pal::Mutex> guard(lock);
@@ -443,10 +445,6 @@ namespace ccf
               ReconfigurationType::ONE_TRANSACTION),
             false,
             endorsed_node_cert);
-
-          // TODO: Move later
-          // Become the primary and force replication
-          consensus->force_become_primary();
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -827,7 +825,7 @@ namespace ccf
     //
     void start_ledger_recovery()
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock); // TODO: Remove lock?
       if (
         !sm.check(NodeStartupState::readingPublicLedger) &&
         !sm.check(NodeStartupState::verifyingSnapshot))
