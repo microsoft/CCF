@@ -113,6 +113,16 @@ def run(args):
                     )
                 )
 
+            if args.auto_shutdown:
+                if args.auto_shutdown_delay_s > 0:
+                    LOG.info(
+                        f"Waiting {args.auto_shutdown_delay_s}s before automatic shutdown..."
+                    )
+                    time.sleep(args.auto_shutdown_delay_s)
+
+                LOG.info("Automatically shut down network after successful opening")
+                return
+
             LOG.info(
                 f"You can now issue business transactions to the {args.package} application"
             )
@@ -179,6 +189,18 @@ if __name__ == "__main__":
         parser.add_argument(
             "--common-dir",
             help="Directory containing previous network member identities",
+        )
+        parser.add_argument(
+            "--auto-shutdown",
+            help="If set, service automatically shuts down after successful opening",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--auto-shutdown-delay-s",
+            help="If --auto-shutdown is set, delay after which service automatically stops",
+            type=int,
+            default=0,
         )
 
     args = infra.e2e_args.cli_args(add)
