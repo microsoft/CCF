@@ -29,6 +29,11 @@ foreach(proto_file ${PROTO_FILES})
     COMMENT "Generate C++ source files from protobuf file ${PROTO_NAME}"
     DEPENDS ${proto_file}
   )
+  add_custom_target(
+    ${PROTO_NAME_WE}_proto_cpp ALL
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.h
+            ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
+  )
 
   add_custom_command(
     OUTPUT ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2.py
@@ -40,7 +45,7 @@ foreach(proto_file ${PROTO_FILES})
     JOB_POOL one_job
   )
   add_custom_target(
-    ${PROTO_NAME_WE}_python_proto ALL
+    ${PROTO_NAME_WE}_proto_python ALL
     DEPENDS ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2.py
             ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2_grpc.py
     JOB_POOL one_job
