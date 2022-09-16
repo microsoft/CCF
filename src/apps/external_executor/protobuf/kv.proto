@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/empty.proto";
+import "http.proto";
 
 package ccf;
 
@@ -77,7 +78,9 @@ message OptionalKVVersion { KVVersion optional = 1; }
 
 message ResponseDescription
 {
-  uint32 status_code = 1;
+  HttpStatusCode status_code = 1;
   repeated Header headers = 2;
   bytes body = 3;
+  // Should be exactly 32 bytes
+  bytes claims_digest = 4;
 }

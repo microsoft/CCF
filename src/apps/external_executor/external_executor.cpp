@@ -8,6 +8,7 @@
 #include "ccf/kv/map.h"
 #include "endpoints/grpc.h"
 #include "executor_code_id.h"
+#include "http/http_builder.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
 
@@ -100,7 +101,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "ccf.KV/StartTx",
+        "/ccf.KV/StartTx",
         HTTP_POST,
         ccf::grpc_adapter<
           google::protobuf::Empty,
@@ -120,22 +121,72 @@ namespace externalexecutor
             "a successful call to StartTx");
         }
 
-        ccf::EndpointContextImpl* ctx_impl =
-          dynamic_cast<ccf::EndpointContextImpl*>(&ctx);
-        if (ctx_impl == nullptr)
+        // Get claims from payload
+        ccf::ClaimsDigest claims = ccf::empty_claims();
+        const std::string& payload_digest = payload.claims_digest();
+        if (!payload_digest.empty())
         {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_INTERNAL, "Unexpected context type");
+          if (payload_digest.size() != ccf::ClaimsDigest::Digest::SIZE)
+          {
+            return ccf::grpc::make_error(
+              GRPC_STATUS_INVALID_ARGUMENT,
+              fmt::format(
+                "claims_digest is not a valid Sha256 hash. Must be {} bytes. "
+                "Received {} bytes.",
+                ccf::ClaimsDigest::Digest::SIZE,
+                payload_digest.size()));
+          }
+          claims.set(crypto::Sha256Hash::from_span(
+            {(uint8_t*)payload_digest.data(),
+             ccf::ClaimsDigest::Digest::SIZE}));
         }
 
-        ctx_impl->owned_tx = std::move(active_tx);
+        kv::CommitResult result = active_tx->commit(claims);
+        switch (result)
+        {
+          case kv::CommitResult::SUCCESS:
+          {
+            http::Response response((http_status)payload.status_code());
+            response.set_body(payload.body());
+            for (int i = 0; i < payload.headers_size(); ++i)
+            {
+              const ccf::Header& header = payload.headers(i);
+              response.set_header(header.field(), header.value());
+            }
+
+            auto tx_id = active_tx->get_txid();
+            if (tx_id.has_value())
+            {
+              LOG_INFO_FMT("Applied tx at {}", tx_id->str());
+              response.set_header(http::headers::CCF_TX_ID, tx_id->str());
+            }
+
+            const auto response_v = response.build_response();
+            const std::string response_s(response_v.begin(), response_v.end());
+            LOG_INFO_FMT(
+              "Here's the response I'd like to send:\n{}", response_s);
+            break;
+          }
+
+          case kv::CommitResult::FAIL_CONFLICT:
+          {
+            LOG_FAIL_FMT("Tx failed due to conflict");
+            break;
+          }
+
+          case kv::CommitResult::FAIL_NO_REPLICATE:
+          {
+            LOG_FAIL_FMT("Tx failed to replicate");
+            break;
+          }
+        }
         active_tx = nullptr;
 
         return ccf::grpc::make_success();
       };
 
       make_endpoint(
-        "ccf.KV/EndTx",
+        "/ccf.KV/EndTx",
         HTTP_POST,
         ccf::grpc_adapter<ccf::ResponseDescription, google::protobuf::Empty>(
           end),
@@ -160,7 +211,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "ccf.KV/Put",
+        "/ccf.KV/Put",
         HTTP_POST,
         ccf::grpc_adapter<ccf::KVKeyValue, google::protobuf::Empty>(put),
         ccf::no_auth_required)
@@ -192,7 +243,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "ccf.KV/Get",
+        "/ccf.KV/Get",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVValue>(get),
         ccf::no_auth_required)
@@ -219,7 +270,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "ccf.KV/Has",
+        "/ccf.KV/Has",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVHasResult>(has),
         ccf::no_auth_required)
@@ -251,7 +302,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "ccf.KV/GetVersion",
+        "/ccf.KV/GetVersion",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVVersion>(
           get_version),
@@ -277,50 +328,27 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "ccf.KV/Delete",
+        "/ccf.KV/Delete",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, google::protobuf::Empty>(
           kv_delete),
         ccf::no_auth_required)
         .install();
 
-      // TODO: Stream return type
-      // auto get_all = [this](
-      //              ccf::endpoints::ReadOnlyEndpointContext& ctx,
-      //              ccf::KVKey&& payload)
-      //   -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
-      //   if (active_tx == nullptr)
-      //   {
-      //     return ccf::grpc::make_error(
-      //       GRPC_STATUS_FAILED_PRECONDITION,
-      //       "Not managing an active transaction - this should be called after
-      //       " "a successful call to StartTx and before EndTx");
-      //   }
+      auto get_all = [this](
+                       ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                       ccf::KVTable&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
+        return ccf::grpc::make_error(
+          GRPC_STATUS_UNIMPLEMENTED, "Unimplemented");
+      };
 
-      //   auto handle = active_tx->ro<Map>(payload.table());
-      //   auto value = handle->get(payload.key());
-      //   if (!value.has_value())
-      //   {
-      //     // Note: no need to specify `make_error<ccf::KVValue>` here as
-      //     lambda
-      //     // returns `-> ccf::grpc::GrpcAdapterResponse<ccf::KVValue>`
-      //     return ccf::grpc::make_error(
-      //       GRPC_STATUS_NOT_FOUND,
-      //       fmt::format("Key {} does not exist", payload.key()));
-      //   }
-
-      //   ccf::KVValue r;
-      //   r.set_value(value.value());
-
-      //   return ccf::grpc::make_success(r);
-      // };
-
-      // make_read_only_endpoint(
-      //   "ccf.KV/GetAll",
-      //   HTTP_POST,
-      //   ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get_version),
-      //   ccf::no_auth_required)
-      //   .install();
+      make_read_only_endpoint(
+        "/ccf.KV/GetAll",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVTable, ccf::KVValue>(get_all),
+        ccf::no_auth_required)
+        .install();
     }
 
     void queue_request_for_external_execution(
