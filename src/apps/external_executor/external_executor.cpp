@@ -18,8 +18,10 @@
 
 namespace externalexecutor
 {
-  // TODO: This should be raw bytes, not (JSON serialised!) string
-  using Map = kv::Map<std::string, std::string>;
+  // This uses std::string to match protobuf's storage of raw bytes entries, and
+  // directly stores those raw bytes. Note that these strings may contain nulls
+  // and other unprintable characters, so may not be trivially displayable.
+  using Map = kv::RawCopySerialisedMap<std::string, std::string>;
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {

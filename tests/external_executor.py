@@ -50,7 +50,7 @@ def test_put_get(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    my_table = b"my_table"
+    my_table = b"public:my_table"
     my_key = b"my_key"
     my_value = b"my_value"
 
@@ -78,12 +78,12 @@ def test_put_get(network, args):
             assert not r.HasField("optional")
             LOG.success(f"Unable to read key '{unknown_key}' as expected")
 
-        tables = (b"table_a", b"table_b", b"table_c")
+        tables = (b"public:table_a", b"public:table_b", b"public:table_c")
         writes = [
             (
                 random.choice(tables),
                 f"Key{i}".encode(),
-                str(random.random()).encode(),
+                random.getrandbits(64).to_bytes(8, 'big'),
             )
             for i in range(10)
         ]
@@ -166,7 +166,6 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
 
-    args.host_log_level = "trace"
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
