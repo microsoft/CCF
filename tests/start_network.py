@@ -113,16 +113,6 @@ def run(args):
                     )
                 )
 
-            if args.auto_shutdown:
-                if args.auto_shutdown_delay_s > 0:
-                    LOG.info(
-                        f"Waiting {args.auto_shutdown_delay_s}s before automatic shutdown..."
-                    )
-                    time.sleep(args.auto_shutdown_delay_s)
-
-                LOG.info("Automatically shut down network after successful opening")
-                return
-
             LOG.info(
                 f"You can now issue business transactions to the {args.package} application"
             )
@@ -136,12 +126,25 @@ def run(args):
             )
             LOG.warning("Press Ctrl+C to shutdown the network")
 
-            try:
-                while True:
-                    time.sleep(60)
+            if args.auto_shutdown:
+                if args.auto_shutdown_delay_s > 0:
+                    LOG.info(
+                        f"Waiting {args.auto_shutdown_delay_s}s before automatic shutdown..."
+                    )
+                    try:
+                        time.sleep(args.auto_shutdown_delay_s)
 
-            except KeyboardInterrupt:
-                LOG.info("Stopping all CCF nodes...")
+                    except KeyboardInterrupt:
+                        LOG.info("Stopping all CCF nodes...")
+
+                LOG.info("Automatically shut down network after successful opening")
+            else:
+                try:
+                    while True:
+                        time.sleep(60)
+
+                except KeyboardInterrupt:
+                    LOG.info("Stopping all CCF nodes...")
 
         LOG.info("All CCF nodes stopped.")
     except infra.network.NetworkShutdownError as e:
