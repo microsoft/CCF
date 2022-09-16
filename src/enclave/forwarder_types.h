@@ -25,6 +25,8 @@ namespace ccf
     virtual bool forward_command(
       std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,
       const ccf::NodeId& to,
-      const std::vector<uint8_t>& caller_cert) = 0;
+      const std::vector<uint8_t>& caller_cert,
+      const std::chrono::milliseconds& timeout =
+        std::chrono::milliseconds(3'000)) = 0;
   };
 }
