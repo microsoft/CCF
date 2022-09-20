@@ -426,7 +426,6 @@ namespace ccf
             false,
             endorsed_node_cert);
 
-          // TODO: Move elsewhere?
           // Become the primary and force replication
           consensus->force_become_primary();
 

@@ -24,7 +24,10 @@ namespace ccf
       const pal::EndorsementEndpointConfiguration& config,
       QuoteEndorsementsFetchedCallback cb)
     {
-      // TODO: Do we need to verify server endorsements here?
+      // Note: server CA is not checked here as this client is not sending
+      // private data. If the server was malicious and the certificate chain was
+      // bogus, the verification of the endorsement of the quote would fail
+      // anyway.
       auto unauthenticated_client =
         rpcsessions->create_client(std::make_shared<tls::Cert>(
           nullptr, std::nullopt, std::nullopt, std::nullopt, false));
@@ -45,7 +48,7 @@ namespace ccf
           cb(std::move(data));
         },
         [](const std::string& error_msg) {
-          // TODO: On TLS error, shutdown node
+          // TLS errors should be handled here
         });
 
       http::Request r(config.uri, HTTP_GET);
