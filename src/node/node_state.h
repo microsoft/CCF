@@ -283,29 +283,37 @@ namespace ccf
     //
     void launch_node()
     {
+      LOG_FAIL_FMT("Launch node: {}", start_type);
+
       if (start_type == StartType::Start)
       {
-        // Become the primary and force replication
-        consensus->force_become_primary();
+        LOG_FAIL_FMT("Launch node: {}", start_type);
         create_and_send_boot_request(
           aft::starting_view_change, true /* Create new consortium */);
+        LOG_FAIL_FMT("Launch node: {}", start_type);
       }
       else if (start_type == StartType::Join)
       {
         // When joining from a snapshot, deserialise ledger suffix to
-        // verify snapshot evidence. Otherwise, attempt to join straight
-        // away
-        if (is_verifying_snapshot())
+        // verify (1.x) snapshot evidence. Otherwise, attempt to join straight
+        //
+        if (config.startup_snapshot.empty() || initialise_startup_snapshot())
         {
-          start_ledger_recovery();
+          // Note: 2.x snapshots are self-verified so the ledger verification
+          // of its evidence can be skipped entirely
+          sm.advance(NodeStartupState::pending);
+          start_join_timer();
         }
         else
         {
-          start_join_timer();
+          // Node joins from a 1.x snapshot
+          sm.advance(NodeStartupState::verifyingSnapshot);
+          start_ledger_recovery();
         }
       }
       else if (start_type == StartType::Recover)
       {
+        sm.advance(NodeStartupState::readingPublicLedger);
         start_ledger_recovery();
       }
     }
@@ -321,6 +329,7 @@ namespace ccf
           if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
           {
             LOG_FAIL_FMT("Endorsements already set!");
+            // TODO: Check that endorsements are set!
             // If the endorsements have already been populated (e.g. SGX),
             // return immediately.
             // TODO: Need a lock here!
@@ -329,6 +338,7 @@ namespace ccf
             return;
           }
 
+          // TODO: Move client to new file
           auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
             nullptr, std::nullopt, std::nullopt, std::nullopt, false));
 
@@ -430,15 +440,6 @@ namespace ccf
 
           network.ledger_secrets->init();
 
-          if (network.consensus_type == ConsensusType::BFT)
-          {
-            endorsed_node_cert = create_endorsed_node_cert(
-              config.node_certificate.initial_validity_days);
-            history->set_endorsed_certificate(endorsed_node_cert.value());
-            accept_network_tls_connections();
-            open_frontend(ActorsType::members);
-          }
-
           setup_consensus(
             ServiceStatus::OPENING,
             config.start.service_configuration.reconfiguration_type.value_or(
@@ -446,23 +447,29 @@ namespace ccf
             false,
             endorsed_node_cert);
 
+          // TODO: Move elsewhere?
+          // Become the primary and force replication
+          consensus->force_become_primary();
+
           LOG_INFO_FMT("Created new node {}", self);
 
           return {self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
-          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
-          {
-            // Note: 2.x snapshots are self-verified so the ledger verification
-            // of its evidence can be skipped entirely
-            sm.advance(NodeStartupState::pending);
-          }
-          else
-          {
-            // Node joins from a 1.x snapshot
-            sm.advance(NodeStartupState::verifyingSnapshot);
-          }
+          // if (config.startup_snapshot.empty() ||
+          // initialise_startup_snapshot())
+          // {
+          //   // Note: 2.x snapshots are self-verified so the ledger
+          //   verification
+          //   // of its evidence can be skipped entirely
+          //   sm.advance(NodeStartupState::pending);
+          // }
+          // else
+          // {
+          //   // Node joins from a 1.x snapshot
+          //   sm.advance(NodeStartupState::verifyingSnapshot);
+          // }
 
           LOG_INFO_FMT("Created join node {}", self);
           return {self_signed_node_cert, {}};
@@ -490,7 +497,7 @@ namespace ccf
             snapshotter->set_last_snapshot_idx(last_recovered_idx);
           }
 
-          sm.advance(NodeStartupState::readingPublicLedger);
+          // sm.advance(NodeStartupState::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
