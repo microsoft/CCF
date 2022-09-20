@@ -11,7 +11,6 @@ namespace ccf
     std::function<void(std::vector<uint8_t>&& endorsements)>;
 
   // Resilient client to fetch attestation report endorsement certificate.
-  // Handles back-pressure (HTTP 429) and multiple endpoints.
   class QuoteEndorsementsClient
   {
   private:
@@ -37,17 +36,11 @@ namespace ccf
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
-          // TODO: On success
-
-          LOG_FAIL_FMT("Here!: {}", status);
-
           if (status != HTTP_STATUS_OK)
           {
-            CCF_APP_FAIL("Error: {}", status);
-            // TODO: If 429, wait and retry (by creating new client)
+            LOG_FAIL_FMT(
+              "Error fetching endorsements for attestation report: {}", status);
           }
-
-          LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
 
           cb(std::move(data));
         },
@@ -62,7 +55,8 @@ namespace ccf
       }
       r.set_header(http::headers::HOST, config.host);
       unauthenticated_client->send_request(r);
-      LOG_INFO_FMT("Fetching endorsements for quote at {}", config.host);
+      LOG_INFO_FMT(
+        "Fetching endorsements for attestation report at {}", config.host);
     }
   };
 }

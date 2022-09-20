@@ -333,15 +333,14 @@ namespace ccf
         [this](
           QuoteInfo quote_info_,
           const pal::EndorsementEndpointConfiguration& config) {
-          LOG_FAIL_FMT(
-            "Endorsements size: {}", quote_info_.endorsements.size());
           if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
           {
-            LOG_FAIL_FMT("Endorsements already set!");
-            // TODO: Check that endorsements are set!
-            // If the endorsements have already been populated (e.g. SGX),
-            // return immediately.
-            // TODO: Need a lock here!
+            // Note: Node lock is already taken here as this is called back
+            // synchronously with the call to pal::generate_quote
+            CCF_ASSERT_FMT(
+              quote_info_.format == QuoteFormat::insecure_virtual ||
+                !quote_info_.endorsements.empty(),
+              "SGX quote generation should have already fetched endorsements");
             quote_info = quote_info_;
             launch_node();
             return;
@@ -1032,7 +1031,7 @@ namespace ccf
 
     void advance_part_of_network()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       auto_refresh_jwt_keys();
       reset_data(quote_info.quote);
