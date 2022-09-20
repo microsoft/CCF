@@ -366,6 +366,7 @@ namespace ccf
               quote_info = quote_info_;
               quote_info.endorsements = std::move(endorsements);
               launch_node();
+              quote_endorsements_client.reset();
             });
         };
 
@@ -435,20 +436,6 @@ namespace ccf
         }
         case StartType::Join:
         {
-          // if (config.startup_snapshot.empty() ||
-          // initialise_startup_snapshot())
-          // {
-          //   // Note: 2.x snapshots are self-verified so the ledger
-          //   verification
-          //   // of its evidence can be skipped entirely
-          //   sm.advance(NodeStartupState::pending);
-          // }
-          // else
-          // {
-          //   // Node joins from a 1.x snapshot
-          //   sm.advance(NodeStartupState::verifyingSnapshot);
-          // }
-
           LOG_INFO_FMT("Created join node {}", self);
           return {self_signed_node_cert, {}};
         }
@@ -474,8 +461,6 @@ namespace ccf
             initialise_startup_snapshot(true);
             snapshotter->set_last_snapshot_idx(last_recovered_idx);
           }
-
-          // sm.advance(NodeStartupState::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
