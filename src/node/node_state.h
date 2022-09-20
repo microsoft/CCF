@@ -32,13 +32,13 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
+#include "quote_endorsements_client.h"
 #include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "service/genesis_gen.h"
 #include "share_manager.h"
-#include "tls/client.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -334,56 +334,63 @@ namespace ccf
             return;
           }
 
+          // TODO: Save client somewhere!
+          auto client = std::make_shared<QuoteEndorsementsClient>(rpcsessions);
+
+          client->fetch_endorsements(config);
+
           // TODO: Move client to new file
-          auto client = rpcsessions->create_client(std::make_shared<tls::Cert>(
-            nullptr, std::nullopt, std::nullopt, std::nullopt, false));
+          // auto client =
+          // rpcsessions->create_client(std::make_shared<tls::Cert>(
+          //   nullptr, std::nullopt, std::nullopt, std::nullopt, false));
 
-          client->connect(
-            config.host,
-            config.port,
-            [this, quote_info_](
-              http_status status,
-              http::HeaderMap&& headers,
-              std::vector<uint8_t>&& data) {
-              // TODO: On success
+          // client->connect(
+          //   config.host,
+          //   config.port,
+          //   [this, quote_info_](
+          //     http_status status,
+          //     http::HeaderMap&& headers,
+          //     std::vector<uint8_t>&& data) {
+          //     // TODO: On success
 
-              if (status != HTTP_STATUS_OK)
-              {
-                CCF_APP_FAIL("Error: {}", status);
-                // TODO: If 429, wait and retry (by creating new client)
-              }
+          //     if (status != HTTP_STATUS_OK)
+          //     {
+          //       CCF_APP_FAIL("Error: {}", status);
+          //       // TODO: If 429, wait and retry (by creating new client)
+          //     }
 
-              std::lock_guard<pal::Mutex> guard(lock);
+          //     std::lock_guard<pal::Mutex> guard(lock);
 
-              LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
-              quote_info = quote_info_;
-              quote_info.endorsements.assign(data.begin(), data.end());
+          //     LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
+          //     quote_info = quote_info_;
+          //     quote_info.endorsements.assign(data.begin(), data.end());
 
-              auto code_id =
-                EnclaveAttestationProvider::get_code_id(quote_info);
-              if (code_id.has_value())
-              {
-                node_code_id = code_id.value();
-              }
-              else
-              {
-                throw std::logic_error("Failed to extract code id from quote");
-              }
+          //     auto code_id =
+          //       EnclaveAttestationProvider::get_code_id(quote_info);
+          //     if (code_id.has_value())
+          //     {
+          //       node_code_id = code_id.value();
+          //     }
+          //     else
+          //     {
+          //       throw std::logic_error("Failed to extract code id from
+          //       quote");
+          //     }
 
-              launch_node();
-            },
-            [](const std::string& error_msg) {
-              // TODO: On TLS error, shutdown node
-            });
+          //     launch_node();
+          //   },
+          //   [](const std::string& error_msg) {
+          //     // TODO: On TLS error, shutdown node
+          //   });
 
-          http::Request r(config.uri, HTTP_GET);
-          for (auto const& [k, v] : config.params)
-          {
-            r.set_query_param(k, v);
-          }
-          r.set_header(http::headers::HOST, config.host);
-          client->send_request(r);
-          LOG_INFO_FMT("Fetching endorsements for quote at {}", config.host);
+          // http::Request r(config.uri, HTTP_GET);
+          // for (auto const& [k, v] : config.params)
+          // {
+          //   r.set_query_param(k, v);
+          // }
+          // r.set_header(http::headers::HOST, config.host);
+          // client->send_request(r);
+          // LOG_INFO_FMT("Fetching endorsements for quote at {}", config.host);
         };
 
       pal::attestation_report_data report_data = {};
