@@ -90,6 +90,8 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
+    std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
+      nullptr;
 
     struct NodeStateMsg
     {
@@ -283,34 +285,45 @@ namespace ccf
     //
     void launch_node()
     {
-      if (start_type == StartType::Start)
+      switch (start_type)
       {
-        create_and_send_boot_request(
-          aft::starting_view_change, true /* Create new consortium */);
-      }
-      else if (start_type == StartType::Join)
-      {
-        // When joining from a snapshot, deserialise ledger suffix to
-        // verify (1.x) snapshot evidence. Otherwise, attempt to join straight
-        //
-        if (config.startup_snapshot.empty() || initialise_startup_snapshot())
+        case StartType::Start:
         {
-          // Note: 2.x snapshots are self-verified so the ledger verification
-          // of its evidence can be skipped entirely
-          sm.advance(NodeStartupState::pending);
-          start_join_timer();
+          create_and_send_boot_request(
+            aft::starting_view_change, true /* Create new consortium */);
+          return;
         }
-        else
+        case StartType::Join:
         {
-          // Node joins from a 1.x snapshot
-          sm.advance(NodeStartupState::verifyingSnapshot);
+          // When joining from a snapshot, deserialise ledger suffix to
+          // verify (1.x) snapshot evidence. Otherwise, attempt to join straight
+          //
+          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
+          {
+            // Note: 2.x snapshots are self-verified so the ledger verification
+            // of its evidence can be skipped entirely
+            sm.advance(NodeStartupState::pending);
+            start_join_timer();
+          }
+          else
+          {
+            // Node joins from a 1.x snapshot
+            sm.advance(NodeStartupState::verifyingSnapshot);
+            start_ledger_recovery_unsafe();
+          }
+          return;
+        }
+        case StartType::Recover:
+        {
+          sm.advance(NodeStartupState::readingPublicLedger);
           start_ledger_recovery_unsafe();
+          return;
         }
-      }
-      else if (start_type == StartType::Recover)
-      {
-        sm.advance(NodeStartupState::readingPublicLedger);
-        start_ledger_recovery_unsafe();
+        default:
+        {
+          throw std::logic_error(
+            fmt::format("Node was launched in unknown mode {}", start_type));
+        }
       }
     }
 
@@ -334,63 +347,27 @@ namespace ccf
             return;
           }
 
-          // TODO: Save client somewhere!
-          auto client = std::make_shared<QuoteEndorsementsClient>(rpcsessions);
+          quote_endorsements_client =
+            std::make_shared<QuoteEndorsementsClient>(rpcsessions);
 
-          client->fetch_endorsements(config);
+          quote_endorsements_client->fetch_endorsements(
+            config, [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+              std::lock_guard<pal::Mutex> guard(lock);
+              quote_info = quote_info_;
+              quote_info.endorsements = std::move(endorsements);
 
-          // TODO: Move client to new file
-          // auto client =
-          // rpcsessions->create_client(std::make_shared<tls::Cert>(
-          //   nullptr, std::nullopt, std::nullopt, std::nullopt, false));
-
-          // client->connect(
-          //   config.host,
-          //   config.port,
-          //   [this, quote_info_](
-          //     http_status status,
-          //     http::HeaderMap&& headers,
-          //     std::vector<uint8_t>&& data) {
-          //     // TODO: On success
-
-          //     if (status != HTTP_STATUS_OK)
-          //     {
-          //       CCF_APP_FAIL("Error: {}", status);
-          //       // TODO: If 429, wait and retry (by creating new client)
-          //     }
-
-          //     std::lock_guard<pal::Mutex> guard(lock);
-
-          //     LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
-          //     quote_info = quote_info_;
-          //     quote_info.endorsements.assign(data.begin(), data.end());
-
-          //     auto code_id =
-          //       EnclaveAttestationProvider::get_code_id(quote_info);
-          //     if (code_id.has_value())
-          //     {
-          //       node_code_id = code_id.value();
-          //     }
-          //     else
-          //     {
-          //       throw std::logic_error("Failed to extract code id from
-          //       quote");
-          //     }
-
-          //     launch_node();
-          //   },
-          //   [](const std::string& error_msg) {
-          //     // TODO: On TLS error, shutdown node
-          //   });
-
-          // http::Request r(config.uri, HTTP_GET);
-          // for (auto const& [k, v] : config.params)
-          // {
-          //   r.set_query_param(k, v);
-          // }
-          // r.set_header(http::headers::HOST, config.host);
-          // client->send_request(r);
-          // LOG_INFO_FMT("Fetching endorsements for quote at {}", config.host);
+              auto code_id =
+                EnclaveAttestationProvider::get_code_id(quote_info);
+              if (code_id.has_value())
+              {
+                node_code_id = code_id.value();
+              }
+              else
+              {
+                throw std::logic_error("Failed to extract code id from quote");
+              }
+              launch_node();
+            });
         };
 
       pal::attestation_report_data report_data = {};

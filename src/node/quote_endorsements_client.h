@@ -7,6 +7,9 @@
 
 namespace ccf
 {
+  using QuoteEndorsementsFetchedCallback =
+    std::function<void(std::vector<uint8_t>&& endorsements)>;
+
   // Resilient client to fetch attestation report endorsement certificate.
   // Handles back-pressure (HTTP 429) and multiple endpoints.
   class QuoteEndorsementsClient
@@ -18,7 +21,9 @@ namespace ccf
     QuoteEndorsementsClient(const std::shared_ptr<RPCSessions>& rpcsessions_) :
       rpcsessions(rpcsessions_){};
 
-    void fetch_endorsements(const pal::EndorsementEndpointConfiguration& config)
+    void fetch_endorsements(
+      const pal::EndorsementEndpointConfiguration& config,
+      QuoteEndorsementsFetchedCallback cb)
     {
       // TODO: Do we need to verify server endorsements here?
       auto unauthenticated_client =
@@ -28,7 +33,7 @@ namespace ccf
       unauthenticated_client->connect(
         config.host,
         config.port,
-        [this](
+        [cb](
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
@@ -42,23 +47,9 @@ namespace ccf
             // TODO: If 429, wait and retry (by creating new client)
           }
 
-          // std::lock_guard<pal::Mutex> guard(lock);
-
           LOG_FAIL_FMT("Got a response: {}, [{}]", status, data.size());
-          // quote_info = quote_info_;
-          // quote_info.endorsements.assign(data.begin(), data.end());
 
-          // auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
-          // if (code_id.has_value())
-          // {
-          //   node_code_id = code_id.value();
-          // }
-          // else
-          // {
-          //   throw std::logic_error("Failed to extract code id from quote");
-          // }
-
-          // launch_node();
+          cb(std::move(data));
         },
         [](const std::string& error_msg) {
           // TODO: On TLS error, shutdown node
