@@ -283,14 +283,10 @@ namespace ccf
     //
     void launch_node()
     {
-      LOG_FAIL_FMT("Launch node: {}", start_type);
-
       if (start_type == StartType::Start)
       {
-        LOG_FAIL_FMT("Launch node: {}", start_type);
         create_and_send_boot_request(
           aft::starting_view_change, true /* Create new consortium */);
-        LOG_FAIL_FMT("Launch node: {}", start_type);
       }
       else if (start_type == StartType::Join)
       {
@@ -308,13 +304,13 @@ namespace ccf
         {
           // Node joins from a 1.x snapshot
           sm.advance(NodeStartupState::verifyingSnapshot);
-          start_ledger_recovery();
+          start_ledger_recovery_unsafe();
         }
       }
       else if (start_type == StartType::Recover)
       {
         sm.advance(NodeStartupState::readingPublicLedger);
-        start_ledger_recovery();
+        start_ledger_recovery_unsafe();
       }
     }
 
@@ -830,9 +826,8 @@ namespace ccf
     //
     // funcs in state "readingPublicLedger" or "verifyingSnapshot"
     //
-    void start_ledger_recovery()
+    void start_ledger_recovery_unsafe()
     {
-      std::lock_guard<pal::Mutex> guard(lock); // TODO: Remove lock?
       if (
         !sm.check(NodeStartupState::readingPublicLedger) &&
         !sm.check(NodeStartupState::verifyingSnapshot))
