@@ -285,6 +285,16 @@ namespace ccf
     //
     void launch_node()
     {
+      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+      if (code_id.has_value())
+      {
+        node_code_id = code_id.value();
+      }
+      else
+      {
+        throw std::logic_error("Failed to extract code id from quote");
+      }
+
       switch (start_type)
       {
         case StartType::Start:
@@ -351,20 +361,10 @@ namespace ccf
 
           quote_endorsements_client->fetch_endorsements(
             config, [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+              // Note: Only called for SEV-SNP
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info = quote_info_;
               quote_info.endorsements = std::move(endorsements);
-
-              auto code_id =
-                EnclaveAttestationProvider::get_code_id(quote_info);
-              if (code_id.has_value())
-              {
-                node_code_id = code_id.value();
-              }
-              else
-              {
-                throw std::logic_error("Failed to extract code id from quote");
-              }
               launch_node();
             });
         };
