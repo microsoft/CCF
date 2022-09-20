@@ -9,10 +9,9 @@
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
+#include "endpoints/grpc.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
-#include "endpoints/grpc.h"
-
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
 
@@ -58,6 +57,17 @@ namespace externalexecutor
       // create an endpoint to register the executor
       auto register_executor = [this](auto& ctx, ccf::NewExecutor&& payload)
         -> ccf::grpc::GrpcAdapterResponse<ccf::RegistrationResult> {
+        // verify quote
+        ccf::CodeDigest code_digest;
+        ccf::QuoteVerificationResult verify_result = verify_executor_quote(
+          ctx.tx, payload.attestation(), payload.cert(), code_digest);
+
+        if (verify_result != ccf::QuoteVerificationResult::Verified)
+        {
+          const auto [code, message] = verification_error(verify_result);
+          return ccf::grpc::make_error(GRPC_STATUS_UNAUTHENTICATED, message);
+        }
+
         // generate and store executor node id locally
         crypto::Pem executor_public_key(payload.cert());
         auto pubk_der = crypto::cert_pem_to_der(executor_public_key);
@@ -70,8 +80,7 @@ namespace externalexecutor
         ExecutorNodeIDs[executor_node_id] = executor_info;
 
         ccf::RegistrationResult result;
-        result.set_outcome(
-          ccf::RegistrationResult_Outcome::RegistrationResult_Outcome_ACCEPTED);
+        result.set_outcome("ACCEPTED");
 
         return ccf::grpc::make_success(result);
       };
