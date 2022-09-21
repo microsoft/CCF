@@ -1231,7 +1231,6 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
     {
       REQUIRE(is_snapshot_file(snap));
       REQUIRE(is_snapshot_file(snap_committed));
-      REQUIRE(is_snapshot_file(snap_committed_1_x));
       REQUIRE_FALSE(is_snapshot_file("ledger_1-2"));
       REQUIRE_FALSE(is_snapshot_file("ledger_1-2.committed"));
     }
@@ -1240,18 +1239,12 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
     {
       REQUIRE_FALSE(is_snapshot_file_committed(snap));
       REQUIRE(is_snapshot_file_committed(snap_committed));
-      REQUIRE(is_snapshot_file_committed(snap_committed_1_x));
     }
 
     INFO("Get snapshot idx");
     {
       REQUIRE(get_snapshot_idx_from_file_name(snap) == snapshot_idx);
       REQUIRE(get_snapshot_idx_from_file_name(snap_committed) == snapshot_idx);
-      REQUIRE(
-        get_snapshot_idx_from_file_name(snap_committed_1_x) == snapshot_idx);
-      REQUIRE(
-        get_snapshot_idx_from_file_name(snapshot_invalid_suffix) ==
-        snapshot_idx);
     }
 
     INFO("Get evidence idx");
@@ -1259,12 +1252,6 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
       REQUIRE(get_snapshot_evidence_idx_from_file_name(snap) == evidence_idx);
       REQUIRE(
         get_snapshot_evidence_idx_from_file_name(snap_committed) ==
-        evidence_idx);
-      REQUIRE(
-        get_snapshot_evidence_idx_from_file_name(snap_committed_1_x) ==
-        evidence_idx);
-      REQUIRE(
-        get_snapshot_evidence_idx_from_file_name(snapshot_invalid_suffix) ==
         evidence_idx);
     }
   }
