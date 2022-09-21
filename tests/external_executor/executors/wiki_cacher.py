@@ -6,6 +6,7 @@ import grpc
 import time
 
 from loguru import logger as LOG
+from contextlib import contextmanager
 
 
 # pylint: disable=import-error
@@ -21,6 +22,34 @@ import kv_pb2_grpc as Service
 from google.protobuf.empty_pb2 import Empty as Empty
 
 
+class ExecutorThread:
+    def __init__(self, executor):
+        self.executor = executor
+        self.thread = None
+        self.terminate_event = None
+
+    def start(self):
+        assert self.thread == None, "Already started"
+        LOG.info("Starting executor")
+        self.terminate_event = threading.Event()
+        self.thread = threading.Thread(
+            target=self.executor.run_loop, args=(self.terminate_event,)
+        )
+        self.thread.start()
+
+    def terminate(self):
+        assert self.thread != None, "Already terminated"
+        LOG.info("Terminating executor")
+        self.terminate_event.set()
+        self.thread.join()
+
+@contextmanager
+def executor_thread(executor):
+    et = ExecutorThread(executor)
+    et.start()
+    yield
+    et.terminate()
+
 class WikiCacherExecutor:
     API_VERSION = "v1"
     PROJECT = "wikipedia"
@@ -28,10 +57,10 @@ class WikiCacherExecutor:
 
     CACHE_TABLE = "wiki_descriptions"
 
-    def __init__(self, base_url="https://api.wikimedia.org"):
+    def __init__(self, ccf_node, credentials, base_url="https://api.wikimedia.org"):
+        self.ccf_node = ccf_node
+        self.credentials = credentials
         self.base_url = base_url
-        self.thread = None
-        self.terminate_event = None
 
     def _api_base(self):
         return "/".join(
@@ -90,16 +119,17 @@ class WikiCacherExecutor:
         response.status_code = HTTP.HttpStatusCode.OK
         response.body = result.optional.value
 
-    def _run_loop(self, ccf_node, credentials):
+    def run_loop(self, terminate_event):
         LOG.info("Beginning executor loop")
 
+        target_uri = f"{self.ccf_node.get_public_rpc_host()}:{self.ccf_node.get_public_rpc_port()}"
         with grpc.secure_channel(
-            target=f"{ccf_node.get_public_rpc_host()}:{ccf_node.get_public_rpc_port()}",
-            credentials=credentials,
+            target=target_uri,
+            credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)
 
-            while not (self.terminate_event.is_set()):
+            while not (terminate_event.is_set()):
                 request_description_opt = stub.StartTx(Empty())
                 if not request_description_opt.HasField("optional"):
                     LOG.trace("No request pending")
@@ -131,18 +161,3 @@ class WikiCacherExecutor:
                 stub.EndTx(response)
 
         LOG.info("Ended executor loop")
-
-    def start(self, ccf_node, credentials):
-        assert self.thread == None, "Already started"
-        LOG.info("Starting executor")
-        self.terminate_event = threading.Event()
-        self.thread = threading.Thread(
-            target=self._run_loop, args=(ccf_node, credentials)
-        )
-        self.thread.start()
-
-    def terminate(self):
-        assert self.thread != None, "Already terminated"
-        LOG.info("Terminating executor")
-        self.terminate_event.set()
-        self.thread.join()

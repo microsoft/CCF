@@ -5,7 +5,7 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
-from executors.wiki_cacher import WikiCacherExecutor
+from executors.wiki_cacher import executor_thread, WikiCacherExecutor
 
 # pylint: disable=import-error
 import kv_pb2 as KV
@@ -123,21 +123,20 @@ def test_put_get(network, args):
 
 
 def test_simple_executor(network, args):
-    wce = WikiCacherExecutor()
-
     primary, _ = network.find_primary()
     credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
-    wce.start(primary, credentials)
 
-    with primary.client() as c:
-        r = c.post("/not/a/real/endpoint")
-        r = c.post("/update_cache/Earth")
-        r = c.get("/article_description/Earth")
+    wce = WikiCacherExecutor(primary, credentials)
 
-    time.sleep(2)
-    wce.terminate()
+    with executor_thread(wce):
+        with primary.client() as c:
+            r = c.post("/not/a/real/endpoint")
+            r = c.post("/update_cache/Earth")
+            r = c.get("/article_description/Earth")
+
+        time.sleep(2)
 
     return network
 
