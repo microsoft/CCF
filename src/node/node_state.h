@@ -302,15 +302,13 @@ namespace ccf
         }
         case StartType::Join:
         {
-          // When joining from a snapshot, deserialise ledger suffix to
-          // verify (1.x) snapshot evidence. Otherwise, attempt to join straight
-          //
           if (!config.startup_snapshot.empty())
           {
             initialise_startup_snapshot();
-            sm.advance(NodeStartupState::pending);
-            start_join_timer();
           }
+
+          sm.advance(NodeStartupState::pending);
+          start_join_timer();
           return;
         }
         case StartType::Recover:
