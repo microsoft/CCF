@@ -325,6 +325,13 @@ namespace ccf
         }
         case StartType::Recover:
         {
+          setup_recovery_hook();
+          if (!config.startup_snapshot.empty())
+          {
+            initialise_startup_snapshot(true);
+            snapshotter->set_last_snapshot_idx(last_recovered_idx);
+          }
+
           sm.advance(NodeStartupState::readingPublicLedger);
           start_ledger_recovery_unsafe();
           return;
@@ -396,8 +403,6 @@ namespace ccf
         config.startup_host_time,
         config.node_certificate.initial_validity_days);
 
-      initiate_quote_generation();
-
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
@@ -408,6 +413,8 @@ namespace ccf
       setup_encryptor();
 
       setup_acme_clients();
+
+      initiate_quote_generation();
 
       switch (start_type)
       {
@@ -431,7 +438,6 @@ namespace ccf
           consensus->force_become_primary();
 
           LOG_INFO_FMT("Created new node {}", self);
-
           return {self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
@@ -452,15 +458,6 @@ namespace ccf
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
-
-          bool from_snapshot = !config.startup_snapshot.empty();
-          setup_recovery_hook();
-
-          if (from_snapshot)
-          {
-            initialise_startup_snapshot(true);
-            snapshotter->set_last_snapshot_idx(last_recovered_idx);
-          }
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
