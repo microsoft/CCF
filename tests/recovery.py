@@ -168,7 +168,7 @@ def test_recover_service_with_wrong_identity(network, args):
     if exception is None:
         raise ValueError("Recovery should have failed")
     if not broken_network.nodes[0].check_log_for_error_message(
-        "Error starting node: Previous service identity does not endorse the node identity that signed the snapshot"
+        "Previous service identity does not endorse the node identity that signed the snapshot"
     ):
         raise ValueError("Node log does not contain the expected error message")
 
