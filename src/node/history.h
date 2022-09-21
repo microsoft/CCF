@@ -54,7 +54,7 @@ namespace ccf
 #ifdef OVERRIDE_MAX_HISTORY_LEN
   constexpr int MAX_HISTORY_LEN = OVERRIDE_MAX_HISTORY_LEN;
 #else
-  constexpr int MAX_HISTORY_LEN = 1000;
+  constexpr int MAX_HISTORY_LEN = 0;
 #endif
 
   static std::ostream& operator<<(std::ostream& os, HashOp flag)
