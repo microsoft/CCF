@@ -4,7 +4,6 @@
 
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
-#include "host/ledger.h"
 #include "time_bound_logger.h"
 
 #include <charconv>
@@ -140,9 +139,7 @@ namespace asynchost
   }
 
   std::optional<fs::path> find_latest_committed_snapshot_in_directory(
-    const fs::path& directory,
-    size_t ledger_last_idx,
-    size_t& latest_committed_snapshot_idx)
+    const fs::path& directory, size_t& latest_committed_snapshot_idx)
   {
     std::optional<fs::path> latest_committed_snapshot_file_name = std::nullopt;
 
@@ -158,23 +155,6 @@ namespace asynchost
       if (!is_snapshot_file_committed(file_name))
       {
         LOG_INFO_FMT("Ignoring non-committed snapshot file {}", file_name);
-        continue;
-      }
-
-      // 1.x committed snapshot file names contain the evidence commit index
-      // which must be contained in the ledger for the snapshot to be valid
-      auto snapshot_evidence_commit_idx_1_x =
-        get_evidence_commit_idx_from_file_name(file_name);
-      if (
-        snapshot_evidence_commit_idx_1_x.has_value() &&
-        snapshot_evidence_commit_idx_1_x.value() > ledger_last_idx)
-      {
-        LOG_INFO_FMT(
-          "Ignoring {}: ledger does not contain evidence commit "
-          "seqno (evidence commit seqno {} > last ledger seqno {})",
-          file_name,
-          snapshot_evidence_commit_idx_1_x.value(),
-          ledger_last_idx);
         continue;
       }
 
@@ -194,16 +174,13 @@ namespace asynchost
   private:
     const fs::path snapshot_dir;
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
-    const Ledger& ledger;
 
   public:
     SnapshotManager(
       const std::string& snapshot_dir_,
-      const Ledger& ledger_,
       const std::optional<std::string>& read_snapshot_dir_ = std::nullopt) :
       snapshot_dir(snapshot_dir_),
-      read_snapshot_dir(read_snapshot_dir_),
-      ledger(ledger_)
+      read_snapshot_dir(read_snapshot_dir_)
     {
       if (fs::is_directory(snapshot_dir))
       {
@@ -327,7 +304,6 @@ namespace asynchost
     {
       // Keep track of latest snapshot file in both directories
       size_t latest_idx = 0;
-      auto ledger_last_idx = ledger.get_last_idx();
 
       std::optional<fs::path> read_only_latest_committed_snapshot =
         std::nullopt;
@@ -335,12 +311,11 @@ namespace asynchost
       {
         read_only_latest_committed_snapshot =
           find_latest_committed_snapshot_in_directory(
-            read_snapshot_dir.value(), ledger_last_idx, latest_idx);
+            read_snapshot_dir.value(), latest_idx);
       }
 
       auto main_latest_committed_snapshot =
-        find_latest_committed_snapshot_in_directory(
-          snapshot_dir, ledger_last_idx, latest_idx);
+        find_latest_committed_snapshot_in_directory(snapshot_dir, latest_idx);
 
       if (main_latest_committed_snapshot.has_value())
       {

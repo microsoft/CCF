@@ -1259,13 +1259,11 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
 
 TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 {
-  auto dir = AutoDeleteFolder(ledger_dir);
   auto snap_dir = AutoDeleteFolder(snapshot_dir);
   auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
   fs::create_directory(snapshot_dir_read_only);
 
-  Ledger ledger(ledger_dir, wf, 1);
-  SnapshotManager snapshots(snapshot_dir, ledger, snapshot_dir_read_only);
+  SnapshotManager snapshots(snapshot_dir, snapshot_dir_read_only);
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
