@@ -76,11 +76,6 @@ namespace asynchost
     return read_idx(file_name.substr(pos + 1));
   }
 
-  static bool is_snapshot_file_1_x(const std::string& file_name)
-  {
-    return get_evidence_commit_idx_from_file_name(file_name).has_value();
-  }
-
   static size_t get_snapshot_idx_from_file_name(const std::string& file_name)
   {
     if (!is_snapshot_file(file_name))
