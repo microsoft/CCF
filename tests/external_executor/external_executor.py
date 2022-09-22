@@ -11,9 +11,6 @@ from executors.wiki_cacher import executor_thread, WikiCacherExecutor
 import kv_pb2 as KV
 
 # pylint: disable=import-error
-import http_pb2 as HTTP
-
-# pylint: disable=import-error
 import kv_pb2_grpc as Service
 
 # pylint: disable=no-name-in-module
@@ -128,11 +125,11 @@ def test_simple_executor(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    with executor_thread(WikiCacherExecutor(primary, credentials)) as ex:
+    with executor_thread(WikiCacherExecutor(primary, credentials)):
         with primary.client() as c:
-            r = c.post("/not/a/real/endpoint")
-            r = c.post("/update_cache/Earth")
-            r = c.get("/article_description/Earth")
+            c.post("/not/a/real/endpoint")
+            c.post("/update_cache/Earth")
+            c.get("/article_description/Earth")
 
         time.sleep(2)
 

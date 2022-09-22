@@ -78,7 +78,7 @@ class WikiCacherExecutor:
     def _get_description(self, title):
         url = "/".join((self._api_base(), "page", title, "description"))
         LOG.debug(f"Requesting {url}")
-        r = requests.get(url)
+        r = requests.get(url, timeout=3)
         if r.status_code == 200:
             return r.json()["description"]
         LOG.error(r)

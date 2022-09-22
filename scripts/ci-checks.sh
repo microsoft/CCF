@@ -105,7 +105,7 @@ pip install -U -r python/requirements.txt 1>/dev/null
 
 echo "$CHECK_DELIMITER"
 echo "-- Python lint"
-git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint
+PYTHONPATH=./tests git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint --ignored-modules *_pb2
 
 echo "$CHECK_DELIMITER"
 echo "-- Python types"
