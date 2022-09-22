@@ -36,18 +36,20 @@ foreach(proto_file ${PROTO_FILES})
   )
 
   add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2.py
-           ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2_grpc.py
+    OUTPUT
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2.py
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2_grpc.py
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build.sh ${proto_file}
-            ${CMAKE_SOURCE_DIR}/tests/
+            ${CMAKE_SOURCE_DIR}/tests/external_executor/
     COMMENT "Generate Python source file from protobuf file ${PROTO_NAME}"
     DEPENDS ${proto_file}
     JOB_POOL one_job
   )
   add_custom_target(
     ${PROTO_NAME_WE}_proto_python ALL
-    DEPENDS ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2.py
-            ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2_grpc.py
+    DEPENDS
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2.py
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2_grpc.py
     JOB_POOL one_job
   )
 

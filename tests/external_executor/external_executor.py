@@ -128,9 +128,7 @@ def test_simple_executor(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    wce = WikiCacherExecutor(primary, credentials)
-
-    with executor_thread(wce):
+    with executor_thread(WikiCacherExecutor(primary, credentials)) as ex:
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             r = c.post("/update_cache/Earth")

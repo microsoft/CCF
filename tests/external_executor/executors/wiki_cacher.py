@@ -43,12 +43,14 @@ class ExecutorThread:
         self.terminate_event.set()
         self.thread.join()
 
+
 @contextmanager
 def executor_thread(executor):
     et = ExecutorThread(executor)
     et.start()
-    yield
+    yield executor
     et.terminate()
+
 
 class WikiCacherExecutor:
     API_VERSION = "v1"
@@ -82,7 +84,6 @@ class WikiCacherExecutor:
         LOG.error(r)
 
     def _execute_update_cache(self, kv_stub, request, response):
-        # TODO: Should parse with a regex
         prefix = "/update_cache/"
         title = request.uri[len(prefix) :]
         description = self._get_description(title)
@@ -100,12 +101,11 @@ class WikiCacherExecutor:
             )
         )
         response.status_code = HTTP.HttpStatusCode.OK
-        response.body = (
-            f"Successfully updated cache with description of '{title}'".encode("utf-8")
+        response.body = f"Successfully updated cache with description of '{title}':\n\n{description}".encode(
+            "utf-8"
         )
 
     def _execute_get_description(self, kv_stub, request, response):
-        # TODO: Should parse with a regex
         prefix = "/article_description/"
         title = request.uri[len(prefix) :]
         result = kv_stub.Get(
