@@ -1264,6 +1264,11 @@ namespace kv
       return CommittableTx(this);
     }
 
+    std::unique_ptr<CommittableTx> create_tx_ptr()
+    {
+      return std::make_unique<CommittableTx>(this);
+    }
+
     ReservedTx create_reserved_tx(const TxID& tx_id)
     {
       // version_lock should already been acquired in case term_of_last_version
