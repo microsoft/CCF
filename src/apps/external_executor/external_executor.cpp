@@ -10,6 +10,7 @@
 #include "executor_code_id.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
+#include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -197,6 +198,23 @@ namespace externalexecutor
       install_registry_service();
 
       install_kv_service();
+
+      auto run_string_ops = [this](
+                              ccf::endpoints::CommandEndpointContext& ctx,
+                              std::vector<temp::OpIn>&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<std::vector<temp::OpOut>> {
+        std::vector<temp::OpOut> r;
+        return ccf::grpc::make_success(r);
+      };
+
+      make_command_endpoint(
+        "/temp.Test/RunOps",
+        HTTP_POST,
+        ccf::grpc_command_adapter<
+          std::vector<temp::OpIn>,
+          std::vector<temp::OpOut>>(run_string_ops),
+        ccf::no_auth_required)
+        .install();
     }
   };
 } // namespace externalexecutor
