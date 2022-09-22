@@ -14,6 +14,7 @@ struct ExecutorNodeInfo
 {
   crypto::Pem public_key;
   ccf::Attestation attestation;
+  std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints;
 };
 
 // stub out quote verification until we have SEV-SNP verification

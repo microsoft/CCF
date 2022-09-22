@@ -22,8 +22,8 @@
 namespace externalexecutor
 {
   using Map = kv::Map<std::string, std::string>;
-  using ExecutorNodeId = ccf::EntityId<ccf::NodeIdFormatter>;
-  std::map<ExecutorNodeId, ExecutorNodeInfo> ExecutorNodeIDs;
+  using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
+  std::map<ExecutorId, ExecutorNodeInfo> ExecutorIDs;
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
@@ -68,16 +68,18 @@ namespace externalexecutor
           return ccf::grpc::make_error(code, message);
         }
 
-        // generate and store executor node id locally
+        // generate and store executor id locally
         crypto::Pem executor_public_key(payload.cert());
         auto pubk_der = crypto::cert_pem_to_der(executor_public_key);
-        ExecutorNodeId executor_id =
-          ccf::compute_node_id_from_pubk_der(pubk_der);
+        ExecutorId executor_id = ccf::compute_node_id_from_pubk_der(pubk_der);
+        std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints(
+          payload.supported_endpoints().begin(),
+          payload.supported_endpoints().end());
 
         ExecutorNodeInfo executor_info = {
-          executor_public_key, payload.attestation()};
+          executor_public_key, payload.attestation(), supported_endpoints};
 
-        ExecutorNodeIDs[executor_id] = executor_info;
+        ExecutorIDs[executor_id] = executor_info;
 
         ccf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");
