@@ -18,6 +18,7 @@
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
+#include "node/endpoint_context_impl.h"
 #include "node/node_configuration_subsystem.h"
 #include "rpc_exception.h"
 
@@ -201,6 +202,11 @@ namespace ccf
       kv::CommittableTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
+      if (endpoint->authn_policies.empty())
+      {
+        return nullptr;
+      }
+
       std::unique_ptr<AuthnIdentity> identity = nullptr;
 
       std::string auth_error_reason;
@@ -296,7 +302,6 @@ namespace ccf
 
     void process_command(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
-      kv::CommittableTx& tx,
       kv::Version prescribed_commit_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN)
     {
@@ -307,20 +312,30 @@ namespace ccf
 
       while (attempts < max_attempts)
       {
+        std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
+        set_root_on_proposals(*ctx, *tx_p);
+
         if (attempts > 0)
         {
           // If the endpoint has already been executed, the effects of its
           // execution should be dropped
-          tx = tables.create_tx();
           ctx->reset_response();
-          set_root_on_proposals(*ctx, tx);
           endpoints.increment_metrics_retries(*ctx);
+        }
+
+        if (!is_open(*tx_p))
+        {
+          ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::FrontendNotOpen,
+            "Frontend is not open.");
+          return;
         }
 
         ++attempts;
         update_history();
 
-        const auto endpoint = find_endpoint(ctx, tx);
+        const auto endpoint = find_endpoint(ctx, *tx_p);
         if (endpoint == nullptr)
         {
           return;
@@ -357,7 +372,7 @@ namespace ccf
                   (consensus->type() != ConsensusType::CFT &&
                    !ctx->execute_on_node))
                 {
-                  forward(ctx, tx, endpoint);
+                  forward(ctx, *tx_p, endpoint);
                   return;
                 }
                 break;
@@ -365,24 +380,31 @@ namespace ccf
 
               case endpoints::ForwardingRequired::Always:
               {
-                forward(ctx, tx, endpoint);
+                forward(ctx, *tx_p, endpoint);
                 return;
               }
             }
           }
 
-          auto args = endpoints::EndpointContext(ctx, tx);
+          std::unique_ptr<AuthnIdentity> identity =
+            get_authenticated_identity(ctx, *tx_p, endpoint);
+
+          auto args = ccf::EndpointContextImpl(ctx, std::move(tx_p));
+          // NB: tx_p is no longer valid, and must be accessed from args, which
+          // may change it!
 
           // If any auth policy was required, check that at least one is
           // accepted
           if (!endpoint->authn_policies.empty())
           {
-            auto identity = get_authenticated_identity(ctx, tx, endpoint);
             if (identity == nullptr)
             {
               return;
             }
-            args.caller = std::move(identity);
+            else
+            {
+              args.caller = std::move(identity);
+            }
           }
 
           endpoints.execute_endpoint(endpoint, args);
@@ -392,6 +414,28 @@ namespace ccf
             update_metrics(ctx);
             return;
           }
+
+          if (ctx->response_is_pending)
+          {
+            return;
+          }
+          else if (args.owned_tx == nullptr)
+          {
+            LOG_FAIL_FMT(
+              "Bad endpoint: During execution of {} {}, returned a non-pending "
+              "response but stole owneship of Tx object",
+              ctx->get_request_verb().c_str(),
+              ctx->get_request_path());
+
+            ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Illegal endpoint implementation");
+            return;
+          }
+          // else args owns a valid Tx relating to a non-pending response, which
+          // should be applied
+          kv::CommittableTx& tx = *args.owned_tx;
 
           kv::CommitResult result;
           bool track_read_versions =
@@ -624,23 +668,9 @@ namespace ccf
     {
       update_consensus();
 
-      auto tx = tables.create_tx();
-      set_root_on_proposals(*ctx, tx);
-
-      if (!is_open(tx))
-      {
-        ctx->set_error(
-          HTTP_STATUS_NOT_FOUND,
-          ccf::errors::FrontendNotOpen,
-          "Frontend is not open.");
-        return;
-      }
-      else
-      {
-        // NB: If we want to re-execute on backups, the original command could
-        // be propagated from here
-        process_command(ctx, tx);
-      }
+      // NB: If we want to re-execute on backups, the original command could
+      // be propagated from here
+      process_command(ctx);
     }
 
     /** Process a serialised input forwarded from another node
@@ -656,12 +686,10 @@ namespace ccf
       }
 
       update_consensus();
-      auto tx = tables.create_tx();
-      set_root_on_proposals(*ctx, tx);
 
       if (consensus->type() == ConsensusType::CFT)
       {
-        process_command(ctx, tx);
+        process_command(ctx);
         if (ctx->response_is_pending)
         {
           // This should never be called when process_command is called with a
