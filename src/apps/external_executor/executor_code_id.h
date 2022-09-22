@@ -13,7 +13,7 @@
 struct ExecutorNodeInfo
 {
   crypto::Pem public_key;
-  ccf::Attestation attest;
+  ccf::Attestation attestation;
 };
 
 // stub out quote verification until we have SEV-SNP verification

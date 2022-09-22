@@ -65,22 +65,23 @@ namespace externalexecutor
         if (verify_result != ccf::QuoteVerificationResult::Verified)
         {
           const auto [code, message] = verification_error(verify_result);
-          return ccf::grpc::make_error(GRPC_STATUS_UNAUTHENTICATED, message);
+          return ccf::grpc::make_error(code, message);
         }
 
         // generate and store executor node id locally
         crypto::Pem executor_public_key(payload.cert());
         auto pubk_der = crypto::cert_pem_to_der(executor_public_key);
-        ExecutorNodeId executor_node_id =
+        ExecutorNodeId executor_id =
           ccf::compute_node_id_from_pubk_der(pubk_der);
 
         ExecutorNodeInfo executor_info = {
           executor_public_key, payload.attestation()};
 
-        ExecutorNodeIDs[executor_node_id] = executor_info;
+        ExecutorNodeIDs[executor_id] = executor_info;
 
         ccf::RegistrationResult result;
-        result.set_outcome("ACCEPTED");
+        result.set_details("Executor registration is accepted.");
+        result.set_executor_id(executor_id.value());
 
         return ccf::grpc::make_success(result);
       };

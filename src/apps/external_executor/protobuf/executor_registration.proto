@@ -61,11 +61,12 @@ message NewExecutor
   repeated EndpointKey supported_endpoints = 3;
 }
 
-// Response indicating whether a NewExecutor was accepted
+// Response indicating a NewExecutor was accepted
 message RegistrationResult
 {
-  string outcome = 1;
+  // executor_id that was created for this Executor
+  string executor_id = 1;
 
-  // Additional context explaining outcome
+  // Context explaining outcome
   string details = 2;
 }
