@@ -52,6 +52,11 @@ namespace ccf
     auto receipt_data = data + store_snapshot_size;
     auto receipt_size = size - store_snapshot_size;
 
+    if (receipt_size == 0)
+    {
+      throw std::logic_error("No receipt included in snapshot");
+    }
+
     auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
     auto receipt_p = j.get<ReceiptPtr>();
     auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
