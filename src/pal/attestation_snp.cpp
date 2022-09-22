@@ -181,8 +181,8 @@ _IOWR(SEV_GUEST_IOC_TYPE2, 0x1, struct constants::GuestRequest)
     Attestation generate(ReportData& report_data) {
 
         Attestation attestation{
-            .quote = Quote{
-                .format = QuoteFormat::amd_sev_snp_v1
+            .report = Report{
+                .format = Format::amd_sev_snp_v1
             },
         };
 
@@ -222,7 +222,7 @@ _IOWR(SEV_GUEST_IOC_TYPE2, 0x1, struct constants::GuestRequest)
 
         auto quote = &resp.report;
         auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
-        attestation.quote.raw.assign(quote_bytes, quote_bytes + resp.report_size);
+        attestation.report.raw.assign(quote_bytes, quote_bytes + resp.report_size);
 
         client::RpcTlsClient client{
             "americas.test.acccache.azure.net",
@@ -254,8 +254,8 @@ _IOWR(SEV_GUEST_IOC_TYPE2, 0x1, struct constants::GuestRequest)
 
     bool verify(Attestation& attestation) {
 
-        assert(attestation.quote.format == QuoteFormat::amd_sev_snp_v1);
-        auto attestation_report = *reinterpret_cast<const constants::AttestationReport*>(attestation.quote.raw.data());
+        assert(attestation.report.format == pal::attestation::Format::amd_sev_snp_v1);
+        auto attestation_report = *reinterpret_cast<const constants::AttestationReport*>(attestation.report.raw.data());
 
         auto certificates = crypto::split_x509_cert_bundle(std::string(
             attestation.endorsements.begin(), attestation.endorsements.end()));
@@ -309,8 +309,8 @@ _IOWR(SEV_GUEST_IOC_TYPE2, 0x1, struct constants::GuestRequest)
         );
 
         std::span quote_without_signature{
-            attestation.quote.raw.data(),
-            attestation.quote.raw.size() - sizeof(attestation_report.signature)};
+            attestation.report.raw.data(),
+            attestation.report.raw.size() - sizeof(attestation_report.signature)};
         if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
         {
             throw std::logic_error(
@@ -328,7 +328,7 @@ _IOWR(SEV_GUEST_IOC_TYPE2, 0x1, struct constants::GuestRequest)
         }
         assert(attestation.state == VerificationState::Verified);
 
-        return *reinterpret_cast<const constants::AttestationReport*>(attestation.quote.raw.data());
+        return *reinterpret_cast<const constants::AttestationReport*>(attestation.report.raw.data());
     }
 
     ReportData get_report_data(Attestation& attestation) {

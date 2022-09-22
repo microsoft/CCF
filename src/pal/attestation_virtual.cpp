@@ -11,14 +11,14 @@ namespace ccf::pal::attestation::insecure_virtual {
 
     Attestation generate(ReportData& report_data) {
         return Attestation{
-            .quote = Quote{
-                .format = QuoteFormat::insecure_virtual
+            .report = Report{
+                .format = Format::insecure_virtual
             },
         };
     }
 
     bool verify(Attestation& attestation) {
-        assert(attestation.quote.format == QuoteFormat::insecure_virtual);
+        assert(attestation.report.format == pal::attestation::Format::insecure_virtual);
         attestation.state = VerificationState::Verified;
         return true;
     }

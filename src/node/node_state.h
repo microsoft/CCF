@@ -305,19 +305,23 @@ namespace ccf
       crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
       auto report_data = pal::attestation::make_report_data(node_pub_key_hash);
       auto attestation = pal::attestation::generate(report_data);
-      quote_info.format = attestation.quote.format;
-      quote_info.quote = attestation.quote.raw;
+      quote_info.format = (QuoteFormat)attestation.report.format;
+      quote_info.quote = attestation.report.raw;
       quote_info.endorsements = attestation.endorsements;
 
-      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
-      if (code_id.has_value())
-      {
-        node_code_id = code_id.value();
-      }
-      else
-      {
-        throw std::logic_error("Failed to extract code id from quote");
-      }
+        if (attestation.report.format == pal::attestation::Format::oe_sgx_v1) {
+          auto mrenclave = pal::attestation::get_mrenclave(attestation);
+          if (mrenclave.has_value()) {
+            std::copy(mrenclave.value().begin(), mrenclave.value().end(), node_code_id.data.begin());
+          }
+        }
+
+        if (attestation.report.format == pal::attestation::Format::amd_sev_snp_v1){
+          auto measurement = pal::attestation::get_measurement(attestation);
+          if (measurement.has_value()) {
+            std::copy(measurement.value().begin(), measurement.value().end(), node_code_id.data.begin());
+          }
+        }
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered

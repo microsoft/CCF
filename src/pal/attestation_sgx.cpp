@@ -84,8 +84,8 @@ namespace ccf::pal::attestation::sgx {
     Attestation generate(ReportData& report_data) {
 
         Attestation attestation{
-            .quote = Quote{
-                .format = QuoteFormat::oe_sgx_v1
+            .report = Report{
+                .format = Format::oe_sgx_v1
             },
         };
 
@@ -129,7 +129,7 @@ namespace ccf::pal::attestation::sgx {
             fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
         }
 
-        attestation.quote.raw.assign(
+        attestation.report.raw.assign(
             evidence.buffer, evidence.buffer + evidence.size);
         attestation.endorsements.assign(
             endorsements.buffer, endorsements.buffer + endorsements.size);
@@ -138,14 +138,14 @@ namespace ccf::pal::attestation::sgx {
     }
 
     bool verify(Attestation& attestation) {
-        assert(attestation.quote.format == QuoteFormat::oe_sgx_v1);
+        assert(attestation.report.format == pal::attestation::Format::oe_sgx_v1);
 
         constants::Claims claims;
 
         auto rc = oe_verify_evidence(
             &constants::oe_quote_format,
-            attestation.quote.raw.data(),
-            attestation.quote.raw.size(),
+            attestation.report.raw.data(),
+            attestation.report.raw.size(),
             attestation.endorsements.data(),
             attestation.endorsements.size(),
             nullptr,
@@ -169,7 +169,7 @@ namespace ccf::pal::attestation::sgx {
                 MREnclave mrenclave{};
                 std::copy(
                     claim.value, claim.value + claim.value_size, mrenclave.begin());
-                attestation_to_mrenclave[attestation.quote.raw] = mrenclave;
+                attestation_to_mrenclave[attestation.report.raw] = mrenclave;
                 unique_id_found = true;
             }
             else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
@@ -207,7 +207,7 @@ namespace ccf::pal::attestation::sgx {
                             custom_claim.value,
                             custom_claim.value + custom_claim.value_size,
                             report_data.begin());
-                        attestation_to_report_data[attestation.quote.raw] = report_data;
+                        attestation_to_report_data[attestation.report.raw] = report_data;
                         sgx_report_data_found = true;
                         break;
                     }
@@ -238,12 +238,12 @@ namespace ccf::pal::attestation::sgx {
 
     ReportData get_report_data(Attestation& attestation) {
         assert_verified(attestation);
-        return attestation_to_report_data[attestation.quote.raw];
+        return attestation_to_report_data[attestation.report.raw];
     }
 
     std::optional<MREnclave> get_mrenclave(Attestation& attestation) {
         assert_verified(attestation);
-        return attestation_to_mrenclave[attestation.quote.raw];
+        return attestation_to_mrenclave[attestation.report.raw];
     }
 
     std::optional<Measurement> get_measurement(Attestation& attestation) {
