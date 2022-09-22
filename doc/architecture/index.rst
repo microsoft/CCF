@@ -3,7 +3,7 @@ Architecture
 
 .. panels::
 
-    :fa:`book` :doc:`consensus/index`
+    :fa:`project-diagram` :doc:`consensus/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     CCF makes use of a consensus protocol to replicate transactions.
@@ -17,14 +17,21 @@ Architecture
 
     ---
 
-    :fa:`stream` :doc:`threading`
+    :fa:`map` :doc:`request_flow`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Flow of a single request's execution through CCF.
+
+    ---
+
+    :fa:`random` :doc:`threading`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     CCF threading model.
 
     ---
 
-    :fa:`project-diagram` :doc:`merkle_tree`
+    :fa:`snowflake` :doc:`merkle_tree`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Transaction integrity guarantees stem from the use of a Merkle Tree data structure over their history.
@@ -38,7 +45,7 @@ Architecture
 
     ---
 
-    :fa:`book` :doc:`raft_tla`
+    :fa:`check-double` :doc:`raft_tla`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     A TLA+ model of Raft as modified when implemented in CCF.
@@ -64,24 +71,23 @@ Architecture
 
     Receipts can be used with the ledger for audit purposes.
 
-
     ---
 
-    :fa:`address-book` :doc:`tls_internals`
+    :fa:`gears` :doc:`tls_internals`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Internal implementation of TLS communication.
 
     ---
 
-    :fa:`address-book` :doc:`tcp_internals`
+    :fa:`gears` :doc:`tcp_internals`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Internal implementation of the TCP host layer.
 
     ---
 
-    :fa:`address-book` :doc:`quic_internals`
+    :fa:`gears` :doc:`quic_internals`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Internal implementation of QUIC communication (in progress).
@@ -92,6 +98,7 @@ Architecture
 
     consensus/index
     cryptography
+    request_flow
     threading
     merkle_tree
     ledger
