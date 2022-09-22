@@ -15,7 +15,6 @@
 
 namespace ccf
 {
-  // TODO: Delete this?
   struct StartupSnapshotInfo
   {
     std::vector<uint8_t> raw;
