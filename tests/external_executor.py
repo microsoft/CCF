@@ -137,23 +137,27 @@ def test_streaming(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    def generate_random_op(n):
-        n = random.randint(0, 2)
-        s = f"I'm random string {n}: {random.random()}"
-        if n == 0:
-            return StringOps.OpIn(echo=StringOps.EchoOp(body=s))
-        elif n == 1:
-            return StringOps.OpIn(reverse=StringOps.ReverseOp(body=s))
-        else:
-            start = random.randint(0, len(s))
-            end = random.randint(start, len(s))
-            return StringOps.OpIn(
-                truncate=StringOps.TruncateOp(body=s, start=start, end=end)
-            )
+    def echo_op(s):
+        return StringOps.OpIn(echo=StringOps.EchoOp(body=s))
+
+    def reverse_op(s):
+        return StringOps.OpIn(reverse=StringOps.ReverseOp(body=s))
+
+    def truncate_op(s):
+        start = random.randint(0, len(s))
+        end = random.randint(start, len(s))
+        return StringOps.OpIn(
+            truncate=StringOps.TruncateOp(body=s, start=start, end=end)
+        )
+
+    def empty_op(s):
+        # oneof may always be null - generate some like this to make sure they're handled "correctly"
+        return StringOps.OpIn()
 
     def generate_ops(n):
         for _ in range(n):
-            yield generate_random_op(n)
+            s = f"I'm random string {n}: {random.random()}"
+            yield random.choice((echo_op, reverse_op, truncate_op, empty_op))(s)
 
     def gen_len(gen):
         return sum(1 for _ in gen)

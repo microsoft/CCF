@@ -207,8 +207,6 @@ namespace externalexecutor
 
         for (temp::OpIn& op : payload)
         {
-          LOG_INFO_FMT("Processing op type {}", op.GetTypeName());
-
           temp::OpOut& result = results.emplace_back();
           switch (op.op_case())
           {
@@ -242,7 +240,7 @@ namespace externalexecutor
               truncated->set_allocated_body(s);
               break;
             }
-            
+
             case (temp::OpIn::OpCase::OP_NOT_SET):
             {
               LOG_INFO_FMT("Got OP_NOT_SET");
