@@ -164,6 +164,7 @@ def test_streaming(network, args):
             yield random.choice((echo_op, reverse_op, truncate_op, empty_op))(s)
 
     def compare_op_results(stub, n_ops):
+        LOG.info(f"Sending streaming request containing {n_ops} operations")
         ops = []
         expected_results = []
         for op, expected_result in generate_ops(n_ops):
@@ -193,6 +194,7 @@ def test_streaming(network, args):
         compare_op_results(stub, 0)
         compare_op_results(stub, 1)
         compare_op_results(stub, 30)
+        compare_op_results(stub, 1000)
 
 
 def run(args):
