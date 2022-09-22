@@ -408,24 +408,6 @@ namespace ccf
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());
 
-        if (start_type == StartType::Join)
-        {
-          // When joining from a snapshot, deserialise ledger suffix to verify
-          // snapshot evidence. Otherwise, attempt to join straight away
-          if (node->is_verifying_snapshot())
-          {
-            node->start_ledger_recovery();
-          }
-          else
-          {
-            node->join();
-          }
-        }
-        else if (start_type == StartType::Recover)
-        {
-          node->start_ledger_recovery();
-        }
-
         // Maximum number of inbound ringbuffer messages which will be
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
