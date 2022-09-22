@@ -120,7 +120,7 @@ namespace ccf::grpc
       while (size != 0)
       {
         const auto message_length = impl::read_message_frame(data, size);
-        if (size > message_length)
+        if (message_length > size)
         {
           throw std::logic_error(fmt::format(
             "Error in gRPC frame: only {} bytes remaining but message header "
@@ -130,7 +130,7 @@ namespace ccf::grpc
         }
 
         Message& msg = messages.emplace_back();
-        if (!msg.ParseFromArray(data, size))
+        if (!msg.ParseFromArray(data, message_length))
         {
           throw std::logic_error(fmt::format(
             "Error deserialising protobuf payload of type {}, size {} (message "
@@ -157,7 +157,7 @@ namespace ccf::grpc
       }
 
       In in;
-      if (!in.ParseFromArray(data, size))
+      if (!in.ParseFromArray(data, message_length))
       {
         throw std::logic_error(fmt::format(
           "Error deserialising protobuf payload of type {}, size {}",
