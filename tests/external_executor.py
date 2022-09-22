@@ -11,6 +11,12 @@ import kv_pb2 as KV
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
 
+# pylint: disable=import-error
+import stringops_pb2 as StringOps
+
+# pylint: disable=import-error
+import stringops_pb2_grpc as StringOpsService
+
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
@@ -123,6 +129,50 @@ def test_put_get(network, args):
     return network
 
 
+@reqs.description("Test gRPC streaming APIs")
+def test_streaming(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
+    def generate_random_op(n):
+        n = random.randint(0, 2)
+        s = f"I'm random string {n}: {random.random()}"
+        if n == 0:
+            return StringOps.OpIn(echo=StringOps.EchoOp(body=s))
+        elif n == 1:
+            return StringOps.OpIn(reverse=StringOps.ReverseOp(body=s))
+        else:
+            start = random.randint(0, len(s))
+            end = random.randint(start, len(s))
+            return StringOps.OpIn(
+                truncate=StringOps.TruncateOp(body=s, start=start, end=end)
+            )
+
+    def generate_ops(n):
+        for _ in range(n):
+            yield generate_random_op(n)
+
+    def gen_len(gen):
+        return sum(1 for _ in gen)
+
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        stub = StringOpsService.TestStub(channel)
+
+        r = stub.RunOps(generate_ops(0))
+        gl = gen_len(r)
+        assert gl == 0, gl
+
+        r = stub.RunOps(generate_ops(30))
+        gl = gen_len(r)
+        assert gl == 30, gl
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -131,13 +181,13 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        test_put_get(network, args)
+        # test_put_get(network, args)
+        test_streaming(network, args)
 
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
 
-    args.host_log_level = "trace"
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
     args.nodes = infra.e2e_args.min_nodes(args, f=0)

@@ -32,7 +32,7 @@ message OpOut
 {
   oneof result
   {
-    EchoResult echod = 1;
+    EchoResult echoed = 1;
     ReverseResult reversed = 2;
     TruncateResult truncated = 3;
   }
