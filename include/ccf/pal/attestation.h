@@ -25,6 +25,10 @@ namespace ccf::pal
 {
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
+  static std::optional<std::string> get_security_policy() {
+    return "example_policy";
+  }
+
   static QuoteInfo generate_quote(attestation_report_data& report_data)
   {
     QuoteInfo node_quote_info = {};
@@ -218,6 +222,10 @@ namespace ccf::pal
   }
 
 #else
+
+  static std::optional<std::string> get_security_policy() {
+    return std::nullopt;
+  }
 
   static QuoteInfo generate_quote(attestation_report_data& report_data)
   {

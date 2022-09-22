@@ -27,6 +27,8 @@ namespace ccf
     /// have been successfully extracted.
     static std::optional<CodeDigest> get_code_id(const QuoteInfo& quote_info);
 
+    static std::optional<std::array<uint8_t, 32>> get_security_policy_digest(const QuoteInfo& quote_info);
+
     static QuoteVerificationResult verify_quote_against_store(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,

@@ -9,6 +9,7 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/mem.h"
+#include "ccf/pal/attestation.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
@@ -1513,8 +1514,11 @@ namespace ccf
           in.public_key};
         g.add_node(in.node_id, node_info);
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
-        if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
-            g.trust_node_security_policy("example_security_policy", {});
+        if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1){
+          auto digest = EnclaveAttestationProvider::get_security_policy_digest(in.quote_info).value();
+          auto policy = pal::get_security_policy().value();
+          g.trust_node_security_policy(policy, digest);
+        }
 
         LOG_INFO_FMT("Created service");
         return make_success(true);

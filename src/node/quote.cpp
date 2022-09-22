@@ -57,6 +57,35 @@ namespace ccf
     return unique_id;
   }
 
+  std::optional<std::array<uint8_t, 32>> EnclaveAttestationProvider::get_security_policy_digest(
+    const QuoteInfo& quote_info)
+  {
+    if (access("/dev/sev", F_OK) != 0) {
+      return std::nullopt;
+    }
+
+    std::array<uint8_t, 32> digest{};
+    CodeDigest d = {};
+    pal::attestation_report_data r = {};
+    try
+    {
+      pal::verify_quote(quote_info, d.data, r);
+      auto quote =
+        *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
+      std::copy(
+        std::begin(quote.host_data),
+        std::end(quote.host_data),
+        digest.begin());
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
+      return std::nullopt;
+    }
+
+    return digest;
+  }
+
   QuoteVerificationResult EnclaveAttestationProvider::
     verify_quote_against_store(
       kv::ReadOnlyTx& tx,
