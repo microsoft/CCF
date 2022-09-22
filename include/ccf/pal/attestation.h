@@ -93,15 +93,22 @@ namespace ccf::pal
 
     if (endorsement_cb != nullptr)
     {
+      constexpr auto product_name = "Milan";
+      auto params = nlohmann::json::object();
+      params["blSPL"] = quote->reported_tcb.boot_loader;
+      params["teeSPL"] = quote->reported_tcb.tee;
+      params["snpSPL"] = quote->reported_tcb.snp;
+      params["ucodeSPL"] = quote->reported_tcb.microcode;
+
       endorsement_cb(
         node_quote_info,
-        {"americas.test.acccache.azure.net",
+        {"kdsintf.amd.com",
          "443",
          fmt::format(
-           "/SevSnpVM/certificates/{}/{}",
-           fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
-           fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
-         {{"api-version", "2020-10-15-preview"}}});
+           "/vcek/v1/{}/{}",
+           product_name,
+           fmt::format("{:02x}", fmt::join(quote->chip_id, ""))),
+         params});
     }
   }
 
