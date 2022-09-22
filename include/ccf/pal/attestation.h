@@ -24,10 +24,14 @@ namespace ccf::pal
 {
   struct EndorsementEndpointConfiguration
   {
-    std::string host;
-    std::string port;
-    std::string uri;
-    std::map<std::string, std::string> params;
+    struct EndpointInfo
+    {
+      std::string host;
+      std::string port;
+      std::string uri;
+      std::map<std::string, std::string> params;
+    };
+    std::list<EndpointInfo> endpoints;
   };
 
   // Caller-supplied callback used to retrieve endorsements as specified by the
@@ -94,14 +98,14 @@ namespace ccf::pal
     if (endorsement_cb != nullptr)
     {
       constexpr auto product_name = "Milan";
-      auto params = nlohmann::json::object();
-      params["blSPL"] = quote->reported_tcb.boot_loader;
-      params["teeSPL"] = quote->reported_tcb.tee;
-      params["snpSPL"] = quote->reported_tcb.snp;
-      params["ucodeSPL"] = quote->reported_tcb.microcode;
+      std::map<std::string, std::string> params;
+      params["blSPL"] = fmt::format("{}", quote->reported_tcb.boot_loader);
+      params["teeSPL"] = fmt::format("{}", quote->reported_tcb.tee);
+      params["snpSPL"] = fmt::format("{}", quote->reported_tcb.snp);
+      params["ucodeSPL"] = fmt::format("{}", quote->reported_tcb.microcode);
 
-      endorsement_cb(
-        node_quote_info,
+      EndorsementEndpointConfiguration config;
+      config.endpoints.push_back(
         {"kdsintf.amd.com",
          "443",
          fmt::format(
@@ -109,6 +113,8 @@ namespace ccf::pal
            product_name,
            fmt::format("{:02x}", fmt::join(quote->chip_id, ""))),
          params});
+
+      endorsement_cb(node_quote_info, config);
     }
   }
 

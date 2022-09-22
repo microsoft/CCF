@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/pal/attestation.h"
+#include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 
 namespace ccf
@@ -16,14 +17,26 @@ namespace ccf
   private:
     std::shared_ptr<RPCSessions> rpcsessions;
 
+    enum class FetchState
+    {
+      Uninitialised = 0,
+      FetchingVcek,
+      Fetching,
+      Done
+    };
+    ds::StateMachine<FetchState> sm;
+
   public:
     QuoteEndorsementsClient(const std::shared_ptr<RPCSessions>& rpcsessions_) :
-      rpcsessions(rpcsessions_){};
+      rpcsessions(rpcsessions_),
+      sm("QuoteEndorsementsClient", FetchState::Uninitialised){};
 
     void fetch_endorsements(
       const pal::EndorsementEndpointConfiguration& config,
       QuoteEndorsementsFetchedCallback cb)
     {
+      sm.advance(FetchState::FetchingVcek);
+
       // Note: server CA is not checked here as this client is not sending
       // private data. If the server was malicious and the certificate chain was
       // bogus, the verification of the endorsement of the quote would fail
@@ -33,33 +46,44 @@ namespace ccf
           nullptr, std::nullopt, std::nullopt, std::nullopt, false));
 
       unauthenticated_client->connect(
-        config.host,
-        config.port,
-        [cb](
+        config.endpoints.front().host,
+        config.endpoints.front().port,
+        [this, cb](
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
+          sm.expect(FetchState::FetchingVcek);
           if (status != HTTP_STATUS_OK)
           {
             LOG_FAIL_FMT(
               "Error fetching endorsements for attestation report: {}", status);
           }
 
-          cb(std::move(data));
+          LOG_INFO_FMT(
+            "Successfully retrieved endorsements for attestation report: {} "
+            "bytes",
+            data.size());
+
+          // cb(std::move(data));
+          sm.advance(FetchState::Done);
         },
         [](const std::string& error_msg) {
           // TLS errors should be handled here
         });
 
-      http::Request r(config.uri, HTTP_GET);
-      for (auto const& [k, v] : config.params)
+      http::Request r(config.endpoints.front().uri, HTTP_GET);
+      for (auto const& [k, v] : config.endpoints.front().params)
       {
         r.set_query_param(k, v);
       }
-      r.set_header(http::headers::HOST, config.host);
-      unauthenticated_client->send_request(r);
+      r.set_header(http::headers::HOST, config.endpoints.front().host);
+
       LOG_INFO_FMT(
-        "Fetching endorsements for attestation report at {}", config.host);
+        "Fetching endorsements for attestation report at https://{}{}{}",
+        config.endpoints.front().host,
+        r.get_path(),
+        r.get_formatted_query());
+      unauthenticated_client->send_request(r);
     }
   };
 }
