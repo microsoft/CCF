@@ -138,29 +138,51 @@ def test_streaming(network, args):
     )
 
     def echo_op(s):
-        return StringOps.OpIn(echo=StringOps.EchoOp(body=s))
+        return (StringOps.OpIn(echo=StringOps.EchoOp(body=s)), ("echoed", s))
 
     def reverse_op(s):
-        return StringOps.OpIn(reverse=StringOps.ReverseOp(body=s))
+        return (
+            StringOps.OpIn(reverse=StringOps.ReverseOp(body=s)),
+            ("reversed", s[::-1]),
+        )
 
     def truncate_op(s):
         start = random.randint(0, len(s))
         end = random.randint(start, len(s))
-        return StringOps.OpIn(
-            truncate=StringOps.TruncateOp(body=s, start=start, end=end)
+        return (
+            StringOps.OpIn(truncate=StringOps.TruncateOp(body=s, start=start, end=end)),
+            ("truncated", s[start:end]),
         )
 
     def empty_op(s):
         # oneof may always be null - generate some like this to make sure they're handled "correctly"
-        return StringOps.OpIn()
+        return (StringOps.OpIn(), None)
 
     def generate_ops(n):
         for _ in range(n):
             s = f"I'm random string {n}: {random.random()}"
             yield random.choice((echo_op, reverse_op, truncate_op, empty_op))(s)
 
-    def gen_len(gen):
-        return sum(1 for _ in gen)
+    def compare_op_results(stub, n_ops):
+        ops = []
+        expected_results = []
+        for op, expected_result in generate_ops(n_ops):
+            ops.append(op)
+            expected_results.append(expected_result)
+
+        for actual_result in stub.RunOps(op for op in ops):
+            assert len(expected_results) > 0, "More responses than requests"
+            expected_result = expected_results.pop(0)
+            if expected_result is None:
+                assert not actual_result.HasField("result"), actual_result
+            else:
+                field_name, expected = expected_result
+                actual = getattr(actual_result, field_name).body
+                assert (
+                    actual == expected
+                ), f"Wrong {field_name} op: {actual} != {expected}"
+
+        assert len(expected_results) == 0, "Fewer responses than requests"
 
     with grpc.secure_channel(
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
@@ -168,13 +190,9 @@ def test_streaming(network, args):
     ) as channel:
         stub = StringOpsService.TestStub(channel)
 
-        r = stub.RunOps(generate_ops(0))
-        gl = gen_len(r)
-        assert gl == 0, gl
-
-        r = stub.RunOps(generate_ops(30))
-        gl = gen_len(r)
-        assert gl == 30, gl
+        compare_op_results(stub, 0)
+        compare_op_results(stub, 1)
+        compare_op_results(stub, 30)
 
 
 def run(args):
@@ -185,7 +203,7 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        # test_put_get(network, args)
+        test_put_get(network, args)
         test_streaming(network, args)
 
 

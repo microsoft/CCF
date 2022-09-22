@@ -235,7 +235,9 @@ namespace externalexecutor
               LOG_INFO_FMT("Got kTruncate");
               auto* truncate_op = op.mutable_truncate();
               std::string* s = truncate_op->release_body();
-              *s = s->substr(truncate_op->start(), truncate_op->end());
+              *s = s->substr(
+                truncate_op->start(),
+                truncate_op->end() - truncate_op->start());
               auto* truncated = result.mutable_truncated();
               truncated->set_allocated_body(s);
               break;
