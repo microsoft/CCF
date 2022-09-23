@@ -98,30 +98,13 @@ namespace ccf
       {}
     }
 
-  public:
-    QuoteEndorsementsClient(const std::shared_ptr<RPCSessions>& rpcsessions_) :
-      rpcsessions(rpcsessions_),
-      sm("QuoteEndorsementsClient", FetchState::Uninitialised){};
-
-    void fetch_endorsements(
-      const pal::EndorsementEndpointsConfiguration& config_,
-      QuoteEndorsementsFetchedCallback cb)
+    void fetch(
+      const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint)
     {
-      // TODO: Pass these on constructor instead?
-      done_cb = cb;
-      config = config_;
-
-      if (config.endpoints.empty())
-      {
-        throw std::logic_error("No endpoint specified to fetch endorsements");
-      }
-
-      auto& next_endpoint = config.endpoints.front();
-
       auto c = create_unauthenticated_client();
       c->connect(
-        next_endpoint.host,
-        next_endpoint.port,
+        endpoint.host,
+        endpoint.port,
         [this](
           http_status status,
           http::HeaderMap&& headers,
@@ -157,8 +140,28 @@ namespace ccf
         [](const std::string& error_msg) {
           // TLS errors should be handled here
         });
+      send_request(c, endpoint);
+    }
 
-      send_request(c, next_endpoint);
+  public:
+    QuoteEndorsementsClient(const std::shared_ptr<RPCSessions>& rpcsessions_) :
+      rpcsessions(rpcsessions_),
+      sm("QuoteEndorsementsClient", FetchState::Uninitialised){};
+
+    void fetch_endorsements(
+      const pal::EndorsementEndpointsConfiguration& config_,
+      QuoteEndorsementsFetchedCallback cb)
+    {
+      // TODO: Pass these on constructor instead?
+      done_cb = cb;
+      config = config_;
+
+      if (config.endpoints.empty())
+      {
+        throw std::logic_error("No endpoint specified to fetch endorsements");
+      }
+
+      fetch(config.endpoints.front());
     }
   };
 }
