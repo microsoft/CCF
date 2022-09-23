@@ -41,6 +41,63 @@ namespace ccf
         nullptr, std::nullopt, std::nullopt, std::nullopt, false));
     }
 
+    void send_request(
+      const std::shared_ptr<ClientEndpoint>& client,
+      const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint)
+    {
+      http::Request r(endpoint.uri, HTTP_GET);
+      for (auto const& [k, v] : endpoint.params)
+      {
+        r.set_query_param(k, v);
+      }
+      r.set_header(http::headers::HOST, endpoint.host);
+
+      LOG_INFO_FMT(
+        "Fetching endorsements for attestation report at https://{}{}{}",
+        endpoint.host,
+        r.get_path(),
+        r.get_formatted_query());
+      client->send_request(r);
+    }
+
+    void handle_success_response(
+      const std::string& content_type, std::vector<uint8_t>&& data)
+    {
+      if (content_type == http::headervalues::contenttype::OCTET_STREAM)
+      {
+        // If endpoint returns octet-stream content, assume that response is
+        // DER-encoded certificate
+        auto pem = crypto::cert_der_to_pem(data);
+        auto raw = pem.raw();
+        LOG_FAIL_FMT("pem: {}", pem.str());
+        endorsements.insert(endorsements.end(), raw.begin(), raw.end());
+      }
+      else
+      {
+        // Otherwise, assume that is PEM
+        endorsements.insert(
+          endorsements.end(),
+          std::make_move_iterator(data.begin()),
+          std::make_move_iterator(data.end()));
+      }
+
+      // TODO:
+      // 0. Store first response
+      // 1. Call second endpoint when first one has succeeded (AMD only)
+      // 2. When done, call cb(std::move(endorsements))
+      // 3. Support Azure endpoint too
+
+      // cb(std::move(data));
+      config.endpoints.pop_front();
+
+      if (config.endpoints.empty())
+      {
+        done_cb(std::move(endorsements));
+      }
+      else
+      {}
+    }
+
   public:
     QuoteEndorsementsClient(const std::shared_ptr<RPCSessions>& rpcsessions_) :
       rpcsessions(rpcsessions_),
@@ -50,6 +107,7 @@ namespace ccf
       const pal::EndorsementEndpointsConfiguration& config_,
       QuoteEndorsementsFetchedCallback cb)
     {
+      // TODO: Pass these on constructor instead?
       done_cb = cb;
       config = config_;
 
@@ -64,7 +122,7 @@ namespace ccf
       c->connect(
         next_endpoint.host,
         next_endpoint.port,
-        [this, cb](
+        [this](
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
@@ -94,50 +152,13 @@ namespace ccf
           LOG_FAIL_FMT("Content type: {}", content_type);
           LOG_FAIL_FMT("data: {}", data);
 
-          if (content_type == http::headervalues::contenttype::OCTET_STREAM)
-          {
-            // If endpoint returns octet-stream content, assume that response is
-            // DER-encoded certificate
-            auto pem = crypto::cert_der_to_pem(data);
-            auto raw = pem.raw();
-            LOG_FAIL_FMT("pem: {}", pem.str());
-            endorsements.insert(endorsements.end(), raw.begin(), raw.end());
-          }
-          else
-          {
-            // Otherwise, assume that is PEM
-            endorsements.insert(
-              endorsements.end(),
-              std::make_move_iterator(data.begin()),
-              std::make_move_iterator(data.end()));
-          }
-
-          // TODO:
-          // 0. Store first response
-          // 1. Call second endpoint when first one has succeeded (AMD only)
-          // 2. When done, call cb(std::move(endorsements))
-          // 3. Support Azure endpoint too
-
-          // cb(std::move(data));
-          config.endpoints.pop_front();
+          handle_success_response(content_type, std::move(data));
         },
         [](const std::string& error_msg) {
           // TLS errors should be handled here
         });
 
-      http::Request r(next_endpoint.uri, HTTP_GET);
-      for (auto const& [k, v] : next_endpoint.params)
-      {
-        r.set_query_param(k, v);
-      }
-      r.set_header(http::headers::HOST, next_endpoint.host);
-
-      LOG_INFO_FMT(
-        "Fetching endorsements for attestation report at https://{}{}{}",
-        next_endpoint.host,
-        r.get_path(),
-        r.get_formatted_query());
-      c->send_request(r);
+      send_request(c, next_endpoint);
     }
   };
 }
