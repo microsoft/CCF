@@ -41,6 +41,9 @@ namespace ccf::endpoints
         ds::openapi::response(path_op, endpoint->success_status);
       }
 
+      // Add a default error response
+      ds::openapi::error_response_default(path_op);
+
       if (!endpoint->authn_policies.empty())
       {
         for (const auto& auth_policy : endpoint->authn_policies)
@@ -260,12 +263,13 @@ namespace ccf::endpoints
 
     // Add a default error response definition
     auto& responses = document["components"]["responses"];
-    auto& default_error = responses["ErrorResponse"];
+    auto& default_error = responses["default"];
+    ds::openapi::schema(
+      ds::openapi::media_type(default_error, "application/json"))["$ref"] =
+      "#/components/schemas/CCFError";
     default_error["description"] =
       "An error occurred. The possible HTTP status, code, and message strings "
       "are listed below";
-    auto& schema = default_error["schema"];
-    schema["$ref"] = "#/components/schemas/CCFError";
 
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
