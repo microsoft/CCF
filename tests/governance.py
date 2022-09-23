@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 import http
+from pprint import pprint
 import subprocess
 import infra.network
 import infra.path
@@ -20,6 +21,8 @@ from infra.runner import ConcurrentRunner
 import governance_history
 import tempfile
 import infra.interfaces
+import pprint
+import signing
 
 from loguru import logger as LOG
 
@@ -592,6 +595,18 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
             ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
 
 
+@reqs.description("Test COSE Sign1 auth")
+def test_all_nodes_cert_renewal(network, args):
+    primary, _ = network.find_primary()
+    identity = primary.identity("member0")
+    signed_statement = signing.create_cose_sign1(
+        b"body", open(identity.key).read(), open(identity.cert).read(), {}
+    )
+    with primary.client() as c:
+        r = c.post("/gov/test", body=signed_statement, headers={"content-type": "application/cose"})
+        pprint.pprint(r.body.json())
+
+
 def gov(args):
     for node in args.nodes:
         node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
@@ -636,6 +651,11 @@ def js_gov(args):
         governance_js.test_set_constitution(network, args)
 
 
+def cose(args):
+    with infra.network.network(args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb) as network:
+        network.start_and_open(args)
+        test_all_nodes_cert_renewal(network, args)
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -646,39 +666,48 @@ if __name__ == "__main__":
         )
 
     cr = ConcurrentRunner(add)
-
     cr.add(
-        "session_auth",
-        gov,
+        "cose",
+        cose,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session=True,
     )
+    cr.run(1)    
 
-    cr.add(
-        "session_noauth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=False,
-    )
+    # cr.add(
+    #     "session_auth",
+    #     gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=True,
+    # )
 
-    cr.add(
-        "js",
-        js_gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
+    # cr.add(
+    #     "session_noauth",
+    #     gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=False,
+    # )
 
-    cr.add(
-        "history",
-        governance_history.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "js",
+    #     js_gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=True,
+    # )
 
-    cr.run(2)
+    # cr.add(
+    #     "history",
+    #     governance_history.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
+
+    # cr.run(2)
