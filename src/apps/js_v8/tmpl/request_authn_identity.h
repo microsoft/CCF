@@ -5,10 +5,10 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
+#include "ccf/endpoints/authentication/cose_auth.h"
 #include "ccf/endpoints/authentication/empty_auth.h"
 #include "ccf/endpoints/authentication/jwt_auth.h"
 #include "ccf/endpoints/authentication/sig_auth.h"
-#include "ccf/endpoints/authentication/cose_auth.h"
 #include "ccf/tx.h"
 
 #include <v8.h>

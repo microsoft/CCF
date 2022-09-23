@@ -516,7 +516,8 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers();
 
-      const AuthnPolicies member_sig_only = {member_signature_auth_policy};
+      const AuthnPolicies member_sig_only = {
+        member_signature_auth_policy, member_cose_sign1_auth_policy};
 
       const AuthnPolicies member_cert_or_sig = {
         member_cert_auth_policy, member_signature_auth_policy};

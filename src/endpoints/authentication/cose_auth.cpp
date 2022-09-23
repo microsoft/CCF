@@ -21,8 +21,8 @@ namespace ccf
   {
     static constexpr int64_t COSE_HEADER_PARAM_ALG = 1;
     static constexpr int64_t COSE_HEADER_PARAM_KID = 4;
-    //static constexpr const char* COSE_HEADER_PARAM_??? = "";
-    //static constexpr const char* COSE_HEADER_PARAM_??? = "";
+    // static constexpr const char* COSE_HEADER_PARAM_??? = "";
+    // static constexpr const char* COSE_HEADER_PARAM_??? = "";
 
     struct COSEDecodeError : public std::runtime_error
     {
@@ -35,12 +35,13 @@ namespace ccf
       std::optional<std::string> kid;
     };
 
-    std::string qcbor_buf_to_string(const UsefulBufC &buf)
+    std::string qcbor_buf_to_string(const UsefulBufC& buf)
     {
-      return std::string(reinterpret_cast<const char *>(buf.ptr), buf.len);
+      return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
     }
 
-    ProtectedHeader decode_protected_header(const std::vector<uint8_t> &cose_sign1)
+    ProtectedHeader decode_protected_header(
+      const std::vector<uint8_t>& cose_sign1)
     {
       ProtectedHeader parsed;
 
@@ -67,10 +68,12 @@ namespace ccf
       }
 
       struct q_useful_buf_c protected_parameters;
-      QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+      QCBORDecode_EnterBstrWrapped(
+        &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
       QCBORDecode_EnterMap(&ctx, NULL);
 
-      enum {
+      enum
+      {
         ALG_INDEX,
         KID_INDEX,
         END_INDEX,
@@ -124,6 +127,7 @@ namespace ccf
     if (true /* Check content type */)
     {
       auto phdr = cose::decode_protected_header(ctx->get_request_body());
+      LOG_INFO_FMT("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
       /*
       MemberCerts members_certs_table(Tables::MEMBER_CERTS);
       auto member_certs = tx.ro(members_certs_table);
@@ -149,7 +153,8 @@ namespace ccf
       ccf::errors::InvalidAuthenticationInfo,
       std::move(error_reason));
     ctx->set_response_header(
-      http::headers::WWW_AUTHENTICATE, "COSE-SIGN1 realm=\"Signed request access\"");
+      http::headers::WWW_AUTHENTICATE,
+      "COSE-SIGN1 realm=\"Signed request access\"");
   }
 
   const OpenAPISecuritySchema MemberCOSESign1AuthnPolicy::security_schema =
@@ -159,6 +164,7 @@ namespace ccf
         {"type", "http"},
         {"scheme", "cose_sign1"},
         {"description",
-         "Request payload must be a COSE Sign1 document, with expected protected headers."
+         "Request payload must be a COSE Sign1 document, with expected "
+         "protected headers."
          "Signer must be a member identity registered with this service."}});
 }
