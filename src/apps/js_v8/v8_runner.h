@@ -94,7 +94,7 @@ namespace ccf
     {
       return isolate_;
     }
-    operator v8::Isolate *()
+    operator v8::Isolate*()
     {
       return isolate_;
     }
