@@ -176,6 +176,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/json_handler.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
@@ -346,6 +347,8 @@ install(
 # CCF endpoints libs
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+  target_link_libraries(ccf_endpoints.enclave PUBLIC qcbor.enclave)
+  target_link_libraries(ccf_endpoints.enclave PUBLIC t_cose.enclave)
   add_warning_checks(ccf_endpoints.enclave)
   install(
     TARGETS ccf_endpoints.enclave
@@ -354,6 +357,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 endif()
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
+target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 install(

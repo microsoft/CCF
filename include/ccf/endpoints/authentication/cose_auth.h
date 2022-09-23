@@ -26,7 +26,6 @@ namespace ccf
   {
   protected:
     static const OpenAPISecuritySchema security_schema;
-    std::unique_ptr<VerifierCache> verifiers;
 
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "member_cose_sign1";

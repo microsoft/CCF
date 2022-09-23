@@ -1,5 +1,5 @@
 # Build t_cose
-set(T_COSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/internal/t_cose")
+set(T_COSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/t_cose")
 set(T_COSE_SRC "${T_COSE_DIR}/src")
 set(T_COSE_INC "${T_COSE_DIR}/inc")
 set(T_COSE_DEFS -DT_COSE_USE_OPENSSL_CRYPTO=1)
@@ -15,18 +15,45 @@ if ("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library_c(t_cose.enclave ${T_COSE_SRCS})
   target_compile_definitions(t_cose.enclave PRIVATE ${T_COSE_DEFS})
   target_compile_options(t_cose.enclave INTERFACE ${T_COSE_OPTS_INTERFACE})
-  target_include_directories(t_cose.enclave PUBLIC "${T_COSE_INC}" PRIVATE "${T_COSE_SRC}")
+
+  target_include_directories(t_cose.enclave PRIVATE "${T_COSE_SRC}")
+  target_include_directories(
+    t_cose.enclave
+    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose>
+           $<INSTALL_INTERFACE:include/3rdparty/t_cose>
+  )
+
   target_link_libraries(t_cose.enclave PUBLIC qcbor.enclave)
   # TODO why is this needed?
   # target_link_libraries(t_cose.enclave PRIVATE openenclave::oecryptoopenssl)
+
+  install(
+    TARGETS t_cose.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )    
 endif()
 if ("virtual" IN_LIST COMPILE_TARGETS)
   find_package(OpenSSL REQUIRED)
-  add_library(t_cose.virtual STATIC ${T_COSE_SRCS})
-  target_compile_definitions(t_cose.virtual PRIVATE ${T_COSE_DEFS})
-  target_compile_options(t_cose.virtual INTERFACE ${T_COSE_OPTS_INTERFACE})
-  target_include_directories(t_cose.virtual PUBLIC "${T_COSE_INC}" PRIVATE "${T_COSE_SRC}")
-  target_link_libraries(t_cose.virtual PUBLIC qcbor.virtual OpenSSL::Crypto)
-  set_property(TARGET t_cose.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
-  add_san(t_cose.virtual)
+  add_library(t_cose.host STATIC ${T_COSE_SRCS})
+  target_compile_definitions(t_cose.host PRIVATE ${T_COSE_DEFS})
+  target_compile_options(t_cose.host INTERFACE ${T_COSE_OPTS_INTERFACE})
+
+  target_include_directories(t_cose.host PRIVATE "${T_COSE_SRC}")
+
+  target_include_directories(
+    t_cose.host
+    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose>
+           $<INSTALL_INTERFACE:include/3rdparty/t_cose>
+  )
+
+  target_link_libraries(t_cose.host PUBLIC qcbor.host OpenSSL::Crypto)
+  set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+  add_san(t_cose.host)
+
+  install(
+    TARGETS t_cose.host
+    EXPORT ccf
+    DESTINATION lib
+  )  
 endif()
