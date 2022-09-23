@@ -10,6 +10,7 @@
 #include "ccf/service/tables/users.h"
 #include "ds/lru.h"
 #include "http/http_sig.h"
+#include "ccf/http_consts.h"
 
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
@@ -124,6 +125,19 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
+    const auto& headers = ctx->get_request_headers();
+    const auto content_type_it = headers.find(http::headers::CONTENT_TYPE);
+    if (content_type_it == headers.end())
+    {
+      error_reason = fmt::format("Missing {} header", http::headers::CONTENT_TYPE);
+      return nullptr;
+    }
+    if (content_type_it->second != "application/cose")
+    {
+      error_reason = "Content type is not set to application/cose";
+      return nullptr;
+    }
+
     if (true /* Check content type */)
     {
       auto phdr = cose::decode_protected_header(ctx->get_request_body());
