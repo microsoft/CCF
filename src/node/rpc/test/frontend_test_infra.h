@@ -102,7 +102,7 @@ std::vector<uint8_t> create_signed_request(
                                        serdes::pack(params, default_pack);
   r.set_body(&body);
 
-  const auto contents = caller.contents();
+  const auto contents = caller.raw();
   auto caller_der = crypto::cert_pem_to_der(caller);
   const auto key_id = crypto::Sha256Hash(caller_der).hex_str();
 

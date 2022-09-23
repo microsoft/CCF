@@ -22,7 +22,7 @@
 
 namespace ccf::pal
 {
-  struct EndorsementEndpointConfiguration
+  struct EndorsementEndpointsConfiguration
   {
     struct EndpointInfo
     {
@@ -31,6 +31,7 @@ namespace ccf::pal
       std::string uri;
       std::map<std::string, std::string> params;
     };
+    // Endorsement
     std::list<EndpointInfo> endpoints;
   };
 
@@ -38,7 +39,7 @@ namespace ccf::pal
   // config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
   using RetrieveEndorsementCallback = std::function<void(
-    QuoteInfo quote_info, const EndorsementEndpointConfiguration& config)>;
+    QuoteInfo quote_info, const EndorsementEndpointsConfiguration& config)>;
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
@@ -104,7 +105,10 @@ namespace ccf::pal
       params["snpSPL"] = fmt::format("{}", quote->reported_tcb.snp);
       params["ucodeSPL"] = fmt::format("{}", quote->reported_tcb.microcode);
 
-      EndorsementEndpointConfiguration config;
+      // TODO: Move to configuration
+      // See https://www.amd.com/system/files/TechDocs/57230.pdf
+      // $ curl https://kdsintf.amd.com/vcek/v1/Milan/cert_chain
+      EndorsementEndpointsConfiguration config;
       config.endpoints.push_back(
         {"kdsintf.amd.com",
          "443",
@@ -113,6 +117,11 @@ namespace ccf::pal
            product_name,
            fmt::format("{:02x}", fmt::join(quote->chip_id, ""))),
          params});
+      config.endpoints.push_back(
+        {"kdsintf.amd.com",
+         "443",
+         fmt::format("/vcek/v1/{}/cert_chain", product_name),
+         {}});
 
       endorsement_cb(node_quote_info, config);
     }
