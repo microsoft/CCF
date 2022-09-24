@@ -5,11 +5,12 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 
+#include <functional>
+
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
 #  include "ccf/pal/attestation_sev_snp.h"
-#  include "clients/rpc_tls_client.h"
 #  include "crypto/ecdsa.h"
 
 #  include <fcntl.h>
@@ -17,15 +18,29 @@
 #  include <unistd.h>
 #else
 #  include "ccf/pal/attestation_sgx.h"
-
-#  include <openenclave/attestation/attester.h>
 #endif
 
 namespace ccf::pal
 {
+  struct EndorsementEndpointConfiguration
+  {
+    std::string host;
+    std::string port;
+    std::string uri;
+    std::map<std::string, std::string> params;
+  };
+
+  // Caller-supplied callback used to retrieve endorsements as specified by the
+  // config argument. When called back, the quote_info argument will have
+  // already been populated with the raw quote.
+  using RetrieveEndorsementCallback = std::function<void(
+    QuoteInfo quote_info, const EndorsementEndpointConfiguration& config)>;
+
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-  static QuoteInfo generate_quote(attestation_report_data& report_data)
+  static void generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb)
   {
     QuoteInfo node_quote_info = {};
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -35,75 +50,59 @@ namespace ccf::pal
     if (!is_sev_snp)
     {
       node_quote_info.format = QuoteFormat::insecure_virtual;
+      endorsement_cb(node_quote_info, {});
+      return;
     }
-    else
+
+    node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
+    int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
+    if (fd < 0)
     {
-      node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
-      int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
-      if (fd < 0)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to open \"{}\"", snp::DEVICE));
-      }
-
-      snp::AttestationReq req = {};
-      snp::AttestationResp resp = {};
-
-      // Arbitrary report data
-      memcpy(req.report_data, report_data.data(), attestation_report_data_size);
-
-      // Documented at
-      // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
-      snp::GuestRequest payload = {
-        .req_msg_type = snp::MSG_REPORT_REQ,
-        .rsp_msg_type = snp::MSG_REPORT_RSP,
-        .msg_version = 1,
-        .request_len = sizeof(req),
-        .request_uaddr = reinterpret_cast<uint64_t>(&req),
-        .response_len = sizeof(resp),
-        .response_uaddr = reinterpret_cast<uint64_t>(&resp),
-        .error = 0};
-
-      int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
-      if (rc < 0)
-      {
-        CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-        CCF_APP_FAIL("Payload error: {}", payload.error);
-        throw std::logic_error(
-          "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
-      }
-
-      auto quote = &resp.report;
-      auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
-      node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
-
-      client::RpcTlsClient client{
-        "americas.test.acccache.azure.net",
-        "443",
-        nullptr,
-        std::make_shared<tls::Cert>(
-          nullptr, std::nullopt, std::nullopt, std::nullopt, false)};
-
-      auto params = nlohmann::json::object();
-      params["api-version"] = "2020-10-15-preview";
-
-      auto response = client.get(
-        fmt::format(
-          "/SevSnpVM/certificates/{}/{}",
-          fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
-          fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
-        params);
-
-      if (response.status != HTTP_STATUS_OK)
-      {
-        throw std::logic_error("Failed to get attestation endorsements");
-      }
-
-      node_quote_info.endorsements.assign(
-        response.body.begin(), response.body.end());
+      throw std::logic_error(fmt::format("Failed to open \"{}\"", snp::DEVICE));
     }
 
-    return node_quote_info;
+    snp::AttestationReq req = {};
+    snp::AttestationResp resp = {};
+
+    // Arbitrary report data
+    memcpy(req.report_data, report_data.data(), attestation_report_data_size);
+
+    // Documented at
+    // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
+    snp::GuestRequest payload = {
+      .req_msg_type = snp::MSG_REPORT_REQ,
+      .rsp_msg_type = snp::MSG_REPORT_RSP,
+      .msg_version = 1,
+      .request_len = sizeof(req),
+      .request_uaddr = reinterpret_cast<uint64_t>(&req),
+      .response_len = sizeof(resp),
+      .response_uaddr = reinterpret_cast<uint64_t>(&resp),
+      .error = 0};
+
+    int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
+    if (rc < 0)
+    {
+      CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
+      CCF_APP_FAIL("Payload error: {}", payload.error);
+      throw std::logic_error("Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
+    }
+
+    auto quote = &resp.report;
+    auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
+    node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
+
+    if (endorsement_cb != nullptr)
+    {
+      endorsement_cb(
+        node_quote_info,
+        {"americas.test.acccache.azure.net",
+         "443",
+         fmt::format(
+           "/SevSnpVM/certificates/{}/{}",
+           fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
+           fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
+         {{"api-version", "2020-10-15-preview"}}});
+    }
   }
 
   static void verify_quote(
@@ -207,7 +206,9 @@ namespace ccf::pal
     {
       if (is_sev_snp)
       {
-        throw std::logic_error("Cannot verify non SEV-SNP attestation report");
+        throw std::logic_error(fmt::format(
+          "Cannot verify non SEV-SNP attestation report: {}",
+          quote_info.format));
       }
       else
       {
@@ -219,7 +220,9 @@ namespace ccf::pal
 
 #else
 
-  static QuoteInfo generate_quote(attestation_report_data& report_data)
+  static void generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb)
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::oe_sgx_v1;
@@ -269,7 +272,10 @@ namespace ccf::pal
     node_quote_info.endorsements.assign(
       endorsements.buffer, endorsements.buffer + endorsements.size);
 
-    return node_quote_info;
+    if (endorsement_cb != nullptr)
+    {
+      endorsement_cb(node_quote_info, {});
+    }
   }
 
   static void verify_quote(

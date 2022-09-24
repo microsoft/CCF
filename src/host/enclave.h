@@ -183,7 +183,7 @@ namespace host
       const auto padded_size = (config.size() + 7) & ~(7ull);
       if (config.size() != padded_size)
       {
-        LOG_INFO_FMT(
+        LOG_DEBUG_FMT(
           "Padding config with {} additional nulls",
           padded_size - config.size());
         config.resize(padded_size);
