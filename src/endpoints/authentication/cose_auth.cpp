@@ -3,19 +3,20 @@
 
 #include "ccf/endpoints/authentication/cose_auth.h"
 
-#include "ccf/crypto/verifier.h"
 #include "ccf/crypto/public_key.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/http_consts.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/users.h"
 #include "ds/lru.h"
 #include "http/http_sig.h"
-#include "ccf/http_consts.h"
 
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
 #include <t_cose/t_cose_sign1_verify.h>
+//#include <t_cose/t_cose_common.h>
 
 namespace ccf
 {
@@ -116,51 +117,62 @@ namespace ccf
       return parsed;
     }
 
-    struct COSESignatureValidationError : public std::runtime_error
-  {
-    COSESignatureValidationError(const std::string& msg) : std::runtime_error(msg) {}
-  };
-
-  /**
-   * Verify the signature of a COSE Sign1 message using the given public key.
-   *
-   * Beyond the basic verification of key usage and the signature
-   * itself, no particular validation of the message is done.
-   */
-  /*
-  void verify(const std::vector<uint8_t> &cose_sign1, int64_t alg, const crypto::PublicKey& key)
-  {
-    auto phdr = decode_protected_header(cose_sign1);
-    auto key_alg = key.get_cose_alg();
-    if (key_alg.has_value() && phdr.alg != key_alg.value())
+    bool is_ecdsa_alg(int64_t cose_alg)
     {
-      throw COSESignatureValidationError("Algorithm mismatch between protected header and public key");
+      return cose_alg == T_COSE_ALGORITHM_ES256 ||
+        cose_alg == T_COSE_ALGORITHM_ES384 ||
+        cose_alg == T_COSE_ALGORITHM_ES512;
     }
 
-    if (is_ecdsa_alg(phdr.alg))
+    struct COSESignatureValidationError : public std::runtime_error
     {
-      q_useful_buf_c signed_cose;
-      signed_cose.ptr = cose_sign1.data();
-      signed_cose.len = cose_sign1.size();
+      COSESignatureValidationError(const std::string& msg) :
+        std::runtime_error(msg)
+      {}
+    };
 
-      t_cose_key cose_key;
-      cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-      EVP_PKEY* evp_key = key.get_evp_pkey();
-      cose_key.k.key_ptr = evp_key;
-
-      t_cose_sign1_verify_ctx verify_ctx;
-      t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
-      t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
-
-      q_useful_buf_c returned_payload;
-      t_cose_err_t error = t_cose_sign1_verify(&verify_ctx, signed_cose, &returned_payload, nullptr);
-      if (error)
+    /**
+     * Verify the signature of a COSE Sign1 message using the given public key.
+     *
+     * Beyond the basic verification of key usage and the signature
+     * itself, no particular validation of the message is done.
+     */
+    /*
+    void verify(const std::vector<uint8_t> &cose_sign1, int64_t alg, const
+    crypto::PublicKey& key)
+    {
+      auto phdr = decode_protected_header(cose_sign1);
+      auto key_alg = key.get_cose_alg();
+      if (key_alg.has_value() && phdr.alg != key_alg.value())
       {
-        throw COSESignatureValidationError("Signature verification failed");
+        throw COSESignatureValidationError("Algorithm mismatch between protected
+    header and public key");
+      }
+
+      if (is_ecdsa_alg(phdr.alg))
+      {
+        q_useful_buf_c signed_cose;
+        signed_cose.ptr = cose_sign1.data();
+        signed_cose.len = cose_sign1.size();
+
+        t_cose_key cose_key;
+        cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+        EVP_PKEY* evp_key = key.get_evp_pkey();
+        cose_key.k.key_ptr = evp_key;
+
+        t_cose_sign1_verify_ctx verify_ctx;
+        t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
+        t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
+
+        q_useful_buf_c returned_payload;
+        t_cose_err_t error = t_cose_sign1_verify(&verify_ctx, signed_cose,
+    &returned_payload, nullptr); if (error)
+        {
+          throw COSESignatureValidationError("Signature verification failed");
+        }
       }
     }
-  }
-*/
+  */
   }
 
   MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy() = default;
@@ -175,7 +187,8 @@ namespace ccf
     const auto content_type_it = headers.find(http::headers::CONTENT_TYPE);
     if (content_type_it == headers.end())
     {
-      error_reason = fmt::format("Missing {} header", http::headers::CONTENT_TYPE);
+      error_reason =
+        fmt::format("Missing {} header", http::headers::CONTENT_TYPE);
       return nullptr;
     }
     if (content_type_it->second != "application/cose")
@@ -184,28 +197,38 @@ namespace ccf
       return nullptr;
     }
 
+    auto phdr = cose::decode_protected_header(ctx->get_request_body());
+    LOG_INFO_FMT("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 
-      auto phdr = cose::decode_protected_header(ctx->get_request_body());
-      LOG_INFO_FMT("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-
-      if (!phdr.kid.has_value())
-      {
+    if (!phdr.kid.has_value())
+    {
       error_reason = "No kid specified in protected headers";
       return nullptr;
-      }
-      LOG_INFO_FMT("alg: {}", phdr.alg);
-      LOG_INFO_FMT("kid: {}", phdr.kid.value());
+    }
 
-      MemberCerts members_certs_table(Tables::MEMBER_CERTS);
-      auto member_certs = tx.ro(members_certs_table);
-      auto member_cert = member_certs->get(phdr.kid.value());
-      if (member_cert.has_value())
-      {
-        LOG_INFO_FMT("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
-      }
+    if (!cose::is_ecdsa_alg(phdr.alg))
+    {
+      error_reason = fmt::format("Unsupported algorithm: {}", phdr.alg);
+      return nullptr;
+    }
+    LOG_INFO_FMT("alg: {}", phdr.alg);
+    LOG_INFO_FMT("kid: {}", phdr.kid.value());
 
-      auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
-      return identity;
+    MemberCerts members_certs_table(Tables::MEMBER_CERTS);
+    auto member_certs = tx.ro(members_certs_table);
+    auto member_cert = member_certs->get(phdr.kid.value());
+    if (member_cert.has_value())
+    {
+      LOG_INFO_FMT("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
+      auto verifier = crypto::make_verifier(member_cert.value());
+
+      q_useful_buf_c signed_cose;
+      signed_cose.ptr = ctx->get_request_body().data();
+      signed_cose.len = ctx->get_request_body().size();
+    }
+
+    auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
+    return identity;
   }
 
   void MemberCOSESign1AuthnPolicy::set_unauthenticated_error(
