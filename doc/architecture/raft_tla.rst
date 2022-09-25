@@ -27,8 +27,15 @@ To download and then run TLC, simply execute:
 
 .. code-block:: bash
 
+    $ cd tla
     $ ./download_or_update_tla.sh
-    $ ./tlc.sh raft_spec/MCraft.tla
+    $ ./tlc.sh MCraft.tla
+
+You can also check the specification including reconfiguration as follows:
+
+.. code-block:: bash
+
+    $ ./tlc.sh MCraftWithReconfig.tla -config MCraft.cfg -deadlock
 
 Running TLC on our models can take any time between minutes (for small configurations) and days (especially for the full model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
 
@@ -37,12 +44,12 @@ Running TLC on our models can take any time between minutes (for small configura
 
 .. note::  During development, it helps to use simulation mode which performs a depth-first search of the search tree (instead of the default breadth first that is very slow). Turn on the simulation mode with ``-simulate -depth 100000`` (using a very large number as a maximum depth). Note that this mode never completes (but will find errors in minutes instead of hours).
 
-The given specification consists of 5 files:
+The given specification consists of four files:
 
 - ``ccfraft.tla`` : The core formal specification that implements CCF Raft.
 - ``MCraft.tla`` : The model checking implementation for the specification (that uses a static configuration). Sets the constants and can be modified for each run to fine tune the settings, for instance to increase or decrease the size of the model checking.
 - ``MCraft.cfg`` : The core configuration that defines which invariants are to be checked etc. Usually stays untouched during normal model checking.
-- ``MCraftWithReconfig.tla`` & ``MCraftWithReconfig.cfg`` : Analogous to ``MCraft.tla`` and ``MCraft.cfg`` but with support for reconfiguration.
+- ``MCraftWithReconfig.tla``: Analogous to ``MCraft.tla`` but with support for reconfiguration.
 
 
 Building blocks of the TLA+ spec
