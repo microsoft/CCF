@@ -80,7 +80,7 @@ During the model check, the model checker will exhaustively search through all p
 Variables and their initial state
 ---------------------------------
 
-The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in ``MCraft.tla``.
+The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in :ccf_repo:`tla/MCraft.tla`.
 
 .. literalinclude:: ../../tla/ccfraft.tla
     :language: text
@@ -115,7 +115,7 @@ In CCF, the leader periodically signs the latest log prefix. Only these signatur
 Reconfiguration steps
 ---------------------
 
-The one transaction reconfiguration is already described :doc:`here </architecture/consensus/1tx-reconfig>`. In the TLA model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log. This also triggers a change in the ``Configurations`` variable which keeps track of all running configurations.
+The one transaction reconfiguration is already described :doc:`here </architecture/consensus/1tx-reconfig>`. In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log. This also triggers a change in the ``Configurations`` variable which keeps track of all running configurations.
 
 In the following, this ``Configurations`` variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
 

@@ -1,10 +1,10 @@
 ---------- MODULE MCraftWithReconfig ----------
 EXTENDS ccfraft, TLC
 
-PossibleServer_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
-PossibleConfigs_mc == <<{NodeOne, NodeTwo, NodeThree}, {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}>>
+PossibleServer_mc == {NodeOne, NodeTwo}
+PossibleConfigs_mc == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 tmp == [s \in PossibleServer_mc |-> Follower]
-InitialConfig_mc == [tmp EXCEPT ![NodeFour] = Pending, ![NodeFive] = Pending]
+InitialConfig_mc == [tmp EXCEPT ![NodeTwo] = Pending]
 
 \*  SNIPPET_START: mc_config
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
@@ -13,13 +13,13 @@ InitialConfig_mc == [tmp EXCEPT ![NodeFour] = Pending, ![NodeFive] = Pending]
 TermLimit_mc == 3
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit_mc == 1
+RequestLimit_mc == 2
 
 \* Limit on number of request votes that can be sent to each other node
 RequestVoteLimit_mc == 1
 
 \* Limit number of reconfigurations
-ReconfigurationLimit_mc == 1
+ReconfigurationLimit_mc == 2
 
 \* Limit number of duplicate messages sent to the same server
 MessagesLimit_mc == 1
