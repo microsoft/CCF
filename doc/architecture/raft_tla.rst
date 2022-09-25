@@ -1,5 +1,5 @@
 TLA+ Specification
-==========
+==================
 
 The CCF repository includes a formal specification in TLA+ of CCF's consensus algorithm, which is a variant of Raft.
 
