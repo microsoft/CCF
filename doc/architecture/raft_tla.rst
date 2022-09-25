@@ -21,24 +21,14 @@ You can find the full specification in the :ccf_repo:`tla/` directory and more i
 Running the model checker
 -------------------------
 
-The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with TLC in `version 1.7.1 <https://github.com/tlaplus/tlaplus/releases/tag/v1.7.1>`_. The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, the scripts in this folder allow you to run TLC easily.
+The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with TLC (version 2.17) from `TLA+ version 1.7.1 <https://github.com/tlaplus/tlaplus/releases/tag/v1.7.1>`_. The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, the scripts in this folder allow you to run TLC easily.
 
 To download and then run TLC, simply execute:
 
 .. code-block:: bash
 
     $ ./download_or_update_tla.sh
-    $ ./tlc.sh reduced_raft_spec/MCraft.tla
-
-
-To run the full specification, disable deadlock checking like this:
-
-.. code-block:: bash
-
-    $ ./tlc.sh raft_spec/MCraft.tla -deadlock
-
-
-Each model controls its limits in the MCraft.tla file where the constants can be modified to increase or decrease the size of the model checking.
+    $ ./tlc.sh raft_spec/MCraft.tla
 
 Running TLC on our models can take any time between minutes (for small configurations) and days (especially for the full model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
 
@@ -47,15 +37,24 @@ Running TLC on our models can take any time between minutes (for small configura
 
 .. note::  During development, it helps to use simulation mode which performs a depth-first search of the search tree (instead of the default breadth first that is very slow). Turn on the simulation mode with ``-simulate -depth 100000`` (using a very large number as a maximum depth). Note that this mode never completes (but will find errors in minutes instead of hours).
 
+The given specification consists of 5 files:
+
+- ``ccfraft.tla`` : The core formal specification that implements CCF Raft.
+- ``MCraft.tla`` : The model checking implementation for the specification (that uses a static configuration). Sets the constants and can be modified for each run to fine tune the settings, for instance to increase or decrease the size of the model checking.
+- ``MCraft.cfg`` : The core configuration that defines which invariants are to be checked etc. Usually stays untouched during normal model checking.
+- ``MCraftWithReconfig.tla`` & ``MCraftWithReconfig.cfg`` : Analogous to ``MCraft.tla`` and ``MCraft.cfg`` but with support for reconfiguration.
+
 
 Building blocks of the TLA+ spec
 --------------------------------
 
-The core model is maintained in the :ccf_repo:`tla/raft_spec/ccfraft.tla` file, however the constants defined in this file are controlled through the model check file :ccf_repo:`tla/raft_spec/MCraft.tla`.
+.. warning:: This specification was created to verify certain safety properties of the Raft protocol as it is implemented in CCF. In doing so, this specification does not check any liveness guarantees. To allow model checking in a reasonable amount of time, the implementation focuses on the safety guarantees and places certain limitations on the state space to be explored. Since these limitations can lead certain traces of the execution into a deadlock, **liveness is not checkable with this model**.
+
+The core model is maintained in the :ccf_repo:`tla/ccfraft.tla` file, however the constants defined in this file are controlled through the model check file :ccf_repo:`tla/MCraft.tla`.
 
 This file controls the constants as seen below. In addition to basic settings of how many nodes are to be model checked and their initial configuration, the model allows to place additional limitations on the state space of the program.
 
-.. literalinclude:: ../../tla/raft_spec/MCraft.tla
+.. literalinclude:: ../../tla/MCraft.tla
     :language: text
     :start-after: SNIPPET_START: mc_config
     :end-before: SNIPPET_END: mc_config
@@ -65,7 +64,7 @@ Possible state transitions in the model
 
 During the model check, the model checker will exhaustively search through all possible state transitions. The below snippet defines the possible state transitions at each step. Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step. For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
 
-.. literalinclude:: ../../tla/raft_spec/ccfraft.tla
+.. literalinclude:: ../../tla/ccfraft.tla
     :language: text
     :start-after: SNIPPET_START: next_states
     :end-before: SNIPPET_END: next_states
@@ -76,7 +75,7 @@ Variables and their initial state
 
 The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in ``MCraft.tla``.
 
-.. literalinclude:: ../../tla/raft_spec/ccfraft.tla
+.. literalinclude:: ../../tla/ccfraft.tla
     :language: text
     :start-after: SNIPPET_START: init_values
     :end-before: SNIPPET_END: init_values
@@ -91,7 +90,7 @@ Timeout
 
 Since TLA does not model time, any node can time out at any moment as a next step. Since this may lead to an infinite state space, we limited the maximum term any node can reach. While this would be overly constraining in any actual program, the model checker will ensure to also explore those states that are feasible within these limits. Since interesting traces can already be generated with one or better two term changes, this approach is feasible to model reconfigurations and check persistence.
 
-.. literalinclude:: ../../tla/raft_spec/ccfraft.tla
+.. literalinclude:: ../../tla/ccfraft.tla
     :language: text
     :start-after: SNIPPET_START: timeout
     :end-before: SNIPPET_END: timeout
@@ -101,7 +100,7 @@ Signing of log entries
 
 In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF. We model this via special ``TypeSignature`` log entries and ensure that the commitIndex can only be moved to these special entries.
 
-.. literalinclude:: ../../tla/raft_spec/ccfraft.tla
+.. literalinclude:: ../../tla/ccfraft.tla
     :language: text
     :start-after: SNIPPET_START: signing
     :end-before: SNIPPET_END: signing
@@ -113,7 +112,7 @@ The one transaction reconfiguration is already described :doc:`here </architectu
 
 In the following, this ``Configurations`` variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
 
-.. literalinclude:: ../../tla/raft_spec/ccfraft.tla
+.. literalinclude:: ../../tla/ccfraft.tla
     :language: text
     :start-after: SNIPPET_START: reconfig
     :end-before: SNIPPET_END: reconfig
