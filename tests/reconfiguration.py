@@ -5,6 +5,7 @@ import infra.network
 import infra.proc
 import infra.net
 import infra.logging_app as app
+from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
@@ -15,8 +16,10 @@ import json
 import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
+from infra.is_snp import IS_SNP
 from infra.runner import ConcurrentRunner
 import http
+import random
 
 from loguru import logger as LOG
 
@@ -257,6 +260,54 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
             copy_ledger
         ), f"New node {new_node.local_node_id} with ledger should be able to serve historical entries"
 
+    if not copy_ledger:
+        # Pick some sequence numbers before the snapshot the new node started from, and for which
+        # the new node does not have corresponding ledger chunks
+        missing_txids = []
+        with new_node.client("user0") as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            startup_seqno = r.body.json()["startup_seqno"]
+            assert startup_seqno != 0, startup_seqno
+            possible_seqno_range = range(1, startup_seqno)
+            num_samples = min(len(possible_seqno_range), 5)
+            missing_seqnos = sorted(random.sample(possible_seqno_range, num_samples))
+            LOG.info(f"Verifying status of transactions at seqnos: {missing_seqnos}")
+            view = 2
+            for seqno in missing_seqnos:
+                assert seqno != 0, "0 is not a valid seqno"
+                status = TxStatus.Invalid
+                while status == TxStatus.Invalid:
+                    r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    status = TxStatus(r.body.json()["status"])
+                    if status == TxStatus.Committed:
+                        missing_txids.append(f"{view}.{seqno}")
+                    else:
+                        # Should never happen, because we're looking at seqnos for which there
+                        # is a committed snapshot, and so are definitely committed.
+                        assert status != TxStatus.Pending, status
+                        view += 1
+                        # Not likely to happen on purpose
+                        assert view < 10, view
+
+        LOG.info("Check historical queries return ACCEPTED")
+        with new_node.client("user0") as c:
+            for txid in missing_txids:
+                # New node knows transactions are committed
+                rc = c.get(f"/node/tx?transaction_id={txid}")
+                status = TxStatus(r.body.json()["status"])
+                assert status == TxStatus.Committed
+                # But can't read their contents
+                rc = c.get(f"/app/receipt?transaction_id={txid}")
+                assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
+                time.sleep(3)
+                # Not even after giving the host enough time
+                rc = c.get(f"/app/receipt?transaction_id={txid}")
+                assert rc.status_code == http.HTTPStatus.ACCEPTED, rc
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
     return network
 
 
@@ -334,6 +385,9 @@ def test_node_filter(network, args):
         def get_nodes(status):
             r = c.get(f"/node/network/nodes?status={status}")
             nodes = r.body.json()["nodes"]
+            # Primary may change during operation, so do not check for primary equality
+            for node in nodes:
+                del node["primary"]
             return sorted(nodes, key=lambda node: node["node_id"])
 
         trusted_before = get_nodes("Trusted")
@@ -404,17 +458,36 @@ def test_issue_fake_join(network, args):
 
         LOG.info("Join with SGX real quote, but different TLS key")
         # First, retrieve real quote from primary node
-        r = c.get("/node/quotes/self").body.json()
+        own_quote = c.get("/node/quotes/self").body.json()
         req["quote_info"] = {
             "format": "OE_SGX_v1",
-            "quote": r["raw"],
-            "endorsements": r["endorsements"],
+            "quote": own_quote["raw"],
+            "endorsements": own_quote["endorsements"],
         }
         r = c.post("/node/join", body=req)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
-        if args.enclave_type == "virtual":
+        if args.enclave_type not in ("release", "debug"):
             assert r.body.json()["error"]["message"] == "Quote could not be verified"
+        else:
+            assert (
+                r.body.json()["error"]["message"]
+                == "Quote report data does not contain node's public key hash"
+            )
+
+        LOG.info("Join with AMD SEV-SNP quote")
+        req["quote_info"] = {
+            "format": "AMD_SEV_SNP_v1",
+            "quote": own_quote["raw"],
+            "endorsements": own_quote["endorsements"],
+        }
+        r = c.post("/node/join", body=req)
+        if args.enclave_type != "snp":
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+            # https://github.com/microsoft/CCF/issues/4072
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQuote"
+            ), "SEV-SNP node cannot currently join a Non-SNP network"
         else:
             assert (
                 r.body.json()["error"]["message"]
@@ -428,31 +501,14 @@ def test_issue_fake_join(network, args):
             "endorsements": "",
         }
         r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual":
+        if args.enclave_type == "virtual" and not IS_SNP:
             assert r.status_code == http.HTTPStatus.OK
             assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
         else:
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
             assert (
                 r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "Virtual node must never join SGX network"
-
-        LOG.info("Join with AMD SEV-SNP quote")
-        req["quote_info"] = {
-            "format": "AMD_SEV_SNP_v1",
-            "quote": "",
-            "endorsements": "",
-        }
-        r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual":
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
-        else:
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            # https://github.com/microsoft/CCF/issues/4072
-            assert (
-                r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "SEV-SNP node cannot currently join SGX network"
+            ), "Virtual node must never join non-virtual network"
 
     return network
 
@@ -659,7 +715,7 @@ def test_service_config_endpoint(network, args):
             assert args.reconfiguration_type == rj["reconfiguration_type"]
 
 
-def run(args):
+def run_all(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -675,6 +731,7 @@ def run(args):
         test_issue_fake_join(network, args)
 
         if args.consensus != "BFT":
+            test_add_as_many_pending_nodes(network, args)
             test_add_node_invalid_service_cert(network, args)
             test_add_node(network, args, from_snapshot=False)
             test_add_node_with_read_only_ledger(network, args)
@@ -683,7 +740,6 @@ def run(args):
             test_add_node_from_backup(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
-            test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
             test_retire_primary(network, args)
 
@@ -700,6 +756,9 @@ def run(args):
         test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
+
+    if args.consensus != "BFT":
+        run_join_old_snapshot(args)
 
 
 def run_join_old_snapshot(args):
@@ -885,12 +944,6 @@ def run_migration_tests(args):
     check_2tx_ledger(ledger_paths, learner_id)
 
 
-def run_all(args):
-    run(args)
-    if cr.args.consensus != "BFT":
-        run_join_old_snapshot(args)
-
-
 if __name__ == "__main__":
 
     def add(parser):
@@ -914,7 +967,7 @@ if __name__ == "__main__":
     if cr.args.include_2tx_reconfig:
         cr.add(
             "2tx_reconfig",
-            run,
+            run_all,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             reconfiguration_type="TwoTransaction",

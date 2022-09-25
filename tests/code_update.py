@@ -8,18 +8,27 @@ import infra.utils
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
+from infra.is_snp import IS_SNP
 
 
 from loguru import logger as LOG
 
 # Dummy code id used by virtual nodes
-VIRTUAL_CODE_ID = "0" * 64
+VIRTUAL_CODE_ID = "0" * 96
+
+# Digest of the UVM, in our control as long as we have a self hosted agent pool
+SNP_CODE_ID = "ede826880a4e1a41898a96810efb09f2070513abb355e89652564cd18f1d43a7a031d1ff54490dbd61687de101b66ed1"
 
 
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
     if args.enclave_type == "virtual":
         LOG.warning("Skipping quote test with virtual enclave")
+        return network
+    elif IS_SNP:
+        LOG.warning(
+            "Skipping quote test until there is a separate utility to verify SNP quotes"
+        )
         return network
 
     LOG.info("Check the network is stable")
@@ -45,8 +54,8 @@ def test_verify_quotes(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
-    if args.enclave_type == "virtual":
-        LOG.warning("Skipping test_add_node_with_bad_code with virtual enclave")
+    if args.enclave_type not in ("release", "debug"):
+        LOG.warning("Skipping test_add_node_with_bad_code with non-sgx enclave")
         return network
 
     replacement_package = (
@@ -95,7 +104,7 @@ def test_update_all_nodes(network, args):
         args.enclave_type, args.oe_binary, replacement_package
     )
 
-    if args.enclave_type == "virtual":
+    if args.enclave_type not in ("release", "debug"):
         # Pretend this was already present
         network.consortium.add_new_code(primary, first_code_id)
 
@@ -104,30 +113,72 @@ def test_update_all_nodes(network, args):
     with primary.client() as uc:
         r = uc.get("/node/code")
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-        expected = sorted(
-            [
-                {"digest": first_code_id, "status": "AllowedToJoin"},
-                {"digest": new_code_id, "status": "AllowedToJoin"},
-            ],
-            key=lambda x: x["digest"],
-        )
+        expected = [
+            {
+                "digest": first_code_id,
+                "status": "AllowedToJoin",
+                "platform": "OE_SGX_v1",
+            },
+            {
+                "digest": new_code_id,
+                "status": "AllowedToJoin",
+                "platform": "OE_SGX_v1",
+            },
+        ]
         if args.enclave_type == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
-        assert versions == expected, versions
+            if IS_SNP:
+                expected.insert(
+                    0,
+                    {
+                        "digest": SNP_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "AMD_SEV_SNP_v1",
+                    },
+                )
+            else:
+                expected.insert(
+                    0,
+                    {
+                        "digest": VIRTUAL_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "Insecure_Virtual",
+                    },
+                )
+        expected.sort(key=lambda x: x["digest"])
+        assert versions == expected, [(a, b) for a, b in zip(versions, expected)]
 
     LOG.info("Remove old code id")
     network.consortium.retire_code(primary, first_code_id)
     with primary.client() as uc:
         r = uc.get("/node/code")
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-        expected = sorted(
-            [
-                {"digest": new_code_id, "status": "AllowedToJoin"},
-            ],
-            key=lambda x: x["digest"],
-        )
+        expected = [
+            {
+                "digest": new_code_id,
+                "status": "AllowedToJoin",
+                "platform": "OE_SGX_v1",
+            },
+        ]
         if args.enclave_type == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
+            if IS_SNP:
+                expected.insert(
+                    0,
+                    {
+                        "digest": SNP_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "AMD_SEV_SNP_v1",
+                    },
+                )
+            else:
+                expected.insert(
+                    0,
+                    {
+                        "digest": VIRTUAL_CODE_ID,
+                        "status": "AllowedToJoin",
+                        "platform": "Insecure_Virtual",
+                    },
+                )
+        expected.sort(key=lambda x: x["digest"])
         assert versions == expected, versions
 
     old_nodes = network.nodes.copy()

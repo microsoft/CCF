@@ -36,8 +36,15 @@ namespace ccf
       return path_params;
     }
 
+    ccf::PathParams decoded_path_params = {};
+    virtual const ccf::PathParams& get_decoded_request_path_params() override
+    {
+      return decoded_path_params;
+    }
+
     bool is_create_request = false;
     bool execute_on_node = false;
+    bool response_is_pending = false;
 
     virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
     virtual bool should_apply_writes() const = 0;

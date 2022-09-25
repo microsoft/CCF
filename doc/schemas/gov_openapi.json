@@ -140,6 +140,9 @@
           "digest": {
             "$ref": "#/components/schemas/string"
           },
+          "platform": {
+            "$ref": "#/components/schemas/QuoteFormat"
+          },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
           }
@@ -329,6 +332,14 @@
         ],
         "type": "string"
       },
+      "QuoteFormat": {
+        "enum": [
+          "OE_SGX_v1",
+          "Insecure_Virtual",
+          "AMD_SEV_SNP_v1"
+        ],
+        "type": "string"
+      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -419,7 +430,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.7.3"
+    "version": "2.8.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -864,7 +875,7 @@
           }
         },
         "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },

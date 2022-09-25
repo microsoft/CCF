@@ -4,6 +4,7 @@
 
 #include "ccf/ccf_assert.h"
 #include "ccf/historical_queries_interface.h"
+#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
@@ -47,7 +48,8 @@ struct formatter<ccf::historical::CompoundHandle>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx)
+  auto format(
+    const ccf::historical::CompoundHandle& p, FormatContext& ctx) const
   {
     return format_to(
       ctx.out(),
@@ -502,7 +504,7 @@ namespace ccf::historical
     };
 
     // Guard all access to internal state with this lock
-    ccf::Pal::Mutex requests_lock;
+    ccf::pal::Mutex requests_lock;
 
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
@@ -747,7 +749,7 @@ namespace ccf::historical
           "Invalid range for historical query: Cannot request empty range");
       }
 
-      std::lock_guard<ccf::Pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -994,7 +996,7 @@ namespace ccf::historical
 
     bool drop_cached_states(const CompoundHandle& handle)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
       const auto erased_count = requests.erase(handle);
       return erased_count > 0;
     }
@@ -1006,7 +1008,7 @@ namespace ccf::historical
 
     bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
       const auto it = pending_fetches.find(seqno);
       if (it == pending_fetches.end())
       {
@@ -1126,7 +1128,7 @@ namespace ccf::historical
 
     void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
 
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
@@ -1215,7 +1217,7 @@ namespace ccf::historical
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
     {
-      std::lock_guard<ccf::Pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
       auto it = requests.begin();
       while (it != requests.end())
       {

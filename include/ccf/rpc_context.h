@@ -72,6 +72,12 @@ namespace ccf
     /// {"name": "bob", "age": "42"}
     virtual const PathParams& get_request_path_params() = 0;
 
+    /// Decodes the path before returning a map of all PathParams.
+    /// For example, if the endpoint was installed at `/foo/{name}/{age}`, and
+    /// for the request path `/foo/bob%3A/42`, this would return the map:
+    /// {"name": "bob:", "age": "42"}
+    virtual const PathParams& get_decoded_request_path_params() = 0;
+
     /// Returns map of all headers found in the request.
     virtual const http::HeaderMap& get_request_headers() const = 0;
 
@@ -100,6 +106,7 @@ namespace ccf
     virtual void set_response_body(std::vector<uint8_t>&& body) = 0;
     /// Sets the main body or payload of the response.
     virtual void set_response_body(std::string&& body) = 0;
+    virtual const std::vector<uint8_t>& get_response_body() const = 0;
 
     /// Sets initial status code summarising result of RPC.
     virtual void set_response_status(int status) = 0;
@@ -110,6 +117,13 @@ namespace ccf
     virtual void set_response_header(const std::string_view& name, size_t n)
     {
       set_response_header(name, std::to_string(n));
+    }
+
+    virtual void set_response_trailer(
+      const std::string_view& name, const std::string_view& value) = 0;
+    virtual void set_response_trailer(const std::string_view& name, size_t n)
+    {
+      set_response_trailer(name, std::to_string(n));
     }
 
     /// Construct OData-formatted response to capture multiple error details

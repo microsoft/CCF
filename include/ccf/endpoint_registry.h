@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
-#include "ccf/ds/pal.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/tx.h"
 
@@ -127,11 +127,11 @@ namespace ccf::endpoints
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
-    ccf::Pal::Mutex metrics_lock;
+    ccf::pal::Mutex metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
-    EndpointRegistry::Metrics& get_metrics_for_endpoint(
-      const EndpointDefinitionPtr& e);
+    EndpointRegistry::Metrics& get_metrics_for_request(
+      const std::string& method, const std::string& verb);
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -228,9 +228,9 @@ namespace ccf::endpoints
 
     void set_history(kv::TxHistory* h);
 
-    virtual void increment_metrics_calls(const EndpointDefinitionPtr& e);
-    virtual void increment_metrics_errors(const EndpointDefinitionPtr& e);
-    virtual void increment_metrics_failures(const EndpointDefinitionPtr& e);
-    virtual void increment_metrics_retries(const EndpointDefinitionPtr& e);
+    virtual void increment_metrics_calls(const ccf::RpcContext& rpc_ctx);
+    virtual void increment_metrics_errors(const ccf::RpcContext& rpc_ctx);
+    virtual void increment_metrics_failures(const ccf::RpcContext& rpc_ctx);
+    virtual void increment_metrics_retries(const ccf::RpcContext& rpc_ctx);
   };
 }

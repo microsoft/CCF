@@ -4,6 +4,8 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "ccf/pal/locking.h"
+#include "http/http_parser.h"
 #include "node/rpc/rpc_context_impl.h"
 
 namespace ccf::endpoints
@@ -115,12 +117,16 @@ namespace ccf::endpoints
     return spec;
   }
 
-  EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_endpoint(
-    const EndpointDefinitionPtr& e)
+  EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_request(
+    const std::string& method_, const std::string& verb)
   {
-    auto method = e->dispatch.uri_path;
-    method = method.substr(method.find_first_not_of('/'));
-    return metrics[method][e->dispatch.verb.c_str()];
+    auto substr_start = method_.find_first_not_of('/');
+    if (substr_start == std::string::npos)
+    {
+      substr_start = 0;
+    }
+    auto method = method_.substr(substr_start);
+    return metrics[method][verb];
   }
 
   Endpoint EndpointRegistry::make_endpoint(
@@ -138,9 +144,9 @@ namespace ccf::endpoints
     {
       endpoint.dispatch.uri_path = fmt::format("/{}", method);
     }
-    endpoint.dispatch.verb = verb;
     endpoint.full_uri_path =
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
+    endpoint.dispatch.verb = verb;
     endpoint.func = f;
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded
@@ -159,8 +165,8 @@ namespace ccf::endpoints
              method,
              verb,
              [f](EndpointContext& ctx) {
-               ReadOnlyEndpointContext ro_ctx(
-                 ctx.rpc_ctx, std::move(ctx.caller), ctx.tx);
+               ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
+               ro_ctx.caller = std::move(ctx.caller);
                f(ro_ctx);
              },
              ap)
@@ -279,7 +285,6 @@ namespace ccf::endpoints
     kv::Tx&, ccf::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
-
     auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
     if (endpoints_for_exact_method != fully_qualified_endpoints.end())
     {
@@ -318,6 +323,7 @@ namespace ccf::endpoints
                 throw std::logic_error("Unexpected type of RpcContext");
               }
               auto& path_params = ctx_impl->path_params;
+              auto& decoded_path_params = ctx_impl->decoded_path_params;
               for (size_t i = 0;
                    i < endpoint->spec.template_component_names.size();
                    ++i)
@@ -325,7 +331,9 @@ namespace ccf::endpoints
                 const auto& template_name =
                   endpoint->spec.template_component_names[i];
                 const auto& template_value = match[i + 1].str();
+                auto decoded_value = http::url_decode(template_value);
                 path_params[template_name] = template_value;
+                decoded_path_params[template_name] = decoded_value;
               }
             }
 
@@ -430,30 +438,38 @@ namespace ccf::endpoints
     history = h;
   }
 
-  void EndpointRegistry::increment_metrics_calls(const EndpointDefinitionPtr& e)
+  void EndpointRegistry::increment_metrics_calls(const ccf::RpcContext& rpc_ctx)
   {
-    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).calls++;
+    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .calls++;
   }
 
   void EndpointRegistry::increment_metrics_errors(
-    const EndpointDefinitionPtr& e)
+    const ccf::RpcContext& rpc_ctx)
   {
-    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).errors++;
+    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .errors++;
   }
 
   void EndpointRegistry::increment_metrics_failures(
-    const EndpointDefinitionPtr& e)
+    const ccf::RpcContext& rpc_ctx)
   {
-    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).failures++;
+    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .failures++;
   }
 
   void EndpointRegistry::increment_metrics_retries(
-    const EndpointDefinitionPtr& e)
+    const ccf::RpcContext& rpc_ctx)
   {
-    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
-    get_metrics_for_endpoint(e).retries++;
+    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
+    get_metrics_for_request(
+      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      .retries++;
   }
 }

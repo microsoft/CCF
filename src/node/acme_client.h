@@ -11,6 +11,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_status.h"
+#include "ccf/pal/locking.h"
 #include "ds/messaging.h"
 #include "ds/thread_messaging.h"
 #include "http/http_parser.h"
@@ -45,7 +46,7 @@ namespace ACME
     // conditions for the CA
     bool terms_of_service_agreed = false;
 
-    // Type of the ACME challenge (currently only http-01 supported)
+    // Type of the ACME challenge
     std::string challenge_type = "http-01";
 
     // Validity range (Note: not supported by Let's Encrypt)
@@ -178,7 +179,7 @@ namespace ACME
       std::function<bool(const http::HeaderMap&, const std::vector<uint8_t>&)>
         ok_callback)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(req_lock);
+      std::unique_lock<ccf::pal::Mutex> guard(req_lock);
 
       try
       {
@@ -197,7 +198,7 @@ namespace ACME
         }
         auto req = r.build_request();
         std::string reqs(req.begin(), req.end());
-        LOG_TRACE_FMT("ACME: Request:\n{}", reqs);
+        LOG_TRACE_FMT("ACME: request:\n{}", reqs);
 
         on_http_request(
           url,
@@ -245,7 +246,7 @@ namespace ACME
       }
       catch (const std::exception& ex)
       {
-        LOG_FAIL_FMT("Failed to connect to ACME server: {}", ex.what());
+        LOG_FAIL_FMT("ACME: failed to connect to ACME server: {}", ex.what());
       }
     }
 
@@ -360,8 +361,8 @@ namespace ACME
     nlohmann::json account;
     std::list<std::string> nonces;
 
-    ccf::Pal::Mutex req_lock;
-    ccf::Pal::Mutex orders_lock;
+    ccf::pal::Mutex req_lock;
+    ccf::pal::Mutex orders_lock;
 
     std::optional<std::chrono::system_clock::time_point> last_request =
       std::nullopt;
@@ -447,8 +448,8 @@ namespace ACME
         crypto::KeyPair& signer_,
         bool empty_payload = false)
       {
-        LOG_TRACE_FMT("JWS header: {}", header_.dump());
-        LOG_TRACE_FMT("JWS payload: {}", payload_.dump());
+        LOG_TRACE_FMT("ACME: JWS header: {}", header_.dump());
+        LOG_TRACE_FMT("ACME: JWS payload: {}", payload_.dump());
         auto header_b64 = json_to_b64url(header_, false);
         auto payload_b64 = empty_payload ? "" : json_to_b64url(payload_, false);
         set(header_b64, payload_b64, signer_);
@@ -583,7 +584,7 @@ namespace ACME
     {
       LOG_TRACE_FMT("ACME: removing order {}", order_url);
 
-      std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+      std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
       for (auto it = active_orders.begin(); it != active_orders.end();)
       {
         if (it->order_url == order_url)
@@ -703,7 +704,7 @@ namespace ACME
 
     void authorize_next_challenge(const std::string& order_url)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+      std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
       auto order = get_order(order_url);
 
       if (!order)
@@ -763,10 +764,10 @@ namespace ACME
             auto order_url_opt = get_header_value(headers, "location");
             if (!order_url_opt)
             {
-              throw std::runtime_error("missing order location");
+              throw std::runtime_error("Missing order location");
             }
 
-            std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+            std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
             active_orders.emplace_back(Order{
               ACTIVE, account_url, *order_url_opt, j["finalize"], "", {}, {}});
 
@@ -816,7 +817,7 @@ namespace ACME
           expect(j, "challenges");
 
           {
-            std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+            std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
             auto order = get_order(order_url);
 
             if (!order)
@@ -849,7 +850,7 @@ namespace ACME
             if (!found_match)
             {
               throw std::runtime_error(fmt::format(
-                "challenge type '{}' not offered", config.challenge_type));
+                "Challenge type '{}' not offered", config.challenge_type));
             }
           }
 
@@ -926,7 +927,7 @@ namespace ACME
     bool check_challenge(
       const std::string& order_url, const Challenge& challenge)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+      std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
       auto order = get_order(order_url);
 
       if (
@@ -937,7 +938,7 @@ namespace ACME
       }
 
       LOG_TRACE_FMT(
-        "ACME: Requesting challenge status for token '{}' ...",
+        "ACME: requesting challenge status for token '{}' ...",
         challenge.token);
 
       // This post-as-get with empty body ("", not "{}"), but json response.
@@ -959,8 +960,8 @@ namespace ACME
             if (j.contains("error"))
             {
               LOG_FAIL_FMT(
-                "ACME: Challenge for token '{}' failed with the "
-                "following error: {}",
+                "ACME: challenge for token '{}' failed with the following "
+                "error: {}",
                 challenge_token,
                 j["error"].dump());
               finish_challenge(order_url, challenge_token);
@@ -973,7 +974,7 @@ namespace ACME
           else
           {
             LOG_FAIL_FMT(
-              "ACME: Challenge for token '{}' failed with status '{}' ",
+              "ACME: challenge for token '{}' failed with status '{}' ",
               challenge_token,
               j["status"]);
             finish_challenge(order_url, challenge_token);
@@ -991,7 +992,7 @@ namespace ACME
       bool order_done = false;
 
       {
-        std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+        std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
         auto order = get_order(order_url);
 
         if (!order)
@@ -1019,7 +1020,7 @@ namespace ACME
 
     bool check_finalization(const std::string& order_url)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard2(orders_lock);
+      std::unique_lock<ccf::pal::Mutex> guard2(orders_lock);
       auto order = get_order(order_url);
 
       if (!order)
@@ -1042,11 +1043,10 @@ namespace ACME
           {
             expect(j, "certificate");
             {
-              std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+              std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
               auto order = get_order(order_url);
               if (order)
               {
-                LOG_TRACE_FMT("ACME: have order");
                 order->certificate_url = j["certificate"];
               }
             }
@@ -1107,7 +1107,7 @@ namespace ACME
       }
       else
       {
-        std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+        std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
         auto order = get_order(order_url);
 
         if (!order)
@@ -1143,7 +1143,7 @@ namespace ACME
               expect(j, "certificate");
 
               {
-                std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+                std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
                 auto order = get_order(order_url);
                 if (order)
                 {
@@ -1172,7 +1172,7 @@ namespace ACME
       }
       else
       {
-        std::unique_lock<ccf::Pal::Mutex> guard(orders_lock);
+        std::unique_lock<ccf::pal::Mutex> guard(orders_lock);
         auto order = get_order(order_url);
 
         if (!order)
@@ -1187,7 +1187,7 @@ namespace ACME
           [this, order_url](
             const http::HeaderMap& headers, const std::vector<uint8_t>& data) {
             std::string c(data.data(), data.data() + data.size());
-            LOG_TRACE_FMT("Obtained certificate (chain): {}", c);
+            LOG_TRACE_FMT("ACME: obtained certificate (chain): {}", c);
 
             on_certificate(c);
 

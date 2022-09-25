@@ -71,6 +71,11 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
+option(
+  FORCE_ENABLE_XAPIC_MITIGATION
+  "Always enable aligned reads from host-memory to mitigate xAPIC stale data read vulnerability. When this setting is off, the mitigation is enabled at run-time when vulnerable hardware is detected"
+  OFF
+)
 
 # Allow framework code to use LOG_*_FMT macros. These will be removed from
 # public headers in future
@@ -235,6 +240,9 @@ add_custom_target(
 
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
+
+# Add external_executor app
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
 
 if(BUILD_TESTS)
   enable_testing()
@@ -989,6 +997,12 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
     CONSENSUS cft
     LABEL perf
+  )
+
+  add_e2e_test(
+    NAME external_executor_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/external_executor.py
+    CONSENSUS ${CONSENSUS_FILTER}
   )
 endif()
 

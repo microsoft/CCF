@@ -3,6 +3,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
@@ -287,7 +288,7 @@ namespace ccf
     EndpointMetrics& endpoint_metrics)
   {
     endpoint_metrics.metrics.clear();
-    std::lock_guard<ccf::Pal::Mutex> guard(metrics_lock);
+    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     for (const auto& [path, verb_metrics] : metrics)
     {
       for (const auto& [verb, metric] : verb_metrics)

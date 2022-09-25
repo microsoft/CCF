@@ -108,8 +108,8 @@ namespace kv
 
     /** Iterate over all entries in the map.
      *
-     * The passed functor should have the signature `bool(const K& k, const V&
-     * v)`.
+     * The passed functor should have the signature
+     * `bool(const K& k, const V& v)`.
      * The iteration order is undefined.
      * Return true to continue iteration, or return false from any invocation to
      * terminate the iteration at that point - the functor will not be invoked
@@ -229,16 +229,13 @@ namespace kv
 
     /** Delete a key-value pair.
      *
-     * It is safe to call this on non-existent keys - it will simply return
-     * false.
+     * It is safe to call this on non-existent keys.
      *
      * @param key Key to be removed
-     *
-     * @return true if the key had a value previously
      */
-    bool remove(const K& key)
+    void remove(const K& key)
     {
-      return write_handle.remove(KSerialiser::to_serialised(key));
+      write_handle.remove(KSerialiser::to_serialised(key));
     }
 
     /** Delete every key-value pair.

@@ -236,7 +236,12 @@ class PublicDomain:
 
     def _read_snapshot_versioned_value(self):
         size = self._read_size()
-        _, value = self._read_versioned_value(size)
+        ver, value = self._read_versioned_value(size)
+        if ver < 0:
+            assert (
+                len(value) == 0
+            ), f"Expected empty value for tombstone deletion at {ver}"
+            value = None
         self._read_snapshot_entry_padding(size)
         return value
 
@@ -485,18 +490,24 @@ class LedgerValidator:
             updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
             updated_service_json = json.loads(updated_service)
             updated_status = updated_service_json["status"]
-            if self.service_status == updated_status:
+            if updated_status == "Opening":
+                # DR can happen at any point, so a transition to "Opening" is always valid
+                pass
+            elif self.service_status == updated_status:
                 pass
             elif self.service_status == "Opening":
-                assert updated_status in ["Open"]
+                assert updated_status in [
+                    "Open",
+                    "WaitingForRecoveryShares",
+                ], updated_status
             elif self.service_status == "Recovering":
-                assert updated_status in ["WaitingForRecoveryShares"]
+                assert updated_status in ["WaitingForRecoveryShares"], updated_status
             elif self.service_status == "WaitingForRecoveryShares":
-                assert updated_status in ["Open"]
+                assert updated_status in ["Open"], updated_status
             elif self.service_status == "Open":
-                assert updated_status in ["Recovering"]
+                assert updated_status in ["Recovering"], updated_status
             else:
-                assert self.service_status == None
+                assert self.service_status == None, self.service_status
             self.service_status = updated_status
 
         # Checks complete, add this transaction to tree

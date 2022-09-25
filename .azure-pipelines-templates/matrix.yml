@@ -1,13 +1,13 @@
 parameters:
-  target: ["NoSGX", "SGX"]
+  target: ["Virtual", "SGX"]
 
   env:
     Hosted:
-      container: nosgx
+      container: virtual
       pool:
         vmImage: ubuntu-20.04
-    NoSGX:
-      container: nosgx
+    Virtual:
+      container: virtual
       pool: 1es-dv4-focal
     SGX:
       container: sgx
@@ -16,7 +16,7 @@ parameters:
   build:
     common:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
-    NoSGX:
+    Virtual:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
@@ -32,7 +32,7 @@ parameters:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
 
   test:
-    NoSGX:
+    Virtual:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
     SGX:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
@@ -40,6 +40,8 @@ parameters:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
       ctest_args: '-LE "benchmark|perf"'
+    virtual_perf:
+      ctest_args: '-L "perf|vegeta"'
 
 jobs:
   # Debug
@@ -68,18 +70,28 @@ jobs:
           fetch_v8: release
           depends_on: configure
 
-  # Performance (NoSGX)
-  # NOTE: CI doesn't support SGX and NoSGX perf tests at the same time.
-  # - ${{ if eq(parameters.perf_tests, 'run') }}:
-  #     - template: common.yml
-  #       parameters:
-  #         target: NoSGX
-  #         env: ${{ parameters.env.NoSGX }}
-  #         fetch_v8: release
-  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
-  #         suffix: "Perf"
-  #         artifact_name: "NoSGX_Perf"
-  #         ctest_filter: "${{ parameters.test.perf.ctest_args }}"
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
+      - template: common.yml
+        parameters:
+          target: Virtual
+          env: ${{ parameters.env.Virtual }}
+          fetch_v8: release
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+          suffix: "Perf"
+          artifact_name: "Virtual_Perf"
+          ctest_filter: "${{ parameters.test.virtual_perf.ctest_args }}"
+          depends_on: configure
+
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
+      - template: cimetrics.yml
+        parameters:
+          target: Virtual
+          env: ${{ parameters.env.Virtual }}
+          suffix: "Perf"
+          depends_on:
+            - configure
+            - SGX_Perf
+            - Virtual_Perf
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:

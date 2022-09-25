@@ -34,9 +34,10 @@ function get_record(map, id) {
 }
 
 function delete_record(map, id) {
-  if (!map.delete(id)) {
+  if (!map.has(id)) {
     return { body: { error: "No such key" } };
   }
+  map.delete(id);
   return { body: true };
 }
 

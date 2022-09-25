@@ -7,6 +7,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+function(message)
+  if(NOT MESSAGE_QUIET)
+    _message(${ARGN})
+  endif()
+endfunction()
+
 option(PROFILE_TESTS "Profile tests" OFF)
 set(PYTHON unbuffer python3)
 
@@ -135,7 +141,8 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
 endforeach()
 
 # Install additional utilities
-install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/sgxinfo.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
 install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
@@ -188,6 +195,9 @@ include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
+set(MESSAGE_QUIET ON)
+include(${CCF_DIR}/cmake/protobuf.cmake)
+unset(MESSAGE_QUIET)
 
 # Unit test wrapper
 function(add_unit_test name)
@@ -599,59 +609,66 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  set(TESTS_SUFFIX "")
-  if("sgx" IN_LIST COMPILE_TARGETS)
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
-  endif()
+  foreach(COMPILE_TARGET ${COMPILE_TARGETS})
+    set(TESTS_SUFFIX "")
+    set(ENCLAVE_TYPE "")
+    if("sgx" STREQUAL ${COMPILE_TARGET})
+      set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
+      set(ENCLAVE_TYPE "release")
+    elseif("virtual" STREQUAL ${COMPILE_TARGET})
+      set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
+      set(ENCLAVE_TYPE "virtual")
+    endif()
 
-  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
-  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
-  endif()
+    if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+      set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
+    elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+      set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
+    endif()
 
-  set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
+    set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
 
-  if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "${TEST_NAME}^")
-  else()
-    set(LABEL_ARG "${TEST_NAME}^")
-  endif()
+    if(PARSED_ARGS_LABEL)
+      set(LABEL_ARG "${TEST_NAME}^")
+    else()
+      set(LABEL_ARG "${TEST_NAME}^")
+    endif()
 
-  string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
-  add_test(
-    NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
-    COMMAND
-      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
-      ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
-      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
-      ${NODES}
-  )
+    string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
+    add_test(
+      NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
+      COMMAND
+        ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c
+        ${PARSED_ARGS_CLIENT_BIN} ${CCF_NETWORK_TEST_ARGS} --consensus
+        ${CONSENSUS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
+        ${VERIFICATION_ARG} --label ${LABEL_ARG} --snapshot-tx-interval 10000
+        ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} ${NODES}
+    )
 
-  # Make python test client framework importable
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
-  )
-  if(DEFINED DEFAULT_ENCLAVE_TYPE)
+    # Make python test client framework importable
     set_property(
       TEST ${TEST_NAME}
       APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
-  endif()
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY LABELS perf
-  )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
-  )
+    if(DEFINED DEFAULT_ENCLAVE_TYPE)
+      set_property(
+        TEST ${TEST_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+      )
+    endif()
+    set_property(
+      TEST ${TEST_NAME}
+      APPEND
+      PROPERTY LABELS perf
+    )
+    set_property(
+      TEST ${TEST_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    )
+  endforeach()
 endfunction()
 
 # Picobench wrapper

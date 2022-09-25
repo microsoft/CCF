@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/pal/locking.h"
 
 #include <unordered_set>
 #include <uv.h>
@@ -10,7 +11,7 @@
 namespace asynchost
 {
   static std::unordered_set<uv_getaddrinfo_t*> pending_resolve_requests;
-  static ccf::Pal::Mutex pending_resolve_requests_mtx;
+  static ccf::pal::Mutex pending_resolve_requests_mtx;
 
   class DNS
   {
@@ -36,7 +37,7 @@ namespace asynchost
       if (async)
       {
         {
-          std::unique_lock<ccf::Pal::Mutex> guard(pending_resolve_requests_mtx);
+          std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
           pending_resolve_requests.insert(resolver);
         }
 
@@ -56,7 +57,7 @@ namespace asynchost
             service,
             uv_strerror(rc));
           {
-            std::unique_lock<ccf::Pal::Mutex> guard(
+            std::unique_lock<ccf::pal::Mutex> guard(
               pending_resolve_requests_mtx);
             pending_resolve_requests.erase(resolver);
           }

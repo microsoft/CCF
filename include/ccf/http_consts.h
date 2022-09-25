@@ -10,6 +10,7 @@ namespace http
     static constexpr auto ACCEPT = "accept";
     static constexpr auto ALLOW = "allow";
     static constexpr auto AUTHORIZATION = "authorization";
+    static constexpr auto CACHE_CONTROL = "cache-control";
     static constexpr auto CONTENT_LENGTH = "content-length";
     static constexpr auto CONTENT_TYPE = "content-type";
     static constexpr auto DATE = "date";
@@ -17,8 +18,8 @@ namespace http
     static constexpr auto HOST = "host";
     static constexpr auto LOCATION = "location";
     static constexpr auto RETRY_AFTER = "retry-after";
+    static constexpr auto TRAILER = "trailer";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
-    static constexpr auto CACHE_CONTROL = "cache-control";
 
     static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
   }
@@ -31,6 +32,7 @@ namespace http
       static constexpr auto MSGPACK = "application/msgpack";
       static constexpr auto TEXT = "text/plain";
       static constexpr auto OCTET_STREAM = "application/octet-stream";
+      static constexpr auto GRPC = "application/grpc";
     }
   }
 

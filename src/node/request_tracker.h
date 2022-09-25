@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/ccf_assert.h"
+#include "ccf/pal/locking.h"
 #include "ds/dl_list.h"
 
 #include <array>
@@ -57,7 +58,7 @@ namespace aft
   public:
     void insert(const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (!tracking_requests)
       {
         return;
@@ -73,7 +74,7 @@ namespace aft
     void insert_deleted(
       const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (!tracking_requests)
       {
         return;
@@ -90,7 +91,7 @@ namespace aft
 
     bool remove(const crypto::Sha256Hash& hash)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (!tracking_requests)
       {
         return false;
@@ -100,7 +101,7 @@ namespace aft
 
     void tick(std::chrono::milliseconds current_time)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (current_time < retail_unmatched_deleted_hashes)
       {
         return;
@@ -118,7 +119,7 @@ namespace aft
 
     std::optional<std::chrono::milliseconds> oldest_entry()
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (requests_list.is_empty())
       {
         return std::nullopt;
@@ -128,7 +129,7 @@ namespace aft
 
     bool is_empty()
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       return requests.empty() && requests_list.is_empty() &&
         hashes_without_requests.empty() &&
         hashes_without_requests_list.is_empty();
@@ -136,7 +137,7 @@ namespace aft
 
     void insert_signed_request(ccf::SeqNo seqno, std::chrono::milliseconds time)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (seqno > seqno_last_signature)
       {
         seqno_last_signature = seqno;
@@ -147,13 +148,13 @@ namespace aft
     std::tuple<ccf::SeqNo, std::chrono::milliseconds>
     get_seqno_time_last_request() const
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       return {seqno_last_signature, time_last_signature};
     }
 
     void clear()
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       requests.clear();
       requests_list.clear();
 
@@ -163,7 +164,7 @@ namespace aft
 
     void start_tracking_requests()
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(lock);
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       tracking_requests = true;
     }
 
@@ -179,7 +180,7 @@ namespace aft
     std::chrono::milliseconds time_last_signature =
       std::chrono::milliseconds(0);
     bool tracking_requests = false;
-    mutable ccf::Pal::Mutex lock;
+    mutable ccf::pal::Mutex lock;
 
     static void insert(
       const crypto::Sha256Hash& hash,

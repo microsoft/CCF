@@ -4,11 +4,11 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
-#include "ccf/ds/pal.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
+#include "ccf/pal/mem.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
@@ -367,7 +367,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.29.0";
+      openapi_info.document_version = "2.30.1";
     }
 
     void init_handlers() override
@@ -414,8 +414,10 @@ namespace ccf
             ccf::errors::StartupSeqnoIsOld,
             fmt::format(
               "Node requested to join from seqno {} which is "
-              "older than this node startup seqno {}",
+              "older than this node startup seqno {}. A snapshot at least ",
+              "as recent as {} must be used instead.",
               in.startup_seqno.value(),
+              this_startup_seqno,
               this_startup_seqno));
         }
 
@@ -1324,8 +1326,8 @@ namespace ccf
 // Do not attempt to call get_mallinfo when used from
 // unit tests such as the frontend_test
 #ifdef INSIDE_ENCLAVE
-        ccf::MallocInfo info;
-        if (ccf::Pal::get_mallinfo(info))
+        ccf::pal::MallocInfo info;
+        if (ccf::pal::get_mallinfo(info))
         {
           MemoryUsage::Out mu(info);
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -1385,15 +1387,15 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto jwt_metrics = [this](auto&, nlohmann::json&&) {
+      auto jwt_metrics = [this](auto& ctx, nlohmann::json&&) {
         JWTMetrics m;
         // Attempts are recorded by the key refresh code itself, registering
         // before each call to each issuer's keys
         m.attempts = node_operation.get_jwt_attempts();
         // Success is marked by the fact that the key succeeded and called
         // our internal "jwt_keys/refresh" endpoint.
-        auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
-        auto metric = get_metrics_for_endpoint(e);
+        auto metric = get_metrics_for_request(
+          "/jwt_keys/refresh", llhttp_method_name(HTTP_POST));
         m.successes = metric.calls - (metric.failures + metric.errors);
         return m;
       };
@@ -1512,7 +1514,7 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key};
         g.add_node(in.node_id, node_info);
-        g.trust_node_code_id(in.code_digest);
+        g.trust_node_code_id(in.code_digest, in.quote_info.format);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);

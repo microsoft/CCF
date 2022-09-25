@@ -21,7 +21,7 @@ namespace ccf
   namespace
   {
     std::optional<ccf::TxID> txid_from_query_string(
-      ccf::endpoints::EndpointContext& ctx)
+      ccf::endpoints::CommandEndpointContext& ctx)
     {
       const auto parsed_query =
         http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -156,9 +156,9 @@ namespace ccf
 
       auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
       codes_ids->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
           auto digest = ds::to_hex(cd.data);
-          out.versions.push_back({digest, cs});
+          out.versions.push_back({digest, info.status, info.platform});
           return true;
         });
 
@@ -235,10 +235,10 @@ namespace ccf
         ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
       };
 
-    make_endpoint(
+    make_read_only_endpoint(
       "/receipt",
       HTTP_GET,
-      ccf::historical::adapter_v3(
+      ccf::historical::read_only_adapter_v3(
         get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
       .set_auto_schema<void, nlohmann::json>()

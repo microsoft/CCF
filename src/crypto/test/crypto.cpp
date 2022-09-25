@@ -4,6 +4,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/entropy.h"
+#include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
@@ -11,7 +12,6 @@
 #include "ccf/crypto/verifier.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
-#include "crypto/hmac.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"

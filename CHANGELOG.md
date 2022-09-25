@@ -5,11 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [3.0.0-dev4]
+
+### Fixed
+
+- `set_user` action in sample constitutions correctly handles `user_data` (#4229).
+
+## [3.0.0-dev3]
+
+### Added
+
+- New `snpinfo.sh` script (#4196).
+- New `crypto::hmac` API (#4204).
+
+### Changed
+
+- Application-defined endpoints are now accessible with both `/app` prefix and un-prefixed, e.g. `GET /app/log/private` and `GET /log/private` (#4147).
+- The method `EndpointRegistry::get_metrics_for_endpoint(const EndpointDefinitionPtr&)` has been replaced with `EndpointRegistry::get_metrics_for_endpoint(const std::string& method, const std::string& verb)`.
+
+## [3.0.0-dev2]
+
+### Dependencies
+
+- Upgraded OpenEnclave to 0.18.2 (#4132).
 
 ### Added
 
 - New `GET /node/network/removable_nodes` and `DELETE /node/network/nodes/{node_id}` exposed to allow operator to decide which nodes can be safely shut down after retirement, and clear their state from the Key-Value Store.
+- Added a new method `get_decoded_request_path_params` that returns a map of decoded path parameters (#4126)
+
+### Changed
+
+- Calling `remove(K)` on a KV handle no longer returns a bool indicating if the key was previously present. This can be simulated by calling `has(K)` beforehand. This avoids introducing a read-dependency with every call to `remove()`.
 
 ### Fixed
 
@@ -1557,6 +1584,9 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[3.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev4
+[3.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev3
+[3.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev2
 [3.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev1
 [3.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev0
 [2.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0
@@ -1644,3 +1674,4 @@ Initial pre-release
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
 [unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased
+[3.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev4

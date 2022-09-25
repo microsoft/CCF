@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/actors.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
 #include "http_parser.h"
@@ -50,6 +51,7 @@ namespace http
     std::vector<uint8_t> serialised_request = {};
 
     http::HeaderMap response_headers;
+    http::HeaderMap response_trailers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
 
@@ -116,6 +118,11 @@ namespace http
     http::HeaderMap get_response_headers() const
     {
       return response_headers;
+    }
+
+    http::HeaderMap get_response_trailers() const
+    {
+      return response_trailers;
     }
 
     std::vector<uint8_t>& get_response_body()
@@ -211,6 +218,11 @@ namespace http
       response_body = std::vector<uint8_t>(body.begin(), body.end());
     }
 
+    virtual const std::vector<uint8_t>& get_response_body() const override
+    {
+      return response_body;
+    }
+
     virtual void set_response_status(int status) override
     {
       response_status = (http_status)status;
@@ -225,6 +237,12 @@ namespace http
       const std::string_view& name, const std::string_view& value) override
     {
       response_headers[std::string(name)] = value;
+    }
+
+    virtual void set_response_trailer(
+      const std::string_view& name, const std::string_view& value) override
+    {
+      response_trailers[std::string(name)] = value;
     }
 
     virtual void set_apply_writes(bool apply) override
@@ -268,7 +286,6 @@ namespace http
   inline static std::optional<std::string> extract_actor(HttpRpcContext& ctx)
   {
     const auto path = ctx.get_method();
-
     const auto first_slash = path.find_first_of('/');
     const auto second_slash = path.find_first_of('/', first_slash + 1);
 
@@ -285,7 +302,15 @@ namespace http
       return std::nullopt;
     }
 
-    ctx.set_method(remaining_path);
+    // if the extracted actor is a known type, set the remaining path
+    if (ccf::is_valid_actor(actor))
+    {
+      ctx.set_method(remaining_path);
+    }
+    else
+    {
+      ctx.set_method(path);
+    }
     return actor;
   }
 }

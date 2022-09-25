@@ -2,22 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node_subsystem_interface.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "node/rpc/node_interface.h"
 
 #include <regex>
 
 namespace ccf
 {
-  struct NodeConfigurationState
-  {
-    const StartupConfig& node_config;
-    std::map<NodeInfoNetwork::RpcInterfaceID, std::vector<std::regex>>
-      rpc_interface_regexes;
-    bool initialized = false;
-  };
-
-  class NodeConfigurationSubsystem : public AbstractNodeSubSystem
+  class NodeConfigurationSubsystem : public NodeConfigurationInterface
   {
   protected:
     AbstractNodeState& node_state;
@@ -36,7 +28,7 @@ namespace ccf
       return "NodeConfiguration";
     }
 
-    virtual const NodeConfigurationState& get()
+    virtual const NodeConfigurationState& get() override
     {
       if (!node_config_state.initialized)
       {

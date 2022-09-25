@@ -489,9 +489,11 @@ const actions = new Map([
         );
 
         if (args.user_data !== null && args.user_data !== undefined) {
+          let userInfo = {};
+          userInfo.user_data = args.user_data;
           ccf.kv["public:ccf.gov.users.info"].set(
             rawUserId,
-            ccf.jsonCompatibleToBuf(args.user_data)
+            ccf.jsonCompatibleToBuf(userInfo)
           );
         } else {
           ccf.kv["public:ccf.gov.users.info"].delete(rawUserId);
@@ -890,9 +892,10 @@ const actions = new Map([
       },
       function (args) {
         const issuerBuf = ccf.strToBuf(args.issuer);
-        if (!ccf.kv["public:ccf.gov.jwt.issuers"].delete(issuerBuf)) {
+        if (!ccf.kv["public:ccf.gov.jwt.issuers"].has(issuerBuf)) {
           return;
         }
+        ccf.kv["public:ccf.gov.jwt.issuers"].delete(issuerBuf);
         ccf.removeJwtPublicSigningKeys(args.issuer);
       }
     ),
@@ -910,6 +913,19 @@ const actions = new Map([
 
         // Adding a new allowed code ID changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
+      }
+    ),
+  ],
+  [
+    "add_executor_node_code",
+    new Action(
+      function (args) {
+        checkType(args.executor_code_id, "string", "executor_code_id");
+      },
+      function (args) {
+        const codeId = ccf.strToBuf(args.executor_code_id);
+        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToExecute");
+        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ALLOWED);
       }
     ),
   ],
@@ -1021,6 +1037,18 @@ const actions = new Map([
       function (args) {
         const codeId = ccf.strToBuf(args.code_id);
         ccf.kv["public:ccf.gov.nodes.code_ids"].delete(codeId);
+      }
+    ),
+  ],
+  [
+    "remove_executor_node_code",
+    new Action(
+      function (args) {
+        checkType(args.executor_code_id, "string", "executor_code_id");
+      },
+      function (args) {
+        const codeId = ccf.strToBuf(args.executor_code_id);
+        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].delete(codeId);
       }
     ),
   ],
@@ -1216,6 +1244,24 @@ const actions = new Map([
       function (args, proposalId) {
         ccf.node.triggerACMERefresh(args.interfaces);
       }
+    ),
+  ],
+  [
+    "assert_service_identity",
+    new Action(
+      function (args) {
+        checkX509CertBundle(args.service_identity, "service_identity");
+        const service_info = "public:ccf.gov.service.info";
+        const rawService = ccf.kv[service_info].get(getSingletonKvKey());
+        if (rawService === undefined) {
+          throw new Error("Service information could not be found");
+        }
+        const service = ccf.bufToJsonCompatible(rawService);
+        if (service.cert !== args.service_identity) {
+          throw new Error("Service identity certificate mismatch");
+        }
+      },
+      function (args) {}
     ),
   ],
 ]);

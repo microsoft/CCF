@@ -4,6 +4,7 @@
 
 #include "before_io.h"
 #include "ccf/ds/logger.h"
+#include "ccf/pal/locking.h"
 #include "dns.h"
 #include "ds/pending_io.h"
 #include "proxy.h"
@@ -101,7 +102,7 @@ namespace asynchost
     ~TCPImpl()
     {
       {
-        std::unique_lock<ccf::Pal::Mutex> guard(pending_resolve_requests_mtx);
+        std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
         for (auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
@@ -562,7 +563,7 @@ namespace asynchost
 
     static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
     {
-      std::unique_lock<ccf::Pal::Mutex> guard(pending_resolve_requests_mtx);
+      std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
       pending_resolve_requests.erase(req);
 
       if (req->data)

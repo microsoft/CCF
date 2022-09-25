@@ -41,7 +41,7 @@ export interface KvMap {
   get(key: ArrayBuffer): ArrayBuffer | undefined;
   getVersionOfPreviousWrite(key: ArrayBuffer): number | undefined;
   set(key: ArrayBuffer, value: ArrayBuffer): KvMap;
-  delete(key: ArrayBuffer): boolean;
+  delete(key: ArrayBuffer): void;
   clear(): void;
   forEach(
     callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void

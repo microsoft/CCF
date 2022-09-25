@@ -356,6 +356,7 @@ def test_invalid_client_signature(network, args):
             f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/gov/proposals",
             headers=headers,
             verify=os.path.join(node.common_dir, "service_cert.pem"),
+            timeout=3,
         ).json()
         assert r["error"]["code"] == "InvalidAuthenticationInfo"
         assert (
@@ -541,6 +542,23 @@ def test_service_cert_renewal_extended(network, args):
     return network
 
 
+@reqs.description("Binding proposal to service identity")
+def test_binding_proposal_to_service_identity(network, args):
+    primary, _ = network.find_primary()
+    network.consortium.assert_service_identity(primary, network.cert_path)
+    created = True
+    try:
+        network.consortium.assert_service_identity(primary, network.users[0].cert_path)
+    except infra.proposal.ProposalNotCreated as pe:
+        assert (
+            pe.response.status_code == 400
+            and pe.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), pe.response.body.text()
+        created = False
+    assert not created
+    return network
+
+
 @reqs.description("Update certificates of all nodes at once")
 def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
@@ -595,6 +613,7 @@ def gov(args):
         test_ack_state_digest_update(network, args)
         test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
+        test_binding_proposal_to_service_identity(network, args)
         test_all_nodes_cert_renewal(network, args)
         test_service_cert_renewal(network, args)
         test_service_cert_renewal_extended(network, args)

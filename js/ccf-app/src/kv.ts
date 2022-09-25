@@ -61,8 +61,8 @@ export class TypedKvMap<K, V> {
     return this;
   }
 
-  delete(key: K): boolean {
-    return this.kv.delete(this.kt.encode(key));
+  delete(key: K): void {
+    this.kv.delete(this.kt.encode(key));
   }
 
   clear(): void {

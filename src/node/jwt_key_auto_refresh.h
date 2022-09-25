@@ -9,8 +9,6 @@
 #include "node/rpc/node_frontend.h"
 
 #define FMT_HEADER_ONLY
-#include "ccf/ds/pal.h"
-
 #include <fmt/format.h>
 
 namespace ccf

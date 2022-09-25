@@ -3,7 +3,8 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "ccf/ds/pal.h"
+#include "ccf/pal/enclave.h"
+#include "ccf/pal/mem.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
@@ -15,6 +16,7 @@
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/node_types.h"
+#include "node/rpc/acme_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/host_processes.h"
@@ -89,7 +91,7 @@ namespace ccf
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
-      ccf::Pal::initialize_enclave();
+      ccf::pal::initialize_enclave();
       ccf::initialize_verifiers();
 
       // From
@@ -146,6 +148,8 @@ namespace ccf
       context->install_subsystem(
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
 
+      context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -158,6 +162,9 @@ namespace ccf
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
+      // Note: for ACME challenges, the well-known frontend should really only
+      // listen on the interface specified in the ACMEClientConfig, but we don't
+      // have support for frontends restricted to particular interfaces yet.
       rpc_map->register_frontend<ccf::ActorsType::well_known>(
         std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
@@ -183,7 +190,7 @@ namespace ccf
       }
       LOG_TRACE_FMT("Shutting down enclave");
       ccf::shutdown_verifiers();
-      ccf::Pal::shutdown_enclave();
+      ccf::pal::shutdown_enclave();
     }
 
     CreateNodeStatus create_new_node(
@@ -226,7 +233,7 @@ namespace ccf
           r.self_signed_node_cert.size());
         return CreateNodeStatus::InternalError;
       }
-      Pal::safe_memcpy(
+      pal::safe_memcpy(
         node_cert,
         r.self_signed_node_cert.data(),
         r.self_signed_node_cert.size());
@@ -244,7 +251,7 @@ namespace ccf
             r.service_cert.size());
           return CreateNodeStatus::InternalError;
         }
-        Pal::safe_memcpy(
+        pal::safe_memcpy(
           service_cert, r.service_cert.data(), r.service_cert.size());
         *service_cert_len = r.service_cert.size();
       }
@@ -400,24 +407,6 @@ namespace ccf
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());
-
-        if (start_type == StartType::Join)
-        {
-          // When joining from a snapshot, deserialise ledger suffix to verify
-          // snapshot evidence. Otherwise, attempt to join straight away
-          if (node->is_verifying_snapshot())
-          {
-            node->start_ledger_recovery();
-          }
-          else
-          {
-            node->join();
-          }
-        }
-        else if (start_type == StartType::Recover)
-        {
-          node->start_ledger_recovery();
-        }
 
         // Maximum number of inbound ringbuffer messages which will be
         // processed in a single iteration

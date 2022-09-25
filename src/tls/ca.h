@@ -17,29 +17,34 @@ namespace tls
     std::vector<Unique_X509> cas;
     bool partial_ok = false;
 
-  public:
-    CA(const std::string& ca_ = "", bool partial_ok = false) :
-      CA(std::vector<std::string>({ca_}), partial_ok)
-    {}
+    void append_cert(const std::string& ca_string)
+    {
+      if (!ca_string.empty())
+      {
+        Unique_BIO bio(ca_string.data(), ca_string.size());
+        Unique_X509 ca;
+        if (!(ca = Unique_X509(bio, true)))
+        {
+          throw std::logic_error(
+            "Could not parse CA: " + error_string(ERR_get_error()));
+        }
+        cas.push_back(std::move(ca));
+      }
+    }
 
-    CA(
-      const std::vector<std::string>& ca_strings = {},
-      bool partial_ok = false) :
-      partial_ok(partial_ok)
+  public:
+    CA(const std::string& ca, bool partial_ok_ = false) :
+      partial_ok(partial_ok_)
+    {
+      append_cert(ca);
+    }
+
+    CA(const std::vector<std::string>& ca_strings, bool partial_ok_ = false) :
+      partial_ok(partial_ok_)
     {
       for (const auto& ca_string : ca_strings)
       {
-        if (!ca_string.empty())
-        {
-          Unique_BIO bio(ca_string.data(), ca_string.size());
-          Unique_X509 ca;
-          if (!(ca = Unique_X509(bio, true)))
-          {
-            throw std::logic_error(
-              "Could not parse CA: " + error_string(ERR_get_error()));
-          }
-          cas.push_back(std::move(ca));
-        }
+        append_cert(ca_string);
       }
     }
 
