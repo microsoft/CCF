@@ -48,6 +48,13 @@ describe("polyfill", function () {
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
+  describe("generateEcdsaKeyPair", function () {
+    it("generates a random ECDSA P256R1 key pair", function () {
+      const pair = ccf.generateEcdsaKeyPair("secp256r1");
+      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+    });
+  });
   describe("wrapKey", function () {
     it("performs RSA-OAEP wrapping correctly", function () {
       const key = ccf.generateAesKey(128);

@@ -191,6 +191,21 @@ class CCFPolyfill implements CCF {
     return rsaKeyPair;
   }
 
+  generateEcdsaKeyPair(curve: string): CryptoKeyPair {
+    const ecdsaKeyPair = crypto.generateKeyPairSync("ec", {
+      namedCurve: curve,
+      publicKeyEncoding: {
+        type: "spki",
+        format: "pem",
+      },
+      privateKeyEncoding: {
+        type: "pkcs8",
+        format: "pem",
+      },
+    });
+    return ecdsaKeyPair;
+  }
+
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
