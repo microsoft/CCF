@@ -489,9 +489,11 @@ const actions = new Map([
         );
 
         if (args.user_data !== null && args.user_data !== undefined) {
+          let userInfo = {};
+          userInfo.user_data = args.user_data;
           ccf.kv["public:ccf.gov.users.info"].set(
             rawUserId,
-            ccf.jsonCompatibleToBuf(args.user_data)
+            ccf.jsonCompatibleToBuf(userInfo)
           );
         } else {
           ccf.kv["public:ccf.gov.users.info"].delete(rawUserId);

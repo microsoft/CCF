@@ -1147,27 +1147,34 @@ def test_user_data_ACL(network, args):
 
     user = network.users[0]
 
-    # Give isAdmin permissions to a single user
-    network.consortium.set_user_data(
-        primary, user.service_id, user_data={"isAdmin": True}
-    )
+    def by_set_user_data(user_data):
+        network.consortium.set_user_data(primary, user.service_id, user_data=user_data)
 
-    log_id = network.txs.find_max_log_id() + 1
+    def by_set_user(user_data):
+        network.consortium.add_user(primary, user.local_id, user_data=user_data)
 
-    # Confirm that user can now use this endpoint
-    with primary.client(user.local_id) as c:
-        r = c.post("/app/log/private/admin_only", {"id": log_id, "msg": "hello world"})
-        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+    for set_user_data in (by_set_user_data, by_set_user):
+        # Give isAdmin permissions to a single user
+        set_user_data(user_data={"isAdmin": True})
 
-    # Remove permission
-    network.consortium.set_user_data(
-        primary, user.service_id, user_data={"isAdmin": False}
-    )
+        log_id = network.txs.find_max_log_id() + 1
 
-    # Confirm that user is now forbidden on this endpoint
-    with primary.client(user.local_id) as c:
-        r = c.post("/app/log/private/admin_only", {"id": log_id, "msg": "hello world"})
-        assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
+        # Confirm that user can now use this endpoint
+        with primary.client(user.local_id) as c:
+            r = c.post(
+                "/app/log/private/admin_only", {"id": log_id, "msg": "hello world"}
+            )
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        # Remove permission
+        set_user_data(user_data={"isAdmin": False})
+
+        # Confirm that user is now forbidden on this endpoint
+        with primary.client(user.local_id) as c:
+            r = c.post(
+                "/app/log/private/admin_only", {"id": log_id, "msg": "hello world"}
+            )
+            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
 
     return network
 
