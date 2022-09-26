@@ -7,6 +7,7 @@
 #include "ccf/pal/mem.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/security_policies.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
@@ -59,7 +60,7 @@ namespace ccf
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
-      std::string security_policy;
+      RawPolicy security_policy;
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
       nlohmann::json service_data;

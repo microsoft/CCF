@@ -5,7 +5,6 @@
 
 #include "ccf/pal/attestation.h"
 #include "ccf/service/tables/code_id.h"
-#include "ccf/service/tables/security_policies.h"
 
 namespace ccf
 {
@@ -58,14 +57,14 @@ namespace ccf
     return unique_id;
   }
 
-  std::optional<std::array<uint8_t, 32>> EnclaveAttestationProvider::get_security_policy_digest(
+  std::optional<DigestedPolicy> EnclaveAttestationProvider::get_security_policy_digest(
     const QuoteInfo& quote_info)
   {
     if (access("/dev/sev", F_OK) != 0) {
       return std::nullopt;
     }
 
-    std::array<uint8_t, 32> digest{};
+    DigestedPolicy digest{};
     CodeDigest d = {};
     pal::attestation_report_data r = {};
     try
