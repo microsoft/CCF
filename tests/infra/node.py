@@ -49,6 +49,7 @@ class State(Enum):
     PART_OF_NETWORK = "PartOfNetwork"
     READING_PUBLIC_LEDGER = "ReadingPublicLedger"
     READING_PRIVATE_LEDGER = "ReadingPrivateLedger"
+    VERIFYING_SNAPSHOT = "VerifyingSnapshot"  # < 3.x nodes only
 
 
 def is_addr_local(host, port):
