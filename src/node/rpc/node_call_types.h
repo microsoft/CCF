@@ -59,6 +59,7 @@ namespace ccf
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
+      std::string security_policy;
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
       nlohmann::json service_data;

@@ -64,6 +64,8 @@ struct StartupConfig : CCFConfig
 
   nlohmann::json node_data = nullptr;
 
+  std::string security_policy;
+
   struct Start
   {
     std::vector<ccf::NewMember> members;

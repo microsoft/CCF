@@ -1516,8 +1516,7 @@ namespace ccf
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1){
           auto digest = EnclaveAttestationProvider::get_security_policy_digest(in.quote_info).value();
-          auto policy = pal::get_security_policy().value();
-          g.trust_node_security_policy(policy, digest);
+          g.trust_node_security_policy(in.security_policy, digest);
         }
 
         LOG_INFO_FMT("Created service");

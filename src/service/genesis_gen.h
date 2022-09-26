@@ -424,7 +424,7 @@ namespace ccf
       const RawPolicy& raw_security_policy, const DigestedPolicy& host_data)
     {
       auto security_policies = tx.rw(tables.security_policies);
-      security_policies->put(raw_security_policy, host_data);
+      security_policies->put(host_data, raw_security_policy);
     }
 
     void init_configuration(const ServiceConfiguration& configuration)

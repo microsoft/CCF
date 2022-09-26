@@ -881,6 +881,10 @@ class CCFRemote(object):
         env = {}
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            security_policy_key = "SECURITY_POLICY"
+            if security_policy_key not in os.environ:
+                raise ValueError(f"Security policy environment variable {security_policy_key} is not set")
+            env["SECURITY_POLICY"] = os.environ[security_policy_key]
             ubsan_opts = kwargs.get("ubsan_options")
             if ubsan_opts:
                 env["UBSAN_OPTIONS"] += ":" + ubsan_opts

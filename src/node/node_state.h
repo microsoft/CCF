@@ -318,6 +318,19 @@ namespace ccf
         throw std::logic_error("Failed to extract code id from quote");
       }
 
+      // Verify that the security policy matches the quoted digest of the policy
+      if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
+        auto quoted_digest = EnclaveAttestationProvider::get_security_policy_digest(quote_info);
+        if (!quoted_digest.has_value()) {
+          throw std::logic_error("Unable to find security policy");
+        }
+
+        auto digest = crypto::Sha256Hash(config.security_policy);
+        if (digest.h != quoted_digest) {
+          throw std::logic_error("Raw security policy doesn't match digest provided in attestation");
+        }
+      }
+
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
       setup_history(start_type != StartType::Recover);
@@ -1906,6 +1919,7 @@ namespace ccf
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
+      create_params.security_policy = config.security_policy;
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
       create_params.service_data = config.service_data;

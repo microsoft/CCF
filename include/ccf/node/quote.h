@@ -16,6 +16,8 @@ namespace ccf
     Verified = 0,
     Failed,
     FailedCodeIdNotFound,
+    FailedSecurityPolicyDigestNotFound,
+    FailedInvalidSecurityPolicy,
     FailedInvalidQuotedPublicKey,
   };
 
