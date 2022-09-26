@@ -793,7 +793,6 @@ namespace ccf
     {
       std::lock_guard<pal::Mutex> guard(lock);
 
-      std::shared_ptr<kv::Store> store;
       sm.expect(NodeStartupState::readingPublicLedger);
 
       auto data = entries.data();
@@ -816,7 +815,7 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          auto r = store->deserialize(entry, ConsensusType::CFT, true);
+          auto r = network.tables->deserialize(entry, ConsensusType::CFT, true);
           result = r->apply();
           if (result == kv::ApplyResult::FAIL)
           {
@@ -845,8 +844,8 @@ namespace ccf
         if (result == kv::ApplyResult::PASS_SIGNATURE)
         {
           // If the ledger entry is a signature, it is safe to compact the store
-          store->compact(last_recovered_idx);
-          auto tx = store->create_read_only_tx();
+          network.tables->compact(last_recovered_idx);
+          auto tx = network.tables->create_read_only_tx();
           auto last_sig = tx.ro(network.signatures)->get();
 
           if (!last_sig.has_value())
