@@ -192,6 +192,7 @@ install(
   FILES_MATCHING
   PATTERN "*.h"
   PATTERN "*.hpp"
+  PATTERN "*.inc"
 )
 
 # Install all private CCF headers, which may still be needed
