@@ -392,6 +392,13 @@ export interface CCF {
   generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
 
   /**
+   * Generate an ECDSA key pair.
+   *
+   * @param curve The name of the curve, one of "p256r1", "p384r1".
+   */
+  generateEcdsaKeyPair(curve: string): CryptoKeyPair;
+
+  /**
    * Wraps a key using a wrapping key.
    *
    * Constraints on the `key` and `wrappingKey` parameters depend
