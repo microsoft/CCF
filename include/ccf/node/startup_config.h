@@ -65,7 +65,7 @@ struct StartupConfig : CCFConfig
 
   nlohmann::json node_data = nullptr;
 
-  RawPolicy security_policy;
+  std::optional<RawPolicy> security_policy;
 
   struct Start
   {

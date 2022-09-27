@@ -407,11 +407,10 @@ int main(int argc, char** argv)
     // Get the nodes security policy via environment variable
     if (access(ccf::pal::snp::DEVICE, F_OK) == 0) {
       auto policy = std::getenv("SECURITY_POLICY");
-      if (policy == NULL) {
-        LOG_FAIL_FMT("Environment variable SECURITY_POLICY is unset");
+      if (policy != nullptr) {
+        std::vector<uint8_t> raw = crypto::raw_from_b64(policy);
+        startup_config.security_policy = std::string(raw.begin(), raw.end());
       }
-      std::vector<uint8_t> raw = crypto::raw_from_b64(policy);
-      startup_config.security_policy = std::string(raw.begin(), raw.end());
     }
 
     if (config.node_data_json_file.has_value())

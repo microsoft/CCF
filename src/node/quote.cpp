@@ -60,7 +60,7 @@ namespace ccf
   std::optional<DigestedPolicy> EnclaveAttestationProvider::get_security_policy_digest(
     const QuoteInfo& quote_info)
   {
-    if (access("/dev/sev", F_OK) != 0) {
+    if (access(pal::snp::DEVICE, F_OK) != 0) {
       return std::nullopt;
     }
 
@@ -135,11 +135,14 @@ namespace ccf
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
+      LOG_FAIL_FMT("Skipped attestation report verification");
+      return QuoteVerificationResult::Verified;
+    }
+    else if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
       auto rc = verify_security_policy_against_store(tx, quote_info);
       if (rc != QuoteVerificationResult::Verified) {
         return rc;
       }
-      return QuoteVerificationResult::Verified;
     }
 
     auto rc = verify_enclave_measurement_against_store(

@@ -325,9 +325,14 @@ namespace ccf
           throw std::logic_error("Unable to find security policy");
         }
 
-        auto digest = crypto::Sha256Hash(config.security_policy);
-        if (digest.h != quoted_digest) {
-          throw std::logic_error("Raw security policy doesn't match digest provided in attestation");
+        if (!config.security_policy.has_value()) {
+          LOG_INFO_FMT("Security Policy environment variable not set, skipping check against digest");
+        }
+        else {
+          auto digest = crypto::Sha256Hash(config.security_policy.value());
+          if (digest.h != quoted_digest) {
+            throw std::logic_error("Raw security policy doesn't match digest provided in attestation");
+          }
         }
       }
 
