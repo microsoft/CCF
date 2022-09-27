@@ -59,13 +59,10 @@ namespace ccf
       client->send_request(r);
     }
 
-    void handle_success_response(
-      const std::string& content_type, std::vector<uint8_t>&& data)
+    void handle_success_response(std::vector<uint8_t>&& data, bool is_der)
     {
-      if (content_type == http::headervalues::contenttype::OCTET_STREAM)
+      if (is_der)
       {
-        // If endpoint returns octet-stream content, assume that response is
-        // DER-encoded certificate
         auto pem = crypto::cert_der_to_pem(data);
         auto raw = pem.raw();
         LOG_FAIL_FMT("pem: {}", pem.str());
@@ -74,6 +71,7 @@ namespace ccf
       else
       {
         // Otherwise, assume that is PEM
+        LOG_FAIL_FMT("pem: {}", crypto::Pem(data).str());
         endorsements.insert(
           endorsements.end(),
           std::make_move_iterator(data.begin()),
@@ -91,6 +89,7 @@ namespace ccf
 
       if (config.endpoints.empty())
       {
+        LOG_INFO_FMT("Entire endorsement chain successfully retrieved");
         done_cb(std::move(endorsements));
       }
       else
@@ -106,7 +105,7 @@ namespace ccf
       c->connect(
         endpoint.host,
         endpoint.port,
-        [this](
+        [this, response_is_der = endpoint.response_is_der](
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
@@ -121,22 +120,9 @@ namespace ccf
             "bytes",
             data.size());
 
-          auto const& content_type_header =
-            headers.find(http::headers::CONTENT_TYPE);
-          std::string content_type = http::headervalues::contenttype::TEXT;
-          if (content_type_header != headers.end())
-          {
-            content_type = content_type_header->second;
-          }
-          else
-          {
-            LOG_FAIL_FMT("No content type in response");
-          }
-
-          LOG_FAIL_FMT("Content type: {}", content_type);
           LOG_FAIL_FMT("data: {}", data);
 
-          handle_success_response(content_type, std::move(data));
+          handle_success_response(std::move(data), response_is_der);
         },
         [](const std::string& error_msg) {
           // TLS errors should be handled here

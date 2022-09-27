@@ -22,7 +22,6 @@
 
 namespace ccf::pal
 {
-<<<<<<< HEAD
   struct EndorsementEndpointsConfiguration
   {
     struct EndpointInfo
@@ -31,36 +30,23 @@ namespace ccf::pal
       std::string port;
       std::string uri;
       std::map<std::string, std::string> params;
+      bool response_is_der = false;
     };
     // Endorsement
     std::list<EndpointInfo> endpoints;
-=======
-  struct EndorsementEndpointConfiguration
-  {
-    std::string host;
-    std::string port;
-    std::string uri;
-    std::map<std::string, std::string> params;
->>>>>>> origin/start_history_signatures_later_startup
   };
 
   // Caller-supplied callback used to retrieve endorsements as specified by the
   // config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
   using RetrieveEndorsementCallback = std::function<void(
-<<<<<<< HEAD
     QuoteInfo quote_info, const EndorsementEndpointsConfiguration& config)>;
-=======
-    QuoteInfo quote_info, const EndorsementEndpointConfiguration& config)>;
->>>>>>> origin/start_history_signatures_later_startup
 
-#  if !defined(INSIDE_ENCLAVE) ||
-    defined(VIRTUAL_ENCLAVE)
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-      static void
-      generate_quote(
-        attestation_report_data & report_data,
-        RetrieveEndorsementCallback endorsement_cb)
+  static void generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb)
   {
     QuoteInfo node_quote_info = {};
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -131,7 +117,8 @@ namespace ccf::pal
            "/vcek/v1/{}/{}",
            product_name,
            fmt::format("{:02x}", fmt::join(quote->chip_id, ""))),
-         params});
+         params,
+         true});
       config.endpoints.push_back(
         {"kdsintf.amd.com",
          "443",

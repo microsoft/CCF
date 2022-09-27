@@ -323,8 +323,6 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
-        input()
-
         # Detect whether node started up successfully
         for _ in range(NODE_STARTUP_RETRY_COUNT):
             try:
