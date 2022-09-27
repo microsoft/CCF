@@ -95,7 +95,9 @@ namespace ccf
         done_cb(std::move(endorsements));
       }
       else
-      {}
+      {
+        fetch(config.endpoints.front());
+      }
     }
 
     void fetch(
