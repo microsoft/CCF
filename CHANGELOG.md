@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `set_user` action in sample constitutions correctly handles `user_data` (#4229).
+- Ensure that enclave input parameters are always aligned (#4272).
 
 ## [2.0.7]
 
