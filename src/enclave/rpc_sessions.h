@@ -12,6 +12,7 @@
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
 // ok for now, as we only have an echo service for now
+#include "enclave/session.h"
 #include "quic/quic_endpoint.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
@@ -59,7 +60,7 @@ namespace ccf
     ccf::pal::Mutex lock;
     std::unordered_map<
       tls::ConnID,
-      std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
+      std::pair<ListenInterfaceID, std::shared_ptr<ccf::Session>>>
       sessions;
     size_t sessions_peak = 0;
 
@@ -67,14 +68,14 @@ namespace ccf
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
-    class NoMoreSessionsEndpointImpl : public ccf::TLSEndpoint
+    class NoMoreSessionsEndpointImpl : public ccf::TLSSession
     {
     public:
       NoMoreSessionsEndpointImpl(
         tls::ConnID session_id,
         ringbuffer::AbstractWriterFactory& writer_factory,
         std::unique_ptr<tls::Context> ctx) :
-        ccf::TLSEndpoint(session_id, writer_factory, std::move(ctx))
+        ccf::TLSSession(session_id, writer_factory, std::move(ctx))
       {}
 
       static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
@@ -166,7 +167,7 @@ namespace ccf
         fmt::format("No RPC interface for session ID {}", id));
     }
 
-    std::shared_ptr<Endpoint> make_server_session(
+    std::shared_ptr<ccf::Session> make_server_session(
       ccf::ApplicationProtocol app_protocol,
       tls::ConnID id,
       const ListenInterfaceID& listen_interface_id,

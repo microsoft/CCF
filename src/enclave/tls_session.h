@@ -6,7 +6,7 @@
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
-#include "enclave/endpoint.h"
+#include "enclave/session.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
 #include "tls/tls.h"
@@ -15,7 +15,7 @@
 
 namespace ccf
 {
-  class TLSEndpoint : public Endpoint
+  class TLSSession : public Session
   {
   protected:
     ringbuffer::WriterPtr to_host;
@@ -71,7 +71,7 @@ namespace ccf
     }
 
   public:
-    TLSEndpoint(
+    TLSSession(
       int64_t session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory_,
       std::unique_ptr<tls::Context> ctx_) :
@@ -85,7 +85,7 @@ namespace ccf
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
-    ~TLSEndpoint()
+    ~TLSSession()
     {
       RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
     }
@@ -236,12 +236,12 @@ namespace ccf
     struct SendRecvMsg
     {
       std::vector<uint8_t> data;
-      std::shared_ptr<Endpoint> self;
+      std::shared_ptr<Session> self;
     };
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
+      reinterpret_cast<TLSSession*>(msg->data.self.get())
         ->send_raw_thread(msg->data.data);
     }
 
@@ -330,12 +330,12 @@ namespace ccf
 
     struct EmptyMsg
     {
-      std::shared_ptr<Endpoint> self;
+      std::shared_ptr<Session> self;
     };
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
-      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())->close_thread();
+      reinterpret_cast<TLSSession*>(msg->data.self.get())->close_thread();
     }
 
     void close()
@@ -576,12 +576,12 @@ namespace ccf
 
     static int send_callback(void* ctx, const unsigned char* buf, size_t len)
     {
-      return reinterpret_cast<TLSEndpoint*>(ctx)->handle_send(buf, len);
+      return reinterpret_cast<TLSSession*>(ctx)->handle_send(buf, len);
     }
 
     static int recv_callback(void* ctx, unsigned char* buf, size_t len)
     {
-      return reinterpret_cast<TLSEndpoint*>(ctx)->handle_recv(buf, len);
+      return reinterpret_cast<TLSSession*>(ctx)->handle_recv(buf, len);
     }
 
     // These callbacks below are complex, using the callbacks above and
@@ -621,13 +621,13 @@ namespace ccf
         // WANTS_WRITE
         if (put == TLS_WRITING)
         {
-          LOG_TRACE_FMT("TLS Endpoint::send_cb() : WANTS_WRITE");
+          LOG_TRACE_FMT("TLS Session::send_cb() : WANTS_WRITE");
           *processed = 0;
           return -1;
         }
         else
         {
-          LOG_TRACE_FMT("TLS Endpoint::send_cb() : Put {} bytes", put);
+          LOG_TRACE_FMT("TLS Session::send_cb() : Put {} bytes", put);
         }
 
         // Update the number of bytes to external users
@@ -662,14 +662,14 @@ namespace ccf
         // WANTS_READ
         if (got == TLS_READING)
         {
-          LOG_TRACE_FMT("TLS Endpoint::recv_cb() : WANTS_READ");
+          LOG_TRACE_FMT("TLS Session::recv_cb() : WANTS_READ");
           *processed = 0;
           return -1;
         }
         else
         {
           LOG_TRACE_FMT(
-            "TLS Endpoint::recv_cb() : Got {} bytes of {}", got, len);
+            "TLS Session::recv_cb() : Got {} bytes of {}", got, len);
         }
 
         // If got less than requested, return WANT_READ
@@ -685,7 +685,7 @@ namespace ccf
         // The buffer should be enough, we can't return WANT_WRITE here
         if ((size_t)got != *processed)
         {
-          LOG_TRACE_FMT("TLS Endpoint::recv_cb() : BIO error");
+          LOG_TRACE_FMT("TLS Session::recv_cb() : BIO error");
           *processed = got;
           return -1;
         }

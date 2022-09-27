@@ -7,10 +7,10 @@
 
 namespace ccf
 {
-  class Endpoint : public std::enable_shared_from_this<Endpoint>
+  class Session : public std::enable_shared_from_this<Session>
   {
   public:
-    virtual ~Endpoint() {}
+    virtual ~Session() {}
 
     virtual void recv(const uint8_t* data, size_t size, sockaddr) = 0;
     virtual void send(std::vector<uint8_t>&& data, sockaddr) = 0;

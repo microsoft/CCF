@@ -11,7 +11,7 @@
 
 namespace http
 {
-  class HTTP2Endpoint : public ccf::TLSEndpoint
+  class HTTP2Endpoint : public ccf::TLSSession
   {
   protected:
     http2::Session& session;
@@ -21,7 +21,7 @@ namespace http
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
+      TLSSession(session_id, writer_factory, std::move(ctx)),
       session(session_)
     {}
 

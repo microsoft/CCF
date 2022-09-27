@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
-#include "enclave/endpoint.h"
+#include "enclave/session.h"
 #include "http2_types.h"
 #include "http_proc.h"
 #include "http_rpc_context.h"
@@ -361,11 +361,10 @@ namespace http2
   protected:
     nghttp2_session* session;
     std::list<std::shared_ptr<StreamData>> streams;
-    ccf::Endpoint& endpoint;
+    ccf::Session& endpoint;
 
   public:
-    Session(ccf::Endpoint& endpoint, bool is_client = false) :
-      endpoint(endpoint)
+    Session(ccf::Session& endpoint, bool is_client = false) : endpoint(endpoint)
     {
       LOG_TRACE_FMT("Created HTTP2 session");
       nghttp2_session_callbacks* callbacks;
@@ -454,7 +453,7 @@ namespace http2
     http::RequestProcessor& proc;
 
   public:
-    ServerSession(http::RequestProcessor& proc_, ccf::Endpoint& endpoint_) :
+    ServerSession(http::RequestProcessor& proc_, ccf::Session& endpoint_) :
       Session(endpoint_, false),
       proc(proc_)
     {
@@ -569,7 +568,7 @@ namespace http2
     http::ResponseProcessor& proc;
 
   public:
-    ClientSession(http::ResponseProcessor& proc_, ccf::Endpoint& endpoint_) :
+    ClientSession(http::ResponseProcessor& proc_, ccf::Session& endpoint_) :
       Session(endpoint_, true),
       proc(proc_)
     {

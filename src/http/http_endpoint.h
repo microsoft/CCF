@@ -12,7 +12,7 @@
 
 namespace http
 {
-  class HTTPEndpoint : public ccf::TLSEndpoint
+  class HTTPEndpoint : public ccf::TLSSession
   {
   protected:
     http::Parser& p;
@@ -24,7 +24,7 @@ namespace http
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
+      TLSSession(session_id, writer_factory, std::move(ctx)),
       p(p_),
       error_reporter(error_reporter)
     {}

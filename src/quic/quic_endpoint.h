@@ -7,14 +7,14 @@
 #include "ds/pending_io.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
-#include "enclave/endpoint.h"
+#include "enclave/session.h"
 #include "quic/msg_types.h"
 
 #include <exception>
 
 namespace quic
 {
-  class QUICEndpoint : public ccf::Endpoint
+  class QUICEndpoint : public ccf::Session
   {
   protected:
     ringbuffer::WriterPtr to_host;
@@ -159,7 +159,7 @@ namespace quic
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
-      LOG_TRACE_FMT("QUIC Endpoint recv_buffered with {} bytes", size);
+      LOG_TRACE_FMT("QUIC Session recv_buffered with {} bytes", size);
       pending_reads.emplace_back(const_cast<uint8_t*>(data), size, addr);
       do_handshake();
     }
@@ -167,7 +167,7 @@ namespace quic
     struct SendRecvMsg
     {
       std::vector<uint8_t> data;
-      std::shared_ptr<Endpoint> self;
+      std::shared_ptr<Session> self;
       sockaddr addr;
     };
 
@@ -264,7 +264,7 @@ namespace quic
 
     struct EmptyMsg
     {
-      std::shared_ptr<Endpoint> self;
+      std::shared_ptr<Session> self;
     };
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
