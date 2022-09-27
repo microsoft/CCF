@@ -12,6 +12,7 @@ namespace ccf
 
   // Resilient client to fetch attestation report endorsement certificate.
   class QuoteEndorsementsClient
+    : public std::enable_shared_from_this<QuoteEndorsementsClient>
   {
   private:
     std::shared_ptr<RPCSessions> rpcsessions;
@@ -98,6 +99,20 @@ namespace ccf
       }
     }
 
+    // TODO: Move to top
+    struct QuoteEndorsementsClientMsg
+    {
+      QuoteEndorsementsClientMsg(
+        const std::shared_ptr<QuoteEndorsementsClient>& self_,
+        const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint_) :
+        self(self_),
+        endpoint(endpoint_)
+      {}
+
+      std::shared_ptr<QuoteEndorsementsClient> self;
+      pal::EndorsementEndpointsConfiguration::EndpointInfo endpoint;
+    };
+
     void fetch(
       const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint)
     {
@@ -105,7 +120,7 @@ namespace ccf
       c->connect(
         endpoint.host,
         endpoint.port,
-        [this, response_is_der = endpoint.response_is_der](
+        [this, endpoint](
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
@@ -113,6 +128,39 @@ namespace ccf
           {
             LOG_FAIL_FMT(
               "Error fetching endorsements for attestation report: {}", status);
+            if (status == HTTP_STATUS_TOO_MANY_REQUESTS)
+            {
+              constexpr size_t default_retry_after_s = 3;
+              size_t retry_after_s = default_retry_after_s;
+              auto h = headers.find(http::headers::RETRY_AFTER);
+              if (h != headers.end())
+              {
+                const auto& retry_after_value = h->second;
+                // If value is invalid, retry_after_s is unchanged
+                std::from_chars(
+                  retry_after_value.data(),
+                  retry_after_value.data() + retry_after_value.size(),
+                  retry_after_s);
+              }
+
+              auto msg =
+                std::make_unique<threading::Tmsg<QuoteEndorsementsClientMsg>>(
+                  [](
+                    std::unique_ptr<threading::Tmsg<QuoteEndorsementsClientMsg>>
+                      msg) { msg->data.self->fetch(msg->data.endpoint); },
+                  shared_from_this(),
+                  endpoint);
+
+              LOG_INFO_FMT(
+                "{} endorsements server had too many requests. Retrying in {}s",
+                endpoint.host,
+                retry_after_s);
+
+              threading::ThreadMessaging::thread_messaging.add_task_after(
+                std::move(msg),
+                std::chrono::milliseconds(retry_after_s * 1000));
+            }
+            return;
           }
 
           LOG_INFO_FMT(
@@ -122,7 +170,7 @@ namespace ccf
 
           LOG_FAIL_FMT("data: {}", data);
 
-          handle_success_response(std::move(data), response_is_der);
+          handle_success_response(std::move(data), endpoint.response_is_der);
         },
         [](const std::string& error_msg) {
           // TLS errors should be handled here
