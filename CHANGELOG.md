@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-dev5]
+
+### Fixed
+
+- Also install `*.inc` files for third-party dependencies (#4266).
+
 ## [3.0.0-dev4]
 
 ### Fixed
@@ -1584,6 +1590,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[3.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev5
 [3.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev4
 [3.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev3
 [3.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev2

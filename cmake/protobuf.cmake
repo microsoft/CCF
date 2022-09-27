@@ -15,7 +15,6 @@ add_subdirectory(${CCF_3RD_PARTY_EXPORTED_DIR}/protobuf EXCLUDE_FROM_ALL)
 add_custom_target(dummy ALL DEPENDS libprotobuf)
 
 get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
-get_target_property(LIBPROTOBUF_INCLUDE_DIRS libprotobuf INCLUDE_DIRECTORIES)
 
 set(PROTOBUF_TARGETS "protobuf.virtual")
 add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
@@ -27,9 +26,11 @@ endif()
 
 foreach(TARGET ${PROTOBUF_TARGETS})
   target_include_directories(
-    ${TARGET} PUBLIC $<BUILD_INTERFACE:${LIBPROTOBUF_INCLUDE_DIRS}>
-                     $<INSTALL_INTERFACE:include/3rdparty/protobuf>
+    ${TARGET}
+    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/protobuf/src>
+           $<INSTALL_INTERFACE:include/3rdparty/protobuf>
   )
+
   target_compile_options(
     ${TARGET}
     PUBLIC
