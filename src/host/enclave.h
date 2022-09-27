@@ -181,7 +181,7 @@ namespace host
       // allocation
       auto config_s = nlohmann::json(ccf_config).dump();
       const auto config_aligned_size = (config_s.size() + 7) & ~(7ull);
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Padding config of size {} to {} bytes",
         config_s.size(),
         config_aligned_size);
