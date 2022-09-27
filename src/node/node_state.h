@@ -363,11 +363,10 @@ namespace ccf
             return;
           }
 
-          quote_endorsements_client =
-            std::make_shared<QuoteEndorsementsClient>(rpcsessions);
-
-          quote_endorsements_client->fetch_endorsements(
-            config, [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
+            rpcsessions,
+            config,
+            [this, quote_info_](std::vector<uint8_t>&& endorsements) {
               // Note: Only called for SEV-SNP
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info = quote_info_;
@@ -375,6 +374,8 @@ namespace ccf
               launch_node();
               quote_endorsements_client.reset();
             });
+
+          quote_endorsements_client->fetch_endorsements();
         };
 
       pal::attestation_report_data report_data = {};

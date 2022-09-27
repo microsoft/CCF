@@ -17,19 +17,23 @@ namespace ccf
   private:
     std::shared_ptr<RPCSessions> rpcsessions;
 
-    enum class FetchState
-    {
-      Uninitialised = 0,
-      FetchingVcek,
-      Fetching,
-      Done
-    };
-    ds::StateMachine<FetchState> sm; // TODO: Do we really need this?
-
     pal::EndorsementEndpointsConfiguration config;
     QuoteEndorsementsFetchedCallback done_cb;
 
     std::vector<uint8_t> endorsements;
+
+    struct QuoteEndorsementsClientMsg
+    {
+      QuoteEndorsementsClientMsg(
+        const std::shared_ptr<QuoteEndorsementsClient>& self_,
+        const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint_) :
+        self(self_),
+        endpoint(endpoint_)
+      {}
+
+      std::shared_ptr<QuoteEndorsementsClient> self;
+      pal::EndorsementEndpointsConfiguration::EndpointInfo endpoint;
+    };
 
     std::shared_ptr<ClientEndpoint> create_unauthenticated_client()
     {
@@ -64,30 +68,19 @@ namespace ccf
     {
       if (is_der)
       {
-        auto pem = crypto::cert_der_to_pem(data);
-        auto raw = pem.raw();
-        LOG_FAIL_FMT("pem: {}", pem.str());
+        auto raw = crypto::cert_der_to_pem(data).raw();
         endorsements.insert(endorsements.end(), raw.begin(), raw.end());
       }
       else
       {
         // Otherwise, assume that is PEM
-        LOG_FAIL_FMT("pem: {}", crypto::Pem(data).str());
         endorsements.insert(
           endorsements.end(),
           std::make_move_iterator(data.begin()),
           std::make_move_iterator(data.end()));
       }
 
-      // TODO:
-      // 0. Store first response
-      // 1. Call second endpoint when first one has succeeded (AMD only)
-      // 2. When done, call cb(std::move(endorsements))
-      // 3. Support Azure endpoint too
-
-      // cb(std::move(data));
       config.endpoints.pop_front();
-
       if (config.endpoints.empty())
       {
         LOG_INFO_FMT("Entire endorsement chain successfully retrieved");
@@ -98,20 +91,6 @@ namespace ccf
         fetch(config.endpoints.front());
       }
     }
-
-    // TODO: Move to top
-    struct QuoteEndorsementsClientMsg
-    {
-      QuoteEndorsementsClientMsg(
-        const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint_) :
-        self(self_),
-        endpoint(endpoint_)
-      {}
-
-      std::shared_ptr<QuoteEndorsementsClient> self;
-      pal::EndorsementEndpointsConfiguration::EndpointInfo endpoint;
-    };
 
     void fetch(
       const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint)
@@ -126,7 +105,7 @@ namespace ccf
           std::vector<uint8_t>&& data) {
           if (status != HTTP_STATUS_OK)
           {
-            LOG_FAIL_FMT(
+            LOG_DEBUG_FMT(
               "Error fetching endorsements for attestation report: {}", status);
             if (status == HTTP_STATUS_TOO_MANY_REQUESTS)
             {
@@ -152,7 +131,8 @@ namespace ccf
                   endpoint);
 
               LOG_INFO_FMT(
-                "{} endorsements server had too many requests. Retrying in {}s",
+                "{} endorsements endpoint had too many requests. Retrying in "
+                "{}s",
                 endpoint.host,
                 retry_after_s);
 
@@ -168,34 +148,31 @@ namespace ccf
             "bytes",
             data.size());
 
-          LOG_FAIL_FMT("data: {}", data);
-
           handle_success_response(std::move(data), endpoint.response_is_der);
         },
-        [](const std::string& error_msg) {
-          // TLS errors should be handled here
+        [endpoint](const std::string& error_msg) {
+          LOG_FAIL_FMT(
+            "TLS error when connecting to quote endorsements endpoint {}",
+            endpoint.host);
         });
       send_request(c, endpoint);
     }
 
   public:
-    QuoteEndorsementsClient(const std::shared_ptr<RPCSessions>& rpcsessions_) :
-      rpcsessions(rpcsessions_),
-      sm("QuoteEndorsementsClient", FetchState::Uninitialised){};
-
-    void fetch_endorsements(
+    QuoteEndorsementsClient(
+      const std::shared_ptr<RPCSessions>& rpcsessions_,
       const pal::EndorsementEndpointsConfiguration& config_,
-      QuoteEndorsementsFetchedCallback cb)
-    {
-      // TODO: Pass these on constructor instead?
-      done_cb = cb;
-      config = config_;
+      QuoteEndorsementsFetchedCallback cb) :
+      rpcsessions(rpcsessions_),
+      config(config_),
+      done_cb(cb){};
 
+    void fetch_endorsements()
+    {
       if (config.endpoints.empty())
       {
         throw std::logic_error("No endpoint specified to fetch endorsements");
       }
-
       fetch(config.endpoints.front());
     }
   };
