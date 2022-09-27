@@ -94,20 +94,18 @@ namespace ccf::js
     auto curve = jsctx.to_str(argv[0]);
 
     crypto::CurveID cid;
-    if (curve == "p256r1")
+    if (curve == "secp256r1")
     {
       cid = crypto::CurveID::SECP256R1;
     }
-    else if (curve == "p384r1")
+    else if (curve == "secp384r1")
     {
       cid = crypto::CurveID::SECP384R1;
     }
     else
     {
-      auto e = JS_ThrowRangeError(
-        ctx, "Unsupported curve id, supported: p256r1, p384r1");
-      js::js_dump_error(ctx);
-      return e;
+      return JS_ThrowRangeError(
+        ctx, "Unsupported curve id, supported: secp256r1, secp384r1");
     }
     auto k = crypto::make_key_pair(cid);
 

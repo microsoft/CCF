@@ -48,9 +48,16 @@ describe("polyfill", function () {
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
-  describe("generateEcdsaKeyPair", function () {
+  describe("generateEcdsaKeyPair/secp256r1", function () {
     it("generates a random ECDSA P256R1 key pair", function () {
       const pair = ccf.generateEcdsaKeyPair("secp256r1");
+      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+    });
+  });
+  describe("generateEcdsaKeyPair/secp384r1", function () {
+    it("generates a random ECDSA P384R1 key pair", function () {
+      const pair = ccf.generateEcdsaKeyPair("secp384r1");
       assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });

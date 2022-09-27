@@ -192,8 +192,10 @@ class CCFPolyfill implements CCF {
   }
 
   generateEcdsaKeyPair(curve: string): CryptoKeyPair {
+    var curve_name = curve;
+    if (curve == "secp256r1") curve_name = "prime256v1";
     const ecdsaKeyPair = crypto.generateKeyPairSync("ec", {
-      namedCurve: curve,
+      namedCurve: curve_name,
       publicKeyEncoding: {
         type: "spki",
         format: "pem",
