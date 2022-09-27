@@ -177,20 +177,28 @@ namespace host
       size_t service_cert_len = 0;
       size_t enclave_version_len = 0;
 
-      auto config = nlohmann::json(ccf_config).dump();
-
-      // Pad config with NULLs to a multiple of 8
-      const auto padded_size = (config.size() + 7) & ~(7ull);
-      if (config.size() != padded_size)
+      // Pad config with NULLs to a multiple of 8, in an 8-byte aligned
+      // allocation
+      auto config_s = nlohmann::json(ccf_config).dump();
+      const auto config_aligned_size = (config_s.size() + 7) & ~(7ull);
+      LOG_DEBUG_FMT(
+        "Padding config of size {} to {} bytes",
+        config_s.size(),
+        config_aligned_size);
+      auto config =
+        static_cast<char*>(std::aligned_alloc(8u, config_aligned_size));
+      if (config == nullptr)
       {
-        LOG_DEBUG_FMT(
-          "Padding config with {} additional nulls",
-          padded_size - config.size());
-        config.resize(padded_size);
+        throw std::runtime_error(fmt::format(
+          "Unable to allocate {} bytes for aligned config",
+          config_aligned_size));
       }
 
+      auto copy_end = std::copy(config_s.begin(), config_s.end(), config);
+      std::fill(copy_end, config + config_aligned_size, 0);
+
 #define CREATE_NODE_ARGS \
-  &status, (void*)&enclave_config, config.data(), config.size(), \
+  &status, (void*)&enclave_config, config, config_aligned_size, \
     node_cert.data(), node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, \
@@ -212,6 +220,8 @@ namespace host
         err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
       }
 #endif
+
+      std::free(config);
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {
