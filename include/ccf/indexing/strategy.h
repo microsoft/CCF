@@ -32,7 +32,10 @@ namespace ccf::indexing
       return name;
     }
 
-    /** Receives every committed transaction, in-order, shortly after commit
+    /** Receives every committed transaction, in-order, shortly after commit.
+     *
+     * The given store contains only the changes that occured in the current
+     * transaction.
      */
     virtual void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) = 0;
