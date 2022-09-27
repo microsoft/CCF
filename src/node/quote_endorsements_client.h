@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/pal/attestation.h"
-#include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 
 namespace ccf

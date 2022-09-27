@@ -408,7 +408,7 @@ namespace ccf
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
-      setup_history(start_type != StartType::Recover);
+      setup_history();
       setup_snapshotter();
       setup_encryptor();
 
@@ -663,6 +663,7 @@ namespace ccf
 
             snapshotter->set_last_snapshot_idx(
               network.tables->current_version());
+            history->start_signature_emit_timer();
 
             if (resp.network_info->public_only)
             {
@@ -1014,6 +1015,7 @@ namespace ccf
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
+      history->start_signature_emit_timer();
       auto_refresh_jwt_keys();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
@@ -2443,7 +2445,7 @@ namespace ccf
       cmd_forwarder->initialize(self);
     }
 
-    void setup_history(bool signature_timer = true)
+    void setup_history()
     {
       if (history)
       {
@@ -2456,7 +2458,7 @@ namespace ccf
         *node_sign_kp,
         sig_tx_interval,
         sig_ms_interval,
-        signature_timer);
+        false /* start time signatures after first tx */);
       network.tables->set_history(history);
     }
 
