@@ -2,24 +2,33 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/hash.h"
+
 #include <llhttp/llhttp.h>
 #include <string>
 
 namespace ccf
 {
-  // TODO: Should take string_view
-  // TODO: Should hash and switch, rather than repeated strcmps
-  static inline llhttp_method http_method_from_str(const char* s)
+  static inline llhttp_method http_method_from_str(const std::string_view& s)
   {
+    const auto hashed_name = ds::fnv_1a<size_t>(s);
+
 #define XX(num, name, string) \
-  if (strcmp(s, #string) == 0) \
+  case (ds::fnv_1a<size_t>(#string)): \
   { \
     return llhttp_method(num); \
   }
-    HTTP_METHOD_MAP(XX)
-#undef XX
 
-    throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
+    switch (hashed_name)
+    {
+      HTTP_METHOD_MAP(XX)
+
+      default:
+      {
+        throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
+      }
+    }
+#undef XX
   }
 
   /*!
