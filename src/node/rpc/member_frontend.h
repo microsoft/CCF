@@ -925,11 +925,14 @@ namespace ccf
 
         if (JS_IsException(val))
         {
-          js::js_dump_error(context);
+          auto [reason, trace] = js_error_message(context);
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Failed to execute validation");
+            fmt::format(
+              "Failed to execute validation: {} {}",
+              reason,
+              trace.value_or("")));
           return;
         }
 
