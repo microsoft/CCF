@@ -83,6 +83,43 @@ namespace ccf::js
     return r;
   }
 
+  static JSValue js_generate_ecdsa_key_pair(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto curve = jsctx.to_str(argv[0]);
+
+    crypto::CurveID cid;
+    if (curve == "secp256r1")
+    {
+      cid = crypto::CurveID::SECP256R1;
+    }
+    else if (curve == "secp384r1")
+    {
+      cid = crypto::CurveID::SECP384R1;
+    }
+    else
+    {
+      return JS_ThrowRangeError(
+        ctx, "Unsupported curve id, supported: secp256r1, secp384r1");
+    }
+    auto k = crypto::make_key_pair(cid);
+
+    crypto::Pem prv = k->private_key_pem();
+    crypto::Pem pub = k->public_key_pem();
+
+    auto r = JS_NewObject(ctx);
+    JS_SetPropertyStr(
+      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
+    JS_SetPropertyStr(
+      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
+    return r;
+  }
+
   static JSValue js_digest(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
