@@ -38,17 +38,17 @@ namespace http2
 
     auto* stream_data = get_stream_data(session, stream_id);
 
-    auto& response_body = stream_data->response_body;
+    auto& body = stream_data->body;
 
-    if (response_body.size() > 0)
+    if (body.size() > 0)
     {
-      if (length < response_body.size())
+      if (length < body.size())
       {
         throw std::runtime_error("Read too large");
       }
 
       // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-      memcpy(buf, response_body.data(), response_body.size());
+      memcpy(buf, body.data(), body.size());
     }
 
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
@@ -76,7 +76,7 @@ namespace http2
       }
     }
 
-    return response_body.size();
+    return body.size();
   }
 
   static ssize_t read_callback_client(
@@ -92,26 +92,26 @@ namespace http2
 
     auto* stream_data = get_stream_data(session, stream_id);
 
-    auto& request_body = stream_data->request_body;
+    auto& body = stream_data->body;
 
     // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
     size_t to_read =
-      std::min(request_body.size() - stream_data->current_offset, length);
+      std::min(body.size() - stream_data->current_offset, length);
     LOG_TRACE_FMT(
       "Request body size: {}, offset: {}, to_read: {}",
-      request_body.size(),
+      body.size(),
       stream_data->current_offset,
       to_read);
-    if (request_body.size() > 0)
+    if (body.size() > 0)
     {
-      memcpy(buf, request_body.data() + stream_data->current_offset, to_read);
+      memcpy(buf, body.data() + stream_data->current_offset, to_read);
       stream_data->current_offset += to_read;
     }
-    if (stream_data->current_offset >= request_body.size())
+    if (stream_data->current_offset >= body.size())
     {
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
       stream_data->current_offset = 0;
-      request_body.clear();
+      body.clear();
     }
     return to_read;
   }
@@ -227,21 +227,18 @@ namespace http2
     auto v = std::string(value, value + valuelen);
     LOG_TRACE_FMT("http2::on_header_callback: {}:{}", k, v);
 
-    auto* s = get_session(user_data);
     auto* stream_data = get_stream_data(session, frame->hd.stream_id);
+    stream_data->headers.emplace(k, v);
 
-    if (k == http2::headers::PATH)
-    {
-      stream_data->url = v;
-    }
-    else if (k == http2::headers::METHOD)
-    {
-      stream_data->verb = v;
-    }
-    else
-    {
-      stream_data->headers.emplace(k, v);
-    }
+    // TODO: Get on-demand
+    // if (k == http2::headers::PATH)
+    // {
+    //   stream_data->url = v;
+    // }
+    // else if (k == http2::headers::METHOD)
+    // {
+    //   stream_data->verb = v;
+    // }
 
     return 0;
   }
@@ -261,15 +258,12 @@ namespace http2
     LOG_TRACE_FMT("http2::on_header_callback_client: {}:{}", k, v);
 
     auto* stream_data = get_stream_data(session, frame->hd.stream_id);
+    stream_data->headers.emplace(k, v);
 
-    if (k == http2::headers::STATUS)
-    {
-      stream_data->status = http_status(std::stoi(v));
-    }
-    else
-    {
-      stream_data->headers.emplace(k, v);
-    }
+    // if (k == http2::headers::STATUS)
+    // {
+    //   stream_data->status = http_status(std::stoi(v));
+    // }
 
     return 0;
   }
@@ -286,8 +280,7 @@ namespace http2
 
     auto* stream_data = get_stream_data(session, stream_id);
 
-    stream_data->request_body.insert(
-      stream_data->request_body.end(), data, data + len);
+    stream_data->body.insert(stream_data->body.end(), data, data + len);
 
     return 0;
   }
@@ -304,8 +297,7 @@ namespace http2
 
     auto* stream_data = get_stream_data(session, stream_id);
 
-    stream_data->response_body.insert(
-      stream_data->response_body.end(), data, data + len);
+    stream_data->body.insert(stream_data->body.end(), data, data + len);
 
     return 0;
   }
@@ -519,7 +511,7 @@ namespace http2
         LOG_FAIL_FMT("stream not found!");
         return;
       }
-      stream_data->response_body = std::move(body);
+      stream_data->body = std::move(body);
 
       stream_data->trailers = std::move(trailers);
 
@@ -547,11 +539,31 @@ namespace http2
         return;
       }
 
+      auto& headers = stream_data->headers;
+
+      std::string url = {};
+      {
+        const auto url_it = headers.find(http2::headers::PATH);
+        if (url_it != headers.end())
+        {
+          url = url_it->second;
+        }
+      }
+
+      llhttp_method method = {};
+      {
+        const auto method_it = headers.find(http2::headers::METHOD);
+        if (method_it != headers.end())
+        {
+          method = ccf::http_method_from_str(method_it->second.c_str());
+        }
+      }
+
       proc.handle_request(
-        stream_data->verb.get_http_method().value(),
-        stream_data->url,
+        method,
+        url,
         std::move(stream_data->headers),
-        std::move(stream_data->request_body),
+        std::move(stream_data->body),
         stream_data->id);
     }
 
@@ -607,7 +619,7 @@ namespace http2
 
       auto stream_data = std::make_shared<StreamData>(0);
 
-      stream_data->request_body = std::move(body);
+      stream_data->body = std::move(body);
 
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
@@ -644,10 +656,19 @@ namespace http2
 
     void handle_response(StreamData* stream_data) override
     {
+      auto& headers = stream_data->headers;
+
+      http_status status = {};
+      {
+        const auto status_it = headers.find(http2::headers::STATUS);
+        if (status_it != headers.end())
+        {
+          status = http_status(std::stoi(status_it->second));
+        }
+      }
+
       proc.handle_response(
-        stream_data->status,
-        std::move(stream_data->headers),
-        std::move(stream_data->response_body));
+        status, std::move(stream_data->headers), std::move(stream_data->body));
     }
   };
 }

@@ -24,14 +24,8 @@ namespace http2
     StreamId id;
     http::HeaderMap headers;
     http::HeaderMap trailers;
-    std::string url;
-    ccf::RESTVerb verb;
-    std::vector<uint8_t> request_body;
-    http_status status;
+    std::vector<uint8_t> body;
     size_t current_offset = 0;
-
-    // Response
-    std::vector<uint8_t> response_body;
 
     StreamData(StreamId id_) : id(id_) {}
   };

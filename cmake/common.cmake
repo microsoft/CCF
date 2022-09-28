@@ -56,7 +56,6 @@ endif()
 option(ENABLE_HTTP2 "Enable experimental support for HTTP2" OFF)
 if(ENABLE_HTTP2)
   message(STATUS "Enabling experimental support for HTTP2")
-  add_compile_definitions(ENABLE_HTTP2)
 endif()
 
 option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
