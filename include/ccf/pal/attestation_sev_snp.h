@@ -218,6 +218,28 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 
       return config;
     }
+
+    constexpr auto azure_endorsements_endpoint_host =
+      "americas.test.acccache.azure.net";
+
+    static EndorsementEndpointsConfiguration
+    make_azure_endorsement_endpoint_configuration(const Attestation& quote)
+    {
+      std::map<std::string, std::string> params;
+      params["api-version"] = "2020-10-15-preview";
+
+      EndorsementEndpointsConfiguration config;
+      config.endpoints.push_back(
+        {azure_endorsements_endpoint_host,
+         "443",
+         fmt::format(
+           "/SevSnpVM/certificates/{}/{}",
+           fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
+           fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb))),
+         params});
+
+      return config;
+    }
   }
 
 #  define SEV_GUEST_IOC_TYPE 'S'

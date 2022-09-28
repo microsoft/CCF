@@ -86,34 +86,9 @@ namespace ccf::pal
 
     if (endorsement_cb != nullptr)
     {
-      // std::map<std::string, std::string> params;
-      // params["blSPL"] = fmt::format("{}", quote->reported_tcb.boot_loader);
-      // params["teeSPL"] = fmt::format("{}", quote->reported_tcb.tee);
-      // params["snpSPL"] = fmt::format("{}", quote->reported_tcb.snp);
-      // params["ucodeSPL"] = fmt::format("{}", quote->reported_tcb.microcode);
-
-      // // TODO: Move to configuration
-      // // See https://www.amd.com/system/files/TechDocs/57230.pdf
-      // // $ curl https://kdsintf.amd.com/vcek/v1/Milan/cert_chain
-      // EndorsementEndpointsConfiguration config;
-      // config.endpoints.push_back(
-      //   {"kdsintf.amd.com",
-      //    "443",
-      //    fmt::format(
-      //      "/vcek/v1/{}/{}",
-      //      product_name,
-      //      fmt::format("{:02x}", fmt::join(quote->chip_id, ""))),
-      //    params,
-      //    true});
-      // config.endpoints.push_back(
-      //   {"kdsintf.amd.com",
-      //    "443",
-      //    fmt::format("/vcek/v1/{}/cert_chain", product_name),
-      //    {}});
-
       endorsement_cb(
         node_quote_info,
-        snp::make_amd_endorsement_endpoint_configuration(*quote));
+        snp::make_azure_endorsement_endpoint_configuration(*quote));
     }
   }
 
