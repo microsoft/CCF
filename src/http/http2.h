@@ -141,7 +141,7 @@ namespace http2
         // If the request is complete, process it
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
         {
-          s->handle_request(stream_data);
+          s->handle_completed(stream_data);
         }
         break;
       }
@@ -151,35 +151,6 @@ namespace http2
       }
     }
 
-    return 0;
-  }
-
-  static int on_frame_recv_callback_client(
-    nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
-  {
-    LOG_TRACE_FMT(
-      "http2::on_frame_recv_callback_client, type: {}", frame->hd.type);
-
-    auto* s = get_session(user_data);
-    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
-
-    switch (frame->hd.type)
-    {
-      case NGHTTP2_DATA:
-      {
-        LOG_TRACE_FMT("Data frame: {}", frame->headers.cat);
-        if (stream_data->id == frame->hd.stream_id)
-        {
-          LOG_DEBUG_FMT("All headers received");
-          s->handle_response(stream_data);
-        }
-        break;
-      }
-      default:
-      {
-        break;
-      }
-    }
     return 0;
   }
 
@@ -204,15 +175,6 @@ namespace http2
     return 0;
   }
 
-  static int on_begin_headers_callback_client(
-    nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
-  {
-    LOG_TRACE_FMT(
-      "http2::on_begin_headers_callback_client: {}", frame->hd.type);
-
-    return 0;
-  }
-
   static int on_header_callback(
     nghttp2_session* session,
     const nghttp2_frame* frame,
@@ -229,41 +191,6 @@ namespace http2
 
     auto* stream_data = get_stream_data(session, frame->hd.stream_id);
     stream_data->headers.emplace(k, v);
-
-    // TODO: Get on-demand
-    // if (k == http2::headers::PATH)
-    // {
-    //   stream_data->url = v;
-    // }
-    // else if (k == http2::headers::METHOD)
-    // {
-    //   stream_data->verb = v;
-    // }
-
-    return 0;
-  }
-
-  static int on_header_callback_client(
-    nghttp2_session* session,
-    const nghttp2_frame* frame,
-    const uint8_t* name,
-    size_t namelen,
-    const uint8_t* value,
-    size_t valuelen,
-    uint8_t flags,
-    void* user_data)
-  {
-    auto k = std::string(name, name + namelen);
-    auto v = std::string(value, value + valuelen);
-    LOG_TRACE_FMT("http2::on_header_callback_client: {}:{}", k, v);
-
-    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
-    stream_data->headers.emplace(k, v);
-
-    // if (k == http2::headers::STATUS)
-    // {
-    //   stream_data->status = http_status(std::stoi(v));
-    // }
 
     return 0;
   }
@@ -285,23 +212,6 @@ namespace http2
     return 0;
   }
 
-  static int on_data_callback_client(
-    nghttp2_session* session,
-    uint8_t flags,
-    StreamId stream_id,
-    const uint8_t* data,
-    size_t len,
-    void* user_data)
-  {
-    LOG_TRACE_FMT("http2::on_data_callback_client: {}", stream_id);
-
-    auto* stream_data = get_stream_data(session, stream_id);
-
-    stream_data->body.insert(stream_data->body.end(), data, data + len);
-
-    return 0;
-  }
-
   static int on_stream_close_callback(
     nghttp2_session* session,
     StreamId stream_id,
@@ -311,7 +221,7 @@ namespace http2
     LOG_TRACE_FMT(
       "http2::on_stream_close_callback: {}, {}", stream_id, error_code);
 
-    // Note: Stream should be closed correctly here
+    auto* s = get_session(user_data);
 
     return 0;
   }
@@ -369,29 +279,24 @@ namespace http2
       nghttp2_session_callbacks_set_error_callback2(
         callbacks, on_error_callback);
 
+      nghttp2_session_callbacks_set_on_frame_recv_callback(
+        callbacks, on_frame_recv_callback);
+      nghttp2_session_callbacks_set_on_begin_headers_callback(
+        callbacks, on_begin_headers_callback);
+      nghttp2_session_callbacks_set_on_header_callback(
+        callbacks, on_header_callback);
+      nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
+        callbacks, on_data_callback);
+
       if (is_client)
       {
-        nghttp2_session_callbacks_set_on_frame_recv_callback(
-          callbacks, on_frame_recv_callback_client);
-        nghttp2_session_callbacks_set_on_begin_headers_callback(
-          callbacks, on_begin_headers_callback_client);
-        nghttp2_session_callbacks_set_on_header_callback(
-          callbacks, on_header_callback_client);
-        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
-          callbacks, on_data_callback_client);
-        nghttp2_session_client_new(&session, callbacks, this);
+        if (nghttp2_session_client_new(&session, callbacks, this) != 0)
+        {
+          throw std::logic_error("Could not create new HTTP/2 client session");
+        }
       }
       else
       {
-        nghttp2_session_callbacks_set_on_frame_recv_callback(
-          callbacks, on_frame_recv_callback);
-        nghttp2_session_callbacks_set_on_begin_headers_callback(
-          callbacks, on_begin_headers_callback);
-        nghttp2_session_callbacks_set_on_header_callback(
-          callbacks, on_header_callback);
-        nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
-          callbacks, on_data_callback);
-
         if (nghttp2_session_server_new(&session, callbacks, this) != 0)
         {
           throw std::logic_error("Could not create new HTTP/2 server session");
@@ -407,6 +312,11 @@ namespace http2
     }
 
     void add_stream(const std::shared_ptr<StreamData>& stream_data) override
+    {
+      streams.push_back(stream_data);
+    }
+
+    void remove_stream(const std::shared_ptr<StreamData>& stream_data) override
     {
       streams.push_back(stream_data);
     }
@@ -529,9 +439,9 @@ namespace http2
       }
     }
 
-    virtual void handle_request(StreamData* stream_data) override
+    virtual void handle_completed(StreamData* stream_data) override
     {
-      LOG_TRACE_FMT("http2::ServerSession: handle_request");
+      LOG_TRACE_FMT("http2::ServerSession: handle_completed");
 
       if (stream_data == nullptr)
       {
@@ -565,12 +475,6 @@ namespace http2
         std::move(stream_data->headers),
         std::move(stream_data->body),
         stream_data->id);
-    }
-
-    void handle_response(StreamData* stream_data) override
-    {
-      // Server does not handle responses
-      return;
     }
   };
 
@@ -648,14 +552,16 @@ namespace http2
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
     }
 
-    virtual void handle_request(StreamData* stream_data) override
+    void handle_completed(StreamData* stream_data) override
     {
-      // Client does not handle requests
-      return;
-    }
+      LOG_TRACE_FMT("http2::ClientSession: handle_completed");
 
-    void handle_response(StreamData* stream_data) override
-    {
+      if (stream_data == nullptr)
+      {
+        LOG_FAIL_FMT("No stream data to handle response");
+        return;
+      }
+
       auto& headers = stream_data->headers;
 
       http_status status = {};

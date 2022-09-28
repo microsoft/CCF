@@ -35,8 +35,7 @@ namespace http2
   public:
     virtual ~AbstractSession() = default;
     virtual void send(const uint8_t* data, size_t length) = 0;
-    virtual void handle_request(StreamData* stream_data) = 0;
-    virtual void handle_response(StreamData* stream_data) = 0;
+    virtual void handle_completed(StreamData* stream_data) = 0;
     virtual void add_stream(const std::shared_ptr<StreamData>& stream_data) = 0;
   };
 
