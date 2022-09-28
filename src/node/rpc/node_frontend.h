@@ -414,8 +414,10 @@ namespace ccf
             ccf::errors::StartupSeqnoIsOld,
             fmt::format(
               "Node requested to join from seqno {} which is "
-              "older than this node startup seqno {}",
+              "older than this node startup seqno {}. A snapshot at least ",
+              "as recent as {} must be used instead.",
               in.startup_seqno.value(),
+              this_startup_seqno,
               this_startup_seqno));
         }
 
@@ -1385,15 +1387,15 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto jwt_metrics = [this](auto&, nlohmann::json&&) {
+      auto jwt_metrics = [this](auto& ctx, nlohmann::json&&) {
         JWTMetrics m;
         // Attempts are recorded by the key refresh code itself, registering
         // before each call to each issuer's keys
         m.attempts = node_operation.get_jwt_attempts();
         // Success is marked by the fact that the key succeeded and called
         // our internal "jwt_keys/refresh" endpoint.
-        auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
-        auto metric = get_metrics_for_endpoint(e);
+        auto metric = get_metrics_for_request(
+          "/jwt_keys/refresh", llhttp_method_name(HTTP_POST));
         m.successes = metric.calls - (metric.failures + metric.errors);
         return m;
       };

@@ -32,13 +32,13 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
+#include "quote_endorsements_client.h"
 #include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "service/genesis_gen.h"
 #include "share_manager.h"
-#include "tls/client.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -77,6 +77,7 @@ namespace ccf
     //
     ds::StateMachine<NodeStartupState> sm;
     pal::Mutex lock;
+    StartType start_type;
 
     crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
@@ -89,6 +90,8 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
+    std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
+      nullptr;
 
     struct NodeStateMsg
     {
@@ -280,10 +283,114 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
+    void launch_node()
+    {
+      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+      if (code_id.has_value())
+      {
+        node_code_id = code_id.value();
+      }
+      else
+      {
+        throw std::logic_error("Failed to extract code id from quote");
+      }
+
+      switch (start_type)
+      {
+        case StartType::Start:
+        {
+          create_and_send_boot_request(
+            aft::starting_view_change, true /* Create new consortium */);
+          return;
+        }
+        case StartType::Join:
+        {
+          // When joining from a snapshot, deserialise ledger suffix to
+          // verify (1.x) snapshot evidence. Otherwise, attempt to join straight
+          //
+          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
+          {
+            // Note: 2.x snapshots are self-verified so the ledger verification
+            // of its evidence can be skipped entirely
+            sm.advance(NodeStartupState::pending);
+            start_join_timer();
+          }
+          else
+          {
+            // Node joins from a 1.x snapshot
+            sm.advance(NodeStartupState::verifyingSnapshot);
+            start_ledger_recovery_unsafe();
+          }
+          return;
+        }
+        case StartType::Recover:
+        {
+          setup_recovery_hook();
+          if (!config.startup_snapshot.empty())
+          {
+            initialise_startup_snapshot(true);
+            snapshotter->set_last_snapshot_idx(last_recovered_idx);
+          }
+
+          sm.advance(NodeStartupState::readingPublicLedger);
+          start_ledger_recovery_unsafe();
+          return;
+        }
+        default:
+        {
+          throw std::logic_error(
+            fmt::format("Node was launched in unknown mode {}", start_type));
+        }
+      }
+    }
+
+    void initiate_quote_generation()
+    {
+      auto fetch_endorsements =
+        [this](
+          QuoteInfo quote_info_,
+          const pal::EndorsementEndpointConfiguration& config) {
+          if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
+          {
+            // Note: Node lock is already taken here as this is called back
+            // synchronously with the call to pal::generate_quote
+            CCF_ASSERT_FMT(
+              quote_info_.format == QuoteFormat::insecure_virtual ||
+                !quote_info_.endorsements.empty(),
+              "SGX quote generation should have already fetched endorsements");
+            quote_info = quote_info_;
+            launch_node();
+            return;
+          }
+
+          quote_endorsements_client =
+            std::make_shared<QuoteEndorsementsClient>(rpcsessions);
+
+          quote_endorsements_client->fetch_endorsements(
+            config, [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+              // Note: Only called for SEV-SNP
+              std::lock_guard<pal::Mutex> guard(lock);
+              quote_info = quote_info_;
+              quote_info.endorsements = std::move(endorsements);
+              launch_node();
+              quote_endorsements_client.reset();
+            });
+        };
+
+      pal::attestation_report_data report_data = {};
+      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
+      std::copy(
+        node_pub_key_hash.h.begin(),
+        node_pub_key_hash.h.end(),
+        report_data.begin());
+      pal::generate_quote(report_data, fetch_endorsements);
+    }
+
+    NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
+      start_type = start_type_;
 
       config = std::move(config_);
       subject_alt_names = get_subject_alternative_names();
@@ -299,25 +406,6 @@ namespace ccf
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
-      // Depending on the platform, the attestation report may be larger than 32
-      // bytes
-      pal::attestation_report_data report = {};
-      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
-      std::copy(
-        node_pub_key_hash.h.begin(), node_pub_key_hash.h.end(), report.begin());
-
-      quote_info = pal::generate_quote(report);
-
-      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
-      if (code_id.has_value())
-      {
-        node_code_id = code_id.value();
-      }
-      else
-      {
-        throw std::logic_error("Failed to extract code id from quote");
-      }
-
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
       setup_history(start_type != StartType::Recover);
@@ -325,6 +413,8 @@ namespace ccf
       setup_encryptor();
 
       setup_acme_clients();
+
+      initiate_quote_generation();
 
       switch (start_type)
       {
@@ -337,15 +427,6 @@ namespace ccf
 
           network.ledger_secrets->init();
 
-          if (network.consensus_type == ConsensusType::BFT)
-          {
-            endorsed_node_cert = create_endorsed_node_cert(
-              config.node_certificate.initial_validity_days);
-            history->set_endorsed_certificate(endorsed_node_cert.value());
-            accept_network_tls_connections();
-            open_frontend(ActorsType::members);
-          }
-
           setup_consensus(
             ServiceStatus::OPENING,
             config.start.service_configuration.reconfiguration_type.value_or(
@@ -356,27 +437,11 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          create_and_send_boot_request(
-            aft::starting_view_change, true /* Create new consortium */);
-
           LOG_INFO_FMT("Created new node {}", self);
-
           return {self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
-          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
-          {
-            // Note: 2.x snapshots are self-verified so the ledger verification
-            // of its evidence can be skipped entirely
-            sm.advance(NodeStartupState::pending);
-          }
-          else
-          {
-            // Node joins from a 1.x snapshot
-            sm.advance(NodeStartupState::verifyingSnapshot);
-          }
-
           LOG_INFO_FMT("Created join node {}", self);
           return {self_signed_node_cert, {}};
         }
@@ -393,17 +458,6 @@ namespace ccf
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
-
-          bool from_snapshot = !config.startup_snapshot.empty();
-          setup_recovery_hook();
-
-          if (from_snapshot)
-          {
-            initialise_startup_snapshot(true);
-            snapshotter->set_last_snapshot_idx(last_recovered_idx);
-          }
-
-          sm.advance(NodeStartupState::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -701,12 +755,6 @@ namespace ccf
         std::move(timer_msg), config.join.retry_timeout);
     }
 
-    void join()
-    {
-      std::lock_guard<pal::Mutex> guard(lock);
-      start_join_timer();
-    }
-
     void auto_refresh_jwt_keys()
     {
       if (!consensus)
@@ -742,9 +790,8 @@ namespace ccf
     //
     // funcs in state "readingPublicLedger" or "verifyingSnapshot"
     //
-    void start_ledger_recovery()
+    void start_ledger_recovery_unsafe()
     {
-      std::lock_guard<pal::Mutex> guard(lock);
       if (
         !sm.check(NodeStartupState::readingPublicLedger) &&
         !sm.check(NodeStartupState::verifyingSnapshot))
@@ -965,7 +1012,7 @@ namespace ccf
 
     void advance_part_of_network()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       auto_refresh_jwt_keys();
       reset_data(quote_info.quote);
@@ -1923,32 +1970,26 @@ namespace ccf
       return request.build_request();
     }
 
-    bool parse_create_response(const std::vector<uint8_t>& response)
+    bool extract_create_result(const std::shared_ptr<RpcContext>& ctx)
     {
-      http::SimpleResponseProcessor processor;
-      http::ResponseParser parser(processor);
-
-      parser.execute(response.data(), response.size());
-
-      if (processor.received.size() != 1)
+      if (ctx == nullptr)
       {
-        LOG_FAIL_FMT(
-          "Expected single message, found {}", processor.received.size());
+        LOG_FAIL_FMT("Expected non-null context");
         return false;
       }
 
-      const auto& r = processor.received.front();
-
-      if (r.status != HTTP_STATUS_OK)
+      const auto status = ctx->get_response_status();
+      if (status != HTTP_STATUS_OK)
       {
         LOG_FAIL_FMT(
           "Create response is error: {} {}",
-          r.status,
-          http_status_str(r.status));
+          status,
+          http_status_str((http_status)status));
         return false;
       }
 
-      const auto body = serdes::unpack(r.body, serdes::Pack::Text);
+      const auto body =
+        serdes::unpack(ctx->get_response_body(), serdes::Pack::Text);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
@@ -1983,13 +2024,9 @@ namespace ccf
       }
       auto frontend = frontend_opt.value();
 
-      const auto response = frontend->process(ctx);
-      if (!response.has_value())
-      {
-        return false;
-      }
+      frontend->process(ctx);
 
-      return parse_create_response(response.value());
+      return extract_create_result(ctx);
     }
 
     void create_and_send_boot_request(

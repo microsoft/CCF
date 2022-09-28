@@ -498,7 +498,7 @@ class RequestClient:
                 timeout=timeout,
                 content=request_body,
             )
-        except httpx.ReadTimeout as exc:
+        except httpx.TimeoutException as exc:
             raise TimeoutError from exc
         except httpx.NetworkError as exc:
             raise CCFConnectionException from exc

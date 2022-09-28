@@ -19,8 +19,9 @@ namespace ccf
     QuoteFormat,
     {{QuoteFormat::oe_sgx_v1, "OE_SGX_v1"},
      {QuoteFormat::insecure_virtual, "Insecure_Virtual"},
-     {QuoteFormat::amd_sev_snp_v1, "AMD_SEV_SNP_v1"}})
+     {QuoteFormat::amd_sev_snp_v1, "AMD_SEV_SNP_v1"}});
 
+  /// Describes a quote (attestation) from trusted hardware
   struct QuoteInfo
   {
     /// Quote format

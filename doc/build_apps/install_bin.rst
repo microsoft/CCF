@@ -1,6 +1,8 @@
 Install CCF
 ===========
 
+.. tip:: The `ccf-app-template <https://github.com/microsoft/ccf-app-template>`_ repository can be used to quickly setup the environment necessary to build CCF apps.
+
 Requirements
 ------------
 

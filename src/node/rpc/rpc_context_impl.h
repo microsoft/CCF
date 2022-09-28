@@ -44,6 +44,7 @@ namespace ccf
 
     bool is_create_request = false;
     bool execute_on_node = false;
+    bool response_is_pending = false;
 
     virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
     virtual bool should_apply_writes() const = 0;

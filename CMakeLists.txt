@@ -192,6 +192,7 @@ install(
   FILES_MATCHING
   PATTERN "*.h"
   PATTERN "*.hpp"
+  PATTERN "*.inc"
 )
 
 # Install all private CCF headers, which may still be needed
@@ -997,6 +998,12 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
     CONSENSUS cft
     LABEL perf
+  )
+
+  add_e2e_test(
+    NAME external_executor_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/external_executor.py
+    CONSENSUS ${CONSENSUS_FILTER}
   )
 endif()
 

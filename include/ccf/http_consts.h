@@ -32,6 +32,7 @@ namespace http
       static constexpr auto MSGPACK = "application/msgpack";
       static constexpr auto TEXT = "text/plain";
       static constexpr auto OCTET_STREAM = "application/octet-stream";
+      static constexpr auto GRPC = "application/grpc";
     }
   }
 

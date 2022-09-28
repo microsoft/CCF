@@ -126,12 +126,25 @@ def run(args):
             )
             LOG.warning("Press Ctrl+C to shutdown the network")
 
-            try:
-                while True:
-                    time.sleep(60)
+            if args.auto_shutdown:
+                if args.auto_shutdown_delay_s > 0:
+                    LOG.info(
+                        f"Waiting {args.auto_shutdown_delay_s}s before automatic shutdown..."
+                    )
+                    try:
+                        time.sleep(args.auto_shutdown_delay_s)
 
-            except KeyboardInterrupt:
-                LOG.info("Stopping all CCF nodes...")
+                    except KeyboardInterrupt:
+                        LOG.info("Stopping all CCF nodes...")
+
+                LOG.info("Automatically shut down network after successful opening")
+            else:
+                try:
+                    while True:
+                        time.sleep(60)
+
+                except KeyboardInterrupt:
+                    LOG.info("Stopping all CCF nodes...")
 
         LOG.info("All CCF nodes stopped.")
     except infra.network.NetworkShutdownError as e:
@@ -179,6 +192,18 @@ if __name__ == "__main__":
         parser.add_argument(
             "--common-dir",
             help="Directory containing previous network member identities",
+        )
+        parser.add_argument(
+            "--auto-shutdown",
+            help="If set, service automatically shuts down after successful opening",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--auto-shutdown-delay-s",
+            help="If --auto-shutdown is set, delay after which service automatically stops",
+            type=int,
+            default=0,
         )
 
     args = infra.e2e_args.cli_args(add)

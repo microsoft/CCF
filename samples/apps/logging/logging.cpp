@@ -273,6 +273,7 @@ namespace loggingapp
         // SNIPPET: private_table_access
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
+        // SNIPPET_END: private_table_access
         records_handle->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
@@ -401,6 +402,7 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
+        // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
         records_handle->put(id, in.msg);
         update_first_write(ctx.tx, in.id, false, get_scope(ctx));
