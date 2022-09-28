@@ -26,7 +26,7 @@ namespace ccf::pal
   // config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
   using RetrieveEndorsementCallback = std::function<void(
-    QuoteInfo quote_info,
+    const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
@@ -87,8 +87,7 @@ namespace ccf::pal
     if (endorsement_cb != nullptr)
     {
       endorsement_cb(
-        node_quote_info,
-        snp::make_azure_endorsement_endpoint_configuration(*quote));
+        node_quote_info, snp::make_endorsement_endpoint_configuration(*quote));
     }
   }
 

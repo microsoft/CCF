@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/service/consensus_config.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/service_config.h"
@@ -49,14 +50,9 @@ struct CCFConfig
 
   struct Attestation
   {
-    enum SnpEndorsementsEndpointType
-    {
-      Azure = 0,
-      AMD = 1
-    };
-    SnpEndorsementsEndpointType snp_endorsements_endpoint_type =
-      SnpEndorsementsEndpointType::Azure;
-    std::string snp_endorsements_endpoint;
+    ccf::pal::snp::EndorsementsEndpointType snp_endorsements_endpoint_type =
+      ccf::pal::snp::EndorsementsEndpointType::Azure;
+    std::optional<std::string> snp_endorsements_endpoint = std::nullopt;
   };
   Attestation attestation = {};
 };

@@ -3,8 +3,9 @@
 #pragma once
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#  include "attestation_sev_snp_endorsements.h"
+
 #  include <array>
-#  include <list>
 #  include <map>
 #  include <string>
 
@@ -173,70 +174,61 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     // Changes on 5.19+ kernel
     constexpr auto DEVICE = "/dev/sev";
 
-    // AMD endorsements endpoints. See
-    // https://www.amd.com/system/files/TechDocs/57230.pdf
-    struct EndorsementEndpointsConfiguration
+    static EndorsementEndpointsConfiguration
+    make_endorsement_endpoint_configuration(const Attestation& quote)
+    // EndorsementsEndpointType endpoint_type,
+    // const std::optional<std::string>& endpoint = std::nullopt)
     {
-      struct EndpointInfo
+      EndorsementEndpointsConfiguration config;
+      std::map<std::string, std::string> params = {};
+
+      EndorsementsEndpointType endpoint_type = EndorsementsEndpointType::AMD;
+      std::optional<std::string> endpoint = std::nullopt;
+      switch (endpoint_type)
       {
-        std::string host;
-        std::string port;
-        std::string uri;
-        std::map<std::string, std::string> params;
-        bool response_is_der = false;
-      };
-      // Endorsement
-      std::list<EndpointInfo> endpoints;
-    };
+        case EndorsementsEndpointType::Azure:
+        {
+          params["api-version"] = "2020-10-15-preview";
 
-    constexpr auto amd_endorsements_endpoint_host = "kdsintf.amd.com";
+          config.endpoints.push_back(
+            {endpoint.value_or(default_azure_endorsements_endpoint_host),
+             "443",
+             fmt::format(
+               "/SevSnpVM/certificates/{}/{}",
+               fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
+               fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb))),
+             params});
+          break;
+        }
+        case EndorsementsEndpointType::AMD:
+        {
+          params["blSPL"] = fmt::format("{}", quote.reported_tcb.boot_loader);
+          params["teeSPL"] = fmt::format("{}", quote.reported_tcb.tee);
+          params["snpSPL"] = fmt::format("{}", quote.reported_tcb.snp);
+          params["ucodeSPL"] = fmt::format("{}", quote.reported_tcb.microcode);
 
-    static EndorsementEndpointsConfiguration
-    make_amd_endorsement_endpoint_configuration(const Attestation& quote)
-    {
-      std::map<std::string, std::string> params;
-      params["blSPL"] = fmt::format("{}", quote.reported_tcb.boot_loader);
-      params["teeSPL"] = fmt::format("{}", quote.reported_tcb.tee);
-      params["snpSPL"] = fmt::format("{}", quote.reported_tcb.snp);
-      params["ucodeSPL"] = fmt::format("{}", quote.reported_tcb.microcode);
-
-      EndorsementEndpointsConfiguration config;
-      config.endpoints.push_back(
-        {amd_endorsements_endpoint_host,
-         "443",
-         fmt::format(
-           "/vcek/v1/{}/{}",
-           product_name,
-           fmt::format("{:02x}", fmt::join(quote.chip_id, ""))),
-         params,
-         true});
-      config.endpoints.push_back(
-        {amd_endorsements_endpoint_host,
-         "443",
-         fmt::format("/vcek/v1/{}/cert_chain", product_name),
-         {}});
-
-      return config;
-    }
-
-    constexpr auto azure_endorsements_endpoint_host =
-      "americas.test.acccache.azure.net";
-
-    static EndorsementEndpointsConfiguration
-    make_azure_endorsement_endpoint_configuration(const Attestation& quote)
-    {
-      std::map<std::string, std::string> params;
-      params["api-version"] = "2020-10-15-preview";
-
-      EndorsementEndpointsConfiguration config;
-      config.endpoints.push_back(
-        {azure_endorsements_endpoint_host,
-         "443",
-         fmt::format(
-           "/SevSnpVM/certificates/{}/{}",
-           fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
-           fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb))),
-         params});
+          config.endpoints.push_back(
+            {endpoint.value_or(default_amd_endorsements_endpoint_host),
+             "443",
+             fmt::format(
+               "/vcek/v1/{}/{}",
+               product_name,
+               fmt::format("{:02x}", fmt::join(quote.chip_id, ""))),
+             params,
+             true});
+          config.endpoints.push_back(
+            {endpoint.value_or(default_amd_endorsements_endpoint_host),
+             "443",
+             fmt::format("/vcek/v1/{}/cert_chain", product_name),
+             {}});
+          break;
+        }
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Unsupported endorsement endpoint type: {}", endpoint_type));
+        }
+      }
 
       return config;
     }

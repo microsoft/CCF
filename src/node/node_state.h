@@ -346,10 +346,11 @@ namespace ccf
 
     void initiate_quote_generation()
     {
+      // TODO: Remove quote_info_ and use this->quote_info directly?
       auto fetch_endorsements =
         [this](
-          QuoteInfo quote_info_,
-          const pal::snp::EndorsementEndpointsConfiguration& config) {
+          const QuoteInfo& quote_info_,
+          const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
           if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
           {
             // Note: Node lock is already taken here as this is called back
@@ -365,7 +366,7 @@ namespace ccf
 
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
             rpcsessions,
-            config,
+            endpoint_config,
             [this, quote_info_](std::vector<uint8_t>&& endorsements) {
               // Note: Only called for SEV-SNP
               std::lock_guard<pal::Mutex> guard(lock);
