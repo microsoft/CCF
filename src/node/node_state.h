@@ -346,7 +346,6 @@ namespace ccf
 
     void initiate_quote_generation()
     {
-      // TODO: Remove quote_info_ and use this->quote_info directly?
       auto fetch_endorsements =
         [this](
           const QuoteInfo& quote_info_,
@@ -2464,7 +2463,7 @@ namespace ccf
         *node_sign_kp,
         sig_tx_interval,
         sig_ms_interval,
-        false /* start time signatures after first tx */);
+        false /* start timed signatures after first tx */);
       network.tables->set_history(history);
     }
 
