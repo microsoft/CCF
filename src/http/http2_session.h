@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "enclave/client_endpoint.h"
+#include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http2.h"
@@ -11,12 +11,12 @@
 
 namespace http
 {
-  class HTTP2Endpoint : public ccf::TLSSession
+  class HTTP2Session : public ccf::TLSSession
   {
   protected:
     http2::Session& session;
 
-    HTTP2Endpoint(
+    HTTP2Session(
       http2::Session& session_,
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -28,7 +28,7 @@ namespace http
   public:
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<HTTP2Endpoint*>(msg->data.self.get())
+      reinterpret_cast<HTTP2Session*>(msg->data.self.get())
         ->recv_(msg->data.data.data(), msg->data.data.size());
     }
 
@@ -91,7 +91,7 @@ namespace http
     }
   };
 
-  class HTTP2ServerEndpoint : public HTTP2Endpoint,
+  class HTTP2ServerSession : public HTTP2Session,
                               public http::RequestProcessor
   {
   private:
@@ -104,7 +104,7 @@ namespace http
     ccf::ListenInterfaceID interface_id;
 
   public:
-    HTTP2ServerEndpoint(
+    HTTP2ServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
       int64_t session_id,
       const ccf::ListenInterfaceID& interface_id,
@@ -115,7 +115,7 @@ namespace http
       const std::shared_ptr<ErrorReporter>& error_reporter =
         nullptr) // Note: Report errors
       :
-      HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
+      HTTP2Session(server_session, session_id, writer_factory, std::move(ctx)),
       server_session(*this, *this),
       rpc_map(rpc_map),
       session_id(session_id),
@@ -212,20 +212,20 @@ namespace http
     }
   };
 
-  class HTTP2ClientEndpoint : public HTTP2Endpoint,
-                              public ccf::ClientEndpoint,
-                              public http::ResponseProcessor
+  class HTTP2ClientSession : public HTTP2Session,
+                             public ccf::ClientSession,
+                             public http::ResponseProcessor
   {
   private:
     http2::ClientSession client_session;
 
   public:
-    HTTP2ClientEndpoint(
+    HTTP2ClientSession(
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTP2Endpoint(client_session, session_id, writer_factory, std::move(ctx)),
-      ClientEndpoint(session_id, writer_factory),
+      HTTP2Session(client_session, session_id, writer_factory, std::move(ctx)),
+      ClientSession(session_id, writer_factory),
       client_session(*this, *this)
     {}
 

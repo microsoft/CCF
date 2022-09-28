@@ -7,7 +7,7 @@
 
 namespace ccf
 {
-  class ClientEndpoint
+  class ClientSession
   {
   public:
     using HandleDataCallback = std::function<void(
@@ -27,7 +27,7 @@ namespace ccf
     ringbuffer::WriterPtr to_host;
 
   public:
-    ClientEndpoint(
+    ClientSession(
       int64_t session_id, ringbuffer::AbstractWriterFactory& writer_factory) :
       session_id(session_id),
       to_host(writer_factory.create_writer_to_outside())

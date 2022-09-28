@@ -14,7 +14,7 @@
 
 namespace quic
 {
-  class QUICEndpoint : public ccf::Session
+  class QUICSession : public ccf::Session
   {
   protected:
     ringbuffer::WriterPtr to_host;
@@ -60,7 +60,7 @@ namespace quic
     Status status;
 
   public:
-    QUICEndpoint(
+    QUICSession(
       int64_t session_id_, ringbuffer::AbstractWriterFactory& writer_factory_) :
       to_host(writer_factory_.create_writer_to_outside()),
       session_id(session_id_),
@@ -70,7 +70,7 @@ namespace quic
         threading::ThreadMessaging::get_execution_thread(session_id);
     }
 
-    ~QUICEndpoint()
+    ~QUICSession()
     {
       // RINGBUFFER_WRITE_MESSAGE(quic::quic_closed, to_host, session_id);
     }
@@ -173,7 +173,7 @@ namespace quic
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<QUICEndpoint*>(msg->data.self.get())
+      reinterpret_cast<QUICSession*>(msg->data.self.get())
         ->send_raw_thread(msg->data.data, msg->data.addr);
     }
 
@@ -269,7 +269,7 @@ namespace quic
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
-      reinterpret_cast<QUICEndpoint*>(msg->data.self.get())->close_thread();
+      reinterpret_cast<QUICSession*>(msg->data.self.get())->close_thread();
     }
 
     void close()
@@ -393,10 +393,10 @@ namespace quic
     }
   };
 
-  // This is a wrapper for the QUICEndpoint so we can use in rpc_sessions
-  // Ultimately, this needs to be an HTTP3ServerEndpoint : HTTP3Endpoint :
-  // QUICEndpoint
-  class QUICEchoEndpoint : public QUICEndpoint
+  // This is a wrapper for the QUICSession so we can use in rpc_sessions
+  // Ultimately, this needs to be an HTTP3ServerSession : HTTP3Session :
+  // QUICSession
+  class QUICEchoSession : public QUICSession
   {
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
@@ -413,12 +413,12 @@ namespace quic
     }
 
   public:
-    QUICEchoEndpoint(
+    QUICEchoSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
       int64_t session_id,
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory) :
-      QUICEndpoint(session_id, writer_factory),
+      QUICSession(session_id, writer_factory),
       rpc_map(rpc_map),
       session_id(session_id),
       interface_id(interface_id)
@@ -431,7 +431,7 @@ namespace quic
 
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<QUICEchoEndpoint*>(msg->data.self.get())
+      reinterpret_cast<QUICEchoSession*>(msg->data.self.get())
         ->recv_(msg->data.data.data(), msg->data.data.size(), msg->data.addr);
     }
 

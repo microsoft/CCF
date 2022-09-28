@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "enclave/client_endpoint.h"
+#include "enclave/client_session.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
@@ -137,7 +137,7 @@ namespace http
     }
   };
 
-  class HTTPServerEndpoint : public HTTPEndpoint, public http::RequestProcessor
+  class HTTPServerSession : public HTTPEndpoint, public http::RequestProcessor
   {
   private:
     http::RequestParser request_parser;
@@ -149,7 +149,7 @@ namespace http
     ccf::ListenInterfaceID interface_id;
 
   public:
-    HTTPServerEndpoint(
+    HTTPServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
       tls::ConnID session_id,
       const ccf::ListenInterfaceID& interface_id,
@@ -258,20 +258,20 @@ namespace http
     }
   };
 
-  class HTTPClientEndpoint : public HTTPEndpoint,
-                             public ccf::ClientEndpoint,
-                             public http::ResponseProcessor
+  class HTTPClientSession : public HTTPEndpoint,
+                            public ccf::ClientSession,
+                            public http::ResponseProcessor
   {
   private:
     http::ResponseParser response_parser;
 
   public:
-    HTTPClientEndpoint(
+    HTTPClientSession(
       tls::ConnID session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
-      ClientEndpoint(session_id, writer_factory),
+      ClientSession(session_id, writer_factory),
       response_parser(*this)
     {}
 

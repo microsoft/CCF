@@ -6,14 +6,14 @@
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
+#include "enclave/session.h"
 #include "forwarder_types.h"
-#include "http/http2_endpoint.h"
-#include "http/http_endpoint.h"
+#include "http/http2_session.h"
+#include "http/http_session.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
 // ok for now, as we only have an echo service for now
-#include "enclave/session.h"
-#include "quic/quic_endpoint.h"
+#include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -27,7 +27,7 @@
 
 namespace ccf
 {
-  using QUICEndpointImpl = quic::QUICEchoEndpoint;
+  using QUICSessionImpl = quic::QUICEchoSession;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
@@ -68,10 +68,10 @@ namespace ccf
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
-    class NoMoreSessionsEndpointImpl : public ccf::TLSSession
+    class NoMoreSessionsSessionImpl : public ccf::TLSSession
     {
     public:
-      NoMoreSessionsEndpointImpl(
+      NoMoreSessionsSessionImpl(
         tls::ConnID session_id,
         ringbuffer::AbstractWriterFactory& writer_factory,
         std::unique_ptr<tls::Context> ctx) :
@@ -80,7 +80,7 @@ namespace ccf
 
       static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
       {
-        reinterpret_cast<NoMoreSessionsEndpointImpl*>(msg->data.self.get())
+        reinterpret_cast<NoMoreSessionsSessionImpl*>(msg->data.self.get())
           ->recv_(msg->data.data.data(), msg->data.data.size());
       }
 
@@ -176,7 +176,7 @@ namespace ccf
     {
       if (app_protocol == ccf::ApplicationProtocol::HTTP2)
       {
-        return std::make_shared<http::HTTP2ServerEndpoint>(
+        return std::make_shared<http::HTTP2ServerSession>(
           rpc_map,
           id,
           listen_interface_id,
@@ -187,7 +187,7 @@ namespace ccf
       }
       else
       {
-        return std::make_shared<http::HTTPServerEndpoint>(
+        return std::make_shared<http::HTTPServerSession>(
           rpc_map,
           id,
           listen_interface_id,
@@ -401,7 +401,7 @@ namespace ccf
           per_listen_interface.max_open_sessions_soft);
 
         auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
-        auto capped_session = std::make_shared<NoMoreSessionsEndpointImpl>(
+        auto capped_session = std::make_shared<NoMoreSessionsSessionImpl>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(capped_session))));
@@ -420,7 +420,7 @@ namespace ccf
         if (udp)
         {
           LOG_DEBUG_FMT("New UDP endpoint at {}", id);
-          auto session = std::make_shared<QUICEndpointImpl>(
+          auto session = std::make_shared<QUICSessionImpl>(
             rpc_map, id, listen_interface_id, writer_factory);
           sessions.insert(std::make_pair(
             id, std::make_pair(listen_interface_id, std::move(session))));
@@ -497,7 +497,7 @@ namespace ccf
       }
     }
 
-    std::shared_ptr<ClientEndpoint> create_client(
+    std::shared_ptr<ClientSession> create_client(
       const std::shared_ptr<tls::Cert>& cert,
       ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1)
     {
@@ -512,7 +512,7 @@ namespace ccf
       // it to succeed even when we are busy.
       if (app_protocol == ccf::ApplicationProtocol::HTTP2)
       {
-        auto session = std::make_shared<http::HTTP2ClientEndpoint>(
+        auto session = std::make_shared<http::HTTP2ClientSession>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
@@ -520,7 +520,7 @@ namespace ccf
       }
       else
       {
-        auto session = std::make_shared<http::HTTPClientEndpoint>(
+        auto session = std::make_shared<http::HTTPClientSession>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
