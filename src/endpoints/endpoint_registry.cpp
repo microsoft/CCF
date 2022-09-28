@@ -252,14 +252,21 @@ namespace ccf::endpoints
 
     // Add ccf OData error response schema
     auto& schemas = document["components"]["schemas"];
-    auto& ccf_error = schemas["CCFError"];
-    auto& error = ccf_error["error"];
-    auto& code = error["code"];
-    code["description"] = "Response error code";
-    code["type"] = "string";
-    auto& message = error["message"];
-    message["description"] = "Response error message";
-    message["type"] = "string";
+    schemas["CCFError"]["type"] = "object";
+    schemas["CCFError"]["properties"] = nlohmann::json::object();
+    schemas["CCFError"]["properties"]["error"] = nlohmann::json::object();
+    schemas["CCFError"]["properties"]["error"]["type"] = "object";
+    schemas["CCFError"]["properties"]["error"]["properties"] =
+      nlohmann::json::object();
+    auto& error_properties =
+      schemas["CCFError"]["properties"]["error"]["properties"];
+    error_properties["code"]["description"] =
+      "Response error code. CCF error codes: "
+      "https://microsoft.github.io/CCF/main/operations/"
+      "troubleshooting.html#error-codes";
+    error_properties["code"]["type"] = "string";
+    error_properties["message"]["description"] = "Response error message";
+    error_properties["message"]["type"] = "string";
 
     // Add a default error response definition
     auto& responses = document["components"]["responses"];
@@ -267,9 +274,7 @@ namespace ccf::endpoints
     ds::openapi::schema(
       ds::openapi::media_type(default_error, "application/json"))["$ref"] =
       "#/components/schemas/CCFError";
-    default_error["description"] =
-      "An error occurred. The possible HTTP status, code, and message strings "
-      "are listed below";
+    default_error["description"] = "An error occurred";
 
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {

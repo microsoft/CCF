@@ -9,7 +9,7 @@
             }
           }
         },
-        "description": "An error occurred. The possible HTTP status, code, and message strings are listed below"
+        "description": "An error occurred"
       }
     },
     "schemas": {
@@ -46,16 +46,22 @@
         "type": "object"
       },
       "CCFError": {
-        "error": {
-          "code": {
-            "description": "Response error code",
-            "type": "string"
-          },
-          "message": {
-            "description": "Response error message",
-            "type": "string"
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "description": "Response error code. CCF error codes: https://microsoft.github.io/CCF/main/operations/troubleshooting.html#error-codes",
+                "type": "string"
+              },
+              "message": {
+                "description": "Response error message",
+                "type": "string"
+              }
+            },
+            "type": "object"
           }
-        }
+        },
+        "type": "object"
       },
       "CodeStatus": {
         "enum": [
@@ -454,7 +460,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.9.1"
+    "version": "2.9.5"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -475,7 +481,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -502,7 +508,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -529,7 +535,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -551,7 +557,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -573,7 +579,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -595,7 +601,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -617,7 +623,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -649,7 +655,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -671,7 +677,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -703,7 +709,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -730,7 +736,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -767,7 +773,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -824,7 +830,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -851,7 +857,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -906,7 +912,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -943,7 +949,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {
@@ -965,7 +971,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -1000,7 +1006,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "security": [
@@ -1037,7 +1043,7 @@
             "description": "Default response description"
           },
           "default": {
-            "$ref": "#/components/responses/ErrorResponse"
+            "$ref": "#/components/responses/default"
           }
         },
         "x-ccf-forwarding": {

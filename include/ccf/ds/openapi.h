@@ -136,7 +136,7 @@ namespace ds
     {
       auto& all_responses = responses(path_operation);
       auto& response = access::get_object(all_responses, "default");
-      response["$ref"] = "#/components/responses/ErrorResponse";
+      response["$ref"] = "#/components/responses/default";
       return response;
     }
 
