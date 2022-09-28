@@ -85,7 +85,8 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   node_certificate,
   consensus,
   ledger_signatures,
-  jwt);
+  jwt,
+  attestation);
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(

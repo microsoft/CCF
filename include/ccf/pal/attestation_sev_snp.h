@@ -175,15 +175,14 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     constexpr auto DEVICE = "/dev/sev";
 
     static EndorsementEndpointsConfiguration
-    make_endorsement_endpoint_configuration(const Attestation& quote)
-    // EndorsementsEndpointType endpoint_type,
-    // const std::optional<std::string>& endpoint = std::nullopt)
+    make_endorsement_endpoint_configuration(
+      const Attestation& quote,
+      EndorsementsEndpointType endpoint_type,
+      const std::optional<std::string>& endpoint = std::nullopt)
     {
       EndorsementEndpointsConfiguration config;
       std::map<std::string, std::string> params = {};
 
-      EndorsementsEndpointType endpoint_type = EndorsementsEndpointType::AMD;
-      std::optional<std::string> endpoint = std::nullopt;
       switch (endpoint_type)
       {
         case EndorsementsEndpointType::Azure:

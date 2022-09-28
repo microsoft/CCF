@@ -385,7 +385,11 @@ namespace ccf
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
-      pal::generate_quote(report_data, fetch_endorsements);
+      pal::generate_quote(
+        report_data,
+        fetch_endorsements,
+        config.attestation.snp_endorsements_endpoint_type,
+        config.attestation.snp_endorsements_endpoint);
     }
 
     NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)

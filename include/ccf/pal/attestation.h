@@ -33,7 +33,9 @@ namespace ccf::pal
 
   static void generate_quote(
     attestation_report_data& report_data,
-    RetrieveEndorsementCallback endorsement_cb)
+    RetrieveEndorsementCallback endorsement_cb,
+    snp::EndorsementsEndpointType endpoint_type,
+    const std::optional<std::string>& endpoint = std::nullopt)
   {
     QuoteInfo node_quote_info = {};
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -87,7 +89,9 @@ namespace ccf::pal
     if (endorsement_cb != nullptr)
     {
       endorsement_cb(
-        node_quote_info, snp::make_endorsement_endpoint_configuration(*quote));
+        node_quote_info,
+        snp::make_endorsement_endpoint_configuration(
+          *quote, endpoint_type, endpoint));
     }
   }
 
@@ -208,7 +212,9 @@ namespace ccf::pal
 
   static void generate_quote(
     attestation_report_data& report_data,
-    RetrieveEndorsementCallback endorsement_cb)
+    RetrieveEndorsementCallback endorsement_cb,
+    snp::EndorsementsEndpointType endpoint_type,
+    const std::optional<std::string>& endpoint = std::nullopt)
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::oe_sgx_v1;
