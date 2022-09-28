@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Also install `*.inc` files for third-party dependencies (#4266).
 
-
 ## [3.0.0-dev4]
 
 ### Fixed

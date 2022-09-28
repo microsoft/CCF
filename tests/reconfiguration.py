@@ -208,6 +208,7 @@ def test_add_node_from_backup(network, args):
     network.trust_node(new_node, args)
     return network
 
+
 @reqs.description("Adding a node with AMD endorsements endpoint")
 def test_add_node_amd_endorsements_endpoint(network, args):
     primary, _ = network.find_primary()
