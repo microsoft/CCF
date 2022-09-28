@@ -15,9 +15,12 @@ namespace ccf
     : public std::enable_shared_from_this<QuoteEndorsementsClient>
   {
   private:
+    using EndpointInfo =
+      pal::snp::EndorsementEndpointsConfiguration::EndpointInfo;
+
     std::shared_ptr<RPCSessions> rpcsessions;
 
-    pal::EndorsementEndpointsConfiguration config;
+    pal::snp::EndorsementEndpointsConfiguration config;
     QuoteEndorsementsFetchedCallback done_cb;
 
     std::vector<uint8_t> endorsements;
@@ -26,13 +29,13 @@ namespace ccf
     {
       QuoteEndorsementsClientMsg(
         const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint_) :
+        const EndpointInfo& endpoint_) :
         self(self_),
         endpoint(endpoint_)
       {}
 
       std::shared_ptr<QuoteEndorsementsClient> self;
-      pal::EndorsementEndpointsConfiguration::EndpointInfo endpoint;
+      EndpointInfo endpoint;
     };
 
     std::shared_ptr<ClientEndpoint> create_unauthenticated_client()
@@ -47,7 +50,7 @@ namespace ccf
 
     void send_request(
       const std::shared_ptr<ClientEndpoint>& client,
-      const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint)
+      const EndpointInfo& endpoint)
     {
       http::Request r(endpoint.uri, HTTP_GET);
       for (auto const& [k, v] : endpoint.params)
@@ -92,8 +95,7 @@ namespace ccf
       }
     }
 
-    void fetch(
-      const pal::EndorsementEndpointsConfiguration::EndpointInfo& endpoint)
+    void fetch(const EndpointInfo& endpoint)
     {
       auto c = create_unauthenticated_client();
       c->connect(
@@ -161,7 +163,7 @@ namespace ccf
   public:
     QuoteEndorsementsClient(
       const std::shared_ptr<RPCSessions>& rpcsessions_,
-      const pal::EndorsementEndpointsConfiguration& config_,
+      const pal::snp::EndorsementEndpointsConfiguration& config_,
       QuoteEndorsementsFetchedCallback cb) :
       rpcsessions(rpcsessions_),
       config(config_),

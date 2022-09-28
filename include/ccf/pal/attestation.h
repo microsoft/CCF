@@ -22,25 +22,12 @@
 
 namespace ccf::pal
 {
-  struct EndorsementEndpointsConfiguration
-  {
-    struct EndpointInfo
-    {
-      std::string host;
-      std::string port;
-      std::string uri;
-      std::map<std::string, std::string> params;
-      bool response_is_der = false;
-    };
-    // Endorsement
-    std::list<EndpointInfo> endpoints;
-  };
-
   // Caller-supplied callback used to retrieve endorsements as specified by the
   // config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
   using RetrieveEndorsementCallback = std::function<void(
-    QuoteInfo quote_info, const EndorsementEndpointsConfiguration& config)>;
+    QuoteInfo quote_info,
+    const snp::EndorsementEndpointsConfiguration& config)>;
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
@@ -99,33 +86,34 @@ namespace ccf::pal
 
     if (endorsement_cb != nullptr)
     {
-      constexpr auto product_name = "Milan";
-      std::map<std::string, std::string> params;
-      params["blSPL"] = fmt::format("{}", quote->reported_tcb.boot_loader);
-      params["teeSPL"] = fmt::format("{}", quote->reported_tcb.tee);
-      params["snpSPL"] = fmt::format("{}", quote->reported_tcb.snp);
-      params["ucodeSPL"] = fmt::format("{}", quote->reported_tcb.microcode);
+      // std::map<std::string, std::string> params;
+      // params["blSPL"] = fmt::format("{}", quote->reported_tcb.boot_loader);
+      // params["teeSPL"] = fmt::format("{}", quote->reported_tcb.tee);
+      // params["snpSPL"] = fmt::format("{}", quote->reported_tcb.snp);
+      // params["ucodeSPL"] = fmt::format("{}", quote->reported_tcb.microcode);
 
-      // TODO: Move to configuration
-      // See https://www.amd.com/system/files/TechDocs/57230.pdf
-      // $ curl https://kdsintf.amd.com/vcek/v1/Milan/cert_chain
-      EndorsementEndpointsConfiguration config;
-      config.endpoints.push_back(
-        {"kdsintf.amd.com",
-         "443",
-         fmt::format(
-           "/vcek/v1/{}/{}",
-           product_name,
-           fmt::format("{:02x}", fmt::join(quote->chip_id, ""))),
-         params,
-         true});
-      config.endpoints.push_back(
-        {"kdsintf.amd.com",
-         "443",
-         fmt::format("/vcek/v1/{}/cert_chain", product_name),
-         {}});
+      // // TODO: Move to configuration
+      // // See https://www.amd.com/system/files/TechDocs/57230.pdf
+      // // $ curl https://kdsintf.amd.com/vcek/v1/Milan/cert_chain
+      // EndorsementEndpointsConfiguration config;
+      // config.endpoints.push_back(
+      //   {"kdsintf.amd.com",
+      //    "443",
+      //    fmt::format(
+      //      "/vcek/v1/{}/{}",
+      //      product_name,
+      //      fmt::format("{:02x}", fmt::join(quote->chip_id, ""))),
+      //    params,
+      //    true});
+      // config.endpoints.push_back(
+      //   {"kdsintf.amd.com",
+      //    "443",
+      //    fmt::format("/vcek/v1/{}/cert_chain", product_name),
+      //    {}});
 
-      endorsement_cb(node_quote_info, config);
+      endorsement_cb(
+        node_quote_info,
+        snp::make_amd_endorsement_endpoint_configuration(*quote));
     }
   }
 

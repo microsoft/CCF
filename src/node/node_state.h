@@ -349,7 +349,7 @@ namespace ccf
       auto fetch_endorsements =
         [this](
           QuoteInfo quote_info_,
-          const pal::EndorsementEndpointsConfiguration& config) {
+          const pal::snp::EndorsementEndpointsConfiguration& config) {
           if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
           {
             // Note: Node lock is already taken here as this is called back
