@@ -27,7 +27,7 @@ MAIN_BRANCH_NAME = "main"
 DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
-INSTALL_DIRECTORY_SUB_PATH = "opt/ccf_unsafe"
+INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
 DOWNLOAD_FOLDER_NAME = "downloads"
 INSTALL_SUCCESS_FILE = "test_github_infra_installed"
 INSTALL_VERSION_FILE_PATH = "share/VERSION"
@@ -131,7 +131,7 @@ def get_major_version_from_branch_name(branch_name):
 
 
 def get_debian_package_url_from_tag_name(tag_name):
-    return f"{REMOTE_URL}/releases/download/{tag_name}/ccf_unsafe_2.0.8{DEBIAN_PACKAGE_EXTENSION}"
+    return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
 
 class GitEnv:
