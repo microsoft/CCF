@@ -408,11 +408,11 @@
           "type": "string",
           "enum": ["Azure", "AMD"],
           "default": "Azure",
-          "description": "Type of endpoint used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)"
+          "description": "Type of endpoint used to retrieve attestation report endorsement certificates (SEV-SNP only)"
         },
         "snp_endorsements_endpoint": {
           "type": ["string", "null"],
-          "description": "Endpoint hostname used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)"
+          "description": "Endpoint hostname used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (SEV-SNP only)"
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",

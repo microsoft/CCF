@@ -34,7 +34,7 @@ namespace ccf::pal::snp
      {EndorsementsEndpointType::AMD, "AMD"}});
 
   constexpr auto default_azure_endorsements_endpoint_host =
-    "americas.test.acccache.azure.net";
+    "global.acccache.azure.net";
 
   // AMD endorsements endpoints. See
   // https://www.amd.com/system/files/TechDocs/57230.pdf

@@ -9,6 +9,7 @@ from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
+from copy import deepcopy
 import os
 import time
 import ccf.ledger
@@ -205,6 +206,28 @@ def test_add_node_from_backup(network, args):
         target_node=network.find_any_backup(),
     )
     network.trust_node(new_node, args)
+    return network
+
+@reqs.description("Adding a node with AMD endorsements endpoint")
+def test_add_node_amd_endorsements_endpoint(network, args):
+    primary, _ = network.find_primary()
+    if not IS_SNP:
+        LOG.warning("Skipping test as running on non-SEV-SNP")
+        return network
+
+    new_node = network.create_node("local://localhost")
+    args_copy = deepcopy(args)
+    args_copy.snp_endorsements_endpoint_type = "AMD"
+    args_copy.snp_endorsements_endpoint = "kdsintf.amd.com"
+    network.join_node(
+        new_node,
+        args.package,
+        args_copy,
+    )
+    network.trust_node(new_node, args)
+
+    # Retire new node to limit number of running nodes in this suite
+    network.retire_node(primary, new_node)
     return network
 
 
@@ -738,6 +761,7 @@ def run_all(args):
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
+            test_add_node_amd_endorsements_endpoint(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             test_add_node(network, args)
