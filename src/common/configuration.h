@@ -70,6 +70,18 @@ DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval);
 
+DECLARE_JSON_ENUM(
+  CCFConfig::Attestation::SnpEndorsementsEndpointType,
+  {{CCFConfig::Attestation::SnpEndorsementsEndpointType::Azure, "Azure"},
+   {CCFConfig::Attestation::SnpEndorsementsEndpointType::AMD, "AMD"}});
+
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCFConfig::Attestation,
+  snp_endorsements_endpoint_type,
+  snp_endorsements_endpoint);
+
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
 DECLARE_JSON_OPTIONAL_FIELDS(

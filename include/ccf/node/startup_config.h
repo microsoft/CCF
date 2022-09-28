@@ -46,6 +46,19 @@ struct CCFConfig
     bool operator==(const JWT&) const = default;
   };
   JWT jwt = {};
+
+  struct Attestation
+  {
+    enum SnpEndorsementsEndpointType
+    {
+      Azure = 0,
+      AMD = 1
+    };
+    SnpEndorsementsEndpointType snp_endorsements_endpoint_type =
+      SnpEndorsementsEndpointType::Azure;
+    std::string snp_endorsements_endpoint;
+  };
+  Attestation attestation = {};
 };
 
 struct StartupConfig : CCFConfig
