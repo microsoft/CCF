@@ -28,6 +28,11 @@ export const generateAesKey = ccf.generateAesKey;
 export const generateRsaKeyPair = ccf.generateRsaKeyPair;
 
 /**
+ * @inheritDoc CCF.generateEcdsaKeyPair
+ */
+export const generateEcdsaKeyPair = ccf.generateEcdsaKeyPair;
+
+/**
  * @inheritDoc CCF.wrapKey
  */
 export const wrapKey = ccf.wrapKey;
