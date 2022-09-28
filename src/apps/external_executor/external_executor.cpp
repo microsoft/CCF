@@ -10,6 +10,7 @@
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
 #include "endpoints/grpc.h"
+#include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
 #include "http/http_builder.h"
@@ -93,6 +94,9 @@ namespace externalexecutor
           executor_public_key, payload.attestation(), supported_endpoints};
 
         ExecutorIDs[executor_id] = executor_info;
+
+        // Record the cert in the Executor certs map
+        ExecutorCerts[executor_id] = executor_public_key;
 
         ccf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");
