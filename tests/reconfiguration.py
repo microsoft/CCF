@@ -229,6 +229,7 @@ def test_add_node_amd_endorsements_endpoint(network, args):
 
     # Retire new node to limit number of running nodes in this suite
     network.retire_node(primary, new_node)
+    new_node.stop()
     return network
 
 
