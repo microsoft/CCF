@@ -12,7 +12,7 @@ from infra.log_capture import flush_info
 
 
 def wait_for_commit(
-    client, seqno: int, view: int, timeout: int = 3, log_capture: Optional[list] = None
+    client, seqno: int, view: int, timeout: int = 5, log_capture: Optional[list] = None
 ) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
