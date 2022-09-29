@@ -8,7 +8,7 @@ import infra.utils
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
-from infra.is_snp import IS_SNP
+from infra.is_snp import IS_SNP, DEFAULT_SNP_SECURITY_POLICY_DIGEST, DEFAULT_SNP_SECURITY_POLICY
 
 
 from loguru import logger as LOG
@@ -51,6 +51,74 @@ def test_verify_quotes(network, args):
 
     return network
 
+@reqs.description("Node with correct security policy joins successfully")
+def test_add_node_with_correct_security_policy(network, args):
+
+    if not IS_SNP:
+        LOG.warning("Skipping test_add_node_with_correct_security_policy with non SNP platform")
+        return network
+
+    replacement_package = (
+        "samples/apps/logging/liblogging"
+        if args.package == "libjs_generic"
+        else "libjs_generic"
+    )
+
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, replacement_package, args, timeout=3)
+
+    primary, others = network.find_nodes()
+    with primary.client() as client:
+        r = client.get("/gov/security_policy")
+        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
+
+    expected = [
+        {
+            "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+            "raw": DEFAULT_SNP_SECURITY_POLICY,
+        }
+    ]
+    expected.sort(key=lambda x: x["digest"])
+
+    LOG.info(f"Checking governance table security policies")
+    assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
+
+    LOG.info(f"Checking each node's security policy is valid")
+    for node in [primary, *others]:
+        with node.client() as client:
+            r = client.get("/node/security_policy")
+            policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
+        assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
+
+
+
+@reqs.description("Node with no security policy set but good digest matching ledger joins successfully")
+def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
+
+    if not IS_SNP:
+        LOG.warning("Skipping test_add_node_with_no_raw_security_policy_match_ledger with non SNP platform")
+        return network
+
+@reqs.description("Node with no security policy set but good digest not matching ledger joins successfully")
+def test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args):
+
+    if not IS_SNP:
+        LOG.warning("Skipping test_add_node_with_no_raw_security_policy_not_matching_ledger with non SNP platform")
+        return network
+
+@reqs.description("Node where raw security policy doesn't match digest fails to join")
+def test_add_node_with_mismatched_security_policy_digest(network, args):
+
+    if not IS_SNP:
+        LOG.warning("Skipping test_add_node_with_mismatched_security_policy_digest with non SNP platform")
+        return network
+
+@reqs.description("Node with bad security policy digest fails to join")
+def test_add_node_with_bad_security_policy_digest(network, args):
+
+    if not IS_SNP:
+        LOG.warning("Skipping test_add_node_with_bad_security_policy_digest with non SNP platform")
+        return network
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
@@ -245,6 +313,11 @@ def run(args):
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
+        test_add_node_with_correct_security_policy(network, args)
+        test_add_node_with_no_raw_security_policy_match_ledger(network, args)
+        test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args)
+        test_add_node_with_mismatched_security_policy_digest(network, args)
+        test_add_node_with_bad_security_policy_digest(network, args)
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
         test_proposal_invalidation(network, args)
