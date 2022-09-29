@@ -58,5 +58,5 @@ def wait_for_commit(
         )
     )
     raise TimeoutError(
-        f'Timed out waiting for commit: {pprint.pformat(client.get("/node/consensus").body.json())}'
+        f'Timed out after waiting {timeout}s for commit: {pprint.pformat(client.get("/node/consensus").body.json())}'
     )
