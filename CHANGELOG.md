@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Also install `*.inc` files for third-party dependencies (#4266).
+- Add `ccf.generateEcdsaKeyPair` API in the JavaScript runtime (#4271).
 
 ## [3.0.0-dev4]
 
