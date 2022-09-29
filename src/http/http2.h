@@ -310,9 +310,6 @@ namespace http2
         return;
       }
 
-      // TODO: Why am I storing this stream? It should be complete... In fact I
-      // bet we've had on_stream_close_callback called already, or at least
-      // before the end of this function?
       store_stream(stream_id, stream_data);
 
       send_all_submitted();
