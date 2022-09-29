@@ -212,14 +212,14 @@ namespace http2
         LOG_FAIL_FMT("stream not found!");
         return;
       }
-      stream_data->body = std::move(body);
+      stream_data->outgoing_body = std::move(body);
 
       stream_data->trailers = std::move(trailers);
 
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
       nghttp2_data_provider prov;
-      prov.read_callback = read_callback;
+      prov.read_callback = read_response_body_callback;
 
       int rv = nghttp2_submit_response(
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
@@ -267,7 +267,7 @@ namespace http2
         method,
         url,
         std::move(stream_data->headers),
-        std::move(stream_data->body),
+        std::move(stream_data->incoming_body),
         stream_id);
     }
   };
@@ -318,12 +318,12 @@ namespace http2
 
       auto stream_data = std::make_shared<StreamData>();
 
-      stream_data->body = std::move(body);
+      stream_data->outgoing_body = std::move(body);
 
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
       nghttp2_data_provider prov;
-      prov.read_callback = read_callback_client;
+      prov.read_callback = read_request_body_callback;
 
       auto stream_id = nghttp2_submit_request(
         session, nullptr, hdrs.data(), hdrs.size(), &prov, stream_data.get());
@@ -365,7 +365,9 @@ namespace http2
       }
 
       proc.handle_response(
-        status, std::move(stream_data->headers), std::move(stream_data->body));
+        status,
+        std::move(stream_data->headers),
+        std::move(stream_data->incoming_body));
     }
   };
 }
