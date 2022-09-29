@@ -21,8 +21,8 @@ namespace http2
 
   struct StreamData
   {
-    http::HeaderMap headers;
-    http::HeaderMap trailers;
+    http::HeaderMap headers; // Only used for incoming headers
+    http::HeaderMap trailers; // Only used for outgoing trailers
     std::vector<uint8_t> incoming_body;
     std::vector<uint8_t> outgoing_body;
     size_t current_offset = 0;
