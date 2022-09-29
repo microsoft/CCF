@@ -68,7 +68,8 @@ steps:
     condition: succeededOrFailed()
 
   - script: |
-      echo "=========== TOOK TOO LONG "
+      apt install ripgrep
+      echo "TOOK TOO LONG "
       rg "Took too long" --count | cut -d : -f 2
       echo "TOOK TOO LONG TOTAL"
       rg "Took too long" --count | cut -d : -f 2 | awk '{ sum += $1 } END { print sum }'
