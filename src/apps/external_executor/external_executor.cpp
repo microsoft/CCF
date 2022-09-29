@@ -15,6 +15,7 @@
 #include "http/http_builder.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
+#include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -436,6 +437,72 @@ namespace externalexecutor
       install_registry_service();
 
       install_kv_service();
+
+      auto run_string_ops = [this](
+                              ccf::endpoints::CommandEndpointContext& ctx,
+                              std::vector<temp::OpIn>&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<std::vector<temp::OpOut>> {
+        std::vector<temp::OpOut> results;
+
+        for (temp::OpIn& op : payload)
+        {
+          temp::OpOut& result = results.emplace_back();
+          switch (op.op_case())
+          {
+            case (temp::OpIn::OpCase::kEcho):
+            {
+              LOG_INFO_FMT("Got kEcho");
+              auto* echo_op = op.mutable_echo();
+              auto* echoed = result.mutable_echoed();
+              echoed->set_allocated_body(echo_op->release_body());
+              break;
+            }
+
+            case (temp::OpIn::OpCase::kReverse):
+            {
+              LOG_INFO_FMT("Got kReverse");
+              auto* reverse_op = op.mutable_reverse();
+              std::string* s = reverse_op->release_body();
+              std::reverse(s->begin(), s->end());
+              auto* reversed = result.mutable_reversed();
+              reversed->set_allocated_body(s);
+              break;
+            }
+
+            case (temp::OpIn::OpCase::kTruncate):
+            {
+              LOG_INFO_FMT("Got kTruncate");
+              auto* truncate_op = op.mutable_truncate();
+              std::string* s = truncate_op->release_body();
+              *s = s->substr(
+                truncate_op->start(),
+                truncate_op->end() - truncate_op->start());
+              auto* truncated = result.mutable_truncated();
+              truncated->set_allocated_body(s);
+              break;
+            }
+
+            case (temp::OpIn::OpCase::OP_NOT_SET):
+            {
+              LOG_INFO_FMT("Got OP_NOT_SET");
+              // oneof may always be null. If the input OpIn was null, then the
+              // resulting OpOut is also null
+              break;
+            }
+          }
+        }
+
+        return ccf::grpc::make_success(results);
+      };
+
+      make_command_endpoint(
+        "/temp.Test/RunOps",
+        HTTP_POST,
+        ccf::grpc_command_adapter<
+          std::vector<temp::OpIn>,
+          std::vector<temp::OpOut>>(run_string_ops),
+        ccf::no_auth_required)
+        .install();
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(

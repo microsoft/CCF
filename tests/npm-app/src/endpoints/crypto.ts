@@ -48,6 +48,23 @@ export function generateRsaKeyPair(
   return { body: res };
 }
 
+interface GenerateEcdsaKeyPairRequest {
+  curve: string;
+}
+
+export interface GenerateEcdsaKeyPairResponse {
+  privateKey: string;
+  publicKey: string;
+}
+
+export function generateEcdsaKeyPair(
+  request: ccfapp.Request<GenerateEcdsaKeyPairRequest>
+): ccfapp.Response<GenerateEcdsaKeyPairResponse> {
+  const req = request.body.json();
+  const res = ccfcrypto.generateEcdsaKeyPair(req.curve);
+  return { body: res };
+}
+
 type Base64 = string;
 
 interface RsaOaepParams {

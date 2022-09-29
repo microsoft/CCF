@@ -13,6 +13,12 @@ import kv_pb2 as KV
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
 
+# pylint: disable=import-error
+import stringops_pb2 as StringOps
+
+# pylint: disable=import-error
+import stringops_pb2_grpc as StringOpsService
+
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
@@ -136,6 +142,74 @@ def test_simple_executor(network, args):
     return network
 
 
+@reqs.description("Test gRPC streaming APIs")
+def test_streaming(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
+    def echo_op(s):
+        return (StringOps.OpIn(echo=StringOps.EchoOp(body=s)), ("echoed", s))
+
+    def reverse_op(s):
+        return (
+            StringOps.OpIn(reverse=StringOps.ReverseOp(body=s)),
+            ("reversed", s[::-1]),
+        )
+
+    def truncate_op(s):
+        start = random.randint(0, len(s))
+        end = random.randint(start, len(s))
+        return (
+            StringOps.OpIn(truncate=StringOps.TruncateOp(body=s, start=start, end=end)),
+            ("truncated", s[start:end]),
+        )
+
+    def empty_op(s):
+        # oneof may always be null - generate some like this to make sure they're handled "correctly"
+        return (StringOps.OpIn(), None)
+
+    def generate_ops(n):
+        for _ in range(n):
+            s = f"I'm random string {n}: {random.random()}"
+            yield random.choice((echo_op, reverse_op, truncate_op, empty_op))(s)
+
+    def compare_op_results(stub, n_ops):
+        LOG.info(f"Sending streaming request containing {n_ops} operations")
+        ops = []
+        expected_results = []
+        for op, expected_result in generate_ops(n_ops):
+            ops.append(op)
+            expected_results.append(expected_result)
+
+        for actual_result in stub.RunOps(op for op in ops):
+            assert len(expected_results) > 0, "More responses than requests"
+            expected_result = expected_results.pop(0)
+            if expected_result is None:
+                assert not actual_result.HasField("result"), actual_result
+            else:
+                field_name, expected = expected_result
+                actual = getattr(actual_result, field_name).body
+                assert (
+                    actual == expected
+                ), f"Wrong {field_name} op: {actual} != {expected}"
+
+        assert len(expected_results) == 0, "Fewer responses than requests"
+
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        stub = StringOpsService.TestStub(channel)
+
+        compare_op_results(stub, 0)
+        compare_op_results(stub, 1)
+        compare_op_results(stub, 30)
+        compare_op_results(stub, 1000)
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -147,6 +221,7 @@ def run(args):
 
         network = test_put_get(network, args)
         network = test_simple_executor(network, args)
+        network = test_streaming(network, args)
 
 
 if __name__ == "__main__":
