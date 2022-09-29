@@ -53,8 +53,8 @@ jobs:
             target: ${{ target }}
             env: ${{ parameters.env[target] }}
             cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build[target].cmake_args }}"
-            suffix: "{{ suffix }}"
-            artifact_name: "${{ target }}_{{ suffix }}"
+            suffix: "${{ suffix }}"
+            artifact_name: "${{ target }}_${{ suffix }}"
             ctest_filter: "${{ parameters.test[target].ctest_args }} -R lts_compatibility --repeat-until-fail 10"
             fetch_v8: release # debug is tested in daily
             depends_on: configure
