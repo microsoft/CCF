@@ -618,15 +618,18 @@ if(BUILD_TESTS)
             # trigger leadership changes
   )
 
-  add_e2e_test(
-    NAME modules_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --package libjs_generic --election-timeout-ms
-      10000 # Larger election timeout as recording
-      # large JS applications may trigger leadership changes
-  )
+  set(MODULES_TEST_SUFFICES _a _b _c _d _e _f _g _h)
+  foreach(SUFFIX ${MODULES_TEST_SUFFICES})
+    add_e2e_test(
+      NAME modules_test${SUFFIX}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS
+        --package libjs_generic --election-timeout-ms
+        10000 # Larger election timeout as recording
+        # large JS applications may trigger leadership changes
+    )
+  endforeach()
 
   if(ENABLE_V8)
     add_e2e_test(
