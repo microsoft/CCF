@@ -68,7 +68,7 @@ steps:
     condition: succeededOrFailed()
 
   - script: |
-      apt install ripgrep
+      sudo apt install ripgrep
       echo "TOOK TOO LONG "
       rg "Took too long" --count | cut -d : -f 2
       echo "TOOK TOO LONG TOTAL"
