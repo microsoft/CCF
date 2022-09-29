@@ -390,7 +390,7 @@ class Network:
         # Here, recovery nodes might still be catching up, and possibly swamp
         # the current primary which would not be able to serve user requests
         primary, _ = self.find_primary(
-            timeout=args.ledger_recovery_timeout if recovery else 3
+            timeout=args.ledger_recovery_timeout if recovery else 10
         )
         return primary
 
