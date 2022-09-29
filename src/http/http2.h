@@ -16,7 +16,7 @@ namespace http2
   {
   protected:
     nghttp2_session* session;
-    std::list<std::shared_ptr<StreamData>> streams;
+    std::map<StreamId, std::shared_ptr<StreamData>> streams;
     ccf::Session& endpoint;
 
   public:
@@ -64,9 +64,41 @@ namespace http2
       nghttp2_session_del(session);
     }
 
-    void add_stream(const std::shared_ptr<StreamData>& stream_data) override
+    std::shared_ptr<StreamData> create_stream(StreamId stream_id) override
     {
-      streams.push_back(stream_data);
+      auto stream_data = std::make_shared<StreamData>();
+      store_stream(stream_id, stream_data);
+      return stream_data;
+    }
+
+    void destroy_stream(StreamId stream_id) override
+    {
+      auto it = streams.find(stream_id);
+      if (it != streams.end())
+      {
+        it = streams.erase(it);
+        LOG_TRACE_FMT("Successfully destroyed stream {}", stream_id);
+      }
+      else
+      {
+        LOG_FAIL_FMT("Cannot destroy unknown stream {}", stream_id);
+      }
+    }
+
+    void store_stream(
+      StreamId stream_id, const std::shared_ptr<StreamData>& stream_data)
+    {
+      auto it = streams.find(stream_id);
+      if (it == streams.end())
+      {
+        streams.insert(it, {stream_id, stream_data});
+        LOG_TRACE_FMT("Successfully stored stream {}", stream_id);
+      }
+      else
+      {
+        throw std::logic_error(
+          fmt::format("Storing second data for stream {}", stream_id));
+      }
     }
 
     void send(const uint8_t* data, size_t length)
@@ -200,7 +232,8 @@ namespace http2
       send_all_submitted();
     }
 
-    virtual void handle_completed(StreamData* stream_data) override
+    virtual void handle_completed(
+      StreamId stream_id, StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ServerParser: handle_completed");
 
@@ -235,7 +268,7 @@ namespace http2
         url,
         std::move(stream_data->headers),
         std::move(stream_data->body),
-        stream_data->id);
+        stream_id);
     }
   };
 
@@ -283,7 +316,7 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      auto stream_data = std::make_shared<StreamData>(0);
+      auto stream_data = std::make_shared<StreamData>();
 
       stream_data->body = std::move(body);
 
@@ -301,15 +334,16 @@ namespace http2
         return;
       }
 
-      stream_data->id = stream_id;
-
-      add_stream(stream_data);
+      // TODO: Why am I storing this stream? It should be complete... In fact I
+      // bet we've had on_stream_close_callback called already, or at least
+      // before the end of this function?
+      store_stream(stream_id, stream_data);
 
       send_all_submitted();
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
     }
 
-    void handle_completed(StreamData* stream_data) override
+    void handle_completed(StreamId stream_id, StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ClientParser: handle_completed");
 

@@ -21,21 +21,20 @@ namespace http2
 
   struct StreamData
   {
-    StreamId id;
     http::HeaderMap headers;
     http::HeaderMap trailers;
     std::vector<uint8_t> body;
     size_t current_offset = 0;
-
-    StreamData(StreamId id_) : id(id_) {}
   };
 
   class AbstractParser
   {
   public:
     virtual ~AbstractParser() = default;
-    virtual void handle_completed(StreamData* stream_data) = 0;
-    virtual void add_stream(const std::shared_ptr<StreamData>& stream_data) = 0;
+    virtual void handle_completed(
+      StreamId stream_id, StreamData* stream_data) = 0;
+    virtual std::shared_ptr<StreamData> create_stream(StreamId stream_id) = 0;
+    virtual void destroy_stream(StreamId stream_id) = 0;
   };
 
   // Functions to create HTTP2 headers

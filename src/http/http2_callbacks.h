@@ -103,8 +103,8 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::on_frame_recv_callback, type: {}", frame->hd.type);
 
-    auto* p = get_parser(user_data);
-    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
+    const auto stream_id = frame->hd.stream_id;
+    auto* stream_data = get_stream_data(session, stream_id);
 
     switch (frame->hd.type)
     {
@@ -123,7 +123,8 @@ namespace http2
         // If the request is complete, process it
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
         {
-          p->handle_completed(stream_data);
+          auto* p = get_parser(user_data);
+          p->handle_completed(stream_id, stream_data);
         }
         break;
       }
@@ -142,8 +143,7 @@ namespace http2
     LOG_TRACE_FMT("http2::on_begin_headers_callback");
 
     auto* p = get_parser(user_data);
-    auto stream_data = std::make_shared<StreamData>(frame->hd.stream_id);
-    p->add_stream(stream_data);
+    auto stream_data = p->create_stream(frame->hd.stream_id);
     auto rc = nghttp2_session_set_stream_user_data(
       session, frame->hd.stream_id, stream_data.get());
     if (rc != 0)
@@ -188,7 +188,6 @@ namespace http2
     LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
 
     auto* stream_data = get_stream_data(session, stream_id);
-
     stream_data->body.insert(stream_data->body.end(), data, data + len);
 
     return 0;
@@ -202,6 +201,9 @@ namespace http2
   {
     LOG_TRACE_FMT(
       "http2::on_stream_close_callback: {}, {}", stream_id, error_code);
+
+    auto* p = get_parser(user_data);
+    p->destroy_stream(stream_id);
 
     return 0;
   }
