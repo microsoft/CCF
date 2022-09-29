@@ -9,6 +9,7 @@ from typing import Optional, List
 
 from infra.tx_status import TxStatus
 from infra.log_capture import flush_info
+from loguru import logger as LOG
 
 
 def wait_for_commit(
@@ -48,6 +49,14 @@ def wait_for_commit(
         else:
             time.sleep(0.1)
     flush_info(logs, log_capture, 1)
+    LOG.error("Timed out waiting for commit, trying to print some debug information")
+    LOG.warning(pprint.pformat(client.get("/node/commit").body.json()))
+    LOG.warning(pprint.pformat(client.get("/node/consensus").body.json()))
+    LOG.warning(
+        pprint.pformat(
+            client.get(f"/node/tx?transaction_id={view}.{seqno}").body.json()
+        )
+    )
     raise TimeoutError(
         f'Timed out waiting for commit: {pprint.pformat(client.get("/node/consensus").body.json())}'
     )
