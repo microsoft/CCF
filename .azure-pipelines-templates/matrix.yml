@@ -1,5 +1,6 @@
 parameters:
   target: ["SGX"]
+  suffices: ["Debug_A", "Debug_B", "Debug_C", "Debug_D", "Debug_E"]
 
   env:
     Hosted:
@@ -45,17 +46,18 @@ parameters:
 
 jobs:
   # Debug
-  - ${{ each target in parameters.target }}:
-      - template: common.yml
-        parameters:
-          target: ${{ target }}
-          env: ${{ parameters.env[target] }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build[target].cmake_args }}"
-          suffix: "Debug"
-          artifact_name: "${{ target }}_Debug"
-          ctest_filter: "${{ parameters.test[target].ctest_args }} -R lts_compatibility --repeat-until-fail 20"
-          fetch_v8: release # debug is tested in daily
-          depends_on: configure
+  - ${{ each suffix in parameters.suffices }}:
+    - ${{ each target in parameters.target }}:
+        - template: common.yml
+          parameters:
+            target: ${{ target }}
+            env: ${{ parameters.env[target] }}
+            cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build[target].cmake_args }}"
+            suffix: "{{ suffix }}"
+            artifact_name: "${{ target }}_{{ suffix }}"
+            ctest_filter: "${{ parameters.test[target].ctest_args }} -R lts_compatibility --repeat-until-fail 10"
+            fetch_v8: release # debug is tested in daily
+            depends_on: configure
 
   # # Performance
   # - ${{ if eq(parameters.perf_tests, 'run') }}:
