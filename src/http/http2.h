@@ -22,7 +22,8 @@ namespace http2
   public:
     Parser(ccf::Session& endpoint, bool is_client = false) : endpoint(endpoint)
     {
-      LOG_TRACE_FMT("Created HTTP2 session");
+      LOG_TRACE_FMT("Creating HTTP2 parser");
+
       nghttp2_session_callbacks* callbacks;
       nghttp2_session_callbacks_new(&callbacks);
       nghttp2_session_callbacks_set_on_stream_close_callback(
@@ -54,6 +55,20 @@ namespace http2
         {
           throw std::logic_error("Could not create new HTTP/2 server session");
         }
+      }
+
+      // Submit initial settings
+      std::vector<nghttp2_settings_entry> settings;
+      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
+      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
+
+      auto rv = nghttp2_submit_settings(
+        session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
+      if (rv != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Error submitting settings for HTTP2 session: {}",
+          nghttp2_strerror(rv)));
       }
 
       nghttp2_session_callbacks_del(callbacks);
@@ -101,16 +116,9 @@ namespace http2
       }
     }
 
-    void send(const uint8_t* data, size_t length)
+    void execute(const uint8_t* data, size_t size)
     {
-      LOG_TRACE_FMT("http2::Parser send: {}", length);
-
-      endpoint.send(data, length);
-    }
-
-    void recv(const uint8_t* data, size_t size)
-    {
-      LOG_TRACE_FMT("http2::Parser recv: {}", size);
+      LOG_TRACE_FMT("http2::Parser execute: {}", size);
       auto readlen = nghttp2_session_mem_recv(session, data, size);
       if (readlen < 0)
       {
@@ -149,23 +157,7 @@ namespace http2
     ServerParser(http::RequestProcessor& proc_, ccf::Session& endpoint_) :
       Parser(endpoint_, false),
       proc(proc_)
-    {
-      LOG_TRACE_FMT("Initialising HTTP2 ServerParser");
-
-      // Note: Should be set by operator on node startup
-      std::vector<nghttp2_settings_entry> settings;
-      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
-      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
-
-      auto rv = nghttp2_submit_settings(
-        session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
-      if (rv != 0)
-      {
-        throw std::logic_error(fmt::format(
-          "Error submitting settings for HTTP2 session: {}",
-          nghttp2_strerror(rv)));
-      }
-    }
+    {}
 
     void send_response(
       StreamId stream_id,
@@ -281,23 +273,7 @@ namespace http2
     ClientParser(http::ResponseProcessor& proc_, ccf::Session& endpoint_) :
       Parser(endpoint_, true),
       proc(proc_)
-    {
-      LOG_TRACE_FMT("Initialising HTTP2 ClientParser");
-
-      // TODO: Move to base constructor?
-      std::vector<nghttp2_settings_entry> settings;
-      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
-      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
-
-      auto rv = nghttp2_submit_settings(
-        session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
-      if (rv != 0)
-      {
-        throw std::logic_error(fmt::format(
-          "Error submitting settings for HTTP2 session: {}",
-          nghttp2_strerror(rv)));
-      }
-    }
+    {}
 
     void send_structured_request(
       llhttp_method method,
