@@ -90,6 +90,38 @@
         },
         "type": "array"
       },
+      "GetSecurityPolicies__Out": {
+        "properties": {
+          "policies": {
+            "$ref": "#/components/schemas/GetSecurityPolicies__Policies_array"
+          }
+        },
+        "required": [
+          "policies"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__Policies": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "digest",
+          "raw"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__Policies_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetSecurityPolicies__Policies"
+        },
+        "type": "array"
+      },
       "GetCommit__Out": {
         "properties": {
           "transaction_id": {
@@ -318,6 +350,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetCode__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/security_policy": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
                 }
               }
             },

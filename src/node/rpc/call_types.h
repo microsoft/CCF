@@ -51,6 +51,20 @@ namespace ccf
     };
   };
 
+  struct GetSecurityPolicies
+  {
+    struct SecurityPolicy
+    {
+      std::string raw;
+      std::string digest;
+    };
+
+    struct Out
+    {
+      std::vector<GetSecurityPolicies::SecurityPolicy> policies = {};
+    };
+  };
+
   struct GetNetworkInfo
   {
     struct Out

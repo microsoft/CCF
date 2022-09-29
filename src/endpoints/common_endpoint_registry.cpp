@@ -11,6 +11,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/security_policies.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
 
@@ -167,6 +168,24 @@ namespace ccf
     make_read_only_endpoint(
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
+      .install();
+
+    auto get_security_policies = [](auto& ctx, nlohmann::json&&) {
+      GetSecurityPolicies::Out out;
+
+      auto security_policies = ctx.tx.template ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
+      security_policies->foreach(
+        [&out](const DigestedPolicy& digest, const RawPolicy& raw) {
+          auto digest_str = ds::to_hex(digest);
+          out.policies.push_back({raw, digest_str});
+          return true;
+        });
+
+      return make_success(out);
+    };
+    make_read_only_endpoint(
+      "/security_policy", HTTP_GET, json_read_only_adapter(get_security_policies), no_auth_required)
+      .set_auto_schema<void, GetSecurityPolicies::Out>()
       .install();
 
     auto openapi = [this](auto& ctx, nlohmann::json&&) {

@@ -118,6 +118,11 @@ namespace ccf
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
 
+  DECLARE_JSON_TYPE(GetSecurityPolicies::SecurityPolicy)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSecurityPolicies::SecurityPolicy, raw, digest)
+  DECLARE_JSON_TYPE(GetSecurityPolicies::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSecurityPolicies::Out, policies)
+
   DECLARE_JSON_TYPE(GetRecoveryShare::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetRecoveryShare::Out, encrypted_share)
 
