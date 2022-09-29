@@ -14,15 +14,15 @@ namespace http
   class HTTP2Session : public ccf::TLSSession
   {
   protected:
-    http2::Session& session;
+    http2::Parser& parser;
 
     HTTP2Session(
-      http2::Session& session_,
+      http2::Parser& parser_,
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSSession(session_id, writer_factory, std::move(ctx)),
-      session(session_)
+      parser(parser_)
     {}
 
   public:
@@ -64,7 +64,7 @@ namespace http
 
         try
         {
-          session.recv(data, n_read);
+          parser.recv(data, n_read);
 
           // Used all provided bytes - check if more are available
           n_read = read(buf.data(), buf.size(), false);
@@ -91,11 +91,10 @@ namespace http
     }
   };
 
-  class HTTP2ServerSession : public HTTP2Session,
-                              public http::RequestProcessor
+  class HTTP2ServerSession : public HTTP2Session, public http::RequestProcessor
   {
   private:
-    http2::ServerSession server_session;
+    http2::ServerParser server_parser;
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
@@ -115,8 +114,8 @@ namespace http
       const std::shared_ptr<ErrorReporter>& error_reporter =
         nullptr) // Note: Report errors
       :
-      HTTP2Session(server_session, session_id, writer_factory, std::move(ctx)),
-      server_session(*this, *this),
+      HTTP2Session(server_parser, session_id, writer_factory, std::move(ctx)),
+      server_parser(*this, *this),
       rpc_map(rpc_map),
       session_id(session_id),
       interface_id(interface_id)
@@ -187,7 +186,7 @@ namespace http
         }
         else
         {
-          server_session.send_response(
+          server_parser.send_response(
             stream_id,
             rpc_ctx->get_response_http_status(),
             rpc_ctx->get_response_headers(),
@@ -217,16 +216,16 @@ namespace http
                              public http::ResponseProcessor
   {
   private:
-    http2::ClientSession client_session;
+    http2::ClientParser client_parser;
 
   public:
     HTTP2ClientSession(
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTP2Session(client_session, session_id, writer_factory, std::move(ctx)),
-      ClientSession(session_id, writer_factory),
-      client_session(*this, *this)
+      HTTP2Session(client_parser, session_id, writer_factory, std::move(ctx)),
+      ccf::ClientSession(session_id, writer_factory),
+      client_parser(*this, *this)
     {}
 
     void send_request(const http::Request& request) override
@@ -235,7 +234,7 @@ namespace http
       std::vector<uint8_t> request_body = {
         request.get_content_data(),
         request.get_content_data() + request.get_content_length()};
-      client_session.send_structured_request(
+      client_parser.send_structured_request(
         request.get_method(),
         request.get_path(),
         request.get_headers(),

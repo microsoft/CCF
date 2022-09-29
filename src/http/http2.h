@@ -12,7 +12,7 @@
 
 namespace http2
 {
-  class Session : public AbstractSession
+  class Parser : public AbstractParser
   {
   protected:
     nghttp2_session* session;
@@ -20,12 +20,11 @@ namespace http2
     ccf::Session& endpoint;
 
   public:
-    Session(ccf::Session& endpoint, bool is_client = false) : endpoint(endpoint)
+    Parser(ccf::Session& endpoint, bool is_client = false) : endpoint(endpoint)
     {
       LOG_TRACE_FMT("Created HTTP2 session");
       nghttp2_session_callbacks* callbacks;
       nghttp2_session_callbacks_new(&callbacks);
-      nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
       nghttp2_session_callbacks_set_on_stream_close_callback(
         callbacks, on_stream_close_callback);
       nghttp2_session_callbacks_set_data_source_read_length_callback(
@@ -60,7 +59,7 @@ namespace http2
       nghttp2_session_callbacks_del(callbacks);
     }
 
-    virtual ~Session()
+    virtual ~Parser()
     {
       nghttp2_session_del(session);
     }
@@ -70,18 +69,16 @@ namespace http2
       streams.push_back(stream_data);
     }
 
-    void send(const uint8_t* data, size_t length) override
+    void send(const uint8_t* data, size_t length)
     {
-      LOG_TRACE_FMT("http2::Session send: {}", length);
+      LOG_TRACE_FMT("http2::Parser send: {}", length);
 
-      // Note: Remove extra copy
-      std::vector<uint8_t> resp = {data, data + length};
-      endpoint.send(std::move(resp), sockaddr());
+      endpoint.send(data, length);
     }
 
     void recv(const uint8_t* data, size_t size)
     {
-      LOG_TRACE_FMT("http2::Session recv: {}", size);
+      LOG_TRACE_FMT("http2::Parser recv: {}", size);
       auto readlen = nghttp2_session_mem_recv(session, data, size);
       if (readlen < 0)
       {
@@ -89,26 +86,39 @@ namespace http2
           "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
       }
 
-      auto rc = nghttp2_session_send(session);
-      if (rc < 0)
+      send_all_submitted();
+    }
+
+    void send_all_submitted()
+    {
+      ssize_t size = 0;
+      const uint8_t* data = nullptr;
+      while ((size = nghttp2_session_mem_send(session, &data)) != 0)
       {
-        throw std::logic_error(
-          fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
+        if (size > 0)
+        {
+          endpoint.send(data, size);
+        }
+        else
+        {
+          throw std::logic_error(fmt::format(
+            "HTTP/2: Error sending data: {}", nghttp2_strerror(size)));
+        }
       }
     }
   };
 
-  class ServerSession : public Session
+  class ServerParser : public Parser
   {
   private:
     http::RequestProcessor& proc;
 
   public:
-    ServerSession(http::RequestProcessor& proc_, ccf::Session& endpoint_) :
-      Session(endpoint_, false),
+    ServerParser(http::RequestProcessor& proc_, ccf::Session& endpoint_) :
+      Parser(endpoint_, false),
       proc(proc_)
     {
-      LOG_TRACE_FMT("Initialising HTTP2 Server Session");
+      LOG_TRACE_FMT("Initialising HTTP2 ServerParser");
 
       // Note: Should be set by operator on node startup
       std::vector<nghttp2_settings_entry> settings;
@@ -186,11 +196,13 @@ namespace http2
         throw std::logic_error(
           fmt::format("nghttp2_submit_response error: {}", rv));
       }
+
+      send_all_submitted();
     }
 
     virtual void handle_completed(StreamData* stream_data) override
     {
-      LOG_TRACE_FMT("http2::ServerSession: handle_completed");
+      LOG_TRACE_FMT("http2::ServerParser: handle_completed");
 
       if (stream_data == nullptr)
       {
@@ -227,25 +239,19 @@ namespace http2
     }
   };
 
-  class ClientSession : public Session
+  class ClientParser : public Parser
   {
   private:
     http::ResponseProcessor& proc;
 
   public:
-    ClientSession(http::ResponseProcessor& proc_, ccf::Session& endpoint_) :
-      Session(endpoint_, true),
+    ClientParser(http::ResponseProcessor& proc_, ccf::Session& endpoint_) :
+      Parser(endpoint_, true),
       proc(proc_)
     {
-      LOG_TRACE_FMT("Initialising HTTP2 Client Session");
-    }
+      LOG_TRACE_FMT("Initialising HTTP2 ClientParser");
 
-    void send_structured_request(
-      llhttp_method method,
-      const std::string& route,
-      const http::HeaderMap& headers,
-      std::vector<uint8_t>&& body)
-    {
+      // TODO: Move to base constructor?
       std::vector<nghttp2_settings_entry> settings;
       settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
       settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
@@ -258,7 +264,14 @@ namespace http2
           "Error submitting settings for HTTP2 session: {}",
           nghttp2_strerror(rv)));
       }
+    }
 
+    void send_structured_request(
+      llhttp_method method,
+      const std::string& route,
+      const http::HeaderMap& headers,
+      std::vector<uint8_t>&& body)
+    {
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
         make_nv(http2::headers::METHOD, llhttp_method_name(method)));
@@ -290,20 +303,15 @@ namespace http2
 
       stream_data->id = stream_id;
 
-      auto rc = nghttp2_session_send(session);
-      if (rc < 0)
-      {
-        LOG_FAIL_FMT("http2:nghttp2_session_send: {}", nghttp2_strerror(rc));
-        return;
-      }
-
       add_stream(stream_data);
+
+      send_all_submitted();
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
     }
 
     void handle_completed(StreamData* stream_data) override
     {
-      LOG_TRACE_FMT("http2::ClientSession: handle_completed");
+      LOG_TRACE_FMT("http2::ClientParser: handle_completed");
 
       if (stream_data == nullptr)
       {

@@ -7,20 +7,6 @@
 
 namespace http2
 {
-  static ssize_t send_callback(
-    nghttp2_session* session,
-    const uint8_t* data,
-    size_t length,
-    int flags,
-    void* user_data)
-  {
-    LOG_TRACE_FMT("http2::send_callback: {}", length);
-
-    auto* s = get_session(user_data);
-    s->send(data, length);
-    return length;
-  }
-
   static ssize_t read_callback(
     nghttp2_session* session,
     StreamId stream_id,
@@ -117,7 +103,7 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::on_frame_recv_callback, type: {}", frame->hd.type);
 
-    auto* s = get_session(user_data);
+    auto* p = get_parser(user_data);
     auto* stream_data = get_stream_data(session, frame->hd.stream_id);
 
     switch (frame->hd.type)
@@ -137,7 +123,7 @@ namespace http2
         // If the request is complete, process it
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
         {
-          s->handle_completed(stream_data);
+          p->handle_completed(stream_data);
         }
         break;
       }
@@ -155,9 +141,9 @@ namespace http2
   {
     LOG_TRACE_FMT("http2::on_begin_headers_callback");
 
-    auto* s = get_session(user_data);
+    auto* p = get_parser(user_data);
     auto stream_data = std::make_shared<StreamData>(frame->hd.stream_id);
-    s->add_stream(stream_data);
+    p->add_stream(stream_data);
     auto rc = nghttp2_session_set_stream_user_data(
       session, frame->hd.stream_id, stream_data.get());
     if (rc != 0)
@@ -216,8 +202,6 @@ namespace http2
   {
     LOG_TRACE_FMT(
       "http2::on_stream_close_callback: {}, {}", stream_id, error_code);
-
-    auto* s = get_session(user_data);
 
     return 0;
   }

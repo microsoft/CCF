@@ -30,11 +30,10 @@ namespace http2
     StreamData(StreamId id_) : id(id_) {}
   };
 
-  class AbstractSession
+  class AbstractParser
   {
   public:
-    virtual ~AbstractSession() = default;
-    virtual void send(const uint8_t* data, size_t length) = 0;
+    virtual ~AbstractParser() = default;
     virtual void handle_completed(StreamData* stream_data) = 0;
     virtual void add_stream(const std::shared_ptr<StreamData>& stream_data) = 0;
   };
@@ -56,9 +55,9 @@ namespace http2
     return make_nv((uint8_t*)key, (uint8_t*)value);
   }
 
-  AbstractSession* get_session(void* user_data)
+  AbstractParser* get_parser(void* user_data)
   {
-    return reinterpret_cast<AbstractSession*>(user_data);
+    return reinterpret_cast<AbstractParser*>(user_data);
   }
 
   StreamData* get_stream_data(nghttp2_session* session, StreamId stream_id)
