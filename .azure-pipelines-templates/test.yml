@@ -79,7 +79,7 @@ steps:
       - script: |
           ./cimetrics_env.sh
           source env/bin/activate
-          rg "Took too long" --count | cut -d : -f 2 | python ../tests/upload_misc.py --name "took_too_long_count_${{ parameters.suite_name_suffix }}"
+          rg "Took too long" --count | cut -d : -f 2 | python ../tests/upload_misc.py "took_too_long_count_${{ parameters.suite_name_suffix }}"
         env:
           METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
         workingDirectory: build
