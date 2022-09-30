@@ -247,7 +247,7 @@ class Network:
     ):
         # Contact primary if no target node is set
         primary, _ = self.find_primary(
-            timeout=args.ledger_recovery_timeout if recovery else 3
+            timeout=args.ledger_recovery_timeout if recovery else 10
         )
         target_node = target_node or primary
         LOG.info(f"Joining from target node {target_node.local_node_id}")
@@ -910,7 +910,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, nodes=None, timeout=10, log_capture=None, **kwargs):
+    def find_primary(self, nodes=None, timeout=30, log_capture=None, **kwargs):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
