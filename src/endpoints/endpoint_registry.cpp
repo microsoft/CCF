@@ -157,7 +157,8 @@ namespace ccf::endpoints
         // have a TxID, while others (e.g. unauthenticated commands)
         // don't. Also, only report a TxID if the consensus is set, as
         // the consensus is required to verify that a TxID is valid.
-        ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CCF_TX_ID, tx_id.to_str());
       };
 
     endpoint.authn_policies = ap;
@@ -183,6 +184,30 @@ namespace ccf::endpoints
              },
              ap)
       .set_forwarding_required(ForwardingRequired::Sometimes);
+  }
+
+  Endpoint EndpointRegistry::make_endpoint_with_commit_handler(
+    const std::string& method,
+    RESTVerb verb,
+    const EndpointFunction& f,
+    const LocallyCommittedEndpointFunction& l,
+    const AuthnPolicies& ap)
+  {
+    auto endpoint = make_endpoint(method, verb, f, ap);
+    endpoint.locally_committed_func = l;
+    return endpoint;
+  }
+
+  Endpoint EndpointRegistry::make_read_only_endpoint_with_commit_handler(
+    const std::string& method,
+    RESTVerb verb,
+    const ReadOnlyEndpointFunction& f,
+    const LocallyCommittedEndpointFunction& l,
+    const AuthnPolicies& ap)
+  {
+    auto endpoint = make_read_only_endpoint(method, verb, f, ap);
+    endpoint.locally_committed_func = l;
+    return endpoint;
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -419,8 +444,9 @@ namespace ccf::endpoints
     if (endpoint == nullptr)
     {
       throw std::logic_error(
-        "Base execute_endpoint_locally_committed called on incorrect Endpoint type - "
-        "expected derived implementation to handle derived endpoint instances");
+        "Base execute_endpoint_locally_committed called on incorrect Endpoint "
+        "type - expected derived implementation to handle derived endpoint "
+        "instances");
     }
 
     endpoint->locally_committed_func(tx_id, ctx);
