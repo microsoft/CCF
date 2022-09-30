@@ -190,8 +190,8 @@ namespace kv::untyped
 
   void MapHandle::range(
     const MapHandle::ElementVisitor& f,
-    const std::optional<MapHandle::KeyType> from,
-    const std::optional<MapHandle::KeyType> to)
+    const std::optional<MapHandle::KeyType>& from,
+    const std::optional<MapHandle::KeyType>& to)
   {
     // Current limitations/ineficiencies:
     // - The state and writes are wastefully looped over until `from` is
