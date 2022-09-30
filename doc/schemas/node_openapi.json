@@ -813,8 +813,7 @@
           "PartOfPublicNetwork",
           "PartOfNetwork",
           "ReadingPublicLedger",
-          "ReadingPrivateLedger",
-          "VerifyingSnapshot"
+          "ReadingPrivateLedger"
         ],
         "type": "string"
       },
@@ -875,7 +874,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.31.5"
+    "version": "2.31.6"
   },
   "openapi": "3.0.0",
   "paths": {
