@@ -215,6 +215,9 @@ namespace ccf::endpoints
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args);
 
+    virtual void execute_endpoint_locally_committed(
+      EndpointDefinitionPtr e, CommandEndpointContext& args, const TxID& tx_id);
+
     virtual std::set<RESTVerb> get_allowed_verbs(
       kv::Tx&, const ccf::RpcContext& rpc_ctx);
 
