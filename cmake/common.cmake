@@ -714,6 +714,7 @@ set(SEV_SNP ON)
 set(STATIC ON)
 set(SHARED OFF)
 set(CLI OFF)
+set(INSTALL OFF)
 add_subdirectory(${CCF_3RD_PARTY_EXPORTED_DIR}/ravl)
 
 get_target_property(RAVL_SRC ravl SOURCES)

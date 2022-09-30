@@ -29,6 +29,7 @@ option(PROFILE "enable profiling" OFF)
 option(STATIC "build static library" ON)
 option(SHARED "build shared library" OFF)
 option(CLI "build the ravl CLI tool" ON)
+option(INSTALL "include installation targets/exports" ON)
 
 option(USE_OE_VERIFIER "use the Open Enclave verifier directly (requires Open Enclave SDK)" OFF)
 
@@ -135,20 +136,22 @@ if(CLI)
 endif()
 
 
-include(GNUInstallDirs)
+if(INSTALL)
+  include(GNUInstallDirs)
 
-install(TARGETS ${RAVL_TARGETS}
-        EXPORT ravl-targets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  install(TARGETS ${RAVL_TARGETS}
+          EXPORT ravl-targets
+          LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+          INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(EXPORT ravl-targets
-        FILE ravl-config.cmake
-        NAMESPACE ravl::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ravl
-)
+  install(EXPORT ravl-targets
+          FILE ravl-config.cmake
+          NAMESPACE ravl::
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ravl
+  )
+endif()
 
 if(TESTS)
   enable_testing()
