@@ -90,21 +90,22 @@ namespace ccf
     kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info)
   {
-    if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
-
-      auto security_policy_digest = EnclaveAttestationProvider::get_security_policy_digest(quote_info);
-      if (!security_policy_digest.has_value()) {
-        return QuoteVerificationResult::FailedSecurityPolicyDigestNotFound;
-      }
-
-      auto accepted_policies_table = tx.ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
-      auto accepted_policy = accepted_policies_table->get(security_policy_digest.value());
-      if (!accepted_policy.has_value())
-      {
-        return QuoteVerificationResult::FailedInvalidSecurityPolicy;
-      }
-
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1) {
+      throw std::logic_error("Attempted to verify security policy for an unsupported platform");
     }
+
+    auto security_policy_digest = EnclaveAttestationProvider::get_security_policy_digest(quote_info);
+    if (!security_policy_digest.has_value()) {
+      return QuoteVerificationResult::FailedSecurityPolicyDigestNotFound;
+    }
+
+    auto accepted_policies_table = tx.ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
+    auto accepted_policy = accepted_policies_table->get(security_policy_digest.value());
+    if (!accepted_policy.has_value())
+    {
+      return QuoteVerificationResult::FailedInvalidSecurityPolicy;
+    }
+
     return QuoteVerificationResult::Verified;
   }
 
@@ -117,6 +118,7 @@ namespace ccf
   {
     crypto::Sha256Hash quoted_hash;
     pal::attestation_report_data report;
+    LOG_INFO_FMT("TEST: VERIFYING POLICY AGAINST STORE");
     try
     {
       pal::verify_quote(quote_info, code_digest.data, report);

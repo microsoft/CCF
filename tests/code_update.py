@@ -64,14 +64,20 @@ def test_add_node_with_correct_security_policy(network, args):
         else "libjs_generic"
     )
 
+    primary, others = network.find_nodes()
+    prev_nodes = [primary, *others]
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, replacement_package, args, timeout=3)
-
+    network.trust_node(new_node, args)
     primary, others = network.find_nodes()
+    nodes = [primary, *others]
+    assert len(nodes) == len(prev_nodes) + 1, "New node not added to network"
+
     with primary.client() as client:
         r = client.get("/gov/security_policy")
         policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
 
+    LOG.info(f"Checking governance table security policies")
     expected = [
         {
             "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
@@ -79,32 +85,93 @@ def test_add_node_with_correct_security_policy(network, args):
         }
     ]
     expected.sort(key=lambda x: x["digest"])
-
-    LOG.info(f"Checking governance table security policies")
     assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
-
-    LOG.info(f"Checking each node's security policy is valid")
-    for node in [primary, *others]:
-        with node.client() as client:
-            r = client.get("/node/security_policy")
-            policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
-        assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
-
-
 
 @reqs.description("Node with no security policy set but good digest matching ledger joins successfully")
 def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
 
     if not IS_SNP:
-        LOG.warning("Skipping test_add_node_with_no_raw_security_policy_match_ledger with non SNP platform")
+        LOG.warning("Skipping test_add_node_with_correct_security_policy with non SNP platform")
         return network
+
+    replacement_package = (
+        "samples/apps/logging/liblogging"
+        if args.package == "libjs_generic"
+        else "libjs_generic"
+    )
+
+    primary, others = network.find_nodes()
+    prev_nodes = [primary, *others]
+
+    LOG.info(f"Change the entry for trusted security policies to not include a raw policy")
+    network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+    network.consortium.add_new_security_policy(primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, replacement_package, args, timeout=3, env=dict())
+    network.trust_node(new_node, args)
+    primary, others = network.find_nodes()
+    nodes = [primary, *others]
+    assert len(nodes) == len(prev_nodes) + 1, "New node not added to network"
+
+    with primary.client() as client:
+        r = client.get("/gov/security_policy")
+        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
+
+    LOG.info(f"Checking governance table security policies")
+    expected = [
+        {
+            "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+            "raw": DEFAULT_SNP_SECURITY_POLICY,
+        }
+    ]
+    expected.sort(key=lambda x: x["digest"])
+    assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
+
+    LOG.info(f"Checking node joined with a blank security policy")
+    # TODO: Do this
+
+    network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+    network.consortium.add_new_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
 
 @reqs.description("Node with no security policy set but good digest not matching ledger joins successfully")
 def test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args):
 
     if not IS_SNP:
-        LOG.warning("Skipping test_add_node_with_no_raw_security_policy_not_matching_ledger with non SNP platform")
+        LOG.warning("Skipping test_add_node_with_correct_security_policy with non SNP platform")
         return network
+
+    replacement_package = (
+        "samples/apps/logging/liblogging"
+        if args.package == "libjs_generic"
+        else "libjs_generic"
+    )
+
+    primary, others = network.find_nodes()
+    prev_nodes = [primary, *others]
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, replacement_package, args, timeout=3, env=dict())
+    network.trust_node(new_node, args)
+    primary, others = network.find_nodes()
+    nodes = [primary, *others]
+    assert len(nodes) == len(prev_nodes) + 1, "New node not added to network"
+
+    with primary.client() as client:
+        r = client.get("/gov/security_policy")
+        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
+
+    LOG.info(f"Checking governance table security policies")
+    expected = [
+        {
+            "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+            "raw": DEFAULT_SNP_SECURITY_POLICY,
+        }
+    ]
+    expected.sort(key=lambda x: x["digest"])
+    assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
+
+    LOG.info(f"Checking node joined with a blank security policy")
+    # TODO: Do this
 
 @reqs.description("Node where raw security policy doesn't match digest fails to join")
 def test_add_node_with_mismatched_security_policy_digest(network, args):
@@ -113,12 +180,51 @@ def test_add_node_with_mismatched_security_policy_digest(network, args):
         LOG.warning("Skipping test_add_node_with_mismatched_security_policy_digest with non SNP platform")
         return network
 
+    replacement_package = (
+        "samples/apps/logging/liblogging"
+        if args.package == "libjs_generic"
+        else "libjs_generic"
+    )
+
+    primary, others = network.find_nodes()
+    prev_nodes = [primary, *others]
+    new_node = network.create_node("local://localhost")
+    try:
+        network.join_node(new_node, replacement_package, args, timeout=3, env={"SECURITY_POLICY": "eyJhbGxvd19hbGwiOmZhbHNlLCJjb250YWluZXJzIjp7Imxlbmd0aCI6MCwiZWxlbWVudHMiOm51bGx9fQ=="})
+        network.trust_node(new_node, args)
+    except Exception as err:
+        ...
+
+    primary, others = network.find_nodes()
+    nodes = [primary, *others]
+    assert len(nodes) == len(prev_nodes), "Node joining unexpectedly succeeded"
+
 @reqs.description("Node with bad security policy digest fails to join")
 def test_add_node_with_bad_security_policy_digest(network, args):
 
     if not IS_SNP:
         LOG.warning("Skipping test_add_node_with_bad_security_policy_digest with non SNP platform")
         return network
+
+    replacement_package = (
+        "samples/apps/logging/liblogging"
+        if args.package == "libjs_generic"
+        else "libjs_generic"
+    )
+
+    primary, others = network.find_nodes()
+    prev_nodes = [primary, *others]
+
+    LOG.info(f"Removing security policy set by node 0 so that a new joiner is seen as an unmatching policy")
+    network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, replacement_package, args, timeout=3)
+    network.trust_node(new_node, args)
+
+    primary, others = network.find_nodes()
+    nodes = [primary, *others]
+    assert len(nodes) <= len(prev_nodes), "Node joining unexpectedly succeeded"
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
@@ -317,7 +423,7 @@ def run(args):
         test_add_node_with_no_raw_security_policy_match_ledger(network, args)
         test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args)
         test_add_node_with_mismatched_security_policy_digest(network, args)
-        test_add_node_with_bad_security_policy_digest(network, args)
+        # test_add_node_with_bad_security_policy_digest(network, args)
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
         test_proposal_invalidation(network, args)

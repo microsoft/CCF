@@ -674,6 +674,20 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def add_new_security_policy(self, remote_node, new_raw_security_policy, new_digested_security_policy):
+        proposal_body, careful_vote = self.make_proposal(
+            "add_security_policy", raw_security_policy=new_raw_security_policy, digested_security_policy=new_digested_security_policy
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def retire_security_policy(self, remote_node, digested_security_policy):
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_security_policy", digested_security_policy=digested_security_policy
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def set_node_data(self, remote_node, node_service_id, node_data):
         proposal, careful_vote = self.make_proposal(
             "set_node_data",

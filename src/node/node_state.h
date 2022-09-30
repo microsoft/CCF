@@ -320,6 +320,7 @@ namespace ccf
 
       // Verify that the security policy matches the quoted digest of the policy
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
+        LOG_INFO_FMT("TEST: Checking security_policy");
         auto quoted_digest = EnclaveAttestationProvider::get_security_policy_digest(quote_info);
         if (!quoted_digest.has_value()) {
           throw std::logic_error("Unable to find security policy");
@@ -329,10 +330,13 @@ namespace ccf
           LOG_INFO_FMT("Security Policy environment variable not set, skipping check against digest");
         }
         else {
+          LOG_INFO_FMT("TEST: Policy found = {}", config.security_policy.value());
           auto digest = crypto::Sha256Hash(config.security_policy.value());
           if (digest.h != quoted_digest) {
+            LOG_INFO_FMT("TEST: Policy failed");
             throw std::logic_error("Raw security policy doesn't match digest provided in attestation");
           }
+          LOG_INFO_FMT("TEST: Policy validated");
         }
       }
 

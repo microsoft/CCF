@@ -930,6 +930,35 @@ const actions = new Map([
     ),
   ],
   [
+    "add_security_policy",
+    new Action(
+      function (args) {
+        checkType(args.raw_security_policy, "string", "raw_security_policy");
+        checkType(args.digested_security_policy, "string", "digested_security_policy");
+      },
+      function (args, proposalId) {
+        const raw_security_policy = ccf.strToBuf(args.raw_security_policy);
+        const digested_security_policy = ccf.strToBuf(args.digested_security_policy);
+        ccf.kv["public:ccf.gov.nodes.security_policies"].set(digested_security_policy, raw_security_policy);
+
+        // Adding a new allowed security policy changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      }
+    ),
+  ],
+  [
+    "remove_security_policy",
+    new Action(
+      function (args) {
+        checkType(args.digested_security_policy, "string", "digested_security_policy");
+      },
+      function (args) {
+        const digest = ccf.strToBuf(args.digested_security_policy);
+        ccf.kv["public:ccf.gov.nodes.security_policies"].delete(digest);
+      }
+    ),
+  ],
+  [
     "set_node_data",
     new Action(
       function (args) {
