@@ -12,7 +12,7 @@ endif()
 
 set(PROTOBUF_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/3rdparty/exported/protobuf/src/)
 
-file(GLOB PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/*.proto)
+file(GLOB PROTO_FILES CONFIFURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.proto)
 
 set_property(GLOBAL PROPERTY JOB_POOLS one_job=1)
 
@@ -29,20 +29,27 @@ foreach(proto_file ${PROTO_FILES})
     COMMENT "Generate C++ source files from protobuf file ${PROTO_NAME}"
     DEPENDS ${proto_file}
   )
+  add_custom_target(
+    ${PROTO_NAME_WE}_proto_cpp ALL
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.h
+            ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
+  )
 
   add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2.py
-           ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2_grpc.py
+    OUTPUT
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2.py
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2_grpc.py
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/build.sh ${proto_file}
-            ${CMAKE_SOURCE_DIR}/tests/
+            ${CMAKE_SOURCE_DIR}/tests/external_executor/
     COMMENT "Generate Python source file from protobuf file ${PROTO_NAME}"
     DEPENDS ${proto_file}
     JOB_POOL one_job
   )
   add_custom_target(
-    ${PROTO_NAME_WE}_python_proto ALL
-    DEPENDS ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2.py
-            ${CMAKE_SOURCE_DIR}/tests/${PROTO_NAME_WE}_pb2_grpc.py
+    ${PROTO_NAME_WE}_proto_python ALL
+    DEPENDS
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2.py
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/${PROTO_NAME_WE}_pb2_grpc.py
     JOB_POOL one_job
   )
 
