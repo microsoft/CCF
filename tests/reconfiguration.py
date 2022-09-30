@@ -213,9 +213,10 @@ def test_add_node_from_backup(network, args):
 def test_add_node_amd_endorsements_endpoint(network, args):
     primary, _ = network.find_primary()
     if not IS_SNP:
-        LOG.warning("Skipping test as running on non-SEV-SNP")
+        LOG.warning("Skipping test as running on non SEV-SNP")
         return network
 
+    LOG.info("Starting node fetching from AMD server")
     new_node = network.create_node("local://localhost")
     args_copy = deepcopy(args)
     args_copy.snp_endorsements_endpoint_type = "AMD"
@@ -226,10 +227,26 @@ def test_add_node_amd_endorsements_endpoint(network, args):
         args_copy,
     )
     network.trust_node(new_node, args)
-
     # Retire new node to limit number of running nodes in this suite
     network.retire_node(primary, new_node)
     new_node.stop()
+
+    LOG.info("Starting node fetching from invalid server")
+    new_node = network.create_node("local://localhost")
+    args_copy.snp_endorsements_endpoint = "invalid.endpoint.com"
+    try:
+        network.join_node(
+            new_node,
+            args.package,
+            args_copy,
+            timeout=5
+        )
+    except TimeoutError:
+        LOG.info("Node with invalid quote endorsement server could not join as expected")
+        new_node.stop()
+    else:
+        assert False, "Node with invalid quote endorsement server joined unexpectedly"
+
     return network
 
 
