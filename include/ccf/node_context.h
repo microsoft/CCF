@@ -14,9 +14,6 @@ namespace ccfapp
     std::map<std::string, std::shared_ptr<ccf::AbstractNodeSubSystem>>
       subsystems;
 
-  public:
-    virtual ~AbstractNodeContext() = default;
-
     void install_subsystem(
       const std::shared_ptr<ccf::AbstractNodeSubSystem>& subsystem,
       const std::string& name)
@@ -37,12 +34,6 @@ namespace ccfapp
     }
 
     template <typename T>
-    void install_subsystem(const std::shared_ptr<T>& subsystem)
-    {
-      install_subsystem(subsystem, T::get_subsystem_name());
-    }
-
-    template <typename T>
     std::shared_ptr<T> get_subsystem(const std::string& name) const
     {
       const auto it = subsystems.find(name);
@@ -53,6 +44,15 @@ namespace ccfapp
       }
 
       return nullptr;
+    }
+
+  public:
+    virtual ~AbstractNodeContext() = default;
+
+    template <typename T>
+    void install_subsystem(const std::shared_ptr<T>& subsystem)
+    {
+      install_subsystem(subsystem, T::get_subsystem_name());
     }
 
     template <typename T>
