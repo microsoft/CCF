@@ -72,7 +72,11 @@ namespace localcommithandler
         .install();
 
       make_endpoint_with_commit_handler(
-        "/increment_exception", HTTP_POST, increment, add_tx_id_exception, ccf::no_auth_required)
+        "/increment_exception",
+        HTTP_POST,
+        increment,
+        add_tx_id_exception,
+        ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
 
@@ -98,7 +102,11 @@ namespace localcommithandler
         .install();
 
       make_endpoint_with_commit_handler(
-        "/decrement_exception", HTTP_POST, decrement, add_tx_id_exception, ccf::no_auth_required)
+        "/decrement_exception",
+        HTTP_POST,
+        decrement,
+        add_tx_id_exception,
+        ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
 
@@ -121,7 +129,11 @@ namespace localcommithandler
         .install();
 
       make_read_only_endpoint_with_commit_handler(
-        "/value_exception", HTTP_GET, value, add_tx_id_exception, ccf::no_auth_required)
+        "/value_exception",
+        HTTP_GET,
+        value,
+        add_tx_id_exception,
+        ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
     };

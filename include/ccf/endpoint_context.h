@@ -62,7 +62,8 @@ namespace ccf::endpoints
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
-  using LocallyCommittedEndpointFunction = std::function<void(ccf::TxID txid, CommandEndpointContext& ctx)>;
+  using LocallyCommittedEndpointFunction =
+    std::function<void(ccf::TxID txid, CommandEndpointContext& ctx)>;
 
   // Read-only endpoints can only get values from the kv, they cannot write
   struct ReadOnlyEndpointContext : public CommandEndpointContext
