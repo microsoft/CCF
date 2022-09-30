@@ -74,8 +74,8 @@ DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig::Attestation,
-  snp_endorsements_endpoint_type,
-  snp_endorsements_endpoints);
+  snp_endorsements_server_type,
+  snp_endorsements_servers);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);

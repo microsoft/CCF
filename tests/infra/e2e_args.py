@@ -370,14 +370,14 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=False,
     )
     parser.add_argument(
-        "--snp-endorsements-endpoint-type",
-        help="Type of endpoint used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
+        "--snp-endorsements-server-type",
+        help="Type of server used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         default="Azure",
         choices=("Azure", "AMD"),
     )
     parser.add_argument(
-        "--snp-endorsements-endpoints",
-        help="Endpoint used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
+        "--snp-endorsements-servers",
+        help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         action="append",
         default=[],
     )

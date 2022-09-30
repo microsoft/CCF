@@ -216,37 +216,32 @@ def test_add_node_amd_endorsements_endpoint(network, args):
         LOG.warning("Skipping test as running on non SEV-SNP")
         return network
 
-    LOG.info("Starting node fetching from AMD server")
-    new_node = network.create_node("local://localhost")
     args_copy = deepcopy(args)
-    args_copy.snp_endorsements_endpoint_type = "AMD"
-    args_copy.snp_endorsements_endpoints = ["kdsintf.amd.com"]
-    network.join_node(
-        new_node,
-        args.package,
-        args_copy,
-    )
-    network.trust_node(new_node, args)
-    # Retire new node to limit number of running nodes in this suite
-    network.retire_node(primary, new_node)
-    new_node.stop()
+    test_vectors = [
+        ("AMD", ["kdsintf.amd.com"], True),
+        ("AMD", ["invalid.amd.com"], False),
+        ("AMD", ["invalid.amd.com", "kdsintf.amd.com"], True), # Fallback server
+    ]
 
-    # TODO: Try with fallback endpoint
-    LOG.info("Starting node fetching from invalid server")
-    new_node = network.create_node("local://localhost")
-    args_copy.snp_endorsements_endpoint = ["invalid.endpoint.com"]
-    try:
-        network.join_node(
-            new_node,
-            args.package,
-            args_copy,
-            timeout=5
-        )
-    except TimeoutError:
-        LOG.info("Node with invalid quote endorsement server could not join as expected")
+    for server_type, servers, expected_result in test_vectors:
+        LOG.info(f"Joining new node with endorsement server {server_type}:{servers} (expect success: {expected_result})")
+        new_node = network.create_node("local://localhost")
+        args_copy.snp_endorsements_server_type = server_type
+        args_copy.snp_endorsements_servers = servers
+        try:
+            # Timeout as 
+            network.join_node(new_node, args.package, args_copy, timeout=15)
+        except TimeoutError:
+            assert not expected_result
+            LOG.info(
+                "Node with invalid quote endorsement server could not join as expected"
+            )
+        else:
+            assert (
+                expected_result
+            ), "Node with invalid quote endorsement server joined unexpectedly"
+            network.retire_node(primary, new_node)
         new_node.stop()
-    else:
-        assert False, "Node with invalid quote endorsement server joined unexpectedly"
 
     return network
 

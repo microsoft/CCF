@@ -21,11 +21,11 @@ namespace ccf
 
     // Resend request after this interval if no response was received from
     // remote server
-    static constexpr size_t server_connection_timeout_s = 5;
+    static constexpr size_t server_connection_timeout_s = 3;
 
     // Maximum number of retries per remote server before giving up and moving
     // on to the next server.
-    static constexpr size_t max_server_retries_count = 3;
+    static constexpr size_t max_server_retries_count = 2;
 
     std::shared_ptr<RPCSessions> rpcsessions;
 
@@ -35,7 +35,8 @@ namespace ccf
     std::vector<uint8_t> endorsements_pem;
 
     // Uniquely identify each received request. We assume that this client sends
-    // requests in series, after receiving the response to each one.
+    // requests in series, after receiving the response to each one or after a
+    // long timeout.
     size_t last_received_request_id = 0;
     bool has_completed = false;
     size_t server_retries_count = 0;
@@ -109,10 +110,8 @@ namespace ccf
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
             LOG_INFO_FMT(
-              "Error contacting {} for rid {}, current: {}",
-              msg->data.endpoint.host,
-              msg->data.request_id,
-              msg->data.self->last_received_request_id);
+              "Timed out reaching endorsement server {}",
+              msg->data.endpoint.host);
 
             auto& servers = msg->data.self->config.servers;
             msg->data.self->server_retries_count++;
