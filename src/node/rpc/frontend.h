@@ -464,6 +464,8 @@ namespace ccf
               auto tx_id = tx.get_txid();
               if (tx_id.has_value() && consensus != nullptr)
               {
+                endpoints::LocallyCommittedEndpointContext locally_committed_ctx(args.rpc_ctx);
+                locally_committed_ctx.caller = args.caller;
                 try
                 {
                   // Only transactions that acquired one or more map handles
@@ -471,7 +473,7 @@ namespace ccf
                   // don't. Also, only report a TxID if the consensus is set, as
                   // the consensus is required to verify that a TxID is valid.
                   endpoints.execute_endpoint_locally_committed(
-                    endpoint, args, tx_id.value());
+                    endpoint, locally_committed_ctx, tx_id.value());
                 }
                 catch (const std::exception& e)
                 {
