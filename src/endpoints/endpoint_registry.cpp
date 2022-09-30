@@ -157,7 +157,7 @@ namespace ccf::endpoints
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
-    endpoint.locally_committed_func = &default_locally_committed_func;
+    endpoint.locally_committed_func = default_locally_committed_func;
 
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded
@@ -436,7 +436,7 @@ namespace ccf::endpoints
   }
 
   void EndpointRegistry::execute_endpoint_locally_committed(
-    EndpointDefinitionPtr e, LocallyCommittedEndpointContext& ctx, const TxID& tx_id)
+    EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id)
   {
     auto endpoint = dynamic_cast<const Endpoint*>(e.get());
     if (endpoint == nullptr)
