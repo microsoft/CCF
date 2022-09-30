@@ -469,7 +469,7 @@ namespace ccf
                   endpoints.execute_endpoint_locally_committed(
                     endpoint, args, tx_id.value());
                 }
-                catch (std::exception& e)
+                catch (const std::exception& e)
                 {
                   // run default handler to set transaction id in header
                   ccf::endpoints::default_locally_committed_func(
