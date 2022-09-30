@@ -127,7 +127,7 @@ class Network:
         "previous_service_identity_file",
         "acme",
         "snp_endorsements_endpoint_type",
-        "snp_endorsements_endpoint",
+        "snp_endorsements_endpoints",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

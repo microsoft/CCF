@@ -8,8 +8,13 @@
 #include <map>
 #include <string>
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+
 namespace ccf::pal::snp
 {
+  constexpr auto product_name = "Milan";
+
   struct EndorsementEndpointsConfiguration
   {
     struct EndpointInfo
@@ -20,7 +25,11 @@ namespace ccf::pal::snp
       std::map<std::string, std::string> params;
       bool response_is_der = false;
     };
-    std::list<EndpointInfo> endpoints;
+    using Server = std::list<EndpointInfo>;
+
+    // First server in list is always used first and other servers are provided
+    // as fallback.
+    std::list<Server> servers;
   };
 
   enum EndorsementsEndpointType
@@ -36,7 +45,52 @@ namespace ccf::pal::snp
   constexpr auto default_azure_endorsements_endpoint_host =
     "global.acccache.azure.net";
 
+  static EndorsementEndpointsConfiguration::Server
+  make_azure_endorsements_server(
+    const std::string& endpoint,
+    const std::string& chip_id_hex,
+    const std::string& reported_tcb)
+  {
+    std::map<std::string, std::string> params;
+    params["api-version"] = "2020-10-15-preview";
+    return {
+      {endpoint,
+       "443",
+       fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
+       params}};
+  }
+
   // AMD endorsements endpoints. See
   // https://www.amd.com/system/files/TechDocs/57230.pdf
   constexpr auto default_amd_endorsements_endpoint_host = "kdsintf.amd.com";
+
+  static EndorsementEndpointsConfiguration::Server make_amd_endorsements_server(
+    const std::string& endpoint,
+    const std::string& chip_id_hex,
+    const std::string& boot_loader,
+    const std::string& tee,
+    const std::string& snp,
+    const std::string& microcode)
+  {
+    std::map<std::string, std::string> params;
+    params["blSPL"] = boot_loader;
+    params["teeSPL"] = tee;
+    params["snpSPL"] = snp;
+    params["ucodeSPL"] = microcode;
+
+    EndorsementEndpointsConfiguration::Server server;
+    server.push_back(
+      {endpoint,
+       "443",
+       fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
+       params,
+       true});
+    server.push_back(
+      {endpoint,
+       "443",
+       fmt::format("/vcek/v1/{}/cert_chain", product_name),
+       {}});
+
+    return server;
+  }
 }

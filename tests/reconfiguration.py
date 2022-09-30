@@ -220,7 +220,7 @@ def test_add_node_amd_endorsements_endpoint(network, args):
     new_node = network.create_node("local://localhost")
     args_copy = deepcopy(args)
     args_copy.snp_endorsements_endpoint_type = "AMD"
-    args_copy.snp_endorsements_endpoint = "kdsintf.amd.com"
+    args_copy.snp_endorsements_endpoints = ["kdsintf.amd.com"]
     network.join_node(
         new_node,
         args.package,
@@ -231,9 +231,10 @@ def test_add_node_amd_endorsements_endpoint(network, args):
     network.retire_node(primary, new_node)
     new_node.stop()
 
+    # TODO: Try with fallback endpoint
     LOG.info("Starting node fetching from invalid server")
     new_node = network.create_node("local://localhost")
-    args_copy.snp_endorsements_endpoint = "invalid.endpoint.com"
+    args_copy.snp_endorsements_endpoint = ["invalid.endpoint.com"]
     try:
         network.join_node(
             new_node,

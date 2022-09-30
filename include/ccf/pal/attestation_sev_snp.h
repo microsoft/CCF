@@ -9,9 +9,6 @@
 #  include <map>
 #  include <string>
 
-#  define FMT_HEADER_ONLY
-#  include <fmt/format.h>
-
 namespace ccf::pal
 {
   // Based on the SEV-SNP ABI Spec document at
@@ -26,8 +23,6 @@ namespace ccf::pal
 
   namespace snp
   {
-    constexpr auto product_name = "Milan";
-
     // From https://developer.amd.com/sev/
     constexpr auto amd_milan_root_signing_public_key =
       R"(-----BEGIN PUBLIC KEY-----
@@ -178,48 +173,63 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     make_endorsement_endpoint_configuration(
       const Attestation& quote,
       EndorsementsEndpointType endpoint_type,
-      const std::optional<std::string>& endpoint = std::nullopt)
+      const std::vector<std::string>& endpoints = {})
     {
       EndorsementEndpointsConfiguration config;
       std::map<std::string, std::string> params = {};
+
+      auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
 
       switch (endpoint_type)
       {
         case EndorsementsEndpointType::Azure:
         {
-          params["api-version"] = "2020-10-15-preview";
+          auto reported_tcb =
+            fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
 
-          config.endpoints.push_back(
-            {endpoint.value_or(default_azure_endorsements_endpoint_host),
-             "443",
-             fmt::format(
-               "/SevSnpVM/certificates/{}/{}",
-               fmt::format("{:02x}", fmt::join(quote.chip_id, "")),
-               fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb))),
-             params});
+          if (endpoints.empty())
+          {
+            config.servers.emplace_back(make_azure_endorsements_server(
+              default_azure_endorsements_endpoint_host,
+              chip_id_hex,
+              reported_tcb));
+          }
+          else
+          {
+            for (auto const& endpoint : endpoints)
+            {
+              config.servers.emplace_back(make_azure_endorsements_server(
+                endpoint, chip_id_hex, reported_tcb));
+            }
+          }
           break;
         }
         case EndorsementsEndpointType::AMD:
         {
-          params["blSPL"] = fmt::format("{}", quote.reported_tcb.boot_loader);
-          params["teeSPL"] = fmt::format("{}", quote.reported_tcb.tee);
-          params["snpSPL"] = fmt::format("{}", quote.reported_tcb.snp);
-          params["ucodeSPL"] = fmt::format("{}", quote.reported_tcb.microcode);
+          auto boot_loader = fmt::format("{}", quote.reported_tcb.boot_loader);
+          auto tee = fmt::format("{}", quote.reported_tcb.tee);
+          auto snp = fmt::format("{}", quote.reported_tcb.snp);
+          auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
 
-          config.endpoints.push_back(
-            {endpoint.value_or(default_amd_endorsements_endpoint_host),
-             "443",
-             fmt::format(
-               "/vcek/v1/{}/{}",
-               product_name,
-               fmt::format("{:02x}", fmt::join(quote.chip_id, ""))),
-             params,
-             true});
-          config.endpoints.push_back(
-            {endpoint.value_or(default_amd_endorsements_endpoint_host),
-             "443",
-             fmt::format("/vcek/v1/{}/cert_chain", product_name),
-             {}});
+          if (endpoints.empty())
+          {
+            config.servers.emplace_back(make_amd_endorsements_server(
+              default_amd_endorsements_endpoint_host,
+              chip_id_hex,
+              boot_loader,
+              tee,
+              snp,
+              microcode));
+          }
+          else
+          {
+            for (auto const& endpoint : endpoints)
+            {
+              config.servers.emplace_back(make_amd_endorsements_server(
+                endpoint, chip_id_hex, boot_loader, tee, snp, microcode));
+            }
+          }
+
           break;
         }
         default:

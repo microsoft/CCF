@@ -388,7 +388,7 @@ namespace ccf
         report_data,
         fetch_endorsements,
         config.attestation.snp_endorsements_endpoint_type,
-        config.attestation.snp_endorsements_endpoint);
+        config.attestation.snp_endorsements_endpoints);
     }
 
     NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)
