@@ -54,18 +54,24 @@ foreach(proto_file ${PROTO_FILES})
   )
 
   add_enclave_library(
-    ${PROTO_NAME_WE}.enclave ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
+    ${PROTO_NAME_WE}.proto.enclave
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
     ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.h
   )
   target_include_directories(
-    ${PROTO_NAME_WE}.enclave PUBLIC ${PROTOBUF_INCLUDE_DIR}
+    ${PROTO_NAME_WE}.proto.enclave PUBLIC ${PROTOBUF_INCLUDE_DIR}
   )
 
   add_host_library(
-    ${PROTO_NAME_WE}.virtual ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
+    ${PROTO_NAME_WE}.proto.virtual
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
     ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.h
   )
   target_include_directories(
-    ${PROTO_NAME_WE}.virtual PUBLIC ${PROTOBUF_INCLUDE_DIR}
+    ${PROTO_NAME_WE}.proto.virtual PUBLIC ${PROTOBUF_INCLUDE_DIR}
   )
 endforeach()
+
+# Add dependencies between proto libraries
+target_link_libraries(kv.proto.enclave PUBLIC http.proto.enclave)
+target_link_libraries(kv.proto.virtual PUBLIC http.proto.virtual)
