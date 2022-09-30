@@ -68,7 +68,7 @@ steps:
     condition: succeededOrFailed()
 
   - script: |
-      sudo apt install ripgrep
+      sudo apt -qq install ripgrep
       echo "TOOK TOO LONG "
       rg "Took too long" --count
       echo "TOOK TOO LONG TOTAL"
@@ -77,7 +77,7 @@ steps:
   - script: |
       ./cimetrics_env.sh
       source env/bin/activate
-      rg "Took too long" --count | cut -d : -f 2 | python upload_misc.py
+      rg "Took too long" --count | cut -d : -f 2 | python ../tests/upload_misc.py
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
     workingDirectory: build
