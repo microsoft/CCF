@@ -17,11 +17,11 @@ struct ExecutorNodeInfo
   std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints;
 };
 using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
-typedef std::map<ExecutorId, ExecutorNodeInfo> ExecutorIDMap;
-typedef std::map<ExecutorId, crypto::Pem> ExecutorCertsMap;
+using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
+using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
 
-ExecutorIDMap ExecutorIDs;
-ExecutorCertsMap ExecutorCerts;
+ExecutorIDMap executor_ids;
+ExecutorCertsMap executor_keys;
 
 // stub out quote verification until we have SEV-SNP verification
 inline ccf::QuoteVerificationResult verify_executor_quote(

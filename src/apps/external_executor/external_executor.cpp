@@ -93,10 +93,10 @@ namespace externalexecutor
         ExecutorNodeInfo executor_info = {
           executor_public_key, payload.attestation(), supported_endpoints};
 
-        ExecutorIDs[executor_id] = executor_info;
+        executor_ids[executor_id] = executor_info;
 
         // Record the cert in the Executor certs map
-        ExecutorCerts[executor_id] = executor_public_key;
+        executor_keys[executor_id] = executor_public_key;
 
         ccf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");

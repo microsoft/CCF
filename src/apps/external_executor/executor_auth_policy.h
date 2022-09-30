@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "executor_code_id.h"
@@ -9,7 +12,7 @@ struct ExecutorIdentity : public ccf::AuthnIdentity
 
 class ExecutorAuthPolicy : public ccf::AuthnPolicy
 {
-  const ExecutorCertsMap& executor_certs = ExecutorCerts;
+  const ExecutorCertsMap& executor_certs_map = executor_keys;
 
 public:
   std::unique_ptr<ccf::AuthnIdentity> authenticate(
@@ -26,7 +29,7 @@ public:
 
     auto executor_id = crypto::Sha256Hash(executor_cert).hex_str();
 
-    if (executor_certs.find(executor_id) != executor_certs.end())
+    if (executor_certs_map.find(executor_id) != executor_certs_map.end())
     {
       auto executor_identity = std::make_unique<ExecutorIdentity>();
       executor_identity->executorId = executor_id;
