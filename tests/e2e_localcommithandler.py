@@ -10,7 +10,6 @@ import infra.clients
 import infra.crypto
 import infra.e2e_args
 import infra.jwt_issuer
-import infra.logging_app as app
 import infra.network
 import infra.proc
 import suite.test_requirements as reqs
