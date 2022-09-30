@@ -20,6 +20,10 @@
 #  include "ccf/pal/attestation_sgx.h"
 #endif
 
+#include <ravl/oe.h>
+#include <ravl/options.h>
+#include <ravl/sev_snp.h>
+
 namespace ccf::pal
 {
   // Caller-supplied callback used to retrieve endorsements as specified by
@@ -119,76 +123,21 @@ namespace ccf::pal
           "Cannot verify SEV-SNP quote if node is virtual");
       }
 
-      auto quote =
-        *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
-
-      std::copy(
-        std::begin(quote.report_data),
-        std::end(quote.report_data),
-        report_data.begin());
-      std::copy(
-        std::begin(quote.measurement),
-        std::end(quote.measurement),
-        unique_id.begin());
-
-      auto certificates = crypto::split_x509_cert_bundle(std::string(
-        quote_info.endorsements.begin(), quote_info.endorsements.end()));
-      auto chip_certificate = certificates[0];
-      auto sev_version_certificate = certificates[1];
-      auto root_certificate = certificates[2];
-
-      auto root_cert_verifier = crypto::make_verifier(root_certificate);
-
-      if (
-        root_cert_verifier->public_key_pem().str() !=
-        snp::amd_milan_root_signing_public_key)
+      try
       {
-        throw std::logic_error(fmt::format(
-          "The root of trust public key for this attestation was not "
-          "the expected one {}",
-          root_cert_verifier->public_key_pem().str()));
-      }
+        using namespace ravl;
+        auto attestation = std::make_shared<sev_snp::Attestation>(
+          quote_info.quote, quote_info.endorsements);
+        auto claims = verify(attestation);
+        auto sev_snp_claims = Claims::get<sev_snp::Claims>(claims);
 
-      if (!root_cert_verifier->verify_certificate({&root_certificate}))
+        report_data = sev_snp_claims->report_data;
+        unique_id = sev_snp_claims->measurement;
+      }
+      catch (const std::exception& ex)
       {
         throw std::logic_error(
-          "The root of trust public key for this attestation was not "
-          "self signed as expected");
-      }
-
-      auto chip_cert_verifier = crypto::make_verifier(chip_certificate);
-      if (!chip_cert_verifier->verify_certificate(
-            {&root_certificate, &sev_version_certificate}))
-      {
-        throw std::logic_error(
-          "The chain of signatures from the root of trust to this "
-          "attestation is broken");
-      }
-
-      if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
-      {
-        throw std::logic_error(fmt::format(
-          "Unsupported signature algorithm: {} (supported: {})",
-          quote.signature_algo,
-          snp::SignatureAlgorithm::ecdsa_p384_sha384));
-      }
-
-      // Make ASN1 DER signature
-      auto quote_signature = crypto::ecdsa_sig_from_r_s(
-        quote.signature.r,
-        sizeof(quote.signature.r),
-        quote.signature.s,
-        sizeof(quote.signature.s),
-        false /* little endian */
-      );
-
-      std::span quote_without_signature{
-        quote_info.quote.data(),
-        quote_info.quote.size() - sizeof(quote.signature)};
-      if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
-      {
-        throw std::logic_error(
-          "Chip certificate (VCEK) did not sign this attestation");
+          fmt::format("Failed to verify evidence: {}", ex.what()));
       }
     }
     else
@@ -279,82 +228,43 @@ namespace ccf::pal
         fmt::format("Cannot verify non OE SGX report: {}", quote_info.format));
     }
 
-    sgx::Claims claims;
+    try
+    {
+      using namespace ravl;
+      auto attestation = std::make_shared<oe::Attestation>(
+        quote_info.quote, quote_info.endorsements);
+      auto claims = verify(attestation);
+      auto oe_claims = Claims::get<oe::Claims>(claims);
 
-    auto rc = oe_verify_evidence(
-      &sgx::oe_quote_format,
-      quote_info.quote.data(),
-      quote_info.quote.size(),
-      quote_info.endorsements.data(),
-      quote_info.endorsements.size(),
-      nullptr,
-      0,
-      &claims.data,
-      &claims.length);
-    if (rc != OE_OK)
+      unique_id = oe_claims->sgx_claims->report_body.mr_enclave;
+
+      const auto& claimed_rdata =
+        oe_claims->custom_claims.at(sgx::report_data_claim_name);
+
+      if (claimed_rdata.size() != report_data.size())
+      {
+        throw std::logic_error(fmt::format(
+          "Expected {} of size {}, had size {}",
+          sgx::report_data_claim_name,
+          report_data.size(),
+          claimed_rdata.size()));
+      }
+
+      std::copy(
+        claimed_rdata.begin(), claimed_rdata.end(), report_data.begin());
+    }
+    catch (const std::exception& ex)
     {
       throw std::logic_error(
-        fmt::format("Failed to verify evidence: {}", oe_result_str(rc)));
+        fmt::format("Failed to verify evidence: {}", ex.what()));
     }
 
-    bool unique_id_found = false;
-    bool sgx_report_data_found = false;
-    for (size_t i = 0; i < claims.length; i++)
-    {
-      auto& claim = claims.data[i];
-      auto claim_name = std::string(claim.name);
-      if (claim_name == OE_CLAIM_UNIQUE_ID)
-      {
-        std::copy(
-          claim.value, claim.value + claim.value_size, unique_id.begin());
-        unique_id_found = true;
-      }
-      else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
-      {
-        // Find sgx report data in custom claims
-        sgx::CustomClaims custom_claims;
-        rc = oe_deserialize_custom_claims(
-          claim.value,
-          claim.value_size,
-          &custom_claims.data,
-          &custom_claims.length);
-        if (rc != OE_OK)
-        {
-          throw std::logic_error(fmt::format(
-            "Failed to deserialise custom claims", oe_result_str(rc)));
-        }
-
-        for (size_t j = 0; j < custom_claims.length; j++)
-        {
-          auto& custom_claim = custom_claims.data[j];
-          if (std::string(custom_claim.name) == sgx::report_data_claim_name)
-          {
-            if (custom_claim.value_size != report_data.size())
-            {
-              throw std::logic_error(fmt::format(
-                "Expected {} of size {}, had size {}",
-                sgx::report_data_claim_name,
-                report_data.size(),
-                custom_claim.value_size));
-            }
-
-            std::copy(
-              custom_claim.value,
-              custom_claim.value + custom_claim.value_size,
-              report_data.begin());
-            sgx_report_data_found = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (!unique_id_found)
+    if (unique_id.empty())
     {
       throw std::logic_error("Could not find measurement");
     }
 
-    if (!sgx_report_data_found)
+    if (report_data.empty())
     {
       throw std::logic_error("Could not find report data");
     }

@@ -111,7 +111,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.enclave PUBLIC quickjs.enclave http_parser.enclave sss.enclave
-                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave
+                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave ravl.enclave
   )
 
   target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
@@ -161,6 +161,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            ccfcrypto.host
            ccf_kv.host
            openenclave::oehost
+           ravl.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -437,6 +438,7 @@ if(BUILD_TESTS)
               ccfcrypto.host
               ccf_kv.host
               quickjs.host
+              ravl.host
     )
 
     add_unit_test(
@@ -473,6 +475,7 @@ if(BUILD_TESTS)
               ccfcrypto.host
               ccf_kv.host
               quickjs.host
+              ravl.host
     )
 
     add_unit_test(

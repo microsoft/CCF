@@ -704,3 +704,47 @@ function(add_picobench name)
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
 endfunction()
+
+set(CURL OFF)
+set(OPENSSL OFF) # Don't search for it
+set(TESTS OFF)
+set(OE ON)
+set(SGX ON)
+set(SEV_SNP ON)
+set(STATIC ON)
+set(SHARED OFF)
+set(CLI OFF)
+add_subdirectory(${CCF_3RD_PARTY_EXPORTED_DIR}/ravl)
+
+get_target_property(RAVL_SRC ravl SOURCES)
+get_target_property(RAVL_INC ravl INTERFACE_INCLUDE_DIRECTORIES)
+
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_library(ravl.enclave ${RAVL_SRC})
+  target_compile_definitions(ravl.enclave PRIVATE HAVE_OPENSSL)
+  target_link_libraries(ravl.enclave PRIVATE openenclave::oecryptoopenssl)
+  target_include_directories(ravl.enclave PUBLIC ${RAVL_INC})
+  target_sources(ravl.enclave PRIVATE ${CCF_3RD_PARTY_EXPORTED_DIR}/ravl/http_client_ccf.cpp)
+  set_property(TARGET ravl.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_compile_options(ravl.enclave PRIVATE ${COMPILE_LIBCXX})
+  install(
+    TARGETS ravl.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+add_library(ravl.host ${RAVL_SRC})
+target_link_libraries(ravl.host PRIVATE crypto)
+target_include_directories(ravl.host PUBLIC ${RAVL_INC})
+target_sources(ravl.host PRIVATE ${CCF_3RD_PARTY_EXPORTED_DIR}/ravl/http_client_ccf.cpp)
+target_compile_definitions(ravl.host PRIVATE HAVE_OPENSSL)
+set_property(TARGET ravl.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_options(ravl.host PUBLIC ${COMPILE_LIBCXX})
+install(
+    TARGETS ravl.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+
+set_target_properties(ravl PROPERTIES EXCLUDE_FROM_ALL TRUE)
