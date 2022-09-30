@@ -53,6 +53,7 @@ namespace http
     http::HeaderMap response_headers;
     http::HeaderMap response_trailers;
     std::vector<uint8_t> response_body = {};
+    void* response_user_data;
     http_status response_status = HTTP_STATUS_OK;
 
     bool serialised = false;
@@ -221,6 +222,14 @@ namespace http
     virtual const std::vector<uint8_t>& get_response_body() const override
     {
       return response_body;
+    }
+
+    virtual void set_response_user_data(void* data) override {
+      response_user_data = data;
+    }
+    virtual void* get_response_user_data() const override
+    {
+      return response_user_data;
     }
 
     virtual void set_response_status(int status) override

@@ -436,7 +436,7 @@ namespace ccf::endpoints
   }
 
   void EndpointRegistry::execute_endpoint_locally_committed(
-    EndpointDefinitionPtr e, LocallyCommittedEndpointContext& ctx, const TxID& tx_id)
+    EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id)
   {
     auto endpoint = dynamic_cast<const Endpoint*>(e.get());
     if (endpoint == nullptr)

@@ -108,6 +108,9 @@ namespace ccf
     virtual void set_response_body(std::string&& body) = 0;
     virtual const std::vector<uint8_t>& get_response_body() const = 0;
 
+    virtual void set_response_user_data(void* data) = 0;
+    virtual void* get_response_user_data() const = 0;
+
     /// Sets initial status code summarising result of RPC.
     virtual void set_response_status(int status) = 0;
     virtual int get_response_status() const = 0;

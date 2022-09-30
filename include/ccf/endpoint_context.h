@@ -59,15 +59,17 @@ namespace ccf::endpoints
     {}
 
     kv::Tx& tx;
-    void* user_data;
+    void* response_user_data;
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
   struct LocallyCommittedEndpointContext : public CommandEndpointContext
   {
-    LocallyCommittedEndpointContext(const std::shared_ptr<ccf::RpcContext>& r): CommandEndpointContext(r){}
+    LocallyCommittedEndpointContext(const std::shared_ptr<ccf::RpcContext>& r) :
+      CommandEndpointContext(r)
+    {}
 
-    void* user_data;
+    void* response_user_data;
   };
 
   using LocallyCommittedEndpointFunction =
@@ -83,7 +85,7 @@ namespace ccf::endpoints
     {}
 
     kv::ReadOnlyTx& tx;
-    void* user_data;
+    void* response_user_data;
   };
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
