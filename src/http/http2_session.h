@@ -26,25 +26,7 @@ namespace http
     {}
 
   public:
-    static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
-    {
-      reinterpret_cast<HTTP2Session*>(msg->data.self.get())
-        ->recv_(msg->data.data.data(), msg->data.data.size());
-    }
-
-    void handle_incoming_data(const uint8_t* data, size_t size) override
-    {
-      auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data, size);
-
-      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data.assign(body.data, body.data + body.size);
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
-    }
-
-    void recv_(const uint8_t* data_, size_t size_)
+    void receive_data(const uint8_t* data_, size_t size_) override
     {
       recv_buffered(data_, size_);
 

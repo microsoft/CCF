@@ -70,6 +70,12 @@ namespace ccf
       return status == ready || status == handshake;
     }
 
+    struct SendRecvMsg
+    {
+      std::vector<uint8_t> data;
+      std::shared_ptr<Session> self;
+    };
+
   public:
     TLSSession(
       int64_t session_id_,
@@ -89,6 +95,30 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
     }
+
+    // Implement Session::handle_incoming_data by dispatching a thread message
+    // that eventually invokes the virtual receive_data()
+    void handle_incoming_data(const uint8_t* data, size_t size) override
+    {
+      auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data, size);
+
+      auto msg =
+        std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_data_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data.assign(body.data, body.data + body.size);
+
+      threading::ThreadMessaging::thread_messaging.add_task(
+        execution_thread, std::move(msg));
+    }
+
+    static void recv_data_cb(
+      std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+    {
+      reinterpret_cast<TLSSession*>(msg->data.self.get())
+        ->receive_data(msg->data.data.data(), msg->data.data.size());
+    }
+
+    virtual void receive_data(const uint8_t* data_, size_t size_) = 0;
 
     virtual void on_handshake_error(const std::string& error_msg)
     {
@@ -232,12 +262,6 @@ namespace ccf
 
       do_handshake();
     }
-
-    struct SendRecvMsg
-    {
-      std::vector<uint8_t> data;
-      std::shared_ptr<Session> self;
-    };
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
