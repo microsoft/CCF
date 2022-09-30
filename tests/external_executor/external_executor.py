@@ -5,6 +5,8 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
+from executors.wiki_cacher import executor_thread, WikiCacherExecutor
+
 # pylint: disable=import-error
 import kv_pb2 as KV
 
@@ -24,6 +26,7 @@ import grpc
 import os
 import contextlib
 import random
+import time
 
 from loguru import logger as LOG
 
@@ -56,18 +59,7 @@ def test_put_get(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    def require_missing(tx, table, key):
-        try:
-            tx.Get(KV.KVKey(table=table, key=key))
-        except grpc.RpcError as e:
-            assert e.code() == grpc.StatusCode.NOT_FOUND  # pylint: disable=no-member
-            assert (
-                e.details() == f"Key {key.decode()} does not exist"
-            )  # pylint: disable=no-member
-        else:
-            assert False, f"Getting unknown key {key} should raise an error"
-
-    my_table = b"my_table"
+    my_table = "public:my_table"
     my_key = b"my_key"
     my_value = b"my_value"
 
@@ -84,21 +76,23 @@ def test_put_get(network, args):
         with wrap_tx(stub) as tx:
             LOG.info(f"Get key '{my_key}' in table '{my_table}'")
             r = tx.Get(KV.KVKey(table=my_table, key=my_key))
-            assert r.value == my_value
+            assert r.HasField("optional")
+            assert r.optional.value == my_value
             LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
 
         unknown_key = b"unknown_key"
         with wrap_tx(stub) as tx:
             LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
-            require_missing(tx, my_table, unknown_key)
+            r = tx.Get(KV.KVKey(table=my_table, key=unknown_key))
+            assert not r.HasField("optional")
             LOG.success(f"Unable to read key '{unknown_key}' as expected")
 
-        tables = (b"table_a", b"table_b", b"table_c")
+        tables = ("public:table_a", "public:table_b", "public:table_c")
         writes = [
             (
                 random.choice(tables),
                 f"Key{i}".encode(),
-                str(random.random()).encode(),
+                random.getrandbits(((i % 16) + 1) * 8).to_bytes(((i % 16) + 1), "big"),
             )
             for i in range(10)
         ]
@@ -111,7 +105,8 @@ def test_put_get(network, args):
             LOG.info("Read own writes")
             for t, k, v in writes:
                 r = tx.Get(KV.KVKeyValue(table=t, key=k))
-                assert r.value == v
+                assert r.HasField("optional")
+                assert r.optional.value == v
 
             # Note: It should be possible to test this here, but currently
             # unsupported as we only allow one remote transaction at a time
@@ -124,7 +119,25 @@ def test_put_get(network, args):
             LOG.info("Read applied writes")
             for t, k, v in writes:
                 r = tx3.Get(KV.KVKeyValue(table=t, key=k))
-                assert r.value == v
+                assert r.HasField("optional")
+                assert r.optional.value == v
+
+    return network
+
+
+def test_simple_executor(network, args):
+    primary, _ = network.find_primary()
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
+    with executor_thread(WikiCacherExecutor(primary, credentials)):
+        with primary.client() as c:
+            c.post("/not/a/real/endpoint")
+            c.post("/update_cache/Earth")
+            c.get("/article_description/Earth")
+
+        time.sleep(2)
 
     return network
 
@@ -205,8 +218,10 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        test_put_get(network, args)
-        test_streaming(network, args)
+
+        network = test_put_get(network, args)
+        network = test_simple_executor(network, args)
+        network = test_streaming(network, args)
 
 
 if __name__ == "__main__":
