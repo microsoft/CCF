@@ -84,11 +84,14 @@ namespace ccf
           ->recv_(msg->data.data.data(), msg->data.data.size());
       }
 
-      void recv(const uint8_t* data, size_t size, sockaddr) override
+      void handle_incoming_data(
+        const uint8_t* data, size_t size) override
       {
+        auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data, size);
+
         auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
         msg->data.self = this->shared_from_this();
-        msg->data.data.assign(data, data + size);
+        msg->data.data.assign(body.data, body.data + body.size);
 
         threading::ThreadMessaging::thread_messaging.add_task(
           execution_thread, std::move(msg));
@@ -540,8 +543,7 @@ namespace ccf
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, tls::tls_inbound, [this](const uint8_t* data, size_t size) {
-          auto [id, body] =
-            ringbuffer::read_message<tls::tls_inbound>(data, size);
+          auto id = serialized::peek<tls::ConnID>(data, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
@@ -551,7 +553,7 @@ namespace ccf
             return;
           }
 
-          search->second.second->recv(body.data, body.size, {});
+          search->second.second->handle_incoming_data(data, size);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -570,10 +572,7 @@ namespace ccf
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, quic::quic_inbound, [this](const uint8_t* data, size_t size) {
-          auto [id, addr_family, addr_data, body] =
-            ringbuffer::read_message<quic::quic_inbound>(data, size);
-
-          LOG_DEBUG_FMT("rpc udp read from ring buffer {}: {}", id, size);
+          auto id = serialized::peek<tls::ConnID>(data, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
@@ -582,8 +581,8 @@ namespace ccf
               "Ignoring quic_inbound for unknown or refused session: {}", id);
             return;
           }
-          auto addr = quic::sockaddr_decode(addr_family, addr_data);
-          search->second.second->recv(body.data, body.size, addr);
+
+          search->second.second->handle_incoming_data(data, size);
         });
     }
   };

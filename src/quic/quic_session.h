@@ -435,12 +435,15 @@ namespace quic
         ->recv_(msg->data.data.data(), msg->data.data.size(), msg->data.addr);
     }
 
-    void recv(const uint8_t* data, size_t size, sockaddr addr) override
+    void handle_incoming_data(const uint8_t* data, size_t size) override
     {
+      auto [_, addr_family, addr_data, body] =
+        ringbuffer::read_message<quic::quic_inbound>(data, size);
+
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data.assign(data, data + size);
-      msg->data.addr = addr;
+      msg->data.data.assign(body.data, body.data + body.size);
+      msg->data.addr = quic::sockaddr_decode(addr_family, addr_data);
 
       threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));

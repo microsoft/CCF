@@ -36,11 +36,13 @@ namespace http
         ->recv_(msg->data.data.data(), msg->data.data.size());
     }
 
-    void recv(const uint8_t* data, size_t size, sockaddr) override
+    void handle_incoming_data(const uint8_t* data, size_t size) override
     {
+      auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data, size);
+
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data.assign(data, data + size);
+      msg->data.data.assign(body.data, body.data + body.size);
 
       threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));

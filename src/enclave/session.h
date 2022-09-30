@@ -12,7 +12,7 @@ namespace ccf
   public:
     virtual ~Session() {}
 
-    virtual void recv(const uint8_t* data, size_t size, sockaddr) = 0;
+    virtual void handle_incoming_data(const uint8_t* data, size_t size) = 0;
     virtual void send(std::vector<uint8_t>&& data, sockaddr addr = {}) = 0;
     virtual void send(const uint8_t* data, size_t size)
     {
