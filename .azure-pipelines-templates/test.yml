@@ -68,16 +68,17 @@ steps:
     condition: succeededOrFailed()
 
   - script: |
-      echo "=========== TOOK TOO LONG "
-      rg "Took too long" --count | cut -d : -f 2
+      sudo apt install ripgrep
+      echo "TOOK TOO LONG "
+      rg "Took too long" --count
       echo "TOOK TOO LONG TOTAL"
       rg "Took too long" --count | cut -d : -f 2 | awk '{ sum += $1 } END { print sum }'
 
   - script: |
       ./cimetrics_env.sh
       source env/bin/activate
-      rg "Took too long" --count | cut -d : -f 2 | python upload_pico_metrics.py
+      rg "Took too long" --count | cut -d : -f 2 | python upload_misc.py
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
     workingDirectory: build
-    displayName: "Upload picobench metrics"
+    displayName: "Upload took too long metrics"
