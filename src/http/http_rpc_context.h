@@ -224,9 +224,11 @@ namespace http
       return response_body;
     }
 
-    virtual void set_response_user_data(void* data) override {
+    virtual void set_response_user_data(void* data) override
+    {
       response_user_data = data;
     }
+
     virtual void* get_response_user_data() const override
     {
       return response_user_data;
