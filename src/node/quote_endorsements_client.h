@@ -109,7 +109,7 @@ namespace ccf
           }
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
-            LOG_INFO_FMT(
+            LOG_FAIL_FMT(
               "Timed out reaching endorsement server {}",
               msg->data.endpoint.host);
 
