@@ -19,41 +19,20 @@ namespace ccf
   {
     std::vector<uint8_t> raw;
     kv::Version seqno;
-    std::optional<kv::Version> evidence_seqno = std::nullopt;
 
     // Store used to verify a snapshot (either created fresh when a node joins
     // from a snapshot or points to the main store when recovering from a
     // snapshot)
     std::shared_ptr<kv::Store> store = nullptr;
 
-    // The snapshot to startup from (on join or recovery) is only valid once a
-    // signature ledger entry confirms that the snapshot evidence was
-    // committed
-    bool has_evidence = false;
-    bool is_evidence_committed = false;
-
     StartupSnapshotInfo(
       const std::shared_ptr<kv::Store>& store_,
       std::vector<uint8_t>&& raw_,
-      kv::Version seqno_,
-      std::optional<kv::Version> evidence_seqno_) :
+      kv::Version seqno_) :
       raw(std::move(raw_)),
       seqno(seqno_),
-      evidence_seqno(evidence_seqno_),
       store(store_)
     {}
-
-    bool is_snapshot_verified() const
-    {
-      return has_evidence && is_evidence_committed;
-    }
-
-    bool requires_ledger_verification() const
-    {
-      // Snapshot evidence seqno is only set by the host for 1.x snapshots
-      // whose evidence need to be verified in the ledger suffix on startup
-      return evidence_seqno.has_value();
-    }
   };
 
   static void deserialise_snapshot(
@@ -62,7 +41,6 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt,
     std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
   {
     const auto* data = snapshot.data();
@@ -71,62 +49,61 @@ namespace ccf
     auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
     auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
 
-    // Snapshots without a snapshot evidence seqno specified by the host should
-    // be self-verifiable with embedded receipt
-    if (!evidence_seqno.has_value())
+    auto receipt_data = data + store_snapshot_size;
+    auto receipt_size = size - store_snapshot_size;
+
+    if (receipt_size == 0)
     {
-      auto receipt_data = data + store_snapshot_size;
-      auto receipt_size = size - store_snapshot_size;
+      throw std::logic_error("No receipt included in snapshot");
+    }
 
-      auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
-      auto receipt_p = j.get<ReceiptPtr>();
-      auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
-      if (receipt == nullptr)
+    auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
+    auto receipt_p = j.get<ReceiptPtr>();
+    auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
+    if (receipt == nullptr)
+    {
+      throw std::logic_error(
+        fmt::format("Unexpected receipt type: missing expanded claims"));
+    }
+
+    auto snapshot_digest =
+      crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+    auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
+    if (snapshot_digest != snapshot_digest_claim)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot digest ({}) does not match receipt claim ({})",
+        snapshot_digest,
+        snapshot_digest_claim));
+    }
+
+    auto root = receipt->calculate_root();
+    auto raw_sig = receipt->signature;
+
+    auto v = crypto::make_unique_verifier(receipt->cert);
+    if (!v->verify_hash(
+          root.h.data(),
+          root.h.size(),
+          receipt->signature.data(),
+          receipt->signature.size()))
+    {
+      throw std::logic_error(
+        "Signature verification failed for snapshot receipt");
+    }
+
+    if (prev_service_identity)
+    {
+      crypto::Pem prev_pem(*prev_service_identity);
+      if (!v->verify_certificate(
+            {&prev_pem},
+            {}, /* ignore_time */
+            true))
       {
         throw std::logic_error(
-          fmt::format("Unexpected receipt type: missing expanded claims"));
+          "Previous service identity does not endorse the node identity that "
+          "signed the snapshot");
       }
-
-      auto snapshot_digest =
-        crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
-      auto snapshot_digest_claim =
-        receipt->leaf_components.claims_digest.value();
-      if (snapshot_digest != snapshot_digest_claim)
-      {
-        throw std::logic_error(fmt::format(
-          "Snapshot digest ({}) does not match receipt claim ({})",
-          snapshot_digest,
-          snapshot_digest_claim));
-      }
-
-      auto root = receipt->calculate_root();
-      auto raw_sig = receipt->signature;
-
-      auto v = crypto::make_unique_verifier(receipt->cert);
-      if (!v->verify_hash(
-            root.h.data(),
-            root.h.size(),
-            receipt->signature.data(),
-            receipt->signature.size()))
-      {
-        throw std::logic_error(
-          "Signature verification failed for snapshot receipt");
-      }
-
-      if (prev_service_identity)
-      {
-        crypto::Pem prev_pem(*prev_service_identity);
-        if (!v->verify_certificate(
-              {&prev_pem},
-              {}, /* ignore_time */
-              true))
-        {
-          throw std::logic_error(
-            "Previous service identity does not endorse the node identity that "
-            "signed the snapshot");
-        }
-        LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
-      }
+      LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
     }
 
     LOG_INFO_FMT(
@@ -152,7 +129,6 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt,
     std::optional<std::vector<uint8_t>> previous_service_identity =
       std::nullopt)
   {
@@ -162,10 +138,9 @@ namespace ccf
       hooks,
       view_history,
       public_only,
-      evidence_seqno,
       previous_service_identity);
     return std::make_unique<StartupSnapshotInfo>(
-      store, std::move(snapshot), store->current_version(), evidence_seqno);
+      store, std::move(snapshot), store->current_version());
   }
 
   static std::vector<uint8_t> build_and_serialise_receipt(
