@@ -318,10 +318,8 @@ namespace loggingapp
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
 
-        const nlohmann::json body_j =
-          nlohmann::json::parse(ctx.rpc_ctx->get_response_body());
-
-        auto interm = body_j.get<LoggingPut::Intermediate>();
+        auto interm = *static_cast<LoggingPut::Intermediate*>(
+          ctx.rpc_ctx->get_response_user_data());
 
         if (interm.fail)
         {
@@ -374,7 +372,12 @@ namespace loggingapp
         {
           interm.fail = false;
         }
-        return ccf::make_success(interm);
+
+        ctx.rpc_ctx->set_response_user_data(&interm);
+
+        // return a default value as we'll set the response in the post-commit
+        // handler
+        return ccf::make_success(nullptr);
       };
 
       make_endpoint_with_local_commit_handler(
