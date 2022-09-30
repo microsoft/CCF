@@ -133,7 +133,7 @@ namespace ccf::endpoints
   }
 
   void default_locally_committed_func(
-     CommandEndpointContext& ctx, const TxID& tx_id)
+    CommandEndpointContext& ctx, const TxID& tx_id)
   {
     // Only transactions that acquired one or more map handles
     // have a TxID, while others (e.g. unauthenticated commands)
