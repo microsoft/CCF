@@ -14,8 +14,7 @@ namespace ccf
     partOfPublicNetwork,
     partOfNetwork,
     readingPublicLedger,
-    readingPrivateLedger,
-    verifyingSnapshot
+    readingPrivateLedger
   };
 
   DECLARE_JSON_ENUM(
@@ -26,8 +25,7 @@ namespace ccf
      {ccf::NodeStartupState::partOfPublicNetwork, "PartOfPublicNetwork"},
      {ccf::NodeStartupState::partOfNetwork, "PartOfNetwork"},
      {ccf::NodeStartupState::readingPublicLedger, "ReadingPublicLedger"},
-     {ccf::NodeStartupState::readingPrivateLedger, "ReadingPrivateLedger"},
-     {ccf::NodeStartupState::verifyingSnapshot, "VerifyingSnapshot"}})
+     {ccf::NodeStartupState::readingPrivateLedger, "ReadingPrivateLedger"}})
 }
 
 // Used by fmtlib to render ccf::State
