@@ -1431,7 +1431,6 @@ namespace aft
             break;
           }
 
-          case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
           case kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
           {
             break;

@@ -46,8 +46,6 @@ To add a new node to an existing opening network, other nodes should be started 
 
     graph LR;
         Uninitialized-- config -->Initialized;
-        Initialized-- join from snapshot -->VerifyingSnapshot;
-        VerifyingSnapshot-->Pending;
         Initialized-- join -->Pending;
         Pending-- poll status -->Pending;
         Pending-- trusted -->PartOfNetwork;

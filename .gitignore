@@ -17,7 +17,7 @@ doxygen/
 obj/
 *.retry
 tests/env/
-tests/*pb2*.py
+tests/**/*pb2*.py
 sphinx/env/
 html/
 latex/

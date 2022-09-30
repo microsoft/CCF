@@ -785,7 +785,7 @@ class Snapshot(Entry):
 
         entry_start_pos = super()._read_header()
 
-        # Snapshots embed evidence receipt since 2.x
+        # 1.x snapshots do not include evidence
         if self.is_committed() and not self.is_snapshot_file_1_x():
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
@@ -815,10 +815,10 @@ class Snapshot(Entry):
             ccf.receipt.verify(root, receipt["signature"], node_cert)
 
     def is_committed(self):
-        # Note: Also valid for 1.x snapshots which end in ".committed_Z"
         return COMMITTED_FILE_SUFFIX in self._filename
 
     def is_snapshot_file_1_x(self):
+        # Kept here for compatibility
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
