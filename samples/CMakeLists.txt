@@ -6,3 +6,6 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/apps/logging)
 
 # Add NoBuiltins app
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/apps/nobuiltins)
+
+# Add LocalCommitHandler app
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/apps/local_commit_handler)
