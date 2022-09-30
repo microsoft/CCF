@@ -65,9 +65,7 @@ The state machine for the ``join`` node is as follows:
 
     graph LR;
         Uninitialized-- config -->Initialized;
-        Initialized-- join from snapshot -->VerifyingSnapshot;
-        VerifyingSnapshot-->Pending;
-        Initialized-- join without snapshot -->Pending;
+        Initialized-- join -->Pending;
         Pending-- poll status -->Pending;
         Pending-- trusted -->PartOfPublicNetwork;
 

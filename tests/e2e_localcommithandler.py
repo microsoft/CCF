@@ -10,7 +10,6 @@ import infra.clients
 import infra.crypto
 import infra.e2e_args
 import infra.jwt_issuer
-import infra.logging_app as app
 import infra.network
 import infra.proc
 import suite.test_requirements as reqs
@@ -45,18 +44,27 @@ def test_safe(network, args):
 
 
 @reqs.description("Check unsafe increment, decrement and value")
-@reqs.supports_methods("/app/increment_exception", "/app/decrement_exception", "/app/value")
+@reqs.supports_methods(
+    "/app/increment_exception", "/app/decrement_exception", "/app/value"
+)
 @reqs.at_least_n_nodes(1)
 def test_unsafe(network, args):
     primary, _ = network.find_primary()
     with primary.client() as c:
         r = c.post("/app/increment_exception")
-        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value, r.status_code
+        assert (
+            r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+        ), r.status_code
         txid_header_key = "x-ms-ccf-transaction-id"
         # check we can parse the txid from the header
         # this gets set since the post-commit handler threw
         TxID.from_str(r.headers[txid_header_key])
-        assert r.body.json() == {"error":{"code":"InternalError","message":"Failed to execute local commit handler func: oops, might have failed serialization"}}
+        assert r.body.json() == {
+            "error": {
+                "code": "InternalError",
+                "message": "Failed to execute local commit handler func: oops, might have failed serialization",
+            }
+        }
 
         # should still be able to observe the value
         r = c.get("/app/value")
@@ -66,12 +74,19 @@ def test_unsafe(network, args):
 
         # and same for decrement
         r = c.post("/app/decrement_exception")
-        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value, r.status_code
+        assert (
+            r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+        ), r.status_code
         txid_header_key = "x-ms-ccf-transaction-id"
         # check we can parse the txid from the header
         # this gets set since the post-commit handler threw
         TxID.from_str(r.headers[txid_header_key])
-        assert r.body.json() == {"error":{"code":"InternalError","message":"Failed to execute local commit handler func: oops, might have failed serialization"}}
+        assert r.body.json() == {
+            "error": {
+                "code": "InternalError",
+                "message": "Failed to execute local commit handler func: oops, might have failed serialization",
+            }
+        }
 
         # should still be able to observe the value
         r = c.get("/app/value")
@@ -102,6 +117,7 @@ def run(args):
         # the tests!
         test_safe(network, args)
         test_unsafe(network, args)
+
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
