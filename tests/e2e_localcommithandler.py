@@ -45,7 +45,7 @@ def test_safe(network, args):
 
 
 @reqs.description("Check unsafe increment, decrement and value")
-@reqs.supports_methods("/app/increment", "/app/decrement", "/app/value")
+@reqs.supports_methods("/app/increment_exception", "/app/decrement_exception", "/app/value")
 @reqs.at_least_n_nodes(1)
 def test_unsafe(network, args):
     primary, _ = network.find_primary()
