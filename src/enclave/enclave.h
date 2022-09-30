@@ -150,6 +150,9 @@ namespace ccf
 
       context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
 
+      // TODO: Install responder
+      // context->install_subsystem()
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(

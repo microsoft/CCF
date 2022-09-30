@@ -6,6 +6,7 @@
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
+#include "enclave/responder_interface.h"
 #include "forwarder_types.h"
 #include "http/http2_endpoint.h"
 #include "http/http_endpoint.h"
