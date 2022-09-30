@@ -132,6 +132,16 @@ namespace ccf::endpoints
     return metrics[method][verb];
   }
 
+  void default_locally_committed_func(
+    const TxID& tx_id, CommandEndpointContext& ctx)
+  {
+    // Only transactions that acquired one or more map handles
+    // have a TxID, while others (e.g. unauthenticated commands)
+    // don't. Also, only report a TxID if the consensus is set, as
+    // the consensus is required to verify that a TxID is valid.
+    ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
+  }
+
   Endpoint EndpointRegistry::make_endpoint(
     const std::string& method,
     RESTVerb verb,
@@ -151,15 +161,7 @@ namespace ccf::endpoints
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
-    endpoint.locally_committed_func =
-      [](const TxID& tx_id, CommandEndpointContext& ctx) {
-        // Only transactions that acquired one or more map handles
-        // have a TxID, while others (e.g. unauthenticated commands)
-        // don't. Also, only report a TxID if the consensus is set, as
-        // the consensus is required to verify that a TxID is valid.
-        ctx.rpc_ctx->set_response_header(
-          http::headers::CCF_TX_ID, tx_id.to_str());
-      };
+    endpoint.locally_committed_func = default_locally_committed_func;
 
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded

@@ -36,6 +36,20 @@ namespace localcommithandler
         ctx.rpc_ctx->set_response_body(nlohmann::json(resp).dump());
       };
 
+      auto add_tx_id_exception = [](const auto txid, auto& ctx) {
+        ctx.rpc_ctx->set_response_header("mytxid", txid.to_str());
+
+        const nlohmann::json body_j =
+          nlohmann::json::parse(ctx.rpc_ctx->get_response_body());
+
+        throw std::runtime_error("oops, might have failed serialization");
+
+        auto resp = body_j.get<Response>();
+        resp.tx_id = txid.to_str();
+
+        ctx.rpc_ctx->set_response_body(nlohmann::json(resp).dump());
+      };
+
       auto increment = [this](auto& ctx) {
         auto counter_handle = ctx.tx.template rw<CounterMap>("counters");
 
@@ -54,6 +68,11 @@ namespace localcommithandler
       };
       make_endpoint_with_commit_handler(
         "/increment", HTTP_POST, increment, add_tx_id, ccf::no_auth_required)
+        .set_auto_schema<void, Response>()
+        .install();
+
+      make_endpoint_with_commit_handler(
+        "/increment_exception", HTTP_POST, increment, add_tx_id_exception, ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
 
@@ -78,6 +97,11 @@ namespace localcommithandler
         .set_auto_schema<void, Response>()
         .install();
 
+      make_endpoint_with_commit_handler(
+        "/decrement_exception", HTTP_POST, decrement, add_tx_id_exception, ccf::no_auth_required)
+        .set_auto_schema<void, Response>()
+        .install();
+
       auto value = [this](auto& ctx) {
         auto counter_handle = ctx.tx.template ro<CounterMap>("counters");
 
@@ -93,6 +117,11 @@ namespace localcommithandler
       };
       make_read_only_endpoint_with_commit_handler(
         "/value", HTTP_GET, value, add_tx_id, ccf::no_auth_required)
+        .set_auto_schema<void, Response>()
+        .install();
+
+      make_read_only_endpoint_with_commit_handler(
+        "/value_exception", HTTP_GET, value, add_tx_id_exception, ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
     };

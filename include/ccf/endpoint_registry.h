@@ -39,6 +39,9 @@ namespace ccf::endpoints
     PathTemplateSpec spec;
   };
 
+  void default_locally_committed_func(
+    const TxID& tx_id, CommandEndpointContext& ctx);
+
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
    *
@@ -172,9 +175,11 @@ namespace ccf::endpoints
 
     /** Create a new endpoint with a commit handler.
      *
-     * Like make_endpoint but takes a functor to call once the transaction has been committed, but before consensus has completed.
+     * Like make_endpoint but takes a functor to call once the transaction has
+     * been committed, but before consensus has completed.
      *
-     * @param l Functor which will be invoked after the transaction has been assigned an ID.
+     * @param l Functor which will be invoked after the transaction has been
+     * assigned an ID.
      */
     virtual Endpoint make_endpoint_with_commit_handler(
       const std::string& method,
