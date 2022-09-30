@@ -910,7 +910,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, nodes=None, timeout=3, log_capture=None, **kwargs):
+    def find_primary(self, nodes=None, timeout=10, log_capture=None, **kwargs):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.

@@ -77,21 +77,18 @@ namespace ccf
       else
       {
         // Otherwise, assume that is PEM
-        endorsements.insert(
-          endorsements.end(),
-          std::make_move_iterator(data.begin()),
-          std::make_move_iterator(data.end()));
+        endorsements.insert(endorsements.end(), data.begin(), data.end());
       }
 
-      config.endpoints.pop_front();
-      if (config.endpoints.empty())
+      config.servers.front().pop_front();
+      if (config.servers.front().empty())
       {
-        LOG_INFO_FMT("Entire endorsement chain successfully retrieved");
+        LOG_INFO_FMT("Complete endorsement chain successfully retrieved");
         done_cb(std::move(endorsements));
       }
       else
       {
-        fetch(config.endpoints.front());
+        fetch(config.servers.front().front());
       }
     }
 
@@ -171,11 +168,11 @@ namespace ccf
 
     void fetch_endorsements()
     {
-      if (config.endpoints.empty())
+      if (config.servers.front().empty())
       {
         throw std::logic_error("No endpoint specified to fetch endorsements");
       }
-      fetch(config.endpoints.front());
+      fetch(config.servers.front().front());
     }
   };
 }

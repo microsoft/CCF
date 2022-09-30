@@ -376,9 +376,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("Azure", "AMD"),
     )
     parser.add_argument(
-        "--snp-endorsements-endpoint",
+        "--snp-endorsements-endpoints",
         help="Endpoint used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
-        default=None,
+        action="append",
+        default=[],
     )
 
     add(parser)
