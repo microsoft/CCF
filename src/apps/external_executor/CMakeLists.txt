@@ -19,10 +19,10 @@ add_ccf_app(
   INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/protobuf"
   LINK_LIBS_ENCLAVE
     executor_registration.proto.enclave kv.proto.enclave status.proto.enclave
-    protobuf.proto.enclave stringops.proto.enclave
+    stringops.proto.enclave protobuf.enclave
   LINK_LIBS_VIRTUAL
     executor_registration.proto.virtual kv.proto.virtual status.proto.virtual
-    protobuf.proto.virtual stringops.proto.virtual
+    stringops.proto.virtual protobuf.virtual
 )
 
 # Generate an ephemeral signing key
