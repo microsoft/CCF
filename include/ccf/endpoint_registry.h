@@ -40,7 +40,7 @@ namespace ccf::endpoints
   };
 
   void default_locally_committed_func(
-    const TxID& tx_id, CommandEndpointContext& ctx);
+     CommandEndpointContext& ctx, const TxID& tx_id);
 
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.

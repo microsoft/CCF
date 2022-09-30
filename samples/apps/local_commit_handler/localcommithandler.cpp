@@ -24,7 +24,7 @@ namespace localcommithandler
     LocalCommitHandlerRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
-      auto add_tx_id = [](const auto txid, auto& ctx) {
+      auto add_tx_id = [](auto& ctx, const auto txid) {
         ctx.rpc_ctx->set_response_header("mytxid", txid.to_str());
 
         const nlohmann::json body_j =
@@ -36,7 +36,7 @@ namespace localcommithandler
         ctx.rpc_ctx->set_response_body(nlohmann::json(resp).dump());
       };
 
-      auto add_tx_id_exception = [](const auto txid, auto& ctx) {
+      auto add_tx_id_exception = [](auto& ctx, const auto txid) {
         ctx.rpc_ctx->set_response_header("mytxid", txid.to_str());
 
         const nlohmann::json body_j =

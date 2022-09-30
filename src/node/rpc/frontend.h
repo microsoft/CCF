@@ -473,7 +473,7 @@ namespace ccf
                 {
                   // run default handler to set transaction id in header
                   ccf::endpoints::default_locally_committed_func(
-                    tx_id.value(), args);
+                    args, tx_id.value());
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
@@ -485,7 +485,7 @@ namespace ccf
                 {
                   // run default handler to set transaction id in header
                   ccf::endpoints::default_locally_committed_func(
-                    tx_id.value(), args);
+                    args, tx_id.value());
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,

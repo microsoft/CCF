@@ -133,7 +133,7 @@ namespace ccf::endpoints
   }
 
   void default_locally_committed_func(
-    const TxID& tx_id, CommandEndpointContext& ctx)
+     CommandEndpointContext& ctx, const TxID& tx_id)
   {
     // Only transactions that acquired one or more map handles
     // have a TxID, while others (e.g. unauthenticated commands)
@@ -161,7 +161,7 @@ namespace ccf::endpoints
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
-    endpoint.locally_committed_func = default_locally_committed_func;
+    endpoint.locally_committed_func = &default_locally_committed_func;
 
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded
@@ -451,7 +451,7 @@ namespace ccf::endpoints
         "instances");
     }
 
-    endpoint->locally_committed_func(tx_id, ctx);
+    endpoint->locally_committed_func(ctx, tx_id);
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
