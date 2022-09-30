@@ -9,6 +9,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
+#include "enclave/responder_interface.h"
 #include "endpoints/grpc.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
@@ -28,6 +29,8 @@ namespace externalexecutor
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
+    std::shared_ptr<ccf::AbstractRPCResponder> rpc_responder = nullptr;
+
     void install_registry_service()
     {
       // create an endpoint to get executor code id
@@ -244,6 +247,13 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
+      rpc_responder = context.get_subsystem<ccf::AbstractRPCResponder>();
+      if (rpc_responder == nullptr)
+      {
+        throw std::runtime_error(
+          fmt::format("App cannot be constructed without Responder subsystem"));
+      }
+
       install_registry_service();
 
       install_kv_service();
