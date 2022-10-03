@@ -51,31 +51,10 @@ def test_verify_quotes(network, args):
 
     return network
 
-@reqs.description("Node with correct security policy joins successfully")
+
+@reqs.description("Test that the security policies table is correctly populated")
+@reqs.snp_only()
 def test_add_node_with_correct_security_policy(network, args):
-
-    if not IS_SNP:
-        LOG.warning("Skipping test_add_node_with_correct_security_policy with non SNP platform")
-        return network
-
-    replacement_package = (
-        "samples/apps/logging/liblogging"
-        if args.package == "libjs_generic"
-        else "libjs_generic"
-    )
-
-    primary, others = network.find_nodes()
-    prev_nodes = [primary, *others]
-    new_node = network.create_node("local://localhost")
-    network.join_node(new_node, replacement_package, args, timeout=3)
-    network.trust_node(new_node, args)
-    primary, others = network.find_nodes()
-    nodes = [primary, *others]
-    assert len(nodes) == len(prev_nodes) + 1, "New node not added to network"
-
-    with primary.client() as client:
-        r = client.get("/gov/security_policy")
-        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
 
     LOG.info(f"Checking governance table security policies")
     expected = [
@@ -88,17 +67,8 @@ def test_add_node_with_correct_security_policy(network, args):
     assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
 
 @reqs.description("Node with no security policy set but good digest matching ledger joins successfully")
+@reqs.snp_only()
 def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
-
-    if not IS_SNP:
-        LOG.warning("Skipping test_add_node_with_correct_security_policy with non SNP platform")
-        return network
-
-    replacement_package = (
-        "samples/apps/logging/liblogging"
-        if args.package == "libjs_generic"
-        else "libjs_generic"
-    )
 
     primary, others = network.find_nodes()
     prev_nodes = [primary, *others]
@@ -108,7 +78,7 @@ def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
     network.consortium.add_new_security_policy(primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST)
 
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, replacement_package, args, timeout=3, env=dict())
+    network.join_node(new_node, args.package, args, timeout=3, env=dict())
     network.trust_node(new_node, args)
     primary, others = network.find_nodes()
     nodes = [primary, *others]
@@ -135,22 +105,13 @@ def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
     network.consortium.add_new_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
 
 @reqs.description("Node with no security policy set but good digest not matching ledger joins successfully")
+@reqs.snp_only()
 def test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args):
-
-    if not IS_SNP:
-        LOG.warning("Skipping test_add_node_with_correct_security_policy with non SNP platform")
-        return network
-
-    replacement_package = (
-        "samples/apps/logging/liblogging"
-        if args.package == "libjs_generic"
-        else "libjs_generic"
-    )
 
     primary, others = network.find_nodes()
     prev_nodes = [primary, *others]
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, replacement_package, args, timeout=3, env=dict())
+    network.join_node(new_node, args.package, args, timeout=3, env=dict())
     network.trust_node(new_node, args)
     primary, others = network.find_nodes()
     nodes = [primary, *others]
@@ -174,43 +135,24 @@ def test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args)
     # TODO: Do this
 
 @reqs.description("Node where raw security policy doesn't match digest fails to join")
+@reqs.snp_only()
 def test_add_node_with_mismatched_security_policy_digest(network, args):
-
-    if not IS_SNP:
-        LOG.warning("Skipping test_add_node_with_mismatched_security_policy_digest with non SNP platform")
-        return network
-
-    replacement_package = (
-        "samples/apps/logging/liblogging"
-        if args.package == "libjs_generic"
-        else "libjs_generic"
-    )
 
     primary, others = network.find_nodes()
     prev_nodes = [primary, *others]
-    new_node = network.create_node("local://localhost")
     try:
-        network.join_node(new_node, replacement_package, args, timeout=3, env={"SECURITY_POLICY": "eyJhbGxvd19hbGwiOmZhbHNlLCJjb250YWluZXJzIjp7Imxlbmd0aCI6MCwiZWxlbWVudHMiOm51bGx9fQ=="})
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, timeout=3, env={"SECURITY_POLICY": "eyJhbGxvd19hbGwiOmZhbHNlLCJjb250YWluZXJzIjp7Imxlbmd0aCI6MCwiZWxlbWVudHMiOm51bGx9fQ=="})
         network.trust_node(new_node, args)
-    except Exception as err:
-        ...
+    except Exception: ...
 
     primary, others = network.find_nodes()
     nodes = [primary, *others]
     assert len(nodes) == len(prev_nodes), "Node joining unexpectedly succeeded"
 
 @reqs.description("Node with bad security policy digest fails to join")
+@reqs.snp_only()
 def test_add_node_with_bad_security_policy_digest(network, args):
-
-    if not IS_SNP:
-        LOG.warning("Skipping test_add_node_with_bad_security_policy_digest with non SNP platform")
-        return network
-
-    replacement_package = (
-        "samples/apps/logging/liblogging"
-        if args.package == "libjs_generic"
-        else "libjs_generic"
-    )
 
     primary, others = network.find_nodes()
     prev_nodes = [primary, *others]
@@ -219,7 +161,7 @@ def test_add_node_with_bad_security_policy_digest(network, args):
     network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
 
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, replacement_package, args, timeout=3)
+    network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)
 
     primary, others = network.find_nodes()

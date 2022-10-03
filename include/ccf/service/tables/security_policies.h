@@ -13,6 +13,6 @@ namespace ccf
   namespace Tables
   {
     static constexpr auto SECURITY_POLICIES =
-      "public:ccf.gov.security_policies";
+      "public:ccf.gov.nodes.security_policies";
   }
 }

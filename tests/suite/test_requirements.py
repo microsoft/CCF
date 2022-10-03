@@ -3,6 +3,7 @@
 
 import functools
 
+from infra.is_snp import IS_SNP
 from loguru import logger as LOG
 
 
@@ -136,6 +137,13 @@ def no_http2():
         if args.http2:
             raise TestRequirementsNotMet("Test not run with HTTP/2")
 
+    return ensure_reqs(check)
+
+
+def snp_only():
+    def check(network, args, *nargs, **kwargs):
+        if not IS_SNP:
+            raise TestRequirementsNotMet(f"Platform doesn't support SNP")
     return ensure_reqs(check)
 
 
