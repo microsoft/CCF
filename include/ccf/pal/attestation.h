@@ -214,7 +214,7 @@ namespace ccf::pal
     attestation_report_data& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     snp::EndorsementsEndpointType endpoint_type,
-    const std::optional<std::string>& endpoint = std::nullopt)
+    const std::vector<std::string>& endpoints = {})
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::oe_sgx_v1;
