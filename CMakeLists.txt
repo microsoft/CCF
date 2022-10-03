@@ -729,14 +729,6 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME e2e_localcommithandler
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_localcommithandler.py
-    CONSENSUS cft
-    CONTAINER_NODES TRUE
-    ADDITIONAL_ARGS -p "samples/apps/localcommithandler/liblocalcommithandler"
-  )
-
-  add_e2e_test(
     NAME membership
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     CONSENSUS cft
