@@ -546,7 +546,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoggingPut__Out"
+                  "$ref": "#/components/schemas/boolean"
                 }
               }
             },
@@ -566,7 +566,7 @@
         }
       }
     },
-    "/app/log/private/fail_commit": {
+    "/app/log/private/anonymous/v2": {
       "post": {
         "requestBody": {
           "content": {
