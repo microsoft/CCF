@@ -403,6 +403,7 @@ int main(int argc, char** argv)
     startup_config.network = config.network;
     startup_config.worker_threads = config.worker_threads;
     startup_config.node_certificate = config.node_certificate;
+    startup_config.attestation = config.attestation;
 
     // Get the nodes security policy via environment variable
     if (access(ccf::pal::snp::DEVICE, F_OK) == 0) {

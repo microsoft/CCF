@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/service_config.h"
@@ -47,6 +48,16 @@ struct CCFConfig
     bool operator==(const JWT&) const = default;
   };
   JWT jwt = {};
+
+  struct Attestation
+  {
+    ccf::pal::snp::EndorsementsEndpointType snp_endorsements_server_type =
+      ccf::pal::snp::EndorsementsEndpointType::Azure;
+    std::vector<std::string> snp_endorsements_servers = {};
+
+    bool operator==(const Attestation&) const = default;
+  };
+  Attestation attestation = {};
 };
 
 struct StartupConfig : CCFConfig
