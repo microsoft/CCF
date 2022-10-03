@@ -493,7 +493,7 @@ namespace ccf
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
-                    fmt::format("Failed to execute local commit handler func"));
+                    "Failed to execute local commit handler func");
                 }
               }
 
