@@ -37,21 +37,22 @@ namespace http2
     LOG_TRACE_FMT("http2::read_callback: {}", length);
 
     auto* stream_data = get_stream_data(session, stream_id);
-
     auto& response_body = stream_data->response_body;
+    size_t to_read =
+      std::min(response_body.size() - stream_data->current_offset, length);
 
     if (response_body.size() > 0)
     {
-      if (length < response_body.size())
-      {
-        throw std::runtime_error("Read too large");
-      }
-
       // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-      memcpy(buf, response_body.data(), response_body.size());
+      memcpy(buf, response_body.data() + stream_data->current_offset, to_read);
+      stream_data->current_offset += to_read;
     }
-
-    *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    if (stream_data->current_offset >= response_body.size())
+    {
+      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      stream_data->current_offset = 0;
+      response_body.clear();
+    }
 
     if (!stream_data->trailers.empty())
     {
@@ -76,7 +77,7 @@ namespace http2
       }
     }
 
-    return response_body.size();
+    return to_read;
   }
 
   static ssize_t read_callback_client(

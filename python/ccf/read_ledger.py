@@ -20,6 +20,10 @@ def fmt_uint_le(data):
     )
 
 
+def fmt_raw(data):
+    return str(data)
+
+
 def fmt_hex(data):
     return data.hex()
 
@@ -35,7 +39,7 @@ def fmt_json(data):
 # List of table name regex to key and value format functions (first match is used)
 # Callers can specify additional rules (e.g. for application-specific
 # public tables) which get looked up first.
-default_format_rule = {"key": fmt_hex, "value": fmt_hex}
+default_format_rule = {"key": fmt_raw, "value": fmt_raw}
 default_tables_format_rules = [
     (
         "^public:ccf\\.internal\\..*$",
@@ -52,7 +56,7 @@ default_tables_format_rules = [
         },
     ),
     ("^public:ccf\\.gov\\..*$", {"key": fmt_str, "value": fmt_json}),
-    (".*", {"key": fmt_hex, "value": fmt_hex}),
+    (".*", {"key": fmt_raw, "value": fmt_raw}),
 ]
 
 
