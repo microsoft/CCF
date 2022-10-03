@@ -23,8 +23,7 @@ namespace http2
   {
     http::HeaderMap headers; // Only used for incoming headers
     http::HeaderMap trailers; // Only used for outgoing trailers
-    std::vector<uint8_t> incoming_body;
-    std::vector<uint8_t> outgoing_body;
+    std::vector<uint8_t> body;
     size_t current_offset = 0;
   };
 

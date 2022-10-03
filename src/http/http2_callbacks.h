@@ -19,7 +19,7 @@ namespace http2
     LOG_TRACE_FMT("http2::read_response_body_callback: {}", length);
 
     auto* stream_data = get_stream_data(session, stream_id);
-    auto& response_body = stream_data->incoming_body;
+    auto& response_body = stream_data->body;
     size_t to_read =
       std::min(response_body.size() - stream_data->current_offset, length);
 
@@ -76,7 +76,7 @@ namespace http2
 
     auto* stream_data = get_stream_data(session, stream_id);
 
-    auto& body = stream_data->outgoing_body;
+    auto& body = stream_data->body;
 
     // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
     size_t to_read =
@@ -190,7 +190,7 @@ namespace http2
     LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
 
     auto* stream_data = get_stream_data(session, stream_id);
-    stream_data->incoming_body.insert(stream_data->incoming_body.end(), data, data + len);
+    stream_data->body.insert(stream_data->body.end(), data, data + len);
 
     return 0;
   }

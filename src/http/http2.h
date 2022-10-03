@@ -204,7 +204,7 @@ namespace http2
         LOG_FAIL_FMT("stream not found!");
         return;
       }
-      stream_data->outgoing_body = std::move(body);
+      stream_data->body = std::move(body);
 
       stream_data->trailers = std::move(trailers);
 
@@ -259,7 +259,7 @@ namespace http2
         method,
         url,
         std::move(stream_data->headers),
-        std::move(stream_data->incoming_body),
+        std::move(stream_data->body),
         stream_id);
     }
   };
@@ -294,7 +294,7 @@ namespace http2
 
       auto stream_data = std::make_shared<StreamData>();
 
-      stream_data->outgoing_body = std::move(body);
+      stream_data->body = std::move(body);
 
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
@@ -338,9 +338,7 @@ namespace http2
       }
 
       proc.handle_response(
-        status,
-        std::move(stream_data->headers),
-        std::move(stream_data->incoming_body));
+        status, std::move(stream_data->headers), std::move(stream_data->body));
     }
   };
 }
