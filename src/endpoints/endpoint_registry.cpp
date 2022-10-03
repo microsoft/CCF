@@ -135,10 +135,6 @@ namespace ccf::endpoints
   void default_locally_committed_func(
     CommandEndpointContext& ctx, const TxID& tx_id)
   {
-    // Only transactions that acquired one or more map handles
-    // have a TxID, while others (e.g. unauthenticated commands)
-    // don't. Also, only report a TxID if the consensus is set, as
-    // the consensus is required to verify that a TxID is valid.
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
   }
 

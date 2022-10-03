@@ -466,6 +466,10 @@ namespace ccf
               {
                 try
                 {
+                  // Only transactions that acquired one or more map handles
+                  // have a TxID, while others (e.g. unauthenticated commands)
+                  // don't. Also, only report a TxID if the consensus is set, as
+                  // the consensus is required to verify that a TxID is valid.
                   endpoints.execute_endpoint_locally_committed(
                     endpoint, args, tx_id.value());
                 }
