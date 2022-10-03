@@ -177,9 +177,6 @@ namespace ccf::endpoints
      *
      * Like make_endpoint but takes a functor to call once the transaction has
      * been committed, but before consensus has completed.
-     *
-     * @param l Functor which will be invoked after the transaction has been
-     * assigned an ID.
      */
     virtual Endpoint make_endpoint_with_local_commit_handler(
       const std::string& method,
