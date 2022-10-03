@@ -43,7 +43,6 @@ namespace ccf
     virtual bool can_replicate() = 0;
     virtual bool is_reading_public_ledger() const = 0;
     virtual bool is_reading_private_ledger() const = 0;
-    virtual bool is_verifying_snapshot() const = 0;
     virtual bool is_part_of_network() const = 0;
     virtual kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
