@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import e2e_logging
-import e2e_localcommithandler
 import memberclient
 import reconfiguration
 import recovery

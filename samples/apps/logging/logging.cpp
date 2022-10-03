@@ -354,8 +354,7 @@ namespace loggingapp
 
         std::string error_reason;
         std::string fail;
-        if (!http::get_query_value(
-              parsed_query, "fail", fail, error_reason))
+        if (!http::get_query_value(parsed_query, "fail", fail, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -367,9 +366,12 @@ namespace loggingapp
         resp.success = true;
         LoggingPut::Intermediate interm;
         interm.out = resp;
-        if (fail == "true") {
+        if (fail == "true")
+        {
           interm.fail = true;
-        }else {
+        }
+        else
+        {
           interm.fail = false;
         }
         return ccf::make_success(interm);

@@ -1507,12 +1507,16 @@ def test_udp_echo(network, args):
 def test_post_local_commit_failure(network, args):
     primary, _ = network.find_primary()
     with primary.client() as c:
-        r = c.post("/app/log/private/anonymous/v2?fail=false", {"id": 100, "msg": "hello"})
+        r = c.post(
+            "/app/log/private/anonymous/v2?fail=false", {"id": 100, "msg": "hello"}
+        )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         assert r.body.json()["success"] == True
         TxID.from_str(r.body.json()["tx_id"])
 
-        r = c.post("/app/log/private/anonymous/v2?fail=true", {"id": 101, "msg": "world"})
+        r = c.post(
+            "/app/log/private/anonymous/v2?fail=true", {"id": 101, "msg": "world"}
+        )
         assert (
             r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
         ), r.status_code
@@ -1526,6 +1530,7 @@ def test_post_local_commit_failure(network, args):
                 "message": "Failed to execute local commit handler func: oops, might have failed serialization",
             }
         }, r.body.json()
+
 
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
