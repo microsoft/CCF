@@ -211,6 +211,21 @@
         ],
         "type": "object"
       },
+      "LoggingPut__Out": {
+        "properties": {
+          "success": {
+            "$ref": "#/components/schemas/boolean"
+          },
+          "tx_id": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "success",
+          "tx_id"
+        ],
+        "type": "object"
+      },
       "LoggingRecord__In": {
         "properties": {
           "id": {
@@ -531,7 +546,44 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "$ref": "#/components/schemas/LoggingPut__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/app/log/private/fail_commit": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingRecord__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingPut__Out"
                 }
               }
             },
