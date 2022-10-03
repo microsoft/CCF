@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Also install `*.inc` files for third-party dependencies (#4266).
 - Add `ccf.generateEcdsaKeyPair` API in the JavaScript runtime (#4271).
 
+### Removed
+
+- `ccf::historical::adapter`, `ccf::historical::adapter_v1`, `ccf::historical::is_tx_committed` and `ccf::historical::is_tx_committed_v1` have been removed. Application code should upgrade to `ccf::historical::adapter_v3` and `ccf::historical::is_tx_committed_v2`.
+
 ## [3.0.0-dev4]
 
 ### Fixed
