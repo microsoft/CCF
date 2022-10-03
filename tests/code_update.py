@@ -70,33 +70,15 @@ def test_add_node_with_correct_security_policy(network, args):
 @reqs.snp_only()
 def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
 
-    primary, others = network.find_nodes()
-    prev_nodes = [primary, *others]
-
     LOG.info(f"Change the entry for trusted security policies to not include a raw policy")
+    primary, _ = network.find_nodes()
     network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
     network.consortium.add_new_security_policy(primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST)
 
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, timeout=3, env=dict())
     network.trust_node(new_node, args)
-    primary, others = network.find_nodes()
-    nodes = [primary, *others]
-    assert len(nodes) == len(prev_nodes) + 1, "New node not added to network"
 
-    with primary.client() as client:
-        r = client.get("/gov/security_policy")
-        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
-
-    LOG.info(f"Checking governance table security policies")
-    expected = [
-        {
-            "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
-            "raw": DEFAULT_SNP_SECURITY_POLICY,
-        }
-    ]
-    expected.sort(key=lambda x: x["digest"])
-    assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
 
     LOG.info(f"Checking node joined with a blank security policy")
     # TODO: Do this
@@ -108,28 +90,9 @@ def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
 @reqs.snp_only()
 def test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args):
 
-    primary, others = network.find_nodes()
-    prev_nodes = [primary, *others]
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, timeout=3, env=dict())
     network.trust_node(new_node, args)
-    primary, others = network.find_nodes()
-    nodes = [primary, *others]
-    assert len(nodes) == len(prev_nodes) + 1, "New node not added to network"
-
-    with primary.client() as client:
-        r = client.get("/gov/security_policy")
-        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
-
-    LOG.info(f"Checking governance table security policies")
-    expected = [
-        {
-            "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
-            "raw": DEFAULT_SNP_SECURITY_POLICY,
-        }
-    ]
-    expected.sort(key=lambda x: x["digest"])
-    assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
 
     LOG.info(f"Checking node joined with a blank security policy")
     # TODO: Do this
@@ -166,7 +129,7 @@ def test_add_node_with_bad_security_policy_digest(network, args):
 
     primary, others = network.find_nodes()
     nodes = [primary, *others]
-    assert len(nodes) <= len(prev_nodes), "Node joining unexpectedly succeeded"
+    assert len(nodes) == len(prev_nodes), "Node joining unexpectedly succeeded"
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
