@@ -6,6 +6,7 @@ import iptc
 import json
 from dataclasses import field
 from typing import List, Optional
+import enum
 
 from loguru import logger as LOG
 
@@ -24,6 +25,16 @@ CCF_INPUT_RULE = {
 #      $ echo "* * * * * root /sbin/iptables-restore /etc/iptables.conf" | sudo tee -a /etc/cron.d/iptables-restore
 # Warning: depending on the cron interval, this may cause partitions test to fail randomly as the iptables rules are
 # deleted under the infra's feet.
+
+
+class IsolationDir(enum.Flag):
+    INBOUND_REQUESTS = enum.auto()
+    INBOUND_RESPONSES = enum.auto()
+    OUTBOUND_REQUESTS = enum.auto()
+    OUTBOUND_RESPONSES = enum.auto()
+    # https://github.com/PyCQA/pylint/issues/7381
+    # pylint: disable=unsupported-binary-operation
+    ALL = INBOUND_REQUESTS | INBOUND_RESPONSES | OUTBOUND_REQUESTS | OUTBOUND_RESPONSES
 
 
 class Rules:
@@ -125,6 +136,7 @@ class Partitioner:
         self,
         node: infra.node.Node,
         other: Optional[infra.node.Node] = None,
+        isolation_dir: IsolationDir = IsolationDir.ALL,
     ):
         """
         Isolates a single :py:class:`infra.node.Node` from the network, or from a specific other node if specified.
@@ -161,12 +173,15 @@ class Partitioner:
             client_rule["dst"] = other.n2n_interface.host
             name += f" from node {other.local_node_id}"
 
-        rules = [
-            server_rule,
-            self.reverse_rule(server_rule),
-            client_rule,
-            self.reverse_rule(client_rule),
-        ]
+        rules = []
+        if isolation_dir & IsolationDir.INBOUND_REQUESTS:
+            rules.append(server_rule)
+        if isolation_dir & IsolationDir.INBOUND_RESPONSES:
+            rules.append(self.reverse_rule(server_rule))
+        if isolation_dir & IsolationDir.OUTBOUND_REQUESTS:
+            rules.append(client_rule)
+        if isolation_dir & IsolationDir.OUTBOUND_RESPONSES:
+            rules.append(self.reverse_rule(client_rule))
 
         for rule in rules:
             if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, rule):
