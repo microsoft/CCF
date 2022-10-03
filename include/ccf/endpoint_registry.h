@@ -188,7 +188,7 @@ namespace ccf::endpoints
       const LocallyCommittedEndpointFunction& l,
       const AuthnPolicies& ap);
 
-    /** See make_read_only_endpoint and make_endpoint_with_commit_handler.
+    /** See make_read_only_endpoint and make_endpoint_with_local_commit_handler.
      */
     virtual Endpoint make_read_only_endpoint_with_local_commit_handler(
       const std::string& method,
