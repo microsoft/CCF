@@ -355,8 +355,8 @@ namespace ccf
     {
       auto fetch_endorsements =
         [this](
-          QuoteInfo quote_info_,
-          const pal::EndorsementEndpointConfiguration& config) {
+          const QuoteInfo& quote_info_,
+          const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
           if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
           {
             // Note: Node lock is already taken here as this is called back
@@ -370,11 +370,10 @@ namespace ccf
             return;
           }
 
-          quote_endorsements_client =
-            std::make_shared<QuoteEndorsementsClient>(rpcsessions);
-
-          quote_endorsements_client->fetch_endorsements(
-            config, [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
+            rpcsessions,
+            endpoint_config,
+            [this, quote_info_](std::vector<uint8_t>&& endorsements) {
               // Note: Only called for SEV-SNP
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info = quote_info_;
@@ -382,6 +381,8 @@ namespace ccf
               launch_node();
               quote_endorsements_client.reset();
             });
+
+          quote_endorsements_client->fetch_endorsements();
         };
 
       pal::attestation_report_data report_data = {};
@@ -390,7 +391,11 @@ namespace ccf
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
-      pal::generate_quote(report_data, fetch_endorsements);
+      pal::generate_quote(
+        report_data,
+        fetch_endorsements,
+        config.attestation.snp_endorsements_server_type,
+        config.attestation.snp_endorsements_servers);
     }
 
     NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)
@@ -2336,7 +2341,7 @@ namespace ccf
         *node_sign_kp,
         sig_tx_interval,
         sig_ms_interval,
-        false /* start time signatures after first tx */);
+        false /* start timed signatures after first tx */);
       network.tables->set_history(history);
     }
 

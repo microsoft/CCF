@@ -4,13 +4,13 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/pal/attestation_sev_snp_endorsements.h"
 
 #include <functional>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
-#  include "ccf/pal/attestation_sev_snp.h"
 #  include "crypto/ecdsa.h"
 
 #  include <fcntl.h>
@@ -22,25 +22,20 @@
 
 namespace ccf::pal
 {
-  struct EndorsementEndpointConfiguration
-  {
-    std::string host;
-    std::string port;
-    std::string uri;
-    std::map<std::string, std::string> params;
-  };
-
   // Caller-supplied callback used to retrieve endorsements as specified by the
   // config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
   using RetrieveEndorsementCallback = std::function<void(
-    QuoteInfo quote_info, const EndorsementEndpointConfiguration& config)>;
+    const QuoteInfo& quote_info,
+    const snp::EndorsementEndpointsConfiguration& config)>;
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
   static void generate_quote(
     attestation_report_data& report_data,
-    RetrieveEndorsementCallback endorsement_cb)
+    RetrieveEndorsementCallback endorsement_cb,
+    snp::EndorsementsEndpointType endpoint_type,
+    const std::vector<std::string>& endpoints = {})
   {
     QuoteInfo node_quote_info = {};
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -95,13 +90,8 @@ namespace ccf::pal
     {
       endorsement_cb(
         node_quote_info,
-        {"americas.test.acccache.azure.net",
-         "443",
-         fmt::format(
-           "/SevSnpVM/certificates/{}/{}",
-           fmt::format("{:02x}", fmt::join(quote->chip_id, "")),
-           fmt::format("{:0x}", *(uint64_t*)(&quote->reported_tcb))),
-         {{"api-version", "2020-10-15-preview"}}});
+        snp::make_endorsement_endpoint_configuration(
+          *quote, endpoint_type, endpoints));
     }
   }
 
@@ -222,7 +212,9 @@ namespace ccf::pal
 
   static void generate_quote(
     attestation_report_data& report_data,
-    RetrieveEndorsementCallback endorsement_cb)
+    RetrieveEndorsementCallback endorsement_cb,
+    snp::EndorsementsEndpointType endpoint_type,
+    const std::vector<std::string>& endpoints = {})
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::oe_sgx_v1;

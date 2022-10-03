@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.0-dev5]
 
+### Added
+
+- New "attestation" section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277).
+
 ### Fixed
 
 - Also install `*.inc` files for third-party dependencies (#4266).
