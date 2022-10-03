@@ -190,8 +190,8 @@ namespace kv::untyped
 
   void MapHandle::range(
     const MapHandle::ElementVisitor& f,
-    const MapHandle::KeyType& from,
-    const MapHandle::KeyType& to)
+    const std::optional<MapHandle::KeyType>& from,
+    const std::optional<MapHandle::KeyType>& to)
   {
     // Current limitations/ineficiencies:
     // - The state and writes are wastefully looped over until `from` is
@@ -206,7 +206,9 @@ namespace kv::untyped
     // std::lower_bound()/std::upper_bound() and loop over it, interleaves
     // with the local writes.
 
-    if (from == to || to < from)
+    if (
+      from.has_value() && to.has_value() &&
+      (from.value() == to.value() || to.value() < from.value()))
     {
       return;
     }
@@ -223,12 +225,12 @@ namespace kv::untyped
     std::map<KeyType, ValueType> res;
     auto g = [&res, &from, &to, continue_past_range_to](
                const KeyType& k, const ValueType& v) {
-      if (k < from)
+      if (from.has_value() && k < from.value())
       {
         // Start of range is not yet found.
         return true;
       }
-      else if (k == to || to < k)
+      else if (to.has_value() && (k == to.value() || to.value() < k))
       {
         // End of range. Note: `to` is excluded.
         return continue_past_range_to;
