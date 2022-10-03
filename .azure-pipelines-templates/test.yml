@@ -66,21 +66,3 @@ steps:
       testRunTitle: "${{ parameters.suite_name_suffix }}"
       platform: "$(Agent.MachineName)"
     condition: succeededOrFailed()
-
-  - script: |
-      sudo apt -qq install ripgrep
-      echo "TOOK TOO LONG "
-      rg "Took too long" --count
-      echo "TOOK TOO LONG TOTAL"
-      rg "Took too long" --count | cut -d : -f 2 | awk '{ sum += $1 } END { print sum }'
-    displayName: "Took too long metrics"
-
-  - ${{ if ne(parameters.suffix, 'Perf') }}:
-      - script: |
-          ./cimetrics_env.sh
-          source env/bin/activate
-          rg "Took too long" --count | cut -d : -f 2 | python ../tests/upload_misc.py "took_too_long_count_${{ parameters.suite_name_suffix }}"
-        env:
-          METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-        workingDirectory: build
-        displayName: "Upload took too long metrics"

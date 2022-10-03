@@ -45,6 +45,10 @@ jobs:
           suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
           ctest_timeout: ${{ parameters.ctest_timeout }}
 
+      - template: misc.yml
+        parameters:
+          suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
+
       - ${{ if eq(parameters.suffix, 'Instrumented') }}:
           - template: scan_build.yml
 
