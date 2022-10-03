@@ -87,9 +87,6 @@ all_tests_suite = [
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
     e2e_logging.test_random_receipts,
-    # e2e_localcommithandler
-    e2e_localcommithandler.test_safe,
-    e2e_localcommithandler.test_unsafe,
     # membership:
     membership.test_set_recovery_threshold,
     membership.test_add_member,
