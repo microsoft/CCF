@@ -76,6 +76,11 @@ namespace ccf
       std::shared_ptr<Session> self;
     };
 
+    struct EmptyMsg
+    {
+      std::shared_ptr<Session> self;
+    };
+
   public:
     TLSSession(
       int64_t session_id_,
@@ -102,8 +107,7 @@ namespace ccf
     {
       auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data, size);
 
-      auto msg =
-        std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_data_cb);
+      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_data_cb);
       msg->data.self = this->shared_from_this();
       msg->data.data.assign(body.data, body.data + body.size);
 
@@ -111,8 +115,7 @@ namespace ccf
         execution_thread, std::move(msg));
     }
 
-    static void recv_data_cb(
-      std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+    static void recv_data_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<TLSSession*>(msg->data.self.get())
         ->receive_data(msg->data.data.data(), msg->data.data.size());
@@ -263,20 +266,94 @@ namespace ccf
       do_handshake();
     }
 
+    void send_data(const uint8_t* data, size_t size) override
+    {
+      send_raw(data, size);
+    }
+
+    void close() override
+    {
+      status = closing;
+      auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
+      msg->data.self = this->shared_from_this();
+
+      threading::ThreadMessaging::thread_messaging.add_task(
+        execution_thread, std::move(msg));
+    }
+
+    static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
+    {
+      reinterpret_cast<TLSSession*>(msg->data.self.get())->close_thread();
+    }
+
+    virtual void close_thread()
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        throw std::runtime_error("Called close_thread from incorrect thread");
+      }
+
+      switch (status)
+      {
+        case handshake:
+        {
+          LOG_TRACE_FMT("TLS {} closed during handshake", session_id);
+          stop(closed);
+          break;
+        }
+
+        case ready:
+        case closing:
+        {
+          int r = ctx->close();
+
+          switch (r)
+          {
+            case TLS_ERR_WANT_READ:
+            case TLS_ERR_WANT_WRITE:
+            {
+              LOG_TRACE_FMT("TLS {} has pending data ({})", session_id, r);
+              // FALLTHROUGH
+            }
+            case 0:
+            {
+              LOG_TRACE_FMT("TLS {} closed ({})", session_id, r);
+              stop(closed);
+              break;
+            }
+
+            default:
+            {
+              LOG_TRACE_FMT(
+                "TLS {} error on_close: {}", session_id, tls::error_string(r));
+              stop(error);
+              break;
+            }
+          }
+          break;
+        }
+
+        default:
+        {
+        }
+      }
+    }
+
+  private:
+    void send_raw(const uint8_t* data, size_t size)
+    {
+      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data = std::vector<uint8_t>(data, data + size);
+
+      threading::ThreadMessaging::thread_messaging.add_task(
+        execution_thread, std::move(msg));
+    }
+
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<TLSSession*>(msg->data.self.get())
         ->send_raw_thread(msg->data.data);
-    }
-
-    void send_raw(std::vector<uint8_t>&& data)
-    {
-      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data = std::move(data);
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
     }
 
     void send_raw_thread(const std::vector<uint8_t>& data)
@@ -352,80 +429,6 @@ namespace ccf
       }
     }
 
-    struct EmptyMsg
-    {
-      std::shared_ptr<Session> self;
-    };
-
-    static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
-    {
-      reinterpret_cast<TLSSession*>(msg->data.self.get())->close_thread();
-    }
-
-    void close()
-    {
-      status = closing;
-      auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
-      msg->data.self = this->shared_from_this();
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
-    }
-
-    void close_thread()
-    {
-      if (threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called close_thread from incorrect thread");
-      }
-
-      switch (status)
-      {
-        case handshake:
-        {
-          LOG_TRACE_FMT("TLS {} closed during handshake", session_id);
-          stop(closed);
-          break;
-        }
-
-        case ready:
-        case closing:
-        {
-          int r = ctx->close();
-
-          switch (r)
-          {
-            case TLS_ERR_WANT_READ:
-            case TLS_ERR_WANT_WRITE:
-            {
-              LOG_TRACE_FMT("TLS {} has pending data ({})", session_id, r);
-              // FALLTHROUGH
-            }
-            case 0:
-            {
-              LOG_TRACE_FMT("TLS {} closed ({})", session_id, r);
-              stop(closed);
-              break;
-            }
-
-            default:
-            {
-              LOG_TRACE_FMT(
-                "TLS {} error on_close: {}", session_id, tls::error_string(r));
-              stop(error);
-              break;
-            }
-          }
-          break;
-        }
-
-        default:
-        {
-        }
-      }
-    }
-
-  private:
     void do_handshake()
     {
       // This should be called when additional data is written to the

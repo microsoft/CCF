@@ -66,10 +66,11 @@ namespace http
 
           LOG_DEBUG_FMT("Request is too large: {}", e.what());
 
-          send_raw(http::error(ccf::ErrorDetails{
+          // TODO: Don't pre-serialise here
+          send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_PAYLOAD_TOO_LARGE,
             ccf::errors::RequestBodyTooLarge,
-            e.what()}));
+            e.what()});
 
           close();
           break;
@@ -83,10 +84,11 @@ namespace http
 
           LOG_DEBUG_FMT("Request header is too large: {}", e.what());
 
-          send_raw(http::error(ccf::ErrorDetails{
+          // TODO: Don't pre-serialise here
+          send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
             ccf::errors::RequestHeaderTooLarge,
-            e.what()}));
+            e.what()});
 
           close();
           break;
@@ -112,7 +114,8 @@ namespace http
             std::begin(body_s), std::end(body_s));
           response_body.insert(response_body.end(), data, data + n_read);
           response.set_body(response_body.data(), response_body.size());
-          send_raw(response.build_response());
+          // TODO: Don't pre-serialise here
+          send_response(std::move(response));
 
           close();
           break;
@@ -153,11 +156,6 @@ namespace http
       interface_id(interface_id)
     {}
 
-    void send(std::vector<uint8_t>&& data, sockaddr) override
-    {
-      send_raw(std::move(data));
-    }
-
     void handle_request(
       llhttp_method verb,
       const std::string_view& url,
@@ -187,10 +185,10 @@ namespace http
         }
         catch (std::exception& e)
         {
-          send_raw(http::error(
+          send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            e.what()));
+            e.what()});
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -221,17 +219,17 @@ namespace http
         }
         else
         {
-          const auto response = rpc_ctx->serialise_response();
-          send_buffered(response);
-          flush();
+          // TODO: Don't pre-serialise!
+          ccf::Session::send_data(rpc_ctx->serialise_response());
         }
       }
       catch (const std::exception& e)
       {
-        send_raw(http::error(
+        // TODO: Don't pre-serialise here
+        send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())));
+          fmt::format("Exception: {}", e.what())});
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
@@ -259,15 +257,9 @@ namespace http
       response_parser(*this)
     {}
 
-    void send_request(const http::Request& request) override
+    void send_request(http::Request&& request) override
     {
-      send_raw(request.build_request());
-    }
-
-    void send(std::vector<uint8_t>&&, sockaddr) override
-    {
-      throw std::logic_error(
-        "send() should not be called directly on HTTPClient");
+      send_request_oops(std::move(request));
     }
 
     void on_handshake_error(const std::string& error_msg) override

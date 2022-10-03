@@ -57,7 +57,7 @@ namespace ccf
         r.set_query_param(k, v);
       }
       r.set_header(http::headers::HOST, config.host);
-      unauthenticated_client->send_request(r);
+      unauthenticated_client->send_request(std::move(r));
       LOG_INFO_FMT(
         "Fetching endorsements for attestation report at {}", config.host);
     }

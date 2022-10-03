@@ -177,11 +177,11 @@ namespace quic
         ->send_raw_thread(msg->data.data, msg->data.addr);
     }
 
-    void send_raw(std::vector<uint8_t>&& data, sockaddr addr)
+    void send_raw(const uint8_t* data, size_t size, sockaddr addr)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data = std::move(data);
+      msg->data.data = std::vector<uint8_t>(data, data + size);
       msg->data.addr = addr;
 
       threading::ThreadMessaging::thread_messaging.add_task(
@@ -424,9 +424,9 @@ namespace quic
       interface_id(interface_id)
     {}
 
-    void send(std::vector<uint8_t>&& data, sockaddr addr) override
+    void send_data(const uint8_t* data, size_t size) override
     {
-      send_raw(std::move(data), addr);
+      send_raw(data, size, addr);
     }
 
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
@@ -449,9 +449,10 @@ namespace quic
         execution_thread, std::move(msg));
     }
 
-    void recv_(const uint8_t* data_, size_t size_, sockaddr addr)
+    void recv_(const uint8_t* data_, size_t size_, sockaddr addr_)
     {
-      recv_buffered(data_, size_, addr);
+      recv_buffered(data_, size_, addr_);
+      addr = addr_;
 
       LOG_TRACE_FMT("recv called with {} bytes", size_);
 

@@ -66,7 +66,9 @@ namespace http
             "below.\n\n{}",
             e.what());
           response.set_body((const uint8_t*)body.data(), body.size());
-          send_raw(response.build_response());
+
+          // TODO: HTTP/1.1! This is wrong! Don't preserialise!
+          send_response(std::move(response));
 
           close();
           break;
@@ -104,11 +106,6 @@ namespace http
       session_id(session_id),
       interface_id(interface_id)
     {}
-
-    void send(std::vector<uint8_t>&& data, sockaddr) override
-    {
-      send_raw(std::move(data));
-    }
 
     void handle_request(
       llhttp_method verb,
@@ -180,11 +177,11 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        // Note: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
-        send_raw(http::error(
+        // TODO: This doesn't exist?
+        send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())));
+          fmt::format("Exception: {}", e.what())});
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
@@ -212,7 +209,7 @@ namespace http
       client_parser(*this, *this)
     {}
 
-    void send_request(const http::Request& request) override
+    void send_request(http::Request&& request) override
     {
       // Note: Avoid extra copy
       std::vector<uint8_t> request_body = {
@@ -223,11 +220,6 @@ namespace http
         request.get_path(),
         request.get_headers(),
         std::move(request_body));
-    }
-
-    void send(std::vector<uint8_t>&& data, sockaddr) override
-    {
-      send_raw(std::move(data));
     }
 
     void handle_response(

@@ -68,6 +68,7 @@ namespace ccf
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
+    // TODO: Should be able to send over HTTP/1.1 _or_ HTTP/2
     class NoMoreSessionsSessionImpl : public ccf::TLSSession
     {
     public:
@@ -96,16 +97,12 @@ namespace ccf
           const auto s = body.dump();
           http_response.set_body((const uint8_t*)s.data(), s.size());
 
-          send(http_response.build_response(), {});
+          const auto serialised = http_response.build_response();
+          send_data(serialised.data(), serialised.size());
 
           // Close connection
           close();
         }
-      }
-
-      void send(std::vector<uint8_t>&& data, sockaddr) override
-      {
-        send_raw(std::move(data));
       }
     };
 
@@ -461,7 +458,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second.second->send(std::move(data), {});
+      search->second.second->send_data(data.data(), data.size());
       return true;
     }
 

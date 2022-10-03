@@ -137,7 +137,7 @@ namespace http2
       {
         if (size > 0)
         {
-          endpoint.send(data, size);
+          endpoint.send_data(data, size);
         }
         else
         {

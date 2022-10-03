@@ -11,6 +11,7 @@
 
 namespace http
 {
+  // TODO: Remove these if they're now unused?
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
