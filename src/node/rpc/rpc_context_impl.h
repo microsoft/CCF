@@ -44,9 +44,9 @@ namespace ccf
       return decoded_path_params;
     }
 
-    virtual void set_response_user_data(std::unique_ptr<void> data) override
+    virtual void set_response_user_data(std::shared_ptr<void> data) override
     {
-      response_user_data = std::move(data);
+      response_user_data = data;
     }
 
     virtual void* get_response_user_data() const override
