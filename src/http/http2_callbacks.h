@@ -16,24 +16,26 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    LOG_TRACE_FMT("http2::read_callback: {}", length);
+    LOG_TRACE_FMT("http2::read_response_body_callback: {}", length);
 
     auto* stream_data = get_stream_data(session, stream_id);
+    auto& response_body = stream_data->incoming_body;
+    size_t to_read =
+      std::min(response_body.size() - stream_data->current_offset, length);
 
-    auto& body = stream_data->outgoing_body;
-
-    if (body.size() > 0)
+    if (response_body.size() > 0)
     {
-      if (length < body.size())
-      {
-        throw std::runtime_error("Read too large");
-      }
-
       // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-      memcpy(buf, body.data(), body.size());
+      memcpy(buf, response_body.data() + stream_data->current_offset, to_read);
+      stream_data->current_offset += to_read;
     }
 
-    *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    if (stream_data->current_offset >= response_body.size())
+    {
+      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      stream_data->current_offset = 0;
+      response_body.clear();
+    }
 
     if (!stream_data->trailers.empty())
     {
@@ -58,7 +60,7 @@ namespace http2
       }
     }
 
-    return body.size();
+    return response_body.size();
   }
 
   static ssize_t read_request_body_callback(
@@ -70,7 +72,7 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    LOG_TRACE_FMT("http2::read_callback client: {}", length);
+    LOG_TRACE_FMT("http2::read_request_body_callback: {}", length);
 
     auto* stream_data = get_stream_data(session, stream_id);
 

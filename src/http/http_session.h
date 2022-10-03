@@ -84,7 +84,6 @@ namespace http
 
           LOG_DEBUG_FMT("Request header is too large: {}", e.what());
 
-          // TODO: Don't pre-serialise here
           send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
             ccf::errors::RequestHeaderTooLarge,
@@ -114,7 +113,7 @@ namespace http
             std::begin(body_s), std::end(body_s));
           response_body.insert(response_body.end(), data, data + n_read);
           response.set_body(response_body.data(), response_body.size());
-          // TODO: Don't pre-serialise here
+          
           send_response(std::move(response));
 
           close();

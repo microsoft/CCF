@@ -67,7 +67,6 @@ namespace http
             e.what());
           response.set_body((const uint8_t*)body.data(), body.size());
 
-          // TODO: HTTP/1.1! This is wrong! Don't preserialise!
           send_response(std::move(response));
 
           close();
