@@ -16,7 +16,7 @@ namespace ccf
   protected:
     std::shared_ptr<SessionContext> session;
 
-    void* response_user_data;
+    std::shared_ptr<void> response_user_data;
 
   public:
     RpcContextImpl(const std::shared_ptr<SessionContext>& s) : session(s) {}
@@ -44,14 +44,14 @@ namespace ccf
       return decoded_path_params;
     }
 
-    virtual void set_response_user_data(void* data) override
+    virtual void set_response_user_data(std::unique_ptr<void> data) override
     {
-      response_user_data = data;
+      response_user_data = std::move(data);
     }
 
     virtual void* get_response_user_data() const override
     {
-      return response_user_data;
+      return response_user_data.get();
     }
 
     bool is_create_request = false;
