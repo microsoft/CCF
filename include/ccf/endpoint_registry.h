@@ -181,7 +181,7 @@ namespace ccf::endpoints
      * @param l Functor which will be invoked after the transaction has been
      * assigned an ID.
      */
-    virtual Endpoint make_endpoint_with_commit_handler(
+    virtual Endpoint make_endpoint_with_local_commit_handler(
       const std::string& method,
       RESTVerb verb,
       const EndpointFunction& f,
@@ -190,7 +190,7 @@ namespace ccf::endpoints
 
     /** See make_read_only_endpoint and make_endpoint_with_commit_handler.
      */
-    virtual Endpoint make_read_only_endpoint_with_commit_handler(
+    virtual Endpoint make_read_only_endpoint_with_local_commit_handler(
       const std::string& method,
       RESTVerb verb,
       const ReadOnlyEndpointFunction& f,

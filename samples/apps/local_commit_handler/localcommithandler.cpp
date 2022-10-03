@@ -66,12 +66,12 @@ namespace localcommithandler
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(resp).dump());
       };
-      make_endpoint_with_commit_handler(
+      make_endpoint_with_local_commit_handler(
         "/increment", HTTP_POST, increment, add_tx_id, ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
 
-      make_endpoint_with_commit_handler(
+      make_endpoint_with_local_commit_handler(
         "/increment_exception",
         HTTP_POST,
         increment,
@@ -96,12 +96,12 @@ namespace localcommithandler
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(resp).dump());
       };
-      make_endpoint_with_commit_handler(
+      make_endpoint_with_local_commit_handler(
         "/decrement", HTTP_POST, decrement, add_tx_id, ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
 
-      make_endpoint_with_commit_handler(
+      make_endpoint_with_local_commit_handler(
         "/decrement_exception",
         HTTP_POST,
         decrement,
@@ -123,12 +123,12 @@ namespace localcommithandler
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(resp).dump());
       };
-      make_read_only_endpoint_with_commit_handler(
+      make_read_only_endpoint_with_local_commit_handler(
         "/value", HTTP_GET, value, add_tx_id, ccf::no_auth_required)
         .set_auto_schema<void, Response>()
         .install();
 
-      make_read_only_endpoint_with_commit_handler(
+      make_read_only_endpoint_with_local_commit_handler(
         "/value_exception",
         HTTP_GET,
         value,

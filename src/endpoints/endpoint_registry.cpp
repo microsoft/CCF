@@ -188,7 +188,7 @@ namespace ccf::endpoints
       .set_forwarding_required(ForwardingRequired::Sometimes);
   }
 
-  Endpoint EndpointRegistry::make_endpoint_with_commit_handler(
+  Endpoint EndpointRegistry::make_endpoint_with_local_commit_handler(
     const std::string& method,
     RESTVerb verb,
     const EndpointFunction& f,
@@ -200,7 +200,7 @@ namespace ccf::endpoints
     return endpoint;
   }
 
-  Endpoint EndpointRegistry::make_read_only_endpoint_with_commit_handler(
+  Endpoint EndpointRegistry::make_read_only_endpoint_with_local_commit_handler(
     const std::string& method,
     RESTVerb verb,
     const ReadOnlyEndpointFunction& f,
