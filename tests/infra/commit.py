@@ -12,7 +12,7 @@ from infra.log_capture import flush_info
 
 
 def wait_for_commit(
-    client, seqno: int, view: int, timeout: int = 3, log_capture: Optional[list] = None
+    client, seqno: int, view: int, timeout: int = 5, log_capture: Optional[list] = None
 ) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
@@ -49,5 +49,5 @@ def wait_for_commit(
             time.sleep(0.1)
     flush_info(logs, log_capture, 1)
     raise TimeoutError(
-        f'Timed out waiting for commit: {pprint.pformat(client.get("/node/consensus").body.json())}'
+        f'Timed out waiting {timeout}s for commit: {pprint.pformat(client.get("/node/commit").body.json())}\n{pprint.pformat(client.get("/node/consensus").body.json())}'
     )

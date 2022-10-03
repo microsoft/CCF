@@ -91,7 +91,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 DECLARE_JSON_TYPE(StartupConfig::Recover);
 DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);
 
-DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
+DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig,
   startup_snapshot,
@@ -104,5 +104,3 @@ DECLARE_JSON_REQUIRED_FIELDS(
   start,
   join,
   recover);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  StartupConfig, startup_snapshot_evidence_seqno_for_1_x);

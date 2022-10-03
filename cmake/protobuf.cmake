@@ -10,12 +10,11 @@ set(protobuf_INSTALL OFF)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW) # Removes warnings when setting
 
 # "protobuf_..." variable above
-add_subdirectory(${CCF_3RD_PARTY_INTERNAL_DIR}/protobuf EXCLUDE_FROM_ALL)
+add_subdirectory(${CCF_3RD_PARTY_EXPORTED_DIR}/protobuf EXCLUDE_FROM_ALL)
 
 add_custom_target(dummy ALL DEPENDS libprotobuf)
 
 get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
-get_target_property(LIBPROTOBUF_INCLUDE_DIRS libprotobuf INCLUDE_DIRECTORIES)
 
 set(PROTOBUF_TARGETS "protobuf.virtual")
 add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
@@ -26,12 +25,22 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 endif()
 
 foreach(TARGET ${PROTOBUF_TARGETS})
-  target_include_directories(${TARGET} PUBLIC ${LIBPROTOBUF_INCLUDE_DIRS})
+  target_include_directories(
+    ${TARGET}
+    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/protobuf/src>
+           $<INSTALL_INTERFACE:include/3rdparty/protobuf>
+  )
+
   target_compile_options(
     ${TARGET}
     PUBLIC
       "-Wno-deprecated-enum-enum-conversion" # Remove warnings in
       # generated_message_tctable_impl.h
       "-Wno-invalid-noreturn" # https://github.com/protocolbuffers/protobuf/issues/9817
+  )
+  install(
+    TARGETS ${TARGET}
+    EXPORT ccf
+    DESTINATION lib
   )
 endforeach()

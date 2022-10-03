@@ -276,7 +276,7 @@ int main(int argc, char** argv)
     ledger.register_message_handlers(bp.get_dispatcher());
 
     asynchost::SnapshotManager snapshots(
-      config.snapshots.directory, ledger, config.snapshots.read_only_directory);
+      config.snapshots.directory, config.snapshots.read_only_directory);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // handle LFS-related messages from the enclave
@@ -533,14 +533,6 @@ int main(int argc, char** argv)
         auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
         startup_config.startup_snapshot =
           files::slurp(snapshot_dir / snapshot_file);
-
-        if (asynchost::is_snapshot_file_1_x(snapshot_file))
-        {
-          // Snapshot evidence seqno is only specified for 1.x snapshots which
-          // need to be verified by deserialising the ledger suffix.
-          startup_config.startup_snapshot_evidence_seqno_for_1_x =
-            asynchost::get_snapshot_evidence_idx_from_file_name(snapshot_file);
-        }
 
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {})",
