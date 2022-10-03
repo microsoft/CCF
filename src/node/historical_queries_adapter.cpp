@@ -192,39 +192,6 @@ namespace ccf::historical
     return tx_id_opt;
   }
 
-  bool is_tx_committed_v1(
-    kv::Consensus* consensus,
-    ccf::View view,
-    ccf::SeqNo seqno,
-    std::string& error_reason)
-  {
-    if (consensus == nullptr)
-    {
-      error_reason = "Node is not fully configured";
-      return false;
-    }
-
-    const auto tx_view = consensus->get_view(seqno);
-    const auto committed_seqno = consensus->get_committed_seqno();
-    const auto committed_view = consensus->get_view(committed_seqno);
-
-    const auto tx_status = ccf::evaluate_tx_status(
-      view, seqno, tx_view, committed_view, committed_seqno);
-    if (tx_status != ccf::TxStatus::Committed)
-    {
-      error_reason = fmt::format(
-        "Only committed transactions can be queried. Transaction {}.{} "
-        "is "
-        "{}",
-        view,
-        seqno,
-        ccf::tx_status_to_str(tx_status));
-      return false;
-    }
-
-    return true;
-  }
-
   HistoricalTxStatus is_tx_committed_v2(
     kv::Consensus* consensus,
     ccf::View view,
@@ -627,87 +594,5 @@ namespace ccf::historical
       // Call the provided handler
       f(args, historical_state);
     };
-  }
-
-  ccf::endpoints::EndpointFunction adapter_v1(
-    const HandleHistoricalQuery& f,
-    AbstractStateCache& state_cache,
-    const CheckAvailability& available,
-    const TxIDExtractor& extractor)
-  {
-    return [f, &state_cache, available, extractor](
-             endpoints::EndpointContext& args) {
-      // Extract the requested transaction ID
-      ccf::TxID target_tx_id;
-      {
-        const auto tx_id_opt = extractor(args);
-        if (tx_id_opt.has_value())
-        {
-          target_tx_id = tx_id_opt.value();
-        }
-        else
-        {
-          return;
-        }
-      }
-
-      // Check that the requested transaction ID is available
-      {
-        auto error_reason = fmt::format(
-          "Transaction {} is not available.", target_tx_id.to_str());
-        if (!available(target_tx_id.view, target_tx_id.seqno, error_reason))
-        {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::TransactionNotFound,
-            std::move(error_reason));
-          return;
-        }
-      }
-
-      // We need a handle to determine whether this request is the 'same' as a
-      // previous one. For simplicity we use target_tx_id.seqno. This means we
-      // keep a lot of state around for old requests! It should be cleaned up
-      // manually
-      const auto historic_request_handle = target_tx_id.seqno;
-
-      // Get a state at the target version from the cache, if it is present
-      auto historical_state =
-        state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
-      if (historical_state == nullptr)
-      {
-        args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-        constexpr size_t retry_after_seconds = 3;
-        args.rpc_ctx->set_response_header(
-          http::headers::RETRY_AFTER, retry_after_seconds);
-        args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-        args.rpc_ctx->set_response_body(fmt::format(
-          "Historical transaction {} is not currently available.",
-          target_tx_id.to_str()));
-        return;
-      }
-
-      // Call the provided handler
-      f(args, historical_state);
-    };
-  }
-
-  ccf::endpoints::EndpointFunction adapter(
-    const HandleHistoricalQuery& f,
-    AbstractStateCache& state_cache,
-    const CheckAvailability& available,
-    const TxIDExtractor& extractor)
-  {
-    return adapter_v1(f, state_cache, available, extractor);
-  }
-
-  bool is_tx_committed(
-    kv::Consensus* consensus,
-    ccf::View view,
-    ccf::SeqNo seqno,
-    std::string& error_reason)
-  {
-    return is_tx_committed_v1(consensus, view, seqno, error_reason);
   }
 }
