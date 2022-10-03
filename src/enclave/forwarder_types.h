@@ -10,13 +10,6 @@ namespace ccf
 {
   class RpcContextImpl;
 
-  class AbstractRPCResponder
-  {
-  public:
-    virtual ~AbstractRPCResponder() {}
-    virtual bool reply_async(int64_t id, std::vector<uint8_t>&& data) = 0;
-  };
-
   class AbstractForwarder
   {
   public:

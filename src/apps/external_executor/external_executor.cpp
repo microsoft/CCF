@@ -9,12 +9,14 @@
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
+#include "enclave/responder_interface.h"
 #include "endpoints/grpc.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
 #include "http/http_builder.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
+#include "node/rpc/rpc_context_impl.h"
 #include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
@@ -37,8 +39,16 @@ namespace externalexecutor
     // Note: As a temporary solution for testing, this app stores a single Tx,
     // stolen from a StartTx RPC rather than a real client request
     std::unique_ptr<kv::CommittableTx> active_tx = nullptr;
+    size_t active_originating_session_id;
 
-    std::queue<ccf::RequestDescription> pending_requests;
+    struct PendingRequest
+    {
+      size_t originating_session_id;
+      ccf::RequestDescription request_description;
+    };
+    std::queue<PendingRequest> pending_requests;
+
+    std::shared_ptr<ccf::AbstractRPCResponder> rpc_responder = nullptr;
 
     void install_registry_service()
     {
@@ -131,6 +141,8 @@ namespace externalexecutor
             GRPC_STATUS_INTERNAL, "Unexpected context type");
         }
 
+        // TODO: This should have been from the original user's request, not
+        // this one?
         active_tx = std::move(ctx_impl->owned_tx);
         ctx_impl->owned_tx = nullptr; // < This will be done by move, but adding
                                       // explicit call here for clarity
@@ -144,7 +156,9 @@ namespace externalexecutor
         if (!pending_requests.empty())
         {
           auto* rd = opt_rd.mutable_optional();
-          *rd = pending_requests.front();
+          auto& pr = pending_requests.front();
+          active_originating_session_id = pr.originating_session_id;
+          *rd = pr.request_description;
           pending_requests.pop();
         }
 
@@ -212,10 +226,12 @@ namespace externalexecutor
               response.set_header(http::headers::CCF_TX_ID, tx_id->str());
             }
 
-            const auto response_v = response.build_response();
+            auto response_v = response.build_response();
             const std::string response_s(response_v.begin(), response_v.end());
             LOG_INFO_FMT(
               "Preparing to send final response to user:\n{}", response_s);
+            rpc_responder->reply_async(
+              active_originating_session_id, std::move(response_v));
             break;
           }
 
@@ -405,8 +421,11 @@ namespace externalexecutor
     void queue_request_for_external_execution(
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      ccf::RequestDescription rd;
+      PendingRequest pr;
+      pr.originating_session_id =
+        endpoint_ctx.rpc_ctx->get_session_context()->client_session_id;
       {
+        ccf::RequestDescription& rd = pr.request_description;
         // Construct rd from request
         rd.set_method(endpoint_ctx.rpc_ctx->get_request_verb().c_str());
         rd.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
@@ -419,11 +438,15 @@ namespace externalexecutor
         const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
         rd.set_body(body.data(), body.size());
       }
-      pending_requests.push(rd);
+      pending_requests.push(pr);
 
-      endpoint_ctx.rpc_ctx->set_response_status(200);
-      endpoint_ctx.rpc_ctx->set_response_body(
-        "Executing your request, but not responding to you about it (yet!)");
+      auto ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
+      if (ctx_impl == nullptr)
+      {
+        throw std::logic_error("Unexpected type for RpcContext");
+      }
+
+      ctx_impl->response_is_pending = true;
     }
 
     struct ExternallyExecutedEndpoint
@@ -434,6 +457,13 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
+      rpc_responder = context.get_subsystem<ccf::AbstractRPCResponder>();
+      if (rpc_responder == nullptr)
+      {
+        throw std::runtime_error(
+          fmt::format("App cannot be constructed without Responder subsystem"));
+      }
+
       install_registry_service();
 
       install_kv_service();
