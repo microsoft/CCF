@@ -67,6 +67,8 @@ namespace kv::untyped
 
     // Sub-range variant of foreach. Visits the range of keys in [from, to).
     void range(
-      const ElementVisitor& fn, const KeyType& from, const KeyType& to);
+      const ElementVisitor& fn,
+      const std::optional<KeyType>& from,
+      const std::optional<KeyType>& to);
   };
 }
