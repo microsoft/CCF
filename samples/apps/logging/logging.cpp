@@ -318,8 +318,8 @@ namespace loggingapp
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
 
-        auto interm = *static_cast<LoggingPut::Intermediate*>(
-          ctx.rpc_ctx->get_response_user_data());
+        auto interm =
+          *static_cast<LoggingPut::Intermediate*>(ctx.rpc_ctx->get_user_data());
 
         if (interm.fail)
         {
@@ -362,18 +362,18 @@ namespace loggingapp
 
         LoggingPut::Out resp;
         resp.success = true;
-        LoggingPut::Intermediate interm;
-        interm.out = resp;
+        auto interm = std::make_shared<LoggingPut::Intermediate>();
+        interm->out = resp;
         if (fail == "true")
         {
-          interm.fail = true;
+          interm->fail = true;
         }
         else
         {
-          interm.fail = false;
+          interm->fail = false;
         }
 
-        ctx.rpc_ctx->set_response_user_data(&interm);
+        ctx.rpc_ctx->set_user_data(interm);
 
         // return a default value as we'll set the response in the post-commit
         // handler

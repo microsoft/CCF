@@ -60,6 +60,9 @@ namespace ccf
     /// the same long-lived session.
     virtual std::shared_ptr<SessionContext> get_session_context() const = 0;
 
+    virtual void set_user_data(std::shared_ptr<void> data) = 0;
+    virtual void* get_user_data() const = 0;
+
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
     virtual const std::string& get_request_query() const = 0;
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
@@ -107,9 +110,6 @@ namespace ccf
     /// Sets the main body or payload of the response.
     virtual void set_response_body(std::string&& body) = 0;
     virtual const std::vector<uint8_t>& get_response_body() const = 0;
-
-    virtual void set_response_user_data(std::shared_ptr<void> data) = 0;
-    virtual void* get_response_user_data() const = 0;
 
     /// Sets initial status code summarising result of RPC.
     virtual void set_response_status(int status) = 0;

@@ -16,7 +16,7 @@ namespace ccf
   protected:
     std::shared_ptr<SessionContext> session;
 
-    std::shared_ptr<void> response_user_data;
+    std::shared_ptr<void> user_data;
 
   public:
     RpcContextImpl(const std::shared_ptr<SessionContext>& s) : session(s) {}
@@ -24,6 +24,16 @@ namespace ccf
     std::shared_ptr<SessionContext> get_session_context() const override
     {
       return session;
+    }
+
+    virtual void set_user_data(std::shared_ptr<void> data) override
+    {
+      user_data = data;
+    }
+
+    virtual void* get_user_data() const override
+    {
+      return user_data.get();
     }
 
     ccf::ClaimsDigest claims = ccf::empty_claims();
@@ -42,16 +52,6 @@ namespace ccf
     virtual const ccf::PathParams& get_decoded_request_path_params() override
     {
       return decoded_path_params;
-    }
-
-    virtual void set_response_user_data(std::shared_ptr<void> data) override
-    {
-      response_user_data = data;
-    }
-
-    virtual void* get_response_user_data() const override
-    {
-      return response_user_data.get();
     }
 
     bool is_create_request = false;
