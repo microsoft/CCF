@@ -60,7 +60,7 @@ namespace http2
       }
     }
 
-    return response_body.size();
+    return to_read;
   }
 
   static ssize_t read_request_body_callback(
