@@ -369,6 +369,18 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--snp-endorsements-server-type",
+        help="Type of server used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
+        default="Azure",
+        choices=("Azure", "AMD"),
+    )
+    parser.add_argument(
+        "--snp-endorsements-servers",
+        help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
+        action="append",
+        default=[],
+    )
 
     add(parser)
 

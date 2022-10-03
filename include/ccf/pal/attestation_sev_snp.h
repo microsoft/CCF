@@ -3,7 +3,11 @@
 #pragma once
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#  include "attestation_sev_snp_endorsements.h"
+
 #  include <array>
+#  include <map>
+#  include <string>
 
 namespace ccf::pal
 {
@@ -164,6 +168,79 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 
     // Changes on 5.19+ kernel
     constexpr auto DEVICE = "/dev/sev";
+
+    static EndorsementEndpointsConfiguration
+    make_endorsement_endpoint_configuration(
+      const Attestation& quote,
+      EndorsementsEndpointType endpoint_type,
+      const std::vector<std::string>& endpoints = {})
+    {
+      EndorsementEndpointsConfiguration config;
+      std::map<std::string, std::string> params = {};
+
+      auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
+
+      switch (endpoint_type)
+      {
+        case EndorsementsEndpointType::Azure:
+        {
+          auto reported_tcb =
+            fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
+
+          if (endpoints.empty())
+          {
+            config.servers.emplace_back(make_azure_endorsements_server(
+              default_azure_endorsements_endpoint_host,
+              chip_id_hex,
+              reported_tcb));
+          }
+          else
+          {
+            for (auto const& endpoint : endpoints)
+            {
+              config.servers.emplace_back(make_azure_endorsements_server(
+                endpoint, chip_id_hex, reported_tcb));
+            }
+          }
+          break;
+        }
+        case EndorsementsEndpointType::AMD:
+        {
+          auto boot_loader = fmt::format("{}", quote.reported_tcb.boot_loader);
+          auto tee = fmt::format("{}", quote.reported_tcb.tee);
+          auto snp = fmt::format("{}", quote.reported_tcb.snp);
+          auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
+
+          if (endpoints.empty())
+          {
+            config.servers.emplace_back(make_amd_endorsements_server(
+              default_amd_endorsements_endpoint_host,
+              chip_id_hex,
+              boot_loader,
+              tee,
+              snp,
+              microcode));
+          }
+          else
+          {
+            for (auto const& endpoint : endpoints)
+            {
+              config.servers.emplace_back(make_amd_endorsements_server(
+                endpoint, chip_id_hex, boot_loader, tee, snp, microcode));
+            }
+          }
+
+          break;
+        }
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Unsupported endorsement endpoint type: {}", endpoint_type));
+        }
+      }
+
+      return config;
+    }
   }
 
 #  define SEV_GUEST_IOC_TYPE 'S'
