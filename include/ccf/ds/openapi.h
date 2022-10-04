@@ -131,6 +131,15 @@ namespace ds
       return response;
     }
 
+    static inline nlohmann::json& error_response_default(
+      nlohmann::json& path_operation)
+    {
+      auto& all_responses = responses(path_operation);
+      auto& response = access::get_object(all_responses, "default");
+      response["$ref"] = "#/components/responses/default";
+      return response;
+    }
+
     static inline nlohmann::json& request_body(nlohmann::json& path_operation)
     {
       auto& request_body = access::get_object(path_operation, "requestBody");

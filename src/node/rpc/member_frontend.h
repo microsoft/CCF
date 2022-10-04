@@ -489,7 +489,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.8.1";
+      openapi_info.document_version = "2.9.5";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -939,11 +939,14 @@ namespace ccf
 
         if (JS_IsException(val))
         {
-          js::js_dump_error(context);
+          auto [reason, trace] = js_error_message(context);
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Failed to execute validation");
+            fmt::format(
+              "Failed to execute validation: {} {}",
+              reason,
+              trace.value_or("")));
           return;
         }
 

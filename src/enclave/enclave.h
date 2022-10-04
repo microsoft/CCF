@@ -332,9 +332,7 @@ namespace ccf
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                if (
-                  node->is_reading_public_ledger() ||
-                  node->is_verifying_snapshot())
+                if (node->is_reading_public_ledger())
                 {
                   node->recover_public_ledger_entries(body);
                 }
@@ -383,14 +381,7 @@ namespace ccf
                     from_seqno,
                     to_seqno);
                 }
-                if (node->is_verifying_snapshot())
-                {
-                  node->verify_snapshot_end();
-                }
-                else
-                {
-                  node->recover_ledger_end();
-                }
+                node->recover_ledger_end();
                 break;
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
@@ -407,24 +398,6 @@ namespace ccf
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());
-
-        if (start_type == StartType::Join)
-        {
-          // When joining from a snapshot, deserialise ledger suffix to verify
-          // snapshot evidence. Otherwise, attempt to join straight away
-          if (node->is_verifying_snapshot())
-          {
-            node->start_ledger_recovery();
-          }
-          else
-          {
-            node->join();
-          }
-        }
-        else if (start_type == StartType::Recover)
-        {
-          node->start_ledger_recovery();
-        }
 
         // Maximum number of inbound ringbuffer messages which will be
         // processed in a single iteration

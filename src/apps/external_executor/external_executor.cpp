@@ -3,25 +3,46 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/entity_id.h"
 #include "ccf/http_consts.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "ccf/service/tables/nodes.h"
 #include "endpoints/grpc.h"
 #include "executor_code_id.h"
+#include "executor_registration.pb.h"
+#include "http/http_builder.h"
 #include "kv.pb.h"
+#include "node/endpoint_context_impl.h"
+#include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <queue>
 #include <string>
 
 namespace externalexecutor
 {
-  using Map = kv::Map<std::string, std::string>;
+  // This uses std::string to match protobuf's storage of raw bytes entries, and
+  // directly stores those raw bytes. Note that these strings may contain nulls
+  // and other unprintable characters, so may not be trivially displayable.
+  using Map = kv::RawCopySerialisedMap<std::string, std::string>;
+
+  using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
+  std::map<ExecutorId, ExecutorNodeInfo> ExecutorIDs;
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
+    // Note: As a temporary solution for testing, this app stores a single Tx,
+    // stolen from a StartTx RPC rather than a real client request
+    std::unique_ptr<kv::CommittableTx> active_tx = nullptr;
+
+    std::queue<ccf::RequestDescription> pending_requests;
+
     void install_registry_service()
     {
+      // create an endpoint to get executor code id
       auto get_executor_code =
         [](ccf::endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           GetExecutorCode::Out out;
@@ -45,54 +66,369 @@ namespace externalexecutor
         ccf::no_auth_required)
         .set_auto_schema<void, GetExecutorCode::Out>()
         .install();
+
+      // create an endpoint to register the executor
+      auto register_executor = [this](auto& ctx, ccf::NewExecutor&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::RegistrationResult> {
+        // verify quote
+        ccf::CodeDigest code_digest;
+        ccf::QuoteVerificationResult verify_result = verify_executor_quote(
+          ctx.tx, payload.attestation(), payload.cert(), code_digest);
+
+        if (verify_result != ccf::QuoteVerificationResult::Verified)
+        {
+          const auto [code, message] = verification_error(verify_result);
+          return ccf::grpc::make_error(code, message);
+        }
+
+        // generate and store executor id locally
+        crypto::Pem executor_public_key(payload.cert());
+        auto pubk_der = crypto::cert_pem_to_der(executor_public_key);
+        ExecutorId executor_id = ccf::compute_node_id_from_pubk_der(pubk_der);
+        std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints(
+          payload.supported_endpoints().begin(),
+          payload.supported_endpoints().end());
+
+        ExecutorNodeInfo executor_info = {
+          executor_public_key, payload.attestation(), supported_endpoints};
+
+        ExecutorIDs[executor_id] = executor_info;
+
+        ccf::RegistrationResult result;
+        result.set_details("Executor registration is accepted.");
+        result.set_executor_id(executor_id.value());
+
+        return ccf::grpc::make_success(result);
+      };
+
+      make_endpoint(
+        "ccf.ExecutorRegistration/RegisterExecutor",
+        HTTP_POST,
+        ccf::grpc_adapter<ccf::NewExecutor, ccf::RegistrationResult>(
+          register_executor),
+        ccf::no_auth_required)
+        .install();
     }
 
     void install_kv_service()
     {
-      auto put = [this](
+      auto start = [this](
+                     ccf::endpoints::EndpointContext& ctx,
+                     google::protobuf::Empty&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalRequestDescription> {
+        if (active_tx != nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Already managing an active transaction");
+        }
+
+        ccf::EndpointContextImpl* ctx_impl =
+          dynamic_cast<ccf::EndpointContextImpl*>(&ctx);
+        if (ctx_impl == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_INTERNAL, "Unexpected context type");
+        }
+
+        active_tx = std::move(ctx_impl->owned_tx);
+        ctx_impl->owned_tx = nullptr; // < This will be done by move, but adding
+                                      // explicit call here for clarity
+
+        // Note: Temporary hack to make sure the caller doesn't try to commit
+        // this transaction
+        ctx.rpc_ctx->set_apply_writes(false);
+
+        ccf::OptionalRequestDescription opt_rd;
+
+        if (!pending_requests.empty())
+        {
+          auto* rd = opt_rd.mutable_optional();
+          *rd = pending_requests.front();
+          pending_requests.pop();
+        }
+
+        return ccf::grpc::make_success(opt_rd);
+      };
+
+      make_endpoint(
+        "/ccf.KV/StartTx",
+        HTTP_POST,
+        ccf::grpc_adapter<
+          google::protobuf::Empty,
+          ccf::OptionalRequestDescription>(start),
+        ccf::no_auth_required)
+        .install();
+
+      auto end = [this](
                    ccf::endpoints::EndpointContext& ctx,
-                   ccf::KVKeyValue&& payload) {
-        auto records_handle = ctx.tx.template rw<Map>(payload.table());
-        records_handle->put(payload.key(), payload.value());
+                   ccf::ResponseDescription&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx");
+        }
+
+        // Get claims from payload
+        ccf::ClaimsDigest claims = ccf::empty_claims();
+        const std::string& payload_digest = payload.claims_digest();
+        if (!payload_digest.empty())
+        {
+          if (payload_digest.size() != ccf::ClaimsDigest::Digest::SIZE)
+          {
+            return ccf::grpc::make_error(
+              GRPC_STATUS_INVALID_ARGUMENT,
+              fmt::format(
+                "claims_digest is not a valid Sha256 hash. Must be {} bytes. "
+                "Received {} bytes.",
+                ccf::ClaimsDigest::Digest::SIZE,
+                payload_digest.size()));
+          }
+          claims.set(crypto::Sha256Hash::from_span(
+            {(uint8_t*)payload_digest.data(),
+             ccf::ClaimsDigest::Digest::SIZE}));
+        }
+
+        kv::CommitResult result = active_tx->commit(claims);
+        switch (result)
+        {
+          case kv::CommitResult::SUCCESS:
+          {
+            http::Response response((http_status)payload.status_code());
+            response.set_body(payload.body());
+            for (int i = 0; i < payload.headers_size(); ++i)
+            {
+              const ccf::Header& header = payload.headers(i);
+              response.set_header(header.field(), header.value());
+            }
+
+            auto tx_id = active_tx->get_txid();
+            if (tx_id.has_value())
+            {
+              LOG_INFO_FMT("Applied tx at {}", tx_id->str());
+              response.set_header(http::headers::CCF_TX_ID, tx_id->str());
+            }
+
+            const auto response_v = response.build_response();
+            const std::string response_s(response_v.begin(), response_v.end());
+            LOG_INFO_FMT(
+              "Preparing to send final response to user:\n{}", response_s);
+            break;
+          }
+
+          case kv::CommitResult::FAIL_CONFLICT:
+          {
+            LOG_FAIL_FMT("Tx failed due to conflict");
+            break;
+          }
+
+          case kv::CommitResult::FAIL_NO_REPLICATE:
+          {
+            LOG_FAIL_FMT("Tx failed to replicate");
+            break;
+          }
+        }
+        active_tx = nullptr;
 
         return ccf::grpc::make_success();
       };
 
       make_endpoint(
-        "ccf.KV/Put",
+        "/ccf.KV/EndTx",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::KVKeyValue, ccf::grpc::EmptyResponse>(put),
+        ccf::grpc_adapter<ccf::ResponseDescription, google::protobuf::Empty>(
+          end),
+        ccf::no_auth_required)
+        .install();
+
+      auto put =
+        [this](ccf::endpoints::EndpointContext& ctx, ccf::KVKeyValue&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_tx->rw<Map>(payload.table());
+        handle->put(payload.key(), payload.value());
+
+        return ccf::grpc::make_success();
+      };
+
+      make_endpoint(
+        "/ccf.KV/Put",
+        HTTP_POST,
+        ccf::grpc_adapter<ccf::KVKeyValue, google::protobuf::Empty>(put),
         ccf::no_auth_required)
         .install();
 
       auto get = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
                    ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
-        auto records_handle = ctx.tx.template ro<Map>(payload.table());
-        auto value = records_handle->get(payload.key());
-        if (!value.has_value())
+        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVValue> {
+        if (active_tx == nullptr)
         {
-          // Note: no need to specify `make_error<ccf::KVValue>` here as lambda
-          // returns `-> ccf::grpc::GrpcAdapterResponse<ccf::KVValue>`
           return ccf::grpc::make_error(
-            GRPC_STATUS_NOT_FOUND,
-            fmt::format("Key {} does not exist", payload.key()));
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
         }
 
-        ccf::KVValue r;
-        r.set_value(value.value());
+        auto handle = active_tx->ro<Map>(payload.table());
+        auto result = handle->get(payload.key());
 
-        return ccf::grpc::make_success(r);
+        ccf::OptionalKVValue response;
+        if (result.has_value())
+        {
+          ccf::KVValue* response_value = response.mutable_optional();
+          response_value->set_value(*result);
+        }
+
+        return ccf::grpc::make_success(response);
       };
 
       make_read_only_endpoint(
-        "ccf.KV/Get",
+        "/ccf.KV/Get",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVValue>(get),
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVValue>(get),
+        ccf::no_auth_required)
+        .install();
+
+      auto has = [this](
+                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                   ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::KVHasResult> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_tx->ro<Map>(payload.table());
+
+        ccf::KVHasResult result;
+        result.set_present(handle->has(payload.key()));
+
+        return ccf::grpc::make_success(result);
+      };
+
+      make_read_only_endpoint(
+        "/ccf.KV/Has",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVHasResult>(has),
+        ccf::no_auth_required)
+        .install();
+
+      auto get_version = [this](
+                           ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                           ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVVersion> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_tx->ro<Map>(payload.table());
+        auto version = handle->get_version_of_previous_write(payload.key());
+
+        ccf::OptionalKVVersion response;
+        if (version.has_value())
+        {
+          ccf::KVVersion* response_version = response.mutable_optional();
+          response_version->set_version(*version);
+        }
+
+        return ccf::grpc::make_success(response);
+      };
+
+      make_read_only_endpoint(
+        "/ccf.KV/GetVersion",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVVersion>(
+          get_version),
+        ccf::no_auth_required)
+        .install();
+
+      auto kv_delete = [this](
+                         ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                         ccf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        if (active_tx == nullptr)
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called after "
+            "a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_tx->wo<Map>(payload.table());
+        handle->remove(payload.key());
+
+        return ccf::grpc::make_success();
+      };
+
+      make_read_only_endpoint(
+        "/ccf.KV/Delete",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVKey, google::protobuf::Empty>(
+          kv_delete),
+        ccf::no_auth_required)
+        .install();
+
+      auto get_all = [this](
+                       ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                       ccf::KVTable&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
+        return ccf::grpc::make_error(
+          GRPC_STATUS_UNIMPLEMENTED, "Unimplemented");
+      };
+
+      make_read_only_endpoint(
+        "/ccf.KV/GetAll",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<ccf::KVTable, ccf::KVValue>(get_all),
         ccf::no_auth_required)
         .install();
     }
+
+    void queue_request_for_external_execution(
+      ccf::endpoints::EndpointContext& endpoint_ctx)
+    {
+      ccf::RequestDescription rd;
+      {
+        // Construct rd from request
+        rd.set_method(endpoint_ctx.rpc_ctx->get_request_verb().c_str());
+        rd.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
+        for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
+        {
+          ccf::Header* header = rd.add_headers();
+          header->set_field(k);
+          header->set_value(v);
+        }
+        const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
+        rd.set_body(body.data(), body.size());
+      }
+      pending_requests.push(rd);
+
+      endpoint_ctx.rpc_ctx->set_response_status(200);
+      endpoint_ctx.rpc_ctx->set_response_body(
+        "Executing your request, but not responding to you about it (yet!)");
+    }
+
+    struct ExternallyExecutedEndpoint
+      : public ccf::endpoints::EndpointDefinition
+    {};
 
   public:
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
@@ -101,6 +437,99 @@ namespace externalexecutor
       install_registry_service();
 
       install_kv_service();
+
+      auto run_string_ops = [this](
+                              ccf::endpoints::CommandEndpointContext& ctx,
+                              std::vector<temp::OpIn>&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<std::vector<temp::OpOut>> {
+        std::vector<temp::OpOut> results;
+
+        for (temp::OpIn& op : payload)
+        {
+          temp::OpOut& result = results.emplace_back();
+          switch (op.op_case())
+          {
+            case (temp::OpIn::OpCase::kEcho):
+            {
+              LOG_INFO_FMT("Got kEcho");
+              auto* echo_op = op.mutable_echo();
+              auto* echoed = result.mutable_echoed();
+              echoed->set_allocated_body(echo_op->release_body());
+              break;
+            }
+
+            case (temp::OpIn::OpCase::kReverse):
+            {
+              LOG_INFO_FMT("Got kReverse");
+              auto* reverse_op = op.mutable_reverse();
+              std::string* s = reverse_op->release_body();
+              std::reverse(s->begin(), s->end());
+              auto* reversed = result.mutable_reversed();
+              reversed->set_allocated_body(s);
+              break;
+            }
+
+            case (temp::OpIn::OpCase::kTruncate):
+            {
+              LOG_INFO_FMT("Got kTruncate");
+              auto* truncate_op = op.mutable_truncate();
+              std::string* s = truncate_op->release_body();
+              *s = s->substr(
+                truncate_op->start(),
+                truncate_op->end() - truncate_op->start());
+              auto* truncated = result.mutable_truncated();
+              truncated->set_allocated_body(s);
+              break;
+            }
+
+            case (temp::OpIn::OpCase::OP_NOT_SET):
+            {
+              LOG_INFO_FMT("Got OP_NOT_SET");
+              // oneof may always be null. If the input OpIn was null, then the
+              // resulting OpOut is also null
+              break;
+            }
+          }
+        }
+
+        return ccf::grpc::make_success(results);
+      };
+
+      make_command_endpoint(
+        "/temp.Test/RunOps",
+        HTTP_POST,
+        ccf::grpc_command_adapter<
+          std::vector<temp::OpIn>,
+          std::vector<temp::OpOut>>(run_string_ops),
+        ccf::no_auth_required)
+        .install();
+    }
+
+    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
+    {
+      auto real_endpoint =
+        ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
+      if (real_endpoint)
+      {
+        return real_endpoint;
+      }
+
+      return std::make_shared<ExternallyExecutedEndpoint>();
+    }
+
+    void execute_endpoint(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::EndpointContext& endpoint_ctx) override
+    {
+      auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
+      if (endpoint != nullptr)
+      {
+        queue_request_for_external_execution(endpoint_ctx);
+        return;
+      }
+
+      ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
     }
   };
 } // namespace externalexecutor

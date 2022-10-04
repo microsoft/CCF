@@ -142,12 +142,6 @@ namespace kv
         success = ApplyResult::PASS_SIGNATURE;
       }
 
-      search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
-      if (search != changes.end())
-      {
-        success = ApplyResult::PASS_SNAPSHOT_EVIDENCE;
-      }
-
       search = changes.find(ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
       if (search != changes.end())
       {

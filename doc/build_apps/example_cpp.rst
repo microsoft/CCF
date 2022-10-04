@@ -34,13 +34,13 @@ The Logging example application simply has:
     .. literalinclude:: ../../samples/apps/logging/logging.cpp
         :language: cpp
         :start-after: SNIPPET: public_table_access
-        :lines: 1
+        :end-before: SNIPPET_END: public_table_access
         :dedent:
 
     .. literalinclude:: ../../samples/apps/logging/logging.cpp
         :language: cpp
         :start-after: SNIPPET: private_table_access
-        :lines: 1
+        :end-before: SNIPPET_END: private_table_access
         :dedent:
 
 Application Endpoints

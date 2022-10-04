@@ -367,7 +367,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.30.1";
+      openapi_info.document_version = "2.31.6";
     }
 
     void init_handlers() override
@@ -414,8 +414,10 @@ namespace ccf
             ccf::errors::StartupSeqnoIsOld,
             fmt::format(
               "Node requested to join from seqno {} which is "
-              "older than this node startup seqno {}",
+              "older than this node startup seqno {}. A snapshot at least ",
+              "as recent as {} must be used instead.",
               in.startup_seqno.value(),
+              this_startup_seqno,
               this_startup_seqno));
         }
 

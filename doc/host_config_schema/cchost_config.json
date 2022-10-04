@@ -401,6 +401,26 @@
       "type": ["string", "null"],
       "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier"
     },
+    "attestation": {
+      "type": "object",
+      "properties": {
+        "snp_endorsements_server_type": {
+          "type": "string",
+          "enum": ["Azure", "AMD"],
+          "default": "Azure",
+          "description": "Type of server used to retrieve attestation report endorsement certificates (SEV-SNP only)"
+        },
+        "snp_endorsements_servers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Server hostnames used to retrieve attestation report endorsement certificates, e.g. [\"kdsintf.amd.com\"] (SEV-SNP only). The first endpoint in the list is always used and other endpoints are only specified as fallback. All servers must be of the same type (see ``snp_endorsements_server_type``)"
+        }
+      },
+      "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
+      "additionalProperties": false
+    },
     "service_data_json_file": {
       "type": ["string", "null"],
       "description": "Path to file (JSON) containing initial service data. It is used when the node starts in 'Start' or 'Recover' mode and is intended to store arbitrary information about the service"

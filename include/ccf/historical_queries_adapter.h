@@ -39,12 +39,6 @@ namespace ccf::historical
   std::optional<ccf::TxID> txid_from_header(
     endpoints::CommandEndpointContext& args);
 
-  bool is_tx_committed_v1(
-    kv::Consensus* consensus,
-    ccf::View view,
-    ccf::SeqNo seqno,
-    std::string& error_reason);
-
   enum class HistoricalTxStatus
   {
     Error,
@@ -95,32 +89,5 @@ namespace ccf::historical
     ccfapp::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
-
-  CCF_DEPRECATED(
-    "Will be removed in 2.0, switch to ccf::historical::adapter_v3")
-  ccf::endpoints::EndpointFunction adapter_v1(
-    const HandleHistoricalQuery& f,
-    AbstractStateCache& state_cache,
-    const CheckAvailability& available,
-    const TxIDExtractor& extractor = txid_from_header);
-
-  // These unversioned aliases are here for compatibility reasons,
-  // but the intention is to remove them come 2.0, and make all usage
-  // explicitly versioned
-  CCF_DEPRECATED(
-    "Will be removed in 2.0, switch to ccf::historical::adapter_v3")
-  ccf::endpoints::EndpointFunction adapter(
-    const HandleHistoricalQuery& f,
-    AbstractStateCache& state_cache,
-    const CheckAvailability& available,
-    const TxIDExtractor& extractor = txid_from_header);
-
-  CCF_DEPRECATED(
-    "Will be removed in 2.0, switch to ccf::historical::is_tx_committed_v2")
-  bool is_tx_committed(
-    kv::Consensus* consensus,
-    ccf::View view,
-    ccf::SeqNo seqno,
-    std::string& error_reason);
   /// @endcond
 }

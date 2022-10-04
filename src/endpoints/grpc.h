@@ -8,6 +8,7 @@
 #include "node/rpc/rpc_exception.h"
 
 #include <arpa/inet.h>
+#include <google/protobuf/empty.pb.h>
 #include <variant>
 #include <vector>
 
@@ -43,9 +44,6 @@ namespace ccf::grpc
     }
   }
 
-  struct EmptyResponse
-  {};
-
   template <typename T>
   struct SuccessResponse
   {
@@ -73,9 +71,9 @@ namespace ccf::grpc
     return SuccessResponse(t, make_grpc_status_ok());
   }
 
-  GrpcAdapterResponse<EmptyResponse> make_success()
+  GrpcAdapterResponse<google::protobuf::Empty> make_success()
   {
-    return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
+    return SuccessResponse(google::protobuf::Empty{}, make_grpc_status_ok());
   }
 
   ErrorResponse make_error(
@@ -115,24 +113,59 @@ namespace ccf::grpc
           http::headervalues::contenttype::GRPC));
     }
 
-    auto message_length = impl::read_message_frame(data, size);
-    if (size != message_length)
+    if constexpr (nonstd::is_std_vector<In>::value)
     {
-      throw std::logic_error(fmt::format(
-        "Error in gRPC frame: frame size is {} but messages is {} bytes",
-        size,
-        message_length));
-    }
-    ctx->set_response_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+      using Message = typename In::value_type;
+      In messages;
+      while (size != 0)
+      {
+        const auto message_length = impl::read_message_frame(data, size);
+        if (message_length > size)
+        {
+          throw std::logic_error(fmt::format(
+            "Error in gRPC frame: only {} bytes remaining but message header "
+            "says messages is {} bytes",
+            size,
+            message_length));
+        }
 
-    In in;
-    if (!in.ParseFromArray(data, size))
-    {
-      throw std::logic_error(
-        fmt::format("Error deserialising protobuf payload of size {}", size));
+        Message& msg = messages.emplace_back();
+        if (!msg.ParseFromArray(data, message_length))
+        {
+          throw std::logic_error(fmt::format(
+            "Error deserialising protobuf payload of type {}, size {} (message "
+            "{} in "
+            "stream)",
+            msg.GetTypeName(),
+            size,
+            messages.size()));
+        }
+        data += message_length;
+        size -= message_length;
+      }
+      return messages;
     }
-    return in;
+    else
+    {
+      const auto message_length = impl::read_message_frame(data, size);
+      if (size != message_length)
+      {
+        throw std::logic_error(fmt::format(
+          "Error in gRPC frame: frame size is {} but messages is {} bytes",
+          size,
+          message_length));
+      }
+
+      In in;
+      if (!in.ParseFromArray(data, message_length))
+      {
+        throw std::logic_error(fmt::format(
+          "Error deserialising protobuf payload of type {}, size {}",
+          in.GetTypeName(),
+          size));
+      }
+      return in;
+    }
   }
 
   template <typename Out>
@@ -143,25 +176,62 @@ namespace ccf::grpc
     auto success_response = std::get_if<SuccessResponse<Out>>(&r);
     if (success_response != nullptr)
     {
-      const auto& resp = success_response->body;
-      if constexpr (!std::is_same_v<Out, EmptyResponse>)
+      std::vector<uint8_t> r;
+
+      if constexpr (nonstd::is_std_vector<Out>::value)
       {
-        size_t r_size = impl::message_frame_length + resp.ByteSizeLong();
-        std::vector<uint8_t> r(r_size);
+        using Message = typename Out::value_type;
+        const Out& messages = success_response->body;
+        size_t r_size = std::accumulate(
+          messages.begin(),
+          messages.end(),
+          0,
+          [](size_t current, const Message& msg) {
+            return current + impl::message_frame_length + msg.ByteSizeLong();
+          });
+        r.resize(r_size);
         auto r_data = r.data();
 
-        impl::write_message_frame(r_data, r_size, resp.ByteSizeLong());
-        ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+        for (const Message& msg : messages)
+        {
+          const auto message_length = msg.ByteSizeLong();
+          impl::write_message_frame(r_data, r_size, message_length);
+
+          if (!msg.SerializeToArray(r_data, r_size))
+          {
+            throw std::logic_error(fmt::format(
+              "Error serialising protobuf response of type {}, size {}",
+              msg.GetTypeName(),
+              message_length));
+          }
+
+          r_data += message_length;
+          r_size += message_length;
+        }
+      }
+      else
+      {
+        const Out& resp = success_response->body;
+        const auto message_length = resp.ByteSizeLong();
+        size_t r_size = impl::message_frame_length + message_length;
+        r.resize(r_size);
+        auto r_data = r.data();
+
+        impl::write_message_frame(r_data, r_size, message_length);
 
         if (!resp.SerializeToArray(r_data, r_size))
         {
           throw std::logic_error(fmt::format(
-            "Error serialising protobuf response of size {}",
-            resp.ByteSizeLong()));
+            "Error serialising protobuf response of type {}, size {}",
+            resp.GetTypeName(),
+            message_length));
         }
-        ctx->set_response_body(r);
       }
+
+      ctx->set_response_body(r);
+      ctx->set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+
       ctx->set_response_trailer("grpc-status", success_response->status.code());
       ctx->set_response_trailer(
         "grpc-message", success_response->status.message());
@@ -187,6 +257,10 @@ namespace ccf
     endpoints::ReadOnlyEndpointContext& ctx, In&& payload)>;
 
   template <typename In, typename Out>
+  using GrpcCommandEndpoint = std::function<grpc::GrpcAdapterResponse<Out>(
+    endpoints::CommandEndpointContext& ctx, In&& payload)>;
+
+  template <typename In, typename Out>
   endpoints::EndpointFunction grpc_adapter(const GrpcEndpoint<In, Out>& f)
   {
     return [f](endpoints::EndpointContext& ctx) {
@@ -200,6 +274,16 @@ namespace ccf
     const GrpcReadOnlyEndpoint<In, Out>& f)
   {
     return [f](endpoints::ReadOnlyEndpointContext& ctx) {
+      grpc::set_grpc_response<Out>(
+        f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
+    };
+  }
+
+  template <typename In, typename Out>
+  endpoints::CommandEndpointFunction grpc_command_adapter(
+    const GrpcCommandEndpoint<In, Out>& f)
+  {
+    return [f](endpoints::CommandEndpointContext& ctx) {
       grpc::set_grpc_response<Out>(
         f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
     };

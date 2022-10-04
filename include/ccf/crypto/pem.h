@@ -99,12 +99,6 @@ namespace crypto
     {
       return {data(), data() + size()};
     }
-
-    // Not null-terminated
-    std::vector<uint8_t> contents() const
-    {
-      return {data(), data() + s.size()};
-    }
   };
 
   inline void to_json(nlohmann::json& j, const Pem& p)

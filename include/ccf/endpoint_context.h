@@ -22,6 +22,8 @@ namespace ccf::endpoints
   // Commands are endpoints which do not interact with the kv, even to read
   struct CommandEndpointContext
   {
+    virtual ~CommandEndpointContext() = default;
+
     CommandEndpointContext(const std::shared_ptr<ccf::RpcContext>& r) :
       rpc_ctx(r)
     {}

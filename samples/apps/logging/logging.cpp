@@ -247,7 +247,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.10.2";
+      openapi_info.document_version = "1.11.5";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -273,6 +273,7 @@ namespace loggingapp
         // SNIPPET: private_table_access
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
+        // SNIPPET_END: private_table_access
         records_handle->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
@@ -401,6 +402,7 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
+        // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
         records_handle->put(id, in.msg);
         update_first_write(ctx.tx, in.id, false, get_scope(ctx));
