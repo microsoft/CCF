@@ -596,14 +596,28 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 
 
 @reqs.description("Test COSE Sign1 auth")
-def test_all_nodes_cert_renewal(network, args):
+def test_cose_auth(network, args):
     primary, _ = network.find_primary()
     identity = primary.identity("member0")
     signed_statement = signing.create_cose_sign1(
         b"body", open(identity.key).read(), open(identity.cert).read(), {}
     )
+    print(len(signed_statement))
+    print(signed_statement)
     with primary.client() as c:
         r = c.post("/gov/test", body=signed_statement, headers={"content-type": "application/cose"})
+        assert r.status_code == 200
+        pprint.pprint(r.body.json())
+
+    identity = primary.identity("user0")
+    signed_statement = signing.create_cose_sign1(
+        b"body", open(identity.key).read(), open(identity.cert).read(), {}
+    )
+    print(len(signed_statement))
+    print(signed_statement)
+    with primary.client() as c:
+        r = c.post("/gov/test", body=signed_statement, headers={"content-type": "application/cose"})
+        assert r.status_code == 401
         pprint.pprint(r.body.json())
 
 
@@ -654,7 +668,7 @@ def js_gov(args):
 def cose(args):
     with infra.network.network(args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb) as network:
         network.start_and_open(args)
-        test_all_nodes_cert_renewal(network, args)
+        test_cose_auth(network, args)
 
 if __name__ == "__main__":
 

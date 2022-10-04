@@ -225,11 +225,17 @@ namespace ccf
       q_useful_buf_c signed_cose;
       signed_cose.ptr = ctx->get_request_body().data();
       signed_cose.len = ctx->get_request_body().size();
+      LOG_INFO_FMT("size: {}", ctx->get_request_body().size());
       if (!verifier->verify(signed_cose))
       {
         error_reason = fmt::format("Failed to validate COSE Sign1");
         return nullptr;
       }
+    }
+    else
+    {
+      error_reason = fmt::format("Signer is not a known member");
+      return nullptr;
     }
 
     auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();

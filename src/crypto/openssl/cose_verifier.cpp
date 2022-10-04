@@ -66,7 +66,12 @@ namespace crypto
     q_useful_buf_c returned_payload;
     t_cose_err_t error =
       t_cose_sign1_verify(&verify_ctx, buf, &returned_payload, nullptr);
-    return error;
+    if (error == T_COSE_SUCCESS)
+    {
+      return true;
+    }
+    LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
+    return false;
   }
 
   COSEVerifierUniquePtr make_cose_verifier(const std::vector<uint8_t>& cert)
