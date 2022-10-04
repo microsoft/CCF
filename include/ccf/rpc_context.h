@@ -60,7 +60,10 @@ namespace ccf
     /// the same long-lived session.
     virtual std::shared_ptr<SessionContext> get_session_context() const = 0;
 
+    // Set user data that will be available in the post-local-commit handler.
+    // This is useful to avoid the serialisation/deserialisation cost.
     virtual void set_user_data(std::shared_ptr<void> data) = 0;
+    // Get the user data that was previously set.
     virtual void* get_user_data() const = 0;
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
