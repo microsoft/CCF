@@ -597,7 +597,7 @@ class CCFRemote(object):
         node_data_json_file=None,
         service_cert_file="service_cert.pem",
         service_data_json_file=None,
-        snp_endorsements_servers=[],
+        snp_endorsements_servers=None,
         **kwargs,
     ):
         """
@@ -669,12 +669,15 @@ class CCFRemote(object):
             ] = host.acme_challenge_server_interface
 
         # SNP endorsements servers
+        snp_endorsements_servers = snp_endorsements_servers or []
         snp_endorsements_servers_list = []
         for s in snp_endorsements_servers:
             try:
                 server_type, url = s.split(":")
-            except ValueError:
-                raise ValueError("SNP endorsements servers should be in the format type:url")
+            except ValueError as e:
+                raise ValueError(
+                    "SNP endorsements servers should be in the format type:url"
+                ) from e
             s = {}
             s["type"] = server_type
             s["url"] = url
