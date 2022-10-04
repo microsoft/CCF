@@ -202,7 +202,7 @@ namespace http2
       auto* stream_data = get_stream_data(session, stream_id);
       if (stream_data == nullptr)
       {
-        LOG_FAIL_FMT("stream not found!");
+        LOG_FAIL_FMT("stream with id {} not found!", stream_id);
         return;
       }
       stream_data->body = std::move(body);

@@ -40,6 +40,8 @@ namespace ccf
       caller_cert(caller_cert_),
       interface_id(interface_id_)
     {}
+
+    virtual ~SessionContext() = default;
   };
 
   using PathParams = std::map<std::string, std::string, std::less<>>;

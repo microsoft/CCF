@@ -28,6 +28,15 @@ namespace ccf
       http_status status_code,
       http::HeaderMap&& headers,
       std::span<const uint8_t> body) = 0;
+    // TODO: This variant is extremely wrong...
+    virtual void send_response(
+      int32_t stream_id,
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body)
+    {
+      send_response(status_code, std::move(headers), body);
+    }
 
     void send_odata_error_response(ccf::ErrorDetails&& error)
     {

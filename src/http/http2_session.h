@@ -11,6 +11,13 @@
 
 namespace http
 {
+  struct HTTP2SessionContext : public ccf::SessionContext
+  {
+    int32_t stream_id;
+
+    using SessionContext::SessionContext;
+  };
+
   class HTTP2Session : public ccf::TLSSession
   {
   protected:
@@ -125,8 +132,29 @@ namespace http
       {
         if (session_ctx == nullptr)
         {
-          session_ctx = std::make_shared<ccf::SessionContext>(
+          auto http2_session_ctx = std::make_shared<HTTP2SessionContext>(
             session_id, peer_cert(), interface_id);
+          http2_session_ctx->stream_id = stream_id;
+          session_ctx = http2_session_ctx;
+        }
+
+        // TODO: Yuck! Where should the stream_id live!?
+        {
+          auto http2_session_ctx =
+            std::dynamic_pointer_cast<HTTP2SessionContext>(session_ctx);
+          if (http2_session_ctx == nullptr)
+          {
+            throw std::logic_error("WRONG SESSION TYPE!");
+          }
+          if (http2_session_ctx->stream_id != stream_id)
+          {
+            // Make a new one, with the right stream_id!
+            // Real wasteful!!!
+            auto http2_session_ctx = std::make_shared<HTTP2SessionContext>(
+              session_id, peer_cert(), interface_id);
+            http2_session_ctx->stream_id = stream_id;
+            session_ctx = http2_session_ctx;
+          }
         }
 
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
@@ -197,8 +225,17 @@ namespace http
       http::HeaderMap&& headers,
       std::span<const uint8_t> body) override
     {
+      throw std::logic_error("Unimplemented");
+    }
+
+    void send_response(
+      int32_t stream_id,
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body) override
+    {
       server_parser.send_response(
-        1, // TODO: Where do we find this?
+        stream_id,
         status_code,
         std::move(headers),
         {}, // TODO: Include trailers

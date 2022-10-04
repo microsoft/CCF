@@ -18,8 +18,14 @@ namespace ccf
       return "RPCResponder";
     }
 
-    virtual bool reply_async(int64_t connection_id, std::vector<uint8_t>&& data) = 0;
-    virtual bool reply_async(int64_t connection_id, size_t status_code, std::vector<uint8_t>&& data) = 0;
-    // TODO: Add reply_async_structured, taking unserialised response description
+    virtual bool reply_async(
+      int64_t connection_id, std::vector<uint8_t>&& data) = 0;
+    virtual bool reply_async(
+      int64_t connection_id,
+      int32_t stream_id,
+      size_t status_code,
+      std::vector<uint8_t>&& data) = 0;
+    // TODO: Add reply_async_structured, taking unserialised response
+    // description
   };
 }

@@ -475,7 +475,10 @@ namespace ccf
     }
 
     bool reply_async(
-      tls::ConnID id, size_t status_code, std::vector<uint8_t>&& data) override
+      tls::ConnID id,
+      int32_t stream_id,
+      size_t status_code,
+      std::vector<uint8_t>&& data) override
     {
       auto session = find_session(id);
       if (session == nullptr)
@@ -486,7 +489,8 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      session->send_response((http_status)status_code, {}, std::move(data));
+      session->send_response(
+        stream_id, (http_status)status_code, {}, std::move(data));
       return true;
     }
 

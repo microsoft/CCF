@@ -13,6 +13,7 @@
 #include "endpoints/grpc.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
+#include "http/http2_session.h"
 #include "http/http_builder.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
@@ -39,6 +40,7 @@ namespace externalexecutor
     struct PendingRequest
     {
       size_t originating_session_id;
+      int32_t originating_stream_id;
       std::unique_ptr<kv::CommittableTx> tx = nullptr;
       ccf::RequestDescription request_description;
     };
@@ -213,11 +215,16 @@ namespace externalexecutor
             auto response_v = response.build_response();
             const std::string response_s(response_v.begin(), response_v.end());
             LOG_INFO_FMT(
-              "Preparing to send final response to user on session {}:\n{}",
+              "Preparing to send final response to user on session {}, stream {}:\n{}",
               active_request->originating_session_id,
+              active_request->originating_stream_id,
               response_s);
+
+            // TODO: Maybe scrap the whole idea of this being a subsystem, and
+            // store a handle to the Session directly here?
             rpc_responder->reply_async(
               active_request->originating_session_id,
+              active_request->originating_stream_id,
               payload.status_code(),
               std::move(response_v));
             break;
@@ -421,6 +428,16 @@ namespace externalexecutor
       PendingRequest pr;
       pr.originating_session_id =
         endpoint_ctx.rpc_ctx->get_session_context()->client_session_id;
+
+      auto http2_session_context =
+        std::dynamic_pointer_cast<http::HTTP2SessionContext>(
+          endpoint_ctx.rpc_ctx->get_session_context());
+      if (http2_session_context == nullptr)
+      {
+        throw std::logic_error("Unexpected session context type");
+      }
+      pr.originating_stream_id = http2_session_context->stream_id;
+
       pr.tx = std::move(ctx_impl->owned_tx);
       {
         ccf::RequestDescription& rd = pr.request_description;
