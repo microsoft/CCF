@@ -319,8 +319,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
 
-        auto out =
-          static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
+        auto out = static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
 
         if (out == nullptr)
         {
