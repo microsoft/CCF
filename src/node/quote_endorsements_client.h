@@ -118,9 +118,23 @@ namespace ccf
             if (
               msg->data.self->server_retries_count >= max_server_retries_count)
             {
-              // Move on to next server if we have passed max retries count
-              servers.pop_front();
+              if (servers.size() > 1)
+              {
+                // Move on to next server if we have passed max retries count
+                servers.pop_front();
+              }
+              else
+              {
+                auto& server = servers.front();
+                LOG_FAIL_FMT(
+                  "Giving up retrying fetching attestation endorsements from "
+                  "{} after {} attempts ",
+                  server.front().host,
+                  max_server_retries_count);
+                return;
+              }
             }
+
             msg->data.self->fetch(servers.front());
           }
         },
@@ -130,11 +144,19 @@ namespace ccf
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(msg),
-        std::chrono::milliseconds(server_connection_timeout_s * 1000));
+        std::chrono::milliseconds(
+          server_connection_timeout_s * 1)); // TODO: Change back
     }
 
     void handle_success_response(std::vector<uint8_t>&& data, bool is_der)
     {
+      if (has_completed)
+      {
+        // We may receive a response to an in-flight request after having
+        // fetched all endorsements
+        return;
+      }
+
       if (is_der)
       {
         auto raw = crypto::cert_der_to_pem(data).raw();
