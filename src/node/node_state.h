@@ -175,7 +175,7 @@ namespace ccf
     }
 
     // Returns true if the snapshot is already verified (via embedded receipt)
-    bool initialise_startup_snapshot(bool recovery = false)
+    void initialise_startup_snapshot(bool recovery = false)
     {
       std::shared_ptr<kv::Store> snapshot_store;
       if (!recovery)
@@ -207,14 +207,11 @@ namespace ccf
         hooks,
         &view_history,
         true,
-        config.startup_snapshot_evidence_seqno_for_1_x,
         config.recover.previous_service_identity);
 
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
-
-      return !startup_snapshot_info->requires_ledger_verification();
     }
 
   public:
@@ -305,22 +302,13 @@ namespace ccf
         }
         case StartType::Join:
         {
-          // When joining from a snapshot, deserialise ledger suffix to
-          // verify (1.x) snapshot evidence. Otherwise, attempt to join straight
-          //
-          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
+          if (!config.startup_snapshot.empty())
           {
-            // Note: 2.x snapshots are self-verified so the ledger verification
-            // of its evidence can be skipped entirely
-            sm.advance(NodeStartupState::pending);
-            start_join_timer();
+            initialise_startup_snapshot();
           }
-          else
-          {
-            // Node joins from a 1.x snapshot
-            sm.advance(NodeStartupState::verifyingSnapshot);
-            start_ledger_recovery_unsafe();
-          }
+
+          sm.advance(NodeStartupState::pending);
+          start_join_timer();
           return;
         }
         case StartType::Recover:
@@ -348,8 +336,8 @@ namespace ccf
     {
       auto fetch_endorsements =
         [this](
-          QuoteInfo quote_info_,
-          const pal::EndorsementEndpointConfiguration& config) {
+          const QuoteInfo& quote_info_,
+          const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
           if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
           {
             // Note: Node lock is already taken here as this is called back
@@ -363,11 +351,10 @@ namespace ccf
             return;
           }
 
-          quote_endorsements_client =
-            std::make_shared<QuoteEndorsementsClient>(rpcsessions);
-
-          quote_endorsements_client->fetch_endorsements(
-            config, [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
+            rpcsessions,
+            endpoint_config,
+            [this, quote_info_](std::vector<uint8_t>&& endorsements) {
               // Note: Only called for SEV-SNP
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info = quote_info_;
@@ -375,6 +362,8 @@ namespace ccf
               launch_node();
               quote_endorsements_client.reset();
             });
+
+          quote_endorsements_client->fetch_endorsements();
         };
 
       pal::attestation_report_data report_data = {};
@@ -383,7 +372,11 @@ namespace ccf
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
-      pal::generate_quote(report_data, fetch_endorsements);
+      pal::generate_quote(
+        report_data,
+        fetch_endorsements,
+        config.attestation.snp_endorsements_server_type,
+        config.attestation.snp_endorsements_servers);
     }
 
     NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)
@@ -408,7 +401,7 @@ namespace ccf
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
-      setup_history(start_type != StartType::Recover);
+      setup_history();
       setup_snapshotter();
       setup_encryptor();
 
@@ -622,7 +615,6 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info->public_only,
-                startup_snapshot_info->evidence_seqno,
                 config.recover.previous_service_identity);
 
               for (auto& hook : hooks)
@@ -663,6 +655,7 @@ namespace ccf
 
             snapshotter->set_last_snapshot_idx(
               network.tables->current_version());
+            history->start_signature_emit_timer();
 
             if (resp.network_info->public_only)
             {
@@ -724,9 +717,6 @@ namespace ccf
       join_client->send_request(r);
     }
 
-    // Note: _unsafe() pattern can be simplified once 2.x has been released
-    // and 1.x snapshots no longer need to be verified
-    // (https://github.com/microsoft/CCF/issues/2981)
     void initiate_join()
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -788,18 +778,15 @@ namespace ccf
     }
 
     //
-    // funcs in state "readingPublicLedger" or "verifyingSnapshot"
+    // funcs in state "readingPublicLedger"
     //
     void start_ledger_recovery_unsafe()
     {
-      if (
-        !sm.check(NodeStartupState::readingPublicLedger) &&
-        !sm.check(NodeStartupState::verifyingSnapshot))
+      if (!sm.check(NodeStartupState::readingPublicLedger))
       {
         throw std::logic_error(fmt::format(
-          "Node should be in state {} or {} to start reading ledger",
-          NodeStartupState::readingPublicLedger,
-          NodeStartupState::verifyingSnapshot));
+          "Node should be in state {} to start reading ledger",
+          NodeStartupState::readingPublicLedger));
       }
 
       LOG_INFO_FMT("Starting to read public ledger");
@@ -812,38 +799,14 @@ namespace ccf
     {
       std::lock_guard<pal::Mutex> guard(lock);
 
-      std::shared_ptr<kv::Store> store;
-      if (sm.check(NodeStartupState::readingPublicLedger))
-      {
-        // In recovery, use the main store to deserialise public entries
-        store = network.tables;
-      }
-      else if (sm.check(NodeStartupState::verifyingSnapshot))
-      {
-        store = startup_snapshot_info->store;
-      }
-      else
-      {
-        LOG_FAIL_FMT(
-          "Node should be in state {} or {} to recover public ledger entries",
-          NodeStartupState::readingPublicLedger,
-          NodeStartupState::verifyingSnapshot);
-        return;
-      }
+      sm.expect(NodeStartupState::readingPublicLedger);
 
       auto data = entries.data();
       auto size = entries.size();
 
       if (size == 0)
       {
-        if (is_verifying_snapshot())
-        {
-          verify_snapshot_end_unsafe();
-        }
-        else
-        {
-          recover_public_ledger_end_unsafe();
-        }
+        recover_public_ledger_end_unsafe();
         return;
       }
 
@@ -858,7 +821,7 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          auto r = store->deserialize(entry, ConsensusType::CFT, true);
+          auto r = network.tables->deserialize(entry, ConsensusType::CFT, true);
           result = r->apply();
           if (result == kv::ApplyResult::FAIL)
           {
@@ -887,8 +850,8 @@ namespace ccf
         if (result == kv::ApplyResult::PASS_SIGNATURE)
         {
           // If the ledger entry is a signature, it is safe to compact the store
-          store->compact(last_recovered_idx);
-          auto tx = store->create_read_only_tx();
+          network.tables->compact(last_recovered_idx);
+          auto tx = network.tables->create_read_only_tx();
           auto last_sig = tx.ro(network.signatures)->get();
 
           if (!last_sig.has_value())
@@ -920,86 +883,11 @@ namespace ccf
             view_history.push_back(view_start_idx);
           }
           last_recovered_signed_idx = last_recovered_idx;
-
-          if (
-            startup_snapshot_info && startup_snapshot_info->has_evidence &&
-            startup_snapshot_info->evidence_seqno.has_value() &&
-            static_cast<consensus::Index>(last_sig->commit_seqno) >=
-              startup_snapshot_info->evidence_seqno.value())
-          {
-            startup_snapshot_info->is_evidence_committed = true;
-          }
-        }
-        else if (
-          result == kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE &&
-          startup_snapshot_info)
-        {
-          auto tx = store->create_read_only_tx();
-          auto snapshot_evidence = tx.ro(network.snapshot_evidence);
-
-          if (
-            startup_snapshot_info->evidence_seqno.has_value() &&
-            last_recovered_idx == startup_snapshot_info->evidence_seqno.value())
-          {
-            auto evidence = snapshot_evidence->get();
-            if (!evidence.has_value())
-            {
-              throw std::logic_error("Invalid snapshot evidence");
-            }
-
-            if (
-              evidence->hash == crypto::Sha256Hash(startup_snapshot_info->raw))
-            {
-              LOG_DEBUG_FMT(
-                "Snapshot evidence for snapshot found at {}",
-                startup_snapshot_info->evidence_seqno.value());
-              startup_snapshot_info->has_evidence = true;
-            }
-          }
         }
       }
 
       read_ledger_entries(
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
-    }
-
-    void verify_snapshot_end_unsafe()
-    {
-      if (!sm.check(NodeStartupState::verifyingSnapshot))
-      {
-        LOG_FAIL_FMT(
-          "Node in state {} cannot finalise snapshot verification", sm.value());
-        return;
-      }
-
-      if (startup_snapshot_info == nullptr)
-      {
-        // Node should shutdown if the startup snapshot cannot be verified
-        throw std::logic_error(
-          "No known startup snapshot to finalise snapshot verification");
-      }
-
-      if (!startup_snapshot_info->is_snapshot_verified())
-      {
-        // Node should shutdown if the startup snapshot cannot be verified
-        LOG_FAIL_FMT(
-          "Snapshot evidence at {} was not committed in ledger ending at {}. "
-          "Node should be shutdown by operator.",
-          startup_snapshot_info->evidence_seqno.value(),
-          last_recovered_idx);
-        return;
-      }
-
-      ledger_truncate(startup_snapshot_info->seqno);
-
-      sm.advance(NodeStartupState::pending);
-      start_join_timer();
-    }
-
-    void verify_snapshot_end()
-    {
-      std::lock_guard<pal::Mutex> guard(lock);
-      verify_snapshot_end_unsafe();
     }
 
     void advance_part_of_public_network()
@@ -1014,6 +902,7 @@ namespace ccf
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
+      history->start_signature_emit_timer();
       auto_refresh_jwt_keys();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
@@ -1023,24 +912,6 @@ namespace ccf
     void recover_public_ledger_end_unsafe()
     {
       sm.expect(NodeStartupState::readingPublicLedger);
-
-      if (
-        startup_snapshot_info &&
-        startup_snapshot_info->requires_ledger_verification())
-      {
-        if (!startup_snapshot_info->is_snapshot_verified())
-        {
-          throw std::logic_error(
-            "Snapshot evidence was not committed in ledger");
-        }
-
-        if (
-          last_recovered_signed_idx <
-          startup_snapshot_info->evidence_seqno.value())
-        {
-          throw std::logic_error("Snapshot evidence would be rolled back");
-        }
-      }
 
       // When reaching the end of the public ledger, truncate to last signed
       // index
@@ -1345,7 +1216,6 @@ namespace ccf
           hooks,
           &view_history,
           false,
-          startup_snapshot_info->evidence_seqno,
           config.recover.previous_service_identity);
         startup_snapshot_info.reset();
       }
@@ -1703,11 +1573,6 @@ namespace ccf
     bool is_reading_private_ledger() const override
     {
       return sm.check(NodeStartupState::readingPrivateLedger);
-    }
-
-    bool is_verifying_snapshot() const override
-    {
-      return sm.check(NodeStartupState::verifyingSnapshot);
     }
 
     bool is_part_of_public_network() const override
@@ -2443,7 +2308,7 @@ namespace ccf
       cmd_forwarder->initialize(self);
     }
 
-    void setup_history(bool signature_timer = true)
+    void setup_history()
     {
       if (history)
       {
@@ -2456,7 +2321,7 @@ namespace ccf
         *node_sign_kp,
         sig_tx_interval,
         sig_ms_interval,
-        signature_timer);
+        false /* start timed signatures after first tx */);
       network.tables->set_history(history);
     }
 

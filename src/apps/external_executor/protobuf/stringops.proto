@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package temp;
+
+option optimize_for = LITE_RUNTIME;
+
+service Test
+{
+  rpc RunOps(stream OpIn) returns (stream OpOut) {}
+}
+
+message OpIn
+{
+  oneof op
+  {
+    EchoOp echo = 1;
+    ReverseOp reverse = 2;
+    TruncateOp truncate = 3;
+  }
+}
+
+message EchoOp { string body = 1; }
+message ReverseOp { string body = 1; }
+message TruncateOp
+{
+  string body = 1;
+  uint32 start = 2;
+  uint32 end = 3;
+}
+
+message OpOut
+{
+  oneof result
+  {
+    EchoResult echoed = 1;
+    ReverseResult reversed = 2;
+    TruncateResult truncated = 3;
+  }
+}
+
+message EchoResult { string body = 1; }
+message ReverseResult { string body = 1; }
+message TruncateResult { string body = 1; }

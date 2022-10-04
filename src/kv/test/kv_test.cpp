@@ -2889,18 +2889,29 @@ TEST_CASE("Reported TxID after commit")
 }
 
 template <typename T>
-std::map<T, T> std_map_range(const std::map<T, T>& map, T from, T to)
+std::map<T, T> std_map_range(
+  const std::map<T, T>& map, std::optional<T> from, std::optional<T> to)
 {
-  if (to < from || to == from)
+  if (
+    from.has_value() && to.has_value() &&
+    (from.value() == to.value() || to.value() < from.value()))
   {
     return {};
   }
 
-  std::map<T, T> ret = {};
-  auto f = map.lower_bound(from);
-  auto t = map.upper_bound(to);
+  auto f = map.begin();
+  if (from.has_value())
+  {
+    f = map.lower_bound(from.value());
+  }
+  auto t = map.end();
+  if (to.has_value())
+  {
+    t = map.lower_bound(to.value());
+  }
 
-  for (auto it = f; it != std::prev(t); it++)
+  std::map<T, T> ret = {};
+  for (auto it = f; it != t; it++)
   {
     ret.emplace(*it);
   }
@@ -2917,7 +2928,7 @@ T get_map_get_factor(const std::map<T, T>& map, size_t factor)
 }
 
 template <class H, class T>
-std::map<T, T> kv_map_range(H& h, const T& from, const T& to)
+std::map<T, T> kv_map_range(H& h, std::optional<T> from, std::optional<T> to)
 {
   std::map<T, T> range;
   auto f = [&range](const T& k, const T& v) { range.emplace(k, v); };
@@ -2973,15 +2984,23 @@ TEST_CASE("Range")
     auto first = ref.begin()->first;
     auto last = ref.rbegin()->first;
     auto middle = get_map_get_factor(ref, 2);
-    std::vector<std::pair<KeyType, KeyType>> ranges = {
-      {first, first},
-      {last, last},
-      {last, first},
-      {last, middle},
-      {first, last},
-      {first, middle},
-      {middle, last},
-      {first, last}};
+    std::vector<std::pair<std::optional<KeyType>, std::optional<KeyType>>>
+      ranges = {
+        {first, first},
+        {last, last},
+        {last, first},
+        {last, middle},
+        {first, last},
+        {first, middle},
+        {middle, last},
+        {first, last},
+        {std::nullopt, first},
+        {std::nullopt, middle},
+        {std::nullopt, last},
+        {first, std::nullopt},
+        {middle, std::nullopt},
+        {last, std::nullopt},
+        {std::nullopt, std::nullopt}};
 
     for (const auto& range : ranges)
     {
@@ -3001,8 +3020,9 @@ TEST_CASE("Range")
       auto h = tx.rw<KVMap>(map_name);
 
       // Check key exists before deletion
-      REQUIRE_NOTHROW(kv_map_range(h, ref.begin()->first, ref.rbegin()->first)
-                        .at(key_to_remove));
+      std::optional<KeyType> from = ref.begin()->first;
+      std::optional<KeyType> to = ref.rbegin()->first;
+      REQUIRE_NOTHROW(kv_map_range(h, from, to).at(key_to_remove));
 
       {
         h->remove(key_to_remove);
@@ -3017,7 +3037,9 @@ TEST_CASE("Range")
       auto tx = kv_store.create_tx();
       auto h = tx.rw<KVMap>(map_name);
 
-      auto kv_range = kv_map_range(h, ref.begin()->first, ref.rbegin()->first);
+      std::optional<KeyType> from = ref.begin()->first;
+      std::optional<KeyType> to = ref.rbegin()->first;
+      auto kv_range = kv_map_range(h, from, to);
       REQUIRE_THROWS_AS(kv_range.at(key_to_remove), std::out_of_range);
     }
   }
@@ -3046,8 +3068,8 @@ TEST_CASE("Range")
 
     // Do not commit transaction
 
-    auto first = ref.begin()->first;
-    auto last = ref.rbegin()->first;
+    std::optional<KeyType> first = ref.begin()->first;
+    std::optional<KeyType> last = ref.rbegin()->first;
     auto std_range = std_map_range(ref, first, last);
     auto kv_range = kv_map_range(h, first, last);
     REQUIRE(std_range == kv_range);
