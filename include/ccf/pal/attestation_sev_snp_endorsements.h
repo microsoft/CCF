@@ -7,6 +7,7 @@
 #include <list>
 #include <map>
 #include <string>
+#include <vector>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -41,6 +42,18 @@ namespace ccf::pal::snp
     EndorsementsEndpointType,
     {{EndorsementsEndpointType::Azure, "Azure"},
      {EndorsementsEndpointType::AMD, "AMD"}});
+
+  struct EndorsementsServer
+  {
+    EndorsementsEndpointType type = Azure;
+    std::optional<std::string> url = std::nullopt;
+
+    bool operator==(const EndorsementsServer&) const = default;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndorsementsServer);
+  DECLARE_JSON_REQUIRED_FIELDS(EndorsementsServer);
+  DECLARE_JSON_OPTIONAL_FIELDS(EndorsementsServer, type, url);
+  using EndorsementsServers = std::vector<EndorsementsServer>;
 
   constexpr auto default_azure_endorsements_endpoint_host =
     "global.acccache.azure.net";
