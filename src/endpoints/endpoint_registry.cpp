@@ -31,8 +31,7 @@ namespace ccf::endpoints
       // informed schema builders
 
       auto& path_op = ds::openapi::path_operation(
-        ds::openapi::path(document, endpoint->full_uri_path),
-        http_verb.value());
+        ds::openapi::path(document, endpoint->api_uri_path), http_verb.value());
 
       // Path Operation must contain at least one response - if none has been
       // defined, assume this can return 200
@@ -132,6 +131,12 @@ namespace ccf::endpoints
     return metrics[method][verb];
   }
 
+  void default_locally_committed_func(
+    CommandEndpointContext& ctx, const TxID& tx_id)
+  {
+    ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
+  }
+
   Endpoint EndpointRegistry::make_endpoint(
     const std::string& method,
     RESTVerb verb,
@@ -149,8 +154,17 @@ namespace ccf::endpoints
     }
     endpoint.full_uri_path =
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
+    endpoint.api_uri_path = endpoint.full_uri_path;
+
+    if (method_prefix == "app")
+    {
+      endpoint.api_uri_path = endpoint.dispatch.uri_path;
+    }
+
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
+    endpoint.locally_committed_func = &default_locally_committed_func;
+
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded
     endpoint.properties.forwarding_required = ForwardingRequired::Always;
@@ -174,6 +188,30 @@ namespace ccf::endpoints
              },
              ap)
       .set_forwarding_required(ForwardingRequired::Sometimes);
+  }
+
+  Endpoint EndpointRegistry::make_endpoint_with_local_commit_handler(
+    const std::string& method,
+    RESTVerb verb,
+    const EndpointFunction& f,
+    const LocallyCommittedEndpointFunction& l,
+    const AuthnPolicies& ap)
+  {
+    auto endpoint = make_endpoint(method, verb, f, ap);
+    endpoint.locally_committed_func = l;
+    return endpoint;
+  }
+
+  Endpoint EndpointRegistry::make_read_only_endpoint_with_local_commit_handler(
+    const std::string& method,
+    RESTVerb verb,
+    const ReadOnlyEndpointFunction& f,
+    const LocallyCommittedEndpointFunction& l,
+    const AuthnPolicies& ap)
+  {
+    auto endpoint = make_read_only_endpoint(method, verb, f, ap);
+    endpoint.locally_committed_func = l;
+    return endpoint;
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -302,7 +340,7 @@ namespace ccf::endpoints
           parameter["required"] = true;
           parameter["schema"] = {{"type", "string"}};
           ds::openapi::add_path_parameter_schema(
-            document, endpoint->full_uri_path, parameter);
+            document, endpoint->api_uri_path, parameter);
         }
       }
     }
@@ -401,6 +439,21 @@ namespace ccf::endpoints
     }
 
     endpoint->func(ctx);
+  }
+
+  void EndpointRegistry::execute_endpoint_locally_committed(
+    EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id)
+  {
+    auto endpoint = dynamic_cast<const Endpoint*>(e.get());
+    if (endpoint == nullptr)
+    {
+      throw std::logic_error(
+        "Base execute_endpoint_locally_committed called on incorrect Endpoint "
+        "type - expected derived implementation to handle derived endpoint "
+        "instances");
+    }
+
+    endpoint->locally_committed_func(ctx, tx_id);
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
