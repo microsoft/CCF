@@ -531,6 +531,30 @@ namespace externalexecutor
 
       ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
     }
+
+    void execute_endpoint_locally_committed(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
+      const ccf::TxID& tx_id) override
+    {
+      auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
+      if (endpoint != nullptr)
+      {
+        execute_request_locally_committed(e, endpoint_ctx, tx_id);
+        return;
+      }
+
+      ccf::endpoints::EndpointRegistry::execute_endpoint_locally_committed(
+        e, endpoint_ctx, tx_id);
+    }
+
+    void execute_request_locally_committed(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
+      const ccf::TxID& tx_id)
+    {
+      ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
+    }
   };
 } // namespace externalexecutor
 
