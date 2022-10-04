@@ -74,9 +74,10 @@ namespace http
             "below.\n\n{}",
             e.what());
 
-          // TODO: Avoid copy
-          std::vector<uint8_t> data(body.begin(), body.end());
-          send_response(HTTP_STATUS_BAD_REQUEST, std::move(headers), data);
+          send_response(
+            HTTP_STATUS_BAD_REQUEST,
+            std::move(headers),
+            {(const uint8_t*)body.data(), body.size()});
 
           close();
           break;
@@ -263,15 +264,11 @@ namespace http
 
     void send_request(http::Request&& request) override
     {
-      // Note: Avoid extra copy
-      std::vector<uint8_t> request_body = {
-        request.get_content_data(),
-        request.get_content_data() + request.get_content_length()};
       client_parser.send_structured_request(
         request.get_method(),
         request.get_path(),
         request.get_headers(),
-        std::move(request_body));
+        {request.get_content_data(), request.get_content_length()});
     }
 
     void handle_response(

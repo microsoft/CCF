@@ -100,6 +100,44 @@ namespace http2
     return to_read;
   }
 
+  static ssize_t read_body_from_span_callback(
+    nghttp2_session* session,
+    StreamId stream_id,
+    uint8_t* buf,
+    size_t length,
+    uint32_t* data_flags,
+    nghttp2_data_source* source,
+    void* user_data)
+  {
+    LOG_TRACE_FMT("http2::read_body_from_span_callback: {}", length);
+    LOG_INFO_FMT("Resulted in callback with body set to {}", (size_t)user_data);
+
+    if (user_data == nullptr)
+    {
+      LOG_FAIL_FMT("nghttp2 read_callback with null user_data");
+      return nghttp2_error::NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+
+    auto body = static_cast<std::span<const uint8_t>*>(user_data);
+
+    // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
+    size_t to_read = std::min(body->size(), length);
+    LOG_TRACE_FMT("Request body size: {}, to_read: {}", body->size(), to_read);
+
+    if (to_read > 0)
+    {
+      memcpy(buf, body->data(), to_read);
+      *body = body->subspan(to_read);
+    }
+
+    if (body->empty())
+    {
+      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    }
+
+    return to_read;
+  }
+
   static int on_frame_recv_callback(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {

@@ -44,14 +44,12 @@ namespace ccf
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
       const auto s = body.dump();
 
-      // TODO: Avoid copy
-      std::vector<uint8_t> data(s.begin(), s.end());
-
       http::HeaderMap headers;
       headers[http::headers::CONTENT_TYPE] =
         http::headervalues::contenttype::JSON;
 
-      send_response(error.status, std::move(headers), data);
+      send_response(
+        error.status, std::move(headers), {(const uint8_t*)s.data(), s.size()});
     }
 
     virtual void send_request_oops(http::Request&& req)

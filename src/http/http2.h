@@ -280,7 +280,7 @@ namespace http2
       llhttp_method method,
       const std::string& route,
       const http::HeaderMap& headers,
-      std::vector<uint8_t>&& body)
+      std::span<const uint8_t> body)
     {
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
@@ -293,17 +293,16 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      auto stream_data = std::make_shared<StreamData>();
-
-      stream_data->body = std::move(body);
-
       // Note: response body is currently stored in StreamData, accessible from
       // read_callback
       nghttp2_data_provider prov;
-      prov.read_callback = read_request_body_callback;
+      prov.read_callback = read_body_from_span_callback;
+
+      LOG_INFO_FMT(
+        "Trying submit_request with user_data set to {}", (size_t)&body);
 
       auto stream_id = nghttp2_submit_request(
-        session, nullptr, hdrs.data(), hdrs.size(), &prov, stream_data.get());
+        session, nullptr, hdrs.data(), hdrs.size(), &prov, &body);
       if (stream_id < 0)
       {
         LOG_FAIL_FMT(
@@ -311,7 +310,7 @@ namespace http2
         return;
       }
 
-      store_stream(stream_id, stream_data);
+      create_stream(stream_id);
 
       send_all_submitted();
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
