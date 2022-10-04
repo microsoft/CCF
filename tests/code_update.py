@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from base64 import b64encode
 import infra.e2e_args
 import infra.network
 import infra.path
@@ -86,7 +87,6 @@ def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
     network.join_node(new_node, args.package, args, timeout=3, env=dict())
     network.trust_node(new_node, args)
 
-
     LOG.info(f"Checking node joined with a blank security policy")
     # TODO: Do this
 
@@ -112,7 +112,7 @@ def test_add_node_with_mismatched_security_policy_digest(network, args):
     prev_nodes = [primary, *others]
     try:
         new_node = network.create_node("local://localhost")
-        network.join_node(new_node, args.package, args, timeout=3, env={"SECURITY_POLICY": "eyJhbGxvd19hbGwiOmZhbHNlLCJjb250YWluZXJzIjp7Imxlbmd0aCI6MCwiZWxlbWVudHMiOm51bGx9fQ=="})
+        network.join_node(new_node, args.package, args, timeout=3, env={"SECURITY_POLICY": b64encode(b"invalid_security_policy").decode()})
         network.trust_node(new_node, args)
     except Exception: ...
 
@@ -335,7 +335,7 @@ def run(args):
         test_add_node_with_no_raw_security_policy_match_ledger(network, args)
         test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args)
         test_add_node_with_mismatched_security_policy_digest(network, args)
-        # test_add_node_with_bad_security_policy_digest(network, args)
+        test_add_node_with_bad_security_policy_digest(network, args)
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
         test_proposal_invalidation(network, args)
