@@ -5,19 +5,21 @@
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/verifier.h"
 #include "crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/verifier.h"
+#include "crypto/openssl/public_key.h"
 
 #include <chrono>
 #include <openssl/x509.h>
 
 namespace crypto
 {
-  class COSEVerifier_OpenSSL : public Verifier_OpenSSL, public COSEVerifier
+  class COSEVerifier_OpenSSL : public COSEVerifier
   {
-  public:
-    COSEVerifier_OpenSSL(const std::vector<uint8_t>& c);
-    virtual ~COSEVerifier_OpenSSL();
+  private:
+    std::shared_ptr<PublicKey_OpenSSL> public_key;
 
+  public:
+    COSEVerifier_OpenSSL(const std::vector<uint8_t>& certificate);
+    virtual ~COSEVerifier_OpenSSL();
     virtual bool verify(const q_useful_buf_c& buf) const override;
   };
 }
