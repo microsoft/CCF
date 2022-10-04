@@ -44,6 +44,10 @@ def wrap_tx(stub):
     stub.EndTx(KV.ResponseDescription())
 
 
+key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
+cert = infra.crypto.generate_cert(key_priv_pem)
+
+
 @reqs.description("Register an external executor")
 def test_executor_registration(network, args):
     primary, _ = network.find_primary()
@@ -52,8 +56,6 @@ def test_executor_registration(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
-    cert = infra.crypto.generate_cert(key_priv_pem)
     attestation_format = 2
     quote = "testquote"
     endorsements = "testendorsement"
@@ -97,7 +99,11 @@ def test_put_get(network, args):
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 
     credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+        root_certificates=open(
+            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+        ).read(),
+        private_key=key_priv_pem.encode(),
+        certificate_chain=cert.encode(),
     )
 
     my_table = "public:my_table"
@@ -169,7 +175,11 @@ def test_put_get(network, args):
 def test_simple_executor(network, args):
     primary, _ = network.find_primary()
     credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+        root_certificates=open(
+            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+        ).read(),
+        private_key=key_priv_pem.encode(),
+        certificate_chain=cert.encode(),
     )
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):

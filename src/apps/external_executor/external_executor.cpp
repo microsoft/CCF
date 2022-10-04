@@ -157,6 +157,7 @@ namespace externalexecutor
         return ccf::grpc::make_success(opt_rd);
       };
 
+      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       make_endpoint(
         "/ccf.KV/StartTx",
         HTTP_POST,
@@ -271,7 +272,7 @@ namespace externalexecutor
         "/ccf.KV/Put",
         HTTP_POST,
         ccf::grpc_adapter<ccf::KVKeyValue, google::protobuf::Empty>(put),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto get = [this](
@@ -303,7 +304,7 @@ namespace externalexecutor
         "/ccf.KV/Get",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVValue>(get),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto has = [this](
@@ -330,7 +331,7 @@ namespace externalexecutor
         "/ccf.KV/Has",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVHasResult>(has),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto get_version = [this](
@@ -363,7 +364,7 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVVersion>(
           get_version),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto kv_delete = [this](
@@ -389,7 +390,7 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, google::protobuf::Empty>(
           kv_delete),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto get_all = [this](
@@ -404,7 +405,7 @@ namespace externalexecutor
         "/ccf.KV/GetAll",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVTable, ccf::KVValue>(get_all),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
     }
 

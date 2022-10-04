@@ -27,7 +27,8 @@ public:
       return nullptr;
     }
 
-    auto executor_id = crypto::Sha256Hash(executor_cert).hex_str();
+    auto pubk_der = crypto::public_key_der_from_cert(executor_cert);
+    auto executor_id = crypto::Sha256Hash(pubk_der).hex_str();
 
     if (executor_certs_map.find(executor_id) != executor_certs_map.end())
     {
