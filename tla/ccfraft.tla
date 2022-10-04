@@ -21,20 +21,31 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC
 ----
 \* Constants
 
-\* Server states.
-CONSTANTS Follower, Candidate, Leader, RetiredLeader, Pending
+\* Server states
+CONSTANTS
+    Follower,
+    Candidate,
+    Leader,
+    RetiredLeader,
+    Pending
 
-\* A reserved value.
+\* A reserved value
 CONSTANTS Nil
 
 \* Message types:
-CONSTANTS RequestVoteRequest, RequestVoteResponse,
-          AppendEntriesRequest, AppendEntriesResponse,
-          NotifyCommitMessage
+CONSTANTS
+    RequestVoteRequest,
+    RequestVoteResponse,
+    AppendEntriesRequest,
+    AppendEntriesResponse,
+    NotifyCommitMessage
 
-\* CCF: Content types (Normal message or signature that signs
-\*      previous messages)
-CONSTANTS TypeEntry, TypeSignature, TypeReconfiguration
+\* CCF: Content types (Normal entry or a signature that signs
+\*      previous entries or a reconfiguration entry)
+CONSTANTS
+    TypeEntry,
+    TypeSignature,
+    TypeReconfiguration
 
 \* CCF: Limit on vote requests to be sent to each other node
 CONSTANTS RequestVoteLimit
@@ -64,7 +75,12 @@ ASSUME MessagesLimit \in Nat
 CONSTANTS CommitNotificationLimit
 ASSUME CommitNotificationLimit \in Nat
 
-CONSTANTS NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
+CONSTANTS
+    NodeOne,
+    NodeTwo,
+    NodeThree,
+    NodeFour,
+    NodeFive
 
 \* Set of nodes for this model
 CONSTANTS PossibleServer
