@@ -317,18 +317,19 @@ namespace loggingapp
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
 
-        auto interm =
-          *static_cast<LoggingPut::Intermediate*>(ctx.rpc_ctx->get_user_data());
+        auto out =
+          static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
 
-        if (interm.fail)
+        if (out == nullptr)
         {
-          throw std::runtime_error("oops, might have failed serialization");
+          throw std::runtime_error("didn't set user_data!");
         }
 
-        interm.out.tx_id = tx_id.to_str();
+        out->tx_id = tx_id.to_str();
 
-        ctx.rpc_ctx->set_response_body(nlohmann::json(interm.out).dump());
+        ctx.rpc_ctx->set_response_body(nlohmann::json(*out).dump());
       };
 
       auto record_v2 = [this](auto& ctx, nlohmann::json&& params) {
@@ -352,28 +353,15 @@ namespace loggingapp
 
         std::string error_reason;
         std::string fail;
-        if (!http::get_query_value(parsed_query, "fail", fail, error_reason))
-        {
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
-        }
+        http::get_query_value(parsed_query, "fail", fail, error_reason);
 
-        LoggingPut::Out resp;
-        resp.success = true;
-        auto interm = std::make_shared<LoggingPut::Intermediate>();
-        interm->out = resp;
-        if (fail == "true")
-        {
-          interm->fail = true;
-        }
-        else
-        {
-          interm->fail = false;
-        }
+        auto out = std::make_shared<LoggingPut::Out>();
+        out->success = true;
 
-        ctx.rpc_ctx->set_user_data(interm);
+        if (fail != "true")
+        {
+          ctx.rpc_ctx->set_user_data(out);
+        }
 
         // return a default value as we'll set the response in the post-commit
         // handler
