@@ -19,6 +19,12 @@ import stringops_pb2 as StringOps
 # pylint: disable=import-error
 import stringops_pb2_grpc as StringOpsService
 
+# pylint: disable=import-error
+import executor_registration_pb2 as ExecutorRegistration
+
+# pylint: disable=import-error
+import executor_registration_pb2_grpc as RegistrationService
+
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
@@ -38,8 +44,42 @@ def wrap_tx(stub):
     stub.EndTx(KV.ResponseDescription())
 
 
+@reqs.description("Register an external executor")
+def test_executor_registration(network, cert, args):
+    primary, _ = network.find_primary()
+
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
+    attestation_format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
+    quote = "testquote"
+    endorsements = "testendorsement"
+    uris = "/foo/hello/bar"
+    methods = "GET"
+
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        register = ExecutorRegistration.NewExecutor()
+        register.attestation.format = attestation_format
+        register.attestation.quote = quote.encode()
+        register.attestation.endorsements = endorsements.encode()
+        register.cert = cert.encode()
+
+        supported_endpoint = register.supported_endpoints.add()
+        supported_endpoint.method = methods
+        supported_endpoint.uri = uris
+
+        stub = RegistrationService.ExecutorRegistrationStub(channel)
+        r = stub.RegisterExecutor(register)
+        assert r.details == "Executor registration is accepted."
+        return network
+
+
 @reqs.description("Store and retrieve key via external executor app")
-def test_put_get(network, args):
+def test_put_get(network, credentials, args):
     primary, _ = network.find_primary()
 
     LOG.info("Check that endpoint supports HTTP/2")
@@ -54,10 +94,6 @@ def test_put_get(network, args):
 
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
-
-    credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-    )
 
     my_table = "public:my_table"
     my_key = b"my_key"
@@ -125,11 +161,8 @@ def test_put_get(network, args):
     return network
 
 
-def test_simple_executor(network, args):
+def test_simple_executor(network, credentials, args):
     primary, _ = network.find_primary()
-    credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-    )
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):
         with primary.client() as c:
@@ -211,6 +244,9 @@ def test_streaming(network, args):
 
 
 def run(args):
+    key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
+    cert = infra.crypto.generate_cert(key_priv_pem)
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -218,9 +254,16 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-
-        network = test_put_get(network, args)
-        network = test_simple_executor(network, args)
+        credentials = grpc.ssl_channel_credentials(
+            root_certificates=open(
+                os.path.join(network.common_dir, "service_cert.pem"), "rb"
+            ).read(),
+            private_key=key_priv_pem.encode(),
+            certificate_chain=cert.encode(),
+        )
+        network = test_executor_registration(network, cert, args)
+        network = test_put_get(network, credentials, args)
+        network = test_simple_executor(network, credentials, args)
         network = test_streaming(network, args)
 
 
