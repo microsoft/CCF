@@ -199,20 +199,16 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
+      DataSource ds;
+      ds.body = body;
+      if (!trailers.empty())
       {
-        LOG_FAIL_FMT("stream with id {} not found!", stream_id);
-        return;
+        ds.end_stream = false;
       }
-      stream_data->body = std::move(body);
 
-      stream_data->trailers = std::move(trailers);
-
-      // Note: response body is currently stored in StreamData, accessible from
-      // read_callback
       nghttp2_data_provider prov;
-      prov.read_callback = read_response_body_callback;
+      prov.source.ptr = &ds;
+      prov.read_callback = read_body_from_span_callback;
 
       int rv = nghttp2_submit_response(
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
@@ -223,6 +219,28 @@ namespace http2
       }
 
       send_all_submitted();
+
+      if (!trailers.empty())
+      {
+        LOG_TRACE_FMT("Submitting {} trailers", trailers.size());
+        std::vector<nghttp2_nv> trlrs;
+        trlrs.reserve(trailers.size());
+        for (auto& [k, v] : trailers)
+        {
+          trlrs.emplace_back(make_nv(k.data(), v.data()));
+        }
+
+        int rv = nghttp2_submit_trailer(
+          session, stream_id, trlrs.data(), trlrs.size());
+
+        if (rv != 0)
+        {
+          throw std::logic_error(
+            fmt::format("nghttp2_submit_trailer error: {}", rv));
+        }
+
+        send_all_submitted();
+      }
     }
 
     virtual void handle_completed(

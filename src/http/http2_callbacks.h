@@ -7,66 +7,11 @@
 
 namespace http2
 {
-  static ssize_t read_response_body_callback(
-    nghttp2_session* session,
-    StreamId stream_id,
-    uint8_t* buf,
-    size_t length,
-    uint32_t* data_flags,
-    nghttp2_data_source* source,
-    void* user_data)
-  {
-    LOG_TRACE_FMT("http2::read_response_body_callback: {}", length);
-
-    auto* stream_data = get_stream_data(session, stream_id);
-    auto& response_body = stream_data->body;
-    size_t to_read =
-      std::min(response_body.size() - stream_data->current_offset, length);
-
-    if (response_body.size() > 0)
-    {
-      // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-      memcpy(buf, response_body.data() + stream_data->current_offset, to_read);
-      stream_data->current_offset += to_read;
-    }
-
-    if (stream_data->current_offset >= response_body.size())
-    {
-      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-      stream_data->current_offset = 0;
-      response_body.clear();
-    }
-
-    if (!stream_data->trailers.empty())
-    {
-      LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
-      std::vector<nghttp2_nv> trlrs;
-      trlrs.reserve(stream_data->trailers.size());
-      for (auto& [k, v] : stream_data->trailers)
-      {
-        trlrs.emplace_back(make_nv(k.data(), v.data()));
-      }
-
-      int rv =
-        nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
-      if (rv != 0)
-      {
-        throw std::logic_error(
-          fmt::format("nghttp2_submit_trailer error: {}", rv));
-      }
-      else
-      {
-        *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
-      }
-    }
-
-    return to_read;
-  }
-
   struct DataSource
   {
     std::span<const uint8_t> body = {};
-    bool more_to_come = false;
+    bool end_data = true;
+    bool end_stream = true;
   };
 
   static ssize_t read_body_from_span_callback(
@@ -97,9 +42,14 @@ namespace http2
       ds->body = ds->body.subspan(to_read);
     }
 
-    if (ds->body.empty() && !ds->more_to_come)
+    if (ds->body.empty() && ds->end_data)
     {
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    }
+
+    if (!ds->end_stream)
+    {
+      *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
     }
 
     return to_read;
