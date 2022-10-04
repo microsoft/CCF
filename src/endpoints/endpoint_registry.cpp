@@ -41,6 +41,9 @@ namespace ccf::endpoints
         ds::openapi::response(path_op, endpoint->success_status);
       }
 
+      // Add a default error response
+      ds::openapi::error_response_default(path_op);
+
       if (!endpoint->authn_policies.empty())
       {
         for (const auto& auth_policy : endpoint->authn_policies)
@@ -129,6 +132,12 @@ namespace ccf::endpoints
     return metrics[method][verb];
   }
 
+  void default_locally_committed_func(
+    CommandEndpointContext& ctx, const TxID& tx_id)
+  {
+    ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
+  }
+
   Endpoint EndpointRegistry::make_endpoint(
     const std::string& method,
     RESTVerb verb,
@@ -148,6 +157,8 @@ namespace ccf::endpoints
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
+    endpoint.locally_committed_func = &default_locally_committed_func;
+
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded
     endpoint.properties.forwarding_required = ForwardingRequired::Always;
@@ -171,6 +182,30 @@ namespace ccf::endpoints
              },
              ap)
       .set_forwarding_required(ForwardingRequired::Sometimes);
+  }
+
+  Endpoint EndpointRegistry::make_endpoint_with_local_commit_handler(
+    const std::string& method,
+    RESTVerb verb,
+    const EndpointFunction& f,
+    const LocallyCommittedEndpointFunction& l,
+    const AuthnPolicies& ap)
+  {
+    auto endpoint = make_endpoint(method, verb, f, ap);
+    endpoint.locally_committed_func = l;
+    return endpoint;
+  }
+
+  Endpoint EndpointRegistry::make_read_only_endpoint_with_local_commit_handler(
+    const std::string& method,
+    RESTVerb verb,
+    const ReadOnlyEndpointFunction& f,
+    const LocallyCommittedEndpointFunction& l,
+    const AuthnPolicies& ap)
+  {
+    auto endpoint = make_read_only_endpoint(method, verb, f, ap);
+    endpoint.locally_committed_func = l;
+    return endpoint;
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -246,6 +281,32 @@ namespace ccf::endpoints
       "This call will never be forwarded, and is always executed on the "
       "receiving node, potentially breaking session consistency. If this "
       "attempts to write on a backup, this will fail.";
+
+    // Add ccf OData error response schema
+    auto& schemas = document["components"]["schemas"];
+    schemas["CCFError"]["type"] = "object";
+    schemas["CCFError"]["properties"] = nlohmann::json::object();
+    schemas["CCFError"]["properties"]["error"] = nlohmann::json::object();
+    schemas["CCFError"]["properties"]["error"]["type"] = "object";
+    schemas["CCFError"]["properties"]["error"]["properties"] =
+      nlohmann::json::object();
+    auto& error_properties =
+      schemas["CCFError"]["properties"]["error"]["properties"];
+    error_properties["code"]["description"] =
+      "Response error code. CCF error codes: "
+      "https://microsoft.github.io/CCF/main/operations/"
+      "troubleshooting.html#error-codes";
+    error_properties["code"]["type"] = "string";
+    error_properties["message"]["description"] = "Response error message";
+    error_properties["message"]["type"] = "string";
+
+    // Add a default error response definition
+    auto& responses = document["components"]["responses"];
+    auto& default_error = responses["default"];
+    ds::openapi::schema(
+      ds::openapi::media_type(default_error, "application/json"))["$ref"] =
+      "#/components/schemas/CCFError";
+    default_error["description"] = "An error occurred";
 
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
@@ -372,6 +433,21 @@ namespace ccf::endpoints
     }
 
     endpoint->func(ctx);
+  }
+
+  void EndpointRegistry::execute_endpoint_locally_committed(
+    EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id)
+  {
+    auto endpoint = dynamic_cast<const Endpoint*>(e.get());
+    if (endpoint == nullptr)
+    {
+      throw std::logic_error(
+        "Base execute_endpoint_locally_committed called on incorrect Endpoint "
+        "type - expected derived implementation to handle derived endpoint "
+        "instances");
+    }
+
+    endpoint->locally_committed_func(ctx, tx_id);
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
