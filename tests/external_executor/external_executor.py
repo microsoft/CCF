@@ -68,8 +68,9 @@ def test_executor_registration(network, cert, args):
         register.attestation.endorsements = endorsements.encode()
         register.cert = cert.encode()
 
-        register.supported_endpoints.add().method = methods
-        register.supported_endpoints.add().uri = uris
+        supported_endpoint = register.supported_endpoints.add()
+        supported_endpoint.method = methods
+        supported_endpoint.uri = uris
 
         stub = RegistrationService.ExecutorRegistrationStub(channel)
         r = stub.RegisterExecutor(register)
