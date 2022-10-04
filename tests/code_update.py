@@ -57,6 +57,12 @@ def test_verify_quotes(network, args):
 def test_add_node_with_correct_security_policy(network, args):
 
     LOG.info(f"Checking governance table security policies")
+
+    primary, _ = network.find_nodes()
+    with primary.client() as client:
+        r = client.get("/gov/security_policy")
+        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
+
     expected = [
         {
             "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
@@ -64,6 +70,7 @@ def test_add_node_with_correct_security_policy(network, args):
         }
     ]
     expected.sort(key=lambda x: x["digest"])
+
     assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
 
 @reqs.description("Node with no security policy set but good digest matching ledger joins successfully")
