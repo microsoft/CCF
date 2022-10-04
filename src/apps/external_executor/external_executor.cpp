@@ -83,20 +83,22 @@ namespace externalexecutor
         }
 
         // generate and store executor id locally
-        crypto::Pem executor_public_key(payload.cert());
-        auto pubk_der = crypto::cert_pem_to_der(executor_public_key);
+        crypto::Pem executor_x509_cert(payload.cert());
+        auto cert_der = crypto::cert_pem_to_der(executor_x509_cert);
+        auto pubk_der = crypto::public_key_der_from_cert(cert_der);
+
         ExecutorId executor_id = ccf::compute_node_id_from_pubk_der(pubk_der);
         std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints(
           payload.supported_endpoints().begin(),
           payload.supported_endpoints().end());
 
         ExecutorNodeInfo executor_info = {
-          executor_public_key, payload.attestation(), supported_endpoints};
+          executor_x509_cert, payload.attestation(), supported_endpoints};
 
         executor_ids[executor_id] = executor_info;
 
-        // Record the cert in the Executor certs map
-        executor_keys[executor_id] = executor_public_key;
+        // Record the certs in the Executor certs map
+        executor_certs[executor_id] = executor_x509_cert;
 
         ccf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");

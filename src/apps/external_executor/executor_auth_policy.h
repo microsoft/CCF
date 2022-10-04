@@ -12,7 +12,7 @@ struct ExecutorIdentity : public ccf::AuthnIdentity
 
 class ExecutorAuthPolicy : public ccf::AuthnPolicy
 {
-  const ExecutorCertsMap& executor_certs_map = executor_keys;
+  const ExecutorCertsMap& executor_certs_map = executor_certs;
 
 public:
   std::unique_ptr<ccf::AuthnIdentity> authenticate(

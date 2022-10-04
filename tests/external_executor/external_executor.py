@@ -19,6 +19,12 @@ import stringops_pb2 as StringOps
 # pylint: disable=import-error
 import stringops_pb2_grpc as StringOpsService
 
+# pylint: disable=import-error
+import executor_registration_pb2 as ExecutorRegistration
+
+# pylint: disable=import-error
+import executor_registration_pb2_grpc as RegistrationService
+
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
@@ -36,6 +42,41 @@ def wrap_tx(stub):
     stub.StartTx(Empty())
     yield stub
     stub.EndTx(KV.ResponseDescription())
+
+
+@reqs.description("Register an external executor")
+def test_executor_registration(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
+    key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
+    cert = infra.crypto.generate_cert(key_priv_pem)
+    attestation_format = 2
+    quote = "testquote"
+    endorsements = "testendorsement"
+    uris = "/foo/hello/bar"
+    methods = "GET"
+
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        register = ExecutorRegistration.NewExecutor()
+        register.attestation.format = attestation_format
+        register.attestation.quote = quote.encode()
+        register.attestation.endorsements = endorsements.encode()
+        register.cert = cert.encode()
+
+        register.supported_endpoints.add().method = methods
+        register.supported_endpoints.add().uri = uris
+
+        stub = RegistrationService.ExecutorRegistrationStub(channel)
+        r = stub.RegisterExecutor(register)
+        assert r.details == "Executor registration is accepted."
+        return network
 
 
 @reqs.description("Store and retrieve key via external executor app")
@@ -219,6 +260,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        network = test_executor_registration(network, args)
         network = test_put_get(network, args)
         network = test_simple_executor(network, args)
         network = test_streaming(network, args)

@@ -21,7 +21,7 @@ using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
 using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
 
 ExecutorIDMap executor_ids;
-ExecutorCertsMap executor_keys;
+ExecutorCertsMap executor_certs;
 
 // stub out quote verification until we have SEV-SNP verification
 inline ccf::QuoteVerificationResult verify_executor_quote(
