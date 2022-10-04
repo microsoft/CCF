@@ -198,7 +198,6 @@ namespace ccf
     }
 
     auto phdr = cose::decode_protected_header(ctx->get_request_body());
-    LOG_INFO_FMT("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 
     if (!phdr.kid.has_value())
     {
