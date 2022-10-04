@@ -144,8 +144,7 @@ namespace ccf
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(msg),
-        std::chrono::milliseconds(
-          server_connection_timeout_s * 1)); // TODO: Change back
+        std::chrono::milliseconds(server_connection_timeout_s * 1000));
     }
 
     void handle_success_response(std::vector<uint8_t>&& data, bool is_der)
