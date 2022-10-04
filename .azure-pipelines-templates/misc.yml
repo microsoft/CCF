@@ -3,20 +3,24 @@ parameters:
 
 steps:
   - script: |
-      sudo apt -qq install ripgrep
+      sudo apt install ripgrep > /dev/null
       echo "TOOK TOO LONG "
+      echo "-------------------------------------"
       rg "Took too long" --count
+      echo "-------------------------------------"
       echo "TOOK TOO LONG TOTAL"
+      echo "-------------------------------------"
       rg "Took too long" --count | cut -d : -f 2 | awk '{ sum += $1 } END { print sum }'
     workingDirectory: build
     displayName: "Took too long metrics"
 
-  - ${{ if ne(variables.METRICS_MONGO_CONNECTION, '') }}:
-      - script: |
-          ./cimetrics_env.sh
-          source env/bin/activate
-          rg "Took too long" --count | cut -d : -f 2 | python ../tests/upload_misc.py "took_too_long_count_${{ parameters.suite_name_suffix }}"
-        env:
-          METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-        workingDirectory: build
-        displayName: "Upload took too long metrics"
+  - script: |
+      if [ -n "$METRICS_MONGO_CONNECTION" ]; then
+        ./cimetrics_env.sh
+        source env/bin/activate
+        rg "Took too long" --count | cut -d : -f 2 | python ../tests/upload_misc.py "took_too_long_count_${{ parameters.suite_name_suffix }}"
+      fi
+    env:
+      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+    workingDirectory: build
+    displayName: "Upload took too long metrics"
