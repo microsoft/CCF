@@ -36,17 +36,15 @@ namespace externalexecutor
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
-    // Note: As a temporary solution for testing, this app stores a single Tx,
-    // stolen from a StartTx RPC rather than a real client request
-    std::unique_ptr<kv::CommittableTx> active_tx = nullptr;
-    size_t active_originating_session_id;
-
     struct PendingRequest
     {
       size_t originating_session_id;
+      std::unique_ptr<kv::CommittableTx> tx = nullptr;
       ccf::RequestDescription request_description;
     };
     std::queue<PendingRequest> pending_requests;
+
+    std::optional<PendingRequest> active_request;
 
     std::shared_ptr<ccf::AbstractRPCResponder> rpc_responder = nullptr;
 
@@ -123,33 +121,15 @@ namespace externalexecutor
     void install_kv_service()
     {
       auto start = [this](
-                     ccf::endpoints::EndpointContext& ctx,
+                     ccf::endpoints::CommandEndpointContext& ctx,
                      google::protobuf::Empty&& payload)
         -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalRequestDescription> {
-        if (active_tx != nullptr)
+        if (active_request.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
             "Already managing an active transaction");
         }
-
-        ccf::EndpointContextImpl* ctx_impl =
-          dynamic_cast<ccf::EndpointContextImpl*>(&ctx);
-        if (ctx_impl == nullptr)
-        {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_INTERNAL, "Unexpected context type");
-        }
-
-        // TODO: This should have been from the original user's request, not
-        // this one?
-        active_tx = std::move(ctx_impl->owned_tx);
-        ctx_impl->owned_tx = nullptr; // < This will be done by move, but adding
-                                      // explicit call here for clarity
-
-        // Note: Temporary hack to make sure the caller doesn't try to commit
-        // this transaction
-        ctx.rpc_ctx->set_apply_writes(false);
 
         ccf::OptionalRequestDescription opt_rd;
 
@@ -157,28 +137,32 @@ namespace externalexecutor
         {
           auto* rd = opt_rd.mutable_optional();
           auto& pr = pending_requests.front();
-          active_originating_session_id = pr.originating_session_id;
           *rd = pr.request_description;
+          LOG_INFO_FMT(
+            "Popping first pending request, and setting active session to {}",
+            pr.originating_session_id);
+          // NB: Move for unique_ptr
+          active_request = std::move(pr);
           pending_requests.pop();
         }
 
         return ccf::grpc::make_success(opt_rd);
       };
 
-      make_endpoint(
+      make_command_endpoint(
         "/ccf.KV/StartTx",
         HTTP_POST,
-        ccf::grpc_adapter<
+        ccf::grpc_command_adapter<
           google::protobuf::Empty,
           ccf::OptionalRequestDescription>(start),
         ccf::no_auth_required)
         .install();
 
       auto end = [this](
-                   ccf::endpoints::EndpointContext& ctx,
+                   ccf::endpoints::CommandEndpointContext& ctx,
                    ccf::ResponseDescription&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        if (active_tx == nullptr)
+        if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
@@ -206,7 +190,7 @@ namespace externalexecutor
              ccf::ClaimsDigest::Digest::SIZE}));
         }
 
-        kv::CommitResult result = active_tx->commit(claims);
+        kv::CommitResult result = active_request->tx->commit(claims);
         switch (result)
         {
           case kv::CommitResult::SUCCESS:
@@ -219,7 +203,7 @@ namespace externalexecutor
               response.set_header(header.field(), header.value());
             }
 
-            auto tx_id = active_tx->get_txid();
+            auto tx_id = active_request->tx->get_txid();
             if (tx_id.has_value())
             {
               LOG_INFO_FMT("Applied tx at {}", tx_id->str());
@@ -229,9 +213,13 @@ namespace externalexecutor
             auto response_v = response.build_response();
             const std::string response_s(response_v.begin(), response_v.end());
             LOG_INFO_FMT(
-              "Preparing to send final response to user:\n{}", response_s);
+              "Preparing to send final response to user on session {}:\n{}",
+              active_request->originating_session_id,
+              response_s);
             rpc_responder->reply_async(
-              active_originating_session_id, std::move(response_v));
+              active_request->originating_session_id,
+              payload.status_code(),
+              std::move(response_v));
             break;
           }
 
@@ -247,23 +235,25 @@ namespace externalexecutor
             break;
           }
         }
-        active_tx = nullptr;
+
+        active_request.reset();
 
         return ccf::grpc::make_success();
       };
 
-      make_endpoint(
+      make_command_endpoint(
         "/ccf.KV/EndTx",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::ResponseDescription, google::protobuf::Empty>(
-          end),
+        ccf::grpc_command_adapter<
+          ccf::ResponseDescription,
+          google::protobuf::Empty>(end),
         ccf::no_auth_required)
         .install();
 
       auto put =
         [this](ccf::endpoints::EndpointContext& ctx, ccf::KVKeyValue&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        if (active_tx == nullptr)
+        if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
@@ -271,7 +261,7 @@ namespace externalexecutor
             "a successful call to StartTx and before EndTx");
         }
 
-        auto handle = active_tx->rw<Map>(payload.table());
+        auto handle = active_request->tx->rw<Map>(payload.table());
         handle->put(payload.key(), payload.value());
 
         return ccf::grpc::make_success();
@@ -288,7 +278,7 @@ namespace externalexecutor
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
                    ccf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVValue> {
-        if (active_tx == nullptr)
+        if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
@@ -296,7 +286,7 @@ namespace externalexecutor
             "a successful call to StartTx and before EndTx");
         }
 
-        auto handle = active_tx->ro<Map>(payload.table());
+        auto handle = active_request->tx->ro<Map>(payload.table());
         auto result = handle->get(payload.key());
 
         ccf::OptionalKVValue response;
@@ -320,7 +310,7 @@ namespace externalexecutor
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
                    ccf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<ccf::KVHasResult> {
-        if (active_tx == nullptr)
+        if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
@@ -328,7 +318,7 @@ namespace externalexecutor
             "a successful call to StartTx and before EndTx");
         }
 
-        auto handle = active_tx->ro<Map>(payload.table());
+        auto handle = active_request->tx->ro<Map>(payload.table());
 
         ccf::KVHasResult result;
         result.set_present(handle->has(payload.key()));
@@ -347,7 +337,7 @@ namespace externalexecutor
                            ccf::endpoints::ReadOnlyEndpointContext& ctx,
                            ccf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVVersion> {
-        if (active_tx == nullptr)
+        if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
@@ -355,7 +345,7 @@ namespace externalexecutor
             "a successful call to StartTx and before EndTx");
         }
 
-        auto handle = active_tx->ro<Map>(payload.table());
+        auto handle = active_request->tx->ro<Map>(payload.table());
         auto version = handle->get_version_of_previous_write(payload.key());
 
         ccf::OptionalKVVersion response;
@@ -380,7 +370,7 @@ namespace externalexecutor
                          ccf::endpoints::ReadOnlyEndpointContext& ctx,
                          ccf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        if (active_tx == nullptr)
+        if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
@@ -388,7 +378,7 @@ namespace externalexecutor
             "a successful call to StartTx and before EndTx");
         }
 
-        auto handle = active_tx->wo<Map>(payload.table());
+        auto handle = active_request->tx->wo<Map>(payload.table());
         handle->remove(payload.key());
 
         return ccf::grpc::make_success();
@@ -421,9 +411,17 @@ namespace externalexecutor
     void queue_request_for_external_execution(
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
+      ccf::EndpointContextImpl* ctx_impl =
+        dynamic_cast<ccf::EndpointContextImpl*>(&endpoint_ctx);
+      if (ctx_impl == nullptr)
+      {
+        throw std::logic_error("Unexpected context type");
+      }
+
       PendingRequest pr;
       pr.originating_session_id =
         endpoint_ctx.rpc_ctx->get_session_context()->client_session_id;
+      pr.tx = std::move(ctx_impl->owned_tx);
       {
         ccf::RequestDescription& rd = pr.request_description;
         // Construct rd from request
@@ -438,15 +436,16 @@ namespace externalexecutor
         const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
         rd.set_body(body.data(), body.size());
       }
-      pending_requests.push(pr);
+      pending_requests.push(std::move(pr));
 
-      auto ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
-      if (ctx_impl == nullptr)
+      auto rpc_ctx_impl =
+        dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
+      if (rpc_ctx_impl == nullptr)
       {
         throw std::logic_error("Unexpected type for RpcContext");
       }
 
-      ctx_impl->response_is_pending = true;
+      rpc_ctx_impl->response_is_pending = true;
     }
 
     struct ExternallyExecutedEndpoint

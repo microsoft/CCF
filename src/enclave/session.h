@@ -23,10 +23,11 @@ namespace ccf
       send_data(data.data(), data.size());
     }
 
-    virtual void send_response(http::Response&& resp)
-    {
-      send_data(resp.build_response());
-    }
+    // TODO: Should exist at a lower-level - HttpCommonSession?
+    virtual void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body) = 0;
 
     void send_odata_error_response(ccf::ErrorDetails&& error)
     {
@@ -34,14 +35,14 @@ namespace ccf
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
       const auto s = body.dump();
 
+      // TODO: Avoid copy
       std::vector<uint8_t> data(s.begin(), s.end());
-      auto response = http::Response(error.status);
 
-      response.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      response.set_body(&data);
+      http::HeaderMap headers;
+      headers[http::headers::CONTENT_TYPE] =
+        http::headervalues::contenttype::JSON;
 
-      send_response(std::move(response));
+      send_response(error.status, std::move(headers), data);
     }
 
     virtual void send_request_oops(http::Request&& req)

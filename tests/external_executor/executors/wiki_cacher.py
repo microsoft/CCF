@@ -133,7 +133,6 @@ class WikiCacherExecutor:
                 request_description_opt = stub.StartTx(Empty())
                 if not request_description_opt.HasField("optional"):
                     LOG.trace("No request pending")
-                    stub.EndTx(KV.ResponseDescription())
                     time.sleep(0.1)
                     continue
 

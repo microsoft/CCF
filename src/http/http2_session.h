@@ -58,16 +58,18 @@ namespace http
           LOG_FAIL_FMT("Error parsing HTTP request");
           LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
-          auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
-          response.set_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          http::HeaderMap headers;
+          headers[http::headers::CONTENT_TYPE] =
+            http::headervalues::contenttype::TEXT;
+
           auto body = fmt::format(
             "Unable to parse data as a HTTP request. Error details are "
             "below.\n\n{}",
             e.what());
-          response.set_body((const uint8_t*)body.data(), body.size());
 
-          send_response(std::move(response));
+          // TODO: Avoid copy
+          std::vector<uint8_t> data(body.begin(), body.end());
+          send_response(HTTP_STATUS_BAD_REQUEST, std::move(headers), data);
 
           close();
           break;
@@ -189,6 +191,20 @@ namespace http
         throw;
       }
     }
+
+    void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body) override
+    {
+      server_parser.send_response(
+        1, // TODO: Where do we find this?
+        status_code,
+        std::move(headers),
+        {}, // TODO: Include trailers
+        {body.begin(), body.end()} // TODO: Remove copy
+      );
+    }
   };
 
   class HTTP2ClientSession : public HTTP2Session,
@@ -230,6 +246,14 @@ namespace http
 
       LOG_TRACE_FMT("Closing connection, message handled");
       close();
+    }
+
+    void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body) override
+    {
+      throw std::logic_error("Unimplemented");
     }
   };
 }

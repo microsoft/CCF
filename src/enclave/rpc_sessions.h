@@ -69,40 +69,28 @@ namespace ccf
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
-    // TODO: Should be able to send over HTTP/1.1 _or_ HTTP/2
-    class NoMoreSessionsSessionImpl : public ccf::TLSSession
+    template <typename Base>
+    class NoMoreSessionsImpl : public Base
     {
     public:
-      NoMoreSessionsSessionImpl(
-        tls::ConnID session_id,
-        ringbuffer::AbstractWriterFactory& writer_factory,
-        std::unique_ptr<tls::Context> ctx) :
-        ccf::TLSSession(session_id, writer_factory, std::move(ctx))
+      template <typename... Ts>
+      NoMoreSessionsImpl(Ts&&... ts) : Base(std::forward<Ts>(ts)...)
       {}
 
       void receive_data(const uint8_t* data, size_t size) override
       {
-        recv_buffered(data, size);
+        Base::recv_buffered(data, size);
 
-        if (get_status() == Status::ready)
+        if (Base::get_status() == Base::Status::ready)
         {
-          // Send HTTP response describing soft session limit
-          auto http_response = http::Response(HTTP_STATUS_SERVICE_UNAVAILABLE);
-
-          http_response.set_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-          nlohmann::json body = ccf::ODataErrorResponse{ccf::ODataError{
+          // Send response describing soft session limit
+          Base::send_odata_error_response(ccf::ErrorDetails{
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
             ccf::errors::SessionCapExhausted,
-            "Service is currently busy and unable to serve new connections"}};
-          const auto s = body.dump();
-          http_response.set_body((const uint8_t*)s.data(), s.size());
-
-          const auto serialised = http_response.build_response();
-          send_data(serialised.data(), serialised.size());
+            "Service is currently busy and unable to serve new connections"});
 
           // Close connection
-          close();
+          Base::close();
         }
       }
     };
@@ -383,8 +371,20 @@ namespace ccf
           per_listen_interface.max_open_sessions_soft);
 
         auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
-        auto capped_session = std::make_shared<NoMoreSessionsSessionImpl>(
-          id, writer_factory, std::move(ctx));
+        std::shared_ptr<Session> capped_session;
+        if (
+          per_listen_interface.app_protocol == ccf::ApplicationProtocol::HTTP2)
+        {
+          capped_session =
+            std::make_shared<NoMoreSessionsImpl<http::HTTP2ClientSession>>(
+              id, writer_factory, std::move(ctx));
+        }
+        else
+        {
+          capped_session =
+            std::make_shared<NoMoreSessionsImpl<http::HTTPClientSession>>(
+              id, writer_factory, std::move(ctx));
+        }
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(capped_session))));
         per_listen_interface.open_sessions++;
@@ -446,12 +446,23 @@ namespace ccf
       sessions_peak = std::max(sessions_peak, sessions.size());
     }
 
-    bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
+    std::shared_ptr<Session> find_session(tls::ConnID id)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
+      {
+        return nullptr;
+      }
+
+      return search->second.second;
+    }
+
+    bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
+    {
+      auto session = find_session(id);
+      if (session == nullptr)
       {
         LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
         return false;
@@ -459,7 +470,23 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second.second->send_data(data.data(), data.size());
+      session->send_data(data.data(), data.size());
+      return true;
+    }
+
+    bool reply_async(
+      tls::ConnID id, size_t status_code, std::vector<uint8_t>&& data) override
+    {
+      auto session = find_session(id);
+      if (session == nullptr)
+      {
+        LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
+        return false;
+      }
+
+      LOG_DEBUG_FMT("Replying to session {}", id);
+
+      session->send_response((http_status)status_code, {}, std::move(data));
       return true;
     }
 

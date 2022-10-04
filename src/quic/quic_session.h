@@ -429,6 +429,14 @@ namespace quic
       send_raw(data, size, addr);
     }
 
+    void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body) override
+    {
+      throw std::logic_error("Unimplemented");
+    }
+
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<QUICEchoSession*>(msg->data.self.get())

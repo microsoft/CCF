@@ -100,9 +100,10 @@ namespace http
           }
           LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
-          auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
-          response.set_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          http::HeaderMap headers;
+          headers[http::headers::CONTENT_TYPE] =
+            http::headervalues::contenttype::TEXT;
+
           // NB: Avoid formatting input data a string, as it may contain null
           // bytes. Instead insert it at the end of this message, verbatim
           auto body_s = fmt::format(
@@ -112,14 +113,28 @@ namespace http
           std::vector<uint8_t> response_body(
             std::begin(body_s), std::end(body_s));
           response_body.insert(response_body.end(), data, data + n_read);
-          response.set_body(response_body.data(), response_body.size());
-          
-          send_response(std::move(response));
+
+          send_response(
+            HTTP_STATUS_BAD_REQUEST, std::move(headers), response_body);
 
           close();
           break;
         }
       }
+    }
+
+    void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body) override
+    {
+      auto response = http::Response(status_code);
+      for (const auto& [k, v] : headers)
+      {
+        response.set_header(k, v);
+      }
+      response.set_body(body.data(), body.size());
+      ccf::Session::send_data(response.build_response());
     }
   };
 
@@ -282,6 +297,14 @@ namespace http
 
       LOG_TRACE_FMT("Closing connection, message handled");
       close();
+    }
+
+    void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      std::span<const uint8_t> body) override
+    {
+      throw std::logic_error("Unimplemented");
     }
   };
 }

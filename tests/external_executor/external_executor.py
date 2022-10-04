@@ -32,10 +32,17 @@ from loguru import logger as LOG
 
 
 @contextlib.contextmanager
-def wrap_tx(stub):
-    stub.StartTx(Empty())
-    yield stub
-    stub.EndTx(KV.ResponseDescription())
+def wrap_tx(stub, primary):
+    with primary.client(connection_timeout=0.1) as c:
+        try:
+            c.get("/placeholder", timeout=0.1)
+        except Exception as e:
+            LOG.trace(e)
+            pass
+        rd = stub.StartTx(Empty())
+        assert rd.HasField("optional"), rd
+        yield stub
+        stub.EndTx(KV.ResponseDescription())
 
 
 @reqs.description("Store and retrieve key via external executor app")
@@ -69,23 +76,23 @@ def test_put_get(network, args):
     ) as channel:
         stub = Service.KVStub(channel)
 
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Put key '{my_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Put key {my_key} in table '{my_table}'")
             tx.Put(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
 
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Get key '{my_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Get key {my_key} in table '{my_table}'")
             r = tx.Get(KV.KVKey(table=my_table, key=my_key))
             assert r.HasField("optional")
             assert r.optional.value == my_value
-            LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
+            LOG.success(f"Successfully read key {my_key} in table '{my_table}'")
 
         unknown_key = b"unknown_key"
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Get unknown key {unknown_key} in table '{my_table}'")
             r = tx.Get(KV.KVKey(table=my_table, key=unknown_key))
             assert not r.HasField("optional")
-            LOG.success(f"Unable to read key '{unknown_key}' as expected")
+            LOG.success(f"Unable to read key {unknown_key} as expected")
 
         tables = ("public:table_a", "public:table_b", "public:table_c")
         writes = [
@@ -97,7 +104,7 @@ def test_put_get(network, args):
             for i in range(10)
         ]
 
-        with wrap_tx(stub) as tx:
+        with wrap_tx(stub, primary) as tx:
             LOG.info("Write multiple entries in single transaction")
             for t, k, v in writes:
                 tx.Put(KV.KVKeyValue(table=t, key=k, value=v))
@@ -115,7 +122,7 @@ def test_put_get(network, args):
             #     for t, k, v in writes:
             #         require_missing(tx2, t, k)
 
-        with wrap_tx(stub) as tx3:
+        with wrap_tx(stub, primary) as tx3:
             LOG.info("Read applied writes")
             for t, k, v in writes:
                 r = tx3.Get(KV.KVKeyValue(table=t, key=k))
@@ -133,9 +140,9 @@ def test_simple_executor(network, args):
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):
         with primary.client() as c:
-            c.post("/not/a/real/endpoint")
-            c.post("/update_cache/Earth")
-            c.get("/article_description/Earth")
+            c.post("/not/a/real/endpoint", timeout=2)
+            c.post("/update_cache/Earth", timeout=2)
+            c.get("/article_description/Earth", timeout=2)
 
         time.sleep(2)
 

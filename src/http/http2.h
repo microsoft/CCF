@@ -111,8 +111,8 @@ namespace http2
       }
       else
       {
-        throw std::logic_error(
-          fmt::format("Storing second data for stream {}", stream_id));
+        it->second = stream_data;
+        LOG_FAIL_FMT("Overwriting stored stream {}!!", stream_id);
       }
     }
 
@@ -167,11 +167,12 @@ namespace http2
       std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
-        "http2::send_response: stream {} - {} - {} - {}",
+        "http2::send_response: stream {} - {} headers - {} trailers - {} byte "
+        "body",
         stream_id,
         headers.size(),
-        body.size(),
-        trailers.size());
+        trailers.size(),
+        body.size());
 
       std::string body_size = std::to_string(body.size());
       std::vector<nghttp2_nv> hdrs;
