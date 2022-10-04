@@ -111,7 +111,7 @@ namespace ccf::endpoints
     /// Full URI path to endpoint, including method prefix
     URI full_uri_path;
 
-    /// URI path for the API documentation, that reflects the latest changes
+    /// URI path for the API documentation
     URI api_uri_path;
 
     EndpointProperties properties;
