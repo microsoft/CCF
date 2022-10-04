@@ -125,9 +125,8 @@ url=/${url#*/} # Remove domain name, restore leading slash
 url=${url%\#*} # Remove fragment
 
 # Construct string to sign
-string_to_sign="(request-target): ${command,,} ${url}
-digest: SHA-256=$req_digest
-content-length: $content_length"
+newline=$'\n'
+string_to_sign="(request-target): ${command,,} ${url}${newline}digest: SHA-256=${req_digest}${newline}content-length: ${content_length}"
 
 # https://tools.ietf.org/html/draft-cavage-http-signatures-12#appendix-E.2
 signature_algorithm="hs2019"
