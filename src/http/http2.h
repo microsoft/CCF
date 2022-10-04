@@ -293,16 +293,18 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      // Note: response body is currently stored in StreamData, accessible from
-      // read_callback
+      DataSource ds;
+      ds.body = body;
+
       nghttp2_data_provider prov;
+      prov.source.ptr = &ds;
       prov.read_callback = read_body_from_span_callback;
 
       LOG_INFO_FMT(
         "Trying submit_request with user_data set to {}", (size_t)&body);
 
       auto stream_id = nghttp2_submit_request(
-        session, nullptr, hdrs.data(), hdrs.size(), &prov, &body);
+        session, nullptr, hdrs.data(), hdrs.size(), &prov, nullptr);
       if (stream_id < 0)
       {
         LOG_FAIL_FMT(

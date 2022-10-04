@@ -63,42 +63,11 @@ namespace http2
     return to_read;
   }
 
-  static ssize_t read_request_body_callback(
-    nghttp2_session* session,
-    StreamId stream_id,
-    uint8_t* buf,
-    size_t length,
-    uint32_t* data_flags,
-    nghttp2_data_source* source,
-    void* user_data)
+  struct DataSource
   {
-    LOG_TRACE_FMT("http2::read_request_body_callback: {}", length);
-
-    auto* stream_data = get_stream_data(session, stream_id);
-
-    auto& body = stream_data->body;
-
-    // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-    size_t to_read =
-      std::min(body.size() - stream_data->current_offset, length);
-    LOG_TRACE_FMT(
-      "Request body size: {}, offset: {}, to_read: {}",
-      body.size(),
-      stream_data->current_offset,
-      to_read);
-    if (body.size() > 0)
-    {
-      memcpy(buf, body.data() + stream_data->current_offset, to_read);
-      stream_data->current_offset += to_read;
-    }
-    if (stream_data->current_offset >= body.size())
-    {
-      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-      stream_data->current_offset = 0;
-      body.clear();
-    }
-    return to_read;
-  }
+    std::span<const uint8_t> body = {};
+    bool more_to_come = false;
+  };
 
   static ssize_t read_body_from_span_callback(
     nghttp2_session* session,
@@ -109,28 +78,26 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    LOG_TRACE_FMT("http2::read_body_from_span_callback: {}", length);
-    LOG_INFO_FMT("Resulted in callback with body set to {}", (size_t)user_data);
-
-    if (user_data == nullptr)
+    if (source->ptr == nullptr)
     {
-      LOG_FAIL_FMT("nghttp2 read_callback with null user_data");
+      LOG_FAIL_FMT("nghttp2 read_callback with null source pointer");
       return nghttp2_error::NGHTTP2_ERR_CALLBACK_FAILURE;
     }
 
-    auto body = static_cast<std::span<const uint8_t>*>(user_data);
+    auto ds = static_cast<DataSource*>(source->ptr);
 
     // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-    size_t to_read = std::min(body->size(), length);
-    LOG_TRACE_FMT("Request body size: {}, to_read: {}", body->size(), to_read);
+    size_t to_read = std::min(ds->body.size(), length);
+    LOG_TRACE_FMT(
+      "http2::read_body_from_span_callback: Reading {} bytes", to_read);
 
     if (to_read > 0)
     {
-      memcpy(buf, body->data(), to_read);
-      *body = body->subspan(to_read);
+      memcpy(buf, ds->body.data(), to_read);
+      ds->body = ds->body.subspan(to_read);
     }
 
-    if (body->empty())
+    if (ds->body.empty() && !ds->more_to_come)
     {
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
