@@ -15,10 +15,10 @@ namespace crypto
   {
   public:
     virtual bool verify(const q_useful_buf_c& buf) const = 0;
+    virtual ~COSEVerifier() = default;
   };
 
   using COSEVerifierUniquePtr = std::unique_ptr<COSEVerifier>;
 
-  COSEVerifierUniquePtr make_unique_cose_verifier(
-    const std::vector<uint8_t>& cert);
+  COSEVerifierUniquePtr make_cose_verifier(const std::vector<uint8_t>& cert);
 }

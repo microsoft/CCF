@@ -3,6 +3,7 @@
 
 #include "ccf/endpoints/authentication/cose_auth.h"
 
+#include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/public_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/http_consts.h"
@@ -219,11 +220,16 @@ namespace ccf
     if (member_cert.has_value())
     {
       LOG_INFO_FMT("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
-      auto verifier = crypto::make_verifier(member_cert.value());
+      auto verifier = crypto::make_cose_verifier(member_cert->raw());
 
       q_useful_buf_c signed_cose;
       signed_cose.ptr = ctx->get_request_body().data();
       signed_cose.len = ctx->get_request_body().size();
+      if (!verifier->verify(signed_cose))
+      {
+        error_reason = fmt::format("Failed to validate COSE Sign1");
+        return nullptr;
+      }
     }
 
     auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();

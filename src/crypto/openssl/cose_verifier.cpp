@@ -49,7 +49,7 @@ namespace crypto
     }
   }
 
-  COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() {}
+  COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 
   bool COSEVerifier_OpenSSL::verify(const q_useful_buf_c& buf) const
   {
@@ -67,5 +67,10 @@ namespace crypto
     t_cose_err_t error =
       t_cose_sign1_verify(&verify_ctx, buf, &returned_payload, nullptr);
     return error;
+  }
+
+  COSEVerifierUniquePtr make_cose_verifier(const std::vector<uint8_t>& cert)
+  {
+    return std::make_unique<COSEVerifier_OpenSSL>(cert);
   }
 }
