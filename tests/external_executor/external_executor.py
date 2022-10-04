@@ -52,7 +52,7 @@ def test_executor_registration(network, cert, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    attestation_format = 2
+    attestation_format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
     quote = "testquote"
     endorsements = "testendorsement"
     uris = "/foo/hello/bar"
