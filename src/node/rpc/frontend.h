@@ -464,11 +464,37 @@ namespace ccf
               auto tx_id = tx.get_txid();
               if (tx_id.has_value() && consensus != nullptr)
               {
-                // Only transactions that acquired one or more map handles
-                // have a TxID, while others (e.g. unauthenticated commands)
-                // don't. Also, only report a TxID if the consensus is set, as
-                // the consensus is required to verify that a TxID is valid.
-                ctx->set_tx_id(tx_id.value());
+                try
+                {
+                  // Only transactions that acquired one or more map handles
+                  // have a TxID, while others (e.g. unauthenticated commands)
+                  // don't. Also, only report a TxID if the consensus is set, as
+                  // the consensus is required to verify that a TxID is valid.
+                  endpoints.execute_endpoint_locally_committed(
+                    endpoint, args, tx_id.value());
+                }
+                catch (const std::exception& e)
+                {
+                  // run default handler to set transaction id in header
+                  ccf::endpoints::default_locally_committed_func(
+                    args, tx_id.value());
+                  ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    fmt::format(
+                      "Failed to execute local commit handler func: {}",
+                      e.what()));
+                }
+                catch (...)
+                {
+                  // run default handler to set transaction id in header
+                  ccf::endpoints::default_locally_committed_func(
+                    args, tx_id.value());
+                  ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Failed to execute local commit handler func");
+                }
               }
 
               if (

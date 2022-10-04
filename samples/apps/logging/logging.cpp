@@ -234,6 +234,33 @@ namespace loggingapp
         ap);
     }
 
+    // Wrap all endpoints with trace logging of their invocation
+    ccf::endpoints::Endpoint make_endpoint_with_local_commit_handler(
+      const std::string& method,
+      ccf::RESTVerb verb,
+      const ccf::endpoints::EndpointFunction& f,
+      const ccf::endpoints::LocallyCommittedEndpointFunction& lcf,
+      const ccf::AuthnPolicies& ap) override
+    {
+      return ccf::UserEndpointRegistry::make_endpoint_with_local_commit_handler(
+        method,
+        verb,
+        [method, verb, f](ccf::endpoints::EndpointContext& args) {
+          CCF_APP_TRACE("BEGIN {} {}", verb.c_str(), method);
+          f(args);
+          CCF_APP_TRACE("END   {} {}", verb.c_str(), method);
+        },
+        [method, verb, lcf](
+          ccf::endpoints::CommandEndpointContext& args, const ccf::TxID& txid) {
+          CCF_APP_TRACE(
+            "BEGIN LOCAL COMMIT HANDLER {} {}", verb.c_str(), method);
+          lcf(args, txid);
+          CCF_APP_TRACE(
+            "END LOCAL COMMIT HANDLER   {} {}", verb.c_str(), method);
+        },
+        ap);
+    }
+
   public:
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
@@ -247,7 +274,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.11.5";
+      openapi_info.document_version = "1.12.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -286,6 +313,78 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: install_record
+
+      auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
+        static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
+        ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
+
+        const nlohmann::json body_j =
+          nlohmann::json::parse(ctx.rpc_ctx->get_response_body());
+
+        auto interm = body_j.get<LoggingPut::Intermediate>();
+
+        if (interm.fail)
+        {
+          throw std::runtime_error("oops, might have failed serialization");
+        }
+
+        interm.out.tx_id = tx_id.to_str();
+
+        ctx.rpc_ctx->set_response_body(nlohmann::json(interm.out).dump());
+      };
+
+      auto record_v2 = [this](auto& ctx, nlohmann::json&& params) {
+        const auto in = params.get<LoggingRecord::In>();
+
+        if (in.msg.empty())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message.");
+        }
+
+        auto records_handle =
+          ctx.tx.template rw<RecordsMap>(private_records(ctx));
+        records_handle->put(in.id, in.msg);
+        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
+
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        std::string fail;
+        if (!http::get_query_value(parsed_query, "fail", fail, error_reason))
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        LoggingPut::Out resp;
+        resp.success = true;
+        LoggingPut::Intermediate interm;
+        interm.out = resp;
+        if (fail == "true")
+        {
+          interm.fail = true;
+        }
+        else
+        {
+          interm.fail = false;
+        }
+        return ccf::make_success(interm);
+      };
+
+      make_endpoint_with_local_commit_handler(
+        "/log/private/anonymous/v2",
+        HTTP_POST,
+        ccf::json_adapter(record_v2),
+        add_txid_in_body_put,
+        ccf::no_auth_required)
+        .set_auto_schema<LoggingRecord::In, LoggingPut::Out>()
+        .install();
 
       // SNIPPET_START: get
       auto get = [this](auto& ctx, nlohmann::json&&) {
