@@ -469,6 +469,14 @@ namespace ccfapp
       return;
     }
 
+    void execute_request_locally_committed(
+      const JSDynamicEndpoint* endpoint,
+      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
+      const ccf::TxID& tx_id)
+    {
+      ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
+    }
+
   public:
     JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
@@ -629,6 +637,22 @@ namespace ccfapp
       }
 
       ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
+    }
+
+    void execute_endpoint_locally_committed(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
+      const ccf::TxID& tx_id) override
+    {
+      auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
+      if (endpoint != nullptr)
+      {
+        execute_request_locally_committed(endpoint, endpoint_ctx, tx_id);
+        return;
+      }
+
+      ccf::endpoints::EndpointRegistry::execute_endpoint_locally_committed(
+        e, endpoint_ctx, tx_id);
     }
 
     // Since we do our own dispatch within the default handler, report the

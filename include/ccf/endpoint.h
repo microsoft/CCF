@@ -159,6 +159,8 @@ namespace ccf::endpoints
   {
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func = {};
+    // Functor which is invoked to modify the response post commit.
+    LocallyCommittedEndpointFunction locally_committed_func = {};
 
     struct Installer
     {

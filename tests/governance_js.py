@@ -60,7 +60,23 @@ def test_proposal_validation(network, args):
             and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
         ), r.body.text()
 
+    def assert_malformed_proposal(r):
+        assert (
+            r.status_code == 500
+            and r.body.json()["error"]["code"] == "InternalError"
+            and r.body.json()["error"]["message"].startswith(
+                "Failed to execute validation: SyntaxError:"
+            )
+        ), r.body.text()
+
     with node.client(None, "member0") as c:
+
+        r = c.post(
+            "/gov/proposals",
+            b"{ not valid json",
+        )
+        assert_malformed_proposal(r)
+
         r = c.post(
             "/gov/proposals",
             proposal(action("valid_pem", pem="That's not a PEM")),
