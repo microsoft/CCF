@@ -39,11 +39,9 @@ namespace ccf
 
     // Implement Session::handle_incoming_data by dispatching a thread message
     // that eventually invokes the virtual handle_incoming_data_thread()
-    void handle_incoming_data(std::span<const uint8_t> data_) override
+    void handle_incoming_data(std::span<const uint8_t> data) override
     {
-      auto data = data_.data();
-      auto size = data_.size();
-      auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data, size);
+      auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data);
 
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(
         &handle_incoming_data_cb);

@@ -423,12 +423,10 @@ namespace quic
         ->recv_(msg->data.data.data(), msg->data.data.size(), msg->data.addr);
     }
 
-    void handle_incoming_data(std::span<const uint8_t> data_) override
+    void handle_incoming_data(std::span<const uint8_t> data) override
     {
-      auto data = data_.data();
-      auto size = data_.size();
       auto [_, addr_family, addr_data, body] =
-        ringbuffer::read_message<quic::quic_inbound>(data, size);
+        ringbuffer::read_message<quic::quic_inbound>(data);
 
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
