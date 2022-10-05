@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ccf_deprecated.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/code_digest.h"
 #include "ccf/tx.h"
@@ -33,4 +34,7 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest);
   };
+
+  using EnclaveAttestationProvider CCF_DEPRECATED("Will be removed in 4.x") =
+    AttestationProvider;
 }
