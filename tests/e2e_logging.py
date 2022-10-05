@@ -1527,7 +1527,7 @@ def test_post_local_commit_failure(network, args):
         assert r.body.json() == {
             "error": {
                 "code": "InternalError",
-                "message": "Failed to execute local commit handler func: oops, might have failed serialization",
+                "message": "Failed to execute local commit handler func: didn't set user_data!",
             }
         }, r.body.json()
 
