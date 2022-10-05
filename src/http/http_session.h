@@ -297,7 +297,7 @@ namespace http
 
     void send_request(http::Request&& request) override
     {
-      send_request_oops(std::move(request));
+      send_data(request.build_request());
     }
 
     void handle_response(

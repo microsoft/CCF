@@ -39,11 +39,5 @@ namespace http
       send_response(
         error.status, std::move(headers), {(const uint8_t*)s.data(), s.size()});
     }
-
-    // TODO: Fix the name of this, whatever it takes
-    virtual void send_request_oops(http::Request&& req)
-    {
-      send_data(req.build_request());
-    }
   };
 }

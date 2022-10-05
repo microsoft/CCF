@@ -6,7 +6,7 @@
 #include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
-#include "http2.h"
+#include "http2_parser.h"
 #include "http_common_session.h"
 #include "http_rpc_context.h"
 

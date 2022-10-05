@@ -81,7 +81,7 @@ namespace ccf
       {
         Base::tls_io->recv_buffered(data.data(), data.size());
 
-        if (Base::tls_io->get_status() == ccf::TLSSession::Status::ready)
+        if (Base::tls_io->get_status() == ccf::SessionStatus::ready)
         {
           // Send response describing soft session limit
           Base::send_odata_error_response(ccf::ErrorDetails{

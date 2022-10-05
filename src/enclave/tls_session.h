@@ -15,20 +15,19 @@
 
 namespace ccf
 {
+  enum SessionStatus
+  {
+    handshake,
+    ready,
+    closing,
+    closed,
+    authfail,
+    error
+  };
+
   class TLSSession : public std::enable_shared_from_this<TLSSession>
   {
   public:
-    // TODO: Public type?
-    enum Status
-    {
-      handshake,
-      ready,
-      closing,
-      closed,
-      authfail,
-      error
-    };
-
   protected:
     ringbuffer::WriterPtr to_host;
     tls::ConnID session_id;
@@ -41,7 +40,7 @@ namespace ccf
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
-    Status status;
+    SessionStatus status;
 
     bool can_send()
     {
@@ -80,7 +79,7 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
     }
 
-    Status get_status() const
+    SessionStatus get_status() const
     {
       return status;
     }
@@ -492,7 +491,7 @@ namespace ccf
       }
     }
 
-    void stop(Status status_)
+    void stop(SessionStatus status_)
     {
       switch (status)
       {
