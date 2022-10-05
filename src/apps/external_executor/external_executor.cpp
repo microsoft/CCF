@@ -10,6 +10,7 @@
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
 #include "endpoints/grpc.h"
+#include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
 #include "http/http_builder.h"
@@ -82,17 +83,22 @@ namespace externalexecutor
         }
 
         // generate and store executor id locally
-        crypto::Pem executor_public_key(payload.cert());
-        auto pubk_der = crypto::cert_pem_to_der(executor_public_key);
+        crypto::Pem executor_x509_cert(payload.cert());
+        auto cert_der = crypto::cert_pem_to_der(executor_x509_cert);
+        auto pubk_der = crypto::public_key_der_from_cert(cert_der);
+
         ExecutorId executor_id = ccf::compute_node_id_from_pubk_der(pubk_der);
         std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints(
           payload.supported_endpoints().begin(),
           payload.supported_endpoints().end());
 
         ExecutorNodeInfo executor_info = {
-          executor_public_key, payload.attestation(), supported_endpoints};
+          executor_x509_cert, payload.attestation(), supported_endpoints};
 
-        ExecutorIDs[executor_id] = executor_info;
+        executor_ids[executor_id] = executor_info;
+
+        // Record the certs in the Executor certs map
+        executor_certs[executor_id] = executor_x509_cert;
 
         ccf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");
@@ -151,6 +157,7 @@ namespace externalexecutor
         return ccf::grpc::make_success(opt_rd);
       };
 
+      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       make_endpoint(
         "/ccf.KV/StartTx",
         HTTP_POST,
@@ -265,7 +272,7 @@ namespace externalexecutor
         "/ccf.KV/Put",
         HTTP_POST,
         ccf::grpc_adapter<ccf::KVKeyValue, google::protobuf::Empty>(put),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto get = [this](
@@ -297,7 +304,7 @@ namespace externalexecutor
         "/ccf.KV/Get",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVValue>(get),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto has = [this](
@@ -324,7 +331,7 @@ namespace externalexecutor
         "/ccf.KV/Has",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVHasResult>(has),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto get_version = [this](
@@ -357,7 +364,7 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVVersion>(
           get_version),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto kv_delete = [this](
@@ -383,7 +390,7 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVKey, google::protobuf::Empty>(
           kv_delete),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
 
       auto get_all = [this](
@@ -398,7 +405,7 @@ namespace externalexecutor
         "/ccf.KV/GetAll",
         HTTP_POST,
         ccf::grpc_read_only_adapter<ccf::KVTable, ccf::KVValue>(get_all),
-        ccf::no_auth_required)
+        {executor_auth_policy})
         .install();
     }
 
@@ -530,6 +537,30 @@ namespace externalexecutor
       }
 
       ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
+    }
+
+    void execute_endpoint_locally_committed(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
+      const ccf::TxID& tx_id) override
+    {
+      auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
+      if (endpoint != nullptr)
+      {
+        execute_request_locally_committed(e, endpoint_ctx, tx_id);
+        return;
+      }
+
+      ccf::endpoints::EndpointRegistry::execute_endpoint_locally_committed(
+        e, endpoint_ctx, tx_id);
+    }
+
+    void execute_request_locally_committed(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
+      const ccf::TxID& tx_id)
+    {
+      ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
     }
   };
 } // namespace externalexecutor
