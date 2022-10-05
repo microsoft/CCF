@@ -474,9 +474,6 @@ namespace ravl
       auto rclaims = std::make_shared<Claims>();
       rclaims->sgx_claims = std::make_shared<sgx::Claims>();
 
-#  define SET_ARRAY(TO, FROM) \
-    std::copy(std::begin(FROM), std::end(FROM), std::begin(TO))
-
       for (size_t i = 0; i < claims_size; i++)
       {
         printf("%s=%s\n", claims[i].name, "");
@@ -493,22 +490,22 @@ namespace ravl
             ((sgx::Claims::ReportAttributes*)claim.value)->xfrm;
         }
         else if (strcmp(claim.name, "unique_id") == 0)
-          SET_ARRAY(rclaims->sgx_claims->report_body.mr_enclave, value);
+          copy(rclaims->sgx_claims->report_body.mr_enclave, value);
         else if (strcmp(claim.name, "signer_id") == 0)
-          SET_ARRAY(rclaims->sgx_claims->report_body.mr_signer, value);
+          copy(rclaims->sgx_claims->report_body.mr_signer, value);
         else if (strcmp(claim.name, "product_id") == 0)
           rclaims->sgx_claims->report_body.isv_prod_id =
             *(uint16_t*)claim.value;
         else if (strcmp(claim.name, "sgx_isv_extended_product_id") == 0)
-          SET_ARRAY(rclaims->sgx_claims->report_body.isv_ext_prod_id, value);
+          copy(rclaims->sgx_claims->report_body.isv_ext_prod_id, value);
         else if (strcmp(claim.name, "sgx_config_id") == 0)
-          SET_ARRAY(rclaims->sgx_claims->report_body.config_id, value);
+          copy(rclaims->sgx_claims->report_body.config_id, value);
         else if (strcmp(claim.name, "sgx_config_svn") == 0)
           rclaims->sgx_claims->report_body.config_svn = *(uint16_t*)claim.value;
         else if (strcmp(claim.name, "sgx_isv_family_id") == 0)
-          SET_ARRAY(rclaims->sgx_claims->report_body.isv_family_id, value);
+          copy(rclaims->sgx_claims->report_body.isv_family_id, value);
         else if (strcmp(claim.name, "sgx_cpu_svn") == 0)
-          SET_ARRAY(rclaims->sgx_claims->report_body.cpu_svn, value);
+          copy(rclaims->sgx_claims->report_body.cpu_svn, value);
         else if (strcmp(claim.name, "tcb_status") == 0)
           ; // TODO; parse from sgx_tcb_info?
         else if (strcmp(claim.name, "sgx_tcb_info") == 0)
@@ -554,7 +551,15 @@ namespace ravl
       return rclaims;
 #else
       if (!sgx_attestation)
-        throw std::runtime_error("missing underlying SGX attestation");
+      {
+        if (endorsements.empty())
+          throw std::runtime_error("no endorsements");
+
+        auto [sgx_att, cc] = extract_sgx_attestation(*this);
+        sgx_attestation = sgx_att;
+        custom_claims = cc;
+      }
+
       // std::string sat = sgx_attestation;
       // printf("%s\n", sat.c_str());
 
