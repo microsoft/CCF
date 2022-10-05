@@ -21,6 +21,43 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
+class CurrentStateIndex : public ccf::indexing::Strategy
+{
+private:
+  ccf::TxID current_txid = {};
+  std::string map_name;
+
+public:
+  std::map<std::string, std::string> map;
+
+using MapType= kv::Map<std::string,std::string>;
+
+  CurrentStateIndex(const std::string& map_name_) :
+    Strategy(map_name_),
+    map_name(map_name_)
+  {}
+
+  ~CurrentStateIndex() = default;
+
+  void handle_committed_transaction(
+    const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override
+  {
+    auto tx = store->create_read_only_tx();
+    auto handle = tx.ro<kv::Map<std::string, std::string>>(map_name);
+
+    handle->foreach([this](const auto& k, const auto& v) {
+      map[k] = v;
+      return true;
+    });
+    current_txid = tx_id;
+  }
+
+  std::optional<ccf::SeqNo> next_requested() override
+  {
+    return current_txid.seqno + 1;
+  }
+};
+
 using IndexA = ccf::indexing::strategies::SeqnosByKey_InMemory<decltype(map_a)>;
 using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;
 
@@ -250,6 +287,78 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
     seqnos_2,
     index_a,
     index_b);
+}
+
+// Uses stub classes to test just indexing logic in isolation
+TEST_CASE("basic indexing with deletes" * doctest::test_suite("indexing"))
+{
+  kv::Store kv_store;
+
+  auto consensus = std::make_shared<AllCommittableConsensus>();
+  kv_store.set_consensus(consensus);
+
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  ccf::indexing::Indexer indexer(fetcher);
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  auto map_name = "public:current_state";
+
+  auto index_c = std::make_shared<CurrentStateIndex>(map_name);
+  REQUIRE(indexer.install_strategy(index_c));
+  REQUIRE_FALSE(indexer.install_strategy(index_c));
+
+  std::vector<ActionDesc> actions;
+  ExpectedSeqNos expected_seqnos;
+  actions.push_back({expected_seqnos, [&](size_t i, kv::Tx& tx) {
+                       tx.wo<CurrentStateIndex::MapType>(map_name)->put("hello", "world");
+                       return true;
+                     }});
+
+  REQUIRE(create_transactions(kv_store, actions));
+
+  auto tick_until_caught_up = [&]() {
+    while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
+           !fetcher->requested.empty())
+    {
+      // Do the fetch, simulating an asynchronous fetch by the historical query
+      // system
+      for (auto seqno : fetcher->requested)
+      {
+        REQUIRE(consensus->replica.size() >= seqno);
+        const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+        fetcher->fetched_stores[seqno] =
+          fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
+      }
+      fetcher->requested.clear();
+    }
+  };
+
+  tick_until_caught_up();
+
+  {
+    INFO("Check that we can see the new value");
+
+    REQUIRE(index_c->map["hello"] == "world");
+    REQUIRE(index_c->map.size() == 1);
+  }
+
+  actions.clear();
+  actions.push_back({expected_seqnos, [&](size_t i, kv::Tx& tx) {
+                       tx.wo<CurrentStateIndex::MapType>(map_name)->remove("hello");
+                       return true;
+                     }});
+
+  tick_until_caught_up();
+
+  REQUIRE(create_transactions(kv_store, actions));
+
+  {
+    INFO("Check that we can see that it is now missing");
+    REQUIRE(!index_c->map.contains("hello"));
+    REQUIRE(index_c->map.empty());
+  }
 }
 
 kv::Version rekey(
