@@ -35,8 +35,7 @@ namespace ccf::pal
   static void generate_quote(
     attestation_report_data& report_data,
     RetrieveEndorsementCallback endorsement_cb,
-    snp::EndorsementsEndpointType endpoint_type,
-    const std::vector<std::string>& endpoints = {})
+    const snp::EndorsementsServers& endorsements_servers = {})
   {
     QuoteInfo node_quote_info = {};
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -92,7 +91,7 @@ namespace ccf::pal
       endorsement_cb(
         node_quote_info,
         snp::make_endorsement_endpoint_configuration(
-          *quote, endpoint_type, endpoints));
+          *quote, endorsements_servers));
     }
   }
 
@@ -214,8 +213,7 @@ namespace ccf::pal
   static void generate_quote(
     attestation_report_data& report_data,
     RetrieveEndorsementCallback endorsement_cb,
-    snp::EndorsementsEndpointType endpoint_type,
-    const std::vector<std::string>& endpoints = {})
+    const snp::EndorsementsServers& endorsements_servers = {})
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::oe_sgx_v1;

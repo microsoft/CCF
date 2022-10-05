@@ -243,6 +243,21 @@
         ],
         "type": "object"
       },
+      "LoggingPut__Out": {
+        "properties": {
+          "success": {
+            "$ref": "#/components/schemas/boolean"
+          },
+          "tx_id": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "success",
+          "tx_id"
+        ],
+        "type": "object"
+      },
       "LoggingRecord__In": {
         "properties": {
           "id": {
@@ -330,11 +345,11 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "1.11.5"
+    "version": "1.12.1"
   },
   "openapi": "3.0.0",
   "paths": {
-    "/app/api": {
+    "/api": {
       "get": {
         "responses": {
           "200": {
@@ -356,7 +371,7 @@
         }
       }
     },
-    "/app/api/metrics": {
+    "/api/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -378,7 +393,7 @@
         }
       }
     },
-    "/app/code": {
+    "/code": {
       "get": {
         "responses": {
           "200": {
@@ -419,7 +434,7 @@
         }
       }
     },
-    "/app/commit": {
+    "/commit": {
       "get": {
         "responses": {
           "200": {
@@ -441,7 +456,7 @@
         }
       }
     },
-    "/app/custom_auth": {
+    "/custom_auth": {
       "get": {
         "responses": {
           "200": {
@@ -463,7 +478,7 @@
         }
       }
     },
-    "/app/local_tx": {
+    "/local_tx": {
       "get": {
         "parameters": [
           {
@@ -495,7 +510,7 @@
         }
       }
     },
-    "/app/log/private": {
+    "/log/private": {
       "delete": {
         "parameters": [
           {
@@ -602,7 +617,7 @@
         }
       }
     },
-    "/app/log/private/admin_only": {
+    "/log/private/admin_only": {
       "post": {
         "requestBody": {
           "content": {
@@ -639,7 +654,7 @@
         }
       }
     },
-    "/app/log/private/all": {
+    "/log/private/all": {
       "delete": {
         "responses": {
           "200": {
@@ -666,7 +681,7 @@
         }
       }
     },
-    "/app/log/private/anonymous": {
+    "/log/private/anonymous": {
       "post": {
         "requestBody": {
           "content": {
@@ -698,7 +713,39 @@
         }
       }
     },
-    "/app/log/private/count": {
+    "/log/private/anonymous/v2": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingRecord__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingPut__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/log/private/count": {
       "get": {
         "responses": {
           "200": {
@@ -725,7 +772,7 @@
         }
       }
     },
-    "/app/log/private/historical": {
+    "/log/private/historical": {
       "get": {
         "parameters": [
           {
@@ -762,7 +809,7 @@
         }
       }
     },
-    "/app/log/private/historical/sparse": {
+    "/log/private/historical/sparse": {
       "get": {
         "parameters": [
           {
@@ -807,7 +854,7 @@
         }
       }
     },
-    "/app/log/private/historical_receipt": {
+    "/log/private/historical_receipt": {
       "get": {
         "parameters": [
           {
@@ -844,7 +891,7 @@
         }
       }
     },
-    "/app/log/private/prefix_cert": {
+    "/log/private/prefix_cert": {
       "post": {
         "requestBody": {
           "content": {
@@ -881,7 +928,7 @@
         }
       }
     },
-    "/app/log/private/raw_text/{id}": {
+    "/log/private/raw_text/{id}": {
       "parameters": [
         {
           "in": "path",
@@ -911,7 +958,7 @@
         }
       }
     },
-    "/app/log/public": {
+    "/log/public": {
       "delete": {
         "parameters": [
           {
@@ -1018,7 +1065,7 @@
         }
       }
     },
-    "/app/log/public/all": {
+    "/log/public/all": {
       "delete": {
         "responses": {
           "200": {
@@ -1045,7 +1092,7 @@
         }
       }
     },
-    "/app/log/public/count": {
+    "/log/public/count": {
       "get": {
         "responses": {
           "200": {
@@ -1072,7 +1119,7 @@
         }
       }
     },
-    "/app/log/public/historical/range": {
+    "/log/public/historical/range": {
       "get": {
         "parameters": [
           {
@@ -1125,7 +1172,7 @@
         }
       }
     },
-    "/app/log/public/historical_receipt": {
+    "/log/public/historical_receipt": {
       "get": {
         "parameters": [
           {
@@ -1162,7 +1209,7 @@
         }
       }
     },
-    "/app/log/request_query": {
+    "/log/request_query": {
       "get": {
         "responses": {
           "200": {
@@ -1184,7 +1231,7 @@
         }
       }
     },
-    "/app/log/signed_request_query": {
+    "/log/signed_request_query": {
       "get": {
         "responses": {
           "200": {
@@ -1211,7 +1258,7 @@
         }
       }
     },
-    "/app/multi_auth": {
+    "/multi_auth": {
       "get": {
         "responses": {
           "200": {
@@ -1245,7 +1292,7 @@
         }
       }
     },
-    "/app/receipt": {
+    "/receipt": {
       "get": {
         "parameters": [
           {
@@ -1277,7 +1324,7 @@
         }
       }
     },
-    "/app/tx": {
+    "/tx": {
       "get": {
         "parameters": [
           {

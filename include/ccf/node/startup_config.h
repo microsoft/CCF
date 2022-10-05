@@ -51,9 +51,7 @@ struct CCFConfig
 
   struct Attestation
   {
-    ccf::pal::snp::EndorsementsEndpointType snp_endorsements_server_type =
-      ccf::pal::snp::EndorsementsEndpointType::Azure;
-    std::vector<std::string> snp_endorsements_servers = {};
+    ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
 
     bool operator==(const Attestation&) const = default;
   };

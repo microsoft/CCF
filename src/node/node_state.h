@@ -407,7 +407,6 @@ namespace ccf
       pal::generate_quote(
         report_data,
         fetch_endorsements,
-        config.attestation.snp_endorsements_server_type,
         config.attestation.snp_endorsements_servers);
     }
 

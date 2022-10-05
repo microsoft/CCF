@@ -111,6 +111,9 @@ namespace ccf::endpoints
     /// Full URI path to endpoint, including method prefix
     URI full_uri_path;
 
+    /// URI path for the API documentation
+    URI api_uri_path;
+
     EndpointProperties properties;
 
     /** List of authentication policies which will be checked before executing
@@ -159,6 +162,8 @@ namespace ccf::endpoints
   {
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func = {};
+    // Functor which is invoked to modify the response post commit.
+    LocallyCommittedEndpointFunction locally_committed_func = {};
 
     struct Installer
     {
@@ -232,7 +237,7 @@ namespace ccf::endpoints
             }
 
             ds::openapi::add_request_body_schema<In>(
-              document, endpoint.full_uri_path, http_verb.value());
+              document, endpoint.api_uri_path, http_verb.value());
           });
       }
       else
@@ -256,7 +261,7 @@ namespace ccf::endpoints
 
             ds::openapi::add_response_schema<Out>(
               document,
-              endpoint.full_uri_path,
+              endpoint.api_uri_path,
               http_verb.value(),
               endpoint.success_status);
           });
@@ -326,7 +331,7 @@ namespace ccf::endpoints
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(
-            document, endpoint.full_uri_path, http_verb.value(), parameter);
+            document, endpoint.api_uri_path, http_verb.value(), parameter);
         });
 
       return *this;

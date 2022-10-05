@@ -32,6 +32,15 @@ namespace loggingapp
     using Out = bool;
   };
 
+  struct LoggingPut
+  {
+    struct Out
+    {
+      bool success;
+      std::string tx_id;
+    };
+  };
+
   struct LoggingGetReceipt
   {
     struct In
@@ -52,6 +61,9 @@ namespace loggingapp
 
   DECLARE_JSON_TYPE(LoggingGet::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
+
+  DECLARE_JSON_TYPE(LoggingPut::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingPut::Out, success, tx_id);
 
   DECLARE_JSON_TYPE(LoggingGetReceipt::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::In, id);

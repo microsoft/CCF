@@ -218,20 +218,18 @@ def test_add_node_amd_endorsements_endpoint(network, args):
 
     args_copy = deepcopy(args)
     test_vectors = [
-        ("AMD", ["kdsintf.amd.com"], True),
-        ("AMD", ["invalid.amd.com"], False),
-        ("AMD", ["invalid.amd.com", "kdsintf.amd.com"], True),  # Fallback server
+        (["AMD:kdsintf.amd.com"], True),
+        (["AMD:invalid.amd.com"], False),
+        (["Azure:invalid.azure.com", "AMD:kdsintf.amd.com"], True),  # Fallback server
     ]
 
-    for server_type, servers, expected_result in test_vectors:
+    for servers, expected_result in test_vectors:
         LOG.info(
-            f"Joining new node with endorsement server {server_type}:{servers} (expect success: {expected_result})"
+            f"Joining new node with endorsement server {servers} (expect success: {expected_result})"
         )
         new_node = network.create_node("local://localhost")
-        args_copy.snp_endorsements_server_type = server_type
         args_copy.snp_endorsements_servers = servers
         try:
-            # Timeout as
             network.join_node(new_node, args.package, args_copy, timeout=15)
         except TimeoutError:
             assert not expected_result
