@@ -163,7 +163,7 @@ namespace ccf::endpoints
 
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
-    endpoint.locally_committed_func = &default_locally_committed_func;
+    endpoint.locally_committed_func = default_locally_committed_func;
 
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded

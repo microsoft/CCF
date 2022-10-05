@@ -39,11 +39,6 @@ namespace loggingapp
       bool success;
       std::string tx_id;
     };
-    struct Intermediate
-    {
-      Out out;
-      bool fail;
-    };
   };
 
   struct LoggingGetReceipt
@@ -69,8 +64,6 @@ namespace loggingapp
 
   DECLARE_JSON_TYPE(LoggingPut::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingPut::Out, success, tx_id);
-  DECLARE_JSON_TYPE(LoggingPut::Intermediate);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingPut::Intermediate, out, fail);
 
   DECLARE_JSON_TYPE(LoggingGetReceipt::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::In, id);
