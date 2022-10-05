@@ -318,7 +318,7 @@ namespace ccf
               "provided in attestation",
               config.security_policy.value(),
               digest.hex_str(),
-              quoted_digest.value().hex_str));
+              quoted_digest.value().hex_str()));
           }
           LOG_INFO_FMT("Digest matches raw security policy");
         }
