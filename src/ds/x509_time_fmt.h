@@ -66,7 +66,8 @@ namespace ds
       int oh = 0;
       float s = 0.0;
 
-      if (sscanf(ts, fmt, &y, &m, &d, &h, &mn, &s, &oh, &om) == n)
+      int rs = sscanf(ts, fmt, &y, &m, &d, &h, &mn, &s, &oh, &om);
+      if (rs >= 1 && rs == n)
       {
         using namespace std::chrono;
 
