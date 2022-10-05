@@ -66,7 +66,6 @@ namespace http
 
           LOG_DEBUG_FMT("Request is too large: {}", e.what());
 
-          // TODO: Don't pre-serialise here
           send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_PAYLOAD_TOO_LARGE,
             ccf::errors::RequestBodyTooLarge,
@@ -239,7 +238,6 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        // TODO: Don't pre-serialise here
         send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,

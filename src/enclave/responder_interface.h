@@ -25,7 +25,5 @@ namespace ccf
       int32_t stream_id,
       size_t status_code,
       std::vector<uint8_t>&& data) = 0;
-    // TODO: Add reply_async_structured, taking unserialised response
-    // description
   };
 }

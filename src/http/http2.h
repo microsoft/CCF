@@ -164,7 +164,7 @@ namespace http2
       http_status status,
       const http::HeaderMap& headers,
       http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body)
+      std::span<const uint8_t> body)
     {
       LOG_TRACE_FMT(
         "http2::send_response: stream {} - {} headers - {} trailers - {} byte "
@@ -174,11 +174,11 @@ namespace http2
         trailers.size(),
         body.size());
 
-      std::string body_size = std::to_string(body.size());
       std::vector<nghttp2_nv> hdrs;
       auto status_str = fmt::format(
         "{}", static_cast<std::underlying_type<http_status>::type>(status));
       hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
+      std::string body_size = std::to_string(body.size());
       hdrs.emplace_back(
         make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
 

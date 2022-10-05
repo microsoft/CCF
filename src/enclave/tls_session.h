@@ -140,6 +140,7 @@ namespace ccf
 
     std::vector<uint8_t> peer_cert()
     {
+      // TODO: Can I store one of these, and return spans over it?
       return ctx->peer_cert();
     }
 

@@ -207,7 +207,6 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        // TODO: This doesn't exist?
         send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
@@ -240,8 +239,7 @@ namespace http
         status_code,
         std::move(headers),
         {}, // TODO: Include trailers
-        {body.begin(), body.end()} // TODO: Remove copy
-      );
+        body);
     }
   };
 
