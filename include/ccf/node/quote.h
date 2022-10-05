@@ -19,12 +19,12 @@ namespace ccf
     FailedInvalidQuotedPublicKey,
   };
 
-  class EnclaveAttestationProvider
+  class AttestationProvider
   {
   public:
-    /// Extracts the MRENCLAVE from an OE quote. This fails on quotes with
-    /// expired collateral, so it is recommended to cache code IDs once they
-    /// have been successfully extracted.
+    /// In SGX case, extracts the MRENCLAVE from an OE quote. This fails on
+    /// quotes with expired collateral, so it is recommended to cache code IDs
+    /// once they have been successfully extracted.
     static std::optional<CodeDigest> get_code_id(const QuoteInfo& quote_info);
 
     static QuoteVerificationResult verify_quote_against_store(
