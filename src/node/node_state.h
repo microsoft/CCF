@@ -293,7 +293,6 @@ namespace ccf
       }
 
       // Verify that the security policy matches the quoted digest of the policy
-      LOG_INFO_FMT("TEST: quote info format == {}", quote_info.format);
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
         auto quoted_digest = EnclaveAttestationProvider::get_security_policy_digest(quote_info);
         if (!quoted_digest.has_value()) {
@@ -305,9 +304,10 @@ namespace ccf
         }
         else {
           auto digest = crypto::Sha256Hash(config.security_policy.value());
-          if (digest.h != quoted_digest.value()) {
-            throw std::logic_error(fmt::format("Raw security policy {} doesn't match digest {} provided in attestation", config.security_policy.value(), quoted_digest.value()));
+          if (digest != quoted_digest.value()) {
+            throw std::logic_error(fmt::format("Raw security policy {} digested to {} doesn't match digest {} provided in attestation", config.security_policy.value(), ds::to_hex(digest.h), ds::to_hex(quoted_digest.value().h)));
           }
+          LOG_INFO_FMT("Digest matches raw security policy");
         }
       }
 

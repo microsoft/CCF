@@ -65,6 +65,7 @@ namespace ccf
     }
 
     DigestedPolicy digest{};
+    DigestedPolicy::Representation rep{};
     CodeDigest d = {};
     pal::attestation_report_data r = {};
     try
@@ -75,7 +76,7 @@ namespace ccf
       std::copy(
         std::begin(quote.host_data),
         std::end(quote.host_data),
-        digest.begin());
+        rep.begin());
     }
     catch (const std::exception& e)
     {
@@ -83,7 +84,7 @@ namespace ccf
       return std::nullopt;
     }
 
-    return digest;
+    return digest.from_representation(rep);
   }
 
   QuoteVerificationResult verify_security_policy_against_store(

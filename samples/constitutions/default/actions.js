@@ -937,9 +937,9 @@ const actions = new Map([
         checkType(args.digested_security_policy, "string", "digested_security_policy");
       },
       function (args, proposalId) {
-        const raw_security_policy = ccf.strToBuf(args.raw_security_policy);
-        const digested_security_policy = ccf.strToBuf(args.digested_security_policy);
-        ccf.kv["public:ccf.gov.nodes.security_policies"].set(digested_security_policy, raw_security_policy);
+        const digest = ccf.strToBuf(args.digested_security_policy);
+        const raw = ccf.jsonCompatibleToBuf(args.raw_security_policy);
+        ccf.kv["public:ccf.gov.nodes.security_policies"].set(digest, raw);
 
         // Adding a new allowed security policy changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);

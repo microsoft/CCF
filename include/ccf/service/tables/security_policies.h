@@ -3,8 +3,9 @@
 #pragma once
 
 #include "ccf/service/map.h"
+#include "ccf/crypto/sha256_hash.h"
 
-using DigestedPolicy = std::array<uint8_t, 32>;
+using DigestedPolicy = crypto::Sha256Hash;
 using RawPolicy = std::string;
 
 namespace ccf

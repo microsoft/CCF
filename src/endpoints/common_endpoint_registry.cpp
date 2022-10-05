@@ -183,7 +183,7 @@ namespace ccf
       auto security_policies = ctx.tx.template ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
       security_policies->foreach(
         [key, &out](const DigestedPolicy& digest, const RawPolicy& raw) {
-          auto digest_str = ds::to_hex(digest);
+          auto digest_str = digest.hex_str();
           if (!key.has_value() || key.value() == digest_str)
             out.policies.push_back({raw, digest_str});
           return true;
