@@ -708,7 +708,11 @@ endfunction()
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(ravl.enclave INTERFACE)
   target_compile_definitions(ravl.enclave INTERFACE RAVL_HAVE_OPENSSL)
-  target_include_directories(ravl.enclave INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>)
+  target_include_directories(
+    ravl.enclave
+    INTERFACE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>
+  )
   target_link_libraries(ravl.enclave INTERFACE openenclave::oecryptoopenssl)
   target_compile_options(ravl.enclave INTERFACE -Wno-c99-extensions)
   install(TARGETS ravl.enclave EXPORT ccf)
@@ -716,7 +720,11 @@ endif()
 
 add_library(ravl.host INTERFACE)
 target_compile_definitions(ravl.host INTERFACE RAVL_HAVE_OPENSSL)
-target_include_directories(ravl.host INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>)
+target_include_directories(
+  ravl.host
+  INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>
+)
 target_link_libraries(ravl.host INTERFACE crypto)
 target_compile_options(ravl.host INTERFACE -Wno-c99-extensions)
 install(TARGETS ravl.host EXPORT ccf)
