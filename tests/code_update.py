@@ -9,7 +9,11 @@ import infra.utils
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
-from infra.is_snp import IS_SNP, DEFAULT_SNP_SECURITY_POLICY_DIGEST, DEFAULT_SNP_SECURITY_POLICY
+from infra.is_snp import (
+    IS_SNP,
+    DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+    DEFAULT_SNP_SECURITY_POLICY,
+)
 
 
 from loguru import logger as LOG
@@ -72,14 +76,23 @@ def test_security_policy_table(network, args):
 
     assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
 
-@reqs.description("Node with no security policy set but good digest matching ledger joins successfully")
+
+@reqs.description(
+    "Node with no security policy set but good digest matching ledger joins successfully"
+)
 @reqs.snp_only()
 def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
 
-    LOG.info(f"Change the entry for trusted security policies to not include a raw policy")
+    LOG.info(
+        f"Change the entry for trusted security policies to not include a raw policy"
+    )
     primary, _ = network.find_nodes()
-    network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
-    network.consortium.add_new_security_policy(primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+    network.consortium.retire_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+    network.consortium.add_new_security_policy(
+        primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
 
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, timeout=3, env=dict())
@@ -88,10 +101,17 @@ def test_add_node_with_no_raw_security_policy_match_ledger(network, args):
     LOG.info(f"Checking node joined with a blank security policy")
     # TODO: Do this
 
-    network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
-    network.consortium.add_new_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+    network.consortium.retire_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+    network.consortium.add_new_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
 
-@reqs.description("Node with no security policy set but good digest not matching ledger joins successfully")
+
+@reqs.description(
+    "Node with no security policy set but good digest not matching ledger joins successfully"
+)
 @reqs.snp_only()
 def test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args):
 
@@ -102,6 +122,7 @@ def test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args)
     LOG.info(f"Checking node joined with a blank security policy")
     # TODO: Do this
 
+
 @reqs.description("Node where raw security policy doesn't match digest fails to join")
 @reqs.snp_only()
 def test_add_node_with_mismatched_security_policy_digest(network, args):
@@ -110,13 +131,21 @@ def test_add_node_with_mismatched_security_policy_digest(network, args):
     prev_nodes = [primary, *others]
     try:
         new_node = network.create_node("local://localhost")
-        network.join_node(new_node, args.package, args, timeout=3, env={"SECURITY_POLICY": b64encode(b"invalid_security_policy").decode()})
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            env={"SECURITY_POLICY": b64encode(b"invalid_security_policy").decode()},
+        )
         network.trust_node(new_node, args)
-    except Exception: ...
+    except Exception:
+        ...
 
     primary, others = network.find_nodes()
     nodes = [primary, *others]
     assert len(nodes) == len(prev_nodes), "Node joining unexpectedly succeeded"
+
 
 @reqs.description("Node with bad security policy digest fails to join")
 @reqs.snp_only()
@@ -125,20 +154,28 @@ def test_add_node_with_bad_security_policy_digest(network, args):
     primary, others = network.find_nodes()
     prev_nodes = [primary, *others]
 
-    LOG.info(f"Removing security policy set by node 0 so that a new joiner is seen as an unmatching policy")
-    network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+    LOG.info(
+        f"Removing security policy set by node 0 so that a new joiner is seen as an unmatching policy"
+    )
+    network.consortium.retire_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
 
     new_node = network.create_node("local://localhost")
     try:
         network.join_node(new_node, args.package, args, timeout=3)
         network.trust_node(new_node, args)
-    except Exception: ...
+    except Exception:
+        ...
 
     primary, others = network.find_nodes()
     nodes = [primary, *others]
     assert len(nodes) == len(prev_nodes), "Node joining unexpectedly succeeded"
 
-    network.consortium.add_new_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
+    network.consortium.add_new_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):

@@ -9,9 +9,9 @@
 #include <functional>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#  include "ccf/pal/attestation_sev_snp.h"
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
+#  include "ccf/pal/attestation_sev_snp.h"
 #  include "crypto/ecdsa.h"
 
 #  include <fcntl.h>

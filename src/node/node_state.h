@@ -293,19 +293,32 @@ namespace ccf
       }
 
       // Verify that the security policy matches the quoted digest of the policy
-      if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
-        auto quoted_digest = EnclaveAttestationProvider::get_security_policy_digest(quote_info);
-        if (!quoted_digest.has_value()) {
+      if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
+      {
+        auto quoted_digest =
+          EnclaveAttestationProvider::get_security_policy_digest(quote_info);
+        if (!quoted_digest.has_value())
+        {
           throw std::logic_error("Unable to find security policy");
         }
 
-        if (!config.security_policy.has_value()) {
-          LOG_INFO_FMT("Security Policy environment variable not set, skipping check against digest");
+        if (!config.security_policy.has_value())
+        {
+          LOG_INFO_FMT(
+            "Security Policy environment variable not set, skipping check "
+            "against digest");
         }
-        else {
+        else
+        {
           auto digest = crypto::Sha256Hash(config.security_policy.value());
-          if (digest != quoted_digest.value()) {
-            throw std::logic_error(fmt::format("Raw security policy {} digested to {} doesn't match digest {} provided in attestation", config.security_policy.value(), ds::to_hex(digest.h), ds::to_hex(quoted_digest.value().h)));
+          if (digest != quoted_digest.value())
+          {
+            throw std::logic_error(fmt::format(
+              "Raw security policy {} digested to {} doesn't match digest {} "
+              "provided in attestation",
+              config.security_policy.value(),
+              digest.hex_str(),
+              quoted_digest.value().hex_str));
           }
           LOG_INFO_FMT("Digest matches raw security policy");
         }

@@ -421,15 +421,21 @@ namespace ccf
     }
 
     void trust_node_security_policy(
-      const std::optional<RawPolicy>& raw_security_policy, const DigestedPolicy& host_data)
+      const std::optional<RawPolicy>& raw_security_policy,
+      const DigestedPolicy& host_data)
     {
       auto security_policies = tx.rw(tables.security_policies);
-      if (raw_security_policy.has_value()){
-        LOG_INFO_FMT("Trusting node with policy {}", raw_security_policy.value());
-        security_policies->put(host_data, raw_security_policy.value());}
-      else{
+      if (raw_security_policy.has_value())
+      {
+        LOG_INFO_FMT(
+          "Trusting node with policy {}", raw_security_policy.value());
+        security_policies->put(host_data, raw_security_policy.value());
+      }
+      else
+      {
         LOG_INFO_FMT("Trusting node with unset policy");
-        security_policies->put(host_data, pal::snp::EMPTY_SECURITY_POLICY);}
+        security_policies->put(host_data, pal::snp::EMPTY_SECURITY_POLICY);
+      }
     }
 
     void init_configuration(const ServiceConfiguration& configuration)

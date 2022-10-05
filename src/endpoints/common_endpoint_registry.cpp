@@ -171,7 +171,6 @@ namespace ccf
       .install();
 
     auto get_security_policies = [](auto& ctx, nlohmann::json&&) {
-
       const auto parsed_query =
         http::parse_query(ctx.rpc_ctx->get_request_query());
       std::string error_string; // Ignored - params are optional
@@ -180,7 +179,8 @@ namespace ccf
 
       GetSecurityPolicies::Out out;
 
-      auto security_policies = ctx.tx.template ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
+      auto security_policies =
+        ctx.tx.template ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
       security_policies->foreach(
         [key, &out](const DigestedPolicy& digest, const RawPolicy& raw) {
           auto digest_str = digest.hex_str();
@@ -192,7 +192,10 @@ namespace ccf
       return make_success(out);
     };
     make_read_only_endpoint(
-      "/security_policy", HTTP_GET, json_read_only_adapter(get_security_policies), no_auth_required)
+      "/security_policy",
+      HTTP_GET,
+      json_read_only_adapter(get_security_policies),
+      no_auth_required)
       .set_auto_schema<void, GetSecurityPolicies::Out>()
       .add_query_parameter<std::string>(
         "key", ccf::endpoints::OptionalParameter)

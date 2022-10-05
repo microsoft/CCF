@@ -934,7 +934,11 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.raw_security_policy, "string", "raw_security_policy");
-        checkType(args.digested_security_policy, "string", "digested_security_policy");
+        checkType(
+          args.digested_security_policy,
+          "string",
+          "digested_security_policy"
+        );
       },
       function (args, proposalId) {
         const digest = ccf.strToBuf(args.digested_security_policy);
@@ -950,7 +954,11 @@ const actions = new Map([
     "remove_security_policy",
     new Action(
       function (args) {
-        checkType(args.digested_security_policy, "string", "digested_security_policy");
+        checkType(
+          args.digested_security_policy,
+          "string",
+          "digested_security_policy"
+        );
       },
       function (args) {
         const digest = ccf.strToBuf(args.digested_security_policy);

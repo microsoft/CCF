@@ -57,10 +57,11 @@ namespace ccf
     return unique_id;
   }
 
-  std::optional<DigestedPolicy> EnclaveAttestationProvider::get_security_policy_digest(
-    const QuoteInfo& quote_info)
+  std::optional<DigestedPolicy> EnclaveAttestationProvider::
+    get_security_policy_digest(const QuoteInfo& quote_info)
   {
-    if (access(pal::snp::DEVICE, F_OK) != 0) {
+    if (access(pal::snp::DEVICE, F_OK) != 0)
+    {
       return std::nullopt;
     }
 
@@ -71,12 +72,10 @@ namespace ccf
     try
     {
       pal::verify_quote(quote_info, d.data, r);
-      auto quote =
-        *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
+      auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
+        quote_info.quote.data());
       std::copy(
-        std::begin(quote.host_data),
-        std::end(quote.host_data),
-        rep.begin());
+        std::begin(quote.host_data), std::end(quote.host_data), rep.begin());
     }
     catch (const std::exception& e)
     {
@@ -88,20 +87,25 @@ namespace ccf
   }
 
   QuoteVerificationResult verify_security_policy_against_store(
-    kv::ReadOnlyTx& tx,
-    const QuoteInfo& quote_info)
+    kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
   {
-    if (quote_info.format != QuoteFormat::amd_sev_snp_v1) {
-      throw std::logic_error("Attempted to verify security policy for an unsupported platform");
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      throw std::logic_error(
+        "Attempted to verify security policy for an unsupported platform");
     }
 
-    auto security_policy_digest = EnclaveAttestationProvider::get_security_policy_digest(quote_info);
-    if (!security_policy_digest.has_value()) {
+    auto security_policy_digest =
+      EnclaveAttestationProvider::get_security_policy_digest(quote_info);
+    if (!security_policy_digest.has_value())
+    {
       return QuoteVerificationResult::FailedSecurityPolicyDigestNotFound;
     }
 
-    auto accepted_policies_table = tx.ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
-    auto accepted_policy = accepted_policies_table->get(security_policy_digest.value());
+    auto accepted_policies_table =
+      tx.ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
+    auto accepted_policy =
+      accepted_policies_table->get(security_policy_digest.value());
     if (!accepted_policy.has_value())
     {
       return QuoteVerificationResult::FailedInvalidSecurityPolicy;
@@ -141,9 +145,11 @@ namespace ccf
       LOG_FAIL_FMT("Skipped attestation report verification");
       return QuoteVerificationResult::Verified;
     }
-    else if (quote_info.format == QuoteFormat::amd_sev_snp_v1) {
+    else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
+    {
       auto rc = verify_security_policy_against_store(tx, quote_info);
-      if (rc != QuoteVerificationResult::Verified) {
+      if (rc != QuoteVerificationResult::Verified)
+      {
         return rc;
       }
     }

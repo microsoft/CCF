@@ -8,8 +8,8 @@
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
-#include "ccf/pal/mem.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/mem.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
@@ -156,8 +156,7 @@ namespace ccf
             "Quote doesn't contain a security policy digest");
         case QuoteVerificationResult::FailedInvalidSecurityPolicy:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote security policy isn't authorized");
+            HTTP_STATUS_UNAUTHORIZED, "Quote security policy isn't authorized");
         default:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1524,8 +1523,11 @@ namespace ccf
           in.public_key};
         g.add_node(in.node_id, node_info);
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
-        if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1){
-          auto digest = EnclaveAttestationProvider::get_security_policy_digest(in.quote_info).value();
+        if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
+        {
+          auto digest = EnclaveAttestationProvider::get_security_policy_digest(
+                          in.quote_info)
+                          .value();
           LOG_INFO_FMT("Trusting digest {}", digest.hex_str());
           g.trust_node_security_policy(in.security_policy, digest);
         }

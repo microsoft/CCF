@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/service/map.h"
 #include "ccf/crypto/sha256_hash.h"
+#include "ccf/service/map.h"
 
 using DigestedPolicy = crypto::Sha256Hash;
 using RawPolicy = std::string;

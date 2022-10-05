@@ -406,9 +406,11 @@ int main(int argc, char** argv)
     startup_config.attestation = config.attestation;
 
     // Get the nodes security policy via environment variable
-    if (access(ccf::pal::snp::DEVICE, F_OK) == 0) {
+    if (access(ccf::pal::snp::DEVICE, F_OK) == 0)
+    {
       auto policy = std::getenv("SECURITY_POLICY");
-      if (policy != nullptr) {
+      if (policy != nullptr)
+      {
         std::vector<uint8_t> raw = crypto::raw_from_b64(policy);
         startup_config.security_policy = std::string(raw.begin(), raw.end());
       }
