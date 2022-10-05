@@ -129,12 +129,16 @@ def test_add_node_with_bad_security_policy_digest(network, args):
     network.consortium.retire_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
 
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, timeout=3)
-    network.trust_node(new_node, args)
+    try:
+        network.join_node(new_node, args.package, args, timeout=3)
+        network.trust_node(new_node, args)
+    except Exception: ...
 
     primary, others = network.find_nodes()
     nodes = [primary, *others]
     assert len(nodes) == len(prev_nodes), "Node joining unexpectedly succeeded"
+
+    network.consortium.add_new_security_policy(primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST)
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
