@@ -421,15 +421,15 @@ namespace ccf
     }
 
     void trust_node_security_policy(
-      const std::optional<RawPolicy>& raw_security_policy,
+      const std::optional<RawPolicy>& security_policy_raw,
       const DigestedPolicy& host_data)
     {
       auto security_policies = tx.rw(tables.security_policies);
-      if (raw_security_policy.has_value())
+      if (security_policy_raw.has_value())
       {
         LOG_INFO_FMT(
-          "Trusting node with policy {}", raw_security_policy.value());
-        security_policies->put(host_data, raw_security_policy.value());
+          "Trusting node with policy {}", security_policy_raw.value());
+        security_policies->put(host_data, security_policy_raw.value());
       }
       else
       {

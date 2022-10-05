@@ -1528,7 +1528,6 @@ namespace ccf
           auto digest = EnclaveAttestationProvider::get_security_policy_digest(
                           in.quote_info)
                           .value();
-          LOG_INFO_FMT("Trusting digest {}", digest.hex_str());
           g.trust_node_security_policy(in.security_policy, digest);
         }
 

@@ -23,6 +23,20 @@ function parseUrl(url) {
   };
 }
 
+function hexStrToBuf(hexStr) {
+  const result = [];
+
+  for (let i = 0; i < hexStr.length; i += 2) {
+    const octet = hexStr.slice(i, i + 2);
+    if (octet.length != 2 || octet.match(/[G-Z\s]/i)) {
+      throw new Error("Hex string invalid");
+    }
+    result.push(parseInt(octet, 16));
+  }
+
+  return new Uint8Array(result).buffer;
+}
+
 function checkType(value, type, field) {
   const optional = type.endsWith("?");
   if (optional) {
@@ -933,16 +947,29 @@ const actions = new Map([
     "add_security_policy",
     new Action(
       function (args) {
-        checkType(args.raw_security_policy, "string", "raw_security_policy");
+        checkType(args.security_policy_raw, "string", "security_policy_raw");
         checkType(
-          args.digested_security_policy,
+          args.security_policy_digest,
           "string",
-          "digested_security_policy"
+          "security_policy_digest"
         );
       },
       function (args, proposalId) {
-        const digest = ccf.strToBuf(args.digested_security_policy);
-        const raw = ccf.jsonCompatibleToBuf(args.raw_security_policy);
+        const digest = ccf.strToBuf(args.security_policy_digest);
+        const raw = ccf.jsonCompatibleToBuf(args.security_policy_raw);
+
+        const redigested_raw = ccf.bufToStr(
+          ccf.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
+        );
+        const quoted_digest = ccf.bufToStr(
+          hexStrToBuf(args.security_policy_digest)
+        );
+        if (args.security_policy_raw != "" && redigested_raw != quoted_digest) {
+          throw new Error(
+            `The hash of raw policy ${raw} does not match digest ${digest}`
+          );
+        }
+
         ccf.kv["public:ccf.gov.nodes.security_policies"].set(digest, raw);
 
         // Adding a new allowed security policy changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
@@ -955,13 +982,13 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(
-          args.digested_security_policy,
+          args.security_policy_digest,
           "string",
-          "digested_security_policy"
+          "security_policy_digest"
         );
       },
       function (args) {
-        const digest = ccf.strToBuf(args.digested_security_policy);
+        const digest = ccf.strToBuf(args.security_policy_digest);
         ccf.kv["public:ccf.gov.nodes.security_policies"].delete(digest);
       }
     ),
