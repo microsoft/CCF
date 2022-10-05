@@ -172,70 +172,53 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     static EndorsementEndpointsConfiguration
     make_endorsement_endpoint_configuration(
       const Attestation& quote,
-      EndorsementsEndpointType endpoint_type,
-      const std::vector<std::string>& endpoints = {})
+      const snp::EndorsementsServers& endorsements_servers = {})
     {
       EndorsementEndpointsConfiguration config;
-      std::map<std::string, std::string> params = {};
 
       auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
+      auto reported_tcb =
+        fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
 
-      switch (endpoint_type)
+      if (endorsements_servers.empty())
       {
-        case EndorsementsEndpointType::Azure:
-        {
-          auto reported_tcb =
-            fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
+        // Default to Azure server if no servers are specified
+        config.servers.emplace_back(make_azure_endorsements_server(
+          default_azure_endorsements_endpoint_host, chip_id_hex, reported_tcb));
+        return config;
+      }
 
-          if (endpoints.empty())
-          {
-            config.servers.emplace_back(make_azure_endorsements_server(
-              default_azure_endorsements_endpoint_host,
-              chip_id_hex,
-              reported_tcb));
-          }
-          else
-          {
-            for (auto const& endpoint : endpoints)
-            {
-              config.servers.emplace_back(make_azure_endorsements_server(
-                endpoint, chip_id_hex, reported_tcb));
-            }
-          }
-          break;
-        }
-        case EndorsementsEndpointType::AMD:
+      for (auto const& server : endorsements_servers)
+      {
+        switch (server.type)
         {
-          auto boot_loader = fmt::format("{}", quote.reported_tcb.boot_loader);
-          auto tee = fmt::format("{}", quote.reported_tcb.tee);
-          auto snp = fmt::format("{}", quote.reported_tcb.snp);
-          auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
-
-          if (endpoints.empty())
+          case EndorsementsEndpointType::Azure:
           {
+            auto url =
+              server.url.value_or(default_azure_endorsements_endpoint_host);
+            config.servers.emplace_back(
+              make_azure_endorsements_server(url, chip_id_hex, reported_tcb));
+            break;
+          }
+          case EndorsementsEndpointType::AMD:
+          {
+            auto boot_loader =
+              fmt::format("{}", quote.reported_tcb.boot_loader);
+            auto tee = fmt::format("{}", quote.reported_tcb.tee);
+            auto snp = fmt::format("{}", quote.reported_tcb.snp);
+            auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
+
+            auto url =
+              server.url.value_or(default_azure_endorsements_endpoint_host);
             config.servers.emplace_back(make_amd_endorsements_server(
-              default_amd_endorsements_endpoint_host,
-              chip_id_hex,
-              boot_loader,
-              tee,
-              snp,
-              microcode));
+              url, chip_id_hex, boot_loader, tee, snp, microcode));
+            break;
           }
-          else
+          default:
           {
-            for (auto const& endpoint : endpoints)
-            {
-              config.servers.emplace_back(make_amd_endorsements_server(
-                endpoint, chip_id_hex, boot_loader, tee, snp, microcode));
-            }
+            throw std::logic_error(fmt::format(
+              "Unsupported endorsements server type: {}", server.type));
           }
-
-          break;
-        }
-        default:
-        {
-          throw std::logic_error(fmt::format(
-            "Unsupported endorsement endpoint type: {}", endpoint_type));
         }
       }
 
