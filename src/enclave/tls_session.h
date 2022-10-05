@@ -15,13 +15,10 @@
 
 namespace ccf
 {
-  class TLSSession : public Session
+  class TLSSession : public std::enable_shared_from_this<TLSSession>
   {
-  protected:
-    ringbuffer::WriterPtr to_host;
-    tls::ConnID session_id;
-    size_t execution_thread;
-
+  public:
+    // TODO: Public type?
     enum Status
     {
       handshake,
@@ -32,22 +29,10 @@ namespace ccf
       error
     };
 
-    Status get_status() const
-    {
-      return status;
-    }
-
-    virtual std::vector<uint8_t> oversized_message_error(
-      size_t msg_size, size_t max_msg_size)
-    {
-      const auto s = fmt::format(
-        "Requested message ({} bytes) is too large. Maximum allowed is {} "
-        "bytes. Closing connection.",
-        msg_size,
-        max_msg_size);
-      const auto data = (const uint8_t*)s.data();
-      return std::vector<uint8_t>(data, data + s.size());
-    }
+  protected:
+    ringbuffer::WriterPtr to_host;
+    tls::ConnID session_id;
+    size_t execution_thread;
 
   private:
     std::vector<uint8_t> pending_write;
@@ -70,15 +55,9 @@ namespace ccf
       return status == ready || status == handshake;
     }
 
-    struct SendRecvMsg
-    {
-      std::vector<uint8_t> data;
-      std::shared_ptr<Session> self;
-    };
-
     struct EmptyMsg
     {
-      std::shared_ptr<Session> self;
+      std::shared_ptr<TLSSession> self;
     };
 
   public:
@@ -96,36 +75,34 @@ namespace ccf
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
-    ~TLSSession()
+    virtual ~TLSSession()
     {
       RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
     }
 
-    // Implement Session::handle_incoming_data by dispatching a thread message
-    // that eventually invokes the virtual receive_data()
-    void handle_incoming_data(const uint8_t* data, size_t size) override
+    Status get_status() const
     {
-      auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data, size);
-
-      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_data_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data.assign(body.data, body.data + body.size);
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
+      return status;
     }
 
-    static void recv_data_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+    using HandshakeErrorCB = std::function<void(std::string&&)>;
+    HandshakeErrorCB handshake_error_cb; // TODO: Should not be public
+
+    void on_handshake_error(std::string&& error_msg)
     {
-      reinterpret_cast<TLSSession*>(msg->data.self.get())
-        ->receive_data(msg->data.data.data(), msg->data.data.size());
+      if (handshake_error_cb)
+      {
+        handshake_error_cb(std::move(error_msg));
+      }
+      else
+      {
+        LOG_TRACE_FMT("{}", error_msg);
+      }
     }
 
-    virtual void receive_data(const uint8_t* data_, size_t size_) = 0;
-
-    virtual void on_handshake_error(const std::string& error_msg)
+    void set_handshake_error_cb(HandshakeErrorCB&& cb)
     {
-      LOG_TRACE_FMT("{}", error_msg);
+      handshake_error_cb = std::move(cb);
     }
 
     std::string hostname()
@@ -267,11 +244,6 @@ namespace ccf
       do_handshake();
     }
 
-    void send_data(std::span<const uint8_t> data) override
-    {
-      send_raw(data.data(), data.size());
-    }
-
     virtual void close()
     {
       status = closing;
@@ -284,7 +256,7 @@ namespace ccf
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
-      reinterpret_cast<TLSSession*>(msg->data.self.get())->close_thread();
+      msg->data.self->close_thread();
     }
 
     virtual void close_thread()
@@ -341,6 +313,14 @@ namespace ccf
     }
 
   private:
+    struct SendRecvMsg
+    {
+      std::vector<uint8_t> data;
+      std::shared_ptr<TLSSession> self;
+    };
+
+  public:
+    // TODO: Simplify public/private blocks
     void send_raw(const uint8_t* data, size_t size)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
@@ -351,10 +331,10 @@ namespace ccf
         execution_thread, std::move(msg));
     }
 
+  private:
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<TLSSession*>(msg->data.self.get())
-        ->send_raw_thread(msg->data.data);
+      msg->data.self->send_raw_thread(msg->data.data);
     }
 
     void send_raw_thread(const std::vector<uint8_t>& data)

@@ -77,11 +77,11 @@ namespace ccf
       NoMoreSessionsImpl(Ts&&... ts) : Base(std::forward<Ts>(ts)...)
       {}
 
-      void receive_data(const uint8_t* data, size_t size) override
+      void handle_incoming_data_thread(std::span<const uint8_t> data) override
       {
-        Base::recv_buffered(data, size);
+        Base::tls_io->recv_buffered(data.data(), data.size());
 
-        if (Base::get_status() == Base::Status::ready)
+        if (Base::tls_io->get_status() == ccf::TLSSession::Status::ready)
         {
           // Send response describing soft session limit
           Base::send_odata_error_response(ccf::ErrorDetails{
@@ -90,7 +90,7 @@ namespace ccf
             "Service is currently busy and unable to serve new connections"});
 
           // Close connection
-          Base::close();
+          Base::tls_io->close();
         }
       }
     };
@@ -488,7 +488,7 @@ namespace ccf
       }
 
       auto respondable_session =
-        std::dynamic_pointer_cast<http::HTTPCommonSession<ccf::TLSSession>>(session);
+        std::dynamic_pointer_cast<http::HTTPCommonSession>(session);
       if (respondable_session == nullptr)
       {
         LOG_DEBUG_FMT("Cannot respond to session {} - wrong type", id);
@@ -572,7 +572,7 @@ namespace ccf
             return;
           }
 
-          search->second.second->handle_incoming_data(data, size);
+          search->second.second->handle_incoming_data({data, size});
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -601,7 +601,7 @@ namespace ccf
             return;
           }
 
-          search->second.second->handle_incoming_data(data, size);
+          search->second.second->handle_incoming_data({data, size});
         });
     }
   };

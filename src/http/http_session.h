@@ -14,34 +14,43 @@
 namespace http
 {
   // TODO: Refactor so these _have_ a TLSSession, rather than _are_ a TLSSession
-  class HTTPEndpoint : public HTTPCommonSession<ccf::TLSSession>
+  class HTTPEndpoint : public HTTPCommonSession
   {
   protected:
-    http::Parser& p;
+    std::shared_ptr<ccf::TLSSession> tls_io;
     std::shared_ptr<ErrorReporter> error_reporter;
+    tls::ConnID session_id;
 
     HTTPEndpoint(
-      http::Parser& p_,
-      tls::ConnID session_id,
+      tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      HTTPCommonSession<ccf::TLSSession>(session_id, writer_factory, std::move(ctx)),
-      p(p_),
-      error_reporter(error_reporter)
+      HTTPCommonSession(session_id_),
+      tls_io(std::make_shared<ccf::TLSSession>(
+        session_id_, writer_factory, std::move(ctx))),
+      error_reporter(error_reporter),
+      session_id(session_id_)
     {}
 
   public:
-    void receive_data(const uint8_t* data_, size_t size_) override
-    {
-      recv_buffered(data_, size_);
+    virtual void parse(std::span<const uint8_t> data) = 0;
 
-      LOG_TRACE_FMT("recv called with {} bytes", size_);
+    // TODO: Is this even needed?
+    void send_data(std::span<const uint8_t> data) override
+    {
+      tls_io->send_raw(data.data(), data.size());
+    }
+
+    void handle_incoming_data_thread(std::span<const uint8_t> data) override
+    {
+      tls_io->recv_buffered(data.data(), data.size());
+
+      LOG_TRACE_FMT("recv called with {} bytes", data.size());
 
       constexpr auto read_block_size = 4096;
       std::vector<uint8_t> buf(read_block_size);
-      auto data = buf.data();
-      auto n_read = read(data, buf.size(), false);
+      auto n_read = tls_io->read(buf.data(), buf.size(), false);
 
       while (true)
       {
@@ -54,10 +63,10 @@ namespace http
 
         try
         {
-          p.execute(data, n_read);
+          parse({buf.data(), n_read});
 
           // Used all provided bytes - check if more are available
-          n_read = read(buf.data(), buf.size(), false);
+          n_read = tls_io->read(buf.data(), buf.size(), false);
         }
         catch (RequestPayloadTooLarge& e)
         {
@@ -73,7 +82,7 @@ namespace http
             ccf::errors::RequestBodyTooLarge,
             e.what()});
 
-          close();
+          tls_io->close();
           break;
         }
         catch (RequestHeaderTooLarge& e)
@@ -90,7 +99,7 @@ namespace http
             ccf::errors::RequestHeaderTooLarge,
             e.what()});
 
-          close();
+          tls_io->close();
           break;
         }
         catch (const std::exception& e)
@@ -113,12 +122,13 @@ namespace http
             e.what());
           std::vector<uint8_t> response_body(
             std::begin(body_s), std::end(body_s));
-          response_body.insert(response_body.end(), data, data + n_read);
+          response_body.insert(
+            response_body.end(), data.data(), data.data() + n_read);
 
           send_response(
             HTTP_STATUS_BAD_REQUEST, std::move(headers), response_body);
 
-          close();
+          tls_io->close();
           break;
         }
       }
@@ -147,29 +157,27 @@ namespace http
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
-    tls::ConnID session_id;
     ccf::ListenInterfaceID interface_id;
 
   public:
     HTTPServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      tls::ConnID session_id,
+      tls::ConnID session_id_,
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
       const http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      HTTPEndpoint(
-        request_parser,
-        session_id,
-        writer_factory,
-        std::move(ctx),
-        error_reporter),
+      HTTPEndpoint(session_id_, writer_factory, std::move(ctx), error_reporter),
       request_parser(*this, configuration),
       rpc_map(rpc_map),
-      session_id(session_id),
       interface_id(interface_id)
     {}
+
+    void parse(std::span<const uint8_t> data) override
+    {
+      request_parser.execute(data.data(), data.size());
+    }
 
     void handle_request(
       llhttp_method verb,
@@ -189,7 +197,7 @@ namespace http
         if (session_ctx == nullptr)
         {
           session_ctx = std::make_shared<ccf::SessionContext>(
-            session_id, peer_cert(), interface_id);
+            session_id, tls_io->peer_cert(), interface_id);
         }
 
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
@@ -248,7 +256,7 @@ namespace http
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
         LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        close();
+        tls_io->close();
         throw;
       }
     }
@@ -263,29 +271,33 @@ namespace http
 
   public:
     HTTPClientSession(
-      tls::ConnID session_id,
+      tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
-      ClientSession(session_id, writer_factory),
+      HTTPEndpoint(session_id_, writer_factory, std::move(ctx)),
+      ClientSession(session_id_, writer_factory),
       response_parser(*this)
-    {}
+    {
+      tls_io->set_handshake_error_cb([this](std::string&& error_msg) {
+        if (this->handle_error_cb)
+        {
+          this->handle_error_cb(error_msg);
+        }
+        else
+        {
+          LOG_FAIL_FMT("{}", error_msg);
+        }
+      });
+    }
+
+    void parse(std::span<const uint8_t> data) override
+    {
+      response_parser.execute(data.data(), data.size());
+    }
 
     void send_request(http::Request&& request) override
     {
       send_request_oops(std::move(request));
-    }
-
-    void on_handshake_error(const std::string& error_msg) override
-    {
-      if (handle_error_cb)
-      {
-        handle_error_cb(error_msg);
-      }
-      else
-      {
-        LOG_FAIL_FMT("{}", error_msg);
-      }
     }
 
     void handle_response(
@@ -296,7 +308,7 @@ namespace http
       handle_data_cb(status, std::move(headers), std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");
-      close();
+      tls_io->close();
     }
 
     void send_response(

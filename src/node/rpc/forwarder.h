@@ -94,6 +94,7 @@ namespace ccf
         response.set_body(body);
         response.set_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        // TODO: Don't pre-serialise.
         rpc_responder_shared->reply_async(
           client_session_id, response.build_response());
       }

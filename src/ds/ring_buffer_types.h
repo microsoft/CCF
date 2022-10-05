@@ -198,6 +198,7 @@ namespace ringbuffer
     return w->template try_write_with<S>(m, std::forward<Ts>(ts)...);
   }
 
+  // TODO: Add an overload that takes std::span, advances to subspan?
   template <ringbuffer::Message m>
   inline auto read_message(const uint8_t*& data, size_t& size)
   {

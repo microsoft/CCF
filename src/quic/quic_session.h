@@ -14,7 +14,8 @@
 
 namespace quic
 {
-  class QUICSession : public ccf::Session
+  class QUICSession : public ccf::Session,
+                      public std::enable_shared_from_this<QUICSession>
   {
   protected:
     ringbuffer::WriterPtr to_host;
@@ -33,18 +34,6 @@ namespace quic
     Status get_status() const
     {
       return status;
-    }
-
-    virtual std::vector<uint8_t> oversized_message_error(
-      size_t msg_size, size_t max_msg_size)
-    {
-      const auto s = fmt::format(
-        "Requested message ({} bytes) is too large. Maximum allowed is {} "
-        "bytes. Closing connection.",
-        msg_size,
-        max_msg_size);
-      const auto data = (const uint8_t*)s.data();
-      return std::vector<uint8_t>(data, data + s.size());
     }
 
   protected:
@@ -167,14 +156,13 @@ namespace quic
     struct SendRecvMsg
     {
       std::vector<uint8_t> data;
-      std::shared_ptr<Session> self;
+      std::shared_ptr<QUICSession> self;
       sockaddr addr;
     };
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<QUICSession*>(msg->data.self.get())
-        ->send_raw_thread(msg->data.data, msg->data.addr);
+      msg->data.self->send_raw_thread(msg->data.data, msg->data.addr);
     }
 
     void send_raw(const uint8_t* data, size_t size, sockaddr addr)
@@ -264,12 +252,12 @@ namespace quic
 
     struct EmptyMsg
     {
-      std::shared_ptr<Session> self;
+      std::shared_ptr<QUICSession> self;
     };
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
-      reinterpret_cast<QUICSession*>(msg->data.self.get())->close_thread();
+      msg->data.self->close_thread();
     }
 
     void close()
@@ -435,8 +423,10 @@ namespace quic
         ->recv_(msg->data.data.data(), msg->data.data.size(), msg->data.addr);
     }
 
-    void handle_incoming_data(const uint8_t* data, size_t size) override
+    void handle_incoming_data(std::span<const uint8_t> data_) override
     {
+      auto data = data_.data();
+      auto size = data_.size();
       auto [_, addr_family, addr_data, body] =
         ringbuffer::read_message<quic::quic_inbound>(data, size);
 

@@ -215,13 +215,16 @@ namespace externalexecutor
             auto response_v = response.build_response();
             const std::string response_s(response_v.begin(), response_v.end());
             LOG_INFO_FMT(
-              "Preparing to send final response to user on session {}, stream {}:\n{}",
+              "Preparing to send final response to user on session {}, stream "
+              "{}:\n{}",
               active_request->originating_session_id,
               active_request->originating_stream_id,
               response_s);
 
             // TODO: Maybe scrap the whole idea of this being a subsystem, and
             // store a handle to the Session directly here?
+            // TODO: Better, have a subsystem for getting ResponsePipes or
+            // similar
             rpc_responder->reply_async(
               active_request->originating_session_id,
               active_request->originating_stream_id,

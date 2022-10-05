@@ -7,13 +7,11 @@
 
 namespace http
 {
-  template <typename Base>
-  class HTTPCommonSession : public Base
+  class HTTPCommonSession : public ccf::ThreadedSession
   {
   public:
-    using Base::Base;
+    using ccf::ThreadedSession::ThreadedSession;
 
-    // TODO: Should exist at a lower-level - HttpCommonSession?
     virtual void send_response(
       http_status status_code,
       http::HeaderMap&& headers,
@@ -42,9 +40,10 @@ namespace http
         error.status, std::move(headers), {(const uint8_t*)s.data(), s.size()});
     }
 
+    // TODO: Fix the name of this, whatever it takes
     virtual void send_request_oops(http::Request&& req)
     {
-      Base::send_data(req.build_request());
+      send_data(req.build_request());
     }
   };
 }

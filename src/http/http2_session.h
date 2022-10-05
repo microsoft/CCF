@@ -19,31 +19,40 @@ namespace http
     using SessionContext::SessionContext;
   };
 
-  class HTTP2Session : public HTTPCommonSession<ccf::TLSSession>
+  class HTTP2Session : public HTTPCommonSession
   {
   protected:
-    http2::Parser& parser;
+    std::shared_ptr<ccf::TLSSession> tls_io;
+    tls::ConnID session_id;
 
     HTTP2Session(
-      http2::Parser& parser_,
-      int64_t session_id,
+      tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPCommonSession<ccf::TLSSession>(session_id, writer_factory, std::move(ctx)),
-      parser(parser_)
+      HTTPCommonSession(session_id_),
+      tls_io(std::make_shared<ccf::TLSSession>(
+        session_id_, writer_factory, std::move(ctx))),
+      session_id(session_id_)
     {}
 
   public:
-    void receive_data(const uint8_t* data_, size_t size_) override
-    {
-      recv_buffered(data_, size_);
+    virtual void parse(std::span<const uint8_t> data) = 0;
 
-      LOG_TRACE_FMT("recv called with {} bytes", size_);
+    // TODO: Is this even needed?
+    void send_data(std::span<const uint8_t> data) override
+    {
+      tls_io->send_raw(data.data(), data.size());
+    }
+
+    void handle_incoming_data_thread(std::span<const uint8_t> data) override
+    {
+      tls_io->recv_buffered(data.data(), data.size());
+
+      LOG_TRACE_FMT("recv called with {} bytes", data.size());
 
       constexpr auto read_block_size = 4096;
       std::vector<uint8_t> buf(read_block_size);
-      auto data = buf.data();
-      auto n_read = read(data, buf.size(), false);
+      auto n_read = tls_io->read(buf.data(), buf.size(), false);
 
       while (true)
       {
@@ -56,14 +65,13 @@ namespace http
 
         try
         {
-          parser.execute(data, n_read);
+          parse({buf.data(), n_read});
 
           // Used all provided bytes - check if more are available
-          n_read = read(buf.data(), buf.size(), false);
+          n_read = tls_io->read(buf.data(), buf.size(), false);
         }
         catch (const std::exception& e)
         {
-          LOG_FAIL_FMT("Error parsing HTTP request");
           LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
           http::HeaderMap headers;
@@ -80,7 +88,7 @@ namespace http
             std::move(headers),
             {(const uint8_t*)body.data(), body.size()});
 
-          close();
+          tls_io->close();
           break;
         }
       }
@@ -95,13 +103,12 @@ namespace http
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
-    int64_t session_id;
     ccf::ListenInterfaceID interface_id;
 
   public:
     HTTP2ServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      int64_t session_id,
+      int64_t session_id_,
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
@@ -110,12 +117,16 @@ namespace http
       const std::shared_ptr<ErrorReporter>& error_reporter =
         nullptr) // Note: Report errors
       :
-      HTTP2Session(server_parser, session_id, writer_factory, std::move(ctx)),
+      HTTP2Session(session_id_, writer_factory, std::move(ctx)),
       server_parser(*this, *this),
       rpc_map(rpc_map),
-      session_id(session_id),
       interface_id(interface_id)
     {}
+
+    void parse(std::span<const uint8_t> data) override
+    {
+      server_parser.execute(data.data(), data.size());
+    }
 
     void handle_request(
       llhttp_method verb,
@@ -135,7 +146,7 @@ namespace http
         if (session_ctx == nullptr)
         {
           auto http2_session_ctx = std::make_shared<HTTP2SessionContext>(
-            session_id, peer_cert(), interface_id);
+            session_id, tls_io->peer_cert(), interface_id);
           http2_session_ctx->stream_id = stream_id;
           session_ctx = http2_session_ctx;
         }
@@ -153,7 +164,7 @@ namespace http
             // Make a new one, with the right stream_id!
             // Real wasteful!!!
             auto http2_session_ctx = std::make_shared<HTTP2SessionContext>(
-              session_id, peer_cert(), interface_id);
+              session_id, tls_io->peer_cert(), interface_id);
             http2_session_ctx->stream_id = stream_id;
             session_ctx = http2_session_ctx;
           }
@@ -216,7 +227,7 @@ namespace http
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
         LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        close();
+        tls_io->close();
         throw;
       }
     }
@@ -253,13 +264,18 @@ namespace http
 
   public:
     HTTP2ClientSession(
-      int64_t session_id,
+      int64_t session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTP2Session(client_parser, session_id, writer_factory, std::move(ctx)),
-      ccf::ClientSession(session_id, writer_factory),
+      HTTP2Session(session_id_, writer_factory, std::move(ctx)),
+      ccf::ClientSession(session_id_, writer_factory),
       client_parser(*this, *this)
     {}
+
+    void parse(std::span<const uint8_t> data) override
+    {
+      client_parser.execute(data.data(), data.size());
+    }
 
     void send_request(http::Request&& request) override
     {
@@ -278,7 +294,7 @@ namespace http
       handle_data_cb(status, std::move(headers), std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");
-      close();
+      tls_io->close();
     }
 
     void send_response(
