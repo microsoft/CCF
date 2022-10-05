@@ -7,12 +7,14 @@
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
+#include "http_common_session.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
 
 namespace http
 {
-  class HTTPEndpoint : public ccf::TLSSession
+  // TODO: Refactor so these _have_ a TLSSession, rather than _are_ a TLSSession
+  class HTTPEndpoint : public HTTPCommonSession<ccf::TLSSession>
   {
   protected:
     http::Parser& p;
@@ -24,7 +26,7 @@ namespace http
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      TLSSession(session_id, writer_factory, std::move(ctx)),
+      HTTPCommonSession<ccf::TLSSession>(session_id, writer_factory, std::move(ctx)),
       p(p_),
       error_reporter(error_reporter)
     {}
@@ -133,7 +135,7 @@ namespace http
         response.set_header(k, v);
       }
       response.set_body(body.data(), body.size());
-      ccf::Session::send_data(response.build_response());
+      send_data(response.build_response());
     }
   };
 
@@ -233,7 +235,7 @@ namespace http
         else
         {
           // TODO: Don't pre-serialise!
-          ccf::Session::send_data(rpc_ctx->serialise_response());
+          send_data(rpc_ctx->serialise_response());
         }
       }
       catch (const std::exception& e)

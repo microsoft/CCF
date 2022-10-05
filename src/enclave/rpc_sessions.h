@@ -470,7 +470,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      session->send_data(data.data(), data.size());
+      session->send_data(data);
       return true;
     }
 
@@ -487,10 +487,19 @@ namespace ccf
         return false;
       }
 
+      auto respondable_session =
+        std::dynamic_pointer_cast<http::HTTPCommonSession<ccf::TLSSession>>(session);
+      if (respondable_session == nullptr)
+      {
+        LOG_DEBUG_FMT("Cannot respond to session {} - wrong type", id);
+        return false;
+      }
+
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      session->send_response(
+      respondable_session->send_response(
         stream_id, (http_status)status_code, {}, std::move(data));
+
       return true;
     }
 

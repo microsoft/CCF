@@ -7,6 +7,7 @@
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http2.h"
+#include "http_common_session.h"
 #include "http_rpc_context.h"
 
 namespace http
@@ -18,7 +19,7 @@ namespace http
     using SessionContext::SessionContext;
   };
 
-  class HTTP2Session : public ccf::TLSSession
+  class HTTP2Session : public HTTPCommonSession<ccf::TLSSession>
   {
   protected:
     http2::Parser& parser;
@@ -28,7 +29,7 @@ namespace http
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      TLSSession(session_id, writer_factory, std::move(ctx)),
+      HTTPCommonSession<ccf::TLSSession>(session_id, writer_factory, std::move(ctx)),
       parser(parser_)
     {}
 

@@ -424,17 +424,9 @@ namespace quic
       interface_id(interface_id)
     {}
 
-    void send_data(const uint8_t* data, size_t size) override
+    void send_data(std::span<const uint8_t> data) override
     {
-      send_raw(data, size, addr);
-    }
-
-    void send_response(
-      http_status status_code,
-      http::HeaderMap&& headers,
-      std::span<const uint8_t> body) override
-    {
-      throw std::logic_error("Unimplemented");
+      send_raw(data.data(), data.size(), addr);
     }
 
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
