@@ -429,7 +429,7 @@ namespace ccf
         security_policies->put(host_data, raw_security_policy.value());}
       else{
         LOG_INFO_FMT("Trusting node with unset policy");
-        security_policies->put(host_data, "");}
+        security_policies->put(host_data, pal::snp::EMPTY_SECURITY_POLICY);}
     }
 
     void init_configuration(const ServiceConfiguration& configuration)
