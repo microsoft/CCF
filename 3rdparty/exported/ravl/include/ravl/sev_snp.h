@@ -4,7 +4,6 @@
 #pragma once
 
 #include "attestation.h"
-#include "ravl.h"
 
 #include <array>
 #include <memory>
@@ -16,6 +15,12 @@ namespace ravl
 
   namespace sev_snp
   {
+    struct Endorsements
+    {
+      std::string root_ca_certificate;
+      std::string vcek_certificate_chain;
+      std::optional<std::string> vcek_issuer_chain_crl;
+    };
 
     class Claims : public ravl::Claims
     {
@@ -66,6 +71,8 @@ namespace ravl
       uint8_t committed_major;
       TCBVersion launch_tcb;
       Signature signature;
+
+      Endorsements endorsements;
     };
 
     class Attestation : public ravl::Attestation
@@ -77,12 +84,15 @@ namespace ravl
         ravl::Attestation(Source::SEV_SNP, evidence, endorsements)
       {}
 
+      Attestation(
+        const std::vector<uint8_t>& evidence, const Endorsements& endorsements);
+
       virtual std::optional<HTTPRequests> prepare_endorsements(
         const Options& options) const override;
 
       virtual std::shared_ptr<ravl::Claims> verify(
-        const Options& options,
-        const std::optional<HTTPResponses>& url_response_set) const override;
+        const Options& options = {},
+        const std::optional<HTTPResponses>& http_responses = {}) const override;
     };
   }
 }

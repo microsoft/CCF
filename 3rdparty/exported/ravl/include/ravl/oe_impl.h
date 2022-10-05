@@ -1,31 +1,30 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "ravl/oe.h"
+#pragma once
 
-#include "ravl/http_client.h"
-#include "ravl/sgx.h"
-#include "ravl/sgx_defs.h"
-#include "ravl/util.h"
+#include "http_client.h"
+#include "oe.h"
+#include "sgx.h"
+#include "sgx_defs.h"
+#include "sgx_impl.h"
+#include "util.h"
+#include "visibility.h"
 
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <vector>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-using namespace ravl::sgx;
-
-// By defining USE_OE_VERIFIER, all requests are simply forwarded to Open
+// By defining RAVL_USE_OE_VERIFIER, all requests are simply forwarded to Open
 // Enclave. Without this, we support only a subset of attestation formats for
 // which we can extract a raw SGX quote, which is verified by ravl::sgx::verify.
 
-#ifdef USE_OE_VERIFIER
-#  ifndef HAVE_OPEN_ENCLAVE
-#    error Open Enclave Verifier requires Open Enclave library
-#  endif
+#ifdef RAVL_USE_OE_VERIFIER
 #  include <openenclave/attestation/custom_claims.h>
 #  include <openenclave/attestation/sgx/evidence.h>
 #  include <openenclave/attestation/verifier.h>
@@ -43,139 +42,98 @@ using namespace ravl::sgx;
         0xd2, 0xfb, 0xcd, 0x8c \
     }
 
-enum oe_enclave_type_t
+namespace ravl
 {
+  namespace oe
+  {
+    enum oe_enclave_type_t
+    {
 
-  OE_ENCLAVE_TYPE_AUTO = 1,
-  OE_ENCLAVE_TYPE_SGX = 2,
-  OE_ENCLAVE_TYPE_OPTEE = 3,
-  __OE_ENCLAVE_TYPE_MAX = OE_ENUM_MAX,
-};
+      OE_ENCLAVE_TYPE_AUTO = 1,
+      OE_ENCLAVE_TYPE_SGX = 2,
+      OE_ENCLAVE_TYPE_OPTEE = 3,
+      __OE_ENCLAVE_TYPE_MAX = OE_ENUM_MAX,
+    };
 
-enum oe_sgx_endorsements_fields_t
-{
-  OE_SGX_ENDORSEMENT_FIELD_VERSION,
-  OE_SGX_ENDORSEMENT_FIELD_TCB_INFO,
-  OE_SGX_ENDORSEMENT_FIELD_TCB_ISSUER_CHAIN,
-  OE_SGX_ENDORSEMENT_FIELD_CRL_PCK_CERT,
-  OE_SGX_ENDORSEMENT_FIELD_CRL_PCK_PROC_CA,
-  OE_SGX_ENDORSEMENT_FIELD_CRL_ISSUER_CHAIN_PCK_CERT,
-  OE_SGX_ENDORSEMENT_FIELD_QE_ID_INFO,
-  OE_SGX_ENDORSEMENT_FIELD_QE_ID_ISSUER_CHAIN,
-  OE_SGX_ENDORSEMENT_FIELD_CREATION_DATETIME,
-  OE_SGX_ENDORSEMENT_COUNT
-};
+    enum oe_sgx_endorsements_fields_t
+    {
+      OE_SGX_ENDORSEMENT_FIELD_VERSION,
+      OE_SGX_ENDORSEMENT_FIELD_TCB_INFO,
+      OE_SGX_ENDORSEMENT_FIELD_TCB_ISSUER_CHAIN,
+      OE_SGX_ENDORSEMENT_FIELD_CRL_PCK_CERT,
+      OE_SGX_ENDORSEMENT_FIELD_CRL_PCK_PROC_CA,
+      OE_SGX_ENDORSEMENT_FIELD_CRL_ISSUER_CHAIN_PCK_CERT,
+      OE_SGX_ENDORSEMENT_FIELD_QE_ID_INFO,
+      OE_SGX_ENDORSEMENT_FIELD_QE_ID_ISSUER_CHAIN,
+      OE_SGX_ENDORSEMENT_FIELD_CREATION_DATETIME,
+      OE_SGX_ENDORSEMENT_COUNT
+    };
+
+#  ifdef _MSC_VER
+#    pragma warning(push)
+#    pragma warning(disable : 4200)
+#  else
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wpedantic"
+#  endif
 
 #  pragma pack(push, 1)
 
-struct oe_uuid_t
-{
-  uint8_t b[OE_UUID_SIZE];
-};
+    struct oe_uuid_t
+    {
+      uint8_t b[OE_UUID_SIZE];
+    };
 
-struct oe_attestation_header_t
-{
-  uint32_t version;
-  oe_uuid_t format_id;
-  uint64_t data_size;
-#  ifdef _MSC_VER
-#    pragma warning(push)
-#    pragma warning(disable : 4200)
-#  endif
-  uint8_t data[];
-#  ifdef _MSC_VER
-#    pragma warning(pop)
-#  endif
-};
+    struct oe_attestation_header_t
+    {
+      uint32_t version;
+      oe_uuid_t format_id;
+      uint64_t data_size;
+      uint8_t data[];
+    };
 
-struct oe_endorsements_t
-{
-  uint32_t version;
-  uint32_t enclave_type;
-  uint32_t buffer_size;
-  uint32_t num_elements;
-#  ifdef _MSC_VER
-#    pragma warning(push)
-#    pragma warning(disable : 4200)
-#  endif
-  uint8_t buffer[];
-#  ifdef _MSC_VER
-#    pragma warning(pop)
-#  endif
-};
+    struct oe_endorsements_t
+    {
+      uint32_t version;
+      uint32_t enclave_type;
+      uint32_t buffer_size;
+      uint32_t num_elements;
+      uint8_t buffer[];
+    };
 
-struct oe_sgx_endorsement_item
-{
-  uint8_t* data;
-  uint32_t size;
-};
+    struct oe_sgx_endorsement_item
+    {
+      uint8_t* data;
+      uint32_t size;
+    };
 
-struct oe_sgx_endorsements_t
-{
-  oe_sgx_endorsement_item items[OE_SGX_ENDORSEMENT_COUNT];
-};
+    struct oe_sgx_endorsements_t
+    {
+      oe_sgx_endorsement_item items[OE_SGX_ENDORSEMENT_COUNT];
+    };
 
 #  pragma pack(pop)
 
+#  ifdef _MSC_VER
+#    pragma warning(pop)
+#  else
+#    pragma GCC diagnostic pop
+#  endif
+  }
+}
+
 #endif
-
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <stdexcept>
-
-static oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
 
 namespace ravl
 {
   namespace oe
   {
-    template <typename T>
-    void put(const T& t, const uint8_t* data, size_t& pos)
-    {
-      for (size_t i = 0; i < sizeof(T); i++)
-        data[pos + i] = (t >> (8 * (sizeof(T) - i - 1))) & 0xFF;
-      pos += sizeof(T);
-    }
+    static constexpr oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
 
-    template <typename T>
-    void put(const T& t, std::vector<uint8_t>& data)
-    {
-      for (size_t i = 0; i < sizeof(T); i++)
-        data.push_back((t >> (8 * (sizeof(T) - i - 1))) & 0xFF);
-    }
-
-#ifndef USE_OE_VERIFIER
-    struct sgx_ql_qve_collateral_t
-    {
-      union
-      {
-        uint32_t version;
-        struct
-        {
-          uint16_t major_version;
-          uint16_t minor_version;
-        };
-      };
-      uint32_t tee_type;
-      char* pck_crl_issuer_chain;
-      uint32_t pck_crl_issuer_chain_size;
-      char* root_ca_crl;
-      uint32_t root_ca_crl_size;
-      char* pck_crl;
-      uint32_t pck_crl_size;
-      char* tcb_info_issuer_chain;
-      uint32_t tcb_info_issuer_chain_size;
-      char* tcb_info;
-      uint32_t tcb_info_size;
-      char* qe_identity_issuer_chain;
-      uint32_t qe_identity_issuer_chain_size;
-      char* qe_identity;
-      uint32_t qe_identity_size;
-    };
-
-    std::pair<std::shared_ptr<sgx::Attestation>, std::vector<uint8_t>>
-    extract_sgx_attestation(const Attestation& a)
+#ifndef RAVL_USE_OE_VERIFIER
+    RAVL_VISIBILITY std::
+      pair<std::shared_ptr<sgx::Attestation>, std::vector<uint8_t>>
+      extract_sgx_attestation(const Attestation& a)
     {
       if (a.evidence.empty())
         throw std::runtime_error("No evidence to verify");
@@ -248,6 +206,8 @@ namespace ravl
       }
       else
       {
+        using namespace sgx;
+
         const sgx_quote_t* quote = (sgx_quote_t*)a.evidence.data();
 
         if (a.evidence.size() < sizeof(sgx_quote_t))
@@ -286,9 +246,9 @@ namespace ravl
             throw std::runtime_error(
               "unsupported enclave type in OE endorsements");
 
-          sgx_ql_qve_collateral_t sgxcol = {0};
-          sgxcol.major_version = 3;
-          sgxcol.minor_version = 1;
+          sgx_ql_qve_collateral_t sgxcol = {};
+          sgxcol.split_version.major = 3;
+          sgxcol.split_version.minor = 1;
           sgxcol.tee_type = 0; // 0 = SGX, 0x81 = TDX
 
           const uint32_t* offsets = (uint32_t*)oeendo->buffer;
@@ -364,8 +324,8 @@ namespace ravl
             }
           }
 
-          put(sgxcol.major_version, scollateral);
-          put(sgxcol.minor_version, scollateral);
+          put(sgxcol.split_version.major, scollateral);
+          put(sgxcol.split_version.minor, scollateral);
           put(sgxcol.tee_type, scollateral);
 
           for (const auto& [d, sz] : std::vector<std::pair<void*, size_t>>{
@@ -405,6 +365,13 @@ namespace ravl
       uint64_t num_claims;
     };
 
+#ifdef _MSC_VER
+#  pragma warning(push)
+#  pragma warning(disable : 4200)
+#else
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wpedantic"
+#endif
     struct oe_custom_claims_entry_t
     {
       uint64_t name_size;
@@ -413,8 +380,13 @@ namespace ravl
       // name_size bytes follow.
       // value_size_bytes follow.
     };
+#ifdef _MSC_VER
+#  pragma warning(pop)
+#else
+#  pragma GCC diagnostic pop
+#endif
 
-    static void extract_custom_claims(
+    RAVL_VISIBILITY void extract_custom_claims(
       const std::vector<uint8_t>& custom_claims,
       std::map<std::string, std::vector<uint8_t>>& claims_map)
     {
@@ -441,7 +413,10 @@ namespace ravl
         verify_within(
           {(uint8_t*)ei, sizeof(oe_custom_claims_entry_t)}, custom_claims);
 
-        verify_within({(uint8_t*)ei->name, ei->name_size}, custom_claims);
+        verify_within(
+          {(uint8_t*)ei->name,
+           static_cast<size_t>(ei->name_size)}, // TODO: unsafe cast
+          custom_claims);
 
         verify_within(
           {(uint8_t*)ei->name + ei->name_size,
@@ -459,10 +434,10 @@ namespace ravl
       }
     }
 
-    std::optional<HTTPRequests> Attestation::prepare_endorsements(
-      const Options& options) const
+    RAVL_VISIBILITY std::optional<HTTPRequests> Attestation::
+      prepare_endorsements(const Options& options) const
     {
-#ifdef USE_OE_VERIFIER
+#ifdef RAVL_USE_OE_VERIFIER
       return std::nullopt;
 #else
       auto [sgx_att, cc] = extract_sgx_attestation(*this);
@@ -472,11 +447,11 @@ namespace ravl
 #endif
     }
 
-    std::shared_ptr<ravl::Claims> Attestation::verify(
+    RAVL_VISIBILITY std::shared_ptr<ravl::Claims> Attestation::verify(
       const Options& options,
-      const std::optional<std::vector<HTTPResponse>>& url_response_set) const
+      const std::optional<std::vector<HTTPResponse>>& http_responses) const
     {
-#ifdef USE_OE_VERIFIER
+#ifdef RAVL_USE_OE_VERIFIER
       if (oe_verifier_initialize() != OE_OK)
         throw std::runtime_error("failed to initialize Open Enclave verifier");
 
@@ -585,7 +560,7 @@ namespace ravl
 
       auto claims = std::make_shared<Claims>();
       claims->sgx_claims = static_pointer_cast<sgx::Claims>(
-        sgx_attestation->verify(options, url_response_set));
+        sgx_attestation->verify(options, http_responses));
       extract_custom_claims(custom_claims, claims->custom_claims);
       return claims;
 #endif
@@ -593,11 +568,12 @@ namespace ravl
   }
 
   template <>
-  std::shared_ptr<ravl::oe::Claims> Claims::get(std::shared_ptr<Claims>& claims)
+  RAVL_VISIBILITY std::shared_ptr<ravl::oe::Claims> Claims::get(
+    std::shared_ptr<Claims>& claims)
   {
     if (claims->source != Source::OPEN_ENCLAVE)
       throw std::runtime_error(
-        "invalid request for Open Enclave claim conversion");
+        "invalid request for Open Enclave claims conversion");
     return static_pointer_cast<oe::Claims>(claims);
   }
 }

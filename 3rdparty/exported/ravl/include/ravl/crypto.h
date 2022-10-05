@@ -19,7 +19,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-#ifdef HAVE_OPENSSL
+#ifdef RAVL_HAVE_OPENSSL
 #  include "crypto_openssl.h"
 #else
 #  error No crypto library available.
@@ -29,7 +29,7 @@ namespace ravl
 {
   namespace crypto
   {
-#ifdef HAVE_OPENSSL
+#ifdef RAVL_HAVE_OPENSSL
     using namespace OpenSSL;
 #endif
 

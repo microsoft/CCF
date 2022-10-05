@@ -20,9 +20,9 @@
 #  include "ccf/pal/attestation_sgx.h"
 #endif
 
-#include <ravl/oe.h>
+#include <ravl/oe_impl.h>
 #include <ravl/options.h>
-#include <ravl/sev_snp.h>
+#include <ravl/sev_snp_impl.h>
 
 namespace ccf::pal
 {
@@ -128,7 +128,7 @@ namespace ccf::pal
         using namespace ravl;
         auto attestation = std::make_shared<sev_snp::Attestation>(
           quote_info.quote, quote_info.endorsements);
-        auto claims = verify(attestation);
+        auto claims = attestation->verify(Options(), {});
         auto sev_snp_claims = Claims::get<sev_snp::Claims>(claims);
 
         report_data = sev_snp_claims->report_data;
@@ -233,7 +233,7 @@ namespace ccf::pal
       using namespace ravl;
       auto attestation = std::make_shared<oe::Attestation>(
         quote_info.quote, quote_info.endorsements);
-      auto claims = verify(attestation);
+      auto claims = attestation->verify();
       auto oe_claims = Claims::get<oe::Claims>(claims);
 
       unique_id = oe_claims->sgx_claims->report_body.mr_enclave;

@@ -52,6 +52,14 @@ namespace ravl
       QL_CERT_KEY_TYPE_MAX = 16,
     };
 
+#ifdef _MSC_VER
+#  pragma warning(push)
+#  pragma warning(disable : 4200)
+#else
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+
 #pragma pack(push, 1)
     struct sgx_basename_t
     {
@@ -123,14 +131,7 @@ namespace ravl
     struct sgx_ql_auth_data_t
     {
       uint16_t size;
-#ifdef _MSC_VER
-#  pragma warning(push)
-#  pragma warning(disable : 4200)
-#endif
       uint8_t auth_data[];
-#ifdef _MSC_VER
-#  pragma warning(pop)
-#endif
     };
     EXPECT_SIZE(sgx_ql_auth_data_t, 2);
 
@@ -138,14 +139,7 @@ namespace ravl
     {
       uint16_t cert_key_type;
       uint32_t size;
-#ifdef _MSC_VER
-#  pragma warning(push)
-#  pragma warning(disable : 4200)
-#endif
       uint8_t certification_data[];
-#ifdef _MSC_VER
-#  pragma warning(pop)
-#endif
     };
     EXPECT_SIZE(sgx_ql_certification_data_t, 6);
 
@@ -155,22 +149,48 @@ namespace ravl
       uint8_t attest_pub_key[32 * 2];
       sgx_report_body_t qe_report;
       uint8_t qe_report_sig[32 * 2];
-#ifdef _MSC_VER
-#  pragma warning(push)
-#  pragma warning(disable : 4200)
-#else
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wpedantic"
-#endif
       uint8_t auth_certification_data[];
+    };
+    EXPECT_SIZE(sgx_ql_ecdsa_sig_data_t, 576);
+
+    struct sgx_ql_qve_collateral_split_version_t
+    {
+      uint16_t major;
+      uint16_t minor;
+    };
+    EXPECT_SIZE(sgx_ql_qve_collateral_split_version_t, 4);
+
+    struct sgx_ql_qve_collateral_t
+    {
+      union
+      {
+        uint32_t version;
+        sgx_ql_qve_collateral_split_version_t split_version;
+      };
+      uint32_t tee_type;
+      char* pck_crl_issuer_chain;
+      uint32_t pck_crl_issuer_chain_size;
+      char* root_ca_crl;
+      uint32_t root_ca_crl_size;
+      char* pck_crl;
+      uint32_t pck_crl_size;
+      char* tcb_info_issuer_chain;
+      uint32_t tcb_info_issuer_chain_size;
+      char* tcb_info;
+      uint32_t tcb_info_size;
+      char* qe_identity_issuer_chain;
+      uint32_t qe_identity_issuer_chain_size;
+      char* qe_identity;
+      uint32_t qe_identity_size;
+    };
+    EXPECT_SIZE(sgx_ql_qve_collateral_t, 92);
+
+#pragma pack(pop)
+
 #ifdef _MSC_VER
 #  pragma warning(pop)
 #else
 #  pragma GCC diagnostic pop
 #endif
-    };
-    EXPECT_SIZE(sgx_ql_ecdsa_sig_data_t, 576);
-
-#pragma pack(pop)
   }
 }

@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include "util.h"
+
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -28,8 +31,6 @@ namespace ravl
 
     std::string get_header_string(
       const std::string& name, bool url_decoded = false) const;
-
-    static std::vector<uint8_t> url_decode(const std::string& in);
   };
 
   struct HTTPRequest
@@ -101,4 +102,40 @@ namespace ravl
   private:
     void* implementation;
   };
+
+  inline std::vector<uint8_t> url_decode(const std::string& in)
+  {
+    char* decoded = url_decode(in.data(), in.size());
+    int len = strlen(decoded);
+    if (!decoded)
+      throw std::bad_alloc();
+    std::vector<uint8_t> r = {decoded, decoded + len};
+    free(decoded);
+    return r;
+  }
+
+  inline std::vector<uint8_t> HTTPResponse::get_header_data(
+    const std::string& name, bool url_decoded) const
+  {
+    auto hit = headers.find(name);
+    if (hit == headers.end())
+    {
+      std::string lname = name;
+      std::transform(lname.begin(), lname.end(), lname.begin(), ::tolower);
+      hit = headers.find(lname);
+      if (hit == headers.end())
+        throw std::runtime_error("missing response header '" + name + "'");
+    }
+    if (url_decoded)
+      return url_decode(hit->second);
+    else
+      return {hit->second.data(), hit->second.data() + hit->second.size()};
+  }
+
+  inline std::string HTTPResponse::get_header_string(
+    const std::string& name, bool url_decoded) const
+  {
+    auto t = get_header_data(name, url_decoded);
+    return std::string(t.begin(), t.end());
+  }
 }

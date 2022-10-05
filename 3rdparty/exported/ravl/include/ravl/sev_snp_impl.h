@@ -1,19 +1,18 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "ravl/sev_snp.h"
+#pragma once
 
-#include "ravl/crypto.h"
-#include "ravl/crypto_openssl.h"
-#include "ravl/http_client.h"
-#include "ravl/ravl.h"
+#include "crypto.h"
+#include "http_client.h"
+#include "sev_snp.h"
+#include "util.h"
+#include "visibility.h"
 
-#include <stdexcept>
+#include <span>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-
-using namespace ravl::crypto;
 
 namespace ravl
 {
@@ -186,19 +185,22 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 #define SEV_SNP_GUEST_MSG_REPORT \
   _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::GuestRequest)
 
-    Unique_X509 parse_root_cert(
-      const std::vector<HTTPResponse>& url_response_set)
+    RAVL_VISIBILITY crypto::Unique_X509 parse_root_cert(
+      const std::vector<HTTPResponse>& url_responses)
     {
-      if (url_response_set.size() != 1)
+      using namespace crypto;
+
+      if (url_responses.size() != 1)
         throw std::runtime_error("collateral download request set failed");
-      auto issuer_chain = url_response_set[0].body;
+      auto issuer_chain = url_responses[0].body;
       Unique_STACK_OF_X509 stack(issuer_chain);
       if (stack.size() != 2)
         throw std::runtime_error("unexpected size of issuer certificate chain");
       return stack.at(1).pem();
     }
 
-    HTTPRequests download_root_ca_pem(const std::string& product_name)
+    RAVL_VISIBILITY HTTPRequests
+    download_root_ca_pem(const std::string& product_name)
     {
       std::string r;
 
@@ -214,12 +216,14 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 
     struct EndorsementsEtc
     {
-      std::optional<Unique_X509> root_ca_certificate;
-      Unique_STACK_OF_X509 vcek_certificate_chain;
-      std::optional<Unique_X509_CRL> vcek_issuer_chain_crl;
+      std::optional<crypto::Unique_X509> root_ca_certificate;
+      crypto::Unique_STACK_OF_X509 vcek_certificate_chain;
+      std::optional<crypto::Unique_X509_CRL> vcek_issuer_chain_crl;
 
       std::string to_string(uint32_t verbosity, size_t indent = 0) const
       {
+        using namespace crypto;
+
         std::stringstream ss;
         ss << std::string(indent + 2, ' ') << "- Endorsements" << std::endl;
 
@@ -248,20 +252,29 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       }
     };
 
-    static EndorsementsEtc parse_url_responses(
-      const Options& options, const std::vector<HTTPResponse>& url_response_set)
+    RAVL_VISIBILITY EndorsementsEtc parse_url_responses(
+      const Options& options, const std::vector<HTTPResponse>& http_responses)
     {
+      using namespace crypto;
+
       EndorsementsEtc r;
+
+      for (size_t i = 0; i < http_responses.size(); i++)
+        if (http_responses[i].status != 200)
+          throw std::runtime_error(fmt::format(
+            "endorsement download failed (request index {}: {})",
+            i,
+            http_responses[i].status));
 
       if (options.root_ca_certificate)
         r.root_ca_certificate = *options.root_ca_certificate;
 
       if (options.sev_snp_endorsement_cache_url_template)
       {
-        if (url_response_set.size() != 2)
+        if (http_responses.size() != 2)
           throw std::runtime_error("unexpected number of URL responses");
 
-        auto issuer_chain = url_response_set[0].body;
+        auto issuer_chain = http_responses[0].body;
         Unique_STACK_OF_X509 stack(issuer_chain);
 
         if (stack.size() != 3)
@@ -272,20 +285,17 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
         r.vcek_certificate_chain = std::move(stack);
 
         auto issuer_crl_der = std::span<const uint8_t>(
-          (uint8_t*)url_response_set[1].body.data(),
-          url_response_set[1].body.size());
+          (uint8_t*)http_responses[1].body.data(),
+          http_responses[1].body.size());
         auto q = Unique_X509_CRL(issuer_crl_der, false);
         r.vcek_issuer_chain_crl = std::move(q);
       }
       else
       {
-        if (url_response_set.size() != 3)
+        if (http_responses.size() != 3)
           throw std::runtime_error("unexpected number of URL responses");
 
-        // TODO: wait/retry if rate limits are hit (should be a HTTP 429
-        // with retry-after header)
-
-        auto issuer_chain = url_response_set[1].body;
+        auto issuer_chain = http_responses[1].body;
 
         Unique_STACK_OF_X509 stack(issuer_chain);
         if (stack.size() != 2)
@@ -294,20 +304,20 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 
         r.root_ca_certificate = stack.at(1);
 
-        auto vcek_cert = url_response_set[0].body;
+        auto vcek_cert = http_responses[0].body;
         stack.insert(0, Unique_X509(Unique_BIO(vcek_cert), false));
         r.vcek_certificate_chain = std::move(stack);
 
         auto issuer_crl_der = std::span<const uint8_t>(
-          (uint8_t*)url_response_set[2].body.data(),
-          url_response_set[2].body.size());
+          (uint8_t*)http_responses[2].body.data(),
+          http_responses[2].body.size());
         r.vcek_issuer_chain_crl = Unique_X509_CRL(issuer_crl_der, false);
       }
 
       return r;
     }
 
-    HTTPRequests download_endorsements(
+    RAVL_VISIBILITY HTTPRequests download_endorsements(
       const std::string& product_name,
       const std::span<const uint8_t>& chip_id,
       const snp::TcbVersion& tcb_version,
@@ -354,11 +364,13 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       return requests;
     }
 
-    static bool verify_signature(
-      const Unique_EVP_PKEY& pkey,
+    RAVL_VISIBILITY bool verify_signature(
+      const crypto::Unique_EVP_PKEY& pkey,
       const std::span<const uint8_t>& message,
       const snp::Signature& signature)
     {
+      using namespace crypto;
+
       SHA512_CTX ctx;
       SHA384_Init(&ctx);
       SHA384_Update(&ctx, message.data(), message.size());
@@ -380,8 +392,15 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       return rc == 1;
     }
 
-    std::optional<HTTPRequests> Attestation::prepare_endorsements(
-      const Options& options) const
+    RAVL_VISIBILITY Attestation::Attestation(
+      const std::vector<uint8_t>& evidence, const Endorsements& endorsements) :
+      ravl::Attestation(Source::SEV_SNP, evidence, {})
+    {
+      // TODO
+    }
+
+    RAVL_VISIBILITY std::optional<HTTPRequests> Attestation::
+      prepare_endorsements(const Options& options) const
     {
       const auto& snp_att =
         *reinterpret_cast<const ravl::sev_snp::snp::Attestation*>(
@@ -409,10 +428,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       return r;
     }
 
-#define SET_ARRAY(TO, FROM) \
-  std::copy(std::begin(FROM), std::end(FROM), std::begin(TO))
-
-    static void set_tcb_version(
+    RAVL_VISIBILITY void set_tcb_version(
       Claims::TCBVersion& to, const struct snp::TcbVersion& from)
     {
       to.boot_loader = from.boot_loader;
@@ -421,30 +437,30 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       to.microcode = from.microcode;
     }
 
-    static std::shared_ptr<Claims> make_claims(
-      const ravl::sev_snp::snp::Attestation& a)
+    RAVL_VISIBILITY std::shared_ptr<Claims> make_claims(
+      const ravl::sev_snp::snp::Attestation& a, const EndorsementsEtc& e)
     {
       auto r = std::make_shared<Claims>();
 
       r->version = a.version;
       r->guest_svn = a.guest_svn;
       r->policy = a.policy;
-      SET_ARRAY(r->family_id, a.family_id);
-      SET_ARRAY(r->image_id, a.image_id);
+      copy(r->family_id, a.family_id);
+      copy(r->image_id, a.image_id);
       r->vmpl = a.vmpl;
       r->signature_algo = static_cast<uint32_t>(a.signature_algo);
       set_tcb_version(r->platform_version, a.platform_version);
       r->platform_info = a.platform_info;
       r->flags = a.flags;
-      SET_ARRAY(r->report_data, a.report_data);
-      SET_ARRAY(r->measurement, a.measurement);
-      SET_ARRAY(r->host_data, a.host_data);
-      SET_ARRAY(r->id_key_digest, a.id_key_digest);
-      SET_ARRAY(r->author_key_digest, a.author_key_digest);
-      SET_ARRAY(r->report_id, a.report_id);
-      SET_ARRAY(r->report_id_ma, a.report_id_ma);
+      copy(r->report_data, a.report_data);
+      copy(r->measurement, a.measurement);
+      copy(r->host_data, a.host_data);
+      copy(r->id_key_digest, a.id_key_digest);
+      copy(r->author_key_digest, a.author_key_digest);
+      copy(r->report_id, a.report_id);
+      copy(r->report_id_ma, a.report_id_ma);
       set_tcb_version(r->reported_tcb, a.reported_tcb);
-      SET_ARRAY(r->chip_id, a.chip_id);
+      copy(r->chip_id, a.chip_id);
       set_tcb_version(r->committed_tcb, a.committed_tcb);
       r->current_minor = a.current_minor;
       r->current_build = a.current_build;
@@ -453,19 +469,26 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       r->committed_minor = a.committed_minor;
       r->committed_major = a.committed_major;
       set_tcb_version(r->launch_tcb, a.launch_tcb);
-      SET_ARRAY(r->signature.r, a.signature.r);
-      SET_ARRAY(r->signature.s, a.signature.s);
+      copy(r->signature.r, a.signature.r);
+      copy(r->signature.s, a.signature.s);
+
+      if (!e.root_ca_certificate)
+        throw std::runtime_error("Root CA certificate not saved");
+      r->endorsements.root_ca_certificate = e.root_ca_certificate->pem();
+      r->endorsements.vcek_certificate_chain = e.vcek_certificate_chain.pem();
+      if (r->endorsements.vcek_issuer_chain_crl)
+        r->endorsements.vcek_issuer_chain_crl = e.vcek_issuer_chain_crl->pem();
 
       return r;
     }
 
-    std::shared_ptr<ravl::Claims> Attestation::verify(
+    RAVL_VISIBILITY std::shared_ptr<ravl::Claims> Attestation::verify(
       const Options& options,
-      const std::optional<std::vector<HTTPResponse>>& url_response_set) const
+      const std::optional<std::vector<HTTPResponse>>& http_responses) const
     {
-      if (
-        endorsements.empty() &&
-        (!url_response_set || url_response_set->empty()))
+      using namespace crypto;
+
+      if (endorsements.empty() && (!http_responses || http_responses->empty()))
         throw std::runtime_error("missing endorsements");
 
       size_t indent = 0;
@@ -486,13 +509,13 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
             Unique_X509(*options.root_ca_certificate);
         else if (options.fresh_root_ca_certificate)
           endorsements_etc.root_ca_certificate =
-            parse_root_cert(*url_response_set);
+            parse_root_cert(*http_responses);
       }
       else
       {
-        if (!url_response_set)
+        if (!http_responses)
           throw std::runtime_error("missing endorsements");
-        endorsements_etc = parse_url_responses(options, *url_response_set);
+        endorsements_etc = parse_url_responses(options, *http_responses);
       }
 
       if (options.verbosity > 0)
@@ -544,15 +567,19 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       if (!verify_signature(vcek_pk, msg, snp_att.signature))
         throw std::runtime_error("invalid VCEK signature");
 
-      return make_claims(snp_att);
+      if (trusted_root)
+        endorsements_etc.root_ca_certificate = chain.at(2);
+
+      return make_claims(snp_att, endorsements_etc);
     }
   }
 
   template <>
-  std::shared_ptr<sev_snp::Claims> Claims::get(std::shared_ptr<Claims>& claims)
+  RAVL_VISIBILITY std::shared_ptr<sev_snp::Claims> Claims::get(
+    std::shared_ptr<Claims>& claims)
   {
     if (claims->source != Source::SEV_SNP)
-      throw std::runtime_error("invalid request for SEV/SNP claim conversion");
+      throw std::runtime_error("invalid request for SEV/SNP claims conversion");
     return static_pointer_cast<sev_snp::Claims>(claims);
   }
 }

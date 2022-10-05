@@ -705,44 +705,18 @@ function(add_picobench name)
   set_property(TEST ${name} PROPERTY LABELS benchmark)
 endfunction()
 
-set(CURL OFF)
-set(OPENSSL OFF) # Don't search for it
-set(TESTS OFF)
-set(OE ON)
-set(SGX ON)
-set(SEV_SNP ON)
-set(STATIC ON)
-set(SHARED OFF)
-set(CLI OFF)
-set(INSTALL OFF)
-add_subdirectory(${CCF_3RD_PARTY_EXPORTED_DIR}/ravl)
-
-get_target_property(RAVL_SRC ravl SOURCES)
-get_target_property(RAVL_INC ravl INTERFACE_INCLUDE_DIRECTORIES)
-get_target_property(RAVL_DEF ravl COMPILE_DEFINITIONS)
-
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library_c(ravl.enclave ${RAVL_SRC})
-  target_compile_definitions(ravl.enclave PRIVATE HAVE_OPENSSL ${RAVL_DEF})
-  target_link_libraries(ravl.enclave PRIVATE openenclave::oecryptoopenssl)
-  target_include_directories(ravl.enclave PUBLIC ${RAVL_INC})
-  target_sources(ravl.enclave PRIVATE ${CCF_3RD_PARTY_EXPORTED_DIR}/ravl/http_client_ccf.cpp)
-  install(
-    TARGETS ravl.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
+  add_library(ravl.enclave INTERFACE)
+  target_compile_definitions(ravl.enclave INTERFACE RAVL_HAVE_OPENSSL)
+  target_include_directories(ravl.enclave INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>)
+  target_link_libraries(ravl.enclave INTERFACE openenclave::oecryptoopenssl)
+  target_compile_options(ravl.enclave INTERFACE -Wno-c99-extensions)
+  install(TARGETS ravl.enclave EXPORT ccf)
 endif()
 
-add_host_library(ravl.host ${RAVL_SRC})
-target_compile_definitions(ravl.host PRIVATE HAVE_OPENSSL ${RAVL_DEF})
-target_link_libraries(ravl.host PRIVATE crypto)
-target_include_directories(ravl.host PUBLIC ${RAVL_INC})
-target_sources(ravl.host PRIVATE ${CCF_3RD_PARTY_EXPORTED_DIR}/ravl/http_client_ccf.cpp)
-install(
-    TARGETS ravl.host
-    EXPORT ccf
-    DESTINATION lib
-  )
-
-set_target_properties(ravl PROPERTIES EXCLUDE_FROM_ALL TRUE)
+add_library(ravl.host INTERFACE)
+target_compile_definitions(ravl.host INTERFACE RAVL_HAVE_OPENSSL)
+target_include_directories(ravl.host INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>)
+target_link_libraries(ravl.host INTERFACE crypto)
+target_compile_options(ravl.host INTERFACE -Wno-c99-extensions)
+install(TARGETS ravl.host EXPORT ccf)

@@ -1,23 +1,16 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include "ravl/sgx.h"
+#pragma once
 
-#include "ravl/crypto.h"
-#include "ravl/http_client.h"
-#include "ravl/sgx_defs.h"
-#include "ravl/util.h"
+#include "crypto.h"
+#include "http_client.h"
+#include "sgx.h"
+#include "sgx_defs.h"
+#include "util.h"
+#include "visibility.h"
 
-#include <dlfcn.h>
-#include <fmt/core.h>
-#include <iostream>
-#include <memory>
 #include <nlohmann/json.hpp>
-#include <span>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <unordered_set>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -32,8 +25,6 @@
 
 namespace ravl
 {
-  using namespace crypto;
-
   namespace sgx
   {
     static const std::string pck_cert_common_name = "Intel SGX PCK Certificate";
@@ -119,6 +110,8 @@ namespace ravl
 
         if (verbosity > 0)
         {
+          using namespace crypto;
+
           Unique_X509_CRL root_crl(root_ca_crl);
           ss << ins << "- Root CA CRL:" << std::endl;
           ss << root_crl.to_string_short(indent + 4) << std::endl;
@@ -162,157 +155,261 @@ namespace ravl
       }
     };
 
-    static bool verify_signature(
-      const Unique_EVP_PKEY& pkey,
-      const std::span<const uint8_t>& message,
-      const std::span<const uint8_t>& signature)
+    namespace
     {
-      SHA256_CTX ctx;
-      SHA256_Init(&ctx);
+      bool verify_signature(
+        const crypto::Unique_EVP_PKEY& pkey,
+        const std::span<const uint8_t>& message,
+        const std::span<const uint8_t>& signature)
+      {
+        using namespace crypto;
 
-      SHA256_Update(&ctx, message.data(), message.size());
+        SHA256_CTX ctx;
+        SHA256_Init(&ctx);
 
-      std::vector<uint8_t> hash(ctx.md_len, 0);
-      SHA256_Final(hash.data(), &ctx);
+        SHA256_Update(&ctx, message.data(), message.size());
 
-      auto signature_der = convert_signature_to_der(signature);
+        std::vector<uint8_t> hash(ctx.md_len, 0);
+        SHA256_Final(hash.data(), &ctx);
 
-      Unique_EVP_PKEY_CTX pctx(pkey);
-      CHECK1(EVP_PKEY_verify_init(pctx));
-      int rc = EVP_PKEY_verify(
-        pctx,
-        signature_der.data(),
-        signature_der.size(),
-        hash.data(),
-        hash.size());
+        auto signature_der = convert_signature_to_der(signature);
 
-      return rc == 1;
-    }
+        Unique_EVP_PKEY_CTX pctx(pkey);
+        CHECK1(EVP_PKEY_verify_init(pctx));
+        int rc = EVP_PKEY_verify(
+          pctx,
+          signature_der.data(),
+          signature_der.size(),
+          hash.data(),
+          hash.size());
 
-    static bool verify_signature(
-      const Unique_EC_KEY& eckey,
-      const std::span<const uint8_t>& message,
-      const std::span<const uint8_t>& signature)
-    {
-      return verify_signature(Unique_EVP_PKEY(eckey), message, signature);
-    }
+        return rc == 1;
+      }
 
-    static bool verify_signature(
-      const std::span<const uint8_t>& public_key,
-      const std::span<const uint8_t>& message,
-      const std::span<const uint8_t>& signature)
-    {
-      return verify_signature(
-        Unique_EC_KEY_P256(public_key), message, signature);
-    }
+      RAVL_VISIBILITY bool verify_signature(
+        const crypto::Unique_EC_KEY& eckey,
+        const std::span<const uint8_t>& message,
+        const std::span<const uint8_t>& signature)
+      {
+        return verify_signature(
+          crypto::Unique_EVP_PKEY(eckey), message, signature);
+      }
 
-    static bool verify_hash_match(
-      const std::vector<std::span<const uint8_t>>& inputs,
-      const std::span<const uint8_t>& expected)
-    {
-      SHA256_CTX sha256_ctx;
-      CHECK1(SHA256_Init(&sha256_ctx));
-      for (const auto& input : inputs)
-        if (input.size() > 0)
-          CHECK1(SHA256_Update(&sha256_ctx, input.data(), input.size()));
-      std::vector<uint8_t> hash(sha256_ctx.md_len, 0);
-      CHECK1(SHA256_Final(hash.data(), &sha256_ctx));
-      if (hash.size() != expected.size())
-        return false;
-      for (size_t i = 0; i < hash.size(); i++)
-        if (hash[i] != expected[i])
+      RAVL_VISIBILITY bool verify_signature(
+        const std::span<const uint8_t>& public_key,
+        const std::span<const uint8_t>& message,
+        const std::span<const uint8_t>& signature)
+      {
+        return verify_signature(
+          crypto::Unique_EC_KEY_P256(public_key), message, signature);
+      }
+
+      RAVL_VISIBILITY bool verify_hash_match(
+        const std::vector<std::span<const uint8_t>>& inputs,
+        const std::span<const uint8_t>& expected)
+      {
+        using namespace crypto;
+
+        SHA256_CTX sha256_ctx;
+        CHECK1(SHA256_Init(&sha256_ctx));
+        for (const auto& input : inputs)
+          if (input.size() > 0)
+            CHECK1(SHA256_Update(&sha256_ctx, input.data(), input.size()));
+        std::vector<uint8_t> hash(sha256_ctx.md_len, 0);
+        CHECK1(SHA256_Final(hash.data(), &sha256_ctx));
+        if (hash.size() != expected.size())
           return false;
-      return true;
-    }
+        for (size_t i = 0; i < hash.size(); i++)
+          if (hash[i] != expected[i])
+            return false;
+        return true;
+      }
 
-    static const std::string intel_certificates_url_base =
-      "https://certificates.trustedservices.intel.com";
-    static const std::string root_ca_url = intel_certificates_url_base +
-      "/Intel_SGX_Provisioning_Certification_RootCA.pem";
-    static const std::string root_crl_url =
-      intel_certificates_url_base + "/IntelSGXRootCA.crl";
-    static const std::string api_base_url =
-      "https://api.trustedservices.intel.com/sgx/certification/v3";
-    static const std::string tcb_url = api_base_url + "/tcb";
-    static const std::string pck_crl_url = api_base_url + "/pckcrl";
-    static const std::string qe_identity_url = api_base_url + "/qe/identity";
-    static const std::string qve_identity_url = api_base_url + "/qve/identity";
+      static const std::string intel_certificates_url_base =
+        "https://certificates.trustedservices.intel.com";
+      static const std::string root_ca_url = intel_certificates_url_base +
+        "/Intel_SGX_Provisioning_Certification_RootCA.pem";
+      static const std::string root_crl_url =
+        intel_certificates_url_base + "/IntelSGXRootCA.crl";
+      static const std::string api_base_url =
+        "https://api.trustedservices.intel.com/sgx/certification/v3";
+      static const std::string tcb_url = api_base_url + "/tcb";
+      static const std::string pck_crl_url = api_base_url + "/pckcrl";
+      static const std::string qe_identity_url = api_base_url + "/qe/identity";
+      static const std::string qve_identity_url =
+        api_base_url + "/qve/identity";
 
-    HTTPRequests download_root_ca_pem()
-    {
-      HTTPRequests requests;
-      requests.emplace_back(root_ca_url);
-      return requests;
-    }
-
-    HTTPRequests download_collateral(
-      const std::string& ca,
-      const std::string& fmspc,
-      const Options& options,
-      bool qve = false)
-    {
-      auto r = std::make_shared<QL_QVE_Collateral>();
-
-      r->major_version = 3;
-      r->minor_version = 1;
-      r->tee_type = 0;
-
-      HTTPRequests requests;
-
-      if (!options.sgx_endorsement_cache_url_template)
+      RAVL_VISIBILITY HTTPRequests download_root_ca_pem()
       {
-        // Root CA certificate
-        if (!options.root_ca_certificate)
-          requests.emplace_back(root_ca_url);
+        HTTPRequests requests;
+        requests.emplace_back(root_ca_url);
+        return requests;
+      }
 
-        // Root CRL
-        requests.emplace_back(root_crl_url);
+      RAVL_VISIBILITY HTTPRequests download_collateral(
+        const std::string& ca,
+        const std::string& fmspc,
+        const Options& options,
+        bool qve = false)
+      {
+        auto r = std::make_shared<QL_QVE_Collateral>();
 
-        // TCB info
-        // https://api.portal.trustedservices.intel.com/documentation#pcs-tcb-info-v3
-        requests.emplace_back(tcb_url + "?fmspc=" + fmspc);
+        r->major_version = 3;
+        r->minor_version = 1;
+        r->tee_type = 0;
 
-        // PCK CRL
-        // https://api.portal.trustedservices.intel.com/documentation#pcs-revocation-v3
-        requests.emplace_back(pck_crl_url + "?ca=" + ca + "&encoding=pem");
+        HTTPRequests requests;
 
-        if (!qve)
+        if (!options.sgx_endorsement_cache_url_template)
         {
-          // QE Identity
-          // https://api.portal.trustedservices.intel.com/documentation#pcs-qe-identity-v3
-          requests.emplace_back(qe_identity_url);
+          // Root CA certificate
+          if (!options.root_ca_certificate)
+            requests.emplace_back(root_ca_url);
+
+          // Root CRL
+          requests.emplace_back(root_crl_url);
+
+          // TCB info
+          // https://api.portal.trustedservices.intel.com/documentation#pcs-tcb-info-v3
+          requests.emplace_back(tcb_url + "?fmspc=" + fmspc);
+
+          // PCK CRL
+          // https://api.portal.trustedservices.intel.com/documentation#pcs-revocation-v3
+          requests.emplace_back(pck_crl_url + "?ca=" + ca + "&encoding=pem");
+
+          if (!qve)
+          {
+            // QE Identity
+            // https://api.portal.trustedservices.intel.com/documentation#pcs-qe-identity-v3
+            requests.emplace_back(qe_identity_url);
+          }
+          else
+          {
+            // QVE Identity
+            // https://api.portal.trustedservices.intel.com/documentation#pcs-qve-identity-v3
+            requests.emplace_back(qve_identity_url);
+          }
         }
         else
         {
-          // QVE Identity
-          // https://api.portal.trustedservices.intel.com/documentation#pcs-qve-identity-v3
-          requests.emplace_back(qve_identity_url);
+          if (!options.root_ca_certificate)
+            requests.emplace_back(root_ca_url);
+          auto tmpl = *options.sgx_endorsement_cache_url_template;
+          requests.emplace_back(
+            fmt::vformat(tmpl, fmt::make_format_args("pckcrl", root_crl_url)));
+          requests.emplace_back(fmt::vformat(
+            tmpl, fmt::make_format_args("tcb", tcb_url + "&fmspc=" + fmspc)));
+          requests.emplace_back(fmt::vformat(
+            tmpl,
+            fmt::make_format_args(
+              "pckcrl",
+              intel_certificates_url_base + "/intelsgxpck" + ca + ".crl" +
+                "&encoding=pem")));
+          if (!qve)
+            requests.emplace_back(fmt::vformat(
+              tmpl, fmt::make_format_args("qe/identity", qe_identity_url)));
+          else
+            requests.emplace_back(fmt::vformat(
+              tmpl, fmt::make_format_args("qve/identity", qve_identity_url)));
         }
-      }
-      else
-      {
-        if (!options.root_ca_certificate)
-          requests.emplace_back(root_ca_url);
-        auto tmpl = *options.sgx_endorsement_cache_url_template;
-        requests.emplace_back(
-          fmt::vformat(tmpl, fmt::make_format_args("pckcrl", root_crl_url)));
-        requests.emplace_back(fmt::vformat(
-          tmpl, fmt::make_format_args("tcb", tcb_url + "&fmspc=" + fmspc)));
-        requests.emplace_back(fmt::vformat(
-          tmpl,
-          fmt::make_format_args(
-            "pckcrl",
-            intel_certificates_url_base + "/intelsgxpck" + ca + ".crl" +
-              "&encoding=pem")));
-        if (!qve)
-          requests.emplace_back(fmt::vformat(
-            tmpl, fmt::make_format_args("qe/identity", qe_identity_url)));
-        else
-          requests.emplace_back(fmt::vformat(
-            tmpl, fmt::make_format_args("qve/identity", qve_identity_url)));
+
+        return requests;
       }
 
-      return requests;
+      RAVL_VISIBILITY bool json_vector_eq(
+        const nlohmann::json& tcbinfo_j,
+        const std::string& key,
+        const std::vector<uint8_t>& ref,
+        bool optional = false)
+      {
+        auto vj = tcbinfo_j[key];
+        if (vj.is_null())
+        {
+          if (optional)
+            return true;
+          else
+            throw std::runtime_error("missing json object");
+        }
+
+        auto vv = vj.get<std::string>();
+        return from_hex(vv) == ref;
+      }
+
+      RAVL_VISIBILITY void check_datetime(
+        const std::string& date_s, const std::string& name)
+      {
+        auto earliest_permitted =
+          parse_time_point(sgx_earliest_tcb_crl_date, datetime_format);
+        auto issue_timepoint = parse_time_point(date_s, datetime_format);
+        if (issue_timepoint < earliest_permitted)
+          throw std::runtime_error(name + " earlier than permitted");
+      }
+
+      RAVL_VISIBILITY void check_http_200(
+        const HTTPResponse& response, const std::string& name)
+      {
+        if (response.status != 200)
+          throw std::runtime_error(fmt::format("download of {} failed", name));
+      }
+
+      RAVL_VISIBILITY std::shared_ptr<QL_QVE_Collateral> consume_url_responses(
+        const Options& options,
+        const std::vector<HTTPResponse>& http_responses,
+        bool qve = false)
+      {
+        size_t expected_responses = 4;
+
+        if (!options.root_ca_certificate)
+          expected_responses++;
+
+        if (http_responses.size() != expected_responses)
+          throw std::runtime_error(
+            "collateral download request set of unexpected size");
+
+        auto r = std::make_shared<QL_QVE_Collateral>();
+
+        size_t i = 0;
+
+        if (!options.root_ca_certificate)
+        {
+          check_http_200(http_responses[i], "root CA certificate");
+          r->root_ca = http_responses[i++].body;
+        }
+
+        check_http_200(http_responses[i], "root CA CRL");
+        r->root_ca_crl = http_responses[i++].body;
+
+        check_http_200(http_responses[i], "TCB info");
+        r->tcb_info = http_responses[i].body;
+        r->tcb_info_issuer_chain = http_responses[i].get_header_string(
+          "SGX-TCB-Info-Issuer-Chain", true);
+        i++;
+
+        check_http_200(http_responses[i], "PCK CRL");
+        r->pck_crl = http_responses[i].body;
+        r->pck_crl_issuer_chain =
+          http_responses[i].get_header_string("SGX-PCK-CRL-Issuer-Chain", true);
+        i++;
+
+        if (!qve)
+        {
+          auto response = http_responses[i];
+          check_http_200(response, "QE identity");
+          r->qe_identity = response.body;
+          r->qe_identity_issuer_chain = response.get_header_string(
+            "SGX-Enclave-Identity-Issuer-Chain", true);
+        }
+        else
+        {
+          auto response = http_responses[i];
+          check_http_200(response, "QVE identity");
+          r->qe_identity = response.body;
+          r->qe_identity_issuer_chain = response.get_header_string(
+            "SGX-Enclave-Identity-Issuer-Chain", true);
+        }
+
+        return r;
+      }
     }
 
     class CertificateExtension
@@ -333,10 +430,12 @@ namespace ravl
       const std::string sgx_ext_configuration_smt_enabled_oid =
         sgx_ext_configuration_oid + ".3";
 
-      CertificateExtension(const Unique_X509& certificate)
+      CertificateExtension(const crypto::Unique_X509& certificate)
       {
         // See
         // https://api.trustedservices.intel.com/documents/Intel_SGX_PCK_Certificate_CRL_Spec-1.4.pdf
+
+        using namespace crypto;
 
         static constexpr size_t processor_num_extensions = 5;
         static constexpr size_t platform_num_extensions = 7;
@@ -418,7 +517,7 @@ namespace ravl
 
     protected:
       TCB get_tcb_ext(
-        const Unique_ASN1_SEQUENCE& seq,
+        const crypto::Unique_ASN1_SEQUENCE& seq,
         int index,
         const std::string& expected_oid)
       {
@@ -461,50 +560,21 @@ namespace ravl
       }
     };
 
-    static bool json_vector_eq(
-      const nlohmann::json& tcbinfo_j,
-      const std::string& key,
-      const std::vector<uint8_t>& ref,
-      bool optional = false)
-    {
-      auto vj = tcbinfo_j[key];
-      if (vj.is_null())
-      {
-        if (optional)
-          return true;
-        else
-          throw std::runtime_error("missing json object");
-      }
-
-      auto vv = vj.get<std::string>();
-      return from_hex(vv) == ref;
-    }
-
     struct TCBLevel
     {
-      std::array<uint8_t, 16> comp_svn = {0};
+      std::array<uint8_t, 16> comp_svn = {};
       uint16_t pce_svn = 0;
       std::string status = "";
       std::string date = "";
       std::vector<std::string> advisory_ids = {};
     };
 
-    static void check_datetime(
-      const std::string& date_s, const std::string& name)
-    {
-      auto earliest_permitted =
-        parse_time_point(sgx_earliest_tcb_crl_date, datetime_format);
-      auto issue_timepoint = parse_time_point(date_s, datetime_format);
-      if (issue_timepoint < earliest_permitted)
-        throw std::runtime_error(name + " earlier than permitted");
-    }
-
-    TCBLevel verify_tcb_json(
+    RAVL_VISIBILITY TCBLevel verify_tcb_json(
       const std::string& tcb_info,
       const CertificateExtension& pck_ext,
-      const Unique_EVP_PKEY& signer_pubkey)
+      const crypto::Unique_EVP_PKEY& signer_pubkey)
     {
-      TCBLevel platform_tcb_level = {0};
+      TCBLevel platform_tcb_level = {};
 
       std::vector<uint8_t> signature;
 
@@ -616,14 +686,16 @@ namespace ravl
       return platform_tcb_level;
     }
 
-    TCBLevel verify_tcb(
+    RAVL_VISIBILITY TCBLevel verify_tcb(
       const std::string& tcb_info_issuer_chain,
       const std::string& tcb_info,
       const CertificateExtension& pck_ext,
-      const Unique_X509_STORE& store,
+      const crypto::Unique_X509_STORE& store,
       const Options& options,
       size_t indent = 0)
     {
+      using namespace crypto;
+
       if (options.verbosity > 0)
       {
         log("- TCB info verification", indent);
@@ -650,14 +722,16 @@ namespace ravl
       return verify_tcb_json(tcb_info, pck_ext, tcb_issuer_leaf_pubkey);
     }
 
-    bool verify_qe_id(
+    RAVL_VISIBILITY bool verify_qe_id(
       const std::string& qe_identity_issuer_chain,
       const std::string& qe_identity,
       const std::span<const uint8_t>& qe_report_body_s,
-      const Unique_X509_STORE& store,
+      const crypto::Unique_X509_STORE& store,
       const Options& options,
       size_t indent = 0)
     {
+      using namespace crypto;
+
       const sgx_report_body_t& qe_report_body =
         *(sgx_report_body_t*)qe_report_body_s.data();
 
@@ -824,7 +898,7 @@ namespace ravl
       return true;
     }
 
-    std::span<const uint8_t> parse_quote(const Attestation& a)
+    RAVL_VISIBILITY std::span<const uint8_t> parse_quote(const Attestation& a)
     {
       static constexpr size_t sgx_quote_t_signed_size =
         sizeof(sgx_quote_t) - sizeof(uint32_t); // (minus signature_len)
@@ -922,8 +996,8 @@ namespace ravl
       std::span<const uint8_t> certification_data;
     };
 
-    std::optional<HTTPRequests> Attestation::prepare_endorsements(
-      const Options& options) const
+    RAVL_VISIBILITY std::optional<HTTPRequests> Attestation::
+      prepare_endorsements(const Options& options) const
     {
       if (
         !this->endorsements.empty() && !options.fresh_endorsements &&
@@ -944,6 +1018,8 @@ namespace ravl
       {
         // Get X509 extensions from the PCK cert to find CA type and fmspc.
         // The cert chain is still unverified at this point.
+        using namespace crypto;
+
         auto pck_pem =
           extract_pem_certificate(signature_data.certification_data);
         Unique_X509 pck_leaf(Unique_BIO(pck_pem), true);
@@ -959,94 +1035,25 @@ namespace ravl
       return r;
     }
 
-    static void check_http_200(
-      const HTTPResponse& response, const std::string& name)
-    {
-      if (response.status != 200)
-        throw std::runtime_error(fmt::format("download of {} failed", name));
-    }
-
-    static std::shared_ptr<QL_QVE_Collateral> consume_url_responses(
-      const Options& options,
-      const std::vector<HTTPResponse>& url_response_set,
-      bool qve = false)
-    {
-      size_t expected_responses = 4;
-
-      if (!options.root_ca_certificate)
-        expected_responses++;
-
-      if (url_response_set.size() != expected_responses)
-        throw std::runtime_error(
-          "collateral download request set of unexpected size");
-
-      auto r = std::make_shared<QL_QVE_Collateral>();
-
-      size_t i = 0;
-
-      if (!options.root_ca_certificate)
-      {
-        check_http_200(url_response_set[i], "root CA certificate");
-        r->root_ca = url_response_set[i++].body;
-      }
-
-      check_http_200(url_response_set[i], "root CA CRL");
-      r->root_ca_crl = url_response_set[i++].body;
-
-      check_http_200(url_response_set[i], "TCB info");
-      r->tcb_info = url_response_set[i].body;
-      r->tcb_info_issuer_chain = url_response_set[i].get_header_string(
-        "SGX-TCB-Info-Issuer-Chain", true);
-      i++;
-
-      check_http_200(url_response_set[i], "PCK CRL");
-      r->pck_crl = url_response_set[i].body;
-      r->pck_crl_issuer_chain =
-        url_response_set[i].get_header_string("SGX-PCK-CRL-Issuer-Chain", true);
-      i++;
-
-      if (!qve)
-      {
-        auto response = url_response_set[i];
-        check_http_200(response, "QE identity");
-        r->qe_identity = response.body;
-        r->qe_identity_issuer_chain =
-          response.get_header_string("SGX-Enclave-Identity-Issuer-Chain", true);
-      }
-      else
-      {
-        auto response = url_response_set[i];
-        check_http_200(response, "QVE identity");
-        r->qe_identity = response.body;
-        r->qe_identity_issuer_chain =
-          response.get_header_string("SGX-Enclave-Identity-Issuer-Chain", true);
-      }
-
-      return r;
-    }
-
-#define SET_ARRAY(TO, FROM) \
-  std::copy(std::begin(FROM), std::end(FROM), std::begin(TO))
-
     static void make_report_body_claims(
       Claims::ReportBody& to, const sgx_report_body_t& from)
     {
-      SET_ARRAY(to.cpu_svn, from.cpu_svn.svn);
+      copy(to.cpu_svn, from.cpu_svn.svn);
       to.misc_select = from.misc_select;
-      SET_ARRAY(to.isv_ext_prod_id, from.isv_ext_prod_id);
+      copy(to.isv_ext_prod_id, from.isv_ext_prod_id);
       to.attributes.flags = from.attributes.flags;
       to.attributes.xfrm = from.attributes.xfrm;
-      SET_ARRAY(to.mr_enclave, from.mr_enclave.m);
-      SET_ARRAY(to.mr_signer, from.mr_signer.m);
-      SET_ARRAY(to.config_id, from.config_id);
+      copy(to.mr_enclave, from.mr_enclave.m);
+      copy(to.mr_signer, from.mr_signer.m);
+      copy(to.config_id, from.config_id);
       to.isv_prod_id = from.isv_prod_id;
       to.isv_svn = from.isv_svn;
       to.config_svn = from.config_svn;
-      SET_ARRAY(to.isv_family_id, from.isv_family_id);
-      SET_ARRAY(to.report_data, from.report_data.d);
+      copy(to.isv_family_id, from.isv_family_id);
+      copy(to.report_data, from.report_data.d);
     };
 
-    std::shared_ptr<Claims> make_claims(
+    RAVL_VISIBILITY std::shared_ptr<Claims> make_claims(
       const sgx_quote_t& raw,
       const SignatureData& signature_data,
       const QL_QVE_Collateral& collateral)
@@ -1055,28 +1062,26 @@ namespace ravl
 
       claims->version = raw.version;
       claims->sign_type = raw.sign_type;
-      SET_ARRAY(claims->epid_group_id, raw.epid_group_id);
+      copy(claims->epid_group_id, raw.epid_group_id);
       claims->qe_svn = raw.qe_svn;
       claims->pce_svn = raw.pce_svn;
       claims->xeid = raw.xeid;
-      SET_ARRAY(claims->basename, raw.basename.name);
+      copy(claims->basename, raw.basename.name);
 
       make_report_body_claims(claims->report_body, raw.report_body);
 
-      SET_ARRAY(
-        claims->signature_data.signature, signature_data.quote_signature);
-      SET_ARRAY(
-        claims->signature_data.attest_pub_key, signature_data.public_key);
+      copy(claims->signature_data.signature, signature_data.quote_signature);
+      copy(claims->signature_data.attest_pub_key, signature_data.public_key);
       const sgx_ql_ecdsa_sig_data_t* sig_data =
         (sgx_ql_ecdsa_sig_data_t*)raw.signature;
       make_report_body_claims(
         claims->signature_data.qe_report, sig_data->qe_report);
-      SET_ARRAY(
+      copy(
         claims->signature_data.qe_report_sig, signature_data.report_signature);
       claims->signature_data.auth_data.assign(
         signature_data.auth_data.begin(), signature_data.auth_data.end());
 
-      claims->collateral = {
+      claims->endorsements = {
         .major_version = collateral.major_version,
         .minor_version = collateral.minor_version,
         .tee_type = collateral.tee_type,
@@ -1092,22 +1097,24 @@ namespace ravl
       return claims;
     }
 
-    std::shared_ptr<ravl::Claims> Attestation::verify(
+    RAVL_VISIBILITY std::shared_ptr<ravl::Claims> Attestation::verify(
       const Options& options,
-      const std::optional<std::vector<HTTPResponse>>& url_response_set) const
+      const std::optional<std::vector<HTTPResponse>>& http_responses) const
     {
+      using namespace crypto;
+
       if (
         this->endorsements.empty() &&
-        (!url_response_set || url_response_set->empty()))
+        (!http_responses || http_responses->empty()))
         throw std::runtime_error("missing endorsements");
 
       size_t indent = 0;
 
       Unique_X509_STORE store;
 
-      auto collateral = !url_response_set || url_response_set->empty() ?
+      auto collateral = !http_responses || http_responses->empty() ?
         std::make_shared<QL_QVE_Collateral>(this->endorsements) :
-        consume_url_responses(options, *url_response_set);
+        consume_url_responses(options, *http_responses);
 
       std::span quote = parse_quote(*this);
       SignatureData signature_data(quote, *this);
@@ -1241,10 +1248,11 @@ namespace ravl
   }
 
   template <>
-  std::shared_ptr<sgx::Claims> Claims::get(std::shared_ptr<Claims>& claims)
+  RAVL_VISIBILITY std::shared_ptr<sgx::Claims> Claims::get(
+    std::shared_ptr<ravl::Claims>& claims)
   {
     if (claims->source != Source::SGX)
-      throw std::runtime_error("invalid request for SGX claim conversion");
+      throw std::runtime_error("invalid request for SGX claims conversion");
     return static_pointer_cast<sgx::Claims>(claims);
   }
 }
