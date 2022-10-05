@@ -55,9 +55,7 @@ def test_verify_quotes(network, args):
 
 @reqs.description("Test that the security policies table is correctly populated")
 @reqs.snp_only()
-def test_add_node_with_correct_security_policy(network, args):
-
-    LOG.info(f"Checking governance table security policies")
+def test_security_policy_table(network, args):
 
     primary, _ = network.find_nodes()
     with primary.client() as client:
@@ -331,7 +329,7 @@ def run(args):
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
-        test_add_node_with_correct_security_policy(network, args)
+        test_security_policy_table(network, args)
         test_add_node_with_no_raw_security_policy_match_ledger(network, args)
         test_add_node_with_no_raw_security_policy_not_matching_ledger(network, args)
         test_add_node_with_mismatched_security_policy_digest(network, args)
