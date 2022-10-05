@@ -153,10 +153,10 @@ namespace ccf
         case QuoteVerificationResult::FailedSecurityPolicyDigestNotFound:
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED,
-            "Quote doesn't contain a security policy digest");
+            "Quote does not contain a security policy digest");
         case QuoteVerificationResult::FailedInvalidSecurityPolicy:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED, "Quote security policy isn't authorized");
+            HTTP_STATUS_UNAUTHORIZED, "Quote security policy is not authorised");
         default:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
