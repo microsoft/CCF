@@ -411,8 +411,14 @@ namespace externalexecutor
       auto stream = [this](
                       ccf::endpoints::EndpointContext& ctx,
                       google::protobuf::Empty&& payload) {
-        // TODO: Dummy streaming endpoint
+        // Dummy streaming endpoint
         ccf::KVValue kv;
+
+        // TODO:
+        // 1. Capture HTTP context
+        rpc_ctx = ctx.rpc_ctx;
+        CCF_APP_FAIL("RPC context captured: {}", ctx.rpc_ctx.use_count());
+
         return ccf::grpc::make_success(kv);
       };
 
@@ -453,6 +459,8 @@ namespace externalexecutor
     {};
 
   public:
+    std::shared_ptr<ccf::RpcContext> rpc_ctx = nullptr;
+
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
