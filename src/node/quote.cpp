@@ -123,7 +123,6 @@ namespace ccf
   {
     crypto::Sha256Hash quoted_hash;
     pal::attestation_report_data report;
-    LOG_INFO_FMT("TEST: VERIFYING POLICY AGAINST STORE");
     try
     {
       pal::verify_quote(quote_info, code_digest.data, report);
