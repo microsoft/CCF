@@ -11,13 +11,10 @@ PossibleConfigs_mc == <<{NodeOne, NodeTwo, NodeThree}>>
 TermLimit_mc == 2
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit_mc == 2
+RequestLimit_mc == 0
 
 \* Limit on number of request votes that can be sent to each other node
 RequestVoteLimit_mc == 1
-
-\* Limit number of reconfigurations
-ReconfigurationLimit_mc == 0
 
 \* Limit number of duplicate messages sent to the same server
 MessagesLimit_mc == 1
@@ -25,14 +22,7 @@ MessagesLimit_mc == 1
 \* Limit number of times a RetiredLeader server sends commit notifications
 CommitNotificationLimit_mc == 0
 
-\* We made several restrictions to the state space of Raft. However since we
-\* made these restrictions, Deadlocks can occur at places that Raft would in
-\* real-world deployments handle graciously.
-\* One example of this is if a Quorum of nodes becomes Candidate but can not
-\* timeout anymore since we constrained the terms. Then, an artificial Deadlock
-\* is reached. We solve this below. If TermLimit is set to any number >2, this is
-\* not an issue since breadth-first search will make sure that a similar
-\* situation is simulated at term==1 which results in a term increase to 2.
+\* Limit max number of simultaneous candidates
 MaxSimultaneousCandidates_mc == 1
 \* SNIPPET_END: mc_config
 

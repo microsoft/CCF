@@ -57,23 +57,31 @@ CONSTANTS
     TypeSignature,
     TypeReconfiguration
 
-\* CCF: Limit on vote requests to be sent to each other node
+\* CCF: Limit on vote requests to be sent to each other node per election
+\* Generally, this should be set to one
+\* If zero, then a candidate will not receive any votes (except from itself)
 CONSTANTS RequestVoteLimit
 ASSUME RequestVoteLimit \in Nat
 
 \* Limit on terms
+\* By default, all servers start as followers in term one
+\* So this should therefore be at least two
 CONSTANTS TermLimit
-ASSUME TermLimit \in Nat
+ASSUME TermLimit \in Nat \ {0}
 
 \* Limit on client requests
 CONSTANTS RequestLimit
 ASSUME RequestLimit \in Nat
 
-\* Limit for number of reconfigurations to be triggered
-CONSTANTS ReconfigurationLimit
-ASSUME ReconfigurationLimit \in Nat
-
 \* Limit max number of simultaneous candidates
+\* We made several restrictions to the state space of Raft. However since we
+\* made these restrictions, Deadlocks can occur at places that Raft would in
+\* real-world deployments handle graciously.
+\* One example of this is if a Quorum of nodes becomes Candidate but can not
+\* timeout anymore since we constrained the terms. Then, an artificial Deadlock
+\* is reached. We solve this below. If TermLimit is set to any number >2, this is
+\* not an issue since breadth-first search will make sure that a similar
+\* situation is simulated at term==1 which results in a term increase to 2.
 CONSTANTS MaxSimultaneousCandidates
 ASSUME MaxSimultaneousCandidates \in Nat
 
@@ -108,8 +116,9 @@ ASSUME PossibleServer \subseteq Servers
 \* Set of configurations - Each new server should have a new identity
 CONSTANTS PossibleConfigs
 ASSUME PossibleConfigs /= <<>>
-ASSUME \A k \in 1..Len(PossibleConfigs): PossibleConfigs[k] /= {} /\ PossibleConfigs[k] \subseteq PossibleServer
-ASSUME Len(PossibleConfigs) >= ReconfigurationLimit
+ASSUME \A k \in 1..Len(PossibleConfigs):
+    /\ PossibleConfigs[k] /= {}
+    /\ PossibleConfigs[k] \subseteq PossibleServer
 
 ----
 \* Global variables
@@ -123,6 +132,8 @@ reconfigurationVars == <<ReconfigurationCount, Configurations>>
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
+\* Messages only records messages that are currently in-flight, actions should
+\* removed messages once received.
 VARIABLE messages
 
 \* CCF: Keep track of each message sent from each server to each other server
@@ -509,7 +520,7 @@ SignCommittableMessages(i) ==
 \* this means waiting for the signature to be committed)
 ChangeConfiguration(i, newConfiguration) ==
     \* Limit reconfigurations
-    /\ ReconfigurationCount < ReconfigurationLimit
+    /\ ReconfigurationCount < Len(PossibleConfigs)-1
     \* Only leader can propose changes
     /\ state[i] = Leader
     \* Configuration is non empty
@@ -1012,7 +1023,7 @@ LogTypeOK(xlog) ==
     ELSE TRUE
 
 ReconfigurationVarsTypeInv ==
-    /\ ReconfigurationCount \in 0..ReconfigurationLimit
+    /\ ReconfigurationCount \in 0..Len(PossibleConfigs)
     /\ \A i \in PossibleServer :
         /\ Configurations[i] /= <<>>
         /\ \A k \in 1..Len(Configurations[i]) :

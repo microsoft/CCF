@@ -20,7 +20,7 @@ download() {
 download_curl() {
 	local if_modified
 
-	if [ -e tla2tools.jar ]; then 
+	if [ -e tla2tools.jar ]; then
 		if_modified=(-z tla2tools.jar)
 	fi
 
