@@ -27,6 +27,8 @@ parameters:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
     QUICTLS:
       cmake_args: "-DENABLE_QUICTLS=ON"
+    perf:
+      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DBUILD_TPCC=ON -DDISTRIBUTE_PERF_TESTS="-n local://localhost -n local://localhost"'
 
 jobs:
   - job: "Make"
@@ -93,5 +95,16 @@ jobs:
       cmake_args: "${{ parameters.build.SNPCC.cmake_args }}"
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
-      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
+      ctest_filter: '-LE "tlstest|vegeta|suite"'
       depends_on: configure
+
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
+    - template: common.yml
+      parameters:
+        target: SNPCC
+        env: "${{ parameters.env.SNPCC }}"
+        cmake_args: "${{ parameters.build.SNPCC.cmake_args }} ${{ parameters.build.perf.cmake_args }}"
+        suffix: "Perf"
+        artifact_name: "SNPCC_Perf"
+        ctest_filter: '-LE "benchmark|perf"'
+        depends_on: configure
