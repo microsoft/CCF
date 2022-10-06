@@ -7,7 +7,9 @@
 \* International License https://creativecommons.org/licenses/by/4.0/
 
 \* Modified for CCF by Microsoft Research
-\* Author of these modifications: Fritz Alder <fritz.alder@acm.org>
+\* Author of these modifications:
+\*      Fritz Alder <fritz.alder@acm.org>
+\*      Heidi Howard <heidi.howard@microsoft.com>
 \* Partially based on
 \* - https://github.com/ongardie/raft.tla/blob/master/raft.tla
 \*   (base spec, modified)
@@ -28,6 +30,14 @@ CONSTANTS
     Leader,
     RetiredLeader,
     Pending
+
+States = {
+    Follower,
+    Candidate,
+    Leader,
+    RetiredLeader,
+    Pending
+    }
 
 \* A reserved value
 CONSTANTS Nil
@@ -82,10 +92,18 @@ CONSTANTS
     NodeFour,
     NodeFive
 
+Servers = {
+    NodeOne,
+    NodeTwo,
+    NodeThree,
+    NodeFour,
+    NodeFive
+}
+
 \* Set of nodes for this model
 CONSTANTS PossibleServer
 ASSUME PossibleServer /= {}
-ASSUME PossibleServer \subseteq {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
+ASSUME PossibleServer \subseteq Servers
 
 \* Set of configurations - Each new server should have a new identity
 CONSTANTS PossibleConfigs
@@ -95,7 +113,7 @@ ASSUME Len(PossibleConfigs) >= ReconfigurationLimit
 
 \* State of the servers that we start with
 CONSTANTS InitialConfig
-ASSUME \A i \in PossibleServer : InitialConfig[i] \in {Follower, Candidate, Leader, RetiredLeader, Pending}
+ASSUME \A i \in PossibleServer : InitialConfig[i] \in States
 ----
 \* Global variables
 
@@ -127,7 +145,7 @@ messageVars == <<messages, messagesSent, commitsNotified>>
 \* The server's term number.
 VARIABLE currentTerm
 
-\* The server's state (Follower, Candidate, or Leader).
+\* The server's state.
 VARIABLE state
 
 \* The candidate the server voted for in its current term, or
@@ -1037,7 +1055,7 @@ MessageVarsTypeInv ==
 ServerVarsTypeInv ==
     /\ \A i \in PossibleServer :
         /\ currentTerm[i] \in 1..TermLimit
-        /\ state[i] \in {Follower, Candidate, Leader, RetiredLeader, Pending}
+        /\ state[i] \in States
         /\ votedFor[i] \in {Nil} \cup PossibleServer
 
 CandidateVarsTypeInv ==
