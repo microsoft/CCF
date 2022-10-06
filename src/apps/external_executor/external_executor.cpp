@@ -407,6 +407,21 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<ccf::KVTable, ccf::KVValue>(get_all),
         {executor_auth_policy})
         .install();
+
+      auto stream = [this](
+                      ccf::endpoints::EndpointContext& ctx,
+                      google::protobuf::Empty&& payload) {
+        // TODO: Dummy streaming endpoint
+        ccf::KVValue kv;
+        return ccf::grpc::make_success(kv);
+      };
+
+      make_endpoint(
+        "/ccf.KV/Stream",
+        HTTP_POST,
+        ccf::grpc_adapter<google::protobuf::Empty, ccf::KVValue>(stream),
+        {ccf::no_auth_required})
+        .install();
     }
 
     void queue_request_for_external_execution(

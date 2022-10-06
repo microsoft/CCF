@@ -243,6 +243,21 @@ def test_streaming(network, args):
         compare_op_results(stub, 1000)
 
 
+@reqs.description("Test server async gRPC streaming APIs")
+def test_async_streaming(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        stub = Service.KVStub(channel)
+        r = stub.Stream(Empty())
+
+
 def run(args):
     key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
     cert = infra.crypto.generate_cert(key_priv_pem)
@@ -254,17 +269,18 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        credentials = grpc.ssl_channel_credentials(
-            root_certificates=open(
-                os.path.join(network.common_dir, "service_cert.pem"), "rb"
-            ).read(),
-            private_key=key_priv_pem.encode(),
-            certificate_chain=cert.encode(),
-        )
-        network = test_executor_registration(network, cert, args)
-        network = test_put_get(network, credentials, args)
-        network = test_simple_executor(network, credentials, args)
-        network = test_streaming(network, args)
+        # credentials = grpc.ssl_channel_credentials(
+        #     root_certificates=open(
+        #         os.path.join(network.common_dir, "service_cert.pem"), "rb"
+        #     ).read(),
+        #     private_key=key_priv_pem.encode(),
+        #     certificate_chain=cert.encode(),
+        # )
+        # network = test_executor_registration(network, cert, args)
+        # network = test_put_get(network, credentials, args)
+        # network = test_simple_executor(network, credentials, args)
+        # network = test_streaming(network, args)
+        network = test_async_streaming(network, args)
 
 
 if __name__ == "__main__":
