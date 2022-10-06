@@ -710,8 +710,7 @@ namespace ccf
           }
           else
           {
-            auto code_id =
-              EnclaveAttestationProvider::get_code_id(node_quote_info);
+            auto code_id = AttestationProvider::get_code_id(node_quote_info);
             if (code_id.has_value())
             {
               q.mrenclave = ds::to_hex(code_id.value().data);
@@ -780,7 +779,7 @@ namespace ccf
             else
             {
               auto code_id =
-                EnclaveAttestationProvider::get_code_id(node_info.quote_info);
+                AttestationProvider::get_code_id(node_info.quote_info);
               if (code_id.has_value())
               {
                 q.mrenclave = ds::to_hex(code_id.value().data);
