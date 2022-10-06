@@ -8,6 +8,7 @@
 
 namespace ccf
 {
+  // TODO: Collide with http_responder?
   class AbstractRPCResponder : public ccf::AbstractNodeSubSystem
   {
   public:

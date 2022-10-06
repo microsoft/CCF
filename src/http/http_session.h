@@ -7,26 +7,25 @@
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
-#include "http_common_session.h"
 #include "http_parser.h"
+#include "http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
 {
-  // TODO: Refactor so these _have_ a TLSSession, rather than _are_ a TLSSession
-  class HTTPEndpoint : public HTTPCommonSession
+  class HTTPSession : public ccf::ThreadedSession
   {
   protected:
     std::shared_ptr<ccf::TLSSession> tls_io;
     std::shared_ptr<ErrorReporter> error_reporter;
     tls::ConnID session_id;
 
-    HTTPEndpoint(
+    HTTPSession(
       tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      HTTPCommonSession(session_id_),
+      ccf::ThreadedSession(session_id_),
       tls_io(std::make_shared<ccf::TLSSession>(
         session_id_, writer_factory, std::move(ctx))),
       error_reporter(error_reporter),
@@ -34,9 +33,8 @@ namespace http
     {}
 
   public:
-    virtual void parse(std::span<const uint8_t> data) = 0;
+    virtual bool parse(std::span<const uint8_t> data) = 0;
 
-    // TODO: Is this even needed?
     void send_data(std::span<const uint8_t> data) override
     {
       tls_io->send_raw(data.data(), data.size());
@@ -61,95 +59,21 @@ namespace http
 
         LOG_TRACE_FMT("Going to parse {} bytes", n_read);
 
-        try
+        bool cont = parse({buf.data(), n_read});
+        if (!cont)
         {
-          parse({buf.data(), n_read});
-
-          // Used all provided bytes - check if more are available
-          n_read = tls_io->read(buf.data(), buf.size(), false);
+          return;
         }
-        catch (RequestPayloadTooLarge& e)
-        {
-          if (error_reporter)
-          {
-            error_reporter->report_request_payload_too_large_error(session_id);
-          }
 
-          LOG_DEBUG_FMT("Request is too large: {}", e.what());
-
-          send_odata_error_response(ccf::ErrorDetails{
-            HTTP_STATUS_PAYLOAD_TOO_LARGE,
-            ccf::errors::RequestBodyTooLarge,
-            e.what()});
-
-          tls_io->close();
-          break;
-        }
-        catch (RequestHeaderTooLarge& e)
-        {
-          if (error_reporter)
-          {
-            error_reporter->report_request_header_too_large_error(session_id);
-          }
-
-          LOG_DEBUG_FMT("Request header is too large: {}", e.what());
-
-          send_odata_error_response(ccf::ErrorDetails{
-            HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
-            ccf::errors::RequestHeaderTooLarge,
-            e.what()});
-
-          tls_io->close();
-          break;
-        }
-        catch (const std::exception& e)
-        {
-          if (error_reporter)
-          {
-            error_reporter->report_parsing_error(session_id);
-          }
-          LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
-
-          http::HeaderMap headers;
-          headers[http::headers::CONTENT_TYPE] =
-            http::headervalues::contenttype::TEXT;
-
-          // NB: Avoid formatting input data a string, as it may contain null
-          // bytes. Instead insert it at the end of this message, verbatim
-          auto body_s = fmt::format(
-            "Unable to parse data as a HTTP request. Error message is: {}\n"
-            "Error occurred while parsing fragment:\n",
-            e.what());
-          std::vector<uint8_t> response_body(
-            std::begin(body_s), std::end(body_s));
-          response_body.insert(
-            response_body.end(), data.data(), data.data() + n_read);
-
-          send_response(
-            HTTP_STATUS_BAD_REQUEST, std::move(headers), response_body);
-
-          tls_io->close();
-          break;
-        }
+        // Used all provided bytes - check if more are available
+        n_read = tls_io->read(buf.data(), buf.size(), false);
       }
-    }
-
-    void send_response(
-      http_status status_code,
-      http::HeaderMap&& headers,
-      std::span<const uint8_t> body) override
-    {
-      auto response = http::Response(status_code);
-      for (const auto& [k, v] : headers)
-      {
-        response.set_header(k, v);
-      }
-      response.set_body(body.data(), body.size());
-      send_data(response.build_response());
     }
   };
 
-  class HTTPServerSession : public HTTPEndpoint, public http::RequestProcessor
+  class HTTPServerSession : public HTTPSession,
+                            public http::RequestProcessor,
+                            public http::HTTPResponder
   {
   private:
     http::RequestParser request_parser;
@@ -168,15 +92,82 @@ namespace http
       std::unique_ptr<tls::Context> ctx,
       const http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      HTTPEndpoint(session_id_, writer_factory, std::move(ctx), error_reporter),
+      HTTPSession(session_id_, writer_factory, std::move(ctx), error_reporter),
       request_parser(*this, configuration),
       rpc_map(rpc_map),
       interface_id(interface_id)
     {}
 
-    void parse(std::span<const uint8_t> data) override
+    bool parse(std::span<const uint8_t> data) override
     {
-      request_parser.execute(data.data(), data.size());
+      // Catch request parsing errors and convert them to error responses
+      try
+      {
+        request_parser.execute(data.data(), data.size());
+
+        return true;
+      }
+      catch (RequestPayloadTooLarge& e)
+      {
+        if (error_reporter)
+        {
+          error_reporter->report_request_payload_too_large_error(session_id);
+        }
+
+        LOG_DEBUG_FMT("Request is too large: {}", e.what());
+
+        send_odata_error_response(ccf::ErrorDetails{
+          HTTP_STATUS_PAYLOAD_TOO_LARGE,
+          ccf::errors::RequestBodyTooLarge,
+          e.what()});
+
+        tls_io->close();
+      }
+      catch (RequestHeaderTooLarge& e)
+      {
+        if (error_reporter)
+        {
+          error_reporter->report_request_header_too_large_error(session_id);
+        }
+
+        LOG_DEBUG_FMT("Request header is too large: {}", e.what());
+
+        send_odata_error_response(ccf::ErrorDetails{
+          HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
+          ccf::errors::RequestHeaderTooLarge,
+          e.what()});
+
+        tls_io->close();
+      }
+      catch (const std::exception& e)
+      {
+        if (error_reporter)
+        {
+          error_reporter->report_parsing_error(session_id);
+        }
+        LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
+
+        http::HeaderMap headers;
+        headers[http::headers::CONTENT_TYPE] =
+          http::headervalues::contenttype::TEXT;
+
+        // NB: Avoid formatting input data a string, as it may contain null
+        // bytes. Instead insert it at the end of this message, verbatim
+        auto body_s = fmt::format(
+          "Unable to parse data as a HTTP request. Error message is: {}\n"
+          "Error occurred while parsing fragment:\n",
+          e.what());
+        std::vector<uint8_t> response_body(
+          std::begin(body_s), std::end(body_s));
+        response_body.insert(response_body.end(), data.begin(), data.end());
+
+        send_response(
+          HTTP_STATUS_BAD_REQUEST, std::move(headers), {}, response_body);
+
+        tls_io->close();
+      }
+
+      return false;
     }
 
     void handle_request(
@@ -242,8 +233,11 @@ namespace http
         }
         else
         {
-          // TODO: Don't pre-serialise!
-          send_data(rpc_ctx->serialise_response());
+          send_response(
+            rpc_ctx->get_response_http_status(),
+            rpc_ctx->get_response_headers(),
+            rpc_ctx->get_response_trailers(),
+            std::move(rpc_ctx->get_response_body()));
         }
       }
       catch (const std::exception& e)
@@ -260,9 +254,31 @@ namespace http
         throw;
       }
     }
+
+    void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      http::HeaderMap&& trailers,
+      std::span<const uint8_t> body) override
+    {
+      if (!trailers.empty())
+      {
+        throw std::logic_error("Cannot return trailers over HTTP/1");
+      }
+
+      auto response = http::Response(status_code);
+      for (const auto& [k, v] : headers)
+      {
+        response.set_header(k, v);
+      }
+      response.set_body(body.data(), body.size());
+
+      auto data = response.build_response();
+      tls_io->send_raw(data.data(), data.size());
+    }
   };
 
-  class HTTPClientSession : public HTTPEndpoint,
+  class HTTPClientSession : public HTTPSession,
                             public ccf::ClientSession,
                             public http::ResponseProcessor
   {
@@ -274,7 +290,7 @@ namespace http
       tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(session_id_, writer_factory, std::move(ctx)),
+      HTTPSession(session_id_, writer_factory, std::move(ctx)),
       ClientSession(session_id_, writer_factory),
       response_parser(*this)
     {
@@ -290,14 +306,37 @@ namespace http
       });
     }
 
-    void parse(std::span<const uint8_t> data) override
+    bool parse(std::span<const uint8_t> data) override
     {
-      response_parser.execute(data.data(), data.size());
+      // Catch response parsing errors and log them
+      try
+      {
+        response_parser.execute(data.data(), data.size());
+
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        if (error_reporter)
+        {
+          error_reporter->report_parsing_error(session_id);
+        }
+        LOG_FAIL_FMT("Error parsing HTTP response on session {}", session_id);
+        LOG_DEBUG_FMT("Error parsing HTTP response: {}", e.what());
+        LOG_DEBUG_FMT(
+          "Error occurred while parsing fragment {} byte fragment:\n{}",
+          data.size(),
+          std::string_view(data.begin(), data.end()));
+
+        tls_io->close();
+      }
+      return false;
     }
 
     void send_request(http::Request&& request) override
     {
-      send_data(request.build_request());
+      auto data = request.build_request();
+      tls_io->send_raw(data.data(), data.size());
     }
 
     void handle_response(
@@ -309,14 +348,6 @@ namespace http
 
       LOG_TRACE_FMT("Closing connection, message handled");
       tls_io->close();
-    }
-
-    void send_response(
-      http_status status_code,
-      http::HeaderMap&& headers,
-      std::span<const uint8_t> body) override
-    {
-      throw std::logic_error("Unimplemented");
     }
   };
 }

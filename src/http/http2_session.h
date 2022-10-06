@@ -7,7 +7,7 @@
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http2_parser.h"
-#include "http_common_session.h"
+#include "http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
@@ -19,7 +19,7 @@ namespace http
     using SessionContext::SessionContext;
   };
 
-  class HTTP2Session : public HTTPCommonSession
+  class HTTP2Session : public ccf::ThreadedSession
   {
   protected:
     std::shared_ptr<ccf::TLSSession> tls_io;
@@ -29,14 +29,14 @@ namespace http
       tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPCommonSession(session_id_),
+      ccf::ThreadedSession(session_id_),
       tls_io(std::make_shared<ccf::TLSSession>(
         session_id_, writer_factory, std::move(ctx))),
       session_id(session_id_)
     {}
 
   public:
-    virtual void parse(std::span<const uint8_t> data) = 0;
+    virtual bool parse(std::span<const uint8_t> data) = 0;
 
     // TODO: Is this even needed?
     void send_data(std::span<const uint8_t> data) override
@@ -63,39 +63,47 @@ namespace http
 
         LOG_TRACE_FMT("Going to parse {} bytes", n_read);
 
-        try
+        bool cont = parse({buf.data(), n_read});
+        if (!cont)
         {
-          parse({buf.data(), n_read});
-
-          // Used all provided bytes - check if more are available
-          n_read = tls_io->read(buf.data(), buf.size(), false);
+          return;
         }
-        catch (const std::exception& e)
-        {
-          LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
-          http::HeaderMap headers;
-          headers[http::headers::CONTENT_TYPE] =
-            http::headervalues::contenttype::TEXT;
-
-          auto body = fmt::format(
-            "Unable to parse data as a HTTP request. Error details are "
-            "below.\n\n{}",
-            e.what());
-
-          send_response(
-            HTTP_STATUS_BAD_REQUEST,
-            std::move(headers),
-            {(const uint8_t*)body.data(), body.size()});
-
-          tls_io->close();
-          break;
-        }
+        // Used all provided bytes - check if more are available
+        n_read = tls_io->read(buf.data(), buf.size(), false);
       }
     }
   };
 
-  class HTTP2ServerSession : public HTTP2Session, public http::RequestProcessor
+  class HTTP2StreamResponder : public http::HTTPResponder
+  {
+  private:
+    http2::StreamId stream_id;
+    http2::ServerParser& server_parser;
+
+  public:
+    HTTP2StreamResponder(
+      http2::StreamId stream_id_, http2::ServerParser& server_parser_) :
+      stream_id(stream_id_),
+      server_parser(server_parser_)
+    {}
+
+    void send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      http::HeaderMap&& trailers,
+      std::span<const uint8_t> body) override
+    {
+      server_parser.respond(
+        stream_id, status_code, std::move(headers), std::move(trailers), body);
+    }
+  };
+
+  class HTTP2ServerSession : public HTTP2Session,
+                             public http::RequestProcessor,
+                             public http::HTTPResponder
+  // TODO: This is both a Responder, and a collection of Responders. Its
+  // implementation passes off to the default stream 0. This seems wrong
   {
   private:
     http2::ServerParser server_parser;
@@ -104,6 +112,25 @@ namespace http
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
     ccf::ListenInterfaceID interface_id;
+
+    std::unordered_map<http2::StreamId, std::shared_ptr<HTTP2StreamResponder>>
+      responders;
+
+    std::shared_ptr<HTTP2StreamResponder> get_stream_responder(
+      http2::StreamId stream_id)
+    {
+      auto it = responders.find(stream_id);
+      if (it == responders.end())
+      {
+        it = responders.emplace_hint(
+          it,
+          std::make_pair(
+            stream_id,
+            std::make_shared<HTTP2StreamResponder>(stream_id, server_parser)));
+      }
+
+      return it->second;
+    }
 
   public:
     HTTP2ServerSession(
@@ -118,14 +145,47 @@ namespace http
         nullptr) // Note: Report errors
       :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
-      server_parser(*this, *this),
+      server_parser(*this),
       rpc_map(rpc_map),
       interface_id(interface_id)
-    {}
-
-    void parse(std::span<const uint8_t> data) override
     {
-      server_parser.execute(data.data(), data.size());
+      server_parser.set_outgoing_data_handler(
+        [this](std::span<const uint8_t> data) {
+          this->tls_io->send_raw(data.data(), data.size());
+        });
+    }
+
+    bool parse(std::span<const uint8_t> data) override
+    {
+      try
+      {
+        server_parser.execute(data.data(), data.size());
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
+
+        http::HeaderMap headers;
+        headers[http::headers::CONTENT_TYPE] =
+          http::headervalues::contenttype::TEXT;
+
+        auto body = fmt::format(
+          "Unable to parse data as a HTTP request. Error details are "
+          "below.\n\n{}",
+          e.what());
+
+        // NB: If we have an error where we don't know a stream ID, we respond
+        // on the default stream
+        send_response(
+          HTTP_STATUS_BAD_REQUEST,
+          std::move(headers),
+          {},
+          {(const uint8_t*)body.data(), body.size()});
+
+        tls_io->close();
+      }
+      return false;
     }
 
     void handle_request(
@@ -140,6 +200,8 @@ namespace http
         llhttp_method_name(verb),
         url,
         body.size());
+
+      auto responder = get_stream_responder(stream_id);
 
       try
       {
@@ -178,7 +240,7 @@ namespace http
         }
         catch (std::exception& e)
         {
-          // Note: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
+          // TODO: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -209,8 +271,7 @@ namespace http
         }
         else
         {
-          server_parser.send_response(
-            stream_id,
+          responder->send_response(
             rpc_ctx->get_response_http_status(),
             rpc_ctx->get_response_headers(),
             rpc_ctx->get_response_trailers(),
@@ -219,7 +280,7 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        send_odata_error_response(ccf::ErrorDetails{
+        responder->send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format("Exception: {}", e.what())});
@@ -235,23 +296,12 @@ namespace http
     void send_response(
       http_status status_code,
       http::HeaderMap&& headers,
+      http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
     {
-      throw std::logic_error("Unimplemented");
-    }
-
-    void send_response(
-      int32_t stream_id,
-      http_status status_code,
-      http::HeaderMap&& headers,
-      std::span<const uint8_t> body) override
-    {
-      server_parser.send_response(
-        stream_id,
-        status_code,
-        std::move(headers),
-        {}, // TODO: Include trailers
-        body);
+      get_stream_responder(http::DEFAULT_STREAM_ID)
+        ->send_response(
+          status_code, std::move(headers), std::move(trailers), body);
     }
   };
 
@@ -269,12 +319,35 @@ namespace http
       std::unique_ptr<tls::Context> ctx) :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
       ccf::ClientSession(session_id_, writer_factory),
-      client_parser(*this, *this)
-    {}
-
-    void parse(std::span<const uint8_t> data) override
+      client_parser(*this)
     {
-      client_parser.execute(data.data(), data.size());
+      client_parser.set_outgoing_data_handler(
+        [this](std::span<const uint8_t> data) {
+          this->tls_io->send_raw(data.data(), data.size());
+        });
+    }
+
+    bool parse(std::span<const uint8_t> data) override
+    {
+      // Catch response parsing errors and log them
+      try
+      {
+        client_parser.execute(data.data(), data.size());
+
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Error parsing HTTP2 response on session {}", session_id);
+        LOG_DEBUG_FMT("Error parsing HTTP2 response: {}", e.what());
+        LOG_DEBUG_FMT(
+          "Error occurred while parsing fragment {} byte fragment:\n{}",
+          data.size(),
+          std::string_view(data.begin(), data.end()));
+
+        tls_io->close();
+      }
+      return false;
     }
 
     void send_request(http::Request&& request) override
@@ -295,14 +368,6 @@ namespace http
 
       LOG_TRACE_FMT("Closing connection, message handled");
       tls_io->close();
-    }
-
-    void send_response(
-      http_status status_code,
-      http::HeaderMap&& headers,
-      std::span<const uint8_t> body) override
-    {
-      throw std::logic_error("Unimplemented");
     }
   };
 }

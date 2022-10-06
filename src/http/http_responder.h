@@ -3,28 +3,19 @@
 #pragma once
 
 #include "ccf/odata_error.h"
-#include "enclave/session.h"
 
 namespace http
 {
-  class HTTPCommonSession : public ccf::ThreadedSession
+  class HTTPResponder
   {
   public:
-    using ccf::ThreadedSession::ThreadedSession;
+    virtual ~HTTPResponder() = default;
 
     virtual void send_response(
       http_status status_code,
       http::HeaderMap&& headers,
+      http::HeaderMap&& trailers,
       std::span<const uint8_t> body) = 0;
-    // TODO: This variant is extremely wrong...
-    virtual void send_response(
-      int32_t stream_id,
-      http_status status_code,
-      http::HeaderMap&& headers,
-      std::span<const uint8_t> body)
-    {
-      send_response(status_code, std::move(headers), body);
-    }
 
     void send_odata_error_response(ccf::ErrorDetails&& error)
     {
@@ -37,7 +28,10 @@ namespace http
         http::headervalues::contenttype::JSON;
 
       send_response(
-        error.status, std::move(headers), {(const uint8_t*)s.data(), s.size()});
+        error.status,
+        std::move(headers),
+        {},
+        {(const uint8_t*)s.data(), s.size()});
     }
   };
 }

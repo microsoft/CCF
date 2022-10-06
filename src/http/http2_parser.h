@@ -12,15 +12,17 @@
 
 namespace http2
 {
+  using DataHandlerCB = std::function<void(std::span<const uint8_t>)>;
+
   class Parser : public AbstractParser
   {
   protected:
     nghttp2_session* session;
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
-    ccf::Session& endpoint;
+    DataHandlerCB handle_outgoing_data;
 
   public:
-    Parser(ccf::Session& endpoint, bool is_client = false) : endpoint(endpoint)
+    Parser(bool is_client = false)
     {
       LOG_TRACE_FMT("Creating HTTP2 parser");
 
@@ -77,6 +79,11 @@ namespace http2
     virtual ~Parser()
     {
       nghttp2_session_del(session);
+    }
+
+    void set_outgoing_data_handler(DataHandlerCB&& cb)
+    {
+      handle_outgoing_data = std::move(cb);
     }
 
     std::shared_ptr<StreamData> create_stream(StreamId stream_id) override
@@ -137,7 +144,7 @@ namespace http2
       {
         if (size > 0)
         {
-          endpoint.send_data({data, static_cast<size_t>(size)});
+          handle_outgoing_data({data, static_cast<size_t>(size)});
         }
         else
         {
@@ -154,12 +161,9 @@ namespace http2
     http::RequestProcessor& proc;
 
   public:
-    ServerParser(http::RequestProcessor& proc_, ccf::Session& endpoint_) :
-      Parser(endpoint_, false),
-      proc(proc_)
-    {}
+    ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
 
-    void send_response(
+    void respond(
       StreamId stream_id,
       http_status status,
       const http::HeaderMap& headers,
@@ -167,7 +171,7 @@ namespace http2
       std::span<const uint8_t> body)
     {
       LOG_TRACE_FMT(
-        "http2::send_response: stream {} - {} headers - {} trailers - {} byte "
+        "http2::respond: stream {} - {} headers - {} trailers - {} byte "
         "body",
         stream_id,
         headers.size(),
@@ -289,10 +293,7 @@ namespace http2
     http::ResponseProcessor& proc;
 
   public:
-    ClientParser(http::ResponseProcessor& proc_, ccf::Session& endpoint_) :
-      Parser(endpoint_, true),
-      proc(proc_)
-    {}
+    ClientParser(http::ResponseProcessor& proc_) : Parser(true), proc(proc_) {}
 
     void send_structured_request(
       llhttp_method method,

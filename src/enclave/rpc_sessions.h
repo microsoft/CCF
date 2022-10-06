@@ -376,14 +376,26 @@ namespace ccf
           per_listen_interface.app_protocol == ccf::ApplicationProtocol::HTTP2)
         {
           capped_session =
-            std::make_shared<NoMoreSessionsImpl<http::HTTP2ClientSession>>(
-              id, writer_factory, std::move(ctx));
+            std::make_shared<NoMoreSessionsImpl<http::HTTP2ServerSession>>(
+              rpc_map,
+              id,
+              listen_interface_id,
+              writer_factory,
+              std::move(ctx),
+              per_listen_interface.http_configuration,
+              shared_from_this());
         }
         else
         {
           capped_session =
-            std::make_shared<NoMoreSessionsImpl<http::HTTPClientSession>>(
-              id, writer_factory, std::move(ctx));
+            std::make_shared<NoMoreSessionsImpl<http::HTTPServerSession>>(
+              rpc_map,
+              id,
+              listen_interface_id,
+              writer_factory,
+              std::move(ctx),
+              per_listen_interface.http_configuration,
+              shared_from_this());
         }
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(capped_session))));
@@ -470,6 +482,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
+      // TODO: This is now the only place still using this!
       session->send_data(data);
       return true;
     }
@@ -480,25 +493,26 @@ namespace ccf
       size_t status_code,
       std::vector<uint8_t>&& data) override
     {
-      auto session = find_session(id);
-      if (session == nullptr)
-      {
-        LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
-        return false;
-      }
+      // TODO: This?
+      // auto session = find_session(id);
+      // if (session == nullptr)
+      // {
+      //   LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
+      //   return false;
+      // }
 
-      auto respondable_session =
-        std::dynamic_pointer_cast<http::HTTPCommonSession>(session);
-      if (respondable_session == nullptr)
-      {
-        LOG_DEBUG_FMT("Cannot respond to session {} - wrong type", id);
-        return false;
-      }
+      // auto respondable_session =
+      //   std::dynamic_pointer_cast<http::HTTPResponder>(session);
+      // if (respondable_session == nullptr)
+      // {
+      //   LOG_DEBUG_FMT("Cannot respond to session {} - wrong type", id);
+      //   return false;
+      // }
 
-      LOG_DEBUG_FMT("Replying to session {}", id);
+      // LOG_DEBUG_FMT("Replying to session {}", id);
 
-      respondable_session->send_response(
-        stream_id, (http_status)status_code, {}, std::move(data));
+      // respondable_session->send_response(
+      //   stream_id, (http_status)status_code, {}, std::move(data));
 
       return true;
     }

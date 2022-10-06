@@ -23,13 +23,14 @@ namespace ccf
     HandleErrorCallback handle_error_cb;
 
   private:
-    int64_t session_id;
+    int64_t client_session_id;
     ringbuffer::WriterPtr to_host;
 
   public:
     ClientSession(
-      int64_t session_id, ringbuffer::AbstractWriterFactory& writer_factory) :
-      session_id(session_id),
+      int64_t client_session_id,
+      ringbuffer::AbstractWriterFactory& writer_factory) :
+      client_session_id(client_session_id),
       to_host(writer_factory.create_writer_to_outside())
     {}
 
@@ -42,7 +43,7 @@ namespace ccf
       const HandleErrorCallback e = nullptr)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        tls::tls_connect, to_host, session_id, hostname, service);
+        tls::tls_connect, to_host, client_session_id, hostname, service);
       handle_data_cb = f;
       handle_error_cb = e;
     }
