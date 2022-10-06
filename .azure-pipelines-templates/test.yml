@@ -23,6 +23,7 @@ steps:
           sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
         env:
           CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+          SECURITY_POLICY: "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19"
         condition: succeededOrFailed()
         displayName: "CTest Partitions"
         workingDirectory: build
