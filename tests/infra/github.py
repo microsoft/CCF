@@ -153,7 +153,7 @@ class GitEnv:
             requests.head(
                 get_debian_package_url_from_tag_name(tag_name),
                 allow_redirects=True,
-                timeout=3,
+                timeout=30,
             ).status_code
             == 200
         )

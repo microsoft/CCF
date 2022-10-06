@@ -9,6 +9,7 @@ from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
+from copy import deepcopy
 import os
 import time
 import ccf.ledger
@@ -205,6 +206,43 @@ def test_add_node_from_backup(network, args):
         target_node=network.find_any_backup(),
     )
     network.trust_node(new_node, args)
+    return network
+
+
+@reqs.description("Adding a node with AMD endorsements endpoint")
+def test_add_node_amd_endorsements_endpoint(network, args):
+    primary, _ = network.find_primary()
+    if not IS_SNP:
+        LOG.warning("Skipping test as running on non SEV-SNP")
+        return network
+
+    args_copy = deepcopy(args)
+    test_vectors = [
+        (["AMD:kdsintf.amd.com"], True),
+        (["AMD:invalid.amd.com"], False),
+        (["Azure:invalid.azure.com", "AMD:kdsintf.amd.com"], True),  # Fallback server
+    ]
+
+    for servers, expected_result in test_vectors:
+        LOG.info(
+            f"Joining new node with endorsement server {servers} (expect success: {expected_result})"
+        )
+        new_node = network.create_node("local://localhost")
+        args_copy.snp_endorsements_servers = servers
+        try:
+            network.join_node(new_node, args.package, args_copy, timeout=15)
+        except TimeoutError:
+            assert not expected_result
+            LOG.info(
+                "Node with invalid quote endorsement server could not join as expected"
+            )
+        else:
+            assert (
+                expected_result
+            ), "Node with invalid quote endorsement server joined unexpectedly"
+            network.retire_node(primary, new_node)
+        new_node.stop()
+
     return network
 
 
@@ -738,6 +776,7 @@ def run_all(args):
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
+            test_add_node_amd_endorsements_endpoint(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             test_add_node(network, args)

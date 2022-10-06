@@ -402,6 +402,7 @@ int main(int argc, char** argv)
     startup_config.network = config.network;
     startup_config.worker_threads = config.worker_threads;
     startup_config.node_certificate = config.node_certificate;
+    startup_config.attestation = config.attestation;
 
     if (config.node_data_json_file.has_value())
     {
