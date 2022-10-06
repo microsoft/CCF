@@ -434,7 +434,7 @@ namespace ccf
       else
       {
         LOG_INFO_FMT("Trusting node with unset policy");
-        security_policies->put(host_data, "");
+        security_policies->put(host_data, pal::snp::NO_RAW_SECURITY_POLICY);
       }
     }
 
