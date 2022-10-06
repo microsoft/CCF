@@ -10,6 +10,7 @@ import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
 from infra.is_snp import (
+    DEFAULT_SNP_SECURITY_POLICY_B64,
     IS_SNP,
     DEFAULT_SNP_SECURITY_POLICY_DIGEST,
     DEFAULT_SNP_SECURITY_POLICY,
@@ -69,7 +70,7 @@ def test_security_policy_table(network, args):
     expected = [
         {
             "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
-            "raw": DEFAULT_SNP_SECURITY_POLICY,
+            "raw": "",
         }
     ]
     expected.sort(key=lambda x: x["digest"])
@@ -84,33 +85,18 @@ KV also doesn't have a raw policy associated with the digest.
 """
 )
 @reqs.snp_only()
-def test_add_node_with_no_raw_security_policy_matching_kv(network, args):
-
-    LOG.info(
-        "Change the entry for trusted security policies to not include a raw policy"
-    )
-    primary, _ = network.find_nodes()
-    network.consortium.retire_security_policy(
-        primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST
-    )
-    network.consortium.add_new_security_policy(
-        primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST
-    )
+def test_add_node_with_raw_security_policy(network, args):
 
     # If we don't throw an exception, joining was successful
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, timeout=3, env=dict())
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        timeout=3,
+        env={"SECURITY_POLICY": DEFAULT_SNP_SECURITY_POLICY_B64},
+    )
     network.trust_node(new_node, args)
-
-    network.consortium.retire_security_policy(
-        primary,
-        DEFAULT_SNP_SECURITY_POLICY_DIGEST,
-    )
-    network.consortium.add_new_security_policy(
-        primary,
-        DEFAULT_SNP_SECURITY_POLICY,
-        DEFAULT_SNP_SECURITY_POLICY_DIGEST,
-    )
 
 
 @reqs.description(
@@ -122,10 +108,29 @@ KV does have a raw policy associated with the digest.
 @reqs.snp_only()
 def test_add_node_with_no_raw_security_policy_not_matching_kv(network, args):
 
+    LOG.info("Change the entry for trusted security policies to include a raw policy")
+    primary, _ = network.find_nodes()
+    network.consortium.retire_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+    network.consortium.add_new_security_policy(
+        primary,
+        DEFAULT_SNP_SECURITY_POLICY,
+        DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+    )
+
     # If we don't throw an exception, joining was successful
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, timeout=3, env=dict())
+    network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)
+
+    network.consortium.retire_security_policy(
+        primary,
+        DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+    )
+    network.consortium.add_new_security_policy(
+        primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
 
 
 @reqs.description("Node where raw security policy doesn't match digest fails to join")
@@ -165,7 +170,13 @@ def test_add_node_with_bad_security_policy_digest(network, args):
 
     new_node = network.create_node("local://localhost")
     try:
-        network.join_node(new_node, args.package, args, timeout=3)
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            env={"SECURITY_POLICY": DEFAULT_SNP_SECURITY_POLICY_B64},
+        )
         network.trust_node(new_node, args)
     except Exception:
         ...
@@ -173,7 +184,7 @@ def test_add_node_with_bad_security_policy_digest(network, args):
         raise AssertionError("Node joining unexpectedly succeeded")
 
     network.consortium.add_new_security_policy(
-        primary, DEFAULT_SNP_SECURITY_POLICY, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+        primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST
     )
     new_node.stop()
 
@@ -372,7 +383,7 @@ def run(args):
 
         test_verify_quotes(network, args)
         test_security_policy_table(network, args)
-        test_add_node_with_no_raw_security_policy_matching_kv(network, args)
+        test_add_node_with_raw_security_policy(network, args)
         test_add_node_with_no_raw_security_policy_not_matching_kv(network, args)
         test_add_node_with_mismatched_security_policy_digest(network, args)
         test_add_node_with_bad_security_policy_digest(network, args)

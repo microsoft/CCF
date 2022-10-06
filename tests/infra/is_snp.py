@@ -11,3 +11,6 @@ DEFAULT_SNP_SECURITY_POLICY_DIGEST = (
 DEFAULT_SNP_SECURITY_POLICY = (
     '{"allow_all":true,"containers":{"length":0,"elements":null}}'
 )
+DEFAULT_SNP_SECURITY_POLICY_B64 = (
+    "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19"
+)
