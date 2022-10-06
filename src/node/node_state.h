@@ -239,7 +239,7 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest) override
     {
-      return EnclaveAttestationProvider::verify_quote_against_store(
+      return AttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
     }
 
@@ -282,7 +282,7 @@ namespace ccf
     //
     void launch_node()
     {
-      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+      auto code_id = AttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
         node_code_id = code_id.value();

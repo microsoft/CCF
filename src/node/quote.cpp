@@ -39,7 +39,7 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  std::optional<CodeDigest> EnclaveAttestationProvider::get_code_id(
+  std::optional<CodeDigest> AttestationProvider::get_code_id(
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
@@ -57,7 +57,7 @@ namespace ccf
     return unique_id;
   }
 
-  std::optional<DigestedPolicy> EnclaveAttestationProvider::
+  std::optional<DigestedPolicy> AttestationProvider::
     get_security_policy_digest(const QuoteInfo& quote_info)
   {
     if (access(pal::snp::DEVICE, F_OK) != 0)
@@ -114,7 +114,7 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  QuoteVerificationResult EnclaveAttestationProvider::
+  QuoteVerificationResult AttestationProvider::
     verify_quote_against_store(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
