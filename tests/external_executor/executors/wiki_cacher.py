@@ -156,8 +156,10 @@ class WikiCacherExecutor:
                 else:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
                     response.status_code = HTTP.HttpStatusCode.NOT_FOUND
-                    response.body = f"No resource found at {request.method} {request.uri}".encode(
-                        "utf-8"
+                    response.body = (
+                        f"No resource found at {request.method} {request.uri}".encode(
+                            "utf-8"
+                        )
                     )
 
                 stub.EndTx(response)

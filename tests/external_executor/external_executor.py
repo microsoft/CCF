@@ -44,7 +44,6 @@ def wrap_tx(stub, primary):
             c.get("/placeholder", timeout=0.1)
         except Exception as e:
             LOG.trace(e)
-            pass
         rd = stub.StartTx(Empty())
         assert rd.HasField("optional"), rd
         yield stub

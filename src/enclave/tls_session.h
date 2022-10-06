@@ -28,6 +28,8 @@ namespace ccf
   class TLSSession : public std::enable_shared_from_this<TLSSession>
   {
   public:
+    using HandshakeErrorCB = std::function<void(std::string&&)>;
+
   protected:
     ringbuffer::WriterPtr to_host;
     tls::ConnID session_id;
@@ -42,6 +44,8 @@ namespace ccf
     std::unique_ptr<tls::Context> ctx;
     SessionStatus status;
 
+    HandshakeErrorCB handshake_error_cb;
+
     bool can_send()
     {
       // Closing endpoint should still be able to respond to clients (e.g. to
@@ -53,6 +57,12 @@ namespace ccf
     {
       return status == ready || status == handshake;
     }
+
+    struct SendRecvMsg
+    {
+      std::vector<uint8_t> data;
+      std::shared_ptr<TLSSession> self;
+    };
 
     struct EmptyMsg
     {
@@ -84,9 +94,6 @@ namespace ccf
       return status;
     }
 
-    using HandshakeErrorCB = std::function<void(std::string&&)>;
-    HandshakeErrorCB handshake_error_cb; // TODO: Should not be public
-
     void on_handshake_error(std::string&& error_msg)
     {
       if (handshake_error_cb)
@@ -116,7 +123,6 @@ namespace ccf
 
     std::vector<uint8_t> peer_cert()
     {
-      // TODO: Can I store one of these, and return spans over it?
       return ctx->peer_cert();
     }
 
@@ -311,15 +317,7 @@ namespace ccf
       }
     }
 
-  private:
-    struct SendRecvMsg
-    {
-      std::vector<uint8_t> data;
-      std::shared_ptr<TLSSession> self;
-    };
-
   public:
-    // TODO: Simplify public/private blocks
     void send_raw(const uint8_t* data, size_t size)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
