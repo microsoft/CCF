@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node_subsystem_interface.h"
 #include "ccf/odata_error.h"
 
 namespace http
@@ -32,6 +33,15 @@ namespace http
         std::move(headers),
         {},
         {(const uint8_t*)s.data(), s.size()});
+    }
+  };
+
+  class AbstractResponderLookup : public ccf::AbstractNodeSubSystem
+  {
+  public:
+    static char const* get_subsystem_name()
+    {
+      return "ResponderLookup";
     }
   };
 }

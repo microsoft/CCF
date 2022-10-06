@@ -9,13 +9,13 @@
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
-#include "enclave/responder_interface.h"
 #include "endpoints/grpc.h"
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
 #include "http/http2_session.h"
 #include "http/http_builder.h"
+#include "http/http_responder.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/rpc/rpc_context_impl.h"
@@ -44,12 +44,13 @@ namespace externalexecutor
       int32_t originating_stream_id;
       std::unique_ptr<kv::CommittableTx> tx = nullptr;
       ccf::RequestDescription request_description;
+      std::shared_ptr<http::HTTPResponder> responder;
     };
     std::queue<PendingRequest> pending_requests;
 
     std::optional<PendingRequest> active_request;
 
-    std::shared_ptr<ccf::AbstractRPCResponder> rpc_responder = nullptr;
+    std::shared_ptr<http::AbstractResponderLookup> responder_lookup = nullptr;
 
     void install_registry_service()
     {
@@ -204,39 +205,34 @@ namespace externalexecutor
         {
           case kv::CommitResult::SUCCESS:
           {
-            http::Response response((http_status)payload.status_code());
-            response.set_body(payload.body());
+            LOG_INFO_FMT(
+              "Preparing to send final response to user on session {}, stream "
+              "{}",
+              active_request->originating_session_id,
+              active_request->originating_stream_id);
+
+            http::HeaderMap headers;
             for (int i = 0; i < payload.headers_size(); ++i)
             {
               const ccf::Header& header = payload.headers(i);
-              response.set_header(header.field(), header.value());
+              headers[header.field()] = header.value();
             }
 
             auto tx_id = active_request->tx->get_txid();
             if (tx_id.has_value())
             {
               LOG_INFO_FMT("Applied tx at {}", tx_id->str());
-              response.set_header(http::headers::CCF_TX_ID, tx_id->str());
+              headers[http::headers::CCF_TX_ID] = tx_id->str();
             }
 
-            auto response_v = response.build_response();
-            const std::string response_s(response_v.begin(), response_v.end());
-            LOG_INFO_FMT(
-              "Preparing to send final response to user on session {}, stream "
-              "{}:\n{}",
-              active_request->originating_session_id,
-              active_request->originating_stream_id,
-              response_s);
+            http::HeaderMap trailers;
 
-            // TODO: Maybe scrap the whole idea of this being a subsystem, and
-            // store a handle to the Session directly here?
-            // TODO: Better, have a subsystem for getting ResponsePipes or
-            // similar
-            rpc_responder->reply_async(
-              active_request->originating_session_id,
-              active_request->originating_stream_id,
-              payload.status_code(),
-              std::move(response_v));
+            const std::string& body_s = payload.body();
+            active_request->responder->send_response(
+              (http_status)payload.status_code(),
+              std::move(headers),
+              std::move(trailers),
+              {(const uint8_t*)body_s.data(), body_s.size()});
             break;
           }
 
@@ -274,7 +270,8 @@ namespace externalexecutor
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
+            "Not managing an active transaction - this should be called "
+            "after "
             "a successful call to StartTx and before EndTx");
         }
 
@@ -299,7 +296,8 @@ namespace externalexecutor
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
+            "Not managing an active transaction - this should be called "
+            "after "
             "a successful call to StartTx and before EndTx");
         }
 
@@ -331,7 +329,8 @@ namespace externalexecutor
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
+            "Not managing an active transaction - this should be called "
+            "after "
             "a successful call to StartTx and before EndTx");
         }
 
@@ -358,7 +357,8 @@ namespace externalexecutor
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
+            "Not managing an active transaction - this should be called "
+            "after "
             "a successful call to StartTx and before EndTx");
         }
 
@@ -391,7 +391,8 @@ namespace externalexecutor
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
+            "Not managing an active transaction - this should be called "
+            "after "
             "a successful call to StartTx and before EndTx");
         }
 
@@ -483,11 +484,11 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
-      rpc_responder = context.get_subsystem<ccf::AbstractRPCResponder>();
-      if (rpc_responder == nullptr)
+      responder_lookup = context.get_subsystem<http::AbstractResponderLookup>();
+      if (responder_lookup == nullptr)
       {
-        throw std::runtime_error(
-          fmt::format("App cannot be constructed without Responder subsystem"));
+        throw std::runtime_error(fmt::format(
+          "App cannot be constructed without ResponderLookup subsystem"));
       }
 
       install_registry_service();
@@ -541,8 +542,8 @@ namespace externalexecutor
             case (temp::OpIn::OpCase::OP_NOT_SET):
             {
               LOG_INFO_FMT("Got OP_NOT_SET");
-              // oneof may always be null. If the input OpIn was null, then the
-              // resulting OpOut is also null
+              // oneof may always be null. If the input OpIn was null, then
+              // the resulting OpOut is also null
               break;
             }
           }

@@ -6,7 +6,6 @@
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
-#include "enclave/responder_interface.h"
 #include "enclave/session.h"
 #include "forwarder_types.h"
 #include "http/http2_session.h"
@@ -482,38 +481,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      // TODO: This is now the only place still using this!
       session->send_data(data);
-      return true;
-    }
-
-    bool reply_async(
-      tls::ConnID id,
-      int32_t stream_id,
-      size_t status_code,
-      std::vector<uint8_t>&& data) override
-    {
-      // TODO: This?
-      // auto session = find_session(id);
-      // if (session == nullptr)
-      // {
-      //   LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
-      //   return false;
-      // }
-
-      // auto respondable_session =
-      //   std::dynamic_pointer_cast<http::HTTPResponder>(session);
-      // if (respondable_session == nullptr)
-      // {
-      //   LOG_DEBUG_FMT("Cannot respond to session {} - wrong type", id);
-      //   return false;
-      // }
-
-      // LOG_DEBUG_FMT("Replying to session {}", id);
-
-      // respondable_session->send_response(
-      //   stream_id, (http_status)status_code, {}, std::move(data));
-
       return true;
     }
 
