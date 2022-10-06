@@ -11,6 +11,10 @@ jobs:
           sudo rm -rf build
         displayName: "Cleanup"
 
+      - script: | 
+          dd if=/dev/zero of=/tmp/zero bs=1k count=1000k
+        display: "IO benchmark"
+
       - checkout: self
         clean: true
 
