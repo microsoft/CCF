@@ -11,7 +11,7 @@ jobs:
           sudo rm -rf build
         displayName: "Cleanup"
 
-      - script: | 
+      - script: |
           dd if=/dev/zero of=/tmp/zero bs=1k count=1000k
         displayName: "IO benchmark"
 
