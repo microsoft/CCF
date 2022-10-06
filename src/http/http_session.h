@@ -326,7 +326,7 @@ namespace http
         LOG_DEBUG_FMT(
           "Error occurred while parsing fragment {} byte fragment:\n{}",
           data.size(),
-          std::string_view(data.begin(), data.end()));
+          std::string_view((char const*)data.data(), data.size()));
 
         tls_io->close();
       }
