@@ -1972,6 +1972,40 @@ namespace ccf::js
         ctx));
   }
 
+  static JSValue js_random_impl(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    crypto::EntropyPtr entropy = crypto::create_entropy();
+
+    // Generate a random 64 bit unsigned int, and transform that to a double
+    // between 0 and 1. Note this is non-uniform, and not cryptographically
+    // sound.
+    union
+    {
+      double d;
+      uint64_t u;
+    } u;
+    u.u = entropy->random64();
+    // From QuickJS - set exponent to 1, and shift random bytes to fractional
+    // part, producing 1.0 <= u.d < 2
+    u.u = ((uint64_t)1023 << 52) | (u.u >> 12);
+
+    return JS_NewFloat64(ctx, u.d - 1.0);
+  }
+
+  void override_builtin_funcs(js::Context& ctx)
+  {
+    auto global_obj = ctx.get_global_obj();
+
+    // Overriding built-in Math.random
+    auto math_val = ctx(JS_GetPropertyStr(ctx, global_obj, "Math"));
+    JS_SetPropertyStr(
+      ctx,
+      math_val,
+      "random",
+      JS_NewCFunction(ctx, js_random_impl, "random", 0));
+  }
+
   void populate_global(
     TxContext* txctx,
     ReadOnlyTxContext* historical_txctx,
@@ -1998,6 +2032,8 @@ namespace ccf::js
       historical_state,
       endpoint_registry,
       ctx);
+
+    override_builtin_funcs(ctx);
 
     for (auto& plugin : ffi_plugins)
     {
