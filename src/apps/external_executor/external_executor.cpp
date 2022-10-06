@@ -419,6 +419,9 @@ namespace externalexecutor
         rpc_ctx = ctx.rpc_ctx;
         CCF_APP_FAIL("RPC context captured: {}", ctx.rpc_ctx.use_count());
 
+        std::vector<uint8_t> data(42, 42);
+        rpc_ctx->stream(data);
+
         return ccf::grpc::make_success(kv);
       };
 

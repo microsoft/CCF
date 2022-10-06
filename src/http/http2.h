@@ -476,6 +476,22 @@ namespace http2
       }
     }
 
+    // void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
+    // {
+    //   LOG_TRACE_FMT("http2::send_data: stream {} - {}", stream_id,
+    //   data.size());
+
+    //   auto* stream_data = get_stream_data(session, stream_id);
+
+    //   int rv = nghttp2_submit_data(
+    //     session, stream_id, hdrs.data(), hdrs.size(), &prov);
+    //   if (rv != 0)
+    //   {
+    //     throw std::logic_error(
+    //       fmt::format("nghttp2_submit_response error: {}", rv));
+    //   }
+    // }
+
     void send_response(
       StreamId stream_id,
       http_status status,

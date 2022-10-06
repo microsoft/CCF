@@ -92,7 +92,8 @@ namespace http
   };
 
   class HTTP2ServerEndpoint : public HTTP2Endpoint,
-                              public http::RequestProcessor
+                              public RequestProcessor,
+                              public AbstractClientStreamer
   {
   private:
     http2::ServerSession server_session;
@@ -127,6 +128,12 @@ namespace http
       send_raw(std::move(data));
     }
 
+    void stream(const std::vector<uint8_t>& data) override
+    {
+      LOG_FAIL_FMT("Streaming data: {}", data.size());
+      return;
+    }
+
     void handle_request(
       llhttp_method verb,
       const std::string_view& url,
@@ -153,6 +160,7 @@ namespace http
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
             session_ctx, verb, url, std::move(headers), std::move(body));
+          rpc_ctx->set_client_streamer(this);
         }
         catch (std::exception& e)
         {
