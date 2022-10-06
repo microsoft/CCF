@@ -276,38 +276,6 @@
         },
         "type": "array"
       },
-      "GetSecurityPolicies__Out": {
-        "properties": {
-          "policies": {
-            "$ref": "#/components/schemas/GetSecurityPolicies__Policies_array"
-          }
-        },
-        "required": [
-          "policies"
-        ],
-        "type": "object"
-      },
-      "GetSecurityPolicies__Policies": {
-        "properties": {
-          "digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "raw": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "digest",
-          "raw"
-        ],
-        "type": "object"
-      },
-      "GetSecurityPolicies__Policies_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetSecurityPolicies__Policies"
-        },
-        "type": "array"
-      },
       "GetCommit__Out": {
         "properties": {
           "transaction_id": {
@@ -412,6 +380,38 @@
           "quotes"
         ],
         "type": "object"
+      },
+      "GetSecurityPolicies__Out": {
+        "properties": {
+          "policies": {
+            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
+          }
+        },
+        "required": [
+          "policies"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "raw",
+          "digest"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
+        },
+        "type": "array"
       },
       "GetServicePreviousIdentity__Out": {
         "properties": {
@@ -976,25 +976,6 @@
         }
       }
     },
-    "/node/security_policy": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
     "/node/commit": {
       "get": {
         "responses": {
@@ -1432,6 +1413,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/node/security_policy": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
                 }
               }
             },
