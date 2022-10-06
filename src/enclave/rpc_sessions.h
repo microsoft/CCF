@@ -9,6 +9,7 @@
 #include "enclave/session.h"
 #include "forwarder_types.h"
 #include "http/http2_session.h"
+#include "http/http_responder.h"
 #include "http/http_session.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
@@ -36,7 +37,8 @@ namespace ccf
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
-                      public http::ErrorReporter
+                      public http::ErrorReporter,
+                      public http::ResponderLookup
   {
   private:
     struct ListenInterface
@@ -152,7 +154,8 @@ namespace ccf
           writer_factory,
           std::move(ctx),
           parser_configuration,
-          shared_from_this());
+          shared_from_this(),
+          *this);
       }
       else
       {
@@ -382,7 +385,8 @@ namespace ccf
               writer_factory,
               std::move(ctx),
               per_listen_interface.http_configuration,
-              shared_from_this());
+              shared_from_this(),
+              *this);
         }
         else
         {

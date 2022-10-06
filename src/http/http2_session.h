@@ -105,9 +105,6 @@ namespace http
     }
   };
 
-  // Note: This class is both a responder, and a collection of responders.
-  // Things which do not know about StreamIds can use this to respond, which
-  // will attempt to respond on the default stream.
   class HTTP2ServerSession : public HTTP2Session,
                              public http::RequestProcessor,
                              public http::HTTPResponder
@@ -119,24 +116,7 @@ namespace http
     std::shared_ptr<ccf::RpcHandler> handler;
     ccf::ListenInterfaceID interface_id;
 
-    std::unordered_map<http2::StreamId, std::shared_ptr<HTTP2StreamResponder>>
-      responders;
-
-    std::shared_ptr<HTTP2StreamResponder> get_stream_responder(
-      http2::StreamId stream_id)
-    {
-      auto it = responders.find(stream_id);
-      if (it == responders.end())
-      {
-        it = responders.emplace_hint(
-          it,
-          std::make_pair(
-            stream_id,
-            std::make_shared<HTTP2StreamResponder>(stream_id, server_parser)));
-      }
-
-      return it->second;
-    }
+    http::ResponderLookup& responder_lookup;
 
     std::unordered_map<http2::StreamId, std::shared_ptr<HTTP2SessionContext>>
       session_ctxs;
@@ -158,6 +138,20 @@ namespace http
       return it->second;
     }
 
+    std::shared_ptr<HTTPResponder> get_stream_responder(
+      http2::StreamId stream_id)
+    {
+      auto responder = responder_lookup.lookup_responder(session_id, stream_id);
+      if (responder == nullptr)
+      {
+        responder =
+          std::make_shared<HTTP2StreamResponder>(stream_id, server_parser);
+        responder_lookup.add_responder(session_id, stream_id, responder);
+      }
+
+      return responder;
+    }
+
   public:
     HTTP2ServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
@@ -167,18 +161,24 @@ namespace http
       std::unique_ptr<tls::Context> ctx,
       const http::ParserConfiguration&
         configuration, // Note: Support configuration
-      const std::shared_ptr<ErrorReporter>& error_reporter =
-        nullptr) // Note: Report errors
+      const std::shared_ptr<ErrorReporter>& error_reporter,
+      http::ResponderLookup& responder_lookup_) // Note: Report errors
       :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
       server_parser(*this),
       rpc_map(rpc_map),
-      interface_id(interface_id)
+      interface_id(interface_id),
+      responder_lookup(responder_lookup_)
     {
       server_parser.set_outgoing_data_handler(
         [this](std::span<const uint8_t> data) {
           this->tls_io->send_raw(data.data(), data.size());
         });
+    }
+
+    ~HTTP2ServerSession()
+    {
+      responder_lookup.cleanup_responders(session_id);
     }
 
     bool parse(std::span<const uint8_t> data) override

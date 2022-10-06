@@ -63,5 +63,18 @@ namespace http
 
       return nullptr;
     }
+
+    void add_responder(
+      tls::ConnID session_id,
+      http2::StreamId stream_id,
+      std::shared_ptr<HTTPResponder> responder)
+    {
+      all_responders[session_id][stream_id] = responder;
+    }
+
+    void cleanup_responders(tls::ConnID session_id)
+    {
+      all_responders.erase(session_id);
+    }
   };
 }

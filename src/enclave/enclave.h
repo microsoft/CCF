@@ -150,8 +150,7 @@ namespace ccf
 
       context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
 
-      // TODO: Find where and how to install ResponderLookup
-      // context->install_subsystem(rpcsessions);
+      context->install_subsystem(rpcsessions);
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
