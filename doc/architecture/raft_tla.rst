@@ -57,9 +57,9 @@ Building blocks of the TLA+ spec
 
 .. warning:: This specification was created to verify certain safety properties of the Raft protocol as it is implemented in CCF. In doing so, this specification does not check any liveness guarantees. To allow model checking in a reasonable amount of time, the implementation focuses on the safety guarantees and places certain limitations on the state space to be explored. Since these limitations can lead certain traces of the execution into a deadlock, **liveness is not checkable with this model**.
 
-The core model is maintained in the :ccf_repo:`tla/ccfraft.tla` file, however the constants defined in this file are controlled through the model check file :ccf_repo:`tla/MCraft.tla`.
+The core model is maintained in the :ccf_repo:`tla/ccfraft.tla` file, however the constants defined in this file are controlled through a model check file such as :ccf_repo:`tla/MCraft.tla`.
 
-This file controls the constants as seen below. In addition to basic settings of how many nodes are to be model checked and their initial configuration, the model allows to place additional limitations on the state space of the program.
+This file controls the constants as seen below. In addition to basic settings of how many nodes are to be model checked, the model allows to place additional limitations on the state space of the program.
 
 .. literalinclude:: ../../tla/MCraft.tla
     :language: text

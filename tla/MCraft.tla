@@ -3,7 +3,6 @@ EXTENDS ccfraft, TLC
 
 PossibleServer_mc == {NodeOne, NodeTwo, NodeThree}
 PossibleConfigs_mc == <<{NodeOne, NodeTwo, NodeThree}>>
-InitialConfig_mc == [s \in PossibleServer_mc |-> Follower]
 
 \*  SNIPPET_START: mc_config
 \* Limit the terms that can be reached. Needs to be set to at least 3 to

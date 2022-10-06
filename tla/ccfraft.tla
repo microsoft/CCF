@@ -31,7 +31,7 @@ CONSTANTS
     RetiredLeader,
     Pending
 
-States = {
+States == {
     Follower,
     Candidate,
     Leader,
@@ -92,7 +92,7 @@ CONSTANTS
     NodeFour,
     NodeFive
 
-Servers = {
+Servers == {
     NodeOne,
     NodeTwo,
     NodeThree,
@@ -111,9 +111,6 @@ ASSUME PossibleConfigs /= <<>>
 ASSUME \A k \in 1..Len(PossibleConfigs): PossibleConfigs[k] /= {} /\ PossibleConfigs[k] \subseteq PossibleServer
 ASSUME Len(PossibleConfigs) >= ReconfigurationLimit
 
-\* State of the servers that we start with
-CONSTANTS InitialConfig
-ASSUME \A i \in PossibleServer : InitialConfig[i] \in States
 ----
 \* Global variables
 
@@ -316,7 +313,7 @@ InitMessagesVars ==
 
 InitServerVars ==
     /\ currentTerm = [i \in PossibleServer |-> 1]
-    /\ state       = [i \in PossibleServer |-> InitialConfig[i]]
+    /\ state       = [i \in PossibleServer |-> IF i \in PossibleConfigs[1] THEN Follower ELSE Pending]
     /\ votedFor    = [i \in PossibleServer |-> Nil]
 
 InitCandidateVars ==
