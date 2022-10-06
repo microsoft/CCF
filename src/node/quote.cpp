@@ -57,8 +57,8 @@ namespace ccf
     return unique_id;
   }
 
-  std::optional<DigestedPolicy> AttestationProvider::
-    get_security_policy_digest(const QuoteInfo& quote_info)
+  std::optional<DigestedPolicy> AttestationProvider::get_security_policy_digest(
+    const QuoteInfo& quote_info)
   {
     if (access(pal::snp::DEVICE, F_OK) != 0)
     {
@@ -96,7 +96,7 @@ namespace ccf
     }
 
     auto security_policy_digest =
-      EnclaveAttestationProvider::get_security_policy_digest(quote_info);
+      AttestationProvider::get_security_policy_digest(quote_info);
     if (!security_policy_digest.has_value())
     {
       return QuoteVerificationResult::FailedSecurityPolicyDigestNotFound;
@@ -114,12 +114,11 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  QuoteVerificationResult AttestationProvider::
-    verify_quote_against_store(
-      kv::ReadOnlyTx& tx,
-      const QuoteInfo& quote_info,
-      const std::vector<uint8_t>& expected_node_public_key_der,
-      CodeDigest& code_digest)
+  QuoteVerificationResult AttestationProvider::verify_quote_against_store(
+    kv::ReadOnlyTx& tx,
+    const QuoteInfo& quote_info,
+    const std::vector<uint8_t>& expected_node_public_key_der,
+    CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
     pal::attestation_report_data report;

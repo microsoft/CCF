@@ -296,7 +296,7 @@ namespace ccf
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
         auto quoted_digest =
-          EnclaveAttestationProvider::get_security_policy_digest(quote_info);
+          AttestationProvider::get_security_policy_digest(quote_info);
         if (!quoted_digest.has_value())
         {
           throw std::logic_error("Unable to find security policy");
