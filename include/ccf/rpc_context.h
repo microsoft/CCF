@@ -80,7 +80,7 @@ namespace ccf
     // Get RPC stream to send data to client asynchronously
     virtual std::shared_ptr<RpcStream> get_rpc_stream() = 0;
 
-    virtual void stream(const std::vector<uint8_t>& data) = 0;
+    virtual void stream(std::vector<uint8_t>&& data) = 0;
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
     virtual const std::string& get_request_query() const = 0;

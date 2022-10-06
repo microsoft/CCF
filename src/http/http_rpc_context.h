@@ -38,7 +38,7 @@ namespace http
   public:
     virtual ~AbstractClientStreamer() = default;
 
-    virtual void stream(const std::vector<uint8_t>& data) = 0;
+    virtual void stream(std::vector<uint8_t>&& data, int32_t stream_id) = 0;
   };
 
   class HttpRpcContext : public ccf::RpcContextImpl
@@ -69,6 +69,7 @@ namespace http
 
     // TODO: Ugly raw pointer here
     AbstractClientStreamer* client_streamer = nullptr;
+    int32_t stream_id = 0;
 
     void serialise()
     {
@@ -126,9 +127,12 @@ namespace http
       }
     }
 
-    void set_client_streamer(AbstractClientStreamer* client_streamer_)
+    void set_client_streamer(
+      AbstractClientStreamer* client_streamer_, int32_t stream_id_)
     {
+      // TODO: Create client streamer object here?
       client_streamer = client_streamer_;
+      stream_id = stream_id_;
     }
 
     http::HeaderMap get_response_headers() const
@@ -298,9 +302,9 @@ namespace http
       return http_response.build_response();
     }
 
-    virtual void stream(const std::vector<uint8_t>& data) override
+    virtual void stream(std::vector<uint8_t>&& data) override
     {
-      client_streamer->stream(data);
+      client_streamer->stream(std::move(data), stream_id);
     }
   };
 

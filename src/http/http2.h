@@ -476,21 +476,27 @@ namespace http2
       }
     }
 
-    // void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
-    // {
-    //   LOG_TRACE_FMT("http2::send_data: stream {} - {}", stream_id,
-    //   data.size());
+    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
+    {
+      LOG_TRACE_FMT("http2::send_data: stream {} - {}", stream_id, data.size());
 
-    //   auto* stream_data = get_stream_data(session, stream_id);
+      auto* stream_data = get_stream_data(session, stream_id);
 
-    //   int rv = nghttp2_submit_data(
-    //     session, stream_id, hdrs.data(), hdrs.size(), &prov);
-    //   if (rv != 0)
-    //   {
-    //     throw std::logic_error(
-    //       fmt::format("nghttp2_submit_response error: {}", rv));
-    //   }
-    // }
+      // TODO: Copy data somewhere
+
+      nghttp2_data_provider prov;
+      prov.read_callback = read_callback;
+
+      stream_data->response_body = std::move(data);
+
+      uint8_t flags = 0;
+      int rv = nghttp2_submit_data(session, flags, stream_id, &prov);
+      if (rv != 0)
+      {
+        throw std::logic_error(
+          fmt::format("nghttp2_submit_data error: {}", nghttp2_strerror(rv)));
+      }
+    }
 
     void send_response(
       StreamId stream_id,
@@ -550,8 +556,8 @@ namespace http2
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
       if (rv != 0)
       {
-        throw std::logic_error(
-          fmt::format("nghttp2_submit_response error: {}", rv));
+        throw std::logic_error(fmt::format(
+          "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
       }
     }
 

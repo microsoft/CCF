@@ -128,10 +128,10 @@ namespace http
       send_raw(std::move(data));
     }
 
-    void stream(const std::vector<uint8_t>& data) override
+    void stream(std::vector<uint8_t>&& data, int32_t stream_id) override
     {
       LOG_FAIL_FMT("Streaming data: {}", data.size());
-      return;
+      server_session.send_data(stream_id, std::move(data));
     }
 
     void handle_request(
@@ -160,7 +160,7 @@ namespace http
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
             session_ctx, verb, url, std::move(headers), std::move(body));
-          rpc_ctx->set_client_streamer(this);
+          rpc_ctx->set_client_streamer(this, stream_id);
         }
         catch (std::exception& e)
         {
