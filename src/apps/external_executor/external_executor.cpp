@@ -422,13 +422,19 @@ namespace externalexecutor
         std::vector<uint8_t> data(42, 42);
         rpc_ctx->stream(std::move(data));
 
-        return ccf::grpc::make_success(kv);
+        // TODO: Hack to avoid sending requests: all data returned by this
+        // endpoint will be streamed
+        rpc_ctx->set_response_is_pending();
+
+        // TODO: Make streaming wrappers that doesn't return anything
+        return ccf::grpc::make_success();
       };
 
       make_endpoint(
         "/ccf.KV/Stream",
         HTTP_POST,
-        ccf::grpc_adapter<google::protobuf::Empty, ccf::KVValue>(stream),
+        ccf::grpc_adapter<google::protobuf::Empty, google::protobuf::Empty>(
+          stream),
         {ccf::no_auth_required})
         .install();
     }

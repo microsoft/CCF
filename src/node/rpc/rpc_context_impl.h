@@ -63,6 +63,10 @@ namespace ccf
     bool execute_on_node = false;
     bool response_is_pending = false;
 
+    virtual void set_response_is_pending() override
+    {
+      response_is_pending = true;
+    }
     virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
     virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;

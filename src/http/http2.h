@@ -34,12 +34,11 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    LOG_TRACE_FMT("http2::read_callback: {}", length);
-
     auto* stream_data = get_stream_data(session, stream_id);
     auto& response_body = stream_data->response_body;
     size_t to_read =
       std::min(response_body.size() - stream_data->current_offset, length);
+    LOG_TRACE_FMT("http2::read_callback: {}", to_read);
 
     if (response_body.size() > 0)
     {
@@ -481,8 +480,11 @@ namespace http2
       LOG_TRACE_FMT("http2::send_data: stream {} - {}", stream_id, data.size());
 
       auto* stream_data = get_stream_data(session, stream_id);
-
-      // TODO: Copy data somewhere
+      if (stream_data == nullptr)
+      {
+        LOG_FAIL_FMT("stream not found!");
+        return;
+      }
 
       nghttp2_data_provider prov;
       prov.read_callback = read_callback;
@@ -490,11 +492,12 @@ namespace http2
       stream_data->response_body = std::move(data);
 
       uint8_t flags = 0;
-      int rv = nghttp2_submit_data(session, flags, stream_id, &prov);
+      int rv = nghttp2_submit_response(session, stream_id, nullptr, 0, &prov);
+      LOG_FAIL_FMT("rv: {}", rv);
       if (rv != 0)
       {
-        throw std::logic_error(
-          fmt::format("nghttp2_submit_data error: {}", nghttp2_strerror(rv)));
+        throw std::logic_error(fmt::format(
+          "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
       }
     }
 
