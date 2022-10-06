@@ -32,6 +32,10 @@ jobs:
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
 
+      - ${{ if eq(parameters.target, 'SNPCC') }}:
+          - script: |
+              export SECURITY_POLICY=eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19
+
       - template: test.yml
         parameters:
           suffix: ${{ parameters.suffix }}
