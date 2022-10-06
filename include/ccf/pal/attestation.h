@@ -145,8 +145,7 @@ namespace ccf::pal
       {
         throw std::logic_error(fmt::format(
           "The root of trust public key for this attestation was not "
-          "the "
-          "expected one {}",
+          "the expected one {}",
           root_cert_verifier->public_key_pem().str()));
       }
 
@@ -154,8 +153,7 @@ namespace ccf::pal
       {
         throw std::logic_error(
           "The root of trust public key for this attestation was not "
-          "self "
-          "signed as expected");
+          "self signed as expected");
       }
 
       auto chip_cert_verifier = crypto::make_verifier(chip_certificate);
