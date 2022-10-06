@@ -16,12 +16,24 @@ namespace ccf
   protected:
     std::shared_ptr<SessionContext> session;
 
+    std::shared_ptr<void> user_data;
+
   public:
     RpcContextImpl(const std::shared_ptr<SessionContext>& s) : session(s) {}
 
     std::shared_ptr<SessionContext> get_session_context() const override
     {
       return session;
+    }
+
+    virtual void set_user_data(std::shared_ptr<void> data) override
+    {
+      user_data = data;
+    }
+
+    virtual void* get_user_data() const override
+    {
+      return user_data.get();
     }
 
     ccf::ClaimsDigest claims = ccf::empty_claims();

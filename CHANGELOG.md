@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+### Deprecated
+
+- `ccf::EnclaveAttestationProvider` is deprecated and will be removed in a future release. It should be replaced by `ccf::AttestationProvider`
+
 ## [3.0.0-dev5]
+
+### Added
+
+- New "attestation" section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
+- The `ccf::RpcContext` now contains functionality for storing user data with `set_user_data` and retrieving it with `get_user_data` (#4291).
+- There are now `make_endpoint_with_local_commit_handler` and `make_read_only_endpoint_with_local_commit_handler` functions to install endpoints with post local-commit logic (#4296).
 
 ### Fixed
 

@@ -3,7 +3,11 @@
 #pragma once
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#  include "attestation_sev_snp_endorsements.h"
+
 #  include <array>
+#  include <map>
+#  include <string>
 
 namespace ccf::pal
 {
@@ -164,6 +168,62 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 
     // Changes on 5.19+ kernel
     constexpr auto DEVICE = "/dev/sev";
+
+    static EndorsementEndpointsConfiguration
+    make_endorsement_endpoint_configuration(
+      const Attestation& quote,
+      const snp::EndorsementsServers& endorsements_servers = {})
+    {
+      EndorsementEndpointsConfiguration config;
+
+      auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
+      auto reported_tcb =
+        fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
+
+      if (endorsements_servers.empty())
+      {
+        // Default to Azure server if no servers are specified
+        config.servers.emplace_back(make_azure_endorsements_server(
+          default_azure_endorsements_endpoint_host, chip_id_hex, reported_tcb));
+        return config;
+      }
+
+      for (auto const& server : endorsements_servers)
+      {
+        switch (server.type)
+        {
+          case EndorsementsEndpointType::Azure:
+          {
+            auto url =
+              server.url.value_or(default_azure_endorsements_endpoint_host);
+            config.servers.emplace_back(
+              make_azure_endorsements_server(url, chip_id_hex, reported_tcb));
+            break;
+          }
+          case EndorsementsEndpointType::AMD:
+          {
+            auto boot_loader =
+              fmt::format("{}", quote.reported_tcb.boot_loader);
+            auto tee = fmt::format("{}", quote.reported_tcb.tee);
+            auto snp = fmt::format("{}", quote.reported_tcb.snp);
+            auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
+
+            auto url =
+              server.url.value_or(default_azure_endorsements_endpoint_host);
+            config.servers.emplace_back(make_amd_endorsements_server(
+              url, chip_id_hex, boot_loader, tee, snp, microcode));
+            break;
+          }
+          default:
+          {
+            throw std::logic_error(fmt::format(
+              "Unsupported endorsements server type: {}", server.type));
+          }
+        }
+      }
+
+      return config;
+    }
   }
 
 #  define SEV_GUEST_IOC_TYPE 'S'

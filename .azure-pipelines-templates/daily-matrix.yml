@@ -20,11 +20,9 @@ parameters:
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
     SNPCC:
-      cmake_args: "-DCOMPILE_TARGETS=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_V8=ON"
+      cmake_args: "-DCOMPILE_TARGETS=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
-    V8Debug:
-      cmake_args: "-DENABLE_V8=ON -DV8_DEBUG=ON"
     unsafe:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
     QUICTLS:
@@ -50,9 +48,8 @@ jobs:
     parameters:
       target: Virtual
       env: "${{ parameters.env.Virtual }}"
-      fetch_v8: debug
       fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.V8Debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "Virtual_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
@@ -97,5 +94,4 @@ jobs:
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
       ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
-      fetch_v8: release
       depends_on: configure
