@@ -13,7 +13,7 @@ jobs:
 
       - script: | 
           dd if=/dev/zero of=/tmp/zero bs=1k count=1000k
-        display: "IO benchmark"
+        displayName: "IO benchmark"
 
       - checkout: self
         clean: true
