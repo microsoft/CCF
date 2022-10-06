@@ -12,13 +12,6 @@
 
 namespace http
 {
-  struct HTTP2SessionContext : public ccf::SessionContext
-  {
-    int32_t stream_id;
-
-    using SessionContext::SessionContext;
-  };
-
   class HTTP2Session : public ccf::ThreadedSession
   {
   protected:
@@ -38,7 +31,6 @@ namespace http
   public:
     virtual bool parse(std::span<const uint8_t> data) = 0;
 
-    // TODO: Is this even needed?
     void send_data(std::span<const uint8_t> data) override
     {
       tls_io->send_raw(data.data(), data.size());
@@ -75,6 +67,20 @@ namespace http
     }
   };
 
+  struct HTTP2SessionContext : public ccf::SessionContext
+  {
+    int32_t stream_id;
+
+    HTTP2SessionContext(
+      size_t client_session_id_,
+      const std::vector<uint8_t>& caller_cert_,
+      const std::optional<ccf::ListenInterfaceID>& interface_id_,
+      http2::StreamId stream_id_) :
+      ccf::SessionContext(client_session_id_, caller_cert_, interface_id_),
+      stream_id(stream_id_)
+    {}
+  };
+
   class HTTP2StreamResponder : public http::HTTPResponder
   {
   private:
@@ -99,18 +105,18 @@ namespace http
     }
   };
 
+  // Note: This class is both a responder, and a collection of responders.
+  // Things which do not know about StreamIds can use this to respond, which
+  // will attempt to respond on the default stream.
   class HTTP2ServerSession : public HTTP2Session,
                              public http::RequestProcessor,
                              public http::HTTPResponder
-  // TODO: This is both a Responder, and a collection of Responders. Its
-  // implementation passes off to the default stream 0. This seems wrong
   {
   private:
     http2::ServerParser server_parser;
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
-    std::shared_ptr<ccf::SessionContext> session_ctx;
     ccf::ListenInterfaceID interface_id;
 
     std::unordered_map<http2::StreamId, std::shared_ptr<HTTP2StreamResponder>>
@@ -127,6 +133,26 @@ namespace http
           std::make_pair(
             stream_id,
             std::make_shared<HTTP2StreamResponder>(stream_id, server_parser)));
+      }
+
+      return it->second;
+    }
+
+    std::unordered_map<http2::StreamId, std::shared_ptr<HTTP2SessionContext>>
+      session_ctxs;
+
+    std::shared_ptr<HTTP2SessionContext> get_session_ctx(
+      http2::StreamId stream_id)
+    {
+      auto it = session_ctxs.find(stream_id);
+      if (it == session_ctxs.end())
+      {
+        it = session_ctxs.emplace_hint(
+          it,
+          std::make_pair(
+            stream_id,
+            std::make_shared<HTTP2SessionContext>(
+              session_id, tls_io->peer_cert(), interface_id, stream_id)));
       }
 
       return it->second;
@@ -202,36 +228,10 @@ namespace http
         body.size());
 
       auto responder = get_stream_responder(stream_id);
+      auto session_ctx = get_session_ctx(stream_id);
 
       try
       {
-        if (session_ctx == nullptr)
-        {
-          auto http2_session_ctx = std::make_shared<HTTP2SessionContext>(
-            session_id, tls_io->peer_cert(), interface_id);
-          http2_session_ctx->stream_id = stream_id;
-          session_ctx = http2_session_ctx;
-        }
-
-        // TODO: Yuck! Where should the stream_id live!?
-        {
-          auto http2_session_ctx =
-            std::dynamic_pointer_cast<HTTP2SessionContext>(session_ctx);
-          if (http2_session_ctx == nullptr)
-          {
-            throw std::logic_error("WRONG SESSION TYPE!");
-          }
-          if (http2_session_ctx->stream_id != stream_id)
-          {
-            // Make a new one, with the right stream_id!
-            // Real wasteful!!!
-            auto http2_session_ctx = std::make_shared<HTTP2SessionContext>(
-              session_id, tls_io->peer_cert(), interface_id);
-            http2_session_ctx->stream_id = stream_id;
-            session_ctx = http2_session_ctx;
-          }
-        }
-
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
         try
         {
@@ -240,7 +240,10 @@ namespace http
         }
         catch (std::exception& e)
         {
-          // TODO: return HTTP_STATUS_INTERNAL_SERVER_ERROR, e.what()
+          send_odata_error_response(ccf::ErrorDetails{
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error constructing RpcContext: {}", e.what())});
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);

@@ -40,8 +40,6 @@ namespace externalexecutor
   {
     struct PendingRequest
     {
-      size_t originating_session_id;
-      int32_t originating_stream_id;
       std::unique_ptr<kv::CommittableTx> tx = nullptr;
       ccf::RequestDescription request_description;
       std::shared_ptr<http::HTTPResponder> responder;
@@ -147,9 +145,6 @@ namespace externalexecutor
           auto* rd = opt_rd.mutable_optional();
           auto& pr = pending_requests.front();
           *rd = pr.request_description;
-          LOG_INFO_FMT(
-            "Popping first pending request, and setting active session to {}",
-            pr.originating_session_id);
           // NB: Move for unique_ptr
           active_request = std::move(pr);
           pending_requests.pop();
@@ -205,11 +200,7 @@ namespace externalexecutor
         {
           case kv::CommitResult::SUCCESS:
           {
-            LOG_INFO_FMT(
-              "Preparing to send final response to user on session {}, stream "
-              "{}",
-              active_request->originating_session_id,
-              active_request->originating_stream_id);
+            LOG_TRACE_FMT("Preparing to send final response to user");
 
             http::HeaderMap headers;
             for (int i = 0; i < payload.headers_size(); ++i)
@@ -221,7 +212,7 @@ namespace externalexecutor
             auto tx_id = active_request->tx->get_txid();
             if (tx_id.has_value())
             {
-              LOG_INFO_FMT("Applied tx at {}", tx_id->str());
+              LOG_DEBUG_FMT("Applied tx at {}", tx_id->str());
               headers[http::headers::CCF_TX_ID] = tx_id->str();
             }
 
@@ -429,30 +420,23 @@ namespace externalexecutor
     void queue_request_for_external_execution(
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      ccf::EndpointContextImpl* ctx_impl =
-        dynamic_cast<ccf::EndpointContextImpl*>(&endpoint_ctx);
-      if (ctx_impl == nullptr)
-      {
-        throw std::logic_error("Unexpected context type");
-      }
-
       PendingRequest pr;
-      pr.originating_session_id =
-        endpoint_ctx.rpc_ctx->get_session_context()->client_session_id;
 
-      auto http2_session_context =
-        std::dynamic_pointer_cast<http::HTTP2SessionContext>(
-          endpoint_ctx.rpc_ctx->get_session_context());
-      if (http2_session_context == nullptr)
+      // Take ownership of underlying tx
       {
-        throw std::logic_error("Unexpected session context type");
-      }
-      pr.originating_stream_id = http2_session_context->stream_id;
+        ccf::EndpointContextImpl* ctx_impl =
+          dynamic_cast<ccf::EndpointContextImpl*>(&endpoint_ctx);
+        if (ctx_impl == nullptr)
+        {
+          throw std::logic_error("Unexpected context type");
+        }
 
-      pr.tx = std::move(ctx_impl->owned_tx);
+        pr.tx = std::move(ctx_impl->owned_tx);
+      }
+
+      // Construct RequestDescription from EndpointContext
       {
         ccf::RequestDescription& rd = pr.request_description;
-        // Construct rd from request
         rd.set_method(endpoint_ctx.rpc_ctx->get_request_verb().c_str());
         rd.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
         for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
@@ -464,16 +448,46 @@ namespace externalexecutor
         const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
         rd.set_body(body.data(), body.size());
       }
-      pending_requests.push(std::move(pr));
 
-      auto rpc_ctx_impl =
-        dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
-      if (rpc_ctx_impl == nullptr)
+      // Lookup originating session and store handle for responding later
       {
-        throw std::logic_error("Unexpected type for RpcContext");
+        auto http2_session_context =
+          std::dynamic_pointer_cast<http::HTTP2SessionContext>(
+            endpoint_ctx.rpc_ctx->get_session_context());
+        if (http2_session_context == nullptr)
+        {
+          throw std::logic_error("Unexpected session context type");
+        }
+
+        const auto session_id = http2_session_context->client_session_id;
+        const auto stream_id = http2_session_context->stream_id;
+
+        auto responder =
+          responder_lookup->lookup_responder(session_id, stream_id);
+        if (responder == nullptr)
+        {
+          throw std::logic_error(fmt::format(
+            "Found no responder for session {}, stream {}",
+            session_id,
+            stream_id));
+        }
+
+        pr.responder = responder;
       }
 
-      rpc_ctx_impl->response_is_pending = true;
+      // Mark response as pending
+      {
+        auto rpc_ctx_impl =
+          dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
+        if (rpc_ctx_impl == nullptr)
+        {
+          throw std::logic_error("Unexpected type for RpcContext");
+        }
+
+        rpc_ctx_impl->response_is_pending = true;
+      }
+
+      pending_requests.push(std::move(pr));
     }
 
     struct ExternallyExecutedEndpoint

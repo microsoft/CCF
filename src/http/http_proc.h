@@ -18,7 +18,6 @@ namespace http
   // Only used for HTTP/2
   constexpr static int32_t DEFAULT_STREAM_ID = 0;
 
-  // TODO: Duplicate/split for HTTP2?
   class RequestProcessor
   {
   public:

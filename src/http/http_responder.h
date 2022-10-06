@@ -2,8 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node_subsystem_interface.h"
 #include "ccf/odata_error.h"
+#include "http/responder_lookup_interface.h"
+
+#include <map>
 
 namespace http
 {
@@ -36,12 +38,30 @@ namespace http
     }
   };
 
-  class AbstractResponderLookup : public ccf::AbstractNodeSubSystem
+  class ResponderLookup : public AbstractResponderLookup
   {
+  protected:
+    using ByStream =
+      std::unordered_map<http2::StreamId, std::shared_ptr<HTTPResponder>>;
+
+    std::unordered_map<tls::ConnID, ByStream> all_responders;
+
   public:
-    static char const* get_subsystem_name()
+    std::shared_ptr<HTTPResponder> lookup_responder(
+      tls::ConnID session_id, http2::StreamId stream_id)
     {
-      return "ResponderLookup";
+      auto conn_it = all_responders.find(session_id);
+      if (conn_it != all_responders.end())
+      {
+        auto& by_stream = conn_it->second;
+        auto stream_it = by_stream.find(stream_id);
+        if (stream_it != by_stream.end())
+        {
+          return stream_it->second;
+        }
+      }
+
+      return nullptr;
     }
   };
 }

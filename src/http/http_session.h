@@ -202,7 +202,7 @@ namespace http
           send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            e.what()});
+            fmt::format("Error constructing RpcContext: {}", e.what())});
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
