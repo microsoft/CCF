@@ -41,8 +41,6 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-    static constexpr auto EMPTY_SECURITY_POLICY = "";
-
     // Table 3
 #  pragma pack(push, 1)
     struct TcbVersion
