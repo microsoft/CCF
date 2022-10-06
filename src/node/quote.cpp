@@ -39,7 +39,7 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  std::optional<CodeDigest> EnclaveAttestationProvider::get_code_id(
+  std::optional<CodeDigest> AttestationProvider::get_code_id(
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
@@ -57,12 +57,11 @@ namespace ccf
     return unique_id;
   }
 
-  QuoteVerificationResult EnclaveAttestationProvider::
-    verify_quote_against_store(
-      kv::ReadOnlyTx& tx,
-      const QuoteInfo& quote_info,
-      const std::vector<uint8_t>& expected_node_public_key_der,
-      CodeDigest& code_digest)
+  QuoteVerificationResult AttestationProvider::verify_quote_against_store(
+    kv::ReadOnlyTx& tx,
+    const QuoteInfo& quote_info,
+    const std::vector<uint8_t>& expected_node_public_key_der,
+    CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
     pal::attestation_report_data report;
