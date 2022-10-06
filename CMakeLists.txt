@@ -718,15 +718,13 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
-  if(ENABLE_HTTP2)
-    add_e2e_test(
-      NAME e2e_logging_http2
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
-    )
-  endif()
+  add_e2e_test(
+    NAME e2e_logging_http2
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
+  )
 
   add_e2e_test(
     NAME membership
