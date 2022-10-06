@@ -6,7 +6,7 @@ export function make_randoms(request) {
   return {
     body: {
       a: Math.random(),
-      b: Math.random()
-    }
+      b: Math.random(),
+    },
   };
 }
