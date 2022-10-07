@@ -257,9 +257,10 @@ def test_async_streaming(network, args):
         stub = Service.KVStub(channel)
         LOG.info("Calling stream")
         for r in stub.Stream(Empty()):
-            LOG.error(r)
+            LOG.error(r.key)
+            LOG.error(r.value)
         LOG.success("Done")
-        time.sleep(5)
+        time.sleep(10)
 
 
 def run(args):

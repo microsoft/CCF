@@ -424,32 +424,53 @@ namespace externalexecutor
         ccf::KVValue kv;
 
         // TODO:
-        // 1. Capture HTTP context
-        rpc_ctx = ctx.rpc_ctx;
-        CCF_APP_FAIL("RPC context captured: {}", ctx.rpc_ctx.use_count());
+        // 1. Create gRPC server stream wrapper that sets stream as non-unary
+        // 2. Add ability to close stream from rpc_ctx->stream(data, close=true)
+        // or rpc_ctx->stream_close();
+        // 3. Create stream object from rpc_ctx, and then
+        // rpc_ctx->create_stream() (figure out ownership and lifetime)
 
-        std::vector<uint8_t> data(42, 42);
-        rpc_ctx->stream(
+        std::vector<uint8_t> data(100, 100);
+        ctx.rpc_ctx->stream(
           std::move(data)); // TODO: Does not actually stream anything just
                             // yet as we need to send response first
 
         auto msg = std::make_unique<threading::Tmsg<DelayedStreamMsg>>(
           [](std::unique_ptr<threading::Tmsg<DelayedStreamMsg>> msg) {
             auto& rpc_ctx = msg->data.rpc_ctx;
-            std::vector<uint8_t> data(42, 42);
+
+            ccf::KVKeyValue kv;
+            kv.set_key("lala");
+            kv.set_value("my_value");
+
+            const auto message_length = kv.ByteSizeLong();
+            size_t r_size =
+              ccf::grpc::impl::message_frame_length + message_length;
+            std::vector<uint8_t> data;
+            data.resize(r_size);
+            auto r_data = data.data();
+
+            ccf::grpc::impl::write_message_frame(
+              r_data, r_size, message_length);
+
+            if (!kv.SerializeToArray(r_data, r_size))
+            {
+              throw std::logic_error(fmt::format(
+                "Error serialising protobuf response of type {}, size {}",
+                kv.GetTypeName(),
+                message_length));
+            }
+
             CCF_APP_FAIL("Stream some data: {}", data.size());
+
+            // TODO: There should be an option to close the stream too
             rpc_ctx->stream(std::move(data));
           },
-          rpc_ctx);
+          ctx.rpc_ctx);
 
         threading::ThreadMessaging::thread_messaging.add_task_after(
-          std::move(msg), std::chrono::milliseconds(100));
+          std::move(msg), std::chrono::milliseconds(5000));
 
-        // TODO: Hack to avoid sending requests: all data returned by this
-        // endpoint will be streamed
-        // rpc_ctx->set_response_is_pending();
-
-        // TODO: Make streaming wrappers that doesn't return anything
         return ccf::grpc::make_success();
       };
 
@@ -491,8 +512,6 @@ namespace externalexecutor
     {};
 
   public:
-    std::shared_ptr<ccf::RpcContext> rpc_ctx = nullptr;
-
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {

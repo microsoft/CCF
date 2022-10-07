@@ -40,6 +40,13 @@ namespace http2
       std::min(response_body.size() - stream_data->current_offset, length);
     LOG_TRACE_FMT("http2::read_callback: {}", to_read);
 
+    LOG_FAIL_FMT("stream_data->is_last: {}", stream_data->is_last);
+
+    // First time, for a unary stream, we return.
+    // First time, for a non-unary stream, we defer.
+    // Second time, for a non-unary stream, we return. TODO: What about if we
+    // send more than once??
+
     if (response_body.size() > 0)
     {
       // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
@@ -48,7 +55,7 @@ namespace http2
     }
     if (stream_data->current_offset >= response_body.size())
     {
-      if (stream_data->is_unary)
+      if (stream_data->is_last)
       {
         LOG_FAIL_FMT("Setting flag eof");
         *data_flags |= NGHTTP2_DATA_FLAG_EOF;
@@ -57,7 +64,7 @@ namespace http2
       response_body.clear();
     }
 
-    if (stream_data->is_unary && !stream_data->trailers.empty())
+    if (stream_data->is_last && !stream_data->trailers.empty())
     {
       LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
       std::vector<nghttp2_nv> trlrs;
@@ -76,7 +83,7 @@ namespace http2
       }
       else
       {
-        if (stream_data->is_unary)
+        if (stream_data->is_last)
         {
           LOG_FAIL_FMT("Setting flag end stream");
           *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
@@ -84,12 +91,13 @@ namespace http2
       }
     }
 
-    if (stream_data->is_unary)
+    if (stream_data->is_last)
     {
       return to_read;
     }
     else
     {
+      stream_data->is_last = true;
       return NGHTTP2_ERR_DEFERRED;
     }
   }
@@ -502,20 +510,36 @@ namespace http2
       }
 
       stream_data->is_unary = false;
-      LOG_FAIL_FMT("No longer unary!");
-
-      // nghttp2_data_provider prov;
-      // prov.read_callback = read_callback;
 
       stream_data->response_body = std::move(data);
+      LOG_FAIL_FMT("No longer unary!");
 
-      // uint8_t flags = 0;
-      // int rv = nghttp2_submit_response(session, stream_id, nullptr, 0,
-      // &prov); LOG_FAIL_FMT("rv: {}", rv); if (rv != 0)
-      // {
-      //   throw std::logic_error(fmt::format(
-      //     "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
-      // }
+      nghttp2_data_provider prov;
+      prov.read_callback = read_callback;
+
+      static bool first_time = true;
+
+      if (first_time)
+      {
+        first_time = false;
+        stream_data->is_last = false;
+        return;
+      }
+
+      int rv = nghttp2_session_resume_data(session, stream_id);
+      LOG_FAIL_FMT("resume data: {}", rv);
+      if (rv < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
+      }
+
+      auto rc = nghttp2_session_send(session);
+      if (rc < 0)
+      {
+        throw std::logic_error(
+          fmt::format("nghttp2_session_send: {}", nghttp2_strerror(rc)));
+      }
     }
 
     void send_response(
