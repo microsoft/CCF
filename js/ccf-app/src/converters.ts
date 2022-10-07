@@ -34,28 +34,27 @@ export interface DataConverter<T> {
 
 function checkBoolean(val: any) {
   if (typeof val !== "boolean") {
-    throw new TypeError(`Value ${val} is not a boolean`)
+    throw new TypeError(`Value ${val} is not a boolean`);
   }
 }
 
 function checkNumber(val: any) {
   if (typeof val !== "number") {
-    throw new TypeError(`Value ${val} is not a number`)
+    throw new TypeError(`Value ${val} is not a number`);
   }
 }
 
 function checkBigInt(val: any) {
   if (typeof val !== "bigint") {
-    throw new TypeError(`Value ${val} is not a bigint`)
+    throw new TypeError(`Value ${val} is not a bigint`);
   }
 }
 
 function checkString(val: any) {
   if (typeof val !== "string") {
-    throw new TypeError(`Value ${val} is not a string`)
+    throw new TypeError(`Value ${val} is not a string`);
   }
 }
-
 
 class BoolConverter implements DataConverter<boolean> {
   encode(val: boolean): ArrayBuffer {
@@ -217,11 +216,11 @@ class JSONConverter<T extends JsonCompatible<T>> implements DataConverter<T> {
 export type TypedArray = ArrayBufferView;
 
 export interface TypedArrayConstructor<T extends TypedArray> {
-  new(buffer: ArrayBuffer, byteOffset?: number, length?: number): T;
+  new (buffer: ArrayBuffer, byteOffset?: number, length?: number): T;
 }
 
 class TypedArrayConverter<T extends TypedArray> implements DataConverter<T> {
-  constructor(private clazz: TypedArrayConstructor<T>) { }
+  constructor(private clazz: TypedArrayConstructor<T>) {}
   encode(val: T): ArrayBuffer {
     return val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength);
   }

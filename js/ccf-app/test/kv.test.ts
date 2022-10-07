@@ -64,15 +64,18 @@ describe("typedKv", function () {
   });
 });
 
-
 class TypeErasedKvMap<K, V> {
-  constructor(
-    private map: kv.TypedKvMap<K, V>
-  ) { }
+  constructor(private map: kv.TypedKvMap<K, V>) {}
 
-  has(key: any): boolean { return this.map.has(key); }
-  get(key: any): V | undefined { return this.map.get(key); }
-  set(key: any, value: V) { this.map.set(key, value); }
+  has(key: any): boolean {
+    return this.map.has(key);
+  }
+  get(key: any): V | undefined {
+    return this.map.get(key);
+  }
+  set(key: any, value: V) {
+    this.map.set(key, value);
+  }
 }
 
 describe("erased types", function () {
