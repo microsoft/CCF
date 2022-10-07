@@ -11,7 +11,7 @@ PossibleConfigs_mc == <<{NodeOne, NodeTwo, NodeThree}>>
 TermLimit_mc == 2
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit_mc == 0
+RequestLimit_mc == 1
 
 \* Limit on number of request votes that can be sent to each other node
 RequestVoteLimit_mc == 1

@@ -20,7 +20,7 @@ RequestVoteLimit_mc == 1
 MessagesLimit_mc == 1
 
 \* Limit number of times a RetiredLeader server sends commit notifications
-CommitNotificationLimit_mc == 1
+CommitNotificationLimit_mc == 2
 
 \* Limit max number of simultaneous candidates
 MaxSimultaneousCandidates_mc == 1

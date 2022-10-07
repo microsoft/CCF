@@ -85,7 +85,7 @@ ASSUME RequestLimit \in Nat
 CONSTANTS MaxSimultaneousCandidates
 ASSUME MaxSimultaneousCandidates \in Nat
 
-\* CCF: Limit how many messages each node can send to another
+\* CCF: Limit how many identical append entries messages each node can send to another
 CONSTANTS MessagesLimit
 ASSUME MessagesLimit \in Nat
 
@@ -136,7 +136,7 @@ reconfigurationVars == <<ReconfigurationCount, Configurations>>
 \* removed messages once received.
 VARIABLE messages
 
-\* CCF: Keep track of each message sent from each server to each other server
+\* CCF: Keep track of each append entries message sent from each server to each other server
 \* and cap it to a maximum
 VARIABLE messagesSent
 
@@ -1119,11 +1119,6 @@ LogConfigurationConsistentInv ==
         \A k \in 1..Len(Configurations[i]):
             \/ Configurations[i][k][1] = 0
             \/ log[i][Configurations[i][k][1]].value = Configurations[i][k][2]
-
-LocalStateInv ==
-    /\ MonoLogInv
-    /\ MonoConfigurationsInv
-    /\ LogConfigurationConsistentInv
 
 ----
 \* Debugging invariants
