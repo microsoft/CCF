@@ -1,8 +1,8 @@
 ---------- MODULE MCraft ----------
 EXTENDS ccfraft, TLC
 
-PossibleServer_mc == {NodeOne, NodeTwo, NodeThree}
-PossibleConfigs_mc == <<{NodeOne, NodeTwo, NodeThree}>>
+Servers_mc == {NodeOne, NodeTwo, NodeThree}
+Configurations_mc == <<{NodeOne, NodeTwo, NodeThree}>>
 
 \*  SNIPPET_START: mc_config
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
@@ -30,6 +30,6 @@ mc_spec == Spec
 
 \* Symmetry set over possible servers. May dangerous and is only enabled
 \* via the Symmetry option in cfg file.
-Symmetry == Permutations(PossibleServer_mc)
+Symmetry == Permutations(Servers_mc)
 
 ===================================
