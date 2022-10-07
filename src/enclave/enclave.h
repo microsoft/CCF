@@ -3,11 +3,11 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ccf/hooks/hook_system.h"
 #include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
-#include "hooks/hook_system.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -136,7 +136,6 @@ namespace ccf
 
       hook_system = std::make_shared<ccf::hooks::HookSystem>(network.tables);
       context->install_subsystem(hook_system);
-
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
         writer_factory->create_writer_to_outside());

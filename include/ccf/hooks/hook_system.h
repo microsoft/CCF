@@ -33,14 +33,7 @@ namespace ccf::hooks
     {
       // register the hook
       // TODO: check overlapping map names with already registered indexes
-      tables->set_global_hook(
-        map_name,
-        [hook](kv::Version version, const kv::untyped::Write& writes) {
-          // invoke the handle_committed_transaction handler
-          // TODO: get the actual raft term
-          //   ccf::TxID tx_id{0, version};
-          hook(version, writes);
-        });
+      tables->set_global_hook(map_name, hook);
 
       return true;
     }
