@@ -42,6 +42,13 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
       REQUIRE(v[0] == "Good afternoon");
       REQUIRE(v[1] == "good evening");
       REQUIRE(v[2] == "and good night!");
+
+      {
+        INFO("split_1");
+        auto t = nonstd::split_1(s, ", ");
+        REQUIRE(std::get<0>(t) == "Good afternoon");
+        REQUIRE(std::get<1>(t) == "good evening, and good night!");
+      }
     }
 
     {
@@ -67,10 +74,9 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
   {
     INFO("Edge cases");
-    const auto s = "  bob  ";
 
     {
-      INFO("Split by spaces");
+      const auto s = "  bob  ";
       auto v = nonstd::split(s, " ");
       REQUIRE(v.size() == 5);
       REQUIRE(v[0].empty());
@@ -79,5 +85,53 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
       REQUIRE(v[3].empty());
       REQUIRE(v[4].empty());
     }
+
+    {
+      const auto s = "bobbob";
+      {
+        auto v = nonstd::split(s, " ");
+        REQUIRE(v.size() == 1);
+        REQUIRE(v[0] == "bobbob");
+      }
+
+      {
+        auto v = nonstd::split(s, "bob");
+        REQUIRE(v.size() == 3);
+        REQUIRE(v[0].empty());
+        REQUIRE(v[1].empty());
+        REQUIRE(v[2].empty());
+      }
+
+      {
+        auto t = nonstd::split_1(s, "bob");
+        REQUIRE(std::get<0>(t).empty());
+        REQUIRE(std::get<1>(t) == "bob");
+      }
+    }
+
+    {
+      const auto s = "";
+      {
+        auto v = nonstd::split(s, " ");
+        REQUIRE(v.size() == 1);
+        REQUIRE(v[0].empty());
+      }
+
+      {
+        auto v = nonstd::split(s, "bob");
+        REQUIRE(v.size() == 1);
+        REQUIRE(v[0].empty());
+      }
+
+      {
+        auto t = nonstd::split_1(s, " ");
+        REQUIRE(std::get<0>(t).empty());
+        REQUIRE(std::get<1>(t).empty());
+      }
+    }
+  }
+
+  {
+    INFO("Reverse");
   }
 }
