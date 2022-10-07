@@ -970,6 +970,7 @@ const actions = new Map([
             throw new Error(
               `The hash of raw policy ${raw} does not match digest ${digest}`
             );
+          }
         }
 
         ccf.kv["public:ccf.gov.nodes.security_policies"].set(digest, raw);
