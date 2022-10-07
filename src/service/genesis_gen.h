@@ -420,6 +420,24 @@ namespace ccf
         {.status = CodeStatus::ALLOWED_TO_JOIN, .platform = platform});
     }
 
+    void trust_node_security_policy(
+      const std::optional<RawPolicy>& security_policy_raw,
+      const DigestedPolicy& host_data)
+    {
+      auto security_policies = tx.rw(tables.security_policies);
+      if (security_policy_raw.has_value())
+      {
+        LOG_INFO_FMT(
+          "Trusting node with policy {}", security_policy_raw.value());
+        security_policies->put(host_data, security_policy_raw.value());
+      }
+      else
+      {
+        LOG_INFO_FMT("Trusting node with unset policy");
+        security_policies->put(host_data, pal::snp::NO_RAW_SECURITY_POLICY);
+      }
+    }
+
     void init_configuration(const ServiceConfiguration& configuration)
     {
       auto config = tx.rw(tables.config);
