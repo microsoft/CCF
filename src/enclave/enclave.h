@@ -7,6 +7,7 @@
 #include "ccf/pal/mem.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
+#include "hooks/hook_system.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -69,6 +70,7 @@ namespace ccf
     std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
       nullptr;
     std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
+    std::shared_ptr<ccf::hooks::HookSystem> hook_system = nullptr;
     std::shared_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
     std::shared_ptr<ccf::HostProcesses> host_processes = nullptr;
 
@@ -131,6 +133,10 @@ namespace ccf
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
           historical_state_cache));
       context->install_subsystem(indexer);
+
+      hook_system = std::make_shared<ccf::hooks::HookSystem>(network.tables);
+      context->install_subsystem(hook_system);
+
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
         writer_factory->create_writer_to_outside());
