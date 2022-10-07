@@ -48,12 +48,16 @@ namespace http2
     }
     if (stream_data->current_offset >= response_body.size())
     {
-      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      if (stream_data->is_unary)
+      {
+        LOG_FAIL_FMT("Setting flag eof");
+        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      }
       stream_data->current_offset = 0;
       response_body.clear();
     }
 
-    if (!stream_data->trailers.empty())
+    if (stream_data->is_unary && !stream_data->trailers.empty())
     {
       LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
       std::vector<nghttp2_nv> trlrs;
@@ -72,11 +76,22 @@ namespace http2
       }
       else
       {
-        *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
+        if (stream_data->is_unary)
+        {
+          LOG_FAIL_FMT("Setting flag end stream");
+          *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
+        }
       }
     }
 
-    return to_read;
+    if (stream_data->is_unary)
+    {
+      return to_read;
+    }
+    else
+    {
+      return NGHTTP2_ERR_DEFERRED;
+    }
   }
 
   static ssize_t read_callback_client(
@@ -486,19 +501,21 @@ namespace http2
         return;
       }
 
-      nghttp2_data_provider prov;
-      prov.read_callback = read_callback;
+      stream_data->is_unary = false;
+      LOG_FAIL_FMT("No longer unary!");
+
+      // nghttp2_data_provider prov;
+      // prov.read_callback = read_callback;
 
       stream_data->response_body = std::move(data);
 
-      uint8_t flags = 0;
-      int rv = nghttp2_submit_response(session, stream_id, nullptr, 0, &prov);
-      LOG_FAIL_FMT("rv: {}", rv);
-      if (rv != 0)
-      {
-        throw std::logic_error(fmt::format(
-          "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
-      }
+      // uint8_t flags = 0;
+      // int rv = nghttp2_submit_response(session, stream_id, nullptr, 0,
+      // &prov); LOG_FAIL_FMT("rv: {}", rv); if (rv != 0)
+      // {
+      //   throw std::logic_error(fmt::format(
+      //     "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
+      // }
     }
 
     void send_response(

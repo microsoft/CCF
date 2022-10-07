@@ -37,7 +37,7 @@ service KV
 
   rpc GetAll(KVTable) returns (stream KVKeyValue) {}
 
-  rpc Stream(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc Stream(google.protobuf.Empty) returns (stream KVKeyValue) {}
 }
 
 message Header

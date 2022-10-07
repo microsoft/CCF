@@ -9,6 +9,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
+#include "ds/thread_messaging.h" // TODO: Private include
 #include "endpoints/grpc.h"
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
@@ -408,6 +409,14 @@ namespace externalexecutor
         {executor_auth_policy})
         .install();
 
+      struct DelayedStreamMsg
+      {
+        std::shared_ptr<ccf::RpcContext> rpc_ctx;
+        DelayedStreamMsg(const std::shared_ptr<ccf::RpcContext>& rpc_ctx_) :
+          rpc_ctx(rpc_ctx_)
+        {}
+      };
+
       auto stream = [this](
                       ccf::endpoints::EndpointContext& ctx,
                       google::protobuf::Empty&& payload) {
@@ -420,11 +429,25 @@ namespace externalexecutor
         CCF_APP_FAIL("RPC context captured: {}", ctx.rpc_ctx.use_count());
 
         std::vector<uint8_t> data(42, 42);
-        rpc_ctx->stream(std::move(data));
+        rpc_ctx->stream(
+          std::move(data)); // TODO: Does not actually stream anything just
+                            // yet as we need to send response first
+
+        auto msg = std::make_unique<threading::Tmsg<DelayedStreamMsg>>(
+          [](std::unique_ptr<threading::Tmsg<DelayedStreamMsg>> msg) {
+            auto& rpc_ctx = msg->data.rpc_ctx;
+            std::vector<uint8_t> data(42, 42);
+            CCF_APP_FAIL("Stream some data: {}", data.size());
+            rpc_ctx->stream(std::move(data));
+          },
+          rpc_ctx);
+
+        threading::ThreadMessaging::thread_messaging.add_task_after(
+          std::move(msg), std::chrono::milliseconds(100));
 
         // TODO: Hack to avoid sending requests: all data returned by this
         // endpoint will be streamed
-        rpc_ctx->set_response_is_pending();
+        // rpc_ctx->set_response_is_pending();
 
         // TODO: Make streaming wrappers that doesn't return anything
         return ccf::grpc::make_success();
@@ -524,8 +547,8 @@ namespace externalexecutor
             case (temp::OpIn::OpCase::OP_NOT_SET):
             {
               LOG_INFO_FMT("Got OP_NOT_SET");
-              // oneof may always be null. If the input OpIn was null, then the
-              // resulting OpOut is also null
+              // oneof may always be null. If the input OpIn was null, then
+              // the resulting OpOut is also null
               break;
             }
           }

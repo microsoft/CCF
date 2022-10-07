@@ -32,6 +32,7 @@ namespace http2
 
     // Response
     std::vector<uint8_t> response_body;
+    bool is_unary = true;
 
     StreamData(StreamId id_) : id(id_) {}
   };
