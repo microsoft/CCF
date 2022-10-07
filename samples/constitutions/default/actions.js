@@ -958,16 +958,18 @@ const actions = new Map([
         const digest = ccf.strToBuf(args.security_policy_digest);
         const raw = ccf.jsonCompatibleToBuf(args.security_policy_raw);
 
-        const redigested_raw = ccf.bufToStr(
-          ccf.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
-        );
-        const quoted_digest = ccf.bufToStr(
-          hexStrToBuf(args.security_policy_digest)
-        );
-        if (args.security_policy_raw != "" && redigested_raw != quoted_digest) {
-          throw new Error(
-            `The hash of raw policy ${raw} does not match digest ${digest}`
+        if (args.security_policy_raw != "") {
+          const redigested_raw = ccf.bufToStr(
+            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
           );
+          const quoted_digest = ccf.bufToStr(
+            hexStrToBuf(args.security_policy_digest)
+          );
+
+          if (redigested_raw != quoted_digest) {
+            throw new Error(
+              `The hash of raw policy ${raw} does not match digest ${digest}`
+            );
         }
 
         ccf.kv["public:ccf.gov.nodes.security_policies"].set(digest, raw);
