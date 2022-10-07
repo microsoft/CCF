@@ -27,7 +27,7 @@ parameters:
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     perf:
-      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DBUILD_TPCC=ON -DDISTRIBUTE_PERF_TESTS="-n local://localhost -n local://localhost"'
+      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DBUILD_TPCC=ON -DDISTRIBUTE_PERF_TESTS="-n local://localhost"'
     release:
       cmake_args: "-DTLS_TEST=ON -DLONG_TESTS=ON -DENABLE_BFT=OFF"
     unsafe:
