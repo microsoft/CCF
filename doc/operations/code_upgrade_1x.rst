@@ -8,18 +8,7 @@ The CCF 2.0 release introduces major improvements and new features from 1.x LTS 
 New ``cchost`` JSON Configuration
 ---------------------------------
 
-The configuration for a single CCF node (specific to ``cchost`` binary) is now a single JSON file, rather than a set of command line arguments or INI/YAML configuration file (see :doc:`/operations/configuration` for more details).
-
-The ``migrate_1_x_config.py`` Python script, available as part of the :doc:`ccf Python package </audit/python_library>`, converts an existing 1.x ``.ini`` configuration file to a 2.0 JSON configuration file:
-
-.. code-block:: bash
-
-    $ pip install ccf
-    $ migrate_1_x_config.py config_1_x.ini 2_x_config.json # migrate_1_x_config.py is in path
-    2022-01-01 10:00:00.000 | INFO     | __main__:<module>:69 - Reading 1.x configuration file: config_1_x.ini
-    2022-01-01 10:00:00.000 | DEBUG    | __main__:<module>:77 - Found sections: ['default', 'start', 'join', 'recover']
-    2022-01-01 10:00:00.000 | INFO     | __main__:<module>:98 - Command type: start
-    2022-01-01 10:00:00.000 | SUCCESS  | __main__:<module>:215 - JSON configuration successfully written to: 2_x_config.json
+The configuration for a single CCF node (specific to ``cchost`` binary) is a single JSON file.
 
 The ``cchost`` executable can be used to verify the validity of the migrated configuration file (without launching the enclave application):
 
