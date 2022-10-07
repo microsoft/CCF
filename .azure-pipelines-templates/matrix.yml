@@ -12,11 +12,15 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-dcv2-focal
+    SNPCC:
+      pool: sev-snp-pool
 
   build:
     common:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     Virtual:
+      cmake_args: "-DCOMPILE_TARGETS=virtual"
+    SNPCC:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
@@ -39,6 +43,8 @@ parameters:
     release:
       ctest_args: '-LE "benchmark|perf"'
     virtual_perf:
+      ctest_args: '-L "perf|vegeta"'
+    snpcc_perf:
       ctest_args: '-L "perf|vegeta"'
 
 jobs:
@@ -78,6 +84,17 @@ jobs:
           depends_on: configure
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
+      - template: common.yml
+        parameters:
+          target: SNPCC
+          env: ${{ parameters.env.SNPCC }}
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SNPCC.cmake_args }}"
+          suffix: "Perf"
+          artifact_name: "SNPCC_Perf"
+          ctest_filter: "${{ parameters.test.snpcc_perf.ctest_args }}"
+          depends_on: configure
+
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: cimetrics.yml
         parameters:
           target: Virtual
@@ -87,6 +104,7 @@ jobs:
             - configure
             - SGX_Perf
             - Virtual_Perf
+            - SNPCC_Perf
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:

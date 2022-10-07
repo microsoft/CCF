@@ -93,15 +93,5 @@ jobs:
       cmake_args: "${{ parameters.build.SNPCC.cmake_args }}"
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
-      ctest_filter: '-LE "tlstest|vegeta|suite"'
+      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
       depends_on: configure
-
-  # - template: common.yml
-  #   parameters:
-  #     target: SNPCC
-  #     env: "${{ parameters.env.SNPCC }}"
-  #     cmake_args: "${{ parameters.build.SNPCC.cmake_args }} ${{ parameters.build.perf.cmake_args }}"
-  #     suffix: "Perf"
-  #     artifact_name: "SNPCC_Perf"
-  #     ctest_filter: '-LE "benchmark|perf"'
-  #     depends_on: configure
