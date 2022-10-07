@@ -72,16 +72,16 @@ jobs:
           ctest_filter: "${{ parameters.test.perf.ctest_args }}"
           depends_on: configure
 
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: common.yml
-        parameters:
-          target: Virtual
-          env: ${{ parameters.env.Virtual }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
-          suffix: "Perf"
-          artifact_name: "Virtual_Perf"
-          ctest_filter: "${{ parameters.test.virtual_perf.ctest_args }}"
-          depends_on: configure
+  # - ${{ if eq(parameters.perf_tests, 'run') }}:
+  #     - template: common.yml
+  #       parameters:
+  #         target: Virtual
+  #         env: ${{ parameters.env.Virtual }}
+  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+  #         suffix: "Perf"
+  #         artifact_name: "Virtual_Perf"
+  #         ctest_filter: "${{ parameters.test.virtual_perf.ctest_args }}"
+  #         depends_on: configure
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: common.yml
@@ -103,8 +103,8 @@ jobs:
           depends_on:
             - configure
             - SGX_Perf
-            - Virtual_Perf
             - SNPCC_Perf
+            # - Virtual_Perf
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
