@@ -111,7 +111,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "ccf.ExecutorRegistration/RegisterExecutor",
+        "/externalexecutor.protobuf.ExecutorRegistration/RegisterExecutor",
         HTTP_POST,
         ccf::grpc_adapter<
           externalexecutor::protobuf::NewExecutor,
@@ -164,7 +164,7 @@ namespace externalexecutor
 
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       make_endpoint(
-        "/ccf.KV/StartTx",
+        "/externalexecutor.protobuf.KV/StartTx",
         HTTP_POST,
         ccf::grpc_adapter<
           google::protobuf::Empty,
@@ -250,7 +250,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "/ccf.KV/EndTx",
+        "/externalexecutor.protobuf.KV/EndTx",
         HTTP_POST,
         ccf::grpc_adapter<
           externalexecutor::protobuf::ResponseDescription,
@@ -277,7 +277,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "/ccf.KV/Put",
+        "/externalexecutor.protobuf.KV/Put",
         HTTP_POST,
         ccf::grpc_adapter<
           externalexecutor::protobuf::KVKeyValue,
@@ -313,7 +313,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Get",
+        "/externalexecutor.protobuf.KV/Get",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
@@ -343,7 +343,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Has",
+        "/externalexecutor.protobuf.KV/Has",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
@@ -379,7 +379,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/GetVersion",
+        "/externalexecutor.protobuf.KV/GetVersion",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
@@ -406,7 +406,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Delete",
+        "/externalexecutor.protobuf.KV/Delete",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
@@ -423,7 +423,7 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/GetAll",
+        "/externalexecutor.protobuf.KV/GetAll",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVTable,
