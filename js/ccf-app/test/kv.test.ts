@@ -77,17 +77,12 @@ class TypeErasedKvMap<K, V> {
 
 describe("erased types", function () {
   const bar = new TypeErasedKvMap(kv.typedKv("bar", conv.int32, conv.uint16));
-  const key = "bar";
-  const key2 = "baz";
+  const key = "baz";
   const val = 65535;
 
   it("basic", function () {
-    assert.isFalse(bar.has(key));
-    assert.isFalse(bar.has(key2));
-    assert.equal(bar.get(key), undefined);
-    bar.set(key, val);
-    assert.equal(bar.get(key), val);
-    assert.isTrue(bar.has(key));
-    assert.isFalse(bar.has(key2));
+    assert.throws(() => bar.has(key), `${key} is not a number`);
+    assert.throws(() => bar.get(key), `${key} is not a number`);
+    assert.throws(() => bar.set(key, val), `${key} is not a number`);
   });
 });
