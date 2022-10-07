@@ -48,9 +48,9 @@ namespace ccf::grpc
   struct SuccessResponse
   {
     T body;
-    ccf::Status status;
+    ccf::protobuf::Status status;
 
-    SuccessResponse(const T& body_, ccf::Status status_) :
+    SuccessResponse(const T& body_, ccf::protobuf::Status status_) :
       body(body_),
       status(status_)
     {}
@@ -58,8 +58,8 @@ namespace ccf::grpc
 
   struct ErrorResponse
   {
-    ccf::Status status;
-    ErrorResponse(ccf::Status status_) : status(status_) {}
+    ccf::protobuf::Status status;
+    ErrorResponse(ccf::protobuf::Status status_) : status(status_) {}
   };
 
   template <typename T>
