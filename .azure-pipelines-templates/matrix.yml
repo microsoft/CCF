@@ -45,7 +45,7 @@ parameters:
     virtual_perf:
       ctest_args: '-L "perf|vegeta"'
     snpcc_perf:
-      ctest_args: '-L "perf|vegeta"'
+      ctest_args: '-L "perf"'
 
 jobs:
   # Debug
