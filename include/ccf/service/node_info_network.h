@@ -169,7 +169,7 @@ namespace ccf
   inline static std::pair<std::string, std::string> split_net_address(
     const NodeInfoNetwork::NetAddress& addr)
   {
-    auto [host, port] = nonstd::split_1(addr, ":");
+    auto [host, port] = nonstd::rsplit_1(addr, ":");
     return std::make_pair(std::string(host), std::string(port));
   }
 

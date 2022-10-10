@@ -358,7 +358,7 @@ class Node:
             addresses = json.load(f)
 
         for interface_name, resolved_address in addresses.items():
-            host, port = infra.interfaces.split_address(resolved_address)
+            host, port = infra.interfaces.split_netloc(resolved_address)
             interface = interfaces[interface_name]
             if self.remote_shim != infra.remote_shim.DockerShim:
                 assert (

@@ -323,7 +323,7 @@ class CurlClient:
             else:
                 cmd = ["curl"]
 
-            url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
+            url = f"{self.protocol}://{infra.interfaces.make_address(self.host, self.port)}{request.path}"
 
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
@@ -491,7 +491,7 @@ class RequestClient:
         try:
             response = self.session.request(
                 request.http_verb,
-                url=f"{self.protocol}://{self.host}:{self.port}{request.path}",
+                url=f"{self.protocol}://{infra.interfaces.make_address(self.host, self.port)}{request.path}",
                 auth=auth,
                 headers=extra_headers,
                 follow_redirects=request.allow_redirects,

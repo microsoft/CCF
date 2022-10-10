@@ -16,7 +16,10 @@ def split_netloc(netloc, default_port=0):
 
 
 def make_address(host, port=0):
-    return f"{host}:{port}"
+    if ":" in host:
+        return f"[{host}]:{port}"
+    else:
+        return f"{host}:{port}"
 
 
 DEFAULT_TRANSPORT_PROTOCOL = "tcp"
@@ -95,7 +98,7 @@ class RPCInterface(Interface):
     @staticmethod
     def to_json(interface):
         r = {
-            "bind_address": f"{interface.host}:{interface.port}",
+            "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",
             "app_protocol": interface.app_protocol.name,
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
