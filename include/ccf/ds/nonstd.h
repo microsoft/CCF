@@ -98,23 +98,45 @@ namespace nonstd
   static inline std::vector<std::string_view> split(
     const std::string_view& s,
     const std::string_view& separator = " ",
-    size_t max_split = SIZE_MAX)
+    size_t max_split = SIZE_MAX,
+    bool reverse = false)
   {
     std::vector<std::string_view> result;
 
-    auto separator_end = 0;
-    auto next_separator_start = s.find(separator);
-    while (next_separator_start != std::string_view::npos &&
-           result.size() < max_split)
+    if (reverse)
     {
-      result.push_back(
-        s.substr(separator_end, next_separator_start - separator_end));
+      auto prev_separator_start = s.size();
+      auto next_separator_start = s.rfind(separator);
+      while (next_separator_start != std::string_view::npos &&
+             result.size() < max_split)
+      {
+        auto separator_end = next_separator_start + separator.size();
 
-      separator_end = next_separator_start + separator.size();
-      next_separator_start = s.find(separator, separator_end);
+        result.push_back(
+          s.substr(separator_end, prev_separator_start - separator_end));
+
+        prev_separator_start = next_separator_start;
+        next_separator_start = s.rfind(separator, prev_separator_start - 1);
+      }
+
+      result.push_back(s.substr(0, prev_separator_start));
     }
+    else
+    {
+      auto separator_end = 0;
+      auto next_separator_start = s.find(separator);
+      while (next_separator_start != std::string_view::npos &&
+             result.size() < max_split)
+      {
+        result.push_back(
+          s.substr(separator_end, next_separator_start - separator_end));
 
-    result.push_back(s.substr(separator_end));
+        separator_end = next_separator_start + separator.size();
+        next_separator_start = s.find(separator, separator_end);
+      }
+
+      result.push_back(s.substr(separator_end));
+    }
     return result;
   }
 
@@ -122,9 +144,11 @@ namespace nonstd
    * auto [host, port] = nonstd::split_1("1.2.3.4:8000", ":")
    */
   static inline std::tuple<std::string_view, std::string_view> split_1(
-    const std::string_view& s, const std::string_view& separator)
+    const std::string_view& s,
+    const std::string_view& separator,
+    bool reverse = false)
   {
-    const auto v = split(s, separator, 1);
+    const auto v = split(s, separator, 1, reverse);
     if (v.size() == 1)
     {
       // If separator is not present, return {s, ""};

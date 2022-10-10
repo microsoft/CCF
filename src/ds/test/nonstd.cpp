@@ -44,6 +44,27 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
       REQUIRE(v[2] == "and good night!");
 
       {
+        INFO("split(max_splits=3)");
+        {
+          auto v = nonstd::split(s, " ", 3);
+          // NB: max_splits=3 => 4 returned segments
+          REQUIRE(v.size() == 4);
+          REQUIRE(v[0] == "Good");
+          REQUIRE(v[1] == "afternoon,");
+          REQUIRE(v[2] == "good");
+          REQUIRE(v[3] == "evening, and good night!");
+        }
+
+        {
+          auto v = nonstd::split(s, "afternoon", 3);
+          // NB: max_splits=3, but only 1 split possible => 2 returned segments
+          REQUIRE(v.size() == 2);
+          REQUIRE(v[0] == "Good ");
+          REQUIRE(v[1] == ", good evening, and good night!");
+        }
+      }
+
+      {
         INFO("split_1");
         auto t = nonstd::split_1(s, ", ");
         REQUIRE(std::get<0>(t) == "Good afternoon");
@@ -133,5 +154,19 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
   {
     INFO("Reverse");
+    const auto s = "Good afternoon, good evening, and good night!";
+
+    {
+      INFO("Split by spaces");
+      auto v = nonstd::split(s, " ", SIZE_MAX, true);
+      REQUIRE(v.size() == 7);
+      REQUIRE(v[0] == "night!");
+      REQUIRE(v[1] == "good");
+      REQUIRE(v[2] == "and");
+      REQUIRE(v[3] == "evening,");
+      REQUIRE(v[4] == "good");
+      REQUIRE(v[5] == "afternoon,");
+      REQUIRE(v[6] == "Good");
+    }
   }
 }
