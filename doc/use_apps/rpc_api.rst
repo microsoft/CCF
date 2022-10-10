@@ -12,8 +12,8 @@ By default, CCF will also add some built-in endpoints:
 .. openapi:: ../schemas/app_openapi.json
    :examples:
    :include:
-      /app/api
-      /app/tx
-      /app/commit
-      /app/receipt
-      /app/quote
+      /api
+      /tx
+      /commit
+      /receipt
+      /quote
