@@ -310,7 +310,7 @@ namespace loggingapp
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       committed_records = std::make_shared<CommittedRecords>();
-      CCF_APP_INFO("installing hook to {}", PRIVATE_RECORDS);
+      CCF_APP_INFO("Installing global hook to {}", PRIVATE_RECORDS);
       context.get_hook_system().install_global_hook(
         PRIVATE_RECORDS, [this](auto version, const auto& writes) {
           CCF_APP_INFO("updating committed_writes");
