@@ -122,7 +122,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
-Versions of the code allowed to join the current network.
+Versions of the code allowed to join the current network on :doc:`SGX <../architecture/platforms/sgx`, or measurement of the UVM on :doc:`SNP <../architecture/platforms/snp`.
 
 **Key** MRENCLAVE, represented as a base64 string.
 
@@ -146,7 +146,7 @@ Versions of the code allowed to join the current network.
 ``nodes.security_policies``
 ~~~~~~~~~~~~~~~~~~
 
-Security policies that nodes can run and join the current network.
+Security policies that nodes can run and join the current network on :doc:`SNP <../architecture/platforms/snp`.
 
 **Key** Security Policy Digest: Hash of the security policy string which is reported by the SNP attestation.
 

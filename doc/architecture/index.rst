@@ -10,6 +10,13 @@ Architecture
 
     ---
 
+    :fa:`window` :doc:`platforms/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Platforms supported by CCF.
+
+    ---
+
     :fa:`key` :doc:`cryptography`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
