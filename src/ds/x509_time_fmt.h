@@ -66,7 +66,8 @@ namespace ds
       int oh = 0;
       float s = 0.0;
 
-      if (sscanf(ts, fmt, &y, &m, &d, &h, &mn, &s, &oh, &om) == n)
+      int rs = sscanf(ts, fmt, &y, &m, &d, &h, &mn, &s, &oh, &om);
+      if (rs >= 1 && rs == n)
       {
         using namespace std::chrono;
 
@@ -76,19 +77,24 @@ namespace ds
           y += y >= 50 ? 1900 : 2000;
         }
 
-        auto date = year_month_day(year(y), month(m), day(d));
-
-        if (
-          !date.ok() || h > 24 || mn > 60 || s < 0.0 || s > 60.0 || oh < -23 ||
-          oh > 23 || om > 60)
+        if (rs >= 3)
         {
-          continue;
-        }
+          auto date = year_month_day(year(y), month(m), day(d));
 
-        system_clock::time_point r = (sys_days)date;
-        r += hours(h) + minutes(mn) + microseconds((long)(s * 1e6));
-        r -= hours(oh) + minutes(om);
-        return r;
+          if (
+            !date.ok() || (rs >= 6 && (h > 24 || mn > 60 || s < 0.0)) ||
+            (rs >= 8 && (s > 60.0 || oh < -23 || oh > 23 || om > 60)))
+          {
+            continue;
+          }
+
+          system_clock::time_point r = (sys_days)date;
+          if (rs >= 6)
+            r += hours(h) + minutes(mn) + microseconds((long)(s * 1e6));
+          if (rs >= 8)
+            r -= hours(oh) + minutes(om);
+          return r;
+        }
       }
     }
 

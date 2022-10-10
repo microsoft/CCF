@@ -126,7 +126,6 @@ class Network:
         "ubsan_options",
         "previous_service_identity_file",
         "acme",
-        "snp_endorsements_server_type",
         "snp_endorsements_servers",
     ]
 

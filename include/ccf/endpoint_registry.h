@@ -39,6 +39,9 @@ namespace ccf::endpoints
     PathTemplateSpec spec;
   };
 
+  void default_locally_committed_func(
+    CommandEndpointContext& ctx, const TxID& tx_id);
+
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
    *
@@ -170,6 +173,27 @@ namespace ccf::endpoints
       const ReadOnlyEndpointFunction& f,
       const AuthnPolicies& ap);
 
+    /** Create a new endpoint with a commit handler.
+     *
+     * Like make_endpoint but takes a functor to call once the transaction has
+     * been committed, but before consensus has completed.
+     */
+    virtual Endpoint make_endpoint_with_local_commit_handler(
+      const std::string& method,
+      RESTVerb verb,
+      const EndpointFunction& f,
+      const LocallyCommittedEndpointFunction& l,
+      const AuthnPolicies& ap);
+
+    /** See make_read_only_endpoint and make_endpoint_with_local_commit_handler.
+     */
+    virtual Endpoint make_read_only_endpoint_with_local_commit_handler(
+      const std::string& method,
+      RESTVerb verb,
+      const ReadOnlyEndpointFunction& f,
+      const LocallyCommittedEndpointFunction& l,
+      const AuthnPolicies& ap);
+
     /** Create a new command endpoint.
      *
      * Commands are endpoints which do not read or write from the KV. See
@@ -214,6 +238,9 @@ namespace ccf::endpoints
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args);
+
+    virtual void execute_endpoint_locally_committed(
+      EndpointDefinitionPtr e, CommandEndpointContext& args, const TxID& tx_id);
 
     virtual std::set<RESTVerb> get_allowed_verbs(
       kv::Tx&, const ccf::RpcContext& rpc_ctx);

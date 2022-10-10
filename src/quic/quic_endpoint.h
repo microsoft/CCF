@@ -35,18 +35,6 @@ namespace quic
       return status;
     }
 
-    virtual std::vector<uint8_t> oversized_message_error(
-      size_t msg_size, size_t max_msg_size)
-    {
-      const auto s = fmt::format(
-        "Requested message ({} bytes) is too large. Maximum allowed is {} "
-        "bytes. Closing connection.",
-        msg_size,
-        max_msg_size);
-      const auto data = (const uint8_t*)s.data();
-      return std::vector<uint8_t>(data, data + s.size());
-    }
-
   protected:
     using PendingBuffer = PendingIO<uint8_t>;
     using PendingList = std::vector<PendingBuffer>;

@@ -9,6 +9,7 @@
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/service_config.h"
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/security_policies.h"
 
 #include <optional>
 #include <string>
@@ -50,9 +51,7 @@ struct CCFConfig
 
   struct Attestation
   {
-    ccf::pal::snp::EndorsementsEndpointType snp_endorsements_server_type =
-      ccf::pal::snp::EndorsementsEndpointType::Azure;
-    std::vector<std::string> snp_endorsements_servers = {};
+    ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
 
     bool operator==(const Attestation&) const = default;
   };
@@ -72,6 +71,8 @@ struct StartupConfig : CCFConfig
   nlohmann::json service_data = nullptr;
 
   nlohmann::json node_data = nullptr;
+
+  std::optional<RawPolicy> security_policy;
 
   struct Start
   {

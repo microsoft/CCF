@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from base64 import b64encode
 import infra.e2e_args
 import infra.network
 import infra.path
@@ -8,7 +9,12 @@ import infra.utils
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
-from infra.is_snp import IS_SNP
+from infra.is_snp import (
+    DEFAULT_SNP_SECURITY_POLICY_B64,
+    IS_SNP,
+    DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+    DEFAULT_SNP_SECURITY_POLICY,
+)
 
 
 from loguru import logger as LOG
@@ -50,6 +56,137 @@ def test_verify_quotes(network, args):
         ), f"Quote verification for node {node.node_id} failed"
 
     return network
+
+
+@reqs.description("Test that the security policies table is correctly populated")
+@reqs.snp_only()
+def test_security_policy_table(network, args):
+
+    primary, _ = network.find_nodes()
+    with primary.client() as client:
+        r = client.get("/gov/security_policy")
+        policies = sorted(r.body.json()["policies"], key=lambda x: x["digest"])
+
+    expected = [
+        {
+            "digest": DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+            "raw": "",
+        }
+    ]
+    expected.sort(key=lambda x: x["digest"])
+
+    assert policies == expected, [(a, b) for a, b in zip(policies, expected)]
+
+
+@reqs.description(
+    """
+Node with no security policy set but good digest joins successfully when the
+KV also doesn't have a raw policy associated with the digest.
+"""
+)
+@reqs.snp_only()
+def test_add_node_with_raw_security_policy(network, args):
+
+    # If we don't throw an exception, joining was successful
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        timeout=3,
+        env={"SECURITY_POLICY": DEFAULT_SNP_SECURITY_POLICY_B64},
+    )
+    network.trust_node(new_node, args)
+
+
+@reqs.description(
+    """
+Node with no security policy set but good digest joins successfully when the
+KV does have a raw policy associated with the digest.
+"""
+)
+@reqs.snp_only()
+def test_add_node_with_no_raw_security_policy_not_matching_kv(network, args):
+
+    LOG.info("Change the entry for trusted security policies to include a raw policy")
+    primary, _ = network.find_nodes()
+    network.consortium.retire_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+    network.consortium.add_new_security_policy(
+        primary,
+        DEFAULT_SNP_SECURITY_POLICY,
+        DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+    )
+
+    # If we don't throw an exception, joining was successful
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, timeout=3)
+    network.trust_node(new_node, args)
+
+    network.consortium.retire_security_policy(
+        primary,
+        DEFAULT_SNP_SECURITY_POLICY_DIGEST,
+    )
+    network.consortium.add_new_security_policy(
+        primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+
+
+@reqs.description("Node where raw security policy doesn't match digest fails to join")
+@reqs.snp_only()
+def test_add_node_with_mismatched_security_policy_digest(network, args):
+
+    try:
+        new_node = network.create_node("local://localhost")
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            env={"SECURITY_POLICY": b64encode(b"invalid_security_policy").decode()},
+        )
+        network.trust_node(new_node, args)
+    except TimeoutError:
+        ...
+    else:
+        raise AssertionError("Node joining unexpectedly succeeded")
+
+    new_node.stop()
+
+
+@reqs.description("Node with bad security policy digest fails to join")
+@reqs.snp_only()
+def test_add_node_with_bad_security_policy_digest(network, args):
+
+    primary, _ = network.find_nodes()
+
+    LOG.info(
+        "Removing security policy set by node 0 so that a new joiner is seen as an unmatching policy"
+    )
+    network.consortium.retire_security_policy(
+        primary, DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+
+    new_node = network.create_node("local://localhost")
+    try:
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            env={"SECURITY_POLICY": DEFAULT_SNP_SECURITY_POLICY_B64},
+        )
+        network.trust_node(new_node, args)
+    except Exception:
+        ...
+    else:
+        raise AssertionError("Node joining unexpectedly succeeded")
+
+    network.consortium.add_new_security_policy(
+        primary, "", DEFAULT_SNP_SECURITY_POLICY_DIGEST
+    )
+    new_node.stop()
 
 
 @reqs.description("Node with bad code fails to join")
@@ -245,6 +382,11 @@ def run(args):
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
+        test_security_policy_table(network, args)
+        test_add_node_with_raw_security_policy(network, args)
+        test_add_node_with_no_raw_security_policy_not_matching_kv(network, args)
+        test_add_node_with_mismatched_security_policy_digest(network, args)
+        test_add_node_with_bad_security_policy_digest(network, args)
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
         test_proposal_invalidation(network, args)
