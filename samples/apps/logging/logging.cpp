@@ -134,6 +134,33 @@ namespace loggingapp
   };
   // SNIPPET_END: custom_auth_policy
 
+  class CommittedRecords
+  {
+  private:
+    std::map<size_t, std::string> records;
+
+  public:
+    std::optional<std::string> get(size_t id)
+    {
+      auto search = records.find(id);
+      if (search == records.end())
+      {
+        return std::nullopt;
+      }
+      return search->second;
+    }
+
+    void put(size_t k, std::string v)
+    {
+      records[k] = v;
+    }
+
+    void remove(size_t k)
+    {
+      records.erase(k);
+    }
+  };
+
   // SNIPPET: inherit_frontend
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
@@ -145,6 +172,8 @@ namespace loggingapp
     const nlohmann::json get_public_result_schema;
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
+
+    std::shared_ptr<CommittedRecords> committed_records = nullptr;
 
     static void update_first_write(
       kv::Tx& tx,
@@ -280,6 +309,32 @@ namespace loggingapp
         PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
+      committed_records = std::make_shared<CommittedRecords>();
+      CCF_APP_INFO("installing hook to {}", PRIVATE_RECORDS);
+      context.get_hook_system().install_global_hook(
+        PRIVATE_RECORDS, [this](auto version, const auto& writes) {
+          CCF_APP_INFO("updating committed_writes");
+          for (const auto& write : writes)
+          {
+            kv::serialisers::JsonSerialiser<size_t> jk;
+            size_t k = jk.from_serialised(write.first);
+            CCF_APP_INFO("write had key {}",k);
+            if (write.second.has_value())
+            {
+              kv::serialisers::JsonSerialiser<std::string> jv;
+              auto v = jv.from_serialised(write.second.value());
+              CCF_APP_INFO("write had value {}", v);
+              committed_records->put(k, v);
+            }
+            else
+            {
+              CCF_APP_INFO("write didn't have value");
+              committed_records->remove(k);
+            }
+          }
+          CCF_APP_INFO("finished updating committed_writes");
+        });
+
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
@@ -298,6 +353,7 @@ namespace loggingapp
         }
 
         // SNIPPET: private_table_access
+        CCF_APP_INFO("writing to map {}", private_records(ctx));
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         // SNIPPET_END: private_table_access
@@ -418,6 +474,43 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
+
+      auto get_committed = [this](auto& ctx, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto record = committed_records->get(id);
+
+        if (record.has_value())
+        {
+          return ccf::make_success(LoggingGet::Out{record.value()});
+        }
+
+        return ccf::make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::ResourceNotFound,
+          fmt::format("No such record: {}.", id));
+      };
+
+      make_read_only_endpoint(
+        "/log/private/committed",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get_committed),
+        ccf::no_auth_required)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .install();
 
       auto remove = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
