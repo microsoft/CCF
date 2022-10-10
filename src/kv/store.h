@@ -1231,7 +1231,7 @@ namespace kv
       }
     }
 
-    void set_global_hook(
+    bool set_global_hook(
       const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
     {
       global_hooks[map_name] = hook;
@@ -1239,8 +1239,9 @@ namespace kv
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        it->second.second->set_global_hook(hook);
+        return it->second.second->set_global_hook(hook);
       }
+      return false;
     }
 
     void unset_global_hook(const std::string& map_name)

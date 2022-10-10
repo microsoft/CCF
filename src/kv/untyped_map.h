@@ -580,9 +580,11 @@ namespace kv::untyped
      *
      * @param hook function to be called on global transaction commit
      */
-    void set_global_hook(const CommitHook& hook)
+    bool set_global_hook(const CommitHook& hook)
     {
+      bool was_set = global_hook != nullptr;
       global_hook = hook;
+      return was_set;
     }
 
     /** Reset global transaction commit handler
