@@ -1543,9 +1543,6 @@ def test_committed_index(network, args):
     _, log_id = network.txs.get_log_id(txid)
     network.txs.delete(log_id, priv=True)
 
-    # works if we trigger a compaction
-    # network.txs.issue(network, number_txs=1, send_public=False)
-
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
     assert r.body.json() == {"error":{"code":"ResourceNotFound","message":"No such record: 1."}}
