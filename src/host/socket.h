@@ -89,7 +89,8 @@ namespace asynchost
         LOG_FAIL_FMT("uv_ip6_name failed: {}", uv_strerror(rc));
       }
 
-      return {buf, fmt::format("{}", ntohs(in6->sin6_port))};
+      return {
+        fmt::format("[{}]", buf), fmt::format("{}", ntohs(in6->sin6_port))};
     }
 
     assert(address_family == AF_INET);
