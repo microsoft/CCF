@@ -43,7 +43,6 @@ setup(
         path.join(PACKAGE_NAME, "read_ledger.py"),
         path.join(PACKAGE_NAME, "ledger_viz.py"),
         path.join(PACKAGE_NAME, "split_ledger.py"),
-        path.join(PACKAGE_NAME, "migrate_1_x_config.py"),
         path.join(UTILITIES_PATH, "keygenerator.sh"),
         path.join(UTILITIES_PATH, "scurl.sh"),
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),

@@ -239,7 +239,7 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest) override
     {
-      return EnclaveAttestationProvider::verify_quote_against_store(
+      return AttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
     }
 
@@ -282,7 +282,7 @@ namespace ccf
     //
     void launch_node()
     {
-      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+      auto code_id = AttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
         node_code_id = code_id.value();
@@ -290,6 +290,38 @@ namespace ccf
       else
       {
         throw std::logic_error("Failed to extract code id from quote");
+      }
+
+      // Verify that the security policy matches the quoted digest of the policy
+      if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
+      {
+        auto quoted_digest =
+          AttestationProvider::get_security_policy_digest(quote_info);
+        if (!quoted_digest.has_value())
+        {
+          throw std::logic_error("Unable to find security policy");
+        }
+
+        if (!config.security_policy.has_value())
+        {
+          LOG_INFO_FMT(
+            "Security Policy environment variable not set, skipping check "
+            "against digest");
+        }
+        else
+        {
+          auto digest = crypto::Sha256Hash(config.security_policy.value());
+          if (digest != quoted_digest.value())
+          {
+            throw std::logic_error(fmt::format(
+              "Raw security policy {} digested to {} doesn't match digest {} "
+              "provided in attestation",
+              config.security_policy.value(),
+              digest.hex_str(),
+              quoted_digest.value().hex_str()));
+          }
+          LOG_INFO_FMT("Digest matches raw security policy");
+        }
       }
 
       switch (start_type)
@@ -1817,6 +1849,7 @@ namespace ccf
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
+      create_params.security_policy = config.security_policy;
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
       create_params.service_data = config.service_data;
