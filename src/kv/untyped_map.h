@@ -123,6 +123,11 @@ namespace kv::untyped
       return map;
     }
 
+    bool has_global_hook()
+    {
+      return global_user_hook || global_system_hook;
+    }
+
   public:
     class HandleCommitter : public AbstractCommitter
     {
@@ -609,7 +614,6 @@ namespace kv::untyped
       global_system_hook = nullptr;
     }
 
-
     /** Reset global transaction commit handler
      */
     void unset_global_user_hook()
@@ -726,7 +730,7 @@ namespace kv::untyped
         if (r->version == v)
         {
           // We know that write set is not empty.
-          if (global_user_hook || global_system_hook)
+          if (has_global_hook())
           {
             commit_deltas.emplace_back(r->version, std::move(r->writes));
           }
@@ -734,7 +738,7 @@ namespace kv::untyped
         }
 
         // Discardable, so move to commit_deltas.
-        if ((global_user_hook || global_system_hook) && !r->writes.empty())
+        if (has_global_hook() && !r->writes.empty())
         {
           commit_deltas.emplace_back(r->version, std::move(r->writes));
         }
@@ -751,7 +755,7 @@ namespace kv::untyped
       // There is only one roll. We may need to call the commit hook.
       auto r = roll.commits->get_head();
 
-      if ((global_user_hook || global_system_hook) && !r->writes.empty())
+      if (has_global_hook() && !r->writes.empty())
       {
         commit_deltas.emplace_back(r->version, std::move(r->writes));
       }
@@ -759,20 +763,12 @@ namespace kv::untyped
 
     void post_compact() override
     {
-      if (global_system_hook)
+      for (const auto& [version, writes] : commit_deltas)
       {
-        for (auto& [version, writes] : commit_deltas)
-        {
+        if (global_system_hook)
           global_system_hook(version, writes);
-        }
-      }
-
-      if (global_user_hook)
-      {
-        for (auto& [version, writes] : commit_deltas)
-        {
+        if (global_user_hook)
           global_user_hook(version, writes);
-        }
       }
 
       commit_deltas.clear();
