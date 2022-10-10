@@ -1,11 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License.
+# Licensed under the Apache 2.0 License.
 
-import base64
 from typing import Optional
 
 import cbor2
-import hashlib
 import cose.headers
 from cose.keys.ec2 import EC2Key
 from cose.keys.curves import P256, P384, P521
@@ -19,11 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.serialization import (
-    load_pem_private_key,
-    Encoding,
-    PublicFormat,
-)
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 Pem = str
 

@@ -605,7 +605,11 @@ def test_cose_auth(network, args):
     print(len(signed_statement))
     print(signed_statement)
     with primary.client() as c:
-        r = c.post("/gov/test", body=signed_statement, headers={"content-type": "application/cose"})
+        r = c.post(
+            "/gov/test",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
         assert r.status_code == 200
         pprint.pprint(r.body.json())
 
@@ -616,7 +620,11 @@ def test_cose_auth(network, args):
     print(len(signed_statement))
     print(signed_statement)
     with primary.client() as c:
-        r = c.post("/gov/test", body=signed_statement, headers={"content-type": "application/cose"})
+        r = c.post(
+            "/gov/test",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
         assert r.status_code == 401
         pprint.pprint(r.body.json())
 
@@ -666,9 +674,12 @@ def js_gov(args):
 
 
 def cose(args):
-    with infra.network.network(args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb) as network:
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
         network.start_and_open(args)
         test_cose_auth(network, args)
+
 
 if __name__ == "__main__":
 
@@ -688,7 +699,7 @@ if __name__ == "__main__":
         initial_user_count=3,
         authenticate_session=True,
     )
-    cr.run(1)    
+    cr.run(1)
 
     # cr.add(
     #     "session_auth",
