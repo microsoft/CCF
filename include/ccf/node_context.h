@@ -5,6 +5,7 @@
 #include "ccf/historical_queries_interface.h"
 #include "ccf/indexing/indexer_interface.h"
 #include "ccf/node_subsystem_interface.h"
+#include "ccf/hooks/hook_system.h"
 
 namespace ccfapp
 {
@@ -92,6 +93,17 @@ namespace ccfapp
           "Calling get_indexing_strategies before subsystem is installed");
       }
       return *indexer;
+    }
+
+    ccf::hooks::HookSystem& get_hook_system()
+    {
+      auto hook_sys = get_subsystem<ccf::hooks::HookSystem>();
+      if (hook_sys == nullptr)
+      {
+        throw std::logic_error(
+          "Calling get_hook_system before subsystem is installed");
+      }
+      return *hook_sys;
     }
   };
 }

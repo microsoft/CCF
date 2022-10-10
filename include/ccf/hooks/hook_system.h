@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
+#include "ccf/hooks/hook_system.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/node_subsystem_interface.h"
-#include "kv/kv_types.h"
 #include "kv/store.h"
 
 #include <memory>
