@@ -17,10 +17,13 @@ describe("typedKv", function () {
   const val = 65535;
 
   it("basic", function () {
+    assert.isFalse(foo.has(key));
+    assert.isFalse(foo.has(key2));
     assert.equal(foo.get(key), undefined);
     foo.set(key, val);
     assert.equal(foo.get(key), val);
     assert.isTrue(foo.has(key));
+    assert.isFalse(foo.has(key2));
     let found = false;
     foo.forEach((v, k) => {
       if (k == key && v == val) {
@@ -29,7 +32,8 @@ describe("typedKv", function () {
     });
     assert.isTrue(found);
     foo.delete(key);
-    assert.isNotTrue(foo.has(key));
+    assert.isFalse(foo.has(key));
+    assert.isFalse(foo.has(key2));
     assert.equal(foo.get(key), undefined);
   });
 
@@ -57,5 +61,31 @@ describe("typedKv", function () {
     assert.equal(foo.size, 2);
     foo.clear();
     assert.equal(foo.size, 0);
+  });
+});
+
+class TypeErasedKvMap<K, V> {
+  constructor(private map: kv.TypedKvMap<K, V>) {}
+
+  has(key: any): boolean {
+    return this.map.has(key);
+  }
+  get(key: any): V | undefined {
+    return this.map.get(key);
+  }
+  set(key: any, value: V) {
+    this.map.set(key, value);
+  }
+}
+
+describe("erased types", function () {
+  const bar = new TypeErasedKvMap(kv.typedKv("bar", conv.int32, conv.uint16));
+  const key = "baz";
+  const val = 65535;
+
+  it("basic", function () {
+    assert.throws(() => bar.has(key), `${key} is not a number`);
+    assert.throws(() => bar.get(key), `${key} is not a number`);
+    assert.throws(() => bar.set(key, val), `${key} is not a number`);
   });
 });
