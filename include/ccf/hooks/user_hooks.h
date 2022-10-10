@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/hooks/hook_system.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/node_subsystem_interface.h"
 #include "kv/store.h"
@@ -12,17 +11,17 @@
 
 namespace ccf::hooks
 {
-  class HookSystem : public ccf::AbstractNodeSubSystem
+  class UserHooks : public ccf::AbstractNodeSubSystem
   {
   protected:
     std::shared_ptr<kv::Store> tables;
 
   public:
-    HookSystem(std::shared_ptr<kv::Store> tables_) : tables(tables_) {}
+    UserHooks(std::shared_ptr<kv::Store> tables_) : tables(tables_) {}
 
     static std::string get_subsystem_name()
     {
-      return "HookSystem";
+      return "UserHooks";
     }
 
     // Install a new hook that gets invoked with entries once they have been

@@ -311,7 +311,7 @@ namespace loggingapp
 
       committed_records = std::make_shared<CommittedRecords>();
       CCF_APP_INFO("Installing global hook to {}", PRIVATE_RECORDS);
-      context.get_hook_system().install_global_hook(
+      context.get_user_hooks().install_global_hook(
         PRIVATE_RECORDS, [this](auto version, const auto& writes) {
           CCF_APP_INFO("updating committed_writes");
           for (const auto& write : writes)

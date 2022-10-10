@@ -3,7 +3,7 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "ccf/hooks/hook_system.h"
+#include "ccf/hooks/user_hooks.h"
 #include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "ds/oversized.h"
@@ -70,7 +70,7 @@ namespace ccf
     std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
       nullptr;
     std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
-    std::shared_ptr<ccf::hooks::HookSystem> hook_system = nullptr;
+    std::shared_ptr<ccf::hooks::UserHooks> user_hooks = nullptr;
     std::shared_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
     std::shared_ptr<ccf::HostProcesses> host_processes = nullptr;
 
@@ -134,8 +134,8 @@ namespace ccf
           historical_state_cache));
       context->install_subsystem(indexer);
 
-      hook_system = std::make_shared<ccf::hooks::HookSystem>(network.tables);
-      context->install_subsystem(hook_system);
+      user_hooks = std::make_shared<ccf::hooks::UserHooks>(network.tables);
+      context->install_subsystem(user_hooks);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
         writer_factory->create_writer_to_outside());
