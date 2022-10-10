@@ -25,16 +25,14 @@ namespace ccf::hooks
       return "HookSystem";
     }
 
-    // install a new hook that gets invoked with entries once they have been
+    // Install a new hook that gets invoked with entries once they have been
     // globally committed (gone through consensus).
     //
     // Returns whether the install overwrote an existing hook.
     bool install_global_hook(
       const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
     {
-      // register the hook
-      // TODO: check overlapping map names with already registered indexes
-      return tables->set_global_hook(map_name, hook);
+      return tables->set_global_user_hook(map_name, hook);
     }
   };
 }

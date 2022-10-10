@@ -387,14 +387,14 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   INFO("Set hooks on target store");
   {
     new_store.set_map_hook(string_map, new_string_map.wrap_map_hook(map_hook));
-    new_store.set_global_hook(
+    new_store.set_global_system_hook(
       string_map, new_string_map.wrap_commit_hook(global_map_hook));
     new_store.set_map_hook(
       string_value, new_string_value.wrap_map_hook(value_hook));
-    new_store.set_global_hook(
+    new_store.set_global_system_hook(
       string_value, new_string_value.wrap_commit_hook(global_value_hook));
     new_store.set_map_hook(string_set, new_string_set.wrap_map_hook(set_hook));
-    new_store.set_global_hook(
+    new_store.set_global_system_hook(
       string_set, new_string_set.wrap_commit_hook(global_set_hook));
   }
 

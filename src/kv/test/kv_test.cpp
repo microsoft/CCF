@@ -260,7 +260,7 @@ TEST_CASE("sets and values")
       };
 
       kv_store.set_map_hook(set.get_name(), set.wrap_map_hook(map_hook));
-      kv_store.set_global_hook(
+      kv_store.set_global_system_hook(
         set.get_name(), set.wrap_commit_hook(global_hook));
 
       {
@@ -407,7 +407,7 @@ TEST_CASE("sets and values")
       };
 
       kv_store.set_map_hook(val1.get_name(), val1.wrap_map_hook(map_hook));
-      kv_store.set_global_hook(
+      kv_store.set_global_system_hook(
         val1.get_name(), val1.wrap_commit_hook(global_hook));
 
       {
@@ -1715,7 +1715,7 @@ TEST_CASE("Local commit hooks")
   constexpr auto map_name = "public:map";
   MapTypes::StringString map(map_name);
   kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
-  kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
+  kv_store.set_global_system_hook(map_name, map.wrap_commit_hook(global_hook));
 
   INFO("Write with hooks");
   {
@@ -1758,7 +1758,7 @@ TEST_CASE("Local commit hooks")
   INFO("Write without hooks");
   {
     kv_store.unset_map_hook(map_name);
-    kv_store.unset_global_hook(map_name);
+    kv_store.unset_global_system_hook(map_name);
 
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
@@ -1772,7 +1772,7 @@ TEST_CASE("Local commit hooks")
   INFO("Write with hook again");
   {
     kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
-    kv_store.set_global_hook(map_name, map.wrap_commit_hook(global_hook));
+    kv_store.set_global_system_hook(map_name, map.wrap_commit_hook(global_hook));
 
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
@@ -1820,7 +1820,7 @@ TEST_CASE("Global commit hooks")
   kv_store.set_encryptor(encryptor);
   using MapT = kv::Map<std::string, std::string>;
   MapT map_with_hook("public:map_with_hook");
-  kv_store.set_global_hook(
+  kv_store.set_global_system_hook(
     map_with_hook.get_name(), map_with_hook.wrap_commit_hook(global_hook));
 
   MapT map_no_hook("public:map_no_hook");

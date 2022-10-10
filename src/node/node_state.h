@@ -2029,7 +2029,7 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
-      network.tables->set_global_hook(
+      network.tables->set_global_system_hook(
         network.secrets.get_name(),
         network.secrets.wrap_commit_hook([this](
                                            kv::Version hook_version,
@@ -2093,7 +2093,7 @@ namespace ccf
           }
         }));
 
-      network.tables->set_global_hook(
+      network.tables->set_global_system_hook(
         network.encrypted_submitted_shares.get_name(),
         network.encrypted_submitted_shares.wrap_commit_hook(
           [this](
@@ -2159,7 +2159,7 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
-      network.tables->set_global_hook(
+      network.tables->set_global_system_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_commit_hook(
           [this](
@@ -2206,7 +2206,7 @@ namespace ccf
             }
           }));
 
-      network.tables->set_global_hook(
+      network.tables->set_global_system_hook(
         network.service.get_name(),
         network.service.wrap_commit_hook([this](
                                            kv::Version hook_version,
@@ -2240,7 +2240,7 @@ namespace ccf
           }
         }));
 
-      network.tables->set_global_hook(
+      network.tables->set_global_system_hook(
         network.acme_certificates.get_name(),
         network.acme_certificates.wrap_commit_hook(
           [this](kv::Version hook_version, const ACMECertificates::Write& w) {
@@ -2461,7 +2461,7 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
-      network.tables->set_global_hook(
+      network.tables->set_global_system_hook(
         network.config.get_name(),
         network.config.wrap_commit_hook(
           [c = this->consensus](

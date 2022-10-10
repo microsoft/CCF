@@ -86,7 +86,11 @@ namespace kv
   private:
     using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
     using MapHooks = std::map<std::string, kv::untyped::Map::MapHook>;
-    Hooks global_hooks;
+    // store system (CCF) hooks separately from user hooks so that they can't
+    // accidentally override or delete some functionality and cause issues.
+    Hooks global_user_hooks;
+    Hooks global_system_hooks;
+
     MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
@@ -288,10 +292,16 @@ namespace kv
 
       {
         // If we have any hooks for the given map name, set them on this new map
-        const auto global_it = global_hooks.find(map_name);
-        if (global_it != global_hooks.end())
+        const auto global_it = global_user_hooks.find(map_name);
+        if (global_it != global_user_hooks.end())
         {
-          map->set_global_hook(global_it->second);
+          map->set_global_user_hook(global_it->second);
+        }
+
+        const auto global_system_it = global_system_hooks.find(map_name);
+        if (global_system_it != global_system_hooks.end())
+        {
+          map->set_global_system_hook(global_system_it->second);
         }
 
         const auto map_it = map_hooks.find(map_name);
@@ -1231,27 +1241,53 @@ namespace kv
       }
     }
 
-    bool set_global_hook(
+    bool set_global_user_hook(
       const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
     {
-      global_hooks[map_name] = hook;
+      global_user_hooks[map_name] = hook;
 
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        return it->second.second->set_global_hook(hook);
+        return it->second.second->set_global_user_hook(hook);
       }
       return false;
     }
 
-    void unset_global_hook(const std::string& map_name)
+    // like set_global_user_hook but not exposed to client applications to stop
+    // them overwriting system-level hooks
+    bool set_global_system_hook(
+      const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
     {
-      global_hooks.erase(map_name);
+      global_system_hooks[map_name] = hook;
 
       const auto it = maps.find(map_name);
       if (it != maps.end())
       {
-        it->second.second->unset_global_hook();
+        return it->second.second->set_global_system_hook(hook);
+      }
+      return false;
+    }
+
+    void unset_global_system_hook(const std::string& map_name)
+    {
+      global_system_hooks.erase(map_name);
+
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        it->second.second->unset_global_system_hook();
+      }
+    }
+
+    void unset_global_user_hook(const std::string& map_name)
+    {
+      global_user_hooks.erase(map_name);
+
+      const auto it = maps.find(map_name);
+      if (it != maps.end())
+      {
+        it->second.second->unset_global_user_hook();
       }
     }
 

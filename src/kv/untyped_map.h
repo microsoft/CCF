@@ -79,7 +79,11 @@ namespace kv::untyped
   private:
     AbstractStore* store;
     Roll roll;
-    CommitHook global_hook = nullptr;
+
+    // store system (CCF) hooks separately from user hooks so that they can't
+    // accidentally override or delete some functionality and cause issues.
+    CommitHook global_user_hook = nullptr;
+    CommitHook global_system_hook = nullptr;
     MapHook hook = nullptr;
     std::list<std::pair<Version, Write>> commit_deltas;
     ccf::pal::Mutex sl;
@@ -459,7 +463,7 @@ namespace kv::untyped
 
         // Executing hooks from snapshot requires copying the entire snapshotted
         // state so only do it if there's a hook on the table
-        if (map.hook || map.global_hook)
+        if (map.hook || map.global_user_hook || map.global_system_hook)
         {
           r->state.foreach([&r](const K& k, const VersionV& v) {
             r->writes[k] = v.value;
@@ -580,18 +584,37 @@ namespace kv::untyped
      *
      * @param hook function to be called on global transaction commit
      */
-    bool set_global_hook(const CommitHook& hook)
+    bool set_global_user_hook(const CommitHook& hook)
     {
-      bool was_set = global_hook != nullptr;
-      global_hook = hook;
+      bool was_set = global_user_hook != nullptr;
+      global_user_hook = hook;
+      return was_set;
+    }
+
+    /** Set handler to be called on global transaction commit
+     *
+     * @param hook function to be called on global transaction commit
+     */
+    bool set_global_system_hook(const CommitHook& hook)
+    {
+      bool was_set = global_system_hook != nullptr;
+      global_system_hook = hook;
       return was_set;
     }
 
     /** Reset global transaction commit handler
      */
-    void unset_global_hook()
+    void unset_global_system_hook()
     {
-      global_hook = nullptr;
+      global_system_hook = nullptr;
+    }
+
+
+    /** Reset global transaction commit handler
+     */
+    void unset_global_user_hook()
+    {
+      global_user_hook = nullptr;
     }
 
     /** Get security domain of a Map
@@ -703,7 +726,7 @@ namespace kv::untyped
         if (r->version == v)
         {
           // We know that write set is not empty.
-          if (global_hook)
+          if (global_user_hook || global_system_hook)
           {
             commit_deltas.emplace_back(r->version, std::move(r->writes));
           }
@@ -711,7 +734,7 @@ namespace kv::untyped
         }
 
         // Discardable, so move to commit_deltas.
-        if (global_hook && !r->writes.empty())
+        if ((global_user_hook || global_system_hook) && !r->writes.empty())
         {
           commit_deltas.emplace_back(r->version, std::move(r->writes));
         }
@@ -728,7 +751,7 @@ namespace kv::untyped
       // There is only one roll. We may need to call the commit hook.
       auto r = roll.commits->get_head();
 
-      if (global_hook && !r->writes.empty())
+      if ((global_user_hook || global_system_hook) && !r->writes.empty())
       {
         commit_deltas.emplace_back(r->version, std::move(r->writes));
       }
@@ -736,11 +759,19 @@ namespace kv::untyped
 
     void post_compact() override
     {
-      if (global_hook)
+      if (global_system_hook)
       {
         for (auto& [version, writes] : commit_deltas)
         {
-          global_hook(version, writes);
+          global_system_hook(version, writes);
+        }
+      }
+
+      if (global_user_hook)
+      {
+        for (auto& [version, writes] : commit_deltas)
+        {
+          global_user_hook(version, writes);
         }
       }
 
