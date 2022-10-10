@@ -27,7 +27,13 @@ Updating Code Version
 
 For new nodes to be able to join the network, the version of the code they run (as specified by ``enclave.file``) should be first trusted by the consortium of members.
 
-If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create an ``add_node_code`` proposal, specifying the new code version.
+If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can use the following endpoints depending on the platform:
+
+- SGX
+Create an ``add_node_code`` proposal, specifying the new code version.
+
+- SNP
+If the new code requires a new security policy, create an ``add_security_policy`` proposal, specifying both the raw policy string and the digest of the policy, (SHA-256 of the raw policy)
 
 .. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
 
