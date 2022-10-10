@@ -391,11 +391,14 @@ class LoggingTxs:
             else:
                 self.pub.pop(log_id)
 
-    def request(self, log_id, priv=False, log_capture=None, user=None):
+    def request(self, log_id, priv=False, log_capture=None, user=None, url_suffix=""):
         primary, _ = self.network.find_primary(log_capture=log_capture)
         with primary.client(user or self.user) as c:
             table = "private" if priv else "public"
-            url = f"/app/log/{table}?id={log_id}"
+            url = f"/app/log/{table}"
+            if url_suffix:
+                url += "/" + url_suffix
+            url += f"?id={log_id}"
             if self.scope is not None:
                 url += "&scope=" + self.scope
             return c.get(url, headers=None if user else self._get_headers_base())
