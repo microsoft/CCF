@@ -318,7 +318,7 @@ namespace loggingapp
           {
             kv::serialisers::JsonSerialiser<size_t> jk;
             size_t k = jk.from_serialised(write.first);
-            CCF_APP_INFO("write had key {}",k);
+            CCF_APP_INFO("write had key {}", k);
             if (write.second.has_value())
             {
               kv::serialisers::JsonSerialiser<std::string> jv;

@@ -1531,12 +1531,15 @@ def test_post_local_commit_failure(network, args):
             }
         }, r.body.json()
 
-@reqs.description("Check that the committed index gets populated with creates and deletes")
+
+@reqs.description(
+    "Check that the committed index gets populated with creates and deletes"
+)
 @reqs.supports_methods("/app/log/private")
 def test_committed_index(network, args):
     txid = network.txs.issue(network, number_txs=1, send_public=False)
 
-    r = network.txs.request(1, priv=True, url_suffix="committed" )
+    r = network.txs.request(1, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.OK.value, r.status_code
     assert r.body.json() == {"msg": "Private message at idx 1 [0]"}
 
@@ -1545,11 +1548,15 @@ def test_committed_index(network, args):
 
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {"error":{"code":"ResourceNotFound","message":"No such record: 1."}}
+    assert r.body.json() == {
+        "error": {"code": "ResourceNotFound", "message": "No such record: 1."}
+    }
 
-    r = network.txs.request(log_id, priv=True, url_suffix="committed" )
+    r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {"error":{"code":"ResourceNotFound","message":"No such record: 1."}}
+    assert r.body.json() == {
+        "error": {"code": "ResourceNotFound", "message": "No such record: 1."}
+    }
 
 
 def run_udp_tests(args):
@@ -1622,16 +1629,16 @@ def run(args):
         test_committed_index(network, args)
         # BFT does not handle re-keying yet
         # if args.consensus == "CFT":
-            # test_liveness(network, args)
-            # test_rekey(network, args)
-            # test_liveness(network, args)
-            # test_random_receipts(network, args, False)
+        # test_liveness(network, args)
+        # test_rekey(network, args)
+        # test_liveness(network, args)
+        # test_random_receipts(network, args, False)
         # if args.package == "samples/apps/logging/liblogging":
-            # test_receipts(network, args)
-            # test_historical_query_sparse(network, args)
+        # test_receipts(network, args)
+        # test_historical_query_sparse(network, args)
         # if "v8" not in args.package:
-            # test_historical_receipts(network, args)
-            # test_historical_receipts_with_claims(network, args)
+        # test_historical_receipts(network, args)
+        # test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1703,12 +1710,12 @@ if __name__ == "__main__":
     #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     #     )
 
-        # cr.add(
-        #     "cpp_illegal",
-        #     run_parsing_errors,
-        #     package="samples/apps/logging/liblogging",
-        #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        # )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     # # This is just for the UDP echo test for now
     # cr.add(

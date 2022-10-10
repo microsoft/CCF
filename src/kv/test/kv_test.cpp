@@ -1772,7 +1772,8 @@ TEST_CASE("Local commit hooks")
   INFO("Write with hook again");
   {
     kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
-    kv_store.set_global_system_hook(map_name, map.wrap_commit_hook(global_hook));
+    kv_store.set_global_system_hook(
+      map_name, map.wrap_commit_hook(global_hook));
 
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);

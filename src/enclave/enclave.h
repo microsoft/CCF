@@ -3,11 +3,11 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
-#include "ccf/hooks/user_hooks.h"
 #include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
+#include "hooks/user_hooks.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -134,7 +134,8 @@ namespace ccf
           historical_state_cache));
       context->install_subsystem(indexer);
 
-      user_hooks = std::make_shared<ccf::hooks::UserHooks>(network.tables);
+      user_hooks =
+        std::make_shared<ccf::hooks::UserHooksInternal>(network.tables);
       context->install_subsystem(user_hooks);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(

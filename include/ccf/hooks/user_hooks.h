@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/kv/hooks.h"
+#include "ccf/kv/untyped.h"
 #include "ccf/node_subsystem_interface.h"
-#include "kv/store.h"
 
 #include <memory>
 #include <string>
@@ -13,11 +13,8 @@ namespace ccf::hooks
 {
   class UserHooks : public ccf::AbstractNodeSubSystem
   {
-  protected:
-    std::shared_ptr<kv::Store> tables;
-
   public:
-    UserHooks(std::shared_ptr<kv::Store> tables_) : tables(tables_) {}
+    UserHooks() = default;
 
     static std::string get_subsystem_name()
     {
@@ -28,10 +25,7 @@ namespace ccf::hooks
     // globally committed (gone through consensus).
     //
     // Returns whether the install overwrote an existing hook.
-    bool install_global_hook(
-      const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
-    {
-      return tables->set_global_user_hook(map_name, hook);
-    }
+    virtual bool install_global_hook(
+      const std::string& map_name, const kv::untyped::CommitHook& hook) = 0;
   };
 }

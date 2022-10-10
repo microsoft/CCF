@@ -30,7 +30,7 @@ private:
 public:
   std::map<std::string, std::string> map;
 
-using MapType= kv::Map<std::string,std::string>;
+  using MapType = kv::Map<std::string, std::string>;
 
   CurrentStateIndex(const std::string& map_name_) :
     Strategy(map_name_),
@@ -312,7 +312,8 @@ TEST_CASE("basic indexing with deletes" * doctest::test_suite("indexing"))
   std::vector<ActionDesc> actions;
   ExpectedSeqNos expected_seqnos;
   actions.push_back({expected_seqnos, [&](size_t i, kv::Tx& tx) {
-                       tx.wo<CurrentStateIndex::MapType>(map_name)->put("hello", "world");
+                       tx.wo<CurrentStateIndex::MapType>(map_name)->put(
+                         "hello", "world");
                        return true;
                      }});
 
@@ -346,7 +347,8 @@ TEST_CASE("basic indexing with deletes" * doctest::test_suite("indexing"))
 
   actions.clear();
   actions.push_back({expected_seqnos, [&](size_t i, kv::Tx& tx) {
-                       tx.wo<CurrentStateIndex::MapType>(map_name)->remove("hello");
+                       tx.wo<CurrentStateIndex::MapType>(map_name)->remove(
+                         "hello");
                        return true;
                      }});
 

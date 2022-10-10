@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/hooks/user_hooks.h"
 #include "ccf/indexing/indexer_interface.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/hooks/user_hooks.h"
 
 namespace ccfapp
 {
