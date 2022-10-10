@@ -21,43 +21,6 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
-class CurrentStateIndex : public ccf::indexing::Strategy
-{
-private:
-  ccf::TxID current_txid = {};
-  std::string map_name;
-
-public:
-  std::map<std::string, std::string> map;
-
-  using MapType = kv::Map<std::string, std::string>;
-
-  CurrentStateIndex(const std::string& map_name_) :
-    Strategy(map_name_),
-    map_name(map_name_)
-  {}
-
-  ~CurrentStateIndex() = default;
-
-  void handle_committed_transaction(
-    const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override
-  {
-    auto tx = store->create_read_only_tx();
-    auto handle = tx.ro<kv::Map<std::string, std::string>>(map_name);
-
-    handle->foreach([this](const auto& k, const auto& v) {
-      map[k] = v;
-      return true;
-    });
-    current_txid = tx_id;
-  }
-
-  std::optional<ccf::SeqNo> next_requested() override
-  {
-    return current_txid.seqno + 1;
-  }
-};
-
 using IndexA = ccf::indexing::strategies::SeqnosByKey_InMemory<decltype(map_a)>;
 using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;
 
