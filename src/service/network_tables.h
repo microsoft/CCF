@@ -12,6 +12,7 @@
 #include "ccf/service/tables/modules.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
+#include "ccf/service/tables/security_policies.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/users.h"
 #include "consensus/aft/raft_tables.h"
@@ -57,6 +58,7 @@ namespace ccf
     ModulesQuickJsBytecode modules_quickjs_bytecode;
     ModulesQuickJsVersion modules_quickjs_version;
     CodeIDs node_code_ids;
+    SecurityPolicies security_policies;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
     RecoveryShares shares;
@@ -113,6 +115,7 @@ namespace ccf
       modules_quickjs_bytecode(Tables::MODULES_QUICKJS_BYTECODE),
       modules_quickjs_version(Tables::MODULES_QUICKJS_VERSION),
       node_code_ids(Tables::NODE_CODE_IDS),
+      security_policies(Tables::SECURITY_POLICIES),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),

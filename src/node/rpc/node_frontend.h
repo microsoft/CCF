@@ -8,6 +8,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
+#include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
 #include "ccf/version.h"
 #include "consensus/aft/orc_requests.h"
@@ -149,6 +150,14 @@ namespace ccf
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED,
             "Quote report data does not contain node's public key hash");
+        case QuoteVerificationResult::FailedSecurityPolicyDigestNotFound:
+          return std::make_pair(
+            HTTP_STATUS_UNAUTHORIZED,
+            "Quote does not contain a security policy digest");
+        case QuoteVerificationResult::FailedInvalidSecurityPolicy:
+          return std::make_pair(
+            HTTP_STATUS_UNAUTHORIZED,
+            "Quote security policy is not authorised");
         default:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -710,8 +719,7 @@ namespace ccf
           }
           else
           {
-            auto code_id =
-              EnclaveAttestationProvider::get_code_id(node_quote_info);
+            auto code_id = AttestationProvider::get_code_id(node_quote_info);
             if (code_id.has_value())
             {
               q.mrenclave = ds::to_hex(code_id.value().data);
@@ -780,7 +788,7 @@ namespace ccf
             else
             {
               auto code_id =
-                EnclaveAttestationProvider::get_code_id(node_info.quote_info);
+                AttestationProvider::get_code_id(node_info.quote_info);
               if (code_id.has_value())
               {
                 q.mrenclave = ds::to_hex(code_id.value().data);
@@ -1515,6 +1523,13 @@ namespace ccf
           in.public_key};
         g.add_node(in.node_id, node_info);
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
+        if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
+        {
+          auto digest =
+            AttestationProvider::get_security_policy_digest(in.quote_info)
+              .value();
+          g.trust_node_security_policy(in.security_policy, digest);
+        }
 
         LOG_INFO_FMT("Created service");
         return make_success(true);

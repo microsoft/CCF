@@ -274,7 +274,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.12.0";
+      openapi_info.document_version = "1.12.1";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -317,20 +317,18 @@ namespace loggingapp
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
 
-        const nlohmann::json body_j =
-          nlohmann::json::parse(ctx.rpc_ctx->get_response_body());
+        auto out = static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
 
-        auto interm = body_j.get<LoggingPut::Intermediate>();
-
-        if (interm.fail)
+        if (out == nullptr)
         {
-          throw std::runtime_error("oops, might have failed serialization");
+          throw std::runtime_error("didn't set user_data!");
         }
 
-        interm.out.tx_id = tx_id.to_str();
+        out->tx_id = tx_id.to_str();
 
-        ctx.rpc_ctx->set_response_body(nlohmann::json(interm.out).dump());
+        ctx.rpc_ctx->set_response_body(nlohmann::json(*out).dump());
       };
 
       auto record_v2 = [this](auto& ctx, nlohmann::json&& params) {
@@ -354,27 +352,19 @@ namespace loggingapp
 
         std::string error_reason;
         std::string fail;
-        if (!http::get_query_value(parsed_query, "fail", fail, error_reason))
+        http::get_query_value(parsed_query, "fail", fail, error_reason);
+
+        auto out = std::make_shared<LoggingPut::Out>();
+        out->success = true;
+
+        if (fail != "true")
         {
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
+          ctx.rpc_ctx->set_user_data(out);
         }
 
-        LoggingPut::Out resp;
-        resp.success = true;
-        LoggingPut::Intermediate interm;
-        interm.out = resp;
-        if (fail == "true")
-        {
-          interm.fail = true;
-        }
-        else
-        {
-          interm.fail = false;
-        }
-        return ccf::make_success(interm);
+        // return a default value as we'll set the response in the post-commit
+        // handler
+        return ccf::make_success(nullptr);
       };
 
       make_endpoint_with_local_commit_handler(

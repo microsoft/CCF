@@ -75,7 +75,11 @@ namespace ccf
     node_info_network,
     create_txid)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CreateNetworkNodeToNode::In, genesis_info, node_data, service_data)
+    CreateNetworkNodeToNode::In,
+    genesis_info,
+    node_data,
+    service_data,
+    security_policy)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)
@@ -117,6 +121,11 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(GetCode::Version, platform)
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
+
+  DECLARE_JSON_TYPE(GetSecurityPolicies::SecurityPolicy)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSecurityPolicies::SecurityPolicy, raw, digest)
+  DECLARE_JSON_TYPE(GetSecurityPolicies::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSecurityPolicies::Out, policies)
 
   DECLARE_JSON_TYPE(GetRecoveryShare::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetRecoveryShare::Out, encrypted_share)
