@@ -11,8 +11,7 @@ import os
 import shutil
 from loguru import logger as LOG
 
-# TODO: Temp, don't force this everywhere
-DEFAULT_NODES = ["local://[::1]:8000"]
+DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 
 def run(args):
