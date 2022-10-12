@@ -41,7 +41,7 @@ namespace externalexecutor
     struct PendingRequest
     {
       std::unique_ptr<kv::CommittableTx> tx = nullptr;
-      ccf::RequestDescription request_description;
+      externalexecutor::protobuf::RequestDescription request_description;
       std::shared_ptr<http::HTTPResponder> responder;
     };
     std::queue<PendingRequest> pending_requests;
@@ -78,8 +78,10 @@ namespace externalexecutor
         .install();
 
       // create an endpoint to register the executor
-      auto register_executor = [this](auto& ctx, ccf::NewExecutor&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::RegistrationResult> {
+      auto register_executor =
+        [this](auto& ctx, externalexecutor::protobuf::NewExecutor&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::RegistrationResult> {
         // verify quote
         ccf::CodeDigest code_digest;
         ccf::QuoteVerificationResult verify_result = verify_executor_quote(
@@ -97,9 +99,10 @@ namespace externalexecutor
         auto pubk_der = crypto::public_key_der_from_cert(cert_der);
 
         ExecutorId executor_id = ccf::compute_node_id_from_pubk_der(pubk_der);
-        std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints(
-          payload.supported_endpoints().begin(),
-          payload.supported_endpoints().end());
+        std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
+          supported_endpoints(
+            payload.supported_endpoints().begin(),
+            payload.supported_endpoints().end());
 
         ExecutorNodeInfo executor_info = {
           executor_x509_cert, payload.attestation(), supported_endpoints};
@@ -109,7 +112,7 @@ namespace externalexecutor
         // Record the certs in the Executor certs map
         executor_certs[executor_id] = executor_x509_cert;
 
-        ccf::RegistrationResult result;
+        externalexecutor::protobuf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");
         result.set_executor_id(executor_id.value());
 
@@ -117,10 +120,11 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "ccf.ExecutorRegistration/RegisterExecutor",
+        "/externalexecutor.protobuf.ExecutorRegistration/RegisterExecutor",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::NewExecutor, ccf::RegistrationResult>(
-          register_executor),
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::NewExecutor,
+          externalexecutor::protobuf::RegistrationResult>(register_executor),
         ccf::no_auth_required)
         .install();
     }
@@ -130,7 +134,8 @@ namespace externalexecutor
       auto start = [this](
                      ccf::endpoints::CommandEndpointContext& ctx,
                      google::protobuf::Empty&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalRequestDescription> {
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalRequestDescription> {
         if (active_request.has_value())
         {
           return ccf::grpc::make_error(
@@ -138,7 +143,7 @@ namespace externalexecutor
             "Already managing an active transaction");
         }
 
-        ccf::OptionalRequestDescription opt_rd;
+        externalexecutor::protobuf::OptionalRequestDescription opt_rd;
 
         if (!pending_requests.empty())
         {
@@ -154,18 +159,18 @@ namespace externalexecutor
       };
 
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
-      make_command_endpoint(
-        "/ccf.KV/StartTx",
+      make_endpoint(
+        "/externalexecutor.protobuf.KV/StartTx",
         HTTP_POST,
         ccf::grpc_command_adapter<
           google::protobuf::Empty,
-          ccf::OptionalRequestDescription>(start),
+          externalexecutor::protobuf::OptionalRequestDescription>(start),
         ccf::no_auth_required)
         .install();
 
       auto end = [this](
-                   ccf::endpoints::CommandEndpointContext& ctx,
-                   ccf::ResponseDescription&& payload)
+                   ccf::endpoints::EndpointContext& ctx,
+                   externalexecutor::protobuf::ResponseDescription&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
         if (!active_request.has_value())
         {
@@ -205,7 +210,8 @@ namespace externalexecutor
             http::HeaderMap headers;
             for (int i = 0; i < payload.headers_size(); ++i)
             {
-              const ccf::Header& header = payload.headers(i);
+              const externalexecutor::protobuf::Header& header =
+                payload.headers(i);
               headers[header.field()] = header.value();
             }
 
@@ -245,17 +251,18 @@ namespace externalexecutor
         return ccf::grpc::make_success();
       };
 
-      make_command_endpoint(
-        "/ccf.KV/EndTx",
+      make_endpoint(
+        "/externalexecutor.protobuf.KV/EndTx",
         HTTP_POST,
-        ccf::grpc_command_adapter<
-          ccf::ResponseDescription,
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::ResponseDescription,
           google::protobuf::Empty>(end),
         ccf::no_auth_required)
         .install();
 
-      auto put =
-        [this](ccf::endpoints::EndpointContext& ctx, ccf::KVKeyValue&& payload)
+      auto put = [this](
+                   ccf::endpoints::EndpointContext& ctx,
+                   externalexecutor::protobuf::KVKeyValue&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
         if (!active_request.has_value())
         {
@@ -273,16 +280,19 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "/ccf.KV/Put",
+        "/externalexecutor.protobuf.KV/Put",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::KVKeyValue, google::protobuf::Empty>(put),
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::KVKeyValue,
+          google::protobuf::Empty>(put),
         {executor_auth_policy})
         .install();
 
       auto get = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                   ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVValue> {
+                   externalexecutor::protobuf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalKVValue> {
         if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
@@ -295,10 +305,11 @@ namespace externalexecutor
         auto handle = active_request->tx->ro<Map>(payload.table());
         auto result = handle->get(payload.key());
 
-        ccf::OptionalKVValue response;
+        externalexecutor::protobuf::OptionalKVValue response;
         if (result.has_value())
         {
-          ccf::KVValue* response_value = response.mutable_optional();
+          externalexecutor::protobuf::KVValue* response_value =
+            response.mutable_optional();
           response_value->set_value(*result);
         }
 
@@ -306,16 +317,19 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Get",
+        "/externalexecutor.protobuf.KV/Get",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVValue>(get),
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          externalexecutor::protobuf::OptionalKVValue>(get),
         {executor_auth_policy})
         .install();
 
       auto has = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                   ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::KVHasResult> {
+                   externalexecutor::protobuf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::KVHasResult> {
         if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
@@ -327,23 +341,26 @@ namespace externalexecutor
 
         auto handle = active_request->tx->ro<Map>(payload.table());
 
-        ccf::KVHasResult result;
+        externalexecutor::protobuf::KVHasResult result;
         result.set_present(handle->has(payload.key()));
 
         return ccf::grpc::make_success(result);
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Has",
+        "/externalexecutor.protobuf.KV/Has",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVHasResult>(has),
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          externalexecutor::protobuf::KVHasResult>(has),
         {executor_auth_policy})
         .install();
 
       auto get_version = [this](
                            ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                           ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVVersion> {
+                           externalexecutor::protobuf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalKVVersion> {
         if (!active_request.has_value())
         {
           return ccf::grpc::make_error(
@@ -356,10 +373,11 @@ namespace externalexecutor
         auto handle = active_request->tx->ro<Map>(payload.table());
         auto version = handle->get_version_of_previous_write(payload.key());
 
-        ccf::OptionalKVVersion response;
+        externalexecutor::protobuf::OptionalKVVersion response;
         if (version.has_value())
         {
-          ccf::KVVersion* response_version = response.mutable_optional();
+          externalexecutor::protobuf::KVVersion* response_version =
+            response.mutable_optional();
           response_version->set_version(*version);
         }
 
@@ -367,16 +385,17 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/GetVersion",
+        "/externalexecutor.protobuf.KV/GetVersion",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVVersion>(
-          get_version),
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          externalexecutor::protobuf::OptionalKVVersion>(get_version),
         {executor_auth_policy})
         .install();
 
       auto kv_delete = [this](
                          ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                         ccf::KVKey&& payload)
+                         externalexecutor::protobuf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
         if (!active_request.has_value())
         {
@@ -394,25 +413,28 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Delete",
+        "/externalexecutor.protobuf.KV/Delete",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, google::protobuf::Empty>(
-          kv_delete),
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          google::protobuf::Empty>(kv_delete),
         {executor_auth_policy})
         .install();
 
       auto get_all = [this](
                        ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                       ccf::KVTable&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
+                       externalexecutor::protobuf::KVTable&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<externalexecutor::protobuf::KVValue> {
         return ccf::grpc::make_error(
           GRPC_STATUS_UNIMPLEMENTED, "Unimplemented");
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/GetAll",
+        "/externalexecutor.protobuf.KV/GetAll",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVTable, ccf::KVValue>(get_all),
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVTable,
+          externalexecutor::protobuf::KVValue>(get_all),
         {executor_auth_policy})
         .install();
     }
@@ -436,12 +458,13 @@ namespace externalexecutor
 
       // Construct RequestDescription from EndpointContext
       {
-        ccf::RequestDescription& rd = pr.request_description;
+        externalexecutor::protobuf::RequestDescription& rd =
+          pr.request_description;
         rd.set_method(endpoint_ctx.rpc_ctx->get_request_verb().c_str());
         rd.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
         for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
         {
-          ccf::Header* header = rd.add_headers();
+          externalexecutor::protobuf::Header* header = rd.add_headers();
           header->set_field(k);
           header->set_value(v);
         }

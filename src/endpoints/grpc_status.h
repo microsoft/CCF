@@ -56,13 +56,13 @@ namespace ccf::grpc
     return static_cast<int32_t>(status);
   }
 
-  Status make_grpc_status(
+  protobuf::Status make_grpc_status(
     enum grpc_status status,
     const std::optional<std::string>& msg = std::nullopt,
     const std::optional<std::string>& details = std::nullopt)
   {
     // Note: details are not currently supported
-    Status s;
+    protobuf::Status s;
     s.set_code(status_to_code(status));
     if (msg.has_value())
     {
@@ -80,7 +80,7 @@ namespace ccf::grpc
     return s;
   }
 
-  Status make_grpc_status_ok()
+  protobuf::Status make_grpc_status_ok()
   {
     return make_grpc_status(GRPC_STATUS_OK);
   }

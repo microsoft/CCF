@@ -13,8 +13,9 @@
 struct ExecutorNodeInfo
 {
   crypto::Pem public_key;
-  ccf::Attestation attestation;
-  std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints;
+  externalexecutor::protobuf::Attestation attestation;
+  std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
+    supported_endpoints;
 };
 using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
 using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
@@ -26,7 +27,7 @@ ExecutorCertsMap executor_certs;
 // stub out quote verification until we have SEV-SNP verification
 inline ccf::QuoteVerificationResult verify_executor_quote(
   kv::ReadOnlyTx& tx,
-  const ccf::Attestation& quote_info,
+  const externalexecutor::protobuf::Attestation& quote_info,
   const std::string& expected_node_public_key_der,
   ccf::CodeDigest& code_digest)
 {
