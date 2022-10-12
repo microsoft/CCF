@@ -566,7 +566,9 @@ class Node:
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
         interface = self.host.rpc_interfaces[interface_name]
-        return infra.interfaces.make_address(interface.public_host, interface.public_port)
+        return infra.interfaces.make_address(
+            interface.public_host, interface.public_port
+        )
 
     def retrieve_self_signed_cert(self, *args, **kwargs):
         # Retrieve and overwrite node self-signed certificate in common directory
