@@ -252,11 +252,19 @@ namespace ccf
     virtual void close()
     {
       status = closing;
-      auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
-      msg->data.self = this->shared_from_this();
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
+        msg->data.self = this->shared_from_this();
 
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          execution_thread, std::move(msg));
+      }
+      else
+      {
+        // Close inline immediately
+        close_thread();
+      }
     }
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
@@ -317,24 +325,32 @@ namespace ccf
       }
     }
 
-  public:
     void send_raw(const uint8_t* data, size_t size)
     {
-      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data = std::vector<uint8_t>(data, data + size);
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
+        msg->data.self = this->shared_from_this();
+        msg->data.data = std::vector<uint8_t>(data, data + size);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
+        threading::ThreadMessaging::thread_messaging.add_task(
+          execution_thread, std::move(msg));
+      }
+      else
+      {
+        // Send inline immediately
+        send_raw_thread(data, size);
+      }
     }
 
   private:
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      msg->data.self->send_raw_thread(msg->data.data);
+      msg->data.self->send_raw_thread(
+        msg->data.data.data(), msg->data.data.size());
     }
 
-    void send_raw_thread(const std::vector<uint8_t>& data)
+    void send_raw_thread(const uint8_t* data, size_t size)
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
@@ -348,7 +364,7 @@ namespace ccf
 
       if (status == handshake)
       {
-        pending_write.insert(pending_write.end(), data.begin(), data.end());
+        pending_write.insert(pending_write.end(), data, data + size);
         return;
       }
 
@@ -357,7 +373,7 @@ namespace ccf
         return;
       }
 
-      pending_write.insert(pending_write.end(), data.begin(), data.end());
+      pending_write.insert(pending_write.end(), data, data + size);
 
       flush();
     }

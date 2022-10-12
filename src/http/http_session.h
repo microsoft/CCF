@@ -293,18 +293,7 @@ namespace http
       HTTPSession(session_id_, writer_factory, std::move(ctx)),
       ClientSession(session_id_, writer_factory),
       response_parser(*this)
-    {
-      tls_io->set_handshake_error_cb([this](std::string&& error_msg) {
-        if (this->handle_error_cb)
-        {
-          this->handle_error_cb(error_msg);
-        }
-        else
-        {
-          LOG_FAIL_FMT("{}", error_msg);
-        }
-      });
-    }
+    {}
 
     bool parse(std::span<const uint8_t> data) override
     {
@@ -337,6 +326,26 @@ namespace http
     {
       auto data = request.build_request();
       tls_io->send_raw(data.data(), data.size());
+    }
+
+    void connect(
+      const std::string& hostname,
+      const std::string& service,
+      const HandleDataCallback f,
+      const HandleErrorCallback e) override
+    {
+      tls_io->set_handshake_error_cb([e](std::string&& error_msg) {
+        if (e)
+        {
+          e(error_msg);
+        }
+        else
+        {
+          LOG_FAIL_FMT("{}", error_msg);
+        }
+      });
+
+      ccf::ClientSession::connect(hostname, service, f, e);
     }
 
     void handle_response(

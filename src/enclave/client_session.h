@@ -36,7 +36,7 @@ namespace ccf
 
     virtual void send_request(http::Request&& request) = 0;
 
-    void connect(
+    virtual void connect(
       const std::string& hostname,
       const std::string& service,
       const HandleDataCallback f,
