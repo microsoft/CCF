@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/any.proto";
 
-package ccf;
+package ccf.protobuf;
 
 // As per https://cloud.google.com/apis/design/errors#error_model
 message Status

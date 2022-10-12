@@ -82,7 +82,7 @@ namespace merkle
     uint64_t r = 0;
     uint64_t sz = sizeof(uint64_t);
     for (uint64_t i = 0; i < sz; i++)
-      r |= static_cast<uint64_t>(bytes[index++]) << (8 * (sz - i - 1));
+      r |= static_cast<uint64_t>(bytes.at(index++)) << (8 * (sz - i - 1));
     return r;
   }
 
@@ -151,6 +151,12 @@ namespace merkle
     size_t size() const
     {
       return SIZE;
+    }
+
+    /// @brief zeros out all bytes in the hash
+    void zero()
+    {
+      std::fill(bytes, bytes + SIZE, 0);
     }
 
     /// @brief The size of the serialisation of the hash (in number of bytes)
@@ -384,7 +390,7 @@ namespace merkle
       {
         HashT<HASH_SIZE> hash(bytes, position);
         PathT::Direction direction =
-          bytes[position++] != 0 ? PATH_LEFT : PATH_RIGHT;
+          bytes.at(position++) != 0 ? PATH_LEFT : PATH_RIGHT;
         PathT::Element e;
         e.hash = hash;
         e.direction = direction;
@@ -874,7 +880,7 @@ namespace merkle
         });
 
       // The leaf is now elsewhere, save the pointer.
-      leaf_nodes[index - num_flushed] = new_leaf_node;
+      leaf_nodes.at(index - num_flushed) = new_leaf_node;
 
       size_t num_retracted = num_leaves() - index - 1;
       if (num_retracted < leaf_nodes.size())
@@ -1232,7 +1238,7 @@ namespace merkle
         });
 
         for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
-          extras[i]->hash.serialise(bytes);
+          extras.at(i)->hash.serialise(bytes);
       }
     }
 
@@ -1272,7 +1278,7 @@ namespace merkle
         });
 
         for (size_t i = extras.size() - 1; i != SIZE_MAX; i--)
-          extras[i]->hash.serialise(bytes);
+          extras.at(i)->hash.serialise(bytes);
       }
     }
 
@@ -1338,9 +1344,9 @@ namespace merkle
         for (size_t i = 0; i < level.size(); i += 2)
         {
           if (i + 1 >= level.size())
-            next_level.push_back(level[i]);
+            next_level.push_back(level.at(i));
           else
-            next_level.push_back(Node::make(level[i], level[i + 1]));
+            next_level.push_back(Node::make(level.at(i), level.at(i + 1)));
         }
 
         level.swap(next_level);
@@ -1354,7 +1360,7 @@ namespace merkle
 
       if (level.size() == 1)
       {
-        _root = level[0];
+        _root = level.at(0);
         assert(_root->invariant());
       }
     }
@@ -1384,10 +1390,10 @@ namespace merkle
       if (index >= num_leaves())
         throw std::runtime_error("leaf index out of bounds");
       if (index - num_flushed >= leaf_nodes.size())
-        return uninserted_leaf_nodes[index - num_flushed - leaf_nodes.size()]
+        return uninserted_leaf_nodes.at(index - num_flushed - leaf_nodes.size())
           ->hash;
       else
-        return leaf_nodes[index - num_flushed]->hash;
+        return leaf_nodes.at(index - num_flushed)->hash;
     }
 
     /// @brief Number of leaves in the tree
@@ -1616,9 +1622,9 @@ namespace merkle
       if (index >= num_leaves())
         throw std::runtime_error("leaf index out of bounds");
       if (index - num_flushed >= leaf_nodes.size())
-        return uninserted_leaf_nodes[index - num_flushed - leaf_nodes.size()];
+        return uninserted_leaf_nodes.at(index - num_flushed - leaf_nodes.size());
       else
-        return leaf_nodes[index - num_flushed];
+        return leaf_nodes.at(index - num_flushed);
     }
 
     /// @brief Computes the hash of a tree node
@@ -1728,7 +1734,7 @@ namespace merkle
       MERKLECPP_TRACE({
         std::string nodes;
         for (size_t i = 0; i < insertion_stack.size(); i++)
-          nodes += " " + insertion_stack[i].n->hash.to_string(TRACE_HASH_SIZE);
+          nodes += " " + insertion_stack.at(i).n->hash.to_string(TRACE_HASH_SIZE);
         MERKLECPP_TOUT << "  X " << (complete ? "complete" : "continue") << ":"
                        << nodes << std::endl;
       });

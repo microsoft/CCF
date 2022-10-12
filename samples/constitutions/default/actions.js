@@ -23,6 +23,20 @@ function parseUrl(url) {
   };
 }
 
+function hexStrToBuf(hexStr) {
+  const result = [];
+
+  for (let i = 0; i < hexStr.length; i += 2) {
+    const octet = hexStr.slice(i, i + 2);
+    if (octet.length != 2 || octet.match(/[G-Z\s]/i)) {
+      throw new Error("Hex string invalid");
+    }
+    result.push(parseInt(octet, 16));
+  }
+
+  return new Uint8Array(result).buffer;
+}
+
 function checkType(value, type, field) {
   const optional = type.endsWith("?");
   if (optional) {
@@ -926,6 +940,59 @@ const actions = new Map([
         const codeId = ccf.strToBuf(args.executor_code_id);
         const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToExecute");
         ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ALLOWED);
+      }
+    ),
+  ],
+  [
+    "add_security_policy",
+    new Action(
+      function (args) {
+        checkType(args.security_policy_raw, "string", "security_policy_raw");
+        checkType(
+          args.security_policy_digest,
+          "string",
+          "security_policy_digest"
+        );
+      },
+      function (args, proposalId) {
+        const digest = ccf.strToBuf(args.security_policy_digest);
+        const raw = ccf.jsonCompatibleToBuf(args.security_policy_raw);
+
+        if (args.security_policy_raw != "") {
+          const redigested_raw = ccf.bufToStr(
+            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
+          );
+          const quoted_digest = ccf.bufToStr(
+            hexStrToBuf(args.security_policy_digest)
+          );
+
+          if (redigested_raw != quoted_digest) {
+            throw new Error(
+              `The hash of raw policy ${raw} does not match digest ${digest}`
+            );
+          }
+        }
+
+        ccf.kv["public:ccf.gov.nodes.security_policies"].set(digest, raw);
+
+        // Adding a new allowed security policy changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      }
+    ),
+  ],
+  [
+    "remove_security_policy",
+    new Action(
+      function (args) {
+        checkType(
+          args.security_policy_digest,
+          "string",
+          "security_policy_digest"
+        );
+      },
+      function (args) {
+        const digest = ccf.strToBuf(args.security_policy_digest);
+        ccf.kv["public:ccf.gov.nodes.security_policies"].delete(digest);
       }
     ),
   ],

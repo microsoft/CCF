@@ -295,6 +295,29 @@ def test_pure_proposals(network, args):
     return network
 
 
+@reqs.description("Test open proposals")
+def test_all_open_proposals(network, args):
+    node = network.find_random_node()
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals", always_accept_noop)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+
+        r = c.get("/gov/proposals")
+        assert r.body.json() == {}
+
+        r = c.post("/gov/proposals", always_accept_with_one_vote)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
+
+        r = c.get("/gov/proposals")
+        resp = r.body.json()
+        for _, value in resp.items():
+            assert value["state"] == "Open"
+
+    return network
+
+
 def opposite(js_bool):
     if js_bool == "true":
         return "false"

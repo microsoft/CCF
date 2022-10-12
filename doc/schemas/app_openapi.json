@@ -131,6 +131,38 @@
         ],
         "type": "object"
       },
+      "GetSecurityPolicies__Out": {
+        "properties": {
+          "policies": {
+            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
+          }
+        },
+        "required": [
+          "policies"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "raw",
+          "digest"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
+        },
+        "type": "array"
+      },
       "GetTxStatus__Out": {
         "properties": {
           "status": {
@@ -1259,6 +1291,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/security_policy": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
                 }
               }
             },

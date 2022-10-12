@@ -211,6 +211,38 @@
         ],
         "type": "object"
       },
+      "GetSecurityPolicies__Out": {
+        "properties": {
+          "policies": {
+            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
+          }
+        },
+        "required": [
+          "policies"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "raw",
+          "digest"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
+        },
+        "type": "array"
+      },
       "GetTxStatus__Out": {
         "properties": {
           "status": {
@@ -429,6 +461,12 @@
         },
         "type": "object"
       },
+      "string_to_ProposalInfo": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ProposalInfo"
+        },
+        "type": "object"
+      },
       "uint64": {
         "maximum": 18446744073709551615,
         "minimum": 0,
@@ -460,7 +498,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.9.5"
+    "version": "2.9.7"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -686,6 +724,31 @@
       }
     },
     "/gov/proposals": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_ProposalInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
       "post": {
         "requestBody": {
           "content": {
@@ -1016,6 +1079,38 @@
         ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/security_policy": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
