@@ -123,7 +123,7 @@ namespace kv::untyped
       return map;
     }
 
-    bool has_global_hook()
+    inline bool has_global_hook()
     {
       return global_user_hook || global_system_hook;
     }
@@ -763,12 +763,19 @@ namespace kv::untyped
 
     void post_compact() override
     {
-      for (const auto& [version, writes] : commit_deltas)
+      if (global_system_hook)
       {
-        if (global_system_hook)
+        for (const auto& [version, writes] : commit_deltas)
+        {
           global_system_hook(version, writes);
-        if (global_user_hook)
+        }
+      }
+      if (global_user_hook)
+      {
+        for (const auto& [version, writes] : commit_deltas)
+        {
           global_user_hook(version, writes);
+        }
       }
 
       commit_deltas.clear();
