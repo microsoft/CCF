@@ -77,7 +77,7 @@ namespace asynchost
   std::pair<std::string, std::string> addr_to_str(
     const sockaddr* addr, int address_family = AF_INET)
   {
-    constexpr auto buf_len = UV_IF_NAMESIZE;
+    constexpr auto buf_len = INET6_ADDRSTRLEN;
     char buf[buf_len] = {};
     int rc;
 
