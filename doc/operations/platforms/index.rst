@@ -1,7 +1,7 @@
 Platforms
 ===================
 
-CCF can run on several platforms, which platform CCF runs on will have impacts on how attestations are verified and therefore what security guarantees you have.
+CCF can run on several hardware platforms/trusted execution environments, which will have impact on the security guarantees of the service and on how attestation reports are generated and verified.
 
 .. toctree::
     :maxdepth: 1
