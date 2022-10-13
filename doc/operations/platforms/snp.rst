@@ -15,7 +15,7 @@ SNP attestation provide several fields needed to establish trust.
 
 - Measurement
 
-Measurement is a digest of the UVM that is running, which CCF stores as a :doc:`code id <../../audit/builtin_maps>`. New nodes joining a network will provide their code id and the primary will perform an identity check against the table entries.
+Measurement is a digest of the UVM (Utility Virtual Machine) that is running, which CCF stores as a :doc:`code id <../../audit/builtin_maps>`. New nodes joining a network will provide their code id and the primary will perform an identity check against the table entries.
 
 The first node in a new network will add it's code id to the table. Members can then manage which code ids are present in the table with the ``add_node_code`` and ``remove_node_code`` actions.
 
