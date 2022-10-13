@@ -1285,7 +1285,7 @@ namespace ccf::js
     if (argc != 2)
     {
       return JS_ThrowTypeError(
-        ctx, "Passed %d arguments but expected none", argc);
+        ctx, "Passed %d arguments but expected two", argc);
     }
 
     int64_t heap_size = 0;
@@ -1735,9 +1735,9 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx,
       ccf,
-      "updateJSruntimememory",
+      "updateJSRuntimeMemory",
       JS_NewCFunction(
-        ctx, js_update_runtime_memory_cap, "updateJSruntimememory", 2));
+        ctx, js_update_runtime_memory_cap, "updateJSRuntimeMemory", 2));
     JS_SetPropertyStr(
       ctx,
       ccf,
