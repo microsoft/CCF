@@ -200,8 +200,9 @@ namespace http
         return;
       }
 
+      auto after_name_end = std::next(header_name_end);
       std::string_view header_value(
-        header_name_end, header_value_end - header_name_end);
+        after_name_end, header_value_end - after_name_end);
       const auto leading_spaces = header_value.find_first_not_of(' ');
       if (leading_spaces != std::string::npos)
       {
