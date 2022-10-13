@@ -129,4 +129,16 @@ namespace crypto
     return EVP_PKEY_verify(
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
+
+  JsonWebKeyRSA RSAPublicKey_OpenSSL::public_key_jwk(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyRSA jwk;
+    // jwk.n = coords.x;
+    // jwk.e = coords.y;
+    // jwk.alg = TODO: ;//curve_id_to_jwk_curve(get_curve_id());
+    jwk.kid = kid;
+    jwk.kty = JsonWebKeyType::EC;
+    return jwk;
+  }
 }

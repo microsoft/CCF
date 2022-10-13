@@ -708,29 +708,30 @@ TEST_CASE("hmac")
 TEST_CASE("PEM to JWK")
 {
   logger::config::default_init();
-  auto kp = make_key_pair();
-  auto pubk_pem = kp->public_key_pem();
-  auto cert = generate_self_signed_cert(kp, "CN=name");
 
-  LOG_FAIL_FMT("PEM: {}", pubk_pem.str());
+  INFO("EC");
+  {
+    auto kp = make_key_pair();
+    auto pubk = make_public_key(kp->public_key_pem());
 
-  auto jwk = make_verifier(cert)->public_key_jwk();
-  LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    LOG_FAIL_FMT("PEM: {}", pubk->public_key_pem().str());
 
-  auto kid = "my_kid";
-  jwk = make_verifier(cert)->public_key_jwk(kid);
-  LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    auto jwk = pubk->public_key_jwk();
+    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
 
-  // auto key = get_raw_key();
-  // std::vector<uint8_t> aad(123, 'y');
+    auto kid = "my_kid";
+    jwk = pubk->public_key_jwk(kid);
+    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+  }
 
-  // std::vector<uint8_t> key_to_wrap = create_entropy()->random(997);
+  INFO("RSA");
+  {
+    auto kp = make_rsa_key_pair();
+    auto pubk = make_rsa_public_key(kp->public_key_pem());
 
-  // auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+    LOG_FAIL_FMT("PEM: {}", pubk->public_key_pem().str());
 
-  // std::vector<uint8_t> wrapped = ossl->ckm_aes_key_wrap_pad(key_to_wrap);
-  // std::vector<uint8_t> unwrapped = ossl->ckm_aes_key_unwrap_pad(wrapped);
-
-  // REQUIRE(wrapped != unwrapped);
-  // REQUIRE(key_to_wrap == unwrapped);
+    auto jwk = pubk->public_key_jwk();
+    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+  }
 }

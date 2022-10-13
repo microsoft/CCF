@@ -63,12 +63,26 @@ namespace crypto
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEC, JsonWebKeyBase);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEC, crv, x, y);
 
+  // enum class JsonWebKeyRSAAlg
+  // {
+  //   P256 = 0,
+  //   P384 = 1,
+  //   P521 = 2
+  // };
+  // DECLARE_JSON_ENUM(
+  //   JsonWebKeyECCurve,
+  //   {{JsonWebKeyECCurve::P256, "P-256"},
+  //    {JsonWebKeyECCurve::P384, "P-384"},
+  //    {JsonWebKeyECCurve::P521, "P-521"}});
+
   struct JsonWebKeyRSA : JsonWebKeyBase
   {
     std::string alg;
-    std::string n;
-    std::string e;
+    std::vector<uint8_t> n;
+    std::vector<uint8_t> e;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSA, JsonWebKeyBase);
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSA, alg, n, e);
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
+    JsonWebKeyRSA, JsonWebKeyBase);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSA, n, e);
+  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKeyRSA, alg);
 }

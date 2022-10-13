@@ -44,5 +44,8 @@ namespace crypto
       const uint8_t* signature,
       size_t signature_size,
       MDType md_type = MDType::NONE) override;
+
+    virtual JsonWebKeyRSA public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const override;
   };
 }

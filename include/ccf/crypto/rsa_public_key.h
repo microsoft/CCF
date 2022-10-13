@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
 
 #include <cstdint>
@@ -76,5 +77,8 @@ namespace crypto
       const uint8_t* signature,
       size_t signature_size,
       MDType md_type = MDType::NONE) = 0;
+
+    virtual JsonWebKeyRSA public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 }
