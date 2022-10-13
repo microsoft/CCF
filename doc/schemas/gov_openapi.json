@@ -461,6 +461,12 @@
         },
         "type": "object"
       },
+      "string_to_ProposalInfo": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ProposalInfo"
+        },
+        "type": "object"
+      },
       "uint64": {
         "maximum": 18446744073709551615,
         "minimum": 0,
@@ -492,7 +498,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.9.5"
+    "version": "2.9.7"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -718,6 +724,31 @@
       }
     },
     "/gov/proposals": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_ProposalInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
       "post": {
         "requestBody": {
           "content": {
