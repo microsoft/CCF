@@ -476,6 +476,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
+      search->second.second->record_response_txid({data.data(), data.size()});
       search->second.second->send(std::move(data), {});
       return true;
     }

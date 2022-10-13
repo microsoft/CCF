@@ -598,6 +598,11 @@ def test_session_consistency(network, args):
             client_backup_0.get("/node/commit")
             client_backup_1.get("/node/commit")
 
+        # Goal:
+        # - p0 should get errors - it wrote during partition
+        # - p1 should be fine, it only read some early, still valid state
+        # - b0 should get errors - it got discarded data over forwarded channel
+        # - b1 should get errors - similar?
         network.wait_for_primary_unanimity(min_view=new_view - 1)
         LOG.warning("And after de-partition?")
         client_primary_0.get("/node/commit")

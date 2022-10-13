@@ -148,6 +148,15 @@ namespace http
     tls::ConnID session_id;
     ccf::ListenInterfaceID interface_id;
 
+    void update_session_ctx()
+    {
+      if (session_ctx == nullptr)
+      {
+        session_ctx = std::make_shared<ccf::SessionContext>(
+          session_id, peer_cert(), interface_id);
+      }
+    }
+
   public:
     HTTPServerEndpoint(
       std::shared_ptr<ccf::RPCMap> rpc_map,
@@ -174,6 +183,45 @@ namespace http
       send_raw(std::move(data));
     }
 
+    void record_response_txid(std::span<const uint8_t> raw_response) override
+    {
+      // To avoid a full HTTP parse, search for the desired header directly
+      std::string_view response(
+        (char const*)raw_response.data(), raw_response.size());
+      std::string_view target(http::headers::CCF_TX_ID);
+      auto header_begin = std::search(
+        response.begin(), response.end(), target.begin(), target.end());
+      auto header_name_end = std::find(header_begin, response.end(), ':');
+      auto header_value_end = std::find(header_name_end, response.end(), '\r');
+
+      if (header_value_end == response.end())
+      {
+        // Response has no TxID header value - this is valid
+        return;
+      }
+
+      std::string_view header_value(
+        header_name_end, header_value_end - header_name_end);
+      const auto leading_spaces = header_value.find_first_not_of(' ');
+      if (leading_spaces != std::string::npos)
+      {
+        header_value.remove_prefix(leading_spaces);
+      }
+
+      auto tx_id = ccf::TxID::from_str(header_value);
+      if (!tx_id.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Error parsing TxID from response header: {}",
+          std::string_view(header_begin, header_value_end - header_begin));
+        return;
+      }
+
+      update_session_ctx();
+
+      session_ctx->last_tx_id = tx_id;
+    }
+
     void handle_request(
       llhttp_method verb,
       const std::string_view& url,
@@ -189,11 +237,7 @@ namespace http
 
       try
       {
-        if (session_ctx == nullptr)
-        {
-          session_ctx = std::make_shared<ccf::SessionContext>(
-            session_id, peer_cert(), interface_id);
-        }
+        update_session_ctx();
 
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
         try
