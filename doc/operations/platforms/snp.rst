@@ -11,7 +11,7 @@ To use SNP, ``virtual`` must be specified in ``COMPILE_TARGETS``, at compile tim
 
 Attestation
 -----------
-SNP attestation provide several fields needed to establish trust.
+SNP attestation provide several fields needed to establish trust. This is specific to the SNP hardware as deployed in confidential Azure Container Instances, see `here <https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-containers>`_ for more information.
 
 - Measurement
 
