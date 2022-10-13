@@ -13,6 +13,8 @@ SGX attestations provide a measurement of the code loaded into the enclave, whic
 
 The first node in a new network will add its code id to the table. Members can then manage which code ids are present in the table with the ``add_node_code`` and ``remove_node_code`` actions.
 
+Once the proposal has been accepted, nodes running the new code are authorised to join the network. Nodes running older versions of the code can then be retired and stopped.
+
 .. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
 
     .. code-block:: bash
@@ -31,5 +33,3 @@ The first node in a new network will add its code id to the table. Members can t
         num_stack_pages=1024
         num_tcs=8
         mrenclave=3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9
-
-Once the proposal has been accepted, nodes running the new code are authorised to join the network. Nodes running older versions of the code can then be retired and stopped.
