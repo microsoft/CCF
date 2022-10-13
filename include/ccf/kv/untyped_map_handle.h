@@ -28,6 +28,9 @@ namespace kv::untyped
     using ElementVisitorWithEarlyOut =
       std::function<bool(const KeyType& k, const ValueType& V)>;
 
+    using ElementVisitorWithEarlyOutAndDeletes =
+      std::function<bool(const KeyType& k, const std::optional<ValueType>& V)>;
+
   protected:
     kv::untyped::ChangeSet& tx_changes;
     std::string map_name;
@@ -43,6 +46,9 @@ namespace kv::untyped
 
     void foreach_state_and_writes(
       const ElementVisitorWithEarlyOut& fn, bool always_consider_writes);
+
+  void foreach_state_and_writes_and_deletes(
+    const ElementVisitorWithEarlyOutAndDeletes& f, bool always_consider_writes);
 
   public:
     MapHandle(kv::untyped::ChangeSet& cs, const std::string& map_name);
@@ -62,6 +68,8 @@ namespace kv::untyped
     void clear();
 
     void foreach(const ElementVisitorWithEarlyOut& fn);
+
+    void foreach_with_deletes(const ElementVisitorWithEarlyOutAndDeletes& fn);
 
     size_t size();
 
