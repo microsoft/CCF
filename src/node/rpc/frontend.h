@@ -451,9 +451,8 @@ namespace ccf
               ccf::errors::SessionConsistencyLost,
               fmt::format(
                 "Previous transaction reported on this session ({}) is no "
-                "longer valid. Closing session",
+                "longer valid. Please start a new TLS session.",
                 ctx->get_session_context()->last_tx_id->to_str()));
-            // TODO: Ensure the session is actually closed after this response
             return;
           }
 

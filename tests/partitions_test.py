@@ -502,6 +502,112 @@ def test_forwarding_timeout(network, args):
     network.wait_for_primary_unanimity()
 
 
+@reqs.description(
+    "Session consistency is provided, and inconsistencies result in errors after elections"
+)
+# @reqs.supports_methods("/app/log/private")
+@reqs.at_least_n_nodes(3)
+@reqs.no_http2()
+def test_session_consistency(network, args):
+    primary, backups = network.find_nodes()
+    backup = backups[0]
+
+    with contextlib.ExitStack() as stack:
+        client_primary_0 = stack.enter_context(
+            primary.client("user0", description="primary 0")
+        )
+        client_primary_1 = stack.enter_context(
+            primary.client("user0", description="primary 1")
+        )
+        client_backup_0 = stack.enter_context(
+            backup.client("user0", description="backup 0")
+        )
+        client_backup_1 = stack.enter_context(
+            backup.client("user0", description="backup 1")
+        )
+
+        # Create some new state
+        msg_id = 42
+        msg_a = "First write, to primary"
+        r = client_primary_0.post(
+            "/app/log/private",
+            {
+                "id": msg_id,
+                "msg": msg_a,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+
+        # Read this state on a second session
+        r = client_primary_1.get(f"/app/log/private?id={msg_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["msg"] == msg_a, r
+
+        # Wait for that to be committed on backup
+        client_backup_0.wait_for_commit(r)
+
+        # Write on backup, resulting in a forwarded request
+        # Confirm that this session can read that write, since it remains forwarded
+        # Meanwhile another session to the same node may not see it
+        # NB: The latter property is not possible to test systematically, as it
+        # relies on a race - does the read on the second session happen before consensus
+        # update's the backup's state. So we try in a loop
+        n_attempts = 20
+        for i in range(n_attempts):
+            last_message = f"Second write, via backup ({i})"
+            r = client_backup_0.post(
+                "/app/log/private",
+                {
+                    "id": msg_id,
+                    "msg": last_message,
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r
+
+            r = client_backup_1.get(f"/app/log/private?id={msg_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            if r.body.json()["msg"] != last_message:
+                LOG.info(
+                    f"Successfully saw a different value on second session after {i} attempts"
+                )
+                break
+        else:
+            raise RuntimeError(
+                f"Failed to observe evidence of session forwarding after {n_attempts} attempts"
+            )
+
+        # Write on a partitioned primary, confirm that this session gets an error once an election has occurred
+        with network.partitioner.partition([primary]):
+            msg0 = "AA"
+            r0 = client_primary_0.post(
+                "/app/log/private",
+                {
+                    "id": msg_id,
+                    "msg": msg0,
+                },
+            )
+
+            msg1 = "BB"
+            r1 = client_backup_0.get(f"/app/log/private?id={msg_id}")
+
+            new_primary, new_view = network.wait_for_new_primary(primary, nodes=backups)
+
+            LOG.warning("What happens now?")
+            client_primary_0.get("/node/commit")
+            client_primary_1.get("/node/commit")
+            client_backup_0.get("/node/commit")
+            client_backup_1.get("/node/commit")
+
+        network.wait_for_primary_unanimity(min_view=new_view - 1)
+        LOG.warning("And after de-partition?")
+        client_primary_0.get("/node/commit")
+        client_primary_1.get("/node/commit")
+        client_backup_0.get("/node/commit")
+        client_backup_1.get("/node/commit")
+
+    return network
+
+
 def run_2tx_reconfig_tests(args):
     if not args.include_2tx_reconfig:
         return
@@ -538,14 +644,15 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_election_reconfiguration(network, args)
-        test_forwarding_timeout(network, args)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
+        # test_isolate_primary_from_one_backup(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        # for n in range(5):
+        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_election_reconfiguration(network, args)
+        # test_forwarding_timeout(network, args)
+        test_session_consistency(network, args)
 
 
 if __name__ == "__main__":
@@ -563,4 +670,4 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/liblogging"
 
     run(args)
-    run_2tx_reconfig_tests(args)
+    # run_2tx_reconfig_tests(args)
