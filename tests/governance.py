@@ -600,10 +600,11 @@ def test_cose_auth(network, args):
     primary, _ = network.find_primary()
     identity = primary.identity("member0")
     signed_statement = signing.create_cose_sign1(
-        b"body", open(identity.key).read(), open(identity.cert).read(), {}
+        b"body",
+        open(identity.key).read(),
+        open(identity.cert).read(),
+        {"gov.msg.type": "proposal"},
     )
-    print(len(signed_statement))
-    print(signed_statement)
     with primary.client() as c:
         r = c.post(
             "/gov/test",
@@ -617,8 +618,6 @@ def test_cose_auth(network, args):
     signed_statement = signing.create_cose_sign1(
         b"body", open(identity.key).read(), open(identity.cert).read(), {}
     )
-    print(len(signed_statement))
-    print(signed_statement)
     with primary.client() as c:
         r = c.post(
             "/gov/test",

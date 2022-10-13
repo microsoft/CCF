@@ -614,6 +614,10 @@ namespace ccf
         const auto& caller_identity =
           ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
+        LOG_INFO_FMT(
+          "GOV MSG TYPE {}",
+          caller_identity.protected_header.gov_msg_type.value());
+
         ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json().dump());

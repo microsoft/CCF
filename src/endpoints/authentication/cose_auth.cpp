@@ -25,18 +25,14 @@ namespace ccf
   {
     static constexpr int64_t COSE_HEADER_PARAM_ALG = 1;
     static constexpr int64_t COSE_HEADER_PARAM_KID = 4;
-    // static constexpr const char* COSE_HEADER_PARAM_??? = "";
-    // static constexpr const char* COSE_HEADER_PARAM_??? = "";
+    static constexpr const char* COSE_HEADER_PARAM_MSG_TYPE =
+      "ccf.gov.msg.type";
+    static constexpr const char* COSE_HEADER_PARAM_PROPOSAL_ID =
+      "ccf.gov.msg.proposal_id";
 
     struct COSEDecodeError : public std::runtime_error
     {
       COSEDecodeError(const std::string& msg) : std::runtime_error(msg) {}
-    };
-
-    struct ProtectedHeader
-    {
-      int64_t alg;
-      std::optional<std::string> kid;
     };
 
     std::string qcbor_buf_to_string(const UsefulBufC& buf)
@@ -44,10 +40,10 @@ namespace ccf
       return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
     }
 
-    ProtectedHeader decode_protected_header(
+    ccf::ProtectedHeader decode_protected_header(
       const std::vector<uint8_t>& cose_sign1)
     {
-      ProtectedHeader parsed;
+      ccf::ProtectedHeader parsed;
 
       // Adapted from parse_cose_header_parameters in t_cose_parameters.c.
       // t_cose doesn't support custom header parameters yet.
@@ -80,6 +76,8 @@ namespace ccf
       {
         ALG_INDEX,
         KID_INDEX,
+        GOV_MSG_TYPE,
+        GOV_MSG_PROPOSAL_ID,
         END_INDEX,
       };
       QCBORItem header_items[END_INDEX + 1];
@@ -91,6 +89,18 @@ namespace ccf
       header_items[KID_INDEX].label.int64 = COSE_HEADER_PARAM_KID;
       header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
       header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
+
+      auto gov_msg_type_label = COSE_HEADER_PARAM_MSG_TYPE;
+      header_items[GOV_MSG_TYPE].label.string =
+        UsefulBuf_FromSZ(gov_msg_type_label);
+      header_items[GOV_MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
+      header_items[GOV_MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+      auto gov_msg_proposal_id = COSE_HEADER_PARAM_PROPOSAL_ID;
+      header_items[GOV_MSG_PROPOSAL_ID].label.string =
+        UsefulBuf_FromSZ(gov_msg_proposal_id);
+      header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
+      header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
       header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
@@ -109,6 +119,16 @@ namespace ccf
       if (header_items[KID_INDEX].uDataType != QCBOR_TYPE_NONE)
       {
         parsed.kid = qcbor_buf_to_string(header_items[KID_INDEX].val.string);
+      }
+      if (header_items[GOV_MSG_TYPE].uDataType != QCBOR_TYPE_NONE)
+      {
+        parsed.gov_msg_type =
+          qcbor_buf_to_string(header_items[GOV_MSG_TYPE].val.string);
+      }
+      if (header_items[GOV_MSG_PROPOSAL_ID].uDataType != QCBOR_TYPE_NONE)
+      {
+        parsed.gov_msg_proposal_id =
+          qcbor_buf_to_string(header_items[GOV_MSG_PROPOSAL_ID].val.string);
       }
       parsed.alg = header_items[ALG_INDEX].val.int64;
 
@@ -131,49 +151,6 @@ namespace ccf
         std::runtime_error(msg)
       {}
     };
-
-    /**
-     * Verify the signature of a COSE Sign1 message using the given public key.
-     *
-     * Beyond the basic verification of key usage and the signature
-     * itself, no particular validation of the message is done.
-     */
-    /*
-    void verify(const std::vector<uint8_t> &cose_sign1, int64_t alg, const
-    crypto::PublicKey& key)
-    {
-      auto phdr = decode_protected_header(cose_sign1);
-      auto key_alg = key.get_cose_alg();
-      if (key_alg.has_value() && phdr.alg != key_alg.value())
-      {
-        throw COSESignatureValidationError("Algorithm mismatch between protected
-    header and public key");
-      }
-
-      if (is_ecdsa_alg(phdr.alg))
-      {
-        q_useful_buf_c signed_cose;
-        signed_cose.ptr = cose_sign1.data();
-        signed_cose.len = cose_sign1.size();
-
-        t_cose_key cose_key;
-        cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-        EVP_PKEY* evp_key = key.get_evp_pkey();
-        cose_key.k.key_ptr = evp_key;
-
-        t_cose_sign1_verify_ctx verify_ctx;
-        t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
-        t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
-
-        q_useful_buf_c returned_payload;
-        t_cose_err_t error = t_cose_sign1_verify(&verify_ctx, signed_cose,
-    &returned_payload, nullptr); if (error)
-        {
-          throw COSESignatureValidationError("Signature verification failed");
-        }
-      }
-    }
-  */
   }
 
   MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy() = default;
@@ -211,35 +188,33 @@ namespace ccf
       error_reason = fmt::format("Unsupported algorithm: {}", phdr.alg);
       return nullptr;
     }
-    LOG_INFO_FMT("alg: {}", phdr.alg);
-    LOG_INFO_FMT("kid: {}", phdr.kid.value());
 
     MemberCerts members_certs_table(Tables::MEMBER_CERTS);
     auto member_certs = tx.ro(members_certs_table);
     auto member_cert = member_certs->get(phdr.kid.value());
     if (member_cert.has_value())
     {
-      LOG_INFO_FMT("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
       auto verifier = crypto::make_cose_verifier(member_cert->raw());
 
       q_useful_buf_c signed_cose;
       signed_cose.ptr = ctx->get_request_body().data();
       signed_cose.len = ctx->get_request_body().size();
-      LOG_INFO_FMT("size: {}", ctx->get_request_body().size());
       if (!verifier->verify(signed_cose))
       {
         error_reason = fmt::format("Failed to validate COSE Sign1");
         return nullptr;
       }
+      auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
+      identity->member_id = phdr.kid.value();
+      identity->member_cert = member_cert.value();
+      identity->protected_header = phdr;
+      return identity;
     }
     else
     {
       error_reason = fmt::format("Signer is not a known member");
       return nullptr;
     }
-
-    auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
-    return identity;
   }
 
   void MemberCOSESign1AuthnPolicy::set_unauthenticated_error(

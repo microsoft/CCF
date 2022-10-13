@@ -9,6 +9,14 @@
 
 namespace ccf
 {
+  struct ProtectedHeader
+  {
+    int64_t alg;
+    std::optional<std::string> kid;
+    std::optional<std::string> gov_msg_type;
+    std::optional<std::string> gov_msg_proposal_id;
+  };
+
   struct MemberCOSESign1AuthnIdentity : public AuthnIdentity
   {
     /** CCF member ID */
@@ -17,9 +25,11 @@ namespace ccf
     /** Member certificate, used to sign this request, described by keyId */
     crypto::Pem member_cert;
 
-    /** COSE Protected Headers */
+    /** COSE Protected Header */
+    ProtectedHeader protected_header;
+
     /** COSE Payload */
-    /** COSE Signature */
+    /** COSE Envelope */
   };
 
   class MemberCOSESign1AuthnPolicy : public AuthnPolicy
