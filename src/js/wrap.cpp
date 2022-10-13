@@ -1701,6 +1701,8 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     JS_SetPropertyStr(
+      ctx, ccf, "pemToJwt", JS_NewCFunction(ctx, js_pem_to_jwk, "pemToJwt", 1));
+    JS_SetPropertyStr(
       ctx,
       ccf,
       "refreshAppBytecodeCache",

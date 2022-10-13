@@ -1543,15 +1543,6 @@ namespace ccf
       auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
         // All errors are server errors since the client is the server.
 
-        if (!consensus)
-        {
-          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "No consensus available.");
-        }
-
         auto primary_id = consensus->primary();
         if (!primary_id.has_value())
         {

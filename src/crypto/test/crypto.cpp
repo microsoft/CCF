@@ -5,11 +5,13 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/key_pair.h"
@@ -701,4 +703,28 @@ TEST_CASE("hmac")
     auto r1 = crypto::hmac(MDType::SHA256, key, mostly_zeros);
     REQUIRE(r0 != r1);
   }
+}
+
+TEST_CASE("PEM to JWK")
+{
+  logger::config::default_init();
+  auto kp = make_key_pair();
+  auto pubk_pem = kp->public_key_pem();
+
+  LOG_FAIL_FMT("PEM: {}", pubk_pem.str());
+
+  // auto jwk =
+
+  // auto key = get_raw_key();
+  // std::vector<uint8_t> aad(123, 'y');
+
+  // std::vector<uint8_t> key_to_wrap = create_entropy()->random(997);
+
+  // auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+  // std::vector<uint8_t> wrapped = ossl->ckm_aes_key_wrap_pad(key_to_wrap);
+  // std::vector<uint8_t> unwrapped = ossl->ckm_aes_key_unwrap_pad(wrapped);
+
+  // REQUIRE(wrapped != unwrapped);
+  // REQUIRE(key_to_wrap == unwrapped);
 }

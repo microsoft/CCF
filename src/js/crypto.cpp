@@ -268,6 +268,33 @@ namespace ccf::js
     return JS_NewString(ctx, id.c_str());
   }
 
+  static JSValue js_pem_to_jwk(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto pem_str = jsctx.to_str(argv[0]);
+    if (!pem_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto pem = crypto::Pem(*pem_str);
+    auto der = crypto::make_verifier(pem)->cert_der();
+    auto id = crypto::Sha256Hash(der).hex_str();
+
+    // TODO:
+    // 0. Extract key type, curve, x, y and kid
+    // 2. Return JSON object
+
+    return JS_NewString(ctx, id.c_str());
+  }
+
   static JSValue js_wrap_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
