@@ -10,13 +10,6 @@ Architecture
 
     ---
 
-    :fa:`laptop-code` :doc:`platforms/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Platforms supported by CCF.
-
-    ---
-
     :fa:`key` :doc:`cryptography`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -104,7 +97,6 @@ Architecture
     :maxdepth: 1
 
     consensus/index
-    platforms/index
     cryptography
     request_flow
     threading

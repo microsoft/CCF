@@ -27,7 +27,7 @@ Updating Code Version
 
 For new nodes to be able to join the network, the version of the code they run (as specified by ``enclave.file``) should be first trusted by the consortium of members.
 
-The specifics of how to manage code updates depends on the :doc:`platform <../architecture/platforms/index>` being run.
+The specifics of how to manage code updates depends on the :doc:`platform <../operations/platforms/index>` being run.
 
 .. note:: It is important to keep the code compatible with the previous version, since there will be a point in time in which the new code is running on at least one node, while the other version is running on a different node.
 

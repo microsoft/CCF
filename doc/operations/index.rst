@@ -68,6 +68,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
+    :fa:`laptop-code` :doc:`platforms/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Platforms supported by CCF.
+
+    ---
+
     :fa:`wrench` :doc:`troubleshooting`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -100,6 +107,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
     recovery
     data_persistence
     network
+    platforms/index
     troubleshooting
     resource_usage
     operator_rpc_api
