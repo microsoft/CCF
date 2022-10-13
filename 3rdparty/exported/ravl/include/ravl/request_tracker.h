@@ -12,7 +12,7 @@
 
 namespace ravl
 {
-  /// Tracker for asynchronous attestation verification
+  /// Tracker for asynchronous attestation verification.
   class AttestationRequestTracker
   {
   public:

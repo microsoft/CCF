@@ -29,40 +29,26 @@ namespace ravl
 {
   namespace crypto
   {
-#ifdef RAVL_HAVE_OPENSSL
-    using namespace OpenSSL;
-#endif
+    using Unique_STACK_OF_X509 = OpenSSL::Unique_STACK_OF_X509;
+    using Unique_BIO = OpenSSL::Unique_BIO;
+    using Unique_X509 = OpenSSL::Unique_X509;
+    using Unique_X509_STORE = OpenSSL::Unique_X509_STORE;
+    using Unique_X509_CRL = OpenSSL::Unique_X509_CRL;
+    using Unique_EVP_PKEY = OpenSSL::Unique_EVP_PKEY;
+    using Unique_EVP_MD_CTX = OpenSSL::Unique_EVP_MD_CTX;
+    using Unique_ASN1_SEQUENCE = OpenSSL::Unique_ASN1_SEQUENCE;
+    using Unique_EVP_PKEY_P256 = OpenSSL::Unique_EVP_PKEY_P256;
+    using Unique_EVP_PKEY_CTX = OpenSSL::Unique_EVP_PKEY_CTX;
+    using Unique_ASN1_OCTET_STRING = OpenSSL::Unique_ASN1_OCTET_STRING;
 
     inline std::string to_base64(const std::span<const uint8_t>& bytes)
     {
-      Unique_BIO bio_chain((Unique_BIO(BIO_f_base64())), Unique_BIO());
-
-      BIO_set_flags(bio_chain, BIO_FLAGS_BASE64_NO_NL);
-      BIO_set_close(bio_chain, BIO_CLOSE);
-      int n = BIO_write(bio_chain, bytes.data(), bytes.size());
-      BIO_flush(bio_chain);
-
-      if (n < 0)
-        throw std::runtime_error("base64 encoding error");
-
-      return bio_chain.to_string();
+      return OpenSSL::to_base64(bytes);
     }
 
     inline std::vector<uint8_t> from_base64(const std::string& b64)
     {
-      Unique_BIO bio_chain((Unique_BIO(BIO_f_base64())), Unique_BIO(b64));
-
-      std::vector<uint8_t> out(b64.size());
-      BIO_set_flags(bio_chain, BIO_FLAGS_BASE64_NO_NL);
-      BIO_set_close(bio_chain, BIO_CLOSE);
-      int n = BIO_read(bio_chain, out.data(), b64.size());
-
-      if (n < 0)
-        throw std::runtime_error("base64 decoding error");
-
-      out.resize(n);
-
-      return out;
+      return OpenSSL::from_base64(b64);
     }
 
     inline std::vector<uint8_t> convert_signature_to_der(
@@ -70,35 +56,7 @@ namespace ravl
       const std::span<const uint8_t>& s,
       bool little_endian = false)
     {
-      if (r.size() != s.size())
-        throw std::runtime_error("incompatible signature coordinates");
-
-      Unique_ECDSA_SIG sig;
-      {
-        Unique_BIGNUM r_bn;
-        Unique_BIGNUM s_bn;
-        if (little_endian)
-        {
-          CHECKNULL(BN_lebin2bn(r.data(), r.size(), r_bn));
-          CHECKNULL(BN_lebin2bn(s.data(), s.size(), s_bn));
-        }
-        else
-        {
-          CHECKNULL(BN_bin2bn(r.data(), r.size(), r_bn));
-          CHECKNULL(BN_bin2bn(s.data(), s.size(), s_bn));
-        }
-        CHECK1(ECDSA_SIG_set0(sig, r_bn, s_bn));
-        r_bn.release(); // r, s now owned by the signature object
-        s_bn.release();
-      }
-      int der_size = i2d_ECDSA_SIG(sig, NULL);
-      CHECK0(der_size);
-      if (der_size < 0)
-        throw std::runtime_error("not an ECDSA signature");
-      std::vector<uint8_t> res(der_size);
-      auto der_sig_buf = res.data();
-      CHECK0(i2d_ECDSA_SIG(sig, &der_sig_buf));
-      return res;
+      return OpenSSL::convert_signature_to_der(r, s, little_endian);
     }
 
     inline std::vector<uint8_t> convert_signature_to_der(
@@ -158,102 +116,6 @@ namespace ravl
       }
 
       return r;
-    }
-
-    inline bool verify_certificate(
-      const Unique_X509_STORE& store,
-      const Unique_X509& certificate,
-      const CertificateValidationOptions& options)
-    {
-      Unique_X509_STORE_CTX store_ctx;
-      CHECK1(X509_STORE_CTX_init(store_ctx, store, certificate, NULL));
-
-      X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
-      X509_VERIFY_PARAM_set_depth(param, INT_MAX);
-      X509_VERIFY_PARAM_set_auth_level(param, 0);
-
-      CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_X509_STRICT));
-      CHECK1(
-        X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_CHECK_SS_SIGNATURE));
-
-      if (options.ignore_time)
-      {
-        CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME));
-      }
-
-      if (options.verification_time)
-      {
-        X509_STORE_CTX_set_time(store_ctx, 0, *options.verification_time);
-      }
-
-      X509_STORE_CTX_set0_param(store_ctx, param);
-
-      int rc = X509_verify_cert(store_ctx);
-
-      if (rc == 1)
-        return true;
-      else if (rc == 0)
-        throw std::runtime_error(
-          "certificate not self-signed or signature invalid");
-      else
-      {
-        unsigned long openssl_err = ERR_get_error();
-        char buf[4096];
-        ERR_error_string(openssl_err, buf);
-        throw std::runtime_error(fmt::format("OpenSSL error: {}", buf));
-      }
-    }
-
-    inline Unique_STACK_OF_X509 verify_certificate_chain(
-      const Unique_X509_STORE& store,
-      const Unique_STACK_OF_X509& stack,
-      const CertificateValidationOptions& options,
-      bool trusted_root = false)
-    {
-      if (stack.size() <= 1)
-        throw std::runtime_error("certificate stack too small");
-
-      if (trusted_root)
-        CHECK1(X509_STORE_add_cert(store, stack.back()));
-
-      auto target = stack.at(0);
-
-      Unique_X509_STORE_CTX store_ctx;
-      CHECK1(X509_STORE_CTX_init(store_ctx, store, target, stack));
-
-      X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
-      X509_VERIFY_PARAM_set_depth(param, INT_MAX);
-      X509_VERIFY_PARAM_set_auth_level(param, 0);
-
-      CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_X509_STRICT));
-      CHECK1(
-        X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_CHECK_SS_SIGNATURE));
-
-      if (options.ignore_time)
-      {
-        CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME));
-      }
-
-      if (options.verification_time)
-      {
-        X509_STORE_CTX_set_time(store_ctx, 0, *options.verification_time);
-      }
-
-      X509_STORE_CTX_set0_param(store_ctx, param);
-
-      int rc = X509_verify_cert(store_ctx);
-
-      if (rc == 1)
-        return Unique_STACK_OF_X509(store_ctx);
-      else if (rc == 0)
-        throw std::runtime_error("no chain or signature invalid");
-      else
-      {
-        unsigned long openssl_err = ERR_get_error();
-        char buf[4096];
-        ERR_error_string(openssl_err, buf);
-        throw std::runtime_error(fmt::format("OpenSSL error: {}", buf));
-      }
     }
 
     inline Unique_STACK_OF_X509 load_certificates(
@@ -370,13 +232,15 @@ namespace ravl
       }
       catch (std::exception& ex)
       {
-        log(fmt::format("- verification failed: {}", ex.what()), indent);
-        throw std::runtime_error("certificate chain verification failed");
+        if (verbosity > 0)
+          log(fmt::format("- failed: {}", ex.what()), indent);
+        throw std::runtime_error(ex.what());
       }
       catch (...)
       {
-        log("- verification failed with unknown exception", indent);
-        throw std::runtime_error("certificate chain verification failed");
+        if (verbosity > 0)
+          log(fmt::format("- failed: unknown exception"), indent);
+        throw std::runtime_error("unknown exception");
       }
     }
 
@@ -405,6 +269,39 @@ namespace ravl
       std::span<const uint8_t> span((uint8_t*)pem.data(), pem.size());
       return verify_certificate_chain(
         span, store, options, trusted_root, verbosity, indent);
+    }
+
+    inline std::vector<uint8_t> sha256(const std::span<const uint8_t>& message)
+    {
+      return OpenSSL::sha256(message);
+    }
+
+    inline std::vector<uint8_t> sha384(const std::span<const uint8_t>& message)
+    {
+      return OpenSSL::sha384(message);
+    }
+
+    inline std::vector<uint8_t> sha512(const std::span<const uint8_t>& message)
+    {
+      return OpenSSL::sha512(message);
+    }
+
+    inline bool verify_certificate(
+      const Unique_X509_STORE& store,
+      const Unique_X509& certificate,
+      const CertificateValidationOptions& options)
+    {
+      return OpenSSL::verify_certificate(store, certificate, options);
+    }
+
+    inline Unique_STACK_OF_X509 verify_certificate_chain(
+      const Unique_X509_STORE& store,
+      const Unique_STACK_OF_X509& stack,
+      const CertificateValidationOptions& options,
+      bool trusted_root = false)
+    {
+      return OpenSSL::verify_certificate_chain(
+        store, stack, options, trusted_root);
     }
   }
 }

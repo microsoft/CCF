@@ -34,7 +34,8 @@ namespace ravl
         options(options),
         attestation(attestation),
         http_client(http_client),
-        callback(callback)
+        callback(callback),
+        http_request_set_id(std::nullopt)
       {}
 
       Request(const Request& other) = delete;
@@ -44,10 +45,11 @@ namespace ravl
       std::shared_ptr<Claims> claims;
       std::shared_ptr<HTTPClient> http_client;
       std::function<void(RequestID)> callback;
+      std::optional<HTTPRequestSetId> http_request_set_id;
     };
 
     using Requests = std::map<AttestationRequestTracker::RequestID, Request>;
-    using URLResponseMap =
+    using HTTPResponseMap =
       std::map<AttestationRequestTracker::RequestID, HTTPResponses>;
 
     mutable std::mutex requests_mtx;
@@ -55,7 +57,7 @@ namespace ravl
     std::shared_ptr<HTTPClient> http_client;
     std::atomic<AttestationRequestTracker::RequestID> next_request_id = 0;
     mutable std::mutex responses_mtx;
-    URLResponseMap url_responses;
+    HTTPResponseMap http_responses;
 
     RequestID submit(
       const Options& options,
@@ -159,7 +161,11 @@ namespace ravl
 
       auto rit = requests.find(id);
       if (rit != requests.end())
+      {
+        if (http_client && rit->second.http_request_set_id)
+          http_client->erase(*rit->second.http_request_set_id);
         requests.erase(rit);
+      }
     }
 
     AttestationRequestTracker::RequestID advance(RequestID id)
@@ -209,31 +215,33 @@ namespace ravl
         }
       }
 
+      std::optional<HTTPRequests> http_requests;
       try
       {
-        auto url_requests = request.attestation->prepare_endorsements(options);
-        if (url_requests)
-        {
-          auto callback = [this, id](HTTPResponses&& r) {
-            {
-              std::lock_guard<std::mutex> guard(responses_mtx);
-              auto [it, ok] = url_responses.emplace(id, r);
-              if (!ok)
-                throw std::bad_alloc();
-            }
-            advance(id);
-            advance(id);
-          };
-          http_client->submit(std::move(*url_requests), callback);
-          return true;
-        }
+        http_requests = request.attestation->prepare_endorsements(options);
       }
-      catch (std::exception& ex)
+      catch (const std::exception& ex)
       {
         if (options.verbosity > 0)
-          log(fmt::format("  - verification failed: {}", ex.what()));
-        throw std::runtime_error(
-          fmt::format("attestation verification failed: {}", ex.what()));
+          log(fmt::format("  - endorsement preparation failed: {}", ex.what()));
+        throw;
+      }
+
+      if (http_requests)
+      {
+        auto callback = [this, id](HTTPResponses&& r) {
+          {
+            std::lock_guard<std::mutex> guard(responses_mtx);
+            auto [it, ok] = http_responses.emplace(id, r);
+            if (!ok)
+              throw std::bad_alloc();
+          }
+          advance(id);
+          advance(id);
+        };
+        request.http_request_set_id =
+          http_client->submit(std::move(*http_requests), callback);
+        return true;
       }
 
       return false;
@@ -255,16 +263,16 @@ namespace ravl
         std::lock_guard<std::mutex> guard(responses_mtx);
         std::vector<HTTPResponse> responses;
 
-        auto rit = url_responses.find(id);
-        if (rit != url_responses.end())
+        auto rit = http_responses.find(id);
+        if (rit != http_responses.end())
         {
           responses.swap(rit->second);
-          url_responses.erase(rit);
+          http_responses.erase(rit);
         }
 
         claims = attestation.verify(options, responses);
       }
-      catch (std::exception& ex)
+      catch (const std::exception& ex)
       {
         throw std::runtime_error(
           fmt::format("attestation verification failed: {}", ex.what()));

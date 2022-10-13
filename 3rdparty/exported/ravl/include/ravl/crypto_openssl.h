@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "crypto_options.h"
+
 #include <cstring>
 #include <memory>
 #include <openssl/asn1.h>
@@ -19,11 +21,18 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
+#include <optional>
 #include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/core_names.h>
+#  include <openssl/types.h>
+#endif
 
 namespace ravl
 {
@@ -207,19 +216,6 @@ namespace ravl
         }
       };
 
-      struct Unique_EC_KEY : public Unique_SSL_OBJECT<EC_KEY, nullptr, nullptr>
-      {
-        Unique_EC_KEY(int nid) :
-          Unique_SSL_OBJECT(
-            EC_KEY_new_by_curve_name(nid), EC_KEY_free, /*check_null=*/true)
-        {}
-        Unique_EC_KEY(const Unique_EC_KEY& other) :
-          Unique_SSL_OBJECT(other, EC_KEY_free, /*check_null=*/true)
-        {
-          EC_KEY_up_ref(p.get());
-        }
-      };
-
       struct Unique_BIGNUM : public Unique_SSL_OBJECT<BIGNUM, BN_new, BN_free>
       {
         using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
@@ -227,19 +223,6 @@ namespace ravl
           Unique_SSL_OBJECT(
             BN_bin2bn(buf, sz, NULL), BN_free, /*check_null=*/false)
         {}
-      };
-
-      struct Unique_EC_KEY_P256 : public Unique_EC_KEY
-      {
-        Unique_EC_KEY_P256(const std::span<const uint8_t>& coordinates) :
-          Unique_EC_KEY(NID_X9_62_prime256v1)
-        {
-          EC_KEY* ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-          Unique_BIGNUM x(&coordinates[0], 32);
-          Unique_BIGNUM y(&coordinates[32], 32);
-          CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
-          p.reset(ec_key);
-        }
       };
 
       struct Unique_X509_REVOKED : public Unique_SSL_OBJECT<
@@ -670,27 +653,27 @@ namespace ravl
                   d2i_PUBKEY_bio(mem, NULL),
             EVP_PKEY_free)
         {}
-        Unique_EVP_PKEY(const Unique_EC_KEY& ec_key) :
-          Unique_SSL_OBJECT(EVP_PKEY_new(), EVP_PKEY_free)
-        {
-          EVP_PKEY_set1_EC_KEY(p.get(), ec_key);
-        }
         Unique_EVP_PKEY(const Unique_X509& x509) :
           Unique_SSL_OBJECT(X509_get_pubkey(x509), EVP_PKEY_free)
         {}
 
         bool operator==(const Unique_EVP_PKEY& other) const
         {
-          // TODO: Do the parameters need to match? (They don't match for the
-          // SEV/SNP root CA.)
-          return // EVP_PKEY_cmp_parameters((*this), other) == 1 &&
-            EVP_PKEY_cmp((*this), other) == 1;
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+          return EVP_PKEY_eq(*this, other) == 1;
+#else
+          return EVP_PKEY_cmp(*this, other) == 1;
+#endif
         }
 
         bool operator!=(const Unique_EVP_PKEY& other) const
         {
           return !(*this == other);
         }
+
+        bool verify_signature(
+          const std::span<const uint8_t>& message,
+          const std::span<const uint8_t>& signature) const;
       };
 
       struct Unique_EVP_PKEY_CTX
@@ -699,11 +682,98 @@ namespace ravl
         Unique_EVP_PKEY_CTX(const Unique_EVP_PKEY& key) :
           Unique_SSL_OBJECT(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
         {}
-        Unique_EVP_PKEY_CTX() :
-          Unique_SSL_OBJECT(
-            EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL), EVP_PKEY_CTX_free)
+        Unique_EVP_PKEY_CTX(int nid) :
+          Unique_SSL_OBJECT(EVP_PKEY_CTX_new_id(nid, NULL), EVP_PKEY_CTX_free)
         {}
       };
+
+      struct Unique_BN_CTX
+        : public Unique_SSL_OBJECT<BN_CTX, BN_CTX_new, BN_CTX_free>
+      {};
+
+      struct Unique_EC_GROUP
+        : public Unique_SSL_OBJECT<EC_GROUP, nullptr, EC_GROUP_free>
+      {
+        Unique_EC_GROUP(int nid) :
+          Unique_SSL_OBJECT(EC_GROUP_new_by_curve_name(nid), EC_GROUP_free)
+        {}
+      };
+
+      struct Unique_EC_POINT
+        : public Unique_SSL_OBJECT<EC_POINT, nullptr, EC_POINT_free>
+      {
+        Unique_EC_POINT(const Unique_EC_GROUP& grp) :
+          Unique_SSL_OBJECT(EC_POINT_new(grp), EC_POINT_free)
+        {}
+      };
+
+      struct Unique_EVP_PKEY_P256 : public Unique_EVP_PKEY
+      {
+        Unique_EVP_PKEY_P256(const std::span<const uint8_t>& coordinates) :
+          Unique_EVP_PKEY()
+        {
+          Unique_BIGNUM x(&coordinates[0], 32);
+          Unique_BIGNUM y(&coordinates[32], 32);
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+          const char* group_name = "prime256v1";
+
+          Unique_BN_CTX bn_ctx;
+          Unique_EC_GROUP grp(NID_X9_62_prime256v1);
+          Unique_EC_POINT pnt(grp);
+          CHECK1(EC_POINT_set_affine_coordinates(grp, pnt, x, y, bn_ctx));
+          size_t len = EC_POINT_point2oct(
+            grp, pnt, POINT_CONVERSION_UNCOMPRESSED, NULL, 0, bn_ctx);
+          std::vector<unsigned char> buf(len);
+          EC_POINT_point2oct(
+            grp,
+            pnt,
+            POINT_CONVERSION_UNCOMPRESSED,
+            buf.data(),
+            buf.size(),
+            bn_ctx);
+
+          Unique_EVP_PKEY_CTX ek_ctx(EVP_PKEY_EC);
+          OSSL_PARAM params[] = {
+            OSSL_PARAM_utf8_string(
+              OSSL_PKEY_PARAM_GROUP_NAME,
+              (void*)group_name,
+              strlen(group_name)),
+            OSSL_PARAM_octet_string(
+              OSSL_PKEY_PARAM_PUB_KEY, buf.data(), buf.size()),
+            OSSL_PARAM_END};
+
+          EVP_PKEY* epk = NULL;
+          CHECK1(EVP_PKEY_fromdata_init(ek_ctx));
+          CHECK1(EVP_PKEY_fromdata(ek_ctx, &epk, EVP_PKEY_PUBLIC_KEY, params));
+
+          p.reset(epk);
+#else
+          EC_KEY* ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+          CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
+          CHECK1(EVP_PKEY_set1_EC_KEY(p.get(), ec_key));
+          EC_KEY_free(ec_key);
+#endif
+        }
+      };
+
+      inline bool Unique_EVP_PKEY::verify_signature(
+        const std::span<const uint8_t>& message,
+        const std::span<const uint8_t>& signature) const
+      {
+        Unique_EVP_PKEY_CTX pctx(*this);
+
+        CHECK1(EVP_PKEY_verify_init(pctx));
+
+        int rc = EVP_PKEY_verify(
+          pctx,
+          signature.data(),
+          signature.size(),
+          message.data(),
+          message.size());
+
+        return rc == 1;
+      }
 
       inline bool Unique_X509::has_public_key(
         const Unique_EVP_PKEY& target) const
@@ -1055,6 +1125,253 @@ namespace ravl
           return v->value.boolean;
         }
       };
+
+      struct Unique_EVP_MD_CTX
+        : public Unique_SSL_OBJECT<EVP_MD_CTX, EVP_MD_CTX_new, EVP_MD_CTX_free>
+      {
+        using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
+        void init(const EVP_MD* md)
+        {
+          this->md = md;
+          CHECK1(EVP_DigestInit_ex(p.get(), md, NULL));
+        }
+
+        void update(const std::span<const uint8_t>& message)
+        {
+          CHECK1(EVP_DigestUpdate(p.get(), message.data(), message.size()));
+        }
+
+        std::vector<uint8_t> final()
+        {
+          std::vector<uint8_t> r(EVP_MD_size(md));
+          unsigned sz = r.size();
+          CHECK1(EVP_DigestFinal_ex(p.get(), r.data(), &sz));
+          return r;
+        }
+
+      protected:
+        const EVP_MD* md = NULL;
+      };
+
+      inline std::string to_base64(const std::span<const uint8_t>& bytes)
+      {
+        Unique_BIO bio_chain((Unique_BIO(BIO_f_base64())), Unique_BIO());
+
+        BIO_set_flags(bio_chain, BIO_FLAGS_BASE64_NO_NL);
+        BIO_set_close(bio_chain, BIO_CLOSE);
+        int n = BIO_write(bio_chain, bytes.data(), bytes.size());
+        BIO_flush(bio_chain);
+
+        if (n < 0)
+          throw std::runtime_error("base64 encoding error");
+
+        return bio_chain.to_string();
+      }
+
+      inline std::vector<uint8_t> from_base64(const std::string& b64)
+      {
+        Unique_BIO bio_chain((Unique_BIO(BIO_f_base64())), Unique_BIO(b64));
+
+        std::vector<uint8_t> out(b64.size());
+        BIO_set_flags(bio_chain, BIO_FLAGS_BASE64_NO_NL);
+        BIO_set_close(bio_chain, BIO_CLOSE);
+        int n = BIO_read(bio_chain, out.data(), b64.size());
+
+        if (n < 0)
+          throw std::runtime_error("base64 decoding error");
+
+        out.resize(n);
+
+        return out;
+      }
+
+      inline std::vector<uint8_t> sha256(
+        const std::span<const uint8_t>& message)
+      {
+        Unique_EVP_MD_CTX ctx;
+        ctx.init(EVP_sha256());
+        ctx.update(message);
+        return ctx.final();
+      }
+
+      inline std::vector<uint8_t> sha384(
+        const std::span<const uint8_t>& message)
+      {
+        Unique_EVP_MD_CTX ctx;
+        ctx.init(EVP_sha384());
+        ctx.update(message);
+        return ctx.final();
+      }
+
+      inline std::vector<uint8_t> sha512(
+        const std::span<const uint8_t>& message)
+      {
+        Unique_EVP_MD_CTX ctx;
+        ctx.init(EVP_sha512());
+        ctx.update(message);
+        return ctx.final();
+      }
+
+      inline bool verify_certificate(
+        const Unique_X509_STORE& store,
+        const Unique_X509& certificate,
+        const CertificateValidationOptions& options)
+      {
+        Unique_X509_STORE_CTX store_ctx;
+        CHECK1(X509_STORE_CTX_init(store_ctx, store, certificate, NULL));
+
+        X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
+        X509_VERIFY_PARAM_set_depth(param, INT_MAX);
+        X509_VERIFY_PARAM_set_auth_level(param, 0);
+
+        CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_X509_STRICT));
+        CHECK1(
+          X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_CHECK_SS_SIGNATURE));
+
+        if (options.ignore_time)
+        {
+          CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME));
+        }
+
+        if (options.verification_time)
+        {
+          X509_STORE_CTX_set_time(store_ctx, 0, *options.verification_time);
+        }
+
+        X509_STORE_CTX_set0_param(store_ctx, param);
+
+        int rc = X509_verify_cert(store_ctx);
+
+        if (rc == 1)
+          return true;
+        else if (rc == 0)
+        {
+          int err_code = X509_STORE_CTX_get_error(store_ctx);
+          const char* err_str = X509_verify_cert_error_string(err_code);
+          throw std::runtime_error(fmt::format(
+            "certificate not self-signed or signature invalid: {}", err_str));
+        }
+        else
+        {
+          unsigned long openssl_err = ERR_get_error();
+          char buf[4096];
+          ERR_error_string(openssl_err, buf);
+          throw std::runtime_error(fmt::format("OpenSSL error: {}", buf));
+        }
+      }
+
+      inline Unique_STACK_OF_X509 verify_certificate_chain(
+        const Unique_X509_STORE& store,
+        const Unique_STACK_OF_X509& stack,
+        const CertificateValidationOptions& options,
+        bool trusted_root = false)
+      {
+        if (stack.size() <= 1)
+          throw std::runtime_error("certificate stack too small");
+
+        if (trusted_root)
+          CHECK1(X509_STORE_add_cert(store, stack.back()));
+
+        auto target = stack.at(0);
+
+        Unique_X509_STORE_CTX store_ctx;
+        CHECK1(X509_STORE_CTX_init(store_ctx, store, target, stack));
+
+        X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
+        X509_VERIFY_PARAM_set_depth(param, INT_MAX);
+        X509_VERIFY_PARAM_set_auth_level(param, 0);
+
+        CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_X509_STRICT));
+        CHECK1(
+          X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_CHECK_SS_SIGNATURE));
+
+        if (options.ignore_time)
+        {
+          CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME));
+        }
+
+        if (options.verification_time)
+        {
+          X509_STORE_CTX_set_time(store_ctx, 0, *options.verification_time);
+        }
+
+        X509_STORE_CTX_set0_param(store_ctx, param);
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+        X509_STORE_CTX_set_verify_cb(
+          store_ctx, [](int ok, X509_STORE_CTX* store_ctx) {
+            int ec = X509_STORE_CTX_get_error(store_ctx);
+            if (ec == X509_V_ERR_MISSING_AUTHORITY_KEY_IDENTIFIER)
+            {
+              // OpenSSL 3.0 with X509_V_FLAG_X509_STRICT requires an authority
+              // key id, but, for instance, AMD SEV/SNP VCEK certificates don't
+              // come with one, so we skip this check.
+              return 1;
+            }
+            return ok;
+          });
+#endif
+
+        int rc = X509_verify_cert(store_ctx);
+
+        if (rc == 1)
+          return Unique_STACK_OF_X509(store_ctx);
+        else if (rc == 0)
+        {
+          int err_code = X509_STORE_CTX_get_error(store_ctx);
+          int depth = X509_STORE_CTX_get_error_depth(store_ctx);
+          const char* err_str = X509_verify_cert_error_string(err_code);
+          throw std::runtime_error(fmt::format(
+            "certificate chain verification failed: {} (depth: {})",
+            err_str,
+            depth));
+          throw std::runtime_error("no chain or signature invalid");
+        }
+        else
+        {
+          unsigned long openssl_err = ERR_get_error();
+          char buf[4096];
+          ERR_error_string(openssl_err, buf);
+          throw std::runtime_error(fmt::format("OpenSSL error: {}", buf));
+        }
+      }
+
+      inline std::vector<uint8_t> convert_signature_to_der(
+        const std::span<const uint8_t>& r,
+        const std::span<const uint8_t>& s,
+        bool little_endian = false)
+      {
+        if (r.size() != s.size())
+          throw std::runtime_error("incompatible signature coordinates");
+
+        Unique_ECDSA_SIG sig;
+        {
+          Unique_BIGNUM r_bn;
+          Unique_BIGNUM s_bn;
+          if (little_endian)
+          {
+            CHECKNULL(BN_lebin2bn(r.data(), r.size(), r_bn));
+            CHECKNULL(BN_lebin2bn(s.data(), s.size(), s_bn));
+          }
+          else
+          {
+            CHECKNULL(BN_bin2bn(r.data(), r.size(), r_bn));
+            CHECKNULL(BN_bin2bn(s.data(), s.size(), s_bn));
+          }
+          CHECK1(ECDSA_SIG_set0(sig, r_bn, s_bn));
+          r_bn.release(); // r, s now owned by the signature object
+          s_bn.release();
+        }
+        int der_size = i2d_ECDSA_SIG(sig, NULL);
+        CHECK0(der_size);
+        if (der_size < 0)
+          throw std::runtime_error("not an ECDSA signature");
+        std::vector<uint8_t> res(der_size);
+        auto der_sig_buf = res.data();
+        CHECK0(i2d_ECDSA_SIG(sig, &der_sig_buf));
+        return res;
+      }
     }
   }
 }

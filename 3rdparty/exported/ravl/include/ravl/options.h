@@ -39,5 +39,8 @@ namespace ravl
 
     /// Timeout for HTTP requests (in seconds; 0 = no limit)
     size_t http_timeout = 90;
+
+    /// Maximum number of attempts for HTTP requests
+    size_t http_max_attempts = 5;
   };
 }

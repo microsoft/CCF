@@ -42,10 +42,6 @@ namespace ravl
     std::string url = "";
     std::unordered_map<std::string, std::string> headers = {};
     std::string body = "";
-    size_t max_attempts = 5;
-
-    HTTPResponse execute(
-      size_t timeout = 0, bool verbose = false); /// synchronous
   };
 
   typedef std::vector<HTTPRequest> HTTPRequests;
@@ -54,8 +50,12 @@ namespace ravl
   class HTTPClient
   {
   public:
-    HTTPClient(size_t request_timeout = 0, bool verbose = false) :
+    HTTPClient(
+      size_t request_timeout = 0,
+      size_t max_attempts = 5,
+      bool verbose = false) :
       request_timeout(request_timeout),
+      max_attempts(max_attempts),
       verbose(verbose)
     {}
     virtual ~HTTPClient() = default;
@@ -65,15 +65,21 @@ namespace ravl
 
     virtual bool is_complete(const HTTPRequestSetId& id) const = 0;
 
+    virtual void erase(const HTTPRequestSetId& id) = 0;
+
   protected:
     size_t request_timeout = 0;
+    size_t max_attempts = 5;
     bool verbose = false;
   };
 
   class SynchronousHTTPClient : public HTTPClient
   {
   public:
-    SynchronousHTTPClient(size_t request_timeout = 0, bool verbose = false);
+    SynchronousHTTPClient(
+      size_t request_timeout = 0,
+      size_t max_attempts = 5,
+      bool verbose = false);
     virtual ~SynchronousHTTPClient() = default;
 
     virtual HTTPRequestSetId submit(
@@ -81,6 +87,14 @@ namespace ravl
       std::function<void(HTTPResponses&&)>&& callback) override;
 
     virtual bool is_complete(const HTTPRequestSetId& id) const override;
+
+    static HTTPResponse execute_synchronous(
+      const HTTPRequest& request,
+      size_t timeout = 0,
+      size_t max_attempts = 5,
+      bool verbose = false);
+
+    virtual void erase(const HTTPRequestSetId& id) override;
 
   protected:
     std::unordered_map<HTTPRequestSetId, HTTPRequests> request_sets;
@@ -90,7 +104,10 @@ namespace ravl
   class AsynchronousHTTPClient : public HTTPClient
   {
   public:
-    AsynchronousHTTPClient(size_t request_timeout = 0, bool verbose = false);
+    AsynchronousHTTPClient(
+      size_t request_timeout = 0,
+      size_t max_attempts = 5,
+      bool verbose = false);
     virtual ~AsynchronousHTTPClient();
 
     virtual HTTPRequestSetId submit(
@@ -98,6 +115,8 @@ namespace ravl
       std::function<void(HTTPResponses&&)>&& callback) override;
 
     virtual bool is_complete(const HTTPRequestSetId& id) const override;
+
+    virtual void erase(const HTTPRequestSetId& id) override;
 
   private:
     void* implementation;

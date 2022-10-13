@@ -50,7 +50,8 @@ namespace ravl
   RAVL_VISIBILITY std::shared_ptr<Claims> verify_synchronous(
     std::shared_ptr<const Attestation> attestation, const Options& options)
   {
-    auto http_client = std::make_shared<SynchronousHTTPClient>();
+    auto http_client = std::make_shared<SynchronousHTTPClient>(
+      options.http_timeout, options.http_max_attempts, options.verbosity > 0);
     auto requests = attestation->prepare_endorsements(options);
     std::optional<HTTPResponses> http_responses = std::nullopt;
     if (requests)

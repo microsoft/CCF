@@ -11,6 +11,7 @@
 #include "visibility.h"
 
 #include <nlohmann/json.hpp>
+#include <vector>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -82,6 +83,8 @@ namespace ravl
         if (pos != data.size())
           throw std::runtime_error("excess collateral data");
       }
+
+      QL_QVE_Collateral(const QL_QVE_Collateral& other) = default;
 
       uint16_t major_version = 3;
       uint16_t minor_version = 1;
@@ -155,227 +158,201 @@ namespace ravl
       }
     };
 
-    namespace
+    RAVL_VISIBILITY bool verify_signature(
+      const crypto::Unique_EVP_PKEY& pkey,
+      const std::span<const uint8_t>& message,
+      const std::span<const uint8_t>& signature)
     {
-      bool verify_signature(
-        const crypto::Unique_EVP_PKEY& pkey,
-        const std::span<const uint8_t>& message,
-        const std::span<const uint8_t>& signature)
-      {
-        using namespace crypto;
+      using namespace crypto;
 
-        SHA256_CTX ctx;
-        SHA256_Init(&ctx);
+      auto hash = sha256(message);
+      auto sig_der = convert_signature_to_der(signature);
+      return pkey.verify_signature(hash, sig_der);
+    }
 
-        SHA256_Update(&ctx, message.data(), message.size());
+    RAVL_VISIBILITY bool verify_hash_match(
+      const std::vector<std::span<const uint8_t>>& inputs,
+      const std::span<const uint8_t>& expected)
+    {
+      using namespace crypto;
 
-        std::vector<uint8_t> hash(ctx.md_len, 0);
-        SHA256_Final(hash.data(), &ctx);
+      Unique_EVP_MD_CTX mdctx;
+      mdctx.init(EVP_sha256());
+      for (const auto& input : inputs)
+        if (input.size() > 0)
+          mdctx.update(input);
+      auto hash = mdctx.final();
 
-        auto signature_der = convert_signature_to_der(signature);
-
-        Unique_EVP_PKEY_CTX pctx(pkey);
-        CHECK1(EVP_PKEY_verify_init(pctx));
-        int rc = EVP_PKEY_verify(
-          pctx,
-          signature_der.data(),
-          signature_der.size(),
-          hash.data(),
-          hash.size());
-
-        return rc == 1;
-      }
-
-      RAVL_VISIBILITY bool verify_signature(
-        const crypto::Unique_EC_KEY& eckey,
-        const std::span<const uint8_t>& message,
-        const std::span<const uint8_t>& signature)
-      {
-        return verify_signature(
-          crypto::Unique_EVP_PKEY(eckey), message, signature);
-      }
-
-      RAVL_VISIBILITY bool verify_signature(
-        const std::span<const uint8_t>& public_key,
-        const std::span<const uint8_t>& message,
-        const std::span<const uint8_t>& signature)
-      {
-        return verify_signature(
-          crypto::Unique_EC_KEY_P256(public_key), message, signature);
-      }
-
-      RAVL_VISIBILITY bool verify_hash_match(
-        const std::vector<std::span<const uint8_t>>& inputs,
-        const std::span<const uint8_t>& expected)
-      {
-        using namespace crypto;
-
-        SHA256_CTX sha256_ctx;
-        CHECK1(SHA256_Init(&sha256_ctx));
-        for (const auto& input : inputs)
-          if (input.size() > 0)
-            CHECK1(SHA256_Update(&sha256_ctx, input.data(), input.size()));
-        std::vector<uint8_t> hash(sha256_ctx.md_len, 0);
-        CHECK1(SHA256_Final(hash.data(), &sha256_ctx));
-        if (hash.size() != expected.size())
+      if (hash.size() != expected.size())
+        return false;
+      for (size_t i = 0; i < hash.size(); i++)
+        if (hash[i] != expected[i])
           return false;
-        for (size_t i = 0; i < hash.size(); i++)
-          if (hash[i] != expected[i])
-            return false;
-        return true;
-      }
+      return true;
+    }
 
-      static const std::string intel_certificates_url_base =
-        "https://certificates.trustedservices.intel.com";
-      static const std::string root_ca_url = intel_certificates_url_base +
-        "/Intel_SGX_Provisioning_Certification_RootCA.pem";
-      static const std::string root_crl_url =
-        intel_certificates_url_base + "/IntelSGXRootCA.crl";
-      static const std::string api_base_url =
-        "https://api.trustedservices.intel.com/sgx/certification/v3";
-      static const std::string tcb_url = api_base_url + "/tcb";
-      static const std::string pck_crl_url = api_base_url + "/pckcrl";
-      static const std::string qe_identity_url = api_base_url + "/qe/identity";
-      static const std::string qve_identity_url =
-        api_base_url + "/qve/identity";
+    static const std::string intel_certificates_url_base =
+      "https://certificates.trustedservices.intel.com";
+    static const std::string root_ca_url = intel_certificates_url_base +
+      "/Intel_SGX_Provisioning_Certification_RootCA.pem";
+    static const std::string root_crl_url =
+      intel_certificates_url_base + "/IntelSGXRootCA.crl";
+    static const std::string api_base_url =
+      "https://api.trustedservices.intel.com/sgx/certification/v3";
+    static const std::string tcb_url = api_base_url + "/tcb";
+    static const std::string pck_crl_url = api_base_url + "/pckcrl";
+    static const std::string qe_identity_url = api_base_url + "/qe/identity";
+    static const std::string qve_identity_url = api_base_url + "/qve/identity";
 
-      RAVL_VISIBILITY HTTPRequests download_root_ca_pem()
+    RAVL_VISIBILITY HTTPRequests download_root_ca_pem()
+    {
+      HTTPRequests requests;
+      requests.emplace_back(root_ca_url);
+      return requests;
+    }
+
+    RAVL_VISIBILITY HTTPRequests download_collateral(
+      const std::string& ca,
+      const std::string& fmspc,
+      const Options& options,
+      bool qve = false)
+    {
+      auto r = std::make_shared<QL_QVE_Collateral>();
+
+      r->major_version = 3;
+      r->minor_version = 1;
+      r->tee_type = 0;
+
+      HTTPRequests requests;
+
+      if (!options.sgx_endorsement_cache_url_template)
       {
-        HTTPRequests requests;
-        requests.emplace_back(root_ca_url);
-        return requests;
-      }
+        // Root CA certificate
+        if (!options.root_ca_certificate)
+          requests.emplace_back(root_ca_url);
 
-      RAVL_VISIBILITY HTTPRequests download_collateral(
-        const std::string& ca,
-        const std::string& fmspc,
-        const Options& options,
-        bool qve = false)
-      {
-        auto r = std::make_shared<QL_QVE_Collateral>();
+        // Root CRL
+        requests.emplace_back(root_crl_url);
 
-        r->major_version = 3;
-        r->minor_version = 1;
-        r->tee_type = 0;
+        // TCB info
+        // https://api.portal.trustedservices.intel.com/documentation#pcs-tcb-info-v3
+        requests.emplace_back(tcb_url + "?fmspc=" + fmspc);
 
-        HTTPRequests requests;
+        // PCK CRL
+        // https://api.portal.trustedservices.intel.com/documentation#pcs-revocation-v3
+        requests.emplace_back(pck_crl_url + "?ca=" + ca + "&encoding=pem");
 
-        if (!options.sgx_endorsement_cache_url_template)
+        if (!qve)
         {
-          // Root CA certificate
-          if (!options.root_ca_certificate)
-            requests.emplace_back(root_ca_url);
-
-          // Root CRL
-          requests.emplace_back(root_crl_url);
-
-          // TCB info
-          // https://api.portal.trustedservices.intel.com/documentation#pcs-tcb-info-v3
-          requests.emplace_back(tcb_url + "?fmspc=" + fmspc);
-
-          // PCK CRL
-          // https://api.portal.trustedservices.intel.com/documentation#pcs-revocation-v3
-          requests.emplace_back(pck_crl_url + "?ca=" + ca + "&encoding=pem");
-
-          if (!qve)
-          {
-            // QE Identity
-            // https://api.portal.trustedservices.intel.com/documentation#pcs-qe-identity-v3
-            requests.emplace_back(qe_identity_url);
-          }
-          else
-          {
-            // QVE Identity
-            // https://api.portal.trustedservices.intel.com/documentation#pcs-qve-identity-v3
-            requests.emplace_back(qve_identity_url);
-          }
+          // QE Identity
+          // https://api.portal.trustedservices.intel.com/documentation#pcs-qe-identity-v3
+          requests.emplace_back(qe_identity_url);
         }
         else
         {
-          if (!options.root_ca_certificate)
-            requests.emplace_back(root_ca_url);
-          auto tmpl = *options.sgx_endorsement_cache_url_template;
-          requests.emplace_back(
-            fmt::vformat(tmpl, fmt::make_format_args("pckcrl", root_crl_url)));
-          requests.emplace_back(fmt::vformat(
-            tmpl, fmt::make_format_args("tcb", tcb_url + "&fmspc=" + fmspc)));
-          requests.emplace_back(fmt::vformat(
-            tmpl,
-            fmt::make_format_args(
-              "pckcrl",
-              intel_certificates_url_base + "/intelsgxpck" + ca + ".crl" +
-                "&encoding=pem")));
-          if (!qve)
-            requests.emplace_back(fmt::vformat(
-              tmpl, fmt::make_format_args("qe/identity", qe_identity_url)));
-          else
-            requests.emplace_back(fmt::vformat(
-              tmpl, fmt::make_format_args("qve/identity", qve_identity_url)));
+          // QVE Identity
+          // https://api.portal.trustedservices.intel.com/documentation#pcs-qve-identity-v3
+          requests.emplace_back(qve_identity_url);
         }
-
-        return requests;
       }
-
-      RAVL_VISIBILITY bool json_vector_eq(
-        const nlohmann::json& tcbinfo_j,
-        const std::string& key,
-        const std::vector<uint8_t>& ref,
-        bool optional = false)
+      else
       {
-        auto vj = tcbinfo_j[key];
-        if (vj.is_null())
-        {
-          if (optional)
-            return true;
-          else
-            throw std::runtime_error("missing json object");
-        }
-
-        auto vv = vj.get<std::string>();
-        return from_hex(vv) == ref;
-      }
-
-      RAVL_VISIBILITY void check_datetime(
-        const std::string& date_s, const std::string& name)
-      {
-        auto earliest_permitted =
-          parse_time_point(sgx_earliest_tcb_crl_date, datetime_format);
-        auto issue_timepoint = parse_time_point(date_s, datetime_format);
-        if (issue_timepoint < earliest_permitted)
-          throw std::runtime_error(name + " earlier than permitted");
-      }
-
-      RAVL_VISIBILITY void check_http_200(
-        const HTTPResponse& response, const std::string& name)
-      {
-        if (response.status != 200)
-          throw std::runtime_error(fmt::format("download of {} failed", name));
-      }
-
-      RAVL_VISIBILITY std::shared_ptr<QL_QVE_Collateral> consume_url_responses(
-        const Options& options,
-        const std::vector<HTTPResponse>& http_responses,
-        bool qve = false)
-      {
-        size_t expected_responses = 4;
-
         if (!options.root_ca_certificate)
-          expected_responses++;
+          requests.emplace_back(root_ca_url);
+        auto tmpl = *options.sgx_endorsement_cache_url_template;
+        requests.emplace_back(
+          fmt::vformat(tmpl, fmt::make_format_args("pckcrl", root_crl_url)));
+        requests.emplace_back(fmt::vformat(
+          tmpl, fmt::make_format_args("tcb", tcb_url + "&fmspc=" + fmspc)));
+        requests.emplace_back(fmt::vformat(
+          tmpl,
+          fmt::make_format_args(
+            "pckcrl",
+            intel_certificates_url_base + "/intelsgxpck" + ca + ".crl" +
+              "&encoding=pem")));
+        if (!qve)
+          requests.emplace_back(fmt::vformat(
+            tmpl, fmt::make_format_args("qe/identity", qe_identity_url)));
+        else
+          requests.emplace_back(fmt::vformat(
+            tmpl, fmt::make_format_args("qve/identity", qve_identity_url)));
+      }
 
-        if (http_responses.size() != expected_responses)
-          throw std::runtime_error(
-            "collateral download request set of unexpected size");
+      return requests;
+    }
 
-        auto r = std::make_shared<QL_QVE_Collateral>();
+    RAVL_VISIBILITY bool json_vector_eq(
+      const nlohmann::json& tcbinfo_j,
+      const std::string& key,
+      const std::vector<uint8_t>& ref,
+      bool optional = false)
+    {
+      auto vj = tcbinfo_j[key];
+      if (vj.is_null())
+      {
+        if (optional)
+          return true;
+        else
+          throw std::runtime_error("missing json object");
+      }
 
-        size_t i = 0;
+      auto vv = vj.get<std::string>();
+      return from_hex(vv) == ref;
+    }
 
-        if (!options.root_ca_certificate)
-        {
-          check_http_200(http_responses[i], "root CA certificate");
-          r->root_ca = http_responses[i++].body;
-        }
+    RAVL_VISIBILITY void check_datetime(
+      const std::string& date_s, const std::string& name)
+    {
+      auto earliest_permitted =
+        parse_time_point(sgx_earliest_tcb_crl_date, datetime_format);
+      auto issue_timepoint = parse_time_point(date_s, datetime_format);
+      if (issue_timepoint < earliest_permitted)
+        throw std::runtime_error(name + " earlier than permitted");
+    }
 
+    RAVL_VISIBILITY void check_http_200(
+      const HTTPResponse& response, const std::string& name)
+    {
+      if (response.status != 200)
+        throw std::runtime_error(fmt::format("download of {} failed", name));
+    }
+
+    RAVL_VISIBILITY std::shared_ptr<QL_QVE_Collateral> consume_url_responses(
+      const Options& options,
+      const std::vector<HTTPResponse>& http_responses,
+      const std::shared_ptr<QL_QVE_Collateral>& collateral,
+      bool qve = false)
+    {
+      size_t expected_responses = 0;
+
+      if (
+        !collateral ||
+        (collateral->root_ca.empty() && !options.root_ca_certificate) ||
+        options.fresh_root_ca_certificate)
+        expected_responses += 1;
+
+      if (!collateral || options.fresh_endorsements)
+        expected_responses += 4;
+
+      if (http_responses.size() != expected_responses)
+        throw std::runtime_error(fmt::format(
+          "collateral download request set of unexpected size ({} vs {})",
+          http_responses.size(),
+          expected_responses));
+
+      auto r = collateral ? std::make_shared<QL_QVE_Collateral>(*collateral) :
+                            std::make_shared<QL_QVE_Collateral>();
+
+      size_t i = 0;
+
+      if (!options.root_ca_certificate)
+      {
+        check_http_200(http_responses[i], "root CA certificate");
+        r->root_ca = http_responses[i++].body;
+      }
+
+      if (http_responses.size() > 4)
+      {
         check_http_200(http_responses[i], "root CA CRL");
         r->root_ca_crl = http_responses[i++].body;
 
@@ -407,9 +384,9 @@ namespace ravl
           r->qe_identity_issuer_chain = response.get_header_string(
             "SGX-Enclave-Identity-Issuer-Chain", true);
         }
-
-        return r;
       }
+
+      return r;
     }
 
     class CertificateExtension
@@ -1112,9 +1089,14 @@ namespace ravl
 
       Unique_X509_STORE store;
 
-      auto collateral = !http_responses || http_responses->empty() ?
-        std::make_shared<QL_QVE_Collateral>(this->endorsements) :
-        consume_url_responses(options, *http_responses);
+      std::shared_ptr<QL_QVE_Collateral> collateral;
+
+      if (!this->endorsements.empty())
+        collateral = std::make_shared<QL_QVE_Collateral>(this->endorsements);
+
+      if (http_responses && !http_responses->empty())
+        collateral =
+          consume_url_responses(options, *http_responses, collateral);
 
       std::span quote = parse_quote(*this);
       SignatureData signature_data(quote, *this);
@@ -1208,7 +1190,9 @@ namespace ravl
         throw std::runtime_error("QE signature verification failed");
 
       bool quote_sig_ok = verify_signature(
-        signature_data.public_key, quote, signature_data.quote_signature);
+        Unique_EVP_PKEY_P256(signature_data.public_key),
+        quote,
+        signature_data.quote_signature);
       if (!quote_sig_ok)
         throw std::runtime_error("quote signature verification failed");
 

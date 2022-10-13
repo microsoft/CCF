@@ -371,32 +371,9 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     {
       using namespace crypto;
 
-      SHA512_CTX ctx;
-      SHA384_Init(&ctx);
-      SHA384_Update(&ctx, message.data(), message.size());
-      std::vector<uint8_t> hash(ctx.md_len, 0);
-      SHA384_Final(hash.data(), &ctx);
-
-      auto signature_der =
-        convert_signature_to_der(signature.r, signature.s, true);
-
-      Unique_EVP_PKEY_CTX pctx(pkey);
-      CHECK1(EVP_PKEY_verify_init(pctx));
-      int rc = EVP_PKEY_verify(
-        pctx,
-        signature_der.data(),
-        signature_der.size(),
-        hash.data(),
-        hash.size());
-
-      return rc == 1;
-    }
-
-    RAVL_VISIBILITY Attestation::Attestation(
-      const std::vector<uint8_t>& evidence, const Endorsements& endorsements) :
-      ravl::Attestation(Source::SEV_SNP, evidence, {})
-    {
-      // TODO
+      auto hash = sha384(message);
+      auto sig_der = convert_signature_to_der(signature.r, signature.s, true);
+      return pkey.verify_signature(hash, sig_der);
     }
 
     RAVL_VISIBILITY std::optional<HTTPRequests> Attestation::

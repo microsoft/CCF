@@ -328,7 +328,7 @@ namespace ravl
           put(sgxcol.split_version.minor, scollateral);
           put(sgxcol.tee_type, scollateral);
 
-          for (const auto& [d, sz] : std::vector<std::pair<void*, size_t>>{
+          for (const auto& s : std::vector<std::span<char>>{
                  {sgxcol.pck_crl_issuer_chain,
                   sgxcol.pck_crl_issuer_chain_size},
                  {sgxcol.root_ca_crl, sgxcol.root_ca_crl_size},
@@ -340,9 +340,8 @@ namespace ravl
                   sgxcol.qe_identity_issuer_chain_size},
                  {sgxcol.qe_identity, sgxcol.qe_identity_size}})
           {
-            put(sz, scollateral);
-            for (size_t i = 0; i < sz; i++)
-              scollateral.push_back(((uint8_t*)d)[i]);
+            put(s.size(), scollateral);
+            scollateral.insert(scollateral.end(), s.begin(), s.end());
           }
         }
 

@@ -84,9 +84,6 @@ namespace ravl
         ravl::Attestation(Source::SEV_SNP, evidence, endorsements)
       {}
 
-      Attestation(
-        const std::vector<uint8_t>& evidence, const Endorsements& endorsements);
-
       virtual std::optional<HTTPRequests> prepare_endorsements(
         const Options& options) const override;
 
