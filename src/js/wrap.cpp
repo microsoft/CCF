@@ -1280,7 +1280,8 @@ namespace ccf::js
   }
 
   JSValue js_update_runtime_memory_cap(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
     if (argc != 2)
     {
       return JS_ThrowTypeError(
@@ -1288,12 +1289,14 @@ namespace ccf::js
     }
 
     int64_t heap_size = 0;
-    if (JS_ToInt64(ctx, &heap_size, argv[0]) < 0) {
+    if (JS_ToInt64(ctx, &heap_size, argv[0]) < 0)
+    {
       return JS_EXCEPTION;
     }
 
     int64_t stack_size = 0;
-    if (JS_ToInt64(ctx, &stack_size, argv[1]) < 0) {
+    if (JS_ToInt64(ctx, &stack_size, argv[1]) < 0)
+    {
       return JS_EXCEPTION;
     }
 

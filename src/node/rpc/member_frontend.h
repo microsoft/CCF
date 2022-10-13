@@ -80,7 +80,6 @@ namespace ccf
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 

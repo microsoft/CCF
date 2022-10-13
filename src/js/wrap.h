@@ -218,6 +218,7 @@ namespace ccf::js
   class Runtime
   {
     JSRuntime* rt;
+
   public:
     static size_t max_stack_size_;
     static size_t max_heap_size_;
