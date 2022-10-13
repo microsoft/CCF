@@ -710,10 +710,16 @@ TEST_CASE("PEM to JWK")
   logger::config::default_init();
   auto kp = make_key_pair();
   auto pubk_pem = kp->public_key_pem();
+  auto cert = generate_self_signed_cert(kp, "CN=name");
 
   LOG_FAIL_FMT("PEM: {}", pubk_pem.str());
 
-  // auto jwk =
+  auto jwk = make_verifier(cert)->public_key_jwk();
+  LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+
+  auto kid = "my_kid";
+  jwk = make_verifier(cert)->public_key_jwk(kid);
+  LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
 
   // auto key = get_raw_key();
   // std::vector<uint8_t> aad(123, 'y');

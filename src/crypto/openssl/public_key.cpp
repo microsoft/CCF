@@ -216,4 +216,17 @@ namespace crypto
     BN_bn2binpad(y, r.y.data(), sz);
     return r;
   }
+
+  JsonWebKeyEC PublicKey_OpenSSL::public_key_jwk(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyEC jwk;
+    auto coords = coordinates();
+    jwk.x = coords.x;
+    jwk.y = coords.y;
+    jwk.crv = curve_id_to_jwk_curve(get_curve_id());
+    jwk.kid = kid;
+    jwk.kty = JsonWebKeyType::EC;
+    return jwk;
+  }
 }
