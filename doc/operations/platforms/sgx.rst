@@ -11,7 +11,7 @@ Attestation
 -----------
 SGX attestations provide a measurement of the code loaded into the enclave, which CCF stores as a :doc:`code id <../../audit/builtin_maps>`. New nodes joining a network will provide their code id and the primary will perform an identity check against the table entries.
 
-The first node in a new network will add it's code id to the table. Members can then manage which code ids are present in the table with the ``add_node_code`` and ``remove_node_code`` actions.
+The first node in a new network will add its code id to the table. Members can then manage which code ids are present in the table with the ``add_node_code`` and ``remove_node_code`` actions.
 
 .. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
 
