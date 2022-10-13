@@ -233,6 +233,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=3,
     )
     parser.add_argument(
+        "--initial-trusted-authority-count",
+        help="Number of additional members with is_trusted_authority set in their member_data when initializing the network",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
         "--initial-operator-count",
         help="Number of additional members with is_operator set in their member_data when initializing the network",
         type=int,

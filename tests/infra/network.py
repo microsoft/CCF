@@ -433,13 +433,16 @@ class Network:
         mc = max(1, args.initial_member_count)
         initial_members_info = []
         for i in range(mc):
+            member_data = None
+            if i < args.initial_trusted_authority_count:
+                member_data = {"is_trusted_authority": True}
+            elif i < args.initial_trusted_authority_count + args.initial_operator_count:
+                member_data = {"is_operator": True}
             initial_members_info += [
                 (
                     i,
                     (i < args.initial_recovery_member_count),
-                    {"is_operator": True}
-                    if (i < args.initial_operator_count)
-                    else None,
+                    member_data,
                 )
             ]
 

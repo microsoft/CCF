@@ -27,13 +27,6 @@ function isOperator(memberId) {
   return info.member_data && info.member_data.is_operator;
 }
 
-function getMemberInfo(memberId) {
-  const key = ccf.strToBuf(memberId);
-  const value = ccf.kv["public:ccf.gov.members.info"].get(key);
-  const info = ccf.bufToJsonCompatible(value);
-  return info;
-}
-
 // Defines which of the members are trusted authorities.
 function isTrustedAuthority(memberId) {
   // trusted authorities cannot be recovery members.
@@ -52,7 +45,7 @@ function canTrustedAuthorityPass(action) {
     return true;
   }
   // Trusted authorities can add or retire operators.
-  if (action.name === "set_member") {
+  if (action.name === "set_member_data" || action.name === "set_member") {
     const memberData = action.args["member_data"];
     if (memberData && memberData.is_operator) {
       return true;
@@ -67,6 +60,12 @@ function canTrustedAuthorityPass(action) {
 
 export function resolve(proposal, proposerId, votes) {
   const actions = JSON.parse(proposal)["actions"];
+
+  // If the node is a trusted authority, strictly enforce what proposals it can
+  // make
+  if (isTrustedAuthority(proposer_id)) {
+    return actions.every(canTrustedAuthorityPass) ? "Accepted" : "Rejected";
+  }
 
   // Count member votes.
   const memberVoteCount = votes.filter(
@@ -83,16 +82,8 @@ export function resolve(proposal, proposerId, votes) {
     }
   });
 
-  // A proposal is an trusted authority change if it's only applying trusted authority actions.
-  const isTrustedAuthorityChange = actions.every(canTrustedAuthorityPass);
-
   // A majority of members can always accept a proposal.
   if (memberVoteCount > Math.floor(activeMemberCount / 2)) {
-    return "Accepted";
-  }
-
-  // Trusted authorities proposing trusted authority changes can accept them without a vote.
-  if (isTrustedAuthorityChange && isTrustedAuthority(proposerId)) {
     return "Accepted";
   }
 
