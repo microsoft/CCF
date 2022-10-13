@@ -31,6 +31,8 @@ namespace ccf::js
 
   using KVMap = kv::untyped::Map;
 
+  size_t Runtime::max_stack_size_ = 1024 * 1024;
+  size_t Runtime::max_heap_size_ = 100 * 1024 * 1024;
   JSClassID kv_class_id = 0;
   JSClassID kv_read_only_class_id = 0;
   JSClassID kv_map_handle_class_id = 0;
@@ -1277,6 +1279,33 @@ namespace ccf::js
     }
   }
 
+  JSValue js_update_runtime_memory_cap(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (argc != 2)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected none", argc);
+    }
+
+    int64_t heap_size = 0;
+    if (JS_ToInt64(ctx, &heap_size, argv[0]) < 0) {
+      return JS_EXCEPTION;
+    }
+
+    int64_t stack_size = 0;
+    if (JS_ToInt64(ctx, &stack_size, argv[1]) < 0) {
+      return JS_EXCEPTION;
+    }
+
+    size_t heap = (size_t)heap_size;
+    size_t stack = (size_t)stack_size;
+
+    Runtime::max_heap_size_ = heap;
+    Runtime::max_stack_size_ = stack;
+
+    return JS_UNDEFINED;
+  }
+
   JSValue js_refresh_app_bytecode_cache(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -1700,6 +1729,12 @@ namespace ccf::js
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "updateJSruntimememory",
+      JS_NewCFunction(
+        ctx, js_update_runtime_memory_cap, "updateJSruntimememory", 2));
     JS_SetPropertyStr(
       ctx,
       ccf,
