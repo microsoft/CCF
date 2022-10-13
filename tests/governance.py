@@ -603,7 +603,7 @@ def test_cose_auth(network, args):
         b"body",
         open(identity.key).read(),
         open(identity.cert).read(),
-        {"gov.msg.type": "proposal"},
+        {"ccf.gov.msg.type": "proposal"},
     )
     with primary.client() as c:
         r = c.post(
