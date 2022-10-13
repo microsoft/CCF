@@ -197,6 +197,36 @@ namespace ccf
       return true;
     }
 
+    bool session_consistency_maintained(
+      std::shared_ptr<ccf::SessionContext> session_ctx)
+    {
+      if (session_ctx->last_tx_id.has_value())
+      {
+        if (consensus == nullptr)
+        {
+          LOG_FAIL_FMT("consensus deleted after TxID assigned");
+          return false;
+        }
+
+        auto tx_id = session_ctx->last_tx_id.value();
+
+        const auto tx_view = consensus->get_view(tx_id.seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+
+        auto tx_status = ccf::evaluate_tx_status(
+          tx_id.view, tx_id.seqno, tx_view, committed_view, committed_seqno);
+        // Pending and Committed obviously retain session consistency. It's also
+        // possible for the status to be Unknown - the last_tx_id was populated
+        // from a forwarded response about state this node doesn't yet know.
+        // Only once this Tx is known to be invalidated can we report that
+        // session consistency has been lost.
+        return tx_status != ccf::TxStatus::Invalid;
+      }
+
+      return true;
+    }
+
     std::unique_ptr<AuthnIdentity> get_authenticated_identity(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::CommittableTx& tx,
@@ -409,6 +439,24 @@ namespace ccf
 
           endpoints.execute_endpoint(endpoint, args);
 
+          // NB: Do this check after execution, to ensure this transaction has
+          // claimed a read version if it is going to. If we do it any earlier,
+          // it is possible that we report that the previous TxID is still
+          // valid, but invalidate it between that point and when this
+          // transaction executes.
+          if (!session_consistency_maintained(ctx->get_session_context()))
+          {
+            ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::SessionConsistencyLost,
+              fmt::format(
+                "Previous transaction reported on this session ({}) is no "
+                "longer valid. Closing session",
+                ctx->get_session_context()->last_tx_id->to_str()));
+            // TODO: Ensure the session is actually closed after this response
+            return;
+          }
+
           if (!ctx->should_apply_writes())
           {
             update_metrics(ctx);
@@ -464,6 +512,8 @@ namespace ccf
               auto tx_id = tx.get_txid();
               if (tx_id.has_value() && consensus != nullptr)
               {
+                // TODO: Also set this on forwarding path
+                ctx->get_session_context()->last_tx_id = tx_id;
                 try
                 {
                   // Only transactions that acquired one or more map handles

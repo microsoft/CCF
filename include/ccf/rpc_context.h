@@ -32,6 +32,8 @@ namespace ccf
     // Only set in the case of a forwarded RPC
     bool is_forwarded = false;
 
+    std::optional<ccf::TxID> last_tx_id = std::nullopt;
+
     SessionContext(
       size_t client_session_id_,
       const std::vector<uint8_t>& caller_cert_,
