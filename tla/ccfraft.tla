@@ -18,7 +18,7 @@
 \* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
 \*   (e.g. certain invariants)
 
-EXTENDS Naturals, FiniteSets, Sequences, TLC
+EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt
 
 ----
 \* Constants
@@ -235,23 +235,6 @@ Discard(m) == messages' = WithoutMessage(m, messages)
 \* Combination of Send and Discard
 Reply(response, request) ==
     messages' = WithoutMessage(request, WithMessage(response, messages))
-
-\* Return the minimum value from a set, or undefined if the set is empty.
-Min(s) == CHOOSE x \in s : \A y \in s : x <= y
-
-\* Return the maximum value from a set, or undefined if the set is empty.
-Max(s)         == CHOOSE x \in s          : \A y \in s : x >= y
-MaxWithZero(s) == CHOOSE x \in s \cup {0} : \A y \in s : x >= y
-
-\* We utilize the IsPrefix from the TLA community modules here (MIT license):
-\* https://github.com/tlaplus/CommunityModules/blob/master/modules/SequencesExt.tla
-\* IsPrefix returns TRUE iff the sequence s is a prefix of the sequence t, s.t.
-\* \E u \in Seq(Range(t)) : t = s \o u. In other words, there exists
-\* a suffix u that with s prepended equals t.
-IsPrefix(s, t) ==
-  IF s = << >>
-  THEN TRUE
-  ELSE DOMAIN s \subseteq DOMAIN t /\ \A i \in DOMAIN s: s[i] = t[i]
 
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
