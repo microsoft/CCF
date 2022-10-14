@@ -98,6 +98,10 @@ namespace ccf::js
     {
       cid = crypto::CurveID::SECP256R1;
     }
+    else if (curve == "secp256k1")
+    {
+      cid = crypto::CurveID::SECP256K1;
+    }
     else if (curve == "secp384r1")
     {
       cid = crypto::CurveID::SECP384R1;
@@ -105,7 +109,7 @@ namespace ccf::js
     else
     {
       return JS_ThrowRangeError(
-        ctx, "Unsupported curve id, supported: secp256r1, secp384r1");
+        ctx, "Unsupported curve id, supported: secp256r1, secp256k1, secp384r1");
     }
     auto k = crypto::make_key_pair(cid);
 
