@@ -60,7 +60,8 @@ namespace kv
     void retain_handle(
       const std::string& map_name, std::unique_ptr<AbstractHandle>&& handle);
 
-    MapChanges get_map_and_change_set_by_name(const std::string& map_name);
+    MapChanges get_map_and_change_set_by_name(
+      const std::string& map_name, bool keep_writes);
 
     std::list<AbstractHandle*> get_possible_handles(
       const std::string& map_name);
@@ -68,7 +69,7 @@ namespace kv
     void compacted_version_conflict(const std::string& map_name);
 
     template <class THandle>
-    THandle* get_handle_by_name(const std::string& map_name)
+    THandle* get_handle_by_name(const std::string& map_name, bool keep_writes)
     {
       auto possible_handles = get_possible_handles(map_name);
       for (auto handle : possible_handles)
@@ -85,6 +86,7 @@ namespace kv
       {
         auto& [abstract_map, change_set] = it->second;
 
+        CCF_APP_INFO("get_handle_by_name: map_name={}", map_name);
         auto typed_handle = new THandle(*change_set, map_name);
         std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
         retain_handle(map_name, std::move(abstract_handle));
@@ -92,8 +94,9 @@ namespace kv
       }
       else
       {
+        CCF_APP_INFO("get_handle_by_name not found");
         auto [abstract_map, change_set] =
-          get_map_and_change_set_by_name(map_name);
+          get_map_and_change_set_by_name(map_name, keep_writes);
 
         if (change_set == nullptr)
         {
@@ -126,6 +129,32 @@ namespace kv
     }
   };
 
+  class TxDiff : public BaseTx
+  {
+  public:
+    using BaseTx::BaseTx;
+
+    template <class M>
+    typename M::Diff* rodiff(M& m)
+    {
+      // NB: Always creates a (writeable) MapHandle, which is cast to
+      // ReadOnlyDiff on return. This is so that other calls (before or
+      // after) can retrieve writeable handles over the same map.
+      return get_handle_by_name<typename M::Diff>(m.get_name(), true);
+    }
+
+    /** Get a read-only handle by map name. Map type must be specified
+     * as explicit template parameter.
+     *
+     * @param map_name Name of map
+     */
+    template <class M>
+    typename M::Diff* rodiff(const std::string& map_name)
+    {
+      return get_handle_by_name<typename M::Diff>(map_name, true);
+    }
+  };
+
   /** Used to create read-only handles for accessing a Map.
    *
    * Acquiring a handle will create the map in the KV if it does not yet exist.
@@ -147,7 +176,7 @@ namespace kv
       // NB: Always creates a (writeable) MapHandle, which is cast to
       // ReadOnlyHandle on return. This is so that other calls (before or
       // after) can retrieve writeable handles over the same map.
-      return get_handle_by_name<typename M::Handle>(m.get_name());
+      return get_handle_by_name<typename M::Handle>(m.get_name(), false);
     }
 
     /** Get a read-only handle by map name. Map type must be specified
@@ -158,7 +187,7 @@ namespace kv
     template <class M>
     typename M::ReadOnlyHandle* ro(const std::string& map_name)
     {
-      return get_handle_by_name<typename M::Handle>(map_name);
+      return get_handle_by_name<typename M::Handle>(map_name, false);
     }
   };
 
@@ -187,7 +216,7 @@ namespace kv
     template <class M>
     typename M::Handle* rw(M& m)
     {
-      return get_handle_by_name<typename M::Handle>(m.get_name());
+      return get_handle_by_name<typename M::Handle>(m.get_name(), false);
     }
 
     /** Get a read-write handle by map name. Map type must be specified
@@ -198,7 +227,7 @@ namespace kv
     template <class M>
     typename M::Handle* rw(const std::string& map_name)
     {
-      return get_handle_by_name<typename M::Handle>(map_name);
+      return get_handle_by_name<typename M::Handle>(map_name, false);
     }
 
     /** Get a write-only handle from a map instance.
@@ -210,7 +239,7 @@ namespace kv
     {
       // As with ro, this returns a full-featured Handle
       // which is cast to only show its writeable facet.
-      return get_handle_by_name<typename M::Handle>(m.get_name());
+      return get_handle_by_name<typename M::Handle>(m.get_name(), false);
     }
 
     /** Get a write-only handle by map name. Map type must be specified
@@ -221,7 +250,7 @@ namespace kv
     template <class M>
     typename M::WriteOnlyHandle* wo(const std::string& map_name)
     {
-      return get_handle_by_name<typename M::Handle>(map_name);
+      return get_handle_by_name<typename M::Handle>(map_name, false);
     }
   };
 }

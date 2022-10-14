@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/kv/untyped_map_diff.h"
 #include "ccf/kv/untyped_map_handle.h"
 #include "ccf/pal/locking.h"
 #include "ds/dl_list.h"
@@ -199,7 +200,8 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v, bool track_read_versions) override
+      void commit(
+        Version v, bool track_read_versions, bool keep_all_writes) override
       {
         if (change_set.writes.empty() && !track_read_versions)
         {
@@ -259,7 +261,7 @@ namespace kv::untyped
           }
         }
 
-        if (changes)
+        if (changes || keep_all_writes)
         {
           map.roll.commits->insert_back(map.roll.create_new_local_commit(
             v, std::move(state), change_set.writes));
@@ -321,6 +323,7 @@ namespace kv::untyped
     using ReadOnlyHandle = kv::untyped::MapHandle;
     using WriteOnlyHandle = kv::untyped::MapHandle;
     using Handle = kv::untyped::MapHandle;
+    using Diff = kv::untyped::MapDiff;
 
     Map(
       AbstractStore* store_,
@@ -444,7 +447,7 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version, bool) override
+      void commit(Version, bool, bool) override
       {
         // Version argument is ignored. The version of the roll after the
         // snapshot is applied depends on the version of the map at which the
@@ -493,7 +496,7 @@ namespace kv::untyped
     ChangeSetPtr deserialise_internal(KvStoreDeserialiser& d, Version version)
     {
       // Create a new change set, and deserialise d's contents into it.
-      auto change_set_ptr = create_change_set(version);
+      auto change_set_ptr = create_change_set(version, false);
       if (change_set_ptr == nullptr)
       {
         LOG_FAIL_FMT(
@@ -797,7 +800,7 @@ namespace kv::untyped
       std::swap(roll, map->roll);
     }
 
-    ChangeSetPtr create_change_set(Version version)
+    ChangeSetPtr create_change_set(Version version, bool include_writes)
     {
       lock();
 
@@ -809,10 +812,16 @@ namespace kv::untyped
       {
         if (current->version <= version)
         {
+          kv::untyped::Write writes;
+          if (include_writes)
+          {
+            writes = current->writes;
+          }
           changes = std::make_unique<untyped::ChangeSet>(
             roll.rollback_counter,
             current->state,
             roll.commits->get_head()->state,
+            writes,
             current->version);
           break;
         }

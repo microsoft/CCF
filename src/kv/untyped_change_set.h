@@ -58,11 +58,13 @@ namespace kv::untyped
       size_t rollbacks,
       kv::untyped::State& current_state,
       kv::untyped::State& committed_state,
+      kv::untyped::Write changed_writes,
       Version current_version) :
       rollback_counter(rollbacks),
       state(current_state),
       committed(committed_state),
-      start_version(current_version)
+      start_version(current_version),
+      writes(changed_writes)
     {}
 
     ChangeSet(ChangeSet&) = delete;
