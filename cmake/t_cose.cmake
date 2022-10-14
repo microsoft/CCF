@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 # Build t_cose
-set(T_COSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/t_cose")
+set(T_COSE_DIR "${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose")
 set(T_COSE_SRC "${T_COSE_DIR}/src")
 set(T_COSE_INC "${T_COSE_DIR}/inc")
 set(T_COSE_DEFS -DT_COSE_USE_OPENSSL_CRYPTO=1)
@@ -26,8 +26,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_link_libraries(t_cose.enclave PUBLIC qcbor.enclave)
-  # TODO why is this needed? target_link_libraries(t_cose.enclave PRIVATE
-  # openenclave::oecryptoopenssl)
+  # This is needed to get the OpenSSL includes from Open Enclave
+  target_link_libraries(t_cose.enclave PRIVATE openenclave::oecryptoopenssl)
 
   install(
     TARGETS t_cose.enclave
