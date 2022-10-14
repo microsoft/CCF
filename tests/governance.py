@@ -599,8 +599,8 @@ def test_cose_auth(network, args):
     identity = primary.identity("member0")
     signed_statement = signing.create_cose_sign1(
         b"body",
-        open(identity.key).read(),
-        open(identity.cert).read(),
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
         {"ccf.gov.msg.type": "proposal"},
     )
     with primary.client() as c:
@@ -614,7 +614,10 @@ def test_cose_auth(network, args):
 
     identity = primary.identity("user0")
     signed_statement = signing.create_cose_sign1(
-        b"body", open(identity.key).read(), open(identity.cert).read(), {}
+        b"body",
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {},
     )
     with primary.client() as c:
         r = c.post(

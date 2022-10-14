@@ -39,6 +39,14 @@ namespace ccf
     std::vector<uint8_t> envelope;
   };
 
+  /** Experimental COSE Sign1 Authentication Policy
+   *
+   * Allows ccf.gov.msg.type and ccf.gov.msg.proposal_id protected header
+   * entries, to specify the type of governance action, and which proposal
+   * it refers to. The plan is to offer this authentication method as an
+   * alternative to MemberSignatureAuthnIdentity for governance in the future,
+   * and perhaps as a generic authentication method as well.
+   */
   class MemberCOSESign1AuthnPolicy : public AuthnPolicy
   {
   protected:
