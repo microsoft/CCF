@@ -197,7 +197,14 @@ namespace ccf
       return true;
     }
 
-    bool session_consistency_maintained(
+    struct SessionConsistencyConflict
+    {
+      ccf::TxID session_tx_id;
+      ccf::TxID commit_tx_id;
+      ccf::TxStatus status;
+    };
+
+    std::optional<SessionConsistencyConflict> check_session_consistency(
       std::shared_ptr<ccf::SessionContext> session_ctx)
     {
       if (session_ctx->last_tx_id.has_value())
@@ -205,7 +212,7 @@ namespace ccf
         if (consensus == nullptr)
         {
           LOG_FAIL_FMT("consensus deleted after TxID assigned");
-          return false;
+          return std::nullopt;
         }
 
         auto tx_id = session_ctx->last_tx_id.value();
@@ -219,12 +226,20 @@ namespace ccf
         // Pending and Committed obviously retain session consistency. It's also
         // possible for the status to be Unknown - the last_tx_id was populated
         // from a forwarded response about state this node doesn't yet know.
-        // Only once this Tx is known to be invalidated can we report that
+        // Only once this Tx is known to be invalidated do we report that
         // session consistency has been lost.
-        return tx_status != ccf::TxStatus::Invalid;
+        if (tx_status == ccf::TxStatus::Invalid)
+        {
+          SessionConsistencyConflict scc;
+          scc.session_tx_id = tx_id;
+          scc.commit_tx_id.view = committed_view;
+          scc.commit_tx_id.seqno = committed_seqno;
+          scc.status = tx_status;
+          return scc;
+        }
       }
 
-      return true;
+      return std::nullopt;
     }
 
     std::unique_ptr<AuthnIdentity> get_authenticated_identity(
@@ -439,21 +454,28 @@ namespace ccf
 
           endpoints.execute_endpoint(endpoint, args);
 
-          // NB: Do this check after execution, to ensure this transaction has
-          // claimed a read version if it is going to. If we do it any earlier,
-          // it is possible that we report that the previous TxID is still
-          // valid, but invalidate it between that point and when this
-          // transaction executes.
-          if (!session_consistency_maintained(ctx->get_session_context()))
           {
-            ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::SessionConsistencyLost,
-              fmt::format(
-                "Previous transaction reported on this session ({}) is no "
-                "longer valid. Please start a new TLS session.",
-                ctx->get_session_context()->last_tx_id->to_str()));
-            return;
+            // NB: Do this check after execution, to ensure this transaction has
+            // claimed a read version if it is going to. If we do it any
+            // earlier, it is possible that we report that the previous TxID is
+            // still valid, but invalidate it between that point and when this
+            // transaction executes.
+            const auto scc =
+              check_session_consistency(ctx->get_session_context());
+            if (scc.has_value())
+            {
+              ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::SessionConsistencyLost,
+                fmt::format(
+                  "Previously reported transaction ID {} on this session, but "
+                  "this node is now at {}, making the previous transaction ID "
+                  "{}. Please start a new TLS session.",
+                  scc->session_tx_id.to_str(),
+                  scc->commit_tx_id.to_str(),
+                  tx_status_to_str(scc->status)));
+              return;
+            }
           }
 
           if (!ctx->should_apply_writes())

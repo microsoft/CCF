@@ -509,7 +509,7 @@ def test_forwarding_timeout(network, args):
 @reqs.no_http2()
 def test_session_consistency(network, args):
     # Ensure we have 5 nodes
-    network.resize(5, args)
+    original_size = network.resize(5, args)
 
     primary, backups = network.find_nodes()
     backup = backups[0]
@@ -578,13 +578,7 @@ def test_session_consistency(network, args):
                 f"Failed to observe evidence of session forwarding after {n_attempts} attempts"
             )
 
-        def check_reads(sessions=None, should_error=False):
-            sessions = sessions or (
-                client_primary_0,
-                client_primary_1,
-                client_backup_0,
-                client_backup_1,
-            )
+        def check_session_consistency(sessions, should_error=False):
             for client in sessions:
                 r = client.get(f"/app/log/private?id={msg_id}")
                 if should_error:
@@ -612,7 +606,7 @@ def test_session_consistency(network, args):
 
             # At this point despite partition these nodes believe this new transaction
             # is still valid, and will still report it, so there is no consistency error
-            check_reads(
+            check_session_consistency(
                 # NB: Only use these sessions, or we 'pollute' the other sessions
                 # with recent TxIDs
                 (client_primary_0, client_backup_0),
@@ -624,7 +618,7 @@ def test_session_consistency(network, args):
             primary.wait_for_leadership_state(
                 r0.view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
             )
-            check_reads(
+            check_session_consistency(
                 (client_primary_0, client_backup_0),
                 False,
             )
@@ -636,18 +630,21 @@ def test_session_consistency(network, args):
         # back up-to-date. This causes them to discard the state produced while partitioned
         network.wait_for_primary_unanimity(min_view=new_view - 1)
 
-        check_reads(
+        check_session_consistency(
             # These sessions saw discarded state, either directly from their target node
             # or via forwarding, so now report consistency errors
             (client_primary_0, client_backup_0),
             True,
         )
-        check_reads(
+        check_session_consistency(
             # These sessions saw earlier state from before the partition, which remains
             # valid in the new view. Their session consistency is maintained
             (client_primary_1, client_backup_1),
             False,
         )
+
+    # Restore original network size
+    network.resize(original_size, args)
 
     return network
 
