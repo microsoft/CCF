@@ -676,7 +676,7 @@ public:
       return nullptr;
     }
 
-    auto result = exec->apply();
+    auto result = exec->apply(false);
     if (result == kv::ApplyResult::FAIL)
     {
       return nullptr;

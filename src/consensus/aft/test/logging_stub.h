@@ -382,7 +382,7 @@ namespace aft
         return std::move(commit_evidence_digest);
       }
 
-      kv::ApplyResult apply() override
+      kv::ApplyResult apply(bool keep_all_writes) override
       {
         return result;
       }

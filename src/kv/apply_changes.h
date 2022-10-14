@@ -38,9 +38,10 @@ namespace kv
     OrderedChanges& changes,
     VersionResolver version_resolver_fn,
     kv::ConsensusHookPtrs& hooks,
-    const MapCollection& new_maps = {},
-    const std::optional<Version>& new_maps_conflict_version = std::nullopt,
-    bool track_read_versions = false)
+    const MapCollection& new_maps,
+    const std::optional<Version>& new_maps_conflict_version,
+    bool track_read_versions,
+    bool keep_all_writes)
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are
@@ -132,7 +133,7 @@ namespace kv
 
         for (auto it = views.begin(); it != views.end(); ++it)
         {
-          it->second->commit(version, track_read_versions);
+          it->second->commit(version, track_read_versions, keep_all_writes);
         }
 
         // Collect ConsensusHooks

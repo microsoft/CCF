@@ -853,7 +853,7 @@ namespace ccf
         try
         {
           auto r = network.tables->deserialize(entry, ConsensusType::CFT, true);
-          result = r->apply();
+          result = r->apply(false);
           if (result == kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(
@@ -1048,8 +1048,8 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          result =
-            recovery_store->deserialize(entry, ConsensusType::CFT)->apply();
+          result = recovery_store->deserialize(entry, ConsensusType::CFT)
+                     ->apply(false);
           if (result == kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(

@@ -1357,7 +1357,8 @@ namespace aft
         auto& [ds, i] = ae;
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
-        kv::ApplyResult apply_success = ds->apply();
+        bool keep_all_writes = false;
+        kv::ApplyResult apply_success = ds->apply(keep_all_writes);
         if (apply_success == kv::ApplyResult::FAIL)
         {
           ledger->truncate(i - 1);

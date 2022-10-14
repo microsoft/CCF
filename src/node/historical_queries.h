@@ -1196,7 +1196,9 @@ namespace ccf::historical
           return nullptr;
         }
 
-        result = exec->apply();
+        // keep all the writes so that we can build a diff later
+        bool keep_all_writes = true;
+        result = exec->apply(keep_all_writes);
         claims_digest = std::move(exec->consume_claims_digest());
 
         auto commit_evidence_digest =

@@ -1970,7 +1970,7 @@ TEST_CASE("Deserialising from other Store")
   clone.set_encryptor(encryptor);
 
   REQUIRE(
-    clone.deserialize(data, ConsensusType::CFT)->apply() ==
+    clone.deserialize(data, ConsensusType::CFT)->apply(false) ==
     kv::ApplyResult::PASS);
 }
 
@@ -2005,7 +2005,7 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.deserialize(data, ConsensusType::CFT)->apply() ==
+      store.deserialize(data, ConsensusType::CFT)->apply(false) ==
       kv::ApplyResult::PASS);
   }
 
@@ -2023,7 +2023,7 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.deserialize(data, ConsensusType::CFT)->apply() ==
+      store.deserialize(data, ConsensusType::CFT)->apply(false) ==
       kv::ApplyResult::PASS_SIGNATURE);
   }
 
@@ -2042,7 +2042,7 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.deserialize(data, ConsensusType::CFT)->apply() ==
+      store.deserialize(data, ConsensusType::CFT)->apply(false) ==
       kv::ApplyResult::FAIL);
   }
 }
@@ -3176,7 +3176,7 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE(success == kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data, ConsensusType::CFT)->apply() ==
+        store.deserialize(data, ConsensusType::CFT)->apply(false) ==
         kv::ApplyResult::PASS_SIGNATURE);
 
       // Header flag is set in the last entry
@@ -3248,7 +3248,7 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE(success == kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data, ConsensusType::CFT)->apply() ==
+        store.deserialize(data, ConsensusType::CFT)->apply(false) ==
         kv::ApplyResult::PASS_SIGNATURE);
 
       // Check that the ledger chunk header flag is set in the last entry
