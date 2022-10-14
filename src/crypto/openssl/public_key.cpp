@@ -222,8 +222,8 @@ namespace crypto
   {
     JsonWebKeyEC jwk;
     auto coords = coordinates();
-    jwk.x = coords.x;
-    jwk.y = coords.y;
+    jwk.x = b64url_from_raw(coords.x, false /* with_padding */);
+    jwk.y = b64url_from_raw(coords.y, false /* with_padding */);
     jwk.crv = curve_id_to_jwk_curve(get_curve_id());
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::EC;

@@ -43,14 +43,18 @@ def generate_and_verify_jwk(client):
     r = client.post("/app/pemToJWK", body={"pem": "invalid_pem"})
     # assert r.status_code == http.HTTPStatus.BAD_REQUEST # TODO: Investigate
 
-    _, pub_pem = infra.crypto.generate_ec_keypair(curve_name="secp256r1")
-    ref_jwk = jwk.JWK.from_pem(pub_pem.encode())
-    LOG.error(ref_jwk.export())
-    r = client.post("/app/pemToJWK", body={"pem": pub_pem})
-    assert r.status_code == http.HTTPStatus.OK
-    body = r.body.json()
-    assert body["crv"] == "P-256"
-    assert body["kty"] == "EC"
+    curves = [("secp256r1", "P-256"), ("secp384r1", "P-384")]
+
+    for curve, jwk_crv in curves:
+        _, pub_pem = infra.crypto.generate_ec_keypair(curve_name=curve)
+        ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+        r = client.post("/app/pemToJWK", body={"pem": pub_pem})
+        assert r.status_code == http.HTTPStatus.OK
+        body = r.body.json()
+        assert body["crv"] == "P-256"
+        assert body["kty"] == "EC"
+        assert body["x"] == ref_jwk["x"]
+        assert body["y"] == ref_jwk["y"]
 
     LOG.error(r.body.json())
 

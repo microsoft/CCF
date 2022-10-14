@@ -57,8 +57,8 @@ namespace crypto
   struct JsonWebKeyEC : JsonWebKeyBase
   {
     JsonWebKeyECCurve crv;
-    std::vector<uint8_t> x;
-    std::vector<uint8_t> y;
+    std::string x; // base64url encoded
+    std::string y; // base64url encoded
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEC, JsonWebKeyBase);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEC, crv, x, y);
@@ -78,8 +78,8 @@ namespace crypto
   struct JsonWebKeyRSA : JsonWebKeyBase
   {
     std::string alg;
-    std::vector<uint8_t> n;
-    std::vector<uint8_t> e;
+    std::string n; // base64url encoded
+    std::string e; // base64url encoded
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
     JsonWebKeyRSA, JsonWebKeyBase);

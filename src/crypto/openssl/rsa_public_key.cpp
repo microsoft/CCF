@@ -154,8 +154,8 @@ namespace crypto
   {
     JsonWebKeyRSA jwk;
     auto comps = components();
-    jwk.n = comps.n;
-    jwk.e = comps.e;
+    jwk.n = b64url_from_raw(comps.n, false /* with_padding */);
+    jwk.e = b64url_from_raw(comps.e, false /* with_padding */);
     // jwk.alg = TODO: ;//curve_id_to_jwk_curve(get_curve_id());
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::RSA;
