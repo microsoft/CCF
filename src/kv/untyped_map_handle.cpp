@@ -84,45 +84,6 @@ namespace kv::untyped
     }
   }
 
-  void MapHandle::foreach_state_and_writes_and_deletes(
-    const MapHandle::ElementVisitorWithEarlyOutAndDeletes& f, bool always_consider_writes)
-  {
-    // Record a global read dependency.
-    tx_changes.read_version = tx_changes.start_version;
-
-    // Take a snapshot copy of the writes. This is what we will iterate over,
-    // while any additional modifications made by the functor will modify the
-    // original tx_changes.writes, and be visible outside of the functor's
-    // args
-    auto w = tx_changes.writes;
-    bool should_continue = true;
-
-    tx_changes.state.foreach(
-      [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
-        auto write = w.find(k);
-
-        if (write == w.end())
-        {
-          should_continue = f(k, v.value);
-        }
-
-        return should_continue;
-      });
-
-    if (always_consider_writes || should_continue)
-    {
-      for (auto write = w.begin(); write != w.end(); ++write)
-      {
-        should_continue = f(write->first, write->second);
-
-        if (!should_continue)
-        {
-          break;
-        }
-      }
-    }
-  }
-
   MapHandle::MapHandle(
     kv::untyped::ChangeSet& cs, const std::string& map_name) :
     tx_changes(cs),
@@ -214,12 +175,6 @@ namespace kv::untyped
   {
     foreach_state_and_writes(f, false);
   }
-
-  void MapHandle::foreach_with_deletes(const MapHandle::ElementVisitorWithEarlyOutAndDeletes& f)
-  {
-    foreach_state_and_writes_and_deletes(f, false);
-  }
-
 
   size_t MapHandle::size()
   {

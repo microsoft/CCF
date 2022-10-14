@@ -146,27 +146,6 @@ namespace kv
       read_handle.foreach(g);
     }
 
-    template <class F>
-    void foreach_with_deletes(F&& f)
-    {
-      auto g = [&](
-                 const kv::serialisers::SerialisedEntry& k_rep,
-                 const std::optional<kv::serialisers::SerialisedEntry>& v_rep) {
-        K k = KSerialiser::from_serialised(k_rep);
-        if (v_rep.has_value())
-        {
-          std::optional<V> v = VSerialiser::from_serialised(v_rep.value());
-          return f(k, v);
-        }
-        else
-        {
-          std::optional<V> v = std::nullopt;
-          return f(k, v);
-        }
-      };
-      read_handle.foreach_with_deletes(g);
-    }
-
     /** Iterate over all keys in the map.
      *
      * Similar to @c foreach but the functor takes a single key argument rather
