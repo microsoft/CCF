@@ -122,7 +122,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
-Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`, or measurement of the UVM on :doc:`SNP <../operations/platforms/snp>`.
+Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`, or measurement of the initial VM pages on :doc:`SNP <../operations/platforms/snp>`.
 
 **Key** MRENCLAVE, represented as a base64 string.
 
