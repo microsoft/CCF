@@ -23,17 +23,7 @@ namespace kv::untyped
   MapDiff::MapDiff(kv::untyped::ChangeSet& cs, const std::string& map_name) :
     writes(cs.writes),
     map_name(map_name)
-  {
-    LOG_INFO_FMT("constructing map diff");
-    for (const auto& [k, v] : writes)
-    {
-      LOG_INFO_FMT(
-        "write: {} -> {}",
-        std::string(k.begin(), k.end()),
-        v.has_value() ? std::string(v.value().begin(), v.value().end()) :
-                        "null");
-    }
-  }
+  {}
 
   std::optional<std::optional<MapDiff::ValueType>> MapDiff::get(
     const MapDiff::KeyType& key)
