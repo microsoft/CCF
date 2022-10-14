@@ -800,7 +800,7 @@ namespace kv::untyped
       std::swap(roll, map->roll);
     }
 
-    ChangeSetPtr create_change_set(Version version, bool include_writes)
+    ChangeSetPtr create_change_set(Version version, bool keep_writes)
     {
       lock();
 
@@ -813,7 +813,7 @@ namespace kv::untyped
         if (current->version <= version)
         {
           kv::untyped::Write writes;
-          if (include_writes)
+          if (keep_writes)
           {
             writes = current->writes;
           }
