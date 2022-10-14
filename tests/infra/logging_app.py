@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from asyncio import wait_for
 import functools
 import infra.checker
 import infra.jwt_issuer
