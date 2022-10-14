@@ -148,21 +148,21 @@ namespace loggingapp
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
     {
       auto tx = store->create_read_only_tx();
-      auto m = tx.template ro<RecordsMap>(PRIVATE_RECORDS);
-      m->foreach_with_deletes(
-        [this](const size_t& k, const std::optional<std::string>& v) -> bool {
-          if (v.has_value())
-          {
-            std::string val = v.value();
-            records[k] = val;
-          }
-          else
-          {
-            records.erase(k);
-          }
+      auto tx_diff = store->create_tx_diff();
+      auto m = tx_diff.template rodiff<RecordsMap>(PRIVATE_RECORDS);
+      m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
+        if (v.has_value())
+        {
+          std::string val = v.value();
+          records[k] = val;
+        }
+        else
+        {
+          records.erase(k);
+        }
 
-          return true;
-        });
+        return true;
+      });
       current_txid = tx_id;
     }
 
@@ -337,6 +337,7 @@ namespace loggingapp
 
       // SNIPPET_START: record
       auto record = [this](auto& ctx, nlohmann::json&& params) {
+        CCF_APP_INFO("recording new private entry");
         // SNIPPET_START: macro_validation_record
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
@@ -509,6 +510,7 @@ namespace loggingapp
         .install();
 
       auto remove = [this](auto& ctx, nlohmann::json&&) {
+        CCF_APP_INFO("removing entry");
         // Parse id from query
         const auto parsed_query =
           http::parse_query(ctx.rpc_ctx->get_request_query());
