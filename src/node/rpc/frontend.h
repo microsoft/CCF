@@ -533,7 +533,6 @@ namespace ccf
               auto tx_id = tx.get_txid();
               if (tx_id.has_value() && consensus != nullptr)
               {
-                // TODO: Also set this on forwarding path
                 ctx->get_session_context()->last_tx_id = tx_id;
                 try
                 {
