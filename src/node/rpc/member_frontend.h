@@ -489,7 +489,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.9.5";
+      openapi_info.document_version = "2.9.7";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1023,6 +1023,32 @@ namespace ccf
 
       make_endpoint("/proposals", HTTP_POST, post_proposals_js, member_sig_only)
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
+        .install();
+
+      using AllOpenProposals = std::map<ProposalId, jsgov::ProposalInfo>;
+      auto get_open_proposals_js =
+        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          auto proposal_info = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
+            jsgov::Tables::PROPOSALS_INFO);
+          AllOpenProposals response;
+          proposal_info->foreach(
+            [&response](
+              const ProposalId& pid, const ccf::jsgov::ProposalInfo& pinfo) {
+              if (pinfo.state == ProposalState::OPEN)
+              {
+                response[pid] = pinfo;
+              }
+              return true;
+            });
+          return make_success(response);
+        };
+
+      make_read_only_endpoint(
+        "/proposals",
+        HTTP_GET,
+        json_read_only_adapter(get_open_proposals_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, AllOpenProposals>()
         .install();
 
       auto get_proposal_js = [this](

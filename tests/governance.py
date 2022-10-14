@@ -48,7 +48,7 @@ def test_consensus_status(network, args):
 
 
 @reqs.description("Test quotes")
-@reqs.supports_methods("/app/quotes/self", "/app/quotes")
+@reqs.supports_methods("/quotes/self", "/quotes")
 def test_quote(network, args):
     if args.enclave_type == "virtual":
         LOG.warning("Quote test can only run in real enclaves, skipping")
@@ -106,7 +106,7 @@ def test_quote(network, args):
 
 
 @reqs.description("Add user, remove user")
-@reqs.supports_methods("/app/log/private")
+@reqs.supports_methods("/log/private")
 def test_user(network, args, verify=True):
     # Note: This test should not be chained in the test suite as it creates
     # a new user and uses its own LoggingTxs
@@ -130,7 +130,7 @@ def test_user(network, args, verify=True):
 
 
 @reqs.description("Validate sample Jinja templates")
-@reqs.supports_methods("/app/log/private")
+@reqs.supports_methods("/log/private")
 def test_jinja_templates(network, args, verify=True):
     primary, _ = network.find_primary()
 
@@ -660,6 +660,7 @@ def js_gov(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        governance_js.test_all_open_proposals(network, args)
         governance_js.test_proposal_validation(network, args)
         governance_js.test_proposal_storage(network, args)
         governance_js.test_proposal_withdrawal(network, args)
