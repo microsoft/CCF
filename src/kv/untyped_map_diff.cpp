@@ -10,33 +10,11 @@ namespace kv::untyped
   void MapDiff::foreach_state_and_writes(
     const MapDiff::ElementVisitorWithEarlyOut& f, bool always_consider_writes)
   {
-    // Record a global read dependency.
-    tx_changes.read_version = tx_changes.start_version;
-
-    // Take a snapshot copy of the writes. This is what we will iterate over,
-    // while any additional modifications made by the functor will modify the
-    // original tx_changes.writes, and be visible outside of the functor's
-    // args
-    auto w = tx_changes.writes;
-    bool should_continue = true;
-
-    tx_changes.state.foreach(
-      [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
-        auto write = w.find(k);
-
-        if (write == w.end())
-        {
-          should_continue = f(k, v.value);
-        }
-
-        return should_continue;
-      });
-
-    if (always_consider_writes || should_continue)
+    if (always_consider_writes)
     {
-      for (auto write = w.begin(); write != w.end(); ++write)
+      for (auto write = writes.begin(); write != writes.end(); ++write)
       {
-        should_continue = f(write->first, write->second);
+        bool should_continue = f(write->first, write->second);
 
         if (!should_continue)
         {
@@ -47,11 +25,11 @@ namespace kv::untyped
   }
 
   MapDiff::MapDiff(kv::untyped::ChangeSet& cs, const std::string& map_name) :
-    tx_changes(cs),
+    writes(cs.writes),
     map_name(map_name)
   {
     LOG_INFO_FMT("constructing map diff");
-    for (const auto& [k, v] : tx_changes.writes)
+    for (const auto& [k, v] : writes)
     {
       LOG_INFO_FMT(
         "write: {} -> {}",
@@ -64,8 +42,8 @@ namespace kv::untyped
   std::optional<std::optional<MapDiff::ValueType>> MapDiff::get(
     const MapDiff::KeyType& key)
   {
-    auto val_opt = tx_changes.writes.find(key);
-    if (val_opt != tx_changes.writes.end())
+    auto val_opt = writes.find(key);
+    if (val_opt != writes.end())
     {
       LOG_TRACE_FMT("KV[{}]::get({}) - found", map_name, key);
       return val_opt->second;
@@ -78,11 +56,11 @@ namespace kv::untyped
 
   bool MapDiff::has(const MapDiff::KeyType& key)
   {
-    auto val_opt = tx_changes.writes.find(key);
+    auto val_opt = writes.find(key);
 
     bool found = false;
 
-    if (val_opt != tx_changes.writes.end())
+    if (val_opt != writes.end())
     {
       found = val_opt->second.has_value();
     }
@@ -94,11 +72,11 @@ namespace kv::untyped
 
   bool MapDiff::is_deleted(const MapDiff::KeyType& key)
   {
-    auto val_opt = tx_changes.writes.find(key);
+    auto val_opt = writes.find(key);
 
     bool deleted = false;
 
-    if (val_opt != tx_changes.writes.end())
+    if (val_opt != writes.end())
     {
       deleted = !val_opt->second.has_value();
     }

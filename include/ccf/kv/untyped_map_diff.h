@@ -4,6 +4,7 @@
 
 #include "ccf/kv/abstract_handle.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
+#include "ccf/kv/untyped.h"
 #include "ccf/kv/version.h"
 
 #include <functional>
@@ -27,12 +28,12 @@ namespace kv::untyped
       std::function<bool(const KeyType& k, const std::optional<ValueType>& V)>;
 
   protected:
-    kv::untyped::ChangeSet& tx_changes;
+    kv::untyped::Write& writes;
     std::string map_name;
 
     /** Get pointer to current value if this key exists, else nullptr if it does
      * not exist or has been deleted. If non-null, points to something owned by
-     * tx_changes - expect this is used/dereferenced immediately, and there is
+     * writes - expect this is used/dereferenced immediately, and there is
      * no concurrent access which could invalidate it. Modifies read set if
      * appropriate to record read dependency on this key, at the version of the
      * returned data.
