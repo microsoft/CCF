@@ -777,7 +777,6 @@ const actions = new Map([
         const stack_name = ccf.strToBuf("max_stack_bytes");
         js_engine_map.set(heap_name, ccf.jsonCompatibleToBuf(heap_bytes));
         js_engine_map.set(stack_name, ccf.jsonCompatibleToBuf(stack_bytes));
-        ccf.updateJSRuntimeMemory(heap_bytes, stack_bytes);
       }
     ),
   ],

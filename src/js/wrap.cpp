@@ -31,8 +31,6 @@ namespace ccf::js
 
   using KVMap = kv::untyped::Map;
 
-  size_t Runtime::max_stack_size_ = 1024 * 1024;
-  size_t Runtime::max_heap_size_ = 100 * 1024 * 1024;
   JSClassID kv_class_id = 0;
   JSClassID kv_read_only_class_id = 0;
   JSClassID kv_map_handle_class_id = 0;
@@ -81,6 +79,27 @@ namespace ccf::js
     {
       register_ffi_plugin(plugin);
     }
+  }
+
+  Runtime::Runtime(kv::Tx* tx)
+  {
+    rt = JS_NewRuntime();
+    if (rt == nullptr)
+    {
+      throw std::runtime_error("Failed to initialise QuickJS runtime");
+    }
+    size_t default_stack_size = 1024 * 1024;
+    size_t default_heap_size = 100 * 1024 * 1024;
+    const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
+    const std::optional<size_t> max_heap_size = jsengine->get("max_heap_bytes");
+    const std::optional<size_t> max_stack_size =
+      jsengine->get("max_stack_bytes");
+
+    size_t heap_size = max_heap_size.value_or(default_heap_size);
+    size_t stack_size = max_stack_size.value_or(default_stack_size);
+
+    JS_SetMaxStackSize(rt, stack_size);
+    JS_SetMemoryLimit(rt, heap_size);
   }
 
   static JSValue js_kv_map_has(
@@ -1279,36 +1298,6 @@ namespace ccf::js
     }
   }
 
-  JSValue js_update_runtime_memory_cap(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    if (argc != 2)
-    {
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments but expected two", argc);
-    }
-
-    int64_t heap_size = 0;
-    if (JS_ToInt64(ctx, &heap_size, argv[0]) < 0)
-    {
-      return JS_EXCEPTION;
-    }
-
-    int64_t stack_size = 0;
-    if (JS_ToInt64(ctx, &stack_size, argv[1]) < 0)
-    {
-      return JS_EXCEPTION;
-    }
-
-    size_t heap = (size_t)heap_size;
-    size_t stack = (size_t)stack_size;
-
-    Runtime::max_heap_size_ = heap;
-    Runtime::max_stack_size_ = stack;
-
-    return JS_UNDEFINED;
-  }
-
   JSValue js_refresh_app_bytecode_cache(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -1333,7 +1322,7 @@ namespace ccf::js
 
     auto& tx = *tx_ctx_ptr->tx;
 
-    js::Runtime rt;
+    js::Runtime rt(tx_ctx_ptr->tx);
     JS_SetModuleLoaderFunc(rt, nullptr, js::js_app_module_loader, &tx);
     js::Context ctx2(rt, js::TxAccess::APP);
 
@@ -1732,12 +1721,6 @@ namespace ccf::js
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "updateJSRuntimeMemory",
-      JS_NewCFunction(
-        ctx, js_update_runtime_memory_cap, "updateJSRuntimeMemory", 2));
     JS_SetPropertyStr(
       ctx,
       ccf,

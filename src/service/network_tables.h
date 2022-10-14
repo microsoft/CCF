@@ -10,6 +10,7 @@
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/modules.h"
+#include "ccf/service/tables/jsengine.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
 #include "ccf/service/tables/security_policies.h"

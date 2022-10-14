@@ -220,21 +220,7 @@ namespace ccf::js
     JSRuntime* rt;
 
   public:
-    static size_t max_stack_size_;
-    static size_t max_heap_size_;
-
-    Runtime(
-      size_t max_stack_size = max_stack_size_,
-      size_t max_heap_size = max_heap_size_)
-    {
-      rt = JS_NewRuntime();
-      if (rt == nullptr)
-      {
-        throw std::runtime_error("Failed to initialise QuickJS runtime");
-      }
-      JS_SetMaxStackSize(rt, max_stack_size);
-      JS_SetMemoryLimit(rt, max_heap_size);
-    }
+    Runtime(kv::Tx* tx);
 
     ~Runtime()
     {
