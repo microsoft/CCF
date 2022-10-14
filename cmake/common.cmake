@@ -351,6 +351,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
+
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
 target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)

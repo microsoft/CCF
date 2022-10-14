@@ -22,19 +22,18 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
-  add_library(qcbor.host STATIC ${QCBOR_SRCS})
 
-  target_include_directories(
-    qcbor.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR>
-                      $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
-  )
-  set_property(TARGET qcbor.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-  add_san(qcbor.host)
+add_library(qcbor.host STATIC ${QCBOR_SRCS})
 
-  install(
-    TARGETS qcbor.host
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+target_include_directories(
+  qcbor.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR>
+                    $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
+)
+set_property(TARGET qcbor.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(qcbor.host)
+
+install(
+  TARGETS qcbor.host
+  EXPORT ccf
+  DESTINATION lib
+)

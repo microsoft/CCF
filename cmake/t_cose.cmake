@@ -35,26 +35,25 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
-  find_package(OpenSSL REQUIRED)
-  add_library(t_cose.host STATIC ${T_COSE_SRCS})
-  target_compile_definitions(t_cose.host PRIVATE ${T_COSE_DEFS})
-  target_compile_options(t_cose.host INTERFACE ${T_COSE_OPTS_INTERFACE})
 
-  target_include_directories(t_cose.host PRIVATE "${T_COSE_SRC}")
+find_package(OpenSSL REQUIRED)
+add_library(t_cose.host STATIC ${T_COSE_SRCS})
+target_compile_definitions(t_cose.host PRIVATE ${T_COSE_DEFS})
+target_compile_options(t_cose.host INTERFACE ${T_COSE_OPTS_INTERFACE})
 
-  target_include_directories(
-    t_cose.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose>
-                       $<INSTALL_INTERFACE:include/3rdparty/t_cose>
-  )
+target_include_directories(t_cose.host PRIVATE "${T_COSE_SRC}")
 
-  target_link_libraries(t_cose.host PUBLIC qcbor.host OpenSSL::Crypto)
-  set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-  add_san(t_cose.host)
+target_include_directories(
+  t_cose.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose>
+                     $<INSTALL_INTERFACE:include/3rdparty/t_cose>
+)
 
-  install(
-    TARGETS t_cose.host
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+target_link_libraries(t_cose.host PUBLIC qcbor.host OpenSSL::Crypto)
+set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(t_cose.host)
+
+install(
+  TARGETS t_cose.host
+  EXPORT ccf
+  DESTINATION lib
+)
