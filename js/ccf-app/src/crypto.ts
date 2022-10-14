@@ -57,6 +57,11 @@ export const isValidX509CertBundle = ccf.isValidX509CertBundle;
  */
 export const isValidX509CertChain = ccf.isValidX509CertChain;
 
+/**
+ * @inheritDoc CCF.pemToJWK
+ */
+ export const pemToJWK = ccf.pemToJWK;
+
 export {
   WrapAlgoParams,
   AesKwpParams,

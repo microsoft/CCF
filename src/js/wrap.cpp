@@ -1701,7 +1701,7 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     JS_SetPropertyStr(
-      ctx, ccf, "pemToJwt", JS_NewCFunction(ctx, js_pem_to_jwk, "pemToJwt", 1));
+      ctx, ccf, "pemToJWK", JS_NewCFunction(ctx, js_pem_to_jwk, "pemToJWK", 1));
     JS_SetPropertyStr(
       ctx,
       ccf,

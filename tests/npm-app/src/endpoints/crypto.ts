@@ -171,6 +171,21 @@ export function isValidX509CertChain(
   return { body: ccfcrypto.isValidX509CertChain(chain, trusted) };
 }
 
+interface pemToJWKRequest {
+  pem: string;
+  kid: string;
+}
+
+export function pemToJWK(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pemToJWK(req.pem, req.kid);
+
+  return {body: res};
+}
+
+
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
 }

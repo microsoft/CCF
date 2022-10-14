@@ -430,6 +430,14 @@ export interface CCF {
    */
   isValidX509CertChain(chain: string, trusted: string): boolean;
 
+  /**
+   * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
+   * 
+   * @param pem Elliptic curve public key as PEM
+   * @param kid Key identifier (optional). 
+   */
+   pemToJWK(pem: string, kid?: string): object;
+
   crypto: CCFCrypto;
 
   rpc: CCFRpc;
