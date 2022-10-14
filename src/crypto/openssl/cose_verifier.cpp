@@ -51,7 +51,8 @@ namespace crypto
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 
-  bool COSEVerifier_OpenSSL::verify(const q_useful_buf_c& buf) const
+  bool COSEVerifier_OpenSSL::verify(
+    const q_useful_buf_c& buf, q_useful_buf_c& authned_content) const
   {
     EVP_PKEY* evp_key = *public_key;
 
@@ -63,9 +64,8 @@ namespace crypto
     t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
     t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
 
-    q_useful_buf_c returned_payload;
     t_cose_err_t error =
-      t_cose_sign1_verify(&verify_ctx, buf, &returned_payload, nullptr);
+      t_cose_sign1_verify(&verify_ctx, buf, &authned_content, nullptr);
     if (error == T_COSE_SUCCESS)
     {
       return true;

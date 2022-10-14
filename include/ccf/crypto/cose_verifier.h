@@ -14,7 +14,8 @@ namespace crypto
   class COSEVerifier
   {
   public:
-    virtual bool verify(const q_useful_buf_c& buf) const = 0;
+    virtual bool verify(
+      const q_useful_buf_c& buf, q_useful_buf_c& authned_content) const = 0;
     virtual ~COSEVerifier() = default;
   };
 

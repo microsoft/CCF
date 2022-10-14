@@ -20,6 +20,8 @@ namespace crypto
   public:
     COSEVerifier_OpenSSL(const std::vector<uint8_t>& certificate);
     virtual ~COSEVerifier_OpenSSL() override;
-    virtual bool verify(const q_useful_buf_c& buf) const override;
+    virtual bool verify(
+      const q_useful_buf_c& buf,
+      q_useful_buf_c& authned_content) const override;
   };
 }

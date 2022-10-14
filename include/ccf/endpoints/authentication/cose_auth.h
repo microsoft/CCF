@@ -28,8 +28,15 @@ namespace ccf
     /** COSE Protected Header */
     ProtectedHeader protected_header;
 
-    /** COSE Payload */
-    /** COSE Envelope */
+    /** COSE Content */
+    std::vector<uint8_t> content;
+
+    /** COSE Envelope
+     *
+     * This contains the payload at the moment, but that will be removed
+     * in later versions to be an envelope with detached content.
+     */
+    std::vector<uint8_t> envelope;
   };
 
   class MemberCOSESign1AuthnPolicy : public AuthnPolicy
