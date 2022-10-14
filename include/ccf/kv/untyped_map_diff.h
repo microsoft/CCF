@@ -31,15 +31,6 @@ namespace kv::untyped
     kv::untyped::Write& writes;
     std::string map_name;
 
-    /** Get pointer to current value if this key exists, else nullptr if it does
-     * not exist or has been deleted. If non-null, points to something owned by
-     * writes - expect this is used/dereferenced immediately, and there is
-     * no concurrent access which could invalidate it. Modifies read set if
-     * appropriate to record read dependency on this key, at the version of the
-     * returned data.
-     */
-    const ValueType* read_key(const KeyType& key);
-
     void foreach_(const ElementVisitorWithEarlyOut& fn);
 
   public:
