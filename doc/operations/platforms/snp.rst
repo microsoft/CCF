@@ -7,7 +7,7 @@ How to use the AMD SEV-SNP platform
 -----------------------------------
 CCF must run on an AMD CPU which supports SEV-SNP.
 
-To use SNP, ``virtual`` must be specified in ``COMPILE_TARGETS``, at compile time. If any other targets are specified, you may also need to specify the ``TEST_ENCLAVE=virtual`` runtime argument.
+To use SNP, set the enclave type in the :doc:`node configuration <../configuration>` to ``Virtual``.
 
 Attestation
 -----------

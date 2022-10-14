@@ -5,7 +5,7 @@ How to use the Intel SGX platform
 ---------------------------------
 CCF must run on an Intel CPU which supports SGX.
 
-To use SGX, ``sgx`` must be specified in ``COMPILE_TARGETS`` at compile time. If any other targets are specified, you may also need to specify the ``TEST_ENCLAVE=sgx`` runtime argument.
+To use SGX, set the enclave type in the :doc:`node configuration <../configuration>` to ``Release`` or ``Debug``.
 
 Attestation
 -----------
