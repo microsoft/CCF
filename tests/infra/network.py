@@ -1001,7 +1001,9 @@ class Network:
             node_count -= 1
         primary, _ = self.find_primary()
         self.wait_for_all_nodes_to_commit(primary)
-        LOG.success(f"Resized network from {initial_node_count} to {target_count} nodes")
+        LOG.success(
+            f"Resized network from {initial_node_count} to {target_count} nodes"
+        )
         return initial_node_count
 
     def wait_for_all_nodes_to_commit(self, primary=None, tx_id=None, timeout=10):
