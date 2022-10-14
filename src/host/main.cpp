@@ -408,6 +408,7 @@ int main(int argc, char** argv)
     // Get the nodes security policy via environment variable
     if (access(ccf::pal::snp::DEVICE, F_OK) == 0)
     {
+      LOG_INFO_FMT("Warning: AMD SEV-SNP support is currently experimental");
       auto policy = std::getenv("SECURITY_POLICY");
       if (policy != nullptr)
       {
