@@ -133,21 +133,18 @@ namespace kv
     using BaseTx::BaseTx;
 
     template <class M>
-    typename M::Diff* rodiff(M& m)
+    typename M::Diff* diff(M& m)
     {
-      // NB: Always creates a (writeable) MapHandle, which is cast to
-      // ReadOnlyDiff on return. This is so that other calls (before or
-      // after) can retrieve writeable handles over the same map.
       return get_handle_by_name<typename M::Diff>(m.get_name(), true);
     }
 
-    /** Get a read-only handle by map name. Map type must be specified
+    /** Get a diff by map name. Map type must be specified
      * as explicit template parameter.
      *
      * @param map_name Name of map
      */
     template <class M>
-    typename M::Diff* rodiff(const std::string& map_name)
+    typename M::Diff* diff(const std::string& map_name)
     {
       return get_handle_by_name<typename M::Diff>(map_name, true);
     }

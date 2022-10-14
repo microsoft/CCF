@@ -149,7 +149,7 @@ namespace loggingapp
     {
       auto tx = store->create_read_only_tx();
       auto tx_diff = store->create_tx_diff();
-      auto m = tx_diff.template rodiff<RecordsMap>(PRIVATE_RECORDS);
+      auto m = tx_diff.template diff<RecordsMap>(PRIVATE_RECORDS);
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
         if (v.has_value())
         {
