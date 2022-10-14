@@ -49,7 +49,7 @@ namespace ccf
   static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
     std::make_shared<JwtAuthnPolicy>();
 
-  /** Authenticate using COSE Sign1 payloads and, and
+  /** Authenticate using COSE Sign1 payloads, and
    * @c public:ccf.gov.members.certs table */
   static std::shared_ptr<MemberCOSESign1AuthnPolicy>
     member_cose_sign1_auth_policy =
