@@ -76,9 +76,9 @@ namespace kv
      * again after it returns false.
      *
      * @tparam F Functor type. Should usually be derived implicitly from f
-     * @param f Functor instance, taking (const K& k, const std::optional<V>& v) and returning
-     * a bool. Return value determines whether the iteration should continue
-     * (true) or stop (false)
+     * @param f Functor instance, taking (const K& k, const std::optional<V>& v)
+     * and returning a bool. Return value determines whether the iteration
+     * should continue (true) or stop (false)
      */
     template <class F>
     void foreach(F&& f)
@@ -125,9 +125,9 @@ namespace kv
     /** Iterate over all values in the map.
      *
      * @tparam F Functor type. Should usually be derived implicitly from f
-     * @param f Functor instance, taking (const std::optional<V>& v) and returning
-     * a bool. Return value determines whether the iteration should continue
-     * (true) or stop (false)
+     * @param f Functor instance, taking (const std::optional<V>& v) and
+     * returning a bool. Return value determines whether the iteration should
+     * continue (true) or stop (false)
      */
     template <class F>
     void foreach_value(F&& f)
