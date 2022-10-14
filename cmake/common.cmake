@@ -140,6 +140,10 @@ install(PROGRAMS ${CCF_DIR}/samples/scripts/sgxinfo.sh DESTINATION bin)
 install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
 install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
+if(SAN)
+  install(FILES ${CCF_DIR}/src/ubsan.suppressions DESTINATION bin)
+endif()
+
 # Install getting_started scripts for VM creation and setup
 install(
   DIRECTORY ${CCF_DIR}/getting_started/
