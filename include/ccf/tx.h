@@ -86,7 +86,6 @@ namespace kv
       {
         auto& [abstract_map, change_set] = it->second;
 
-        CCF_APP_INFO("get_handle_by_name: map_name={}", map_name);
         auto typed_handle = new THandle(*change_set, map_name);
         std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
         retain_handle(map_name, std::move(abstract_handle));
@@ -94,7 +93,6 @@ namespace kv
       }
       else
       {
-        CCF_APP_INFO("get_handle_by_name not found");
         auto [abstract_map, change_set] =
           get_map_and_change_set_by_name(map_name, keep_writes);
 
