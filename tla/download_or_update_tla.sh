@@ -4,7 +4,7 @@
 # Original License below
 # Adapted from: https://github.com/pmer/tla-bin
 #
-# Downloads the TLA+ binary image (tla2tools.jar) from the Microsoft Research
+# Downloads the TLA+ binary image (tla2tools.jar) from the Github
 # servers. If the file already exists locally, checks for an update & prints a
 # message if one was found.
 #
@@ -20,7 +20,7 @@ download() {
 download_curl() {
 	local if_modified
 
-	if [ -e tla2tools.jar ]; then 
+	if [ -e tla2tools.jar ]; then
 		if_modified=(-z tla2tools.jar)
 	fi
 
