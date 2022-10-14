@@ -7,19 +7,15 @@
 
 namespace kv::untyped
 {
-  void MapDiff::foreach_state_and_writes(
-    const MapDiff::ElementVisitorWithEarlyOut& f, bool always_consider_writes)
+  void MapDiff::foreach_(const MapDiff::ElementVisitorWithEarlyOut& f)
   {
-    if (always_consider_writes)
+    for (auto write = writes.begin(); write != writes.end(); ++write)
     {
-      for (auto write = writes.begin(); write != writes.end(); ++write)
-      {
-        bool should_continue = f(write->first, write->second);
+      bool should_continue = f(write->first, write->second);
 
-        if (!should_continue)
-        {
-          break;
-        }
+      if (!should_continue)
+      {
+        break;
       }
     }
   }
@@ -88,7 +84,7 @@ namespace kv::untyped
 
   void MapDiff::foreach(const MapDiff::ElementVisitorWithEarlyOut& f)
   {
-    foreach_state_and_writes(f, false);
+    foreach_(f);
   }
 
   size_t MapDiff::size()
@@ -154,7 +150,7 @@ namespace kv::untyped
       res[k] = v;
       return true;
     };
-    foreach_state_and_writes(g, true);
+    foreach_(g);
 
     for (const auto& e : res)
     {

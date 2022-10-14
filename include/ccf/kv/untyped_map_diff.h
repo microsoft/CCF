@@ -4,7 +4,6 @@
 
 #include "ccf/kv/abstract_handle.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
-#include "ccf/kv/untyped.h"
 #include "ccf/kv/version.h"
 
 #include <functional>
@@ -40,8 +39,7 @@ namespace kv::untyped
      */
     const ValueType* read_key(const KeyType& key);
 
-    void foreach_state_and_writes(
-      const ElementVisitorWithEarlyOut& fn, bool always_consider_writes);
+    void foreach_(const ElementVisitorWithEarlyOut& fn);
 
   public:
     MapDiff(kv::untyped::ChangeSet& cs, const std::string& map_name);
