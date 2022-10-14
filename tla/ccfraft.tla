@@ -943,8 +943,11 @@ ElectionSafetyInv ==
     \A i \in Servers :
         state[i] = Leader =>
         \A j \in Servers :
-            MaxWithZero({n \in DOMAIN log[i] : log[i][n].term = currentTerm[i]}) >=
-            MaxWithZero({n \in DOMAIN log[j] : log[j][n].term = currentTerm[i]})
+            LET max(a,b) == IF a > b THEN a ELSE b
+                FilterAndMax(a, b) == 
+                    IF a.term = currentTerm[i] THEN max(a.term, b) ELSE b
+            IN FoldSeq(FilterAndMax, 0, log[i]) >= FoldSeq(FilterAndMax, 0, log[j])
+
 ----
 \* Every (index, term) pair determines a log prefix
 LogMatchingInv ==
