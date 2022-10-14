@@ -610,23 +610,6 @@ namespace ccf
         .set_auto_schema<StateDigest, void>()
         .install();
 
-      auto test = [this](ccf::endpoints::EndpointContext& ctx) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-
-        LOG_INFO_FMT(
-          "GOV MSG TYPE {}",
-          caller_identity.protected_header.gov_msg_type.value());
-
-        ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json().dump());
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      };
-      make_endpoint("/test", HTTP_POST, test, member_sig_only)
-        .set_auto_schema<void, void>()
-        .install();
-
       //! A member asks for a fresher state digest
       auto update_state_digest = [this](auto& ctx, nlohmann::json&&) {
         const auto member_id = get_caller_member_id(ctx);
