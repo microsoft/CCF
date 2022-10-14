@@ -15,7 +15,7 @@ The first node in a new network will add its code id to the table. Members can t
 
 Once the proposal has been accepted, nodes running the new code are authorised to join the network. Nodes running older versions of the code can then be retired and stopped.
 
-.. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
+.. note:: The identity of the code (``mrenclave``) can be found by running the ``oesign`` utility provided by :term:`Open Enclave` :
 
     .. code-block:: bash
 
