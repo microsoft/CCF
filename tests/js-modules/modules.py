@@ -45,7 +45,7 @@ def generate_and_verify_jwk(client):
     assert r.status_code != http.HTTPStatus.OK
 
     # Elliptic curve
-    curves = [(ec.SECP256R1, "P-256"), (ec.SECP384R1, "P-384")]
+    curves = [(ec.SECP256R1, "P-256"), (ec.SECP256K1, "P-256"), (ec.SECP384R1, "P-384")]
     kids = ["my_kid", None]
     for curve, jwk_crv in curves:
         _, pub_pem = infra.crypto.generate_ec_keypair(curve)
@@ -422,6 +422,12 @@ def test_npm_app(network, args):
         # )
 
         # r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256r1"})
+        # assert r.status_code == http.HTTPStatus.OK, r.status_code
+        # assert infra.crypto.check_key_pair_pem(
+        #     r.body.json()["privateKey"], r.body.json()["publicKey"]
+        # )
+
+        # r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256k1"})
         # assert r.status_code == http.HTTPStatus.OK, r.status_code
         # assert infra.crypto.check_key_pair_pem(
         #     r.body.json()["privateKey"], r.body.json()["publicKey"]

@@ -46,6 +46,7 @@ namespace crypto
       case CurveID::SECP384R1:
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
+      case CurveID::SECP256K1:
         return JsonWebKeyECCurve::P256;
       default:
       {
