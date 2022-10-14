@@ -1531,6 +1531,7 @@ def test_post_local_commit_failure(network, args):
             }
         }, r.body.json()
 
+
 @reqs.description(
     "Check that the committed index gets populated with creates and deletes"
 )
@@ -1557,7 +1558,6 @@ def test_committed_index(network, args):
     assert r.body.json() == {
         "error": {"code": "ResourceNotFound", "message": "No such record: 1."}
     }
-
 
 
 def run_udp_tests(args):
