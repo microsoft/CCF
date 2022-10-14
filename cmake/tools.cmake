@@ -5,8 +5,10 @@ function(add_san name)
   if(SAN)
     # CCF_PROJECT is defined when building CCF itself, but not when this
     # function is used by downstream applications.
-    if (CCF_PROJECT)
-      set(suppressions_file $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/ubsan.suppressions>$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/bin/ubsan.suppressions>)
+    if(CCF_PROJECT)
+      set(suppressions_file
+          $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/ubsan.suppressions>$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/bin/ubsan.suppressions>
+      )
     else()
       set(suppressions_file ${CCF_DIR}/bin/ubsan.suppressions)
     endif()
