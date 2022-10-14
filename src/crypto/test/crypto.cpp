@@ -156,7 +156,8 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
 
 TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
 {
-  constexpr size_t num_supported_curves = static_cast<size_t>(sizeof(supported_curves)/sizeof(CurveID));
+  constexpr size_t num_supported_curves =
+    static_cast<size_t>(sizeof(supported_curves) / sizeof(CurveID));
   for (auto i = 0; i < num_supported_curves; ++i)
   {
     const auto curve = supported_curves[i];
