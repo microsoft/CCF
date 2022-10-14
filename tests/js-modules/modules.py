@@ -17,6 +17,7 @@ import infra.crypto
 import suite.test_requirements as reqs
 import openapi_spec_validator
 from jwcrypto import jwk
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from loguru import logger as LOG
 
@@ -39,24 +40,21 @@ def validate_openapi(client):
 
 
 def generate_and_verify_jwk(client):
-    LOG.success("Generating and verifying jwk")
+    LOG.info("Generate JWK from raw public key PEM")
     r = client.post("/app/pemToJWK", body={"pem": "invalid_pem"})
-    # assert r.status_code == http.HTTPStatus.BAD_REQUEST # TODO: Investigate
+    assert r.status_code != http.HTTPStatus.OK
 
-    curves = [("secp256r1", "P-256"), ("secp384r1", "P-384")]
-
+    curves = [(ec.SECP256R1, "P-256"), (ec.SECP384R1, "P-384")]
     for curve, jwk_crv in curves:
-        _, pub_pem = infra.crypto.generate_ec_keypair(curve_name=curve)
+        _, pub_pem = infra.crypto.generate_ec_keypair(curve)
         ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
         r = client.post("/app/pemToJWK", body={"pem": pub_pem})
         assert r.status_code == http.HTTPStatus.OK
         body = r.body.json()
-        assert body["crv"] == "P-256"
+        assert body["crv"] == jwk_crv
         assert body["kty"] == "EC"
         assert body["x"] == ref_jwk["x"]
         assert body["y"] == ref_jwk["y"]
-
-    LOG.error(r.body.json())
 
 
 @reqs.description("Test module import")
@@ -508,7 +506,7 @@ def test_npm_app(network, args):
         # assert r.status_code == http.HTTPStatus.OK, r.status_code
         # assert r.body.json() == False, r.body
 
-        # key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256r1")
+        # key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair()
         # algorithm = {"name": "ECDSA", "hash": "SHA-256"}
         # data = "foo".encode()
         # signature = infra.crypto.sign(algorithm, key_priv_pem, data)

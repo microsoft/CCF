@@ -277,8 +277,6 @@ namespace ccf::js
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    LOG_FAIL_FMT("js_pem_to_jwk: {}", argc);
-
     auto pem_str = jsctx.to_str(argv[0]);
     if (!pem_str)
     {
@@ -298,9 +296,6 @@ namespace ccf::js
       kid = kid_str;
     }
 
-    LOG_FAIL_FMT("Thus far");
-
-    crypto::PublicKeyPtr pubk = nullptr;
     crypto::JsonWebKeyEC jwk;
     try
     {
@@ -309,15 +304,12 @@ namespace ccf::js
     }
     catch (const std::exception& ex)
     {
-      LOG_FAIL_FMT("{}", ex.what());
       auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);
       return e;
     }
 
     auto jwk_str = nlohmann::json(jwk).dump();
-    LOG_FAIL_FMT("jwk: {}", nlohmann::json(jwk).dump());
-
     return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
   }
 
