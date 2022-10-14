@@ -1628,7 +1628,7 @@ def run(args):
         test_empty_path(network, args)
         test_post_local_commit_failure(network, args)
         test_committed_index(network, args)
-        BFT does not handle re-keying yet
+        # BFT does not handle re-keying yet
         if args.consensus == "CFT":
             test_liveness(network, args)
             test_rekey(network, args)

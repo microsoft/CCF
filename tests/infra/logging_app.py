@@ -378,7 +378,9 @@ class LoggingTxs:
                 f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
 
-    def delete(self, log_id, priv=False, log_capture=None, user=None, wait_for_sync=True):
+    def delete(
+        self, log_id, priv=False, log_capture=None, user=None, wait_for_sync=True
+    ):
         primary, _ = self.network.find_primary(log_capture=log_capture)
         check = infra.checker.Checker()
         with primary.client(user or self.user) as c:
@@ -386,7 +388,9 @@ class LoggingTxs:
             url = f"/app/log/{table}?id={log_id}"
             if self.scope is not None:
                 url += "&scope=" + self.scope
-            wait_point = c.delete(url, headers=None if user else self._get_headers_base())
+            wait_point = c.delete(
+                url, headers=None if user else self._get_headers_base()
+            )
             check(wait_point, result=True)
             if priv:
                 self.priv.pop(log_id)
