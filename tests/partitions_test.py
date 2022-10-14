@@ -503,12 +503,14 @@ def test_forwarding_timeout(network, args):
 
 
 @reqs.description(
-    "Session consistency is provided, and inconsistencies result in errors after elections"
+    "Session consistency is provided, and inconsistencies after elections are replaced by errors"
 )
-# @reqs.supports_methods("/app/log/private")
-@reqs.at_least_n_nodes(3)
+@reqs.supports_methods("/log/private")
 @reqs.no_http2()
 def test_session_consistency(network, args):
+    # Ensure we have 5 nodes
+    network.resize(5, args)
+
     primary, backups = network.find_nodes()
     backup = backups[0]
 
@@ -543,8 +545,8 @@ def test_session_consistency(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == msg_a, r
 
-        # Wait for that to be committed on backup
-        client_backup_0.wait_for_commit(r)
+        # Wait for that to be committed on all backups
+        network.wait_for_all_nodes_to_commit(primary)
 
         # Write on backup, resulting in a forwarded request
         # Confirm that this session can read that write, since it remains forwarded
@@ -576,8 +578,24 @@ def test_session_consistency(network, args):
                 f"Failed to observe evidence of session forwarding after {n_attempts} attempts"
             )
 
-        # Write on a partitioned primary, confirm that this session gets an error once an election has occurred
-        with network.partitioner.partition([primary]):
+        def check_reads(sessions=None, should_error=False):
+            sessions = sessions or (
+                client_primary_0,
+                client_primary_1,
+                client_backup_0,
+                client_backup_1,
+            )
+            for client in sessions:
+                r = client.get(f"/app/log/private?id={msg_id}")
+                if should_error:
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+                    assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
+                else:
+                    assert r.status_code == http.HTTPStatus.OK, r
+
+        # Partition primary and forwarding backup from other backups
+        with network.partitioner.partition([primary, backup]):
+            # Write on partitioned primary
             msg0 = "AA"
             r0 = client_primary_0.post(
                 "/app/log/private",
@@ -586,29 +604,50 @@ def test_session_consistency(network, args):
                     "msg": msg0,
                 },
             )
+            assert r0.status_code == http.HTTPStatus.OK
 
-            msg1 = "BB"
+            # Read from partitioned backup, over forwarded session to primary
             r1 = client_backup_0.get(f"/app/log/private?id={msg_id}")
+            assert r1.status_code == http.HTTPStatus.OK
 
-            new_primary, new_view = network.wait_for_new_primary(primary, nodes=backups)
+            # At this point despite partition these nodes believe this new transaction
+            # is still valid, and will still report it, so there is no consistency error
+            check_reads(
+                # NB: Only use these sessions, or we 'pollute' the other sessions
+                # with recent TxIDs
+                (client_primary_0, client_backup_0),
+                False,
+            )
 
-            LOG.warning("What happens now?")
-            client_primary_0.get("/node/commit")
-            client_primary_1.get("/node/commit")
-            client_backup_0.get("/node/commit")
-            client_backup_1.get("/node/commit")
+            # Even once CheckQuorum takes effect and the primary stands down, they
+            # know nothing contradictory so session consistency is maintained
+            primary.wait_for_leadership_state(
+                r0.view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
+            )
+            check_reads(
+                (client_primary_0, client_backup_0),
+                False,
+            )
 
-        # Goal:
-        # - p0 should get errors - it wrote during partition
-        # - p1 should be fine, it only read some early, still valid state
-        # - b0 should get errors - it got discarded data over forwarded channel
-        # - b1 should get errors - similar?
+            # Ensure the majority partition have elected their own new primary
+            _, new_view = network.wait_for_new_primary(primary, nodes=backups[1:])
+
+        # Now the partition heals, and the partitioned primary and backup are brought
+        # back up-to-date. This causes them to discard the state produced while partitioned
         network.wait_for_primary_unanimity(min_view=new_view - 1)
-        LOG.warning("And after de-partition?")
-        client_primary_0.get("/node/commit")
-        client_primary_1.get("/node/commit")
-        client_backup_0.get("/node/commit")
-        client_backup_1.get("/node/commit")
+
+        check_reads(
+            # These sessions saw discarded state, either directly from their target node
+            # or via forwarding, so now report consistency errors
+            (client_primary_0, client_backup_0),
+            True,
+        )
+        check_reads(
+            # These sessions saw earlier state from before the partition, which remains
+            # valid in the new view. Their session consistency is maintained
+            (client_primary_1, client_backup_1),
+            False,
+        )
 
     return network
 
@@ -673,6 +712,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
+    args.snapshot_tx_interval = 20
 
     run(args)
     # run_2tx_reconfig_tests(args)
