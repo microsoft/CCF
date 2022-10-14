@@ -258,9 +258,10 @@ MaxCommittableTerm(xlog) ==
     LET iMax == MaxCommittableIndex(xlog)
     IN IF iMax = 0 THEN 0 ELSE xlog[iMax].term
 
-CalculateQuorum(s) ==
+Quorums ==
     \* Helper function to calculate the Quorum. Needed on each reconfiguration
-    {i \in SUBSET(s) : Cardinality(i) * 2 > Cardinality(s)}
+    [ s \in SUBSET Servers |-> {i \in SUBSET(s) : Cardinality(i) * 2 > Cardinality(s)} ]
+    
 
 GetServerSetForIndex(server, index) ==
     \* Pick the sets of servers (aka configs) up to that index
@@ -436,7 +437,7 @@ AppendEntries(i, j) ==
 BecomeLeader(i) ==
     /\ state[i] = Candidate
     \* To become leader, the candidate must have received votes from a majority in each active configuration
-    /\ \A k \in 1..Len(currentConfiguration[i]) : votesGranted[i] \in CalculateQuorum(currentConfiguration[i][k][2])
+    /\ \A k \in 1..Len(currentConfiguration[i]) : votesGranted[i] \in Quorums[currentConfiguration[i][k][2]]
     /\ state'      = [state EXCEPT ![i] = Leader]
     /\ nextIndex'  = [nextIndex EXCEPT ![i] =
                          [j \in Servers |-> Len(log[i]) + 1]]
@@ -564,7 +565,7 @@ AdvanceCommitIndex(i) ==
             {c \in 1..Len(currentConfiguration[i]) : new_index >= currentConfiguration[i][c][1] } :
                 \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
                 LET config_servers == currentConfiguration[i][config_index][2]
-                    required_quorum == CalculateQuorum(config_servers)
+                    required_quorum == Quorums[config_servers]
                     agree_servers == {i} \cup {k \in Servers :
                                             matchIndex[i][k] >= new_index}
                 IN (agree_servers \cap config_servers) \in required_quorum
@@ -930,7 +931,7 @@ CandidateTermNotInLogInv ==
             {j \in Servers :
                 /\ currentTerm[j] = currentTerm[i]
                 /\ votedFor[j] = i
-            } \in CalculateQuorum(currentConfiguration[i][k][2])
+            } \in Quorums[currentConfiguration[i][k][2]]
         )
         =>
         \A j \in Servers :
@@ -965,7 +966,7 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in CalculateQuorum(GetServerSetForIndex(i, commitIndex[i])) :
+        \A S \in Quorums[GetServerSetForIndex(i, commitIndex[i])] :
             \E j \in S :
                 IsPrefix(Committed(i), log[j])
 
