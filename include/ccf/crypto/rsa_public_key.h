@@ -78,7 +78,18 @@ namespace crypto
       size_t signature_size,
       MDType md_type = MDType::NONE) = 0;
 
-    virtual JsonWebKeyRSA public_key_jwk(
+    struct Components
+    {
+      std::vector<uint8_t> n;
+      std::vector<uint8_t> e;
+    };
+
+    virtual Components components() const = 0;
+
+    /**
+     * Get the public key in JWK format
+     */
+    virtual JsonWebKeyRSA public_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 }

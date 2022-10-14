@@ -130,15 +130,35 @@ namespace crypto
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
 
-  JsonWebKeyRSA RSAPublicKey_OpenSSL::public_key_jwk(
+  RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
+  {
+    RSA* rsa = EVP_PKEY_get0_RSA(key);
+    if (!rsa)
+    {
+      throw std::logic_error("invalid RSA key");
+    }
+
+    const BIGNUM* n = RSA_get0_n(rsa);
+    const BIGNUM* e = RSA_get0_e(rsa);
+
+    Components r;
+    r.n.resize(BN_num_bytes(n));
+    r.e.resize(BN_num_bytes(e));
+    BN_bn2bin(n, r.n.data());
+    BN_bn2bin(e, r.e.data());
+    return r;
+  }
+
+  JsonWebKeyRSA RSAPublicKey_OpenSSL::public_key_jwk_rsa(
     const std::optional<std::string>& kid) const
   {
     JsonWebKeyRSA jwk;
-    // jwk.n = coords.x;
-    // jwk.e = coords.y;
+    auto comps = components();
+    jwk.n = comps.n;
+    jwk.e = comps.e;
     // jwk.alg = TODO: ;//curve_id_to_jwk_curve(get_curve_id());
     jwk.kid = kid;
-    jwk.kty = JsonWebKeyType::EC;
+    jwk.kty = JsonWebKeyType::RSA;
     return jwk;
   }
 }

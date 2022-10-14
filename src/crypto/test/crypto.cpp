@@ -708,6 +708,7 @@ TEST_CASE("hmac")
 TEST_CASE("PEM to JWK")
 {
   logger::config::default_init();
+  auto kid = "my_kid";
 
   INFO("EC");
   {
@@ -719,7 +720,6 @@ TEST_CASE("PEM to JWK")
     auto jwk = pubk->public_key_jwk();
     LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
 
-    auto kid = "my_kid";
     jwk = pubk->public_key_jwk(kid);
     LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
   }
@@ -731,7 +731,10 @@ TEST_CASE("PEM to JWK")
 
     LOG_FAIL_FMT("PEM: {}", pubk->public_key_pem().str());
 
-    auto jwk = pubk->public_key_jwk();
+    auto jwk = pubk->public_key_jwk_rsa();
+    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+
+    jwk = pubk->public_key_jwk_rsa(kid);
     LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
   }
 }
