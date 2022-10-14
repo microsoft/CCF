@@ -45,9 +45,11 @@ namespace kv::untyped
   public:
     MapDiff(kv::untyped::ChangeSet& cs, const std::string& map_name);
 
-    std::optional<ValueType> get(const KeyType& key);
+    std::optional<std::optional<ValueType>> get(const KeyType& key);
 
     bool has(const KeyType& key);
+
+    bool is_deleted(const KeyType& key);
 
     size_t size();
 

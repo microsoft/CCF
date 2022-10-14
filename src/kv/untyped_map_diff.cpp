@@ -7,41 +7,6 @@
 
 namespace kv::untyped
 {
-  const MapDiff::ValueType* MapDiff::read_key(const KeyType& key)
-  {
-    // A write followed by a read doesn't introduce a read dependency.
-    // If we have written, return the value without updating the read set.
-    auto write = tx_changes.writes.find(key);
-    if (write != tx_changes.writes.end())
-    {
-      if (write->second.has_value())
-      {
-        return &write->second.value();
-      }
-      else
-      {
-        return nullptr;
-      }
-    }
-
-    // If the key doesn't exist, return empty and record that we depend on
-    // the key not existing.
-    const auto search = tx_changes.state.getp(key);
-    if (search == nullptr)
-    {
-      tx_changes.reads.insert(
-        std::make_pair(key, std::make_tuple(NoVersion, NoVersion)));
-      return nullptr;
-    }
-
-    // Record the version that we depend on.
-    tx_changes.reads.insert(std::make_pair(
-      key, std::make_tuple(search->version, search->read_version)));
-
-    // Return the value.
-    return &search->value;
-  }
-
   void MapDiff::foreach_state_and_writes(
     const MapDiff::ElementVisitorWithEarlyOut& f, bool always_consider_writes)
   {
@@ -81,8 +46,7 @@ namespace kv::untyped
     }
   }
 
-  MapDiff::MapDiff(
-    kv::untyped::ChangeSet& cs, const std::string& map_name) :
+  MapDiff::MapDiff(kv::untyped::ChangeSet& cs, const std::string& map_name) :
     tx_changes(cs),
     map_name(map_name)
   {
@@ -97,32 +61,54 @@ namespace kv::untyped
     }
   }
 
-  std::optional<MapDiff::ValueType> MapDiff::get(
+  std::optional<std::optional<MapDiff::ValueType>> MapDiff::get(
     const MapDiff::KeyType& key)
   {
-    auto value_p = read_key(key);
-    auto found = value_p != nullptr;
-    LOG_TRACE_FMT(
-      "KV[{}]::get({}) - {}found", map_name, key, found ? "" : "not ");
-    if (!found)
+    auto val_opt = tx_changes.writes.find(key);
+    if (val_opt != tx_changes.writes.end())
     {
-      return std::nullopt;
+      LOG_TRACE_FMT("KV[{}]::get({}) - found", map_name, key);
+      return val_opt->second;
     }
 
-    return *value_p;
+    LOG_TRACE_FMT("KV[{}]::get({}) - not found", map_name, key);
+
+    return std::nullopt;
   }
 
   bool MapDiff::has(const MapDiff::KeyType& key)
   {
-    auto versionv_p = read_key(key);
-    auto found = versionv_p != nullptr;
+    auto val_opt = tx_changes.writes.find(key);
+
+    bool found = false;
+
+    if (val_opt != tx_changes.writes.end())
+    {
+      found = val_opt->second.has_value();
+    }
+
     LOG_TRACE_FMT(
       "KV[{}]::has({}) - {}found", map_name, key, found ? "" : "not ");
     return found;
   }
 
-  void MapDiff::foreach(
-    const MapDiff::ElementVisitorWithEarlyOut& f)
+  bool MapDiff::is_deleted(const MapDiff::KeyType& key)
+  {
+    auto val_opt = tx_changes.writes.find(key);
+
+    bool deleted = false;
+
+    if (val_opt != tx_changes.writes.end())
+    {
+      deleted = !val_opt->second.has_value();
+    }
+
+    LOG_TRACE_FMT(
+      "KV[{}]::deleted({}) - {}deleted", map_name, key, deleted ? "" : "not ");
+    return deleted;
+  }
+
+  void MapDiff::foreach(const MapDiff::ElementVisitorWithEarlyOut& f)
   {
     foreach_state_and_writes(f, false);
   }

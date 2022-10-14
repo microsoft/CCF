@@ -35,13 +35,16 @@ namespace kv
      * @return Optional containing associated value, or empty if the key doesn't
      * exist
      */
-    std::optional<V> get(const K& key)
+    std::optional<std::optional<V>> get(const K& key)
     {
       const auto opt_v_rep = map_diff.get(KSerialiser::to_serialised(key));
 
       if (opt_v_rep.has_value())
       {
-        return VSerialiser::from_serialised(opt_v_rep.value());
+        if (opt_v_rep.value().has_value())
+        {
+          return VSerialiser::from_serialised(opt_v_rep.value().value());
+        }
       }
 
       return std::nullopt;
@@ -59,6 +62,20 @@ namespace kv
     bool has(const K& key)
     {
       return map_diff.has(KSerialiser::to_serialised(key));
+    }
+
+    /** Test if key is deleted in this diff.
+     *
+     * This obeys the same rules as @c get regarding key visibility, but is more
+     * efficient if you do not need the associated value.
+     *
+     * @param key Key to read
+     *
+     * @return Boolean true iff key exists
+     */
+    bool is_deleted(const K& key)
+    {
+      return map_diff.is_deleted(KSerialiser::to_serialised(key));
     }
 
     /** Iterate over all entries in the map.
