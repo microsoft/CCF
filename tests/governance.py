@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import os
 import http
-from pprint import pprint
 import subprocess
 import infra.network
 import infra.path
@@ -21,7 +20,6 @@ from infra.runner import ConcurrentRunner
 import governance_history
 import tempfile
 import infra.interfaces
-import pprint
 import signing
 
 from loguru import logger as LOG
