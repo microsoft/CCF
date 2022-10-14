@@ -2,3 +2,4 @@ tla2tools.jar
 states/
 tools/
 *.out
+*.toolbox/
