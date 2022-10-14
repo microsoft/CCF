@@ -1538,11 +1538,12 @@ def test_post_local_commit_failure(network, args):
 def test_committed_index(network, args):
     txid = network.txs.issue(network, number_txs=1, send_public=False)
 
-    r = network.txs.request(1, priv=True, url_suffix="committed")
+    _, log_id = network.txs.get_log_id(txid)
+
+    r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.OK.value, r.status_code
     assert r.body.json() == {"msg": "Private message at idx 1 [0]"}
 
-    _, log_id = network.txs.get_log_id(txid)
     network.txs.delete(log_id, priv=True)
 
     r = network.txs.request(log_id, priv=True)
@@ -1607,38 +1608,38 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test(network, args)
-        test_remove(network, args)
-        test_clear(network, args)
-        test_record_count(network, args)
-        test_forwarding_frontends(network, args)
-        test_signed_escapes(network, args)
-        test_user_data_ACL(network, args)
-        test_cert_prefix(network, args)
-        test_anonymous_caller(network, args)
-        test_multi_auth(network, args)
-        test_custom_auth(network, args)
-        test_custom_auth_safety(network, args)
-        test_raw_text(network, args)
-        test_historical_query(network, args)
-        test_historical_query_range(network, args)
-        test_view_history(network, args)
-        test_metrics(network, args)
-        test_empty_path(network, args)
-        test_post_local_commit_failure(network, args)
+        # test(network, args)
+        # test_remove(network, args)
+        # test_clear(network, args)
+        # test_record_count(network, args)
+        # test_forwarding_frontends(network, args)
+        # test_signed_escapes(network, args)
+        # test_user_data_ACL(network, args)
+        # test_cert_prefix(network, args)
+        # test_anonymous_caller(network, args)
+        # test_multi_auth(network, args)
+        # test_custom_auth(network, args)
+        # test_custom_auth_safety(network, args)
+        # test_raw_text(network, args)
+        # test_historical_query(network, args)
+        # test_historical_query_range(network, args)
+        # test_view_history(network, args)
+        # test_metrics(network, args)
+        # test_empty_path(network, args)
+        # test_post_local_commit_failure(network, args)
         test_committed_index(network, args)
         # BFT does not handle re-keying yet
-        if args.consensus == "CFT":
-            test_liveness(network, args)
-            test_rekey(network, args)
-            test_liveness(network, args)
-            test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            test_receipts(network, args)
-            test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            test_historical_receipts(network, args)
-            test_historical_receipts_with_claims(network, args)
+        # if args.consensus == "CFT":
+        #     test_liveness(network, args)
+        #     test_rekey(network, args)
+        #     test_liveness(network, args)
+        #     test_random_receipts(network, args, False)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     test_receipts(network, args)
+        #     test_historical_query_sparse(network, args)
+        # if "v8" not in args.package:
+        #     test_historical_receipts(network, args)
+        #     test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1660,29 +1661,29 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    # Is there a better way to do this?
-    if os.path.exists(
-        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-        cr.add(
-            "js_v8",
-            run,
-            package="libjs_v8",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-            election_timeout_ms=cr.args.election_timeout_ms
-            * 2,  # Larger election timeout as some large payloads may cause an election with v8
-        )
+    # # Is there a better way to do this?
+    # if os.path.exists(
+    #     os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
+    # ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
+    #     cr.add(
+    #         "js_v8",
+    #         run,
+    #         package="libjs_v8",
+    #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #         initial_user_count=4,
+    #         initial_member_count=2,
+    #         election_timeout_ms=cr.args.election_timeout_ms
+    #         * 2,  # Larger election timeout as some large payloads may cause an election with v8
+    #     )
 
     cr.add(
         "cpp",
@@ -1694,35 +1695,35 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    if not cr.args.http2:
-        cr.add(
-            "js_illegal",
-            run_parsing_errors,
-            package="libjs_generic",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        )
+    # # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    # if not cr.args.http2:
+    #     cr.add(
+    #         "js_illegal",
+    #         run_parsing_errors,
+    #         package="libjs_generic",
+    #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     )
 
-        cr.add(
-            "cpp_illegal",
-            run_parsing_errors,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        )
+    #     cr.add(
+    #         "cpp_illegal",
+    #         run_parsing_errors,
+    #         package="samples/apps/logging/liblogging",
+    #         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     )
 
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # This is just for the UDP echo test for now
+    # cr.add(
+    #     "udp",
+    #     run_udp_tests,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()
