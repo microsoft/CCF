@@ -215,6 +215,10 @@ vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVar
 ----
 \* Helpers
 
+min(a, b) == IF a < b THEN a ELSE b
+
+max(a, b) == IF a > b THEN a ELSE b
+
 \* Helper for Send and Reply. Given a message m and set of messages, return a
 \* new set of messages with one more m in it.
 WithMessage(m, msgs) == msgs \union {m}
@@ -289,7 +293,7 @@ CommittedTermPrefix(i, x) ==
           CHOOSE y \in DOMAIN log[i] :
             /\ log[i][y].term <= x
             /\ \A z \in DOMAIN log[i] : log[i][z].term <= x  => y >= z
-      IN SubSeq(log[i], 1, Min({maxTermIndex, commitIndex[i]}))
+      IN SubSeq(log[i], 1, min(maxTermIndex, commitIndex[i]))
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
@@ -411,14 +415,14 @@ AppendEntries(i, j) ==
                           ELSE
                               0
            \* Send up to 1 entry, constrained by the end of the log.
-           lastEntry == Min({Len(log[i]), nextIndex[i][j]})
+           lastEntry == min(Len(log[i]), nextIndex[i][j])
            entries == SubSeq(log[i], nextIndex[i][j], lastEntry)
            msg == [mtype          |-> AppendEntriesRequest,
                    mterm          |-> currentTerm[i],
                    mprevLogIndex  |-> prevLogIndex,
                    mprevLogTerm   |-> prevLogTerm,
                    mentries       |-> entries,
-                   mcommitIndex   |-> Min({commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry))}),
+                   mcommitIndex   |-> min(commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry))),
                    msource        |-> i,
                    mdest          |-> j]
            index == nextIndex[i][j]
@@ -717,7 +721,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
     \* On conflicts, we shorten the log. This means we also want to reset the
     \*  sent messages that we track to limit the state space
     /\ LET newCounts == [j \in Servers
-                |-> [n \in 1..Min({Len(messagesSent[i][j]) - 1, index - 1})
+                |-> [n \in 1..min(Len(messagesSent[i][j]) - 1, index - 1)
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
     /\ UNCHANGED <<reconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog, committedLogConflict>>
@@ -733,7 +737,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         added_config        == IF have_added_config
                                THEN << m.mprevLogIndex + 1, m.mentries[1].value >>
                                ELSE << >>
-        new_commit_index    == Max({m.mcommitIndex, commitIndex[i]})
+        new_commit_index    == max(m.mcommitIndex, commitIndex[i])
         \* A config can be removed if the new commit index reaches at least the next config index.
         \* This happens either on configs that are already in the currentConfiguration list or on new configs that
         \* are already committed.
@@ -944,8 +948,7 @@ ElectionSafetyInv ==
     \A i \in Servers :
         state[i] = Leader =>
         \A j \in Servers :
-            LET max(a,b) == IF a > b THEN a ELSE b
-                FilterAndMax(a, b) == 
+            LET FilterAndMax(a, b) == 
                     IF a.term = currentTerm[i] THEN max(a.term, b) ELSE b
             IN FoldSeq(FilterAndMax, 0, log[i]) >= FoldSeq(FilterAndMax, 0, log[j])
 
