@@ -261,8 +261,13 @@ JavaScript engine version of the module cache, accessible by JavaScript endpoint
 ~~~~~~~~~~~~
 QuickJS runtime memory, accessible by Javascript endpoint function.
 
-**Key** Memory type as a string.
-**Value** Runtime memory value represented as an unsigned integer
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value**
+
+.. doxygenstruct:: ccf::JSRuntimeOptions
+   :project: CCF
+   :members:
 
 ``endpoints``
 ~~~~~~~~~~~~~

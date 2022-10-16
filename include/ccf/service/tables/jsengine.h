@@ -8,7 +8,9 @@ namespace ccf
 {
   struct JSRuntimeOptions
   {
+    /// @brief heap size for QuickJS runtime
     size_t max_heap_bytes;
+    /// @brief stack size for QuickJS runtime
     size_t max_stack_bytes;
   };
 
