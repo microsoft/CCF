@@ -31,7 +31,8 @@ namespace ccf::endpoints
       // informed schema builders
 
       auto& path_op = ds::openapi::path_operation(
-        ds::openapi::path(document, endpoint->full_uri_path), http_verb.value());
+        ds::openapi::path(document, endpoint->full_uri_path),
+        http_verb.value());
 
       // Path Operation must contain at least one response - if none has been
       // defined, assume this can return 200
