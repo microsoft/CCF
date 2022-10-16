@@ -138,23 +138,25 @@ def test_bytecode_cache(network, args):
 
     return network
 
+
 @reqs.description("Test js engine options")
 def test_set_js_engine(network, args):
     primary, _ = network.find_nodes()
     # set js run time options
     network.consortium.set_js_engine_options(
-        primary, max_heap_bytes=50*1024*1024, max_stack_bytes=1024 * 512
+        primary, max_heap_bytes=50 * 1024 * 1024, max_stack_bytes=1024 * 512
     )
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
         body = r.body.json()
-        assert body["max_heap_size"] == 50*1024*1024
+        assert body["max_heap_size"] == 50 * 1024 * 1024
         assert body["max_stack_size"] == 1024 * 512
     # reset the heap and stack sizes to default values
     network.consortium.set_js_engine_options(
-        primary, max_heap_bytes=100*1024*1024, max_stack_bytes=1024 * 1024
+        primary, max_heap_bytes=100 * 1024 * 1024, max_stack_bytes=1024 * 1024
     )
     return network
+
 
 @reqs.description("Test js app bundle")
 def test_app_bundle(network, args):

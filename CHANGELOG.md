@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - There are now `make_endpoint_with_local_commit_handler` and `make_read_only_endpoint_with_local_commit_handler` functions to install endpoints with post local-commit logic (#4296).
 
 ### Changed
+
 - The endpoint `GET /node/js_metrics` now also returns the QuickJS runtime memory options.
 
 ### Fixed
