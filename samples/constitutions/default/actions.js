@@ -773,10 +773,7 @@ const actions = new Map([
         const js_engine_map = ccf.kv["public:ccf.gov.jsengine"];
         const heap_bytes = args.max_heap_bytes;
         const stack_bytes = args.max_stack_bytes;
-        const heap_name = ccf.strToBuf("max_heap_bytes");
-        const stack_name = ccf.strToBuf("max_stack_bytes");
-        js_engine_map.set(heap_name, ccf.jsonCompatibleToBuf(heap_bytes));
-        js_engine_map.set(stack_name, ccf.jsonCompatibleToBuf(stack_bytes));
+        js_engine_map.set(getSingletonKvKey(), ccf.jsonCompatibleToBuf(args));
       }
     ),
   ],

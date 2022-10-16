@@ -6,7 +6,17 @@
 
 namespace ccf
 {
-  using JSEngine = ServiceMap<std::string, size_t>;
+  struct JSRuntimeOptions
+  {
+    size_t max_heap_bytes;
+    size_t max_stack_bytes;
+  };
+
+  DECLARE_JSON_TYPE(JSRuntimeOptions)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JSRuntimeOptions, max_heap_bytes, max_stack_bytes)
+
+  using JSEngine = ServiceValue<JSRuntimeOptions>;
 
   namespace Tables
   {

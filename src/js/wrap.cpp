@@ -88,15 +88,16 @@ namespace ccf::js
     {
       throw std::runtime_error("Failed to initialise QuickJS runtime");
     }
-    size_t default_stack_size = 1024 * 1024;
-    size_t default_heap_size = 100 * 1024 * 1024;
+    size_t stack_size = 1024 * 1024;
+    size_t heap_size = 100 * 1024 * 1024;
     const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
-    const std::optional<size_t> max_heap_size = jsengine->get("max_heap_bytes");
-    const std::optional<size_t> max_stack_size =
-      jsengine->get("max_stack_bytes");
+    const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
 
-    size_t heap_size = max_heap_size.value_or(default_heap_size);
-    size_t stack_size = max_stack_size.value_or(default_stack_size);
+    if (js_runtime_options.has_value())
+    {
+      heap_size = js_runtime_options.value().max_heap_bytes;
+      stack_size = js_runtime_options.value().max_stack_bytes;
+    }
 
     JS_SetMaxStackSize(rt, stack_size);
     JS_SetMemoryLimit(rt, heap_size);

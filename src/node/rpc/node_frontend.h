@@ -1392,10 +1392,16 @@ namespace ccf
         m.bytecode_size = bytecode_size;
         m.bytecode_used =
           version_val->get() == std::string(ccf::quickjs_version);
-        m.max_stack_size =
-          js_engine_map->get("max_stack_bytes").value_or(1024 * 1024);
-        m.max_heap_size =
-          js_engine_map->get("max_heap_bytes").value_or(100 * 1024 * 1024);
+
+        auto js_engine_options = js_engine_map->get();
+        m.max_stack_size = 1024 * 1024;
+        m.max_heap_size = 100 * 1024 * 1024;
+        if (js_engine_options.has_value())
+        {
+          m.max_stack_size = js_engine_options.value().max_stack_bytes;
+          m.max_heap_size = js_engine_options.value().max_heap_bytes;
+        }
+
         return m;
       };
 
