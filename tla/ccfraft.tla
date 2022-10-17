@@ -555,9 +555,8 @@ AdvanceCommitIndex(i) ==
             /\ log[i][log_index].contentType = TypeSignature
     /\ LET
         \* We want to get the smallest such index forward that is a signature
-        new_index == Min( {index \in 1..Len(log[i]) :
-            /\ index > commitIndex[i]
-            /\ log[i][index].contentType = TypeSignature} )
+        new_index == Min( {index \in (commitIndex[i]+1)..Len(log[i]) :
+                                log[i][index].contentType = TypeSignature} )
         new_log ==
             IF new_index > 1 THEN
                [ j \in 1..new_index |-> log[i][j] ]
