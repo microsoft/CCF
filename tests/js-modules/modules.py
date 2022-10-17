@@ -395,6 +395,12 @@ def test_npm_app(network, args):
             r.body.json()["privateKey"], r.body.json()["publicKey"]
         )
 
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256k1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+
         r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert infra.crypto.check_key_pair_pem(
@@ -487,6 +493,22 @@ def test_npm_app(network, args):
         assert r.body.json() == False, r.body
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256r1")
+        algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256k1")
         algorithm = {"name": "ECDSA", "hash": "SHA-256"}
         data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
