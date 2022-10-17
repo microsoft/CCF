@@ -257,11 +257,14 @@ namespace kv::untyped
             {
               changes = true;
               state = state.remove(it->first);
+            } else if (keep_all_writes) {
+              // track deletes even when they delete keys that don't exist in this map's state
+              changes = true;
             }
           }
         }
 
-        if (changes || keep_all_writes)
+        if (changes)
         {
           map.roll.commits->insert_back(map.roll.create_new_local_commit(
             v, std::move(state), change_set.writes));
