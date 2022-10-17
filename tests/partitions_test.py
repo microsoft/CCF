@@ -616,7 +616,7 @@ def test_session_consistency(network, args):
             # Even once CheckQuorum takes effect and the primary stands down, they
             # know nothing contradictory so session consistency is maintained
             primary.wait_for_leadership_state(
-                r0.view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
+                r0.view, "Follower", timeout=2 * args.election_timeout_ms / 1000
             )
             check_session_consistency(
                 (client_primary_0, client_backup_0),
