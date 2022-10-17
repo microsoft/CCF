@@ -133,7 +133,8 @@ namespace kv
 
         for (auto it = views.begin(); it != views.end(); ++it)
         {
-          it->second->commit(version, track_read_versions, track_deletes_on_missing_keys);
+          it->second->commit(
+            version, track_read_versions, track_deletes_on_missing_keys);
         }
 
         // Collect ConsensusHooks

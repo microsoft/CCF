@@ -96,7 +96,8 @@ namespace kv
 
     return {
       abstract_map,
-      untyped_map->create_change_set(pimpl->read_txid->version, track_deletes_on_missing_keys)};
+      untyped_map->create_change_set(
+        pimpl->read_txid->version, track_deletes_on_missing_keys)};
   }
 
   std::list<AbstractHandle*> BaseTx::get_possible_handles(

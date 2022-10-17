@@ -201,7 +201,9 @@ namespace kv::untyped
       }
 
       void commit(
-        Version v, bool track_read_versions, bool track_deletes_on_missing_keys) override
+        Version v,
+        bool track_read_versions,
+        bool track_deletes_on_missing_keys) override
       {
         if (change_set.writes.empty() && !track_read_versions)
         {
@@ -257,8 +259,11 @@ namespace kv::untyped
             {
               changes = true;
               state = state.remove(it->first);
-            } else if (track_deletes_on_missing_keys) {
-              // track deletes even when they delete keys that don't exist in this map's state
+            }
+            else if (track_deletes_on_missing_keys)
+            {
+              // track deletes even when they delete keys that don't exist in
+              // this map's state
               changes = true;
             }
           }
@@ -803,7 +808,8 @@ namespace kv::untyped
       std::swap(roll, map->roll);
     }
 
-    ChangeSetPtr create_change_set(Version version, bool track_deletes_on_missing_keys)
+    ChangeSetPtr create_change_set(
+      Version version, bool track_deletes_on_missing_keys)
     {
       lock();
 

@@ -1048,8 +1048,8 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          result = recovery_store->deserialize(entry, ConsensusType::CFT)
-                     ->apply();
+          result =
+            recovery_store->deserialize(entry, ConsensusType::CFT)->apply();
           if (result == kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(

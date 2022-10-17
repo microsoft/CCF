@@ -110,7 +110,12 @@ namespace kv
       }
 
       if (!store->commit_deserialised(
-            changes, version, term, new_maps, hooks, track_deletes_on_missing_keys))
+            changes,
+            version,
+            term,
+            new_maps,
+            hooks,
+            track_deletes_on_missing_keys))
       {
         return ApplyResult::FAIL;
       }

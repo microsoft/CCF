@@ -1358,7 +1358,8 @@ namespace aft
         LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
         bool track_deletes_on_missing_keys = false;
-        kv::ApplyResult apply_success = ds->apply(track_deletes_on_missing_keys);
+        kv::ApplyResult apply_success =
+          ds->apply(track_deletes_on_missing_keys);
         if (apply_success == kv::ApplyResult::FAIL)
         {
           ledger->truncate(i - 1);
