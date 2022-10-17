@@ -117,7 +117,7 @@ static void deserialise(picobench::state& s)
   auto rc =
     kv_store2
       .deserialize(consensus->get_latest_data().value(), ConsensusType::CFT)
-      ->apply(false);
+      ->apply();
   if (rc != kv::ApplyResult::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));

@@ -377,7 +377,7 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
     REQUIRE(latest_data.has_value());
     REQUIRE(
       kv_store_target.deserialize(latest_data.value(), ConsensusType::CFT)
-        ->apply(false) == kv::ApplyResult::PASS);
+        ->apply() == kv::ApplyResult::PASS);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.rw<MapTypes::StringString>(map_name);
