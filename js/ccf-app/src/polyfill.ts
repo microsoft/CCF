@@ -335,7 +335,7 @@ class CCFPolyfill implements CCF {
     }
   }
 
-  pemToJWK(
+  pemToJwk(
     pem: string, kid?: string
   ): object {
     // TODO:

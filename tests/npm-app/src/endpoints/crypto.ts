@@ -176,11 +176,11 @@ interface pemToJWKRequest {
   kid: string;
 }
 
-export function pemToJWK(
+export function pemToJwk(
   request: ccfapp.Request<pemToJWKRequest>
 ): ccfapp.Response {
   const req = request.body.json();
-  const res = ccfcrypto.pemToJWK(req.pem, req.kid);
+  const res = ccfcrypto.pemToJwk(req.pem, req.kid);
   return {body: res};
 }
 

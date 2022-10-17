@@ -41,7 +41,7 @@ def validate_openapi(client):
 
 def generate_and_verify_jwk(client):
     LOG.info("Generate JWK from raw public key PEM")
-    r = client.post("/app/pemToJWK", body={"pem": "invalid_pem"})
+    r = client.post("/app/pemToJwk", body={"pem": "invalid_pem"})
     assert r.status_code != http.HTTPStatus.OK
 
     # Elliptic curve
@@ -49,9 +49,7 @@ def generate_and_verify_jwk(client):
     for curve in curves:
         _, pub_pem = infra.crypto.generate_ec_keypair(curve)
         ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
-        # TODO: Change name to pemToJwk
-        LOG.error(ref_jwk["kid"])
-        r = client.post("/app/pemToJWK", body={"pem": pub_pem, "kid": ref_jwk["kid"]})
+        r = client.post("/app/pemToJwk", body={"pem": pub_pem, "kid": ref_jwk["kid"]})
         assert r.status_code == http.HTTPStatus.OK
         # assert r.body.json() == ref_jwk, f"{r.body.json()} != {ref_jwk}"
 

@@ -656,10 +656,10 @@
         }
       }
     },
-    "/pemToJWK": {
+    "/pemToJwk": {
       "post": {
         "js_module": "endpoints/crypto.js",
-        "js_function": "pemToJWK",
+        "js_function": "pemToJwk",
         "forwarding_required": "always",
         "authn_policies": ["user_cert"],
         "mode": "readonly",

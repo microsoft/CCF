@@ -436,7 +436,7 @@ export interface CCF {
    * @param pem Elliptic curve public key as PEM
    * @param kid Key identifier (optional). 
    */
-   pemToJWK(pem: string, kid?: string): object;
+   pemToJwk(pem: string, kid?: string): object;
 
   crypto: CCFCrypto;
 
