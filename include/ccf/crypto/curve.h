@@ -21,14 +21,17 @@ namespace crypto
     /// The SECP384R1 curve
     SECP384R1,
     /// The SECP256R1 curve
-    SECP256R1
+    SECP256R1,
+    /// The SECP256K1 curve
+    SECP256K1
   };
 
   DECLARE_JSON_ENUM(
     CurveID,
     {{CurveID::NONE, "None"},
      {CurveID::SECP384R1, "Secp384R1"},
-     {CurveID::SECP256R1, "Secp256R1"}});
+     {CurveID::SECP256R1, "Secp256R1"},
+     {CurveID::SECP256K1, "Secp256K1"}});
 
   static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
   // SNIPPET_END: supported_curves
@@ -41,6 +44,8 @@ namespace crypto
       case CurveID::SECP384R1:
         return MDType::SHA384;
       case CurveID::SECP256R1:
+        return MDType::SHA256;
+      case CurveID::SECP256K1:
         return MDType::SHA256;
       default:
       {
