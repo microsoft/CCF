@@ -6,6 +6,7 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/service/tables/gov.h"
@@ -76,6 +77,49 @@ namespace ccf
   DECLARE_JSON_TYPE(FullMemberDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
     FullMemberDetails, status, member_data, cert, public_encryption_key);
+
+  enum class KVEncodingFormat
+  {
+    ASCII,
+    JSON,
+    HEX,
+    BASE64
+  };
+  DECLARE_JSON_ENUM(
+    KVEncodingFormat,
+    {{KVEncodingFormat::ASCII, "ascii"},
+     {KVEncodingFormat::JSON, "json"},
+     {KVEncodingFormat::HEX, "hex"},
+     {KVEncodingFormat::BASE64, "base64"}});
+
+  static nlohmann::json to_json_string(
+    const kv::serialisers::SerialisedEntry& raw, KVEncodingFormat format)
+  {
+    switch (format)
+    {
+      case (KVEncodingFormat::ASCII):
+      {
+        return std::string(raw.begin(), raw.end());
+      }
+      case (KVEncodingFormat::JSON):
+      {
+        return nlohmann::json::parse(raw.begin(), raw.end());
+      }
+      case (KVEncodingFormat::HEX):
+      {
+        return ds::to_hex(raw.begin(), raw.end());
+      }
+      case (KVEncodingFormat::BASE64):
+      {
+        return crypto::b64_from_raw(raw.data(), raw.size());
+      }
+      default:
+      {
+        throw std::logic_error(
+          fmt::format("Unhandled KVEncodingFormat: {}", format));
+      }
+    }
+  }
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -1488,6 +1532,87 @@ namespace ccf
         json_read_only_adapter(get_all_members),
         ccf::no_auth_required)
         .set_auto_schema<void, AllMemberDetails>()
+        .install();
+
+      auto get_raw_kv = [this](
+                          endpoints::ReadOnlyEndpointContext& ctx,
+                          nlohmann::json&&) {
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_string;
+        auto table = http::get_query_value_opt<std::string>(
+          parsed_query, "table", error_string);
+        if (!table.has_value())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            error_string);
+        }
+        // TODO: Restrict what tables may be accessed
+
+        KVEncodingFormat key_format = KVEncodingFormat::ASCII;
+        {
+          auto key_format_opt = http::get_query_value_opt<std::string>(
+            parsed_query, "key_format", error_string);
+          if (key_format_opt.has_value())
+          {
+            try
+            {
+              key_format =
+                nlohmann::json(key_format_opt.value()).get<KVEncodingFormat>();
+            }
+            catch (const JsonParseError& e)
+            {
+              return ccf::make_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                fmt::format(
+                  "Query parameter '{}' is not a valid KV encoding format",
+                  key_format_opt.value()));
+            }
+          }
+        }
+
+        KVEncodingFormat value_format = KVEncodingFormat::ASCII;
+        {
+          auto value_format_opt = http::get_query_value_opt<std::string>(
+            parsed_query, "value_format", error_string);
+          if (value_format_opt.has_value())
+          {
+            try
+            {
+              value_format = nlohmann::json(value_format_opt.value())
+                               .get<KVEncodingFormat>();
+            }
+            catch (const JsonParseError& e)
+            {
+              return ccf::make_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                fmt::format(
+                  "Query parameter '{}' is not a valid KV encoding format",
+                  value_format_opt.value()));
+            }
+          }
+        }
+
+        auto response_body = nlohmann::json::object();
+        auto handle = ctx.tx.template ro<kv::untyped::Map>(table.value());
+        handle->foreach([&response_body, key_format, value_format](
+                          const auto& k, const auto& v) {
+          response_body[to_json_string(k, key_format)] =
+            to_json_string(v, value_format);
+          return true;
+        });
+        return ccf::make_success(response_body);
+      };
+      make_read_only_endpoint(
+        "/kv",
+        HTTP_GET,
+        json_read_only_adapter(get_raw_kv),
+        ccf::no_auth_required)
         .install();
     }
   };
