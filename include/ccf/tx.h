@@ -61,7 +61,7 @@ namespace kv
       const std::string& map_name, std::unique_ptr<AbstractHandle>&& handle);
 
     MapChanges get_map_and_change_set_by_name(
-      const std::string& map_name, bool keep_writes);
+      const std::string& map_name, bool track_deletes_on_missing_keys);
 
     std::list<AbstractHandle*> get_possible_handles(
       const std::string& map_name);
@@ -69,7 +69,7 @@ namespace kv
     void compacted_version_conflict(const std::string& map_name);
 
     template <class THandle>
-    THandle* get_handle_by_name(const std::string& map_name, bool keep_writes)
+    THandle* get_handle_by_name(const std::string& map_name, bool track_deletes_on_missing_keys)
     {
       auto possible_handles = get_possible_handles(map_name);
       for (auto handle : possible_handles)
@@ -94,7 +94,7 @@ namespace kv
       else
       {
         auto [abstract_map, change_set] =
-          get_map_and_change_set_by_name(map_name, keep_writes);
+          get_map_and_change_set_by_name(map_name, track_deletes_on_missing_keys);
 
         if (change_set == nullptr)
         {

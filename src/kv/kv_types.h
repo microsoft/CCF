@@ -621,7 +621,7 @@ namespace kv
     virtual bool has_writes() = 0;
     virtual bool prepare(bool track_commits) = 0;
     virtual void commit(
-      Version v, bool track_read_versions, bool keep_all_writes) = 0;
+      Version v, bool track_read_versions, bool track_deletes_on_missing_keys) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
@@ -669,7 +669,7 @@ namespace kv
   {
   public:
     virtual ~AbstractExecutionWrapper() = default;
-    virtual kv::ApplyResult apply(bool keep_all_writes) = 0;
+    virtual kv::ApplyResult apply(bool track_deletes_on_missing_keys) = 0;
     virtual kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;

@@ -154,7 +154,7 @@ namespace kv
 
       std::optional<Version> new_maps_conflict_version = std::nullopt;
 
-      bool keep_all_writes = false;
+      bool track_deletes_on_missing_keys = false;
       auto c = apply_changes(
         all_changes,
         version_resolver == nullptr ?
@@ -166,7 +166,7 @@ namespace kv
         pimpl->created_maps,
         new_maps_conflict_version,
         track_read_versions,
-        keep_all_writes);
+        track_deletes_on_missing_keys);
 
       if (!pimpl->created_maps.empty())
         this->pimpl->store->unlock();
@@ -409,7 +409,7 @@ namespace kv
 
       std::vector<ConsensusHookPtr> hooks;
       bool track_read_versions = false;
-      bool keep_all_writes = false;
+      bool track_deletes_on_missing_keys = false;
       auto c = apply_changes(
         all_changes,
         [this](bool) { return std::make_tuple(version, version - 1); },
@@ -417,7 +417,7 @@ namespace kv
         pimpl->created_maps,
         version,
         track_read_versions,
-        keep_all_writes);
+        track_deletes_on_missing_keys);
       success = c.has_value();
 
       if (!success)

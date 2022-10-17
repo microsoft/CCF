@@ -1197,8 +1197,8 @@ namespace ccf::historical
         }
 
         // keep all the writes so that we can build a diff later
-        bool keep_all_writes = true;
-        result = exec->apply(keep_all_writes);
+        bool track_deletes_on_missing_keys = true;
+        result = exec->apply(track_deletes_on_missing_keys);
         claims_digest = std::move(exec->consume_claims_digest());
 
         auto commit_evidence_digest =
