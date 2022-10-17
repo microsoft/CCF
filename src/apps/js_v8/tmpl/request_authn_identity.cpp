@@ -4,6 +4,7 @@
 #include "request_authn_identity.h"
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/ds/nonstd.h"
 #include "named_auth_policies.h"
 #include "template.h"
 
@@ -222,9 +223,6 @@ namespace ccf::v8_tmpl
     END
   };
 
-  template <class>
-  inline constexpr bool dependent_false_v = false;
-
   template <typename T>
   static std::string do_get_user_or_member_id(T* ident)
   {
@@ -298,7 +296,7 @@ namespace ccf::v8_tmpl
       std::is_same_v<T, ccf::MemberSignatureAuthnIdentity>)
       result = endpoint_registry->get_member_data_v1(*tx, id, data);
     else
-      static_assert(dependent_false_v<T>, "Unknown type");
+      static_assert(nonstd::dependent_false_v<T>, "Unknown type");
 
     if (result == ccf::ApiResult::InternalError)
     {

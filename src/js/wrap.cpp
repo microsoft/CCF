@@ -1704,22 +1704,26 @@ namespace ccf::js
       ctx,
       ccf,
       "pubPemToJwk",
-      JS_NewCFunction(ctx, js_public_pem_to_jwk, "pubPemToJwk", 1));
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyECPublic>, "pubPemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       ccf,
       "pemToJwk",
-      JS_NewCFunction(ctx, js_private_pem_to_jwk, "pemToJwk", 1));
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyECPrivate>, "pemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       ccf,
       "pubRsaPemToJwk",
-      JS_NewCFunction(ctx, js_rsa_public_pem_to_jwk, "pubRsaPemToJwk", 1));
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyRSAPublic>, "pubRsaPemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       ccf,
       "rsaPemToJwk",
-      JS_NewCFunction(ctx, js_rsa_private_pem_to_jwk, "rsaPemToJwk", 1));
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyRSAPrivate>, "rsaPemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       ccf,

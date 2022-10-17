@@ -273,7 +273,8 @@ namespace ccf::js
     return JS_NewString(ctx, id.c_str());
   }
 
-  static JSValue js_public_pem_to_jwk(
+  template <typename T>
+  static JSValue js_pem_to_jwk(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     if (argc != 1 && argc != 2)
@@ -301,146 +302,33 @@ namespace ccf::js
       kid = kid_str;
     }
 
-    crypto::JsonWebKeyECPublic jwk;
+    T jwk;
     try
     {
-      auto pubk = crypto::make_public_key(*pem_str);
-      jwk = pubk->public_key_jwk(kid);
-    }
-    catch (const std::exception& ex)
-    {
-      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return e;
-    }
-
-    auto jwk_str = nlohmann::json(jwk).dump();
-    return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
-  }
-
-  static JSValue js_private_pem_to_jwk(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1 && argc != 2)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1 or 2", argc);
-
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto pem_str = jsctx.to_str(argv[0]);
-    if (!pem_str)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    std::optional<std::string> kid = std::nullopt;
-    if (argc == 2)
-    {
-      auto kid_str = jsctx.to_str(argv[1]);
-      if (!kid_str)
+      if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPublic>)
       {
-        js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        auto pubk = crypto::make_public_key(*pem_str);
+        jwk = pubk->public_key_jwk(kid);
       }
-      kid = kid_str;
-    }
-
-    crypto::JsonWebKeyECPrivate jwk;
-    try
-    {
-      auto pubk = crypto::make_key_pair(*pem_str);
-      jwk = pubk->private_key_jwk(kid);
-    }
-    catch (const std::exception& ex)
-    {
-      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return e;
-    }
-
-    auto jwk_str = nlohmann::json(jwk).dump();
-    return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
-  }
-
-  static JSValue js_rsa_public_pem_to_jwk(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1 && argc != 2)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1 or 2", argc);
-
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto pem_str = jsctx.to_str(argv[0]);
-    if (!pem_str)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    std::optional<std::string> kid = std::nullopt;
-    if (argc == 2)
-    {
-      auto kid_str = jsctx.to_str(argv[1]);
-      if (!kid_str)
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPrivate>)
       {
-        js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        auto kp = crypto::make_key_pair(*pem_str);
+        jwk = kp->private_key_jwk(kid);
       }
-      kid = kid_str;
-    }
-
-    crypto::JsonWebKeyRSAPublic jwk;
-    try
-    {
-      auto pubk = crypto::make_rsa_public_key(*pem_str);
-      jwk = pubk->public_key_jwk_rsa(kid);
-    }
-    catch (const std::exception& ex)
-    {
-      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return e;
-    }
-
-    auto jwk_str = nlohmann::json(jwk).dump();
-    return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
-  }
-
-  static JSValue js_rsa_private_pem_to_jwk(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1 && argc != 2)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1 or 2", argc);
-
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto pem_str = jsctx.to_str(argv[0]);
-    if (!pem_str)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    std::optional<std::string> kid = std::nullopt;
-    if (argc == 2)
-    {
-      auto kid_str = jsctx.to_str(argv[1]);
-      if (!kid_str)
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPublic>)
       {
-        js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        auto pubk = crypto::make_rsa_public_key(*pem_str);
+        jwk = pubk->public_key_jwk_rsa(kid);
       }
-      kid = kid_str;
-    }
-
-    crypto::JsonWebKeyRSAPrivate jwk;
-    try
-    {
-      auto pubk = crypto::make_rsa_key_pair(*pem_str);
-      jwk = pubk->private_key_jwk_rsa(kid);
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPrivate>)
+      {
+        auto kp = crypto::make_rsa_key_pair(*pem_str);
+        jwk = kp->private_key_jwk_rsa(kid);
+      }
+      else
+      {
+        static_assert(nonstd::dependent_false_v<T>, "Unknown type");
+      }
     }
     catch (const std::exception& ex)
     {
