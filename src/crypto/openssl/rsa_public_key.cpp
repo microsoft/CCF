@@ -130,6 +130,13 @@ namespace crypto
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
 
+  inline std::vector<uint8_t> RSAPublicKey_OpenSSL::bn_bytes(const BIGNUM* bn)
+  {
+    std::vector<uint8_t> r(BN_num_bytes(bn));
+    BN_bn2bin(bn, r.data());
+    return r;
+  }
+
   RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
   {
     RSA* rsa = EVP_PKEY_get0_RSA(key);
@@ -138,25 +145,19 @@ namespace crypto
       throw std::logic_error("invalid RSA key");
     }
 
-    const BIGNUM* n = RSA_get0_n(rsa);
-    const BIGNUM* e = RSA_get0_e(rsa);
-
     Components r;
-    r.n.resize(BN_num_bytes(n));
-    r.e.resize(BN_num_bytes(e));
-    BN_bn2bin(n, r.n.data());
-    BN_bn2bin(e, r.e.data());
+    r.n = bn_bytes(RSA_get0_n(rsa));
+    r.e = bn_bytes(RSA_get0_e(rsa));
     return r;
   }
 
-  JsonWebKeyRSA RSAPublicKey_OpenSSL::public_key_jwk_rsa(
+  JsonWebKeyRSAPublic RSAPublicKey_OpenSSL::public_key_jwk_rsa(
     const std::optional<std::string>& kid) const
   {
-    JsonWebKeyRSA jwk;
+    JsonWebKeyRSAPublic jwk;
     auto comps = components();
     jwk.n = b64url_from_raw(comps.n, false /* with_padding */);
     jwk.e = b64url_from_raw(comps.e, false /* with_padding */);
-    // jwk.alg = TODO: ;//curve_id_to_jwk_curve(get_curve_id());
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::RSA;
     return jwk;

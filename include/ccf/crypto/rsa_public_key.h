@@ -89,7 +89,7 @@ namespace crypto
     /**
      * Get the public key in JWK format
      */
-    virtual JsonWebKeyRSA public_key_jwk_rsa(
+    virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 }

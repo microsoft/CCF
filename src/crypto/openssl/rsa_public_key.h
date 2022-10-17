@@ -47,7 +47,9 @@ namespace crypto
 
     virtual Components components() const override;
 
-    virtual JsonWebKeyRSA public_key_jwk_rsa(
+    static std::vector<uint8_t> bn_bytes(const BIGNUM* bn);
+
+    virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const override;
   };
 }

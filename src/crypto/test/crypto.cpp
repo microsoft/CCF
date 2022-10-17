@@ -709,8 +709,10 @@ TEST_CASE("hmac")
 
 TEST_CASE("PEM to JWK")
 {
-  logger::config::default_init();
+  logger::config::default_init(); // TODO: Remove
   auto kid = "my_kid";
+
+  // TODO: Assert result
 
   INFO("EC");
   {
@@ -745,10 +747,22 @@ TEST_CASE("PEM to JWK")
 
     LOG_FAIL_FMT("PEM: {}", pubk->public_key_pem().str());
 
-    auto jwk = pubk->public_key_jwk_rsa();
-    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk_rsa();
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
 
-    jwk = pubk->public_key_jwk_rsa(kid);
-    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+      jwk = pubk->public_key_jwk_rsa(kid);
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk_rsa();
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+
+      jwk = kp->private_key_jwk_rsa(kid);
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    }
   }
 }

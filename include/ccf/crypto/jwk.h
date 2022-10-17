@@ -75,14 +75,23 @@ namespace crypto
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPrivate, JsonWebKeyECPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPrivate, d);
 
-  struct JsonWebKeyRSA : JsonWebKeyBase
+  struct JsonWebKeyRSAPublic : JsonWebKeyBase
   {
-    std::string alg; // TODO: Unused?
     std::string n; // base64url
     std::string e; // base64url
   };
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
-    JsonWebKeyRSA, JsonWebKeyBase);
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSA, n, e);
-  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKeyRSA, alg);
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPublic, JsonWebKeyBase);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPublic, n, e);
+
+  struct JsonWebKeyRSAPrivate : JsonWebKeyRSAPublic
+  {
+    std::string d; // base64url
+    std::string p; // base64url
+    std::string q; // base64url
+    std::string dp; // base64url
+    std::string dq; // base64url
+    std::string qi; // base64url
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPrivate, JsonWebKeyRSAPublic);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPrivate, d, p, q, dp, dq, qi);
 }

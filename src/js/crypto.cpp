@@ -391,7 +391,7 @@ namespace ccf::js
       kid = kid_str;
     }
 
-    crypto::JsonWebKeyRSA jwk;
+    crypto::JsonWebKeyRSAPublic jwk;
     try
     {
       auto pubk = crypto::make_rsa_public_key(*pem_str);
@@ -436,12 +436,11 @@ namespace ccf::js
       kid = kid_str;
     }
 
-    crypto::JsonWebKeyRSA jwk;
+    crypto::JsonWebKeyRSAPrivate jwk;
     try
     {
       auto pubk = crypto::make_rsa_key_pair(*pem_str);
-      // jwk = pubk->public_key_jwk_rsa(kid);
-      // TODO:
+      jwk = pubk->private_key_jwk_rsa(kid);
     }
     catch (const std::exception& ex)
     {
