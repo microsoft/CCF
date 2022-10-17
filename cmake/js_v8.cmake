@@ -47,7 +47,7 @@ if(ENABLE_V8)
       ${js_v8_dir}/tmpl/crypto.cpp
   )
 
-  if("virtual" IN_LIST COMPILE_TARGET)
+  if(COMPILE_TARGET IN_LIST "snp;virtual")
     add_library(js_v8_base.virtual STATIC ${js_v8_src})
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)
@@ -72,7 +72,7 @@ if(ENABLE_V8)
     )
   endif()
 
-  if("sgx" IN_LIST COMPILE_TARGET)
+  if(COMPILE_TARGET STREQUAL "sgx")
     add_enclave_library(
       v8_oe_stubs.enclave ${CCF_DIR}/src/apps/js_v8/v8_oe_stubs.cpp
     )

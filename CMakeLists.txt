@@ -90,7 +90,7 @@ set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/node/quote.cpp
 )
 
-if("sgx" IN_LIST COMPILE_TARGET)
+if(COMPILE_TARGET STREQUAL "sgx")
   # enclave version
   add_enclave_library(
     ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
@@ -127,7 +127,7 @@ if("sgx" IN_LIST COMPILE_TARGET)
   add_dependencies(ccf ccf.enclave)
 endif()
 
-if("virtual" IN_LIST COMPILE_TARGET)
+if(COMPILE_TARGET IN_LIST "snp;virtual")
   # virtual version
   add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 

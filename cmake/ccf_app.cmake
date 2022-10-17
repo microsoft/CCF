@@ -1,31 +1,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set(ALLOWED_TARGETS "sgx;virtual")
+set(ALLOWED_TARGETS "sgx;snp;virtual")
 
 set(COMPILE_TARGET
-    "sgx;virtual"
+    "sgx"
     CACHE
       STRING
-      "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
+      "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
 )
 
-set(IS_VALID_TARGET "FALSE")
-foreach(REQUESTED_TARGET ${COMPILE_TARGET})
-  if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
-    set(IS_VALID_TARGET "TRUE")
-  else()
-    message(
-      FATAL_ERROR
-        "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
-    )
-  endif()
-endforeach()
-
-if((NOT ${IS_VALID_TARGET}))
+if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
   message(
     FATAL_ERROR
-      "Variable list 'COMPILE_TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
+      "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
 
@@ -147,7 +135,7 @@ function(add_ccf_app name)
   )
   add_custom_target(${name} ALL)
 
-  if("sgx" IN_LIST COMPILE_TARGET)
+  if(COMPILE_TARGET STREQUAL "sgx")
     set(enc_name ${name}.enclave)
 
     add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
@@ -171,7 +159,7 @@ function(add_ccf_app name)
     endif()
   endif()
 
-  if("virtual" IN_LIST COMPILE_TARGET)
+  if(COMPILE_TARGET IN_LIST "snp;virtual")
     # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 
