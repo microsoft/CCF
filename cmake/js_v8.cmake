@@ -47,7 +47,7 @@ if(ENABLE_V8)
       ${js_v8_dir}/tmpl/crypto.cpp
   )
 
-  if(COMPILE_TARGET IN_LIST "snp;virtual")
+  if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
     add_library(js_v8_base.virtual STATIC ${js_v8_src})
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)

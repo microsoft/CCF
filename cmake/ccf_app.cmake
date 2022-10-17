@@ -159,7 +159,7 @@ function(add_ccf_app name)
     endif()
   endif()
 
-  if(COMPILE_TARGET IN_LIST "snp;virtual")
+  if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
     # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 

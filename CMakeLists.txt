@@ -127,7 +127,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   add_dependencies(ccf ccf.enclave)
 endif()
 
-if(COMPILE_TARGET IN_LIST "snp;virtual")
+if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
   # virtual version
   add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 
