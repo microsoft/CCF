@@ -3,7 +3,7 @@
 
 set(ALLOWED_TARGETS "sgx;virtual")
 
-set(COMPILE_TARGETS
+set(COMPILE_TARGET
     "sgx;virtual"
     CACHE
       STRING
@@ -11,7 +11,7 @@ set(COMPILE_TARGETS
 )
 
 set(IS_VALID_TARGET "FALSE")
-foreach(REQUESTED_TARGET ${COMPILE_TARGETS})
+foreach(REQUESTED_TARGET ${COMPILE_TARGET})
   if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
     set(IS_VALID_TARGET "TRUE")
   else()
@@ -25,7 +25,7 @@ endforeach()
 if((NOT ${IS_VALID_TARGET}))
   message(
     FATAL_ERROR
-      "Variable list 'COMPILE_TARGETS' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
+      "Variable list 'COMPILE_TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
 
@@ -147,7 +147,7 @@ function(add_ccf_app name)
   )
   add_custom_target(${name} ALL)
 
-  if("sgx" IN_LIST COMPILE_TARGETS)
+  if("sgx" IN_LIST COMPILE_TARGET)
     set(enc_name ${name}.enclave)
 
     add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
@@ -171,7 +171,7 @@ function(add_ccf_app name)
     endif()
   endif()
 
-  if("virtual" IN_LIST COMPILE_TARGETS)
+  if("virtual" IN_LIST COMPILE_TARGET)
     # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 

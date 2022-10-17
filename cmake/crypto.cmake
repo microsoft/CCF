@@ -21,7 +21,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/verifier.cpp
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   add_enclave_library(ccfcrypto.enclave ${CCFCRYPTO_SRC})
 
   install(

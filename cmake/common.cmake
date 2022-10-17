@@ -151,7 +151,7 @@ install(
   USE_SOURCE_PERMISSIONS
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   if(NOT DISABLE_QUOTE_VERIFICATION)
     set(QUOTES_ENABLED ON)
   endif()
@@ -244,7 +244,7 @@ endif()
 
 list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp)
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   list(APPEND CCHOST_SOURCES ${CCF_GENERATED_DIR}/ccf_u.cpp)
 endif()
 
@@ -259,10 +259,10 @@ target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
 # Host is always built with verbose logging enabled, regardless of CMake option
 target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_SGX)
 endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
+if("virtual" IN_LIST COMPILE_TARGET)
   target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_VIRTUAL)
   target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
 endif()
@@ -277,7 +277,7 @@ target_link_libraries(
           ${LINK_LIBCXX}
           ccfcrypto.host
 )
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   target_link_libraries(cchost PRIVATE openenclave::oehost)
 endif()
 
@@ -301,7 +301,7 @@ endif()
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
   install(
     TARGETS http_parser.enclave
@@ -322,7 +322,7 @@ set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
                    ${CCF_DIR}/src/kv/untyped_map_handle.cpp
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")
   add_warning_checks(ccf_kv.enclave)
   install(
@@ -341,7 +341,7 @@ install(
 )
 
 # CCF endpoints libs
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
   add_warning_checks(ccf_endpoints.enclave)
   install(
@@ -379,7 +379,7 @@ set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
                           --worker-threads ${WORKER_THREADS}
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_openenclave.enclave)
@@ -389,7 +389,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
+if("virtual" IN_LIST COMPILE_TARGET)
   add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.virtual)
   target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
@@ -408,7 +408,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
 endif()
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
@@ -420,7 +420,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     DESTINATION lib
   )
 endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
+if("virtual" IN_LIST COMPILE_TARGET)
   add_library(
     js_generic_base.virtual STATIC
     ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
@@ -608,7 +608,7 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  foreach(COMPILE_TARGET ${COMPILE_TARGETS})
+  foreach(COMPILE_TARGET ${COMPILE_TARGET})
     set(TESTS_SUFFIX "")
     set(ENCLAVE_TYPE "")
     if("sgx" STREQUAL ${COMPILE_TARGET})

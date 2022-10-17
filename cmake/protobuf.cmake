@@ -19,7 +19,7 @@ get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
 set(PROTOBUF_TARGETS "protobuf.virtual")
 add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if("sgx" IN_LIST COMPILE_TARGET)
   add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
   list(APPEND PROTOBUF_TARGETS "protobuf.enclave")
 endif()
