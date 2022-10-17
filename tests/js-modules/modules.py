@@ -41,19 +41,33 @@ def validate_openapi(client):
 
 def generate_and_verify_jwk(client):
     LOG.info("Generate JWK from raw public key PEM")
-    r = client.post("/app/pemToJwk", body={"pem": "invalid_pem"})
+    r = client.post("/app/pubPemToJwk", body={"pem": "invalid_pem"})
     assert r.status_code != http.HTTPStatus.OK
 
     # Elliptic curve
     curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
     for curve in curves:
-        _, pub_pem = infra.crypto.generate_ec_keypair(curve)
-        ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
-        r = client.post("/app/pemToJwk", body={"pem": pub_pem, "kid": ref_jwk["kid"]})
+        priv_pem, pub_pem = infra.crypto.generate_ec_keypair(curve)
+        # Private
+        ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export(as_dict=True)
+        LOG.error(ref_priv_jwk)
+        r = client.post(
+            "/app/pemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
+        )
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "EC"
-        assert body == ref_jwk, f"{body} != {ref_jwk}"
+        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+
+        # Public
+        ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/pubPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "EC"
+        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
 
     # RSA
     key_sizes = [1024, 2048, 4096]
@@ -61,7 +75,7 @@ def generate_and_verify_jwk(client):
         _, pub_pem = infra.crypto.generate_rsa_keypair(key_size)
         ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
         r = client.post(
-            "/app/rsaPemToJwk", body={"pem": pub_pem, "kid": ref_jwk["kid"]}
+            "/app/pubRsaPemToJwk", body={"pem": pub_pem, "kid": ref_jwk["kid"]}
         )
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK

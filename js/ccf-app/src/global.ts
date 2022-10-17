@@ -434,18 +434,33 @@ export interface CCF {
    * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
    * 
    * @param pem Elliptic curve public key as PEM
-   * @param kid Key identifier (optional). 
+   * @param kid Key identifier (optional)
    */
-   pemToJwk(pem: string, kid?: string): object;
+  pubPemToJwk(pem: string, kid?: string): object;
 
-   
+  /**
+   * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
+   * 
+   * @param pem Elliptic curve private key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pemToJwk(pem: string, kid?: string): object;
+
   /**
    * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
    * 
    * @param pem RSA public key as PEM
-   * @param kid Key identifier (optional). 
+   * @param kid Key identifier (optional)
    */
-   rsaPemToJwk(pem: string, kid?: string): object;
+  pubRsaPemToJwk(pem: string, kid?: string): object;
+
+  /**
+   * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
+   * 
+   * @param pem RSA private key as PEM
+   * @param kid Key identifier (optional)
+   */
+  rsaPemToJwk(pem: string, kid?: string): object;
 
   crypto: CCFCrypto;
 

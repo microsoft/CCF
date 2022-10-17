@@ -176,11 +176,27 @@ interface pemToJWKRequest {
   kid: string;
 }
 
+export function pubPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubPemToJwk(req.pem, req.kid);
+  return {body: res};
+}
+
 export function pemToJwk(
   request: ccfapp.Request<pemToJWKRequest>
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pemToJwk(req.pem, req.kid);
+  return {body: res};
+}
+
+export function pubRsaPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubRsaPemToJwk(req.pem, req.kid);
   return {body: res};
 }
 

@@ -273,7 +273,7 @@ namespace ccf::js
     return JS_NewString(ctx, id.c_str());
   }
 
-  static JSValue js_pem_to_jwk(
+  static JSValue js_public_pem_to_jwk(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     if (argc != 1 && argc != 2)
@@ -318,7 +318,52 @@ namespace ccf::js
     return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
   }
 
-  static JSValue rsa_js_pem_to_jwk(
+  static JSValue js_private_pem_to_jwk(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1 && argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1 or 2", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto pem_str = jsctx.to_str(argv[0]);
+    if (!pem_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    std::optional<std::string> kid = std::nullopt;
+    if (argc == 2)
+    {
+      auto kid_str = jsctx.to_str(argv[1]);
+      if (!kid_str)
+      {
+        js::js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+      kid = kid_str;
+    }
+
+    crypto::JsonWebKeyECPrivate jwk;
+    try
+    {
+      auto pubk = crypto::make_key_pair(*pem_str);
+      jwk = pubk->private_key_jwk(kid);
+    }
+    catch (const std::exception& ex)
+    {
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+      js::js_dump_error(ctx);
+      return e;
+    }
+
+    auto jwk_str = nlohmann::json(jwk).dump();
+    return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
+  }
+
+  static JSValue js_rsa_public_pem_to_jwk(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     if (argc != 1 && argc != 2)
@@ -351,6 +396,52 @@ namespace ccf::js
     {
       auto pubk = crypto::make_rsa_public_key(*pem_str);
       jwk = pubk->public_key_jwk_rsa(kid);
+    }
+    catch (const std::exception& ex)
+    {
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+      js::js_dump_error(ctx);
+      return e;
+    }
+
+    auto jwk_str = nlohmann::json(jwk).dump();
+    return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
+  }
+
+  static JSValue js_rsa_private_pem_to_jwk(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1 && argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1 or 2", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto pem_str = jsctx.to_str(argv[0]);
+    if (!pem_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    std::optional<std::string> kid = std::nullopt;
+    if (argc == 2)
+    {
+      auto kid_str = jsctx.to_str(argv[1]);
+      if (!kid_str)
+      {
+        js::js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+      kid = kid_str;
+    }
+
+    crypto::JsonWebKeyRSA jwk;
+    try
+    {
+      auto pubk = crypto::make_rsa_key_pair(*pem_str);
+      // jwk = pubk->public_key_jwk_rsa(kid);
+      // TODO:
     }
     catch (const std::exception& ex)
     {

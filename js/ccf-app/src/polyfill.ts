@@ -335,7 +335,21 @@ class CCFPolyfill implements CCF {
     }
   }
 
+  pubPemToJwk(
+    pem: string, kid?: string
+  ): object {
+    // TODO:
+    return {};
+  }
+
   pemToJwk(
+    pem: string, kid?: string
+  ): object {
+    // TODO:
+    return {};
+  }
+
+  pubRsaPemToJwk(
     pem: string, kid?: string
   ): object {
     // TODO:

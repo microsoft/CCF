@@ -58,14 +58,24 @@ export const isValidX509CertBundle = ccf.isValidX509CertBundle;
 export const isValidX509CertChain = ccf.isValidX509CertChain;
 
 /**
- * @inheritDoc CCF.pemToJwk
+ * @inheritDoc CCF.pubPemToJwk
  */
- export const pemToJwk = ccf.pemToJwk;
+export const pubPemToJwk = ccf.pubPemToJwk;
 
  /**
+ * @inheritDoc CCF.pemToJwk
+ */
+export const pemToJwk = ccf.pemToJwk;
+
+ /**
+ * @inheritDoc CCF.pubRsaPemToJwk
+ */
+export const pubRsaPemToJwk = ccf.pubRsaPemToJwk;
+
+/**
  * @inheritDoc CCF.rsaPemToJwk
  */
-  export const rsaPemToJwk = ccf.rsaPemToJwk;
+export const rsaPemToJwk = ccf.rsaPemToJwk;
 
 export {
   WrapAlgoParams,

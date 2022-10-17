@@ -1701,12 +1701,25 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     JS_SetPropertyStr(
-      ctx, ccf, "pemToJwk", JS_NewCFunction(ctx, js_pem_to_jwk, "pemToJwk", 1));
+      ctx,
+      ccf,
+      "pubPemToJwk",
+      JS_NewCFunction(ctx, js_public_pem_to_jwk, "pubPemToJwk", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "pemToJwk",
+      JS_NewCFunction(ctx, js_private_pem_to_jwk, "pemToJwk", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "pubRsaPemToJwk",
+      JS_NewCFunction(ctx, js_rsa_public_pem_to_jwk, "pubRsaPemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       ccf,
       "rsaPemToJwk",
-      JS_NewCFunction(ctx, rsa_js_pem_to_jwk, "rsaPemToJwk", 1));
+      JS_NewCFunction(ctx, js_rsa_private_pem_to_jwk, "rsaPemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       ccf,

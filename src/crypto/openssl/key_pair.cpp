@@ -437,8 +437,6 @@ namespace crypto
     const std::optional<std::string>& kid) const
   {
     JsonWebKeyECPrivate jwk = {PublicKey_OpenSSL::public_key_jwk()};
-    // auto pub_jwk =
-    // TODO: Store members
 
     Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
     const BIGNUM* d = EC_KEY_get0_private_key(eckey);
@@ -447,6 +445,7 @@ namespace crypto
     BN_bn2binpad(d, bytes.data(), size);
 
     jwk.d = b64url_from_raw(bytes, false /* with_padding */);
+    jwk.kid = kid;
 
     return jwk;
   }
