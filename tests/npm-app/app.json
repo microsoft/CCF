@@ -696,6 +696,47 @@
           }
         }
       }
+    },
+    "/rsaPemToJwk": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "rsaPemToJwk",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pem": {
+                      "type": "string"
+                    },
+                    "kid": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "JWK object",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

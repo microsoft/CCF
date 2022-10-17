@@ -438,6 +438,15 @@ export interface CCF {
    */
    pemToJwk(pem: string, kid?: string): object;
 
+   
+  /**
+   * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
+   * 
+   * @param pem RSA public key as PEM
+   * @param kid Key identifier (optional). 
+   */
+   rsaPemToJwk(pem: string, kid?: string): object;
+
   crypto: CCFCrypto;
 
   rpc: CCFRpc;

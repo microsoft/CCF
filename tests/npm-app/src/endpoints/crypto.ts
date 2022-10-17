@@ -184,6 +184,14 @@ export function pemToJwk(
   return {body: res};
 }
 
+export function rsaPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.rsaPemToJwk(req.pem, req.kid);
+  return {body: res};
+}
+
 
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;

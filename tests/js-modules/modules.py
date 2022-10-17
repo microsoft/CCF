@@ -50,16 +50,23 @@ def generate_and_verify_jwk(client):
         _, pub_pem = infra.crypto.generate_ec_keypair(curve)
         ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
         r = client.post("/app/pemToJwk", body={"pem": pub_pem, "kid": ref_jwk["kid"]})
+        body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
-        # assert r.body.json() == ref_jwk, f"{r.body.json()} != {ref_jwk}"
+        assert body["kty"] == "EC"
+        assert body == ref_jwk, f"{body} != {ref_jwk}"
 
     # RSA
-    # key_size = 2048
-    # _, pub_pem = infra.crypto.generate_rsa_keypair(key_size)
-    # ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
-    # LOG.error(ref_jwk)
-    # TODO: Do RSA, with different key sizes: rsaPemToJwk
-    # assert body["kty"] == "RSA"
+    key_sizes = [1024, 2048, 4096]
+    for key_size in key_sizes:
+        _, pub_pem = infra.crypto.generate_rsa_keypair(key_size)
+        ref_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/rsaPemToJwk", body={"pem": pub_pem, "kid": ref_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "RSA"
+        assert body == ref_jwk, f"{body} != {ref_jwk}"
 
 
 @reqs.description("Test module import")

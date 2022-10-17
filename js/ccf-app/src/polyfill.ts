@@ -341,6 +341,13 @@ class CCFPolyfill implements CCF {
     // TODO:
     return {};
   }
+
+  rsaPemToJwk(
+    pem: string, kid?: string
+  ): object {
+    // TODO:
+    return {};
+  }
 }
 
 (<any>globalThis).ccf = new CCFPolyfill();

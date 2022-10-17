@@ -1705,6 +1705,11 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx,
       ccf,
+      "rsaPemToJwk",
+      JS_NewCFunction(ctx, rsa_js_pem_to_jwk, "rsaPemToJwk", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
       "refreshAppBytecodeCache",
       JS_NewCFunction(
         ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
