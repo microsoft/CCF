@@ -92,7 +92,7 @@ namespace ccf
      {KVEncodingFormat::HEX, "hex"},
      {KVEncodingFormat::BASE64, "base64"}});
 
-  static nlohmann::json to_json_string(
+  static nlohmann::json decode_to_json(
     const kv::serialisers::SerialisedEntry& raw, KVEncodingFormat format)
   {
     switch (format)
@@ -1550,7 +1550,35 @@ namespace ccf
             ccf::errors::InvalidQueryParameterValue,
             error_string);
         }
-        // TODO: Restrict what tables may be accessed
+
+        {
+          const auto [security_domain, access_category] =
+            kv::parse_map_name(table.value());
+
+          if (security_domain != kv::SecurityDomain::PUBLIC)
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              fmt::format(
+                "Only public tables may be read directly. Table '{}' is "
+                "private. Did you mean 'public:{}'?",
+                table.value(),
+                table.value()));
+          }
+
+          if (
+            access_category != kv::AccessCategory::INTERNAL &&
+            access_category != kv::AccessCategory::GOVERNANCE)
+          {
+            // TODO: Should we restrict access to APPLICATION tables here?
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              fmt::format(
+                "Only public governance tables may be read directly."));
+          }
+        }
 
         KVEncodingFormat key_format = KVEncodingFormat::ASCII;
         {
@@ -1602,8 +1630,8 @@ namespace ccf
         auto handle = ctx.tx.template ro<kv::untyped::Map>(table.value());
         handle->foreach([&response_body, key_format, value_format](
                           const auto& k, const auto& v) {
-          response_body[to_json_string(k, key_format)] =
-            to_json_string(v, value_format);
+          response_body[decode_to_json(k, key_format)] =
+            decode_to_json(v, value_format);
           return true;
         });
         return ccf::make_success(response_body);
