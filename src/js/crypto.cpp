@@ -301,7 +301,7 @@ namespace ccf::js
       kid = kid_str;
     }
 
-    crypto::JsonWebKeyEC jwk;
+    crypto::JsonWebKeyECPublic jwk;
     try
     {
       auto pubk = crypto::make_public_key(*pem_str);

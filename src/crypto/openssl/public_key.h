@@ -59,7 +59,7 @@ namespace crypto
 
     virtual Coordinates coordinates() const override;
 
-    virtual JsonWebKeyEC public_key_jwk(
+    virtual JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const override;
   };
 

@@ -59,30 +59,25 @@ namespace crypto
     }
   }
 
-  struct JsonWebKeyEC : JsonWebKeyBase
+  struct JsonWebKeyECPublic : JsonWebKeyBase
   {
     JsonWebKeyECCurve crv;
     std::string x; // base64url
     std::string y; // base64url
   };
-  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEC, JsonWebKeyBase);
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEC, crv, x, y);
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPublic, JsonWebKeyBase);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPublic, crv, x, y);
 
-  // enum class JsonWebKeyRSAAlg
-  // {
-  //   P256 = 0,
-  //   P384 = 1,
-  //   P521 = 2
-  // };
-  // DECLARE_JSON_ENUM(
-  //   JsonWebKeyECCurve,
-  //   {{JsonWebKeyECCurve::P256, "P-256"},
-  //    {JsonWebKeyECCurve::P384, "P-384"},
-  //    {JsonWebKeyECCurve::P521, "P-521"}});
+  struct JsonWebKeyECPrivate : JsonWebKeyECPublic
+  {
+    std::string d; // base64url
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPrivate, JsonWebKeyECPublic);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPrivate, d);
 
   struct JsonWebKeyRSA : JsonWebKeyBase
   {
-    std::string alg;
+    std::string alg; // TODO: Unused?
     std::string n; // base64url
     std::string e; // base64url
   };

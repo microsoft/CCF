@@ -719,11 +719,23 @@ TEST_CASE("PEM to JWK")
 
     LOG_FAIL_FMT("PEM: {}", pubk->public_key_pem().str());
 
-    auto jwk = pubk->public_key_jwk();
-    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk();
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
 
-    jwk = pubk->public_key_jwk(kid);
-    LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+      jwk = pubk->public_key_jwk(kid);
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk();
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+
+      jwk = kp->private_key_jwk(kid);
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+    }
   }
 
   INFO("RSA");

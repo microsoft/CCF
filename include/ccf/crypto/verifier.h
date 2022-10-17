@@ -218,7 +218,7 @@ namespace crypto
     virtual std::string subject() const = 0;
 
     /** */
-    virtual JsonWebKeyEC public_key_jwk(
+    virtual JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const
     {
       return public_key->public_key_jwk(kid);
