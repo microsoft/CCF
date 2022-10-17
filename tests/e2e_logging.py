@@ -805,7 +805,7 @@ def test_historical_receipts(network, args):
 
 
 @reqs.description("Read historical receipts with claims")
-@reqs.supports_methods("/log/public", "/log/public/historical_receipt")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical_receipt")
 def test_historical_receipts_with_claims(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
