@@ -11,7 +11,6 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/logger.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/key_pair.h"
@@ -709,34 +708,29 @@ TEST_CASE("hmac")
 
 TEST_CASE("PEM to JWK")
 {
-  logger::config::default_init(); // TODO: Remove
+  // More complete tests in end-to-end JS modules test
+  // to compare with JWK reference implementation.
   auto kid = "my_kid";
-
-  // TODO: Assert result
 
   INFO("EC");
   {
     auto kp = make_key_pair();
     auto pubk = make_public_key(kp->public_key_pem());
 
-    LOG_FAIL_FMT("PEM: {}", pubk->public_key_pem().str());
-
     INFO("Public");
     {
       auto jwk = pubk->public_key_jwk();
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
-
+      REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk(kid);
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+      REQUIRE(jwk.kid.value() == kid);
     }
 
     INFO("Private");
     {
       auto jwk = kp->private_key_jwk();
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
-
+      REQUIRE_FALSE(jwk.kid.has_value());
       jwk = kp->private_key_jwk(kid);
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+      REQUIRE(jwk.kid.value() == kid);
     }
   }
 
@@ -745,24 +739,20 @@ TEST_CASE("PEM to JWK")
     auto kp = make_rsa_key_pair();
     auto pubk = make_rsa_public_key(kp->public_key_pem());
 
-    LOG_FAIL_FMT("PEM: {}", pubk->public_key_pem().str());
-
     INFO("Public");
     {
       auto jwk = pubk->public_key_jwk_rsa();
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
-
+      REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk_rsa(kid);
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+      REQUIRE(jwk.kid.value() == kid);
     }
 
     INFO("Private");
     {
       auto jwk = kp->private_key_jwk_rsa();
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
-
+      REQUIRE_FALSE(jwk.kid.has_value());
       jwk = kp->private_key_jwk_rsa(kid);
-      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+      REQUIRE(jwk.kid.value() == kid);
     }
   }
 }
