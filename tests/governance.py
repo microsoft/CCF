@@ -596,7 +596,7 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 @reqs.description("Test COSE Sign1 auth")
 def test_cose_auth(network, args):
     primary, _ = network.find_primary()
-    identity = primary.identity("member0")
+    identity = network.identity("member0")
     signed_statement = signing.create_cose_sign1(
         b"body",
         open(identity.key, encoding="utf-8").read(),
@@ -612,7 +612,7 @@ def test_cose_auth(network, args):
         assert r.status_code == 200
         assert r.body.text() == "body", r.body.text
 
-    identity = primary.identity("user0")
+    identity = network.identity("user0")
     signed_statement = signing.create_cose_sign1(
         b"body",
         open(identity.key, encoding="utf-8").read(),

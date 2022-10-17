@@ -169,9 +169,10 @@ namespace ccf
         fmt::format("Missing {} header", http::headers::CONTENT_TYPE);
       return nullptr;
     }
-    if (content_type_it->second != "application/cose")
+    if (content_type_it->second != http::headervalues::contenttype::COSE)
     {
-      error_reason = "Content type is not set to application/cose";
+      error_reason = fmt::format(
+        "Content type is not set to {}", http::headervalues::contenttype::COSE);
       return nullptr;
     }
 
