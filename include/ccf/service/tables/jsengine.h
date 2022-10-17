@@ -22,6 +22,6 @@ namespace ccf
 
   namespace Tables
   {
-    static constexpr auto JSENGINE = "public:ccf.gov.jsengine";
+    static constexpr auto JSENGINE = "public:ccf.gov.js_runtime_options";
   }
 }

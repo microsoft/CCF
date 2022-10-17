@@ -139,11 +139,11 @@ def test_bytecode_cache(network, args):
     return network
 
 
-@reqs.description("Test js engine options")
-def test_set_js_engine(network, args):
+@reqs.description("Test js runtime options")
+def test_set_js_runtime(network, args):
     primary, _ = network.find_nodes()
     # set js run time options
-    network.consortium.set_js_engine_options(
+    network.consortium.set_js_runtime_options(
         primary, max_heap_bytes=50 * 1024 * 1024, max_stack_bytes=1024 * 512
     )
     with primary.client("user0") as c:
@@ -152,7 +152,7 @@ def test_set_js_engine(network, args):
         assert body["max_heap_size"] == 50 * 1024 * 1024
         assert body["max_stack_size"] == 1024 * 512
     # reset the heap and stack sizes to default values
-    network.consortium.set_js_engine_options(
+    network.consortium.set_js_runtime_options(
         primary, max_heap_bytes=100 * 1024 * 1024, max_stack_bytes=1024 * 1024
     )
     return network
@@ -729,7 +729,7 @@ def run(args):
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
-        network = test_set_js_engine(network, args)
+        network = test_set_js_runtime(network, args)
         if "v8" not in args.package:
             # endpoint calls fail with "Cannot access \'logMap\' before init..."
             # as if the const logMap wasn't preserved/captured
