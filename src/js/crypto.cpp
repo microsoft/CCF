@@ -301,11 +301,13 @@ namespace ccf::js
       kid = kid_str;
     }
 
+    LOG_FAIL_FMT("kid: {}", kid.value_or("no kid"));
+
     crypto::JsonWebKeyEC jwk;
     try
     {
       auto pubk = crypto::make_public_key(*pem_str);
-      jwk = pubk->public_key_jwk();
+      jwk = pubk->public_key_jwk(kid);
     }
     catch (const std::exception& ex)
     {
@@ -315,6 +317,7 @@ namespace ccf::js
     }
 
     auto jwk_str = nlohmann::json(jwk).dump();
+    LOG_FAIL_FMT("jwk_str: {}", jwk_str);
     return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
   }
 

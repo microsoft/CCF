@@ -181,7 +181,6 @@ export function pemToJWK(
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pemToJWK(req.pem, req.kid);
-
   return {body: res};
 }
 
