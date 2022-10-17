@@ -7,7 +7,6 @@
 #include "ccf/crypto/public_key.h"
 
 #include <chrono>
-#include <t_cose/q_useful_buf.h>
 
 namespace crypto
 {
@@ -15,7 +14,8 @@ namespace crypto
   {
   public:
     virtual bool verify(
-      const q_useful_buf_c& buf, q_useful_buf_c& authned_content) const = 0;
+      const std::span<const uint8_t>& buf,
+      std::span<uint8_t>& authned_content) const = 0;
     virtual ~COSEVerifier() = default;
   };
 

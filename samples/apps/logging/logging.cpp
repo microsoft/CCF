@@ -1659,7 +1659,9 @@ namespace loggingapp
 
           ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(caller_identity.content);
+          std::vector<uint8_t> response_body(
+            caller_identity.content.begin(), caller_identity.content.end());
+          ctx.rpc_ctx->set_response_body(response_body);
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         };
 

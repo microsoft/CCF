@@ -197,11 +197,10 @@ namespace ccf
     {
       auto verifier = crypto::make_cose_verifier(member_cert->raw());
 
-      q_useful_buf_c signed_cose;
-      q_useful_buf_c authned_content;
-      signed_cose.ptr = ctx->get_request_body().data();
-      signed_cose.len = ctx->get_request_body().size();
-      if (!verifier->verify(signed_cose, authned_content))
+      std::span<const uint8_t> body = {
+        ctx->get_request_body().data(), ctx->get_request_body().size()};
+      std::span<uint8_t> authned_content;
+      if (!verifier->verify(body, authned_content))
       {
         error_reason = fmt::format("Failed to validate COSE Sign1");
         return nullptr;
@@ -210,10 +209,8 @@ namespace ccf
       identity->member_id = phdr.kid.value();
       identity->member_cert = member_cert.value();
       identity->protected_header = phdr;
-      identity->envelope = ctx->get_request_body();
-      identity->content = {
-        (uint8_t*)authned_content.ptr,
-        ((uint8_t*)authned_content.ptr) + authned_content.len};
+      identity->envelope = body;
+      identity->content = authned_content;
       return identity;
     }
     else

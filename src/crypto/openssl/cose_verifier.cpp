@@ -52,7 +52,8 @@ namespace crypto
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 
   bool COSEVerifier_OpenSSL::verify(
-    const q_useful_buf_c& buf, q_useful_buf_c& authned_content) const
+    const std::span<const uint8_t>& buf,
+    std::span<uint8_t>& authned_content) const
   {
     EVP_PKEY* evp_key = *public_key;
 
@@ -64,10 +65,17 @@ namespace crypto
     t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
     t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
 
+    q_useful_buf_c buf_;
+    buf_.ptr = buf.data();
+    buf_.len = buf.size();
+
+    q_useful_buf_c authned_content_;
+
     t_cose_err_t error =
-      t_cose_sign1_verify(&verify_ctx, buf, &authned_content, nullptr);
+      t_cose_sign1_verify(&verify_ctx, buf_, &authned_content_, nullptr);
     if (error == T_COSE_SUCCESS)
     {
+      authned_content = {(uint8_t*)authned_content_.ptr, authned_content_.len};
       return true;
     }
     LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
