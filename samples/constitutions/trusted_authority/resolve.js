@@ -1,15 +1,15 @@
 function getMemberInfo(memberId) {
   return ccf.bufToJsonCompatible(
-    ccf.kv["public:ccf.gov.members.info"].get(
-      ccf.strToBuf(memberId)
-    )
+    ccf.kv["public:ccf.gov.members.info"].get(ccf.strToBuf(memberId))
   );
 }
 
 function isRecoveryMember(memberId) {
-  return ccf.kv["public:ccf.gov.members.encryption_public_keys"].get(
-    ccf.strToBuf(memberId)
-  ) ?? false;
+  return (
+    ccf.kv["public:ccf.gov.members.encryption_public_keys"].get(
+      ccf.strToBuf(memberId)
+    ) ?? false
+  );
 }
 
 // Defines which of the members are operators.
@@ -34,11 +34,13 @@ function canTrustedAuthorityPass(action) {
     return true;
   }
   // Trusted authorities can add or retire operators.
-  return {
-    "set_member_data": () => action.args["member_data"]?.is_operator ?? false,
-    "set_member": () => action.args["member_data"]?.is_operator ?? false,
-    "remove_member": () => isOperator(action.args.memberId),
-  }[action.name.toString()]() ?? false;
+  return (
+    {
+      set_member_data: () => action.args["member_data"]?.is_operator ?? false,
+      set_member: () => action.args["member_data"]?.is_operator ?? false,
+      remove_member: () => isOperator(action.args.memberId),
+    }[action.name.toString()]() ?? false
+  );
 }
 
 export function resolve(proposal, proposerId, votes) {
@@ -52,7 +54,8 @@ export function resolve(proposal, proposerId, votes) {
 
   // Count member votes.
   const memberVoteCount = votes.filter(
-    (v) => v.vote && !isTrustedAuthority(v.member_id) && !isOperator(v.member_id)
+    (v) =>
+      v.vote && !isTrustedAuthority(v.member_id) && !isOperator(v.member_id)
   ).length;
 
   // Count active members, excluding trusted authorities and operators.
@@ -60,7 +63,11 @@ export function resolve(proposal, proposerId, votes) {
   ccf.kv["public:ccf.gov.members.info"].forEach((value, key) => {
     const memberId = ccf.bufToStr(key);
     const info = ccf.bufToJsonCompatible(value);
-    if (info.status === "Active" && !isTrustedAuthority(memberId) && !isOperator(memberId)) {
+    if (
+      info.status === "Active" &&
+      !isTrustedAuthority(memberId) &&
+      !isOperator(memberId)
+    ) {
       activeMemberCount++;
     }
   });
