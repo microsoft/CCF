@@ -18,11 +18,12 @@ namespace crypto
   DECLARE_JSON_ENUM(
     JsonWebKeyType, {{JsonWebKeyType::EC, "EC"}, {JsonWebKeyType::RSA, "RSA"}});
 
-  // TODO: Refactor with existing JWT stuff
   struct JsonWebKeyBase
   {
     JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
+
+    bool operator==(const JsonWebKeyBase&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKeyBase);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyBase, kty);
