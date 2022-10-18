@@ -280,6 +280,31 @@ describe("polyfill", function () {
       assert.isFalse(ccf.isValidX509CertChain(chain, trusted));
     });
   });
+  describe("pemToJwk", function() {
+    it("EC", function () {
+
+      // TODO: Pass kid or extras
+      // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
+      const curves = ["secp256r1", "secp384r1"];
+      for (const curve of curves)
+      {
+        const pair = ccf.generateEcdsaKeyPair(curve);
+        const jwk_pub = ccf.pubPemToJwk(pair.publicKey);
+        console.log(jwk_pub)
+        // assert.equal(jwk_pub.json().kty, "EC");
+        const jwk_priv = ccf.pemToJwk(pair.privateKey);
+        console.log(jwk_priv)
+        // assert.equal(jwk_pub.kty, "EC");
+      }
+    }),
+    it("RSA", function () {
+      const pair = ccf.generateRsaKeyPair(1024);
+      const jwk_pub = ccf.pubRsaPemToJwk(pair.publicKey);
+      const jwk_priv = ccf.rsaPemToJwk(pair.privateKey);
+      console.log(jwk_pub)
+      console.log(jwk_priv)
+    })
+  }),
   describe("kv", function () {
     it("basic", function () {
       const foo = ccf.kv["foo"];

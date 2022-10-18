@@ -18,6 +18,7 @@
 
 import * as crypto from "crypto";
 import { TextEncoder, TextDecoder } from "util";
+import * as rs from "jsrsasign";
 
 // Note: It is important that only types are imported here to prevent executing
 // the module at this point (which would query the ccf global before we polyfilled it).
@@ -32,6 +33,10 @@ import {
   EvidenceClaims,
   OpenEnclave,
   SigningAlgorithm,
+  JsonWebKeyECPublic,
+  JsonWebKeyECPrivate,
+  JsonWebKeyRSAPublic,
+  JsonWebKeyRSAPrivate,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -337,30 +342,26 @@ class CCFPolyfill implements CCF {
 
   pubPemToJwk(
     pem: string, kid?: string
-  ): object {
-    // TODO:
-    return {};
+  ): JsonWebKeyECPublic {
+    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPublic;
   }
 
   pemToJwk(
     pem: string, kid?: string
-  ): object {
-    // TODO:
-    return {};
+  ): JsonWebKeyECPrivate {
+    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPrivate;
   }
 
   pubRsaPemToJwk(
     pem: string, kid?: string
-  ): object {
-    // TODO:
-    return {};
+  ): JsonWebKeyRSAPublic {
+    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPublic;
   }
 
   rsaPemToJwk(
     pem: string, kid?: string
-  ): object {
-    // TODO:
-    return {};
+  ): JsonWebKeyRSAPrivate {
+    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPrivate;
   }
 }
 
@@ -396,3 +397,4 @@ function base64(buf: ArrayBuffer): string {
 function unbase64(s: string): ArrayBuffer {
   return nodeBufToArrBuf(Buffer.from(s, "base64"));
 }
+

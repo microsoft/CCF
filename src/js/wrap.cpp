@@ -1700,6 +1700,7 @@ namespace ccf::js
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+    // TODO: Move under ccf.crypto
     JS_SetPropertyStr(
       ctx,
       ccf,
