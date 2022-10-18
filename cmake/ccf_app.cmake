@@ -5,9 +5,8 @@ set(ALLOWED_TARGETS "sgx;snp;virtual")
 
 set(COMPILE_TARGET
     "sgx"
-    CACHE
-      STRING
-      "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
+    CACHE STRING
+          "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
 )
 
 if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)

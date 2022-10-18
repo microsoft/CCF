@@ -411,9 +411,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   add_san(js_openenclave.virtual)
   target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
-    target_compile_definitions(
-      js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                    _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL)
+  target_compile_definitions(
+    js_openenclave.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
+  )
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
@@ -466,8 +468,9 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
-    js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL
+    js_openenclave.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
   )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -672,11 +675,11 @@ function(add_perf_test)
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
-      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c
-      ${PARSED_ARGS_CLIENT_BIN} ${CCF_NETWORK_TEST_ARGS} --consensus
-      ${CONSENSUS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
-      ${VERIFICATION_ARG} --label ${LABEL_ARG} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} ${NODES}
+      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
+      ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
+      -e ${ENCLAVE_TYPE} ${NODES}
   )
 
   # Make python test client framework importable

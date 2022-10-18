@@ -60,7 +60,9 @@ if(ENABLE_V8)
     target_link_libraries(
       js_v8_base.enclave PUBLIC ccf.enclave ${v8_sgx_lib} v8_oe_stubs.enclave
     )
-    target_compile_definitions(js_v8_base.enclave PUBLIC ${v8_defs} PLATFORM_SGX)
+    target_compile_definitions(
+      js_v8_base.enclave PUBLIC ${v8_defs} PLATFORM_SGX
+    )
     add_lvi_mitigations(js_v8_base.enclave)
     install(
       TARGETS js_v8_base.enclave v8_oe_stubs.enclave
@@ -80,8 +82,9 @@ if(ENABLE_V8)
     )
     target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
     target_compile_definitions(
-      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                _LIBCPP_HAS_THREAD_API_PTHREAD ${v8_defs} PLATFORM_SNP
+      js_v8_base.virtual
+      PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+             ${v8_defs} PLATFORM_SNP
     )
     set_property(
       TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -104,8 +107,9 @@ if(ENABLE_V8)
     )
     target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
     target_compile_definitions(
-      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                _LIBCPP_HAS_THREAD_API_PTHREAD ${v8_defs} PLATFORM_VIRTUAL
+      js_v8_base.virtual
+      PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+             ${v8_defs} PLATFORM_VIRTUAL
     )
     set_property(
       TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
