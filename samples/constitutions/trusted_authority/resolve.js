@@ -23,7 +23,10 @@ function isOperator(memberId) {
 
 // Defines which of the members are operator provisioners.
 function isOperatorProvisioner(memberId) {
-  return !isRecoveryMember(memberId) && (getMemberInfo(memberId).member_data?.is_operator_provisioner ?? false);
+  return (
+    !isRecoveryMember(memberId) &&
+    (getMemberInfo(memberId).member_data?.is_operator_provisioner ?? false)
+  );
 }
 
 // Defines actions that can be passed with sole operator provisioner input.
