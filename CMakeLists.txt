@@ -294,6 +294,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
     )
