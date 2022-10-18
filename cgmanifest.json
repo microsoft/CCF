@@ -144,6 +144,24 @@
           "commitHash": "ab840345966d0fa8e7100d771c92a73bfbadd25c"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
+          "commitHash": "07653df2bbdb2d090d98d0df514fa019ac23dff3"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/laurencelundblade/t_cose",
+          "commitHash": "d5ff4e282d8af34e5756627cf877ab399e7e51af"
+        }
+      }
     }
   ],
   "Version": 1

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Experimental `ccf::MemberCOSESign1AuthnPolicy` (#3875)
 - Add secp256k1 support to `ccf.crypto.generateEcdsaKeyPair()` and `ccf.crypto.verifySignature()` (#4347).
 
 ### Deprecated

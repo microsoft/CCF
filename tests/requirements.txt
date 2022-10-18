@@ -18,3 +18,4 @@ locust
 pyOpenSSL
 grpcio-tools
 JWCrypto
+cose
