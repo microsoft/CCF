@@ -323,6 +323,38 @@ export interface CCFCrypto {
     signature: ArrayBuffer,
     data: ArrayBuffer
   ): boolean;
+
+  /**
+   * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
+   * 
+   * @param pem Elliptic curve public key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic;
+
+  /**
+  * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
+  * 
+  * @param pem Elliptic curve private key as PEM
+  * @param kid Key identifier (optional)
+  */
+  pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate;
+   
+  /**
+  * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
+  * 
+  * @param pem RSA public key as PEM
+  * @param kid Key identifier (optional)
+  */
+  pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic;
+   
+  /**
+  * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
+  * 
+  * @param pem RSA private key as PEM
+  * @param kid Key identifier (optional)
+  */
+  rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
 }
 
 export interface CCFRpc {
@@ -496,38 +528,6 @@ export interface CCF {
    * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
    */
   isValidX509CertChain(chain: string, trusted: string): boolean;
-
-  /**
-   * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
-   * 
-   * @param pem Elliptic curve public key as PEM
-   * @param kid Key identifier (optional)
-   */
-  pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic;
-
-  /**
-   * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
-   * 
-   * @param pem Elliptic curve private key as PEM
-   * @param kid Key identifier (optional)
-   */
-  pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate;
-
-  /**
-   * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
-   * 
-   * @param pem RSA public key as PEM
-   * @param kid Key identifier (optional)
-   */
-  pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic;
-
-  /**
-   * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
-   * 
-   * @param pem RSA private key as PEM
-   * @param kid Key identifier (optional)
-   */
-  rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
 
   crypto: CCFCrypto;
 

@@ -158,6 +158,44 @@ class CCFPolyfill implements CCF {
         new Uint8Array(signature)
       );
     },
+    pubPemToJwk(
+      pem: string, kid?: string
+    ): JsonWebKeyECPublic {
+      let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPublic;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+
+    pemToJwk(
+      pem: string, kid?: string
+    ): JsonWebKeyECPrivate {
+      let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPrivate;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+
+    pubRsaPemToJwk(
+      pem: string, kid?: string
+    ): JsonWebKeyRSAPublic {
+      let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPublic;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+    rsaPemToJwk(
+      pem: string, kid?: string
+    ): JsonWebKeyRSAPrivate {
+      let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPrivate;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    }
   };
 
   strToBuf(s: string): ArrayBuffer {
@@ -338,46 +376,6 @@ class CCFPolyfill implements CCF {
       console.error(`certificate chain validation failed: ${e.message}`);
       return false;
     }
-  }
-
-  pubPemToJwk(
-    pem: string, kid?: string
-  ): JsonWebKeyECPublic {
-    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPublic;
-    if (kid !== undefined) {
-      jwk.kid = kid;
-    }
-    return jwk;
-  }
-
-  pemToJwk(
-    pem: string, kid?: string
-  ): JsonWebKeyECPrivate {
-    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPrivate;
-    if (kid !== undefined) {
-      jwk.kid = kid;
-    }
-    return jwk;
-  }
-
-  pubRsaPemToJwk(
-    pem: string, kid?: string
-  ): JsonWebKeyRSAPublic {
-    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPublic;
-    if (kid !== undefined) {
-      jwk.kid = kid;
-    }
-    return jwk;
-  }
-
-  rsaPemToJwk(
-    pem: string, kid?: string
-  ): JsonWebKeyRSAPrivate {
-    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPrivate;
-    if (kid !== undefined) {
-      jwk.kid = kid;
-    }
-    return jwk;
   }
 }
 

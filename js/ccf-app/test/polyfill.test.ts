@@ -290,22 +290,22 @@ describe("polyfill", function () {
       {
         const pair = ccf.generateEcdsaKeyPair(curve);
         {
-          const jwk = ccf.pubPemToJwk(pair.publicKey);
+          const jwk = ccf.crypto.pubPemToJwk(pair.publicKey);
           assert.equal(jwk.kty, "EC");
           assert.notEqual(jwk.kid, my_kid);
         }
         {
-          const jwk = ccf.pubPemToJwk(pair.publicKey, my_kid);
+          const jwk = ccf.crypto.pubPemToJwk(pair.publicKey, my_kid);
           assert.equal(jwk.kty, "EC");
           assert.equal(jwk.kid, my_kid);
         }
         {
-          const jwk = ccf.pemToJwk(pair.privateKey);
+          const jwk = ccf.crypto.pemToJwk(pair.privateKey);
           assert.equal(jwk.kty, "EC");
           assert.notExists(jwk.kid);
         }
         {
-          const jwk = ccf.pemToJwk(pair.privateKey, my_kid);
+          const jwk = ccf.crypto.pemToJwk(pair.privateKey, my_kid);
           assert.equal(jwk.kty, "EC");
           assert.equal(jwk.kid, my_kid);
         }
@@ -315,22 +315,22 @@ describe("polyfill", function () {
       const my_kid = "my_kid";
       const pair = ccf.generateRsaKeyPair(1024);
       {
-        const jwk = ccf.pubRsaPemToJwk(pair.publicKey);
+        const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
         assert.equal(jwk.kty, "RSA");
         assert.notEqual(jwk.kid, my_kid);
       }
       {
-        const jwk = ccf.pubRsaPemToJwk(pair.publicKey, my_kid);
+        const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
         assert.equal(jwk.kty, "RSA");
         assert.equal(jwk.kid, my_kid);
       }
       {
-        const jwk = ccf.rsaPemToJwk(pair.privateKey);
+        const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
         assert.equal(jwk.kty, "RSA");
         assert.notEqual(jwk.kid, my_kid);
       }
       {
-        const jwk = ccf.rsaPemToJwk(pair.privateKey, my_kid);
+        const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
         assert.equal(jwk.kty, "RSA");
         assert.equal(jwk.kid, my_kid);
       }

@@ -60,22 +60,22 @@ export const isValidX509CertChain = ccf.isValidX509CertChain;
 /**
  * @inheritDoc CCF.pubPemToJwk
  */
-export const pubPemToJwk = ccf.pubPemToJwk;
+export const pubPemToJwk = ccf.crypto.pubPemToJwk;
 
  /**
  * @inheritDoc CCF.pemToJwk
  */
-export const pemToJwk = ccf.pemToJwk;
+export const pemToJwk = ccf.crypto.pemToJwk;
 
  /**
  * @inheritDoc CCF.pubRsaPemToJwk
  */
-export const pubRsaPemToJwk = ccf.pubRsaPemToJwk;
+export const pubRsaPemToJwk = ccf.crypto.pubRsaPemToJwk;
 
 /**
  * @inheritDoc CCF.rsaPemToJwk
  */
-export const rsaPemToJwk = ccf.rsaPemToJwk;
+export const rsaPemToJwk = ccf.crypto.rsaPemToJwk;
 
 export {
   WrapAlgoParams,
