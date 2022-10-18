@@ -574,15 +574,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
-  if(LONG_TESTS)
-    add_e2e_test(
-      NAME recovery_test_curve_256
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --curve-id secp256r1
-    )
-  endif()
-
   add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
@@ -654,14 +645,16 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/tests
   )
 
-  add_e2e_test(
-    NAME launch_host_process_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
-  )
+  if(LONG_TESTS)
+    add_e2e_test(
+      NAME launch_host_process_test
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
+    )
+  endif()
 
   add_e2e_test(
     NAME governance_test
