@@ -31,7 +31,6 @@ function canOperatorProvisionerPass(action) {
   // Operator provisioners can add or retire operators.
   return (
     {
-      set_member_data: () => action.args["member_data"]?.is_operator ?? false,
       set_member: () => action.args["member_data"]?.is_operator ?? false,
       remove_member: () => isOperator(action.args.memberId),
     }[action.name.toString()]() ?? false
