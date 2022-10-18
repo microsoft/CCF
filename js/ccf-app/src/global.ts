@@ -242,7 +242,7 @@ export type DigestAlgorithm = "SHA-256";
 /**
  * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).
  */
- export interface JsonWebKeyBase {
+export interface JsonWebKeyBase {
   /**
    * Key type.
    */
@@ -326,34 +326,34 @@ export interface CCFCrypto {
 
   /**
    * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
-   * 
+   *
    * @param pem Elliptic curve public key as PEM
    * @param kid Key identifier (optional)
    */
   pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic;
 
   /**
-  * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
-  * 
-  * @param pem Elliptic curve private key as PEM
-  * @param kid Key identifier (optional)
-  */
+   * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem Elliptic curve private key as PEM
+   * @param kid Key identifier (optional)
+   */
   pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate;
-   
+
   /**
-  * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
-  * 
-  * @param pem RSA public key as PEM
-  * @param kid Key identifier (optional)
-  */
+   * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem RSA public key as PEM
+   * @param kid Key identifier (optional)
+   */
   pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic;
-   
+
   /**
-  * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
-  * 
-  * @param pem RSA private key as PEM
-  * @param kid Key identifier (optional)
-  */
+   * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem RSA private key as PEM
+   * @param kid Key identifier (optional)
+   */
   rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
 }
 

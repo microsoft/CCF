@@ -181,7 +181,7 @@ export function pubPemToJwk(
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubPemToJwk(req.pem, req.kid);
-  return {body: res};
+  return { body: res };
 }
 
 export function pemToJwk(
@@ -189,7 +189,7 @@ export function pemToJwk(
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pemToJwk(req.pem, req.kid);
-  return {body: res};
+  return { body: res };
 }
 
 export function pubRsaPemToJwk(
@@ -197,7 +197,7 @@ export function pubRsaPemToJwk(
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubRsaPemToJwk(req.pem, req.kid);
-  return {body: res};
+  return { body: res };
 }
 
 export function rsaPemToJwk(
@@ -205,9 +205,8 @@ export function rsaPemToJwk(
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.rsaPemToJwk(req.pem, req.kid);
-  return {body: res};
+  return { body: res };
 }
-
 
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;

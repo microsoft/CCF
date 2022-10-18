@@ -62,12 +62,12 @@ export const isValidX509CertChain = ccf.isValidX509CertChain;
  */
 export const pubPemToJwk = ccf.crypto.pubPemToJwk;
 
- /**
+/**
  * @inheritDoc CCF.pemToJwk
  */
 export const pemToJwk = ccf.crypto.pemToJwk;
 
- /**
+/**
  * @inheritDoc CCF.pubRsaPemToJwk
  */
 export const pubRsaPemToJwk = ccf.crypto.pubRsaPemToJwk;

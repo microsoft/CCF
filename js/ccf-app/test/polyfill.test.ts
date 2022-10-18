@@ -280,14 +280,12 @@ describe("polyfill", function () {
       assert.isFalse(ccf.isValidX509CertChain(chain, trusted));
     });
   });
-  describe("pemToJwk", function() {
+  describe("pemToJwk", function () {
     it("EC", function () {
-
       // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
       const my_kid = "my_kid";
       const curves = ["secp256r1", "secp384r1"];
-      for (const curve of curves)
-      {
+      for (const curve of curves) {
         const pair = ccf.generateEcdsaKeyPair(curve);
         {
           const jwk = ccf.crypto.pubPemToJwk(pair.publicKey);
@@ -311,61 +309,61 @@ describe("polyfill", function () {
         }
       }
     }),
-    it("RSA", function () {
-      const my_kid = "my_kid";
-      const pair = ccf.generateRsaKeyPair(1024);
-      {
-        const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
-        assert.equal(jwk.kty, "RSA");
-        assert.notEqual(jwk.kid, my_kid);
-      }
-      {
-        const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
-        assert.equal(jwk.kty, "RSA");
-        assert.equal(jwk.kid, my_kid);
-      }
-      {
-        const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
-        assert.equal(jwk.kty, "RSA");
-        assert.notEqual(jwk.kid, my_kid);
-      }
-      {
-        const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
-        assert.equal(jwk.kty, "RSA");
-        assert.equal(jwk.kid, my_kid);
-      }
-    })
-  }),
-  describe("kv", function () {
-    it("basic", function () {
-      const foo = ccf.kv["foo"];
-
-      const key = "bar";
-      const val = 65535;
-      const key_buf = ccf.strToBuf(key);
-      const val_buf = ccf.jsonCompatibleToBuf(val);
-
-      assert.equal(foo.get(key_buf), undefined);
-
-      foo.set(key_buf, val_buf);
-      assert.deepEqual(foo.get(key_buf), val_buf);
-      assert.isTrue(foo.has(key_buf));
-
-      const foo2 = ccf.kv["foo"];
-      assert.deepEqual(foo2.get(key_buf), val_buf);
-      assert.isTrue(foo2.has(key_buf));
-
-      let found = false;
-      foo.forEach((v, k) => {
-        if (ccf.bufToStr(k) == key && ccf.bufToJsonCompatible(v) == val) {
-          found = true;
+      it("RSA", function () {
+        const my_kid = "my_kid";
+        const pair = ccf.generateRsaKeyPair(1024);
+        {
+          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
+          assert.equal(jwk.kty, "RSA");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
+          assert.equal(jwk.kty, "RSA");
+          assert.equal(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
+          assert.equal(jwk.kty, "RSA");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
+          assert.equal(jwk.kty, "RSA");
+          assert.equal(jwk.kid, my_kid);
         }
       });
-      assert.isTrue(found);
+  }),
+    describe("kv", function () {
+      it("basic", function () {
+        const foo = ccf.kv["foo"];
 
-      foo.delete(key_buf);
-      assert.isNotTrue(foo.has(key_buf));
-      assert.equal(foo.get(key_buf), undefined);
+        const key = "bar";
+        const val = 65535;
+        const key_buf = ccf.strToBuf(key);
+        const val_buf = ccf.jsonCompatibleToBuf(val);
+
+        assert.equal(foo.get(key_buf), undefined);
+
+        foo.set(key_buf, val_buf);
+        assert.deepEqual(foo.get(key_buf), val_buf);
+        assert.isTrue(foo.has(key_buf));
+
+        const foo2 = ccf.kv["foo"];
+        assert.deepEqual(foo2.get(key_buf), val_buf);
+        assert.isTrue(foo2.has(key_buf));
+
+        let found = false;
+        foo.forEach((v, k) => {
+          if (ccf.bufToStr(k) == key && ccf.bufToJsonCompatible(v) == val) {
+            found = true;
+          }
+        });
+        assert.isTrue(found);
+
+        foo.delete(key_buf);
+        assert.isNotTrue(foo.has(key_buf));
+        assert.equal(foo.get(key_buf), undefined);
+      });
     });
-  });
 });
