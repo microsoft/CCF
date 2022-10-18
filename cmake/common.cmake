@@ -464,7 +464,6 @@ sign_app_library(
 )
 # SNIPPET_END: JS generic application
 
-include(${CCF_DIR}/cmake/js_v8.cmake)
 include(${CCF_DIR}/cmake/quictls.cmake)
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
