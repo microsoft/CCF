@@ -4,15 +4,22 @@
 from dataclasses import dataclass
 from typing import Optional, Dict
 from enum import Enum, auto
+import urllib.parse
+
+from loguru import logger as LOG
 
 
-def split_address(addr, default_port=0):
-    host, *port = addr.split(":")
-    return host, (int(port[0]) if port else default_port)
+def split_netloc(netloc, default_port=0):
+    url = f"http://{netloc}"
+    parsed = urllib.parse.urlparse(url)
+    return parsed.hostname, (parsed.port if parsed.port else default_port)
 
 
 def make_address(host, port=0):
-    return f"{host}:{port}"
+    if ":" in host:
+        return f"[{host}]:{port}"
+    else:
+        return f"{host}:{port}"
 
 
 DEFAULT_TRANSPORT_PROTOCOL = "tcp"
@@ -91,7 +98,7 @@ class RPCInterface(Interface):
     @staticmethod
     def to_json(interface):
         r = {
-            "bind_address": f"{interface.host}:{interface.port}",
+            "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",
             "app_protocol": interface.app_protocol.name,
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
@@ -112,10 +119,13 @@ class RPCInterface(Interface):
     def from_json(json):
         interface = RPCInterface()
         interface.transport = json.get("protocol", DEFAULT_TRANSPORT_PROTOCOL)
-        interface.host, interface.port = split_address(json.get("bind_address"))
+        interface.host, interface.port = split_netloc(json.get("bind_address"))
+        LOG.warning(
+            f"Converted {json.get('bind_address')} to {interface.host} and {interface.port}"
+        )
         published_address = json.get("published_address")
         if published_address is not None:
-            interface.public_host, interface.public_port = split_address(
+            interface.public_host, interface.public_port = split_netloc(
                 published_address
             )
         interface.max_open_sessions_soft = json.get(
@@ -172,8 +182,8 @@ class HostSpec:
         pub_host, pub_port = None, None
         if "," in address:
             address, published_address = address.split(",")
-            pub_host, pub_port = split_address(published_address)
-        host, port = split_address(address)
+            pub_host, pub_port = split_netloc(published_address)
+        host, port = split_netloc(address)
         return HostSpec(
             rpc_interfaces={
                 PRIMARY_RPC_INTERFACE: RPCInterface(
