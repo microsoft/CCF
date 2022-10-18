@@ -240,22 +240,12 @@ Discard(m) == messages' = WithoutMessage(m, messages)
 Reply(response, request) ==
     messages' = WithoutMessage(request, WithMessage(response, messages))
 
+HasTypeSignature(e) == e.contentType = TypeSignature
+
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
 MaxCommittableIndex(xlog) ==
-    \* If the log contains messages and has at least one signature message
-    IF Len(xlog) > 0 /\ \E s \in 1..Len(xlog) : xlog[s].contentType = TypeSignature
-    THEN
-    \* Choose that index..
-    CHOOSE x \in 1..Len(xlog) :
-        \* That points to a signature message in log of node i
-        /\ xlog[x].contentType = TypeSignature
-        \* And that is either the largest index in log of i
-        /\ \A y \in 1..Len(xlog) :
-            \/ x >= y
-            \* Or that is only succeeeded by a postfix of unsigned commits
-            \/ xlog[y].contentType /= TypeSignature
-    ELSE 0
+    SelectLastInSeq(xlog, HasTypeSignature)
 
 \* CCF: Returns the term associated with the MaxCommittableIndex(xlog)
 MaxCommittableTerm(xlog) ==
@@ -548,15 +538,9 @@ ChangeConfiguration(i, newConfiguration) ==
 \*    servers agree on the index before it can be seen as committed.
 AdvanceCommitIndex(i) ==
     /\ state[i] = Leader
-    \* Since the below computation is expensive, make sure that there is even
-    \* an entry we can advance to
-    /\ \E log_index \in 1..Len(log[i]) :
-            /\ log_index > commitIndex[i]
-            /\ log[i][log_index].contentType = TypeSignature
     /\ LET
         \* We want to get the smallest such index forward that is a signature
-        new_index == Min( {index \in (commitIndex[i]+1)..Len(log[i]) :
-                                log[i][index].contentType = TypeSignature} )
+        new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]), HasTypeSignature)
         new_log ==
             IF new_index > 1 THEN
                [ j \in 1..new_index |-> log[i][j] ]
