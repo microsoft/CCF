@@ -1377,6 +1377,14 @@ class Network:
         args.previous_service_identity_file = previous_identity
         return args
 
+    def identity(self, name=None):
+        if name is not None:
+            return infra.clients.Identity(
+                os.path.join(self.common_dir, f"{name}_privk.pem"),
+                os.path.join(self.common_dir, f"{name}_cert.pem"),
+                name,
+            )
+
 
 @contextmanager
 def network(
