@@ -28,11 +28,6 @@ function isOperatorProvisioner(memberId) {
 
 // Defines actions that can be passed with sole operator provisioner input.
 function canOperatorProvisionerPass(action) {
-  // Some actions can always be called by operator provisioners.
-  const allowedOperatorProvisionerActions = ["trust_node", "retire_node"];
-  if (allowedOperatorProvisionerActions.includes(action.name)) {
-    return true;
-  }
   // Operator provisioners can add or retire operators.
   return (
     {
