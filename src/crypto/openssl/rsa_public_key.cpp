@@ -130,7 +130,7 @@ namespace crypto
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
 
-  inline std::vector<uint8_t> RSAPublicKey_OpenSSL::bn_bytes(const BIGNUM* bn)
+  std::vector<uint8_t> RSAPublicKey_OpenSSL::bn_bytes(const BIGNUM* bn)
   {
     std::vector<uint8_t> r(BN_num_bytes(bn));
     BN_bn2bin(bn, r.data());
