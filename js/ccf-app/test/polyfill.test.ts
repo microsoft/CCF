@@ -283,26 +283,57 @@ describe("polyfill", function () {
   describe("pemToJwk", function() {
     it("EC", function () {
 
-      // TODO: Pass kid or extras
       // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
+      const my_kid = "my_kid";
       const curves = ["secp256r1", "secp384r1"];
       for (const curve of curves)
       {
         const pair = ccf.generateEcdsaKeyPair(curve);
-        const jwk_pub = ccf.pubPemToJwk(pair.publicKey);
-        console.log(jwk_pub)
-        // assert.equal(jwk_pub.json().kty, "EC");
-        const jwk_priv = ccf.pemToJwk(pair.privateKey);
-        console.log(jwk_priv)
-        // assert.equal(jwk_pub.kty, "EC");
+        {
+          const jwk = ccf.pubPemToJwk(pair.publicKey);
+          assert.equal(jwk.kty, "EC");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.pubPemToJwk(pair.publicKey, my_kid);
+          assert.equal(jwk.kty, "EC");
+          assert.equal(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.pemToJwk(pair.privateKey);
+          assert.equal(jwk.kty, "EC");
+          assert.notExists(jwk.kid);
+        }
+        {
+          const jwk = ccf.pemToJwk(pair.privateKey, my_kid);
+          assert.equal(jwk.kty, "EC");
+          assert.equal(jwk.kid, my_kid);
+        }
       }
     }),
     it("RSA", function () {
+      const my_kid = "my_kid";
       const pair = ccf.generateRsaKeyPair(1024);
-      const jwk_pub = ccf.pubRsaPemToJwk(pair.publicKey);
-      const jwk_priv = ccf.rsaPemToJwk(pair.privateKey);
-      console.log(jwk_pub)
-      console.log(jwk_priv)
+      {
+        const jwk = ccf.pubRsaPemToJwk(pair.publicKey);
+        assert.equal(jwk.kty, "RSA");
+        assert.notEqual(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.pubRsaPemToJwk(pair.publicKey, my_kid);
+        assert.equal(jwk.kty, "RSA");
+        assert.equal(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.rsaPemToJwk(pair.privateKey);
+        assert.equal(jwk.kty, "RSA");
+        assert.notEqual(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.rsaPemToJwk(pair.privateKey, my_kid);
+        assert.equal(jwk.kty, "RSA");
+        assert.equal(jwk.kid, my_kid);
+      }
     })
   }),
   describe("kv", function () {

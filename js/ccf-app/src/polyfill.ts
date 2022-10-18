@@ -343,25 +343,41 @@ class CCFPolyfill implements CCF {
   pubPemToJwk(
     pem: string, kid?: string
   ): JsonWebKeyECPublic {
-    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPublic;
+    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPublic;
+    if (kid !== undefined) {
+      jwk.kid = kid;
+    }
+    return jwk;
   }
 
   pemToJwk(
     pem: string, kid?: string
   ): JsonWebKeyECPrivate {
-    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPrivate;
+    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA) as JsonWebKeyECPrivate;
+    if (kid !== undefined) {
+      jwk.kid = kid;
+    }
+    return jwk;
   }
 
   pubRsaPemToJwk(
     pem: string, kid?: string
   ): JsonWebKeyRSAPublic {
-    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPublic;
+    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPublic;
+    if (kid !== undefined) {
+      jwk.kid = kid;
+    }
+    return jwk;
   }
 
   rsaPemToJwk(
     pem: string, kid?: string
   ): JsonWebKeyRSAPrivate {
-    return rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPrivate;
+    let jwk = rs.KEYUTIL.getJWK(rs.KEYUTIL.getKey(pem) as rs.RSAKey) as JsonWebKeyRSAPrivate;
+    if (kid !== undefined) {
+      jwk.kid = kid;
+    }
+    return jwk;
   }
 }
 
