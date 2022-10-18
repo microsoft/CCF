@@ -1,0 +1,101 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  main:
+    strategy:
+      fail-fast: false
+      matrix:
+        c-compiler: [gcc, clang]
+
+        config:
+        # OpenSSL 1.1.1 (Ubuntu 20.04)
+        - os-image: ubuntu-latest
+          container: ubuntu:20.04
+          crypto-provider: OpenSSL
+
+        # OpenSSL 3.0 (Ubuntu 22.04)
+        - os-image: ubuntu-latest
+          container: ubuntu:22.04
+          crypto-provider: OpenSSL
+        
+        - os-image: ubuntu-latest
+          container: ubuntu:20.04
+          crypto-provider: MbedTLS
+          crypto-provider-version: '2.28.0'
+        
+        - os-image: ubuntu-latest
+          container: ubuntu:20.04
+          crypto-provider: MbedTLS
+          crypto-provider-version: '3.1.0'
+
+        - os-image: ubuntu-latest
+          container: ubuntu:20.04
+          crypto-provider: Test
+
+    name: ${{ matrix.config.crypto-provider }} ${{ matrix.config.crypto-provider-version }} • ${{ matrix.c-compiler }} • ${{ matrix.config.container }}
+
+    runs-on: ${{ matrix.config.os-image }}
+    container: ${{ matrix.config.container }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install build tools
+      run: |
+        set -ex
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y build-essential cmake python3 ${{ matrix.c-compiler }}
+        echo "CC=${{ matrix.c-compiler }}" >> $GITHUB_ENV
+    
+    - name: Install OpenSSL
+      if: matrix.config.crypto-provider == 'OpenSSL'
+      run: apt-get install -y libssl-dev
+
+    - name: Fetch MbedTLS
+      if: matrix.config.crypto-provider == 'MbedTLS'
+      uses: actions/checkout@v3
+      with:
+        repository: ARMmbed/mbedtls
+        ref: v${{ matrix.config.crypto-provider-version }}
+        path: mbedtls
+
+    - name: Install MbedTLS
+      if: matrix.config.crypto-provider == 'MbedTLS'
+      run: |
+        cd mbedtls
+        make -j $(nproc)
+        make install
+
+    - name: Fetch QCBOR
+      uses: actions/checkout@v3
+      with:
+        repository: laurencelundblade/QCBOR
+        path: QCBOR
+
+    - name: Install QCBOR
+      run: |
+        cd QCBOR
+        make -j$(nproc)
+        make install
+
+    - name: Build t_cose
+      run: |
+        set -ex
+        mkdir build
+        cd build
+        cmake -DCRYPTO_PROVIDER=${{ matrix.config.crypto-provider }} ..
+        make -j $(nproc)
+
+    - name: Run OpenSSL example
+      if: matrix.config.crypto-provider == 'OpenSSL'
+      run: build/t_cose_basic_example_ossl
+
+    - name: Run MbedTLS example
+      if: matrix.config.crypto-provider == 'MbedTLS'
+      run: build/t_cose_basic_example_psa
+
+    - name: Run tests
+      run: build/t_cose_test

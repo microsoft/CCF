@@ -1,0 +1,33 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches:
+      - "master"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Doxygen
+      run: sudo apt-get install doxygen
+
+    - name: Run Doxygen
+      run: doxygen doxygen/t_cose_doxyfile
+      
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: doxygen/output/html
+        publish_branch: gh-pages
+        force_orphan: true

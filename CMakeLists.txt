@@ -110,8 +110,8 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 
   target_link_libraries(
-    ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
-                       sss.enclave ccf_endpoints.enclave ccf_kv.enclave
+    ccf.enclave PUBLIC quickjs.enclave http_parser.enclave sss.enclave
+                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave
   )
 
   target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
@@ -206,11 +206,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     ccf.virtual
     PUBLIC ${LINK_LIBCXX}
            -lgcc
-           ccfcrypto.host
            http_parser.host
            quickjs.host
            sss.host
            ccf_endpoints.host
+           ccfcrypto.host
            ccf_kv.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
@@ -346,6 +346,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
     )
@@ -402,7 +403,7 @@ if(BUILD_TESTS)
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
       js_test PRIVATE quickjs.host ccf_kv.host ccf_endpoints.host
-                      http_parser.host
+                      ccfcrypto.host http_parser.host
     )
 
     add_unit_test(
@@ -480,8 +481,14 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-                            ccf_endpoints.host ccf_kv.host quickjs.host
+      frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              sss.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              quickjs.host
     )
 
     add_unit_test(
@@ -495,8 +502,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-              ccf_endpoints.host quickjs.host ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              sss.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              quickjs.host
+              ccf_kv.host
     )
 
     add_unit_test(
@@ -506,8 +518,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-              ccf_endpoints.host ccf_kv.host quickjs.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              sss.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              quickjs.host
     )
 
     add_unit_test(
