@@ -35,7 +35,7 @@ You can also check the specification including reconfiguration as follows:
 
 .. code-block:: bash
 
-    $ ./tlc.sh MCraftWithReconfig.tla -config MCraft.cfg -deadlock
+    $ ./tlc.sh MCraftWithReconfig.tla -config MCraft.cfg
 
 Running TLC on our models can take any time between minutes (for small configurations) and days (especially for the full model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
 
