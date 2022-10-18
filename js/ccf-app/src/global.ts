@@ -437,21 +437,21 @@ export interface CCF {
   generateAesKey(size: number): ArrayBuffer;
 
   /**
-  * @deprecated This method has been moved to ccf.crypto namespace
-  * @see crypto.generateRsaKeyPair
-  */
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateRsaKeyPair
+   */
   generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
 
   /**
-  * @deprecated This method has been moved to ccf.crypto namespace
-  * @see crypto.generateEcdsaKeyPair
-  */
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateEcdsaKeyPair
+   */
   generateEcdsaKeyPair(curve: string): CryptoKeyPair;
 
   /**
-  * @deprecated This method has been moved to ccf.crypto namespace
-  * @see crypto.wrapKey
-  */
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.wrapKey
+   */
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
@@ -459,21 +459,21 @@ export interface CCF {
   ): ArrayBuffer;
 
   /**
-  * @deprecated This method has been moved to ccf.crypto namespace
-  * @see crypto.digest
-  */
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.digest
+   */
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
   /**
-  * @deprecated 
-  * @see crypto.isValidX509CertBundle
-  */
+   * @deprecated
+   * @see crypto.isValidX509CertBundle
+   */
   isValidX509CertBundle(pem: string): boolean;
 
   /**
-  * @deprecated This method has been moved to ccf.crypto namespace
-  * @see crypto.isValidX509CertChain
-  */
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.isValidX509CertChain
+   */
   isValidX509CertChain(chain: string, trusted: string): boolean;
 
   crypto: CCFCrypto;

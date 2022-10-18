@@ -155,7 +155,7 @@ class CCFPolyfill implements CCF {
     },
     generateAesKey(size: number): ArrayBuffer {
       return nodeBufToArrBuf(jscrypto.randomBytes(size / 8));
-    },  
+    },
     generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair {
       const rsaKeyPair = jscrypto.generateKeyPairSync("rsa", {
         modulusLength: size,
@@ -279,7 +279,9 @@ class CCFPolyfill implements CCF {
             return [];
           }
           const pems = items.slice(0, -1).map((p) => p + sep);
-          const arr = pems.map((pem) => new (<any>jscrypto).X509Certificate(pem));
+          const arr = pems.map(
+            (pem) => new (<any>jscrypto).X509Certificate(pem)
+          );
           return arr;
         };
         const certsChain = toX509Array(chain);
@@ -309,7 +311,7 @@ class CCFPolyfill implements CCF {
         console.error(`certificate chain validation failed: ${e.message}`);
         return false;
       }
-    }
+    },
   };
 
   strToBuf(s: string): ArrayBuffer {

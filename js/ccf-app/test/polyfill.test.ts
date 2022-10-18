@@ -38,7 +38,10 @@ describe("polyfill", function () {
       assert.equal(ccf.crypto.generateAesKey(128).byteLength, 16);
       assert.equal(ccf.crypto.generateAesKey(192).byteLength, 24);
       assert.equal(ccf.crypto.generateAesKey(256).byteLength, 32);
-      assert.notDeepEqual(ccf.crypto.generateAesKey(256), ccf.crypto.generateAesKey(256));
+      assert.notDeepEqual(
+        ccf.crypto.generateAesKey(256),
+        ccf.crypto.generateAesKey(256)
+      );
     });
   });
   describe("generateRsaKeyPair", function () {
