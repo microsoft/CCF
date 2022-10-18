@@ -446,8 +446,32 @@ def test_operator_provisioner_proposals_and_votes(network, args):
     )
 
     # Create a proposal to assign a member as an operator
-    operator = network.consortium.get_member_by_local_id("member1")
+    operator = infra.member.Member(
+        "operator_provisioner",
+        infra.network.EllipticCurve.secp256r1,
+        network.consortium.common_dir,
+        network.consortium.share_script,
+        is_recovery_member=False,
+        key_generator=network.consortium.key_generator,
+        authenticate_session=network.consortium.authenticate_session,
+    )
+
     set_operator, _ = network.consortium.make_proposal(
+        "set_member",
+        cert=open(
+            os.path.join(
+                network.consortium.common_dir, f"operator_provisioner_cert.pem"
+            ),
+            encoding="utf-8",
+        ).read(),
+        member_data={"is_operator": True},
+    )
+
+    remove_operator, _ = network.consortium.make_proposal(
+        "remove_member", member_id=str(operator.service_id)
+    )
+
+    illegal_action, _ = network.consortium.make_proposal(
         "set_member_data",
         member_id=operator.service_id,
         member_data={"is_operator": True},
@@ -455,16 +479,16 @@ def test_operator_provisioner_proposals_and_votes(network, args):
 
     # Check an operator provisioner can provision operators without a majority of votes
     with node.client(None, "member0") as c:
+        # Test set_member
         r = c.post("/gov/proposals", set_operator)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
-
-    # Reset the member to an operator for other tests
-    network.consortium.set_member_data(
-        node,
-        operator_provisioner.service_id,
-        member_data={"is_operator": True},
-    )
+        # Test remove_member
+        # r = c.post("/gov/proposals", remove_operator)
+        # assert r.status_code == 200, r.body.text()
+        # Test an action provisioners shouldn't be allowed to make
+        # r = c.post("/gov/proposals", illegal_action)
+        # assert r.status_code != 200, r.body.text()
 
 
 @reqs.description("Test actions")
