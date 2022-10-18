@@ -287,9 +287,7 @@ class Network:
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
-            target_rpc_address=infra.interfaces.make_address(
-                target_node.get_public_rpc_host(), target_node.get_public_rpc_port()
-            ),
+            target_rpc_address=target_node.get_public_rpc_address(),
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
@@ -1378,6 +1376,14 @@ class Network:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
+
+    def identity(self, name=None):
+        if name is not None:
+            return infra.clients.Identity(
+                os.path.join(self.common_dir, f"{name}_privk.pem"),
+                os.path.join(self.common_dir, f"{name}_cert.pem"),
+                name,
+            )
 
 
 @contextmanager
