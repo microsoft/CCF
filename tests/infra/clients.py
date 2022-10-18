@@ -299,10 +299,9 @@ class CurlClient:
     """
 
     def __init__(
-        self, host, port, ca=None, session_auth=None, signing_auth=None, **kwargs
+        self, hostname, ca=None, session_auth=None, signing_auth=None, **kwargs
     ):
-        self.host = host
-        self.port = port
+        self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
@@ -323,7 +322,7 @@ class CurlClient:
             else:
                 cmd = ["curl"]
 
-            url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
+            url = f"{self.protocol}://{self.hostname}{request.path}"
 
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
@@ -404,16 +403,14 @@ class RequestClient:
 
     def __init__(
         self,
-        host: str,
-        port: int,
+        hostname: str,
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
-        self.host = host
-        self.port = port
+        self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
@@ -491,7 +488,7 @@ class RequestClient:
         try:
             response = self.session.request(
                 request.http_verb,
-                url=f"{self.protocol}://{self.host}:{self.port}{request.path}",
+                url=f"{self.protocol}://{self.hostname}{request.path}",
                 auth=auth,
                 headers=extra_headers,
                 follow_redirects=request.allow_redirects,
@@ -551,7 +548,7 @@ class CCFClient:
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
-        self.hostname = f"{host}:{port}"
+        self.hostname = infra.interfaces.make_address(host, port)
         self.name = f"[{self.hostname}]"
         self.description = description or self.name
         self.is_connected = False
@@ -560,11 +557,11 @@ class CCFClient:
 
         if curl or os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(
-                host, port, ca, session_auth, signing_auth, **kwargs
+                self.hostname, ca, session_auth, signing_auth, **kwargs
             )
         else:
             self.client_impl = RequestClient(
-                host, port, ca, session_auth, signing_auth, common_headers, **kwargs
+                self.hostname, ca, session_auth, signing_auth, common_headers, **kwargs
             )
 
     def _response(self, response: Response) -> Response:

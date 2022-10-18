@@ -1,0 +1,88 @@
+# Makefile -- UNIX-style make for no-crypto test config for t_cose
+#
+# Copyright (c) 2019-2022, Laurence Lundblade. All rights reserved.
+# Copyright (c) 2020, Michael Eckel, Fraunhofer SIT.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# See BSD-3-Clause license in README.md
+#
+
+# ---- comment ----
+# This t_cose makefile is for test crypto
+# It has no dependency on any external crypto library, but doesn't
+# support real ECDSA signing. The only external code needed is QCBOR.
+
+
+# ---- QCBOR location ----
+# Adjust this to the location of QCBOR in your build environment
+#QCBOR_INC= -I ../../QCBOR/master/inc
+#QCBOR_LIB=../../QCBOR/master/libqcbor.a
+QCBOR_INC= -I/usr/include -I/usr/local/include
+QCBOR_LIB= -l qcbor
+
+
+# ---- crypto configuration -----
+# Uses only the internal Brad Conte hash implementation that is bundled with t_cose
+CRYPTO_INC=-I crypto_adapters/b_con_hash
+CRYPTO_LIB=
+CRYPTO_CONFIG_OPTS=-DT_COSE_USE_B_CON_SHA256 
+CRYPTO_OBJ=crypto_adapters/t_cose_test_crypto.o crypto_adapters/b_con_hash/sha256.o
+CRYPTO_TEST_OBJ=
+
+
+# ---- compiler configuration -----
+# Optimize for size
+C_OPTS=-Os -fPIC
+
+
+# ---- T_COSE Config and test options ----
+TEST_CONFIG_OPTS=-DT_COSE_ENABLE_HASH_FAIL_TEST -DT_COSE_DISABLE_SIGN_VERIFY_TESTS
+TEST_OBJ=test/t_cose_test.o test/run_tests.o test/t_cose_make_test_messages.o $(CRYPTO_TEST_OBJ)
+
+
+# ---- the main body that is invariant ----
+INC=-I inc -I test -I src
+ALL_INC=$(CRYPTO_INC) $(QCBOR_INC) $(INC) 
+CFLAGS=$(CMD_LINE) $(ALL_INC) $(C_OPTS) $(TEST_CONFIG_OPTS) $(CRYPTO_CONFIG_OPTS)
+
+SRC_OBJ=src/t_cose_sign1_verify.o src/t_cose_sign1_sign.o src/t_cose_util.o src/t_cose_parameters.o
+
+.PHONY: all clean
+
+all: libt_cose.a t_cose_test
+
+
+libt_cose.a: $(SRC_OBJ) $(CRYPTO_OBJ)
+	ar -r $@ $^
+
+libt_cose.so: $(SRC_OBJ) $(CRYPTO_OBJ)
+	cc $^ $(CFLAGS) -dead_strip -o $@ -shared $(QCBOR_LIB) $(CRYPTO_LIB)
+
+t_cose_test: main.o $(TEST_OBJ) libt_cose.a 
+	cc -o $@ $^ $(QCBOR_LIB) $(CRYPTO_LIB)
+
+
+clean:
+	rm -f $(SRC_OBJ) $(TEST_OBJ) $(CRYPTO_OBJ) libt_cose.a libt_cose.so t_cose_test main.o
+
+
+# ---- public headers -----
+PUBLIC_INTERFACE=inc/t_cose/t_cose_common.h inc/t_cose/t_cose_sign1_sign.h inc/t_cose/t_cose_sign1_verify.h
+
+# ---- source dependecies -----
+src/t_cose_util.o: src/t_cose_util.h src/t_cose_standard_constants.h inc/t_cose/t_cose_common.h src/t_cose_crypto.h
+src/t_cose_sign1_verify.o: inc/t_cose/t_cose_sign1_verify.h src/t_cose_crypto.h src/t_cose_util.h src/t_cose_parameters.h inc/t_cose/t_cose_common.h src/t_cose_standard_constants.h
+src/t_cose_parameters.o: src/t_cose_parameters.h src/t_cose_standard_constants.h inc/t_cose/t_cose_sign1_verify.h inc/t_cose/t_cose_common.h
+src/t_cose_sign1_sign.o: inc/t_cose/t_cose_sign1_sign.h src/t_cose_standard_constants.h src/t_cose_crypto.h src/t_cose_util.h inc/t_cose/t_cose_common.h 
+
+
+# ---- test dependencies -----
+test/t_cose_test.o: test/t_cose_test.h test/t_cose_make_test_messages.h src/t_cose_crypto.h $(PUBLIC_INTERFACE)
+test/t_cose_make_test_messages.o: test/t_cose_make_test_messages.h inc/t_cose/t_cose_sign1_sign.h inc/t_cose/t_cose_common.h src/t_cose_standard_constants.h src/t_cose_crypto.h src/t_cose_util.h
+test/run_test.o: test/run_test.h test/t_cose_test.h test/t_cose_hash_fail_test.h
+
+
+# ---- crypto dependencies ----
+crypto_adapters/t_cose_test_crypto.o: src/t_cose_crypto.h inc/t_cose/t_cose_common.h src/t_cose_standard_constants.h inc/t_cose/q_useful_buf.h crypto_adapters/b_con_hash/sha256.h
+crypto_adapters/b_con_hash/sha256.o: crypto_adapters/b_con_hash/sha256.h
