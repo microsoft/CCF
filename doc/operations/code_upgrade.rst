@@ -1,8 +1,6 @@
 Code Upgrade
 ============
 
-.. note:: Refer to :doc:`/operations/code_upgrade_1x` for specific guidelines on how to upgrade a 1.x CCF service to 2.0.
-
 This page describes how operators/members can upgrade a live CCF service to a new version with minimal downtime.
 
 Reasons for running the code upgrade procedure include:
