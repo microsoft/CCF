@@ -17,3 +17,4 @@ httpx[http2] == 0.23.*
 locust
 pyOpenSSL
 grpcio-tools
+cose
