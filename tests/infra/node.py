@@ -358,7 +358,7 @@ class Node:
             addresses = json.load(f)
 
         for interface_name, resolved_address in addresses.items():
-            host, port = infra.interfaces.split_address(resolved_address)
+            host, port = infra.interfaces.split_netloc(resolved_address)
             interface = interfaces[interface_name]
             if self.remote_shim != infra.remote_shim.DockerShim:
                 assert (
@@ -561,6 +561,14 @@ class Node:
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
         return self.host.rpc_interfaces[interface_name].public_port
+
+    def get_public_rpc_address(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
+        interface = self.host.rpc_interfaces[interface_name]
+        return infra.interfaces.make_address(
+            interface.public_host, interface.public_port
+        )
 
     def retrieve_self_signed_cert(self, *args, **kwargs):
         # Retrieve and overwrite node self-signed certificate in common directory
