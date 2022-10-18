@@ -47,31 +47,6 @@ if(ENABLE_V8)
       ${js_v8_dir}/tmpl/crypto.cpp
   )
 
-  if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
-    add_library(js_v8_base.virtual STATIC ${js_v8_src})
-    add_san(js_v8_base.virtual)
-    add_warning_checks(js_v8_base.virtual)
-    target_include_directories(
-      js_v8_base.virtual PRIVATE ${js_v8_dir} ${v8_virtual_include_dir}
-    )
-    target_link_libraries(
-      js_v8_base.virtual PUBLIC ccf.virtual ${v8_virtual_lib}
-    )
-    target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
-    target_compile_definitions(
-      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                _LIBCPP_HAS_THREAD_API_PTHREAD ${v8_defs}
-    )
-    set_property(
-      TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-    )
-    install(
-      TARGETS js_v8_base.virtual
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-
   if(COMPILE_TARGET STREQUAL "sgx")
     add_enclave_library(
       v8_oe_stubs.enclave ${CCF_DIR}/src/apps/js_v8/v8_oe_stubs.cpp
@@ -85,10 +60,58 @@ if(ENABLE_V8)
     target_link_libraries(
       js_v8_base.enclave PUBLIC ccf.enclave ${v8_sgx_lib} v8_oe_stubs.enclave
     )
-    target_compile_definitions(js_v8_base.enclave PUBLIC ${v8_defs})
+    target_compile_definitions(js_v8_base.enclave PUBLIC ${v8_defs} PLATFORM_SGX)
     add_lvi_mitigations(js_v8_base.enclave)
     install(
       TARGETS js_v8_base.enclave v8_oe_stubs.enclave
+      EXPORT ccf
+      DESTINATION lib
+    )
+
+  elseif(COMPILE_TARGET STREQUAL "snp")
+    add_library(js_v8_base.virtual STATIC ${js_v8_src})
+    add_san(js_v8_base.virtual)
+    add_warning_checks(js_v8_base.virtual)
+    target_include_directories(
+      js_v8_base.virtual PRIVATE ${js_v8_dir} ${v8_virtual_include_dir}
+    )
+    target_link_libraries(
+      js_v8_base.virtual PUBLIC ccf.virtual ${v8_virtual_lib}
+    )
+    target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
+    target_compile_definitions(
+      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                _LIBCPP_HAS_THREAD_API_PTHREAD ${v8_defs} PLATFORM_SNP
+    )
+    set_property(
+      TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+    )
+    install(
+      TARGETS js_v8_base.virtual
+      EXPORT ccf
+      DESTINATION lib
+    )
+
+  elseif(COMPILE_TARGET STREQUAL "virtual")
+    add_library(js_v8_base.virtual STATIC ${js_v8_src})
+    add_san(js_v8_base.virtual)
+    add_warning_checks(js_v8_base.virtual)
+    target_include_directories(
+      js_v8_base.virtual PRIVATE ${js_v8_dir} ${v8_virtual_include_dir}
+    )
+    target_link_libraries(
+      js_v8_base.virtual PUBLIC ccf.virtual ${v8_virtual_lib}
+    )
+    target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
+    target_compile_definitions(
+      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                _LIBCPP_HAS_THREAD_API_PTHREAD ${v8_defs} PLATFORM_VIRTUAL
+    )
+    set_property(
+      TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+    )
+    install(
+      TARGETS js_v8_base.virtual
       EXPORT ccf
       DESTINATION lib
     )

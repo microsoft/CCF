@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifndef CCHOST_SUPPORTS_VIRTUAL
+#if !defined(PLATFORM_VIRTUAL) && !defined(PLATFORM_SNP)
 #  error Should only be included in cchost builds with virtual support
 #endif
 
@@ -33,7 +33,7 @@ T get_enclave_exported_function(
   return (T)sym;
 }
 
-#ifndef CCHOST_SUPPORTS_SGX
+#ifndef PLATFORM_SGX
 // If this build does not also include OE definitions, then recreate them here.
 // It should not matter if these do not match precisely OE's, so long as they
 // can be used consistently by the virtual build.

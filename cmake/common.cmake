@@ -260,10 +260,11 @@ target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
 target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
 
 if(COMPILE_TARGET STREQUAL "sgx")
-  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_SGX)
-endif()
-if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
-  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_VIRTUAL)
+  target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
+elseif(COMPILE_TARGET STREQUAL "snp")
+  target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  target_compile_definitions(cchost PUBLIC PLATFORM_VIRTUAL)
   target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
 endif()
 
@@ -388,16 +389,31 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
-endif()
-if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
+elseif(COMPILE_TARGET STREQUAL "snp")
   add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.virtual)
   target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                  _LIBCPP_HAS_THREAD_API_PTHREAD
+                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
+  set_property(
+    TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  install(
+    TARGETS js_openenclave.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
+  add_san(js_openenclave.virtual)
+  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
+  target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
+    target_compile_definitions(
+      js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                    _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL)
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
@@ -419,8 +435,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
-endif()
-if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
+elseif(COMPILE_TARGET STREQUAL "snp")
   add_library(
     js_generic_base.virtual STATIC
     ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
@@ -431,7 +446,28 @@ if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                   _LIBCPP_HAS_THREAD_API_PTHREAD
+                                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+  )
+  set_property(
+    TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  install(
+    TARGETS js_generic_base.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  add_library(
+    js_generic_base.virtual STATIC
+    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
+  )
+  add_san(js_generic_base.virtual)
+  add_warning_checks(js_generic_base.virtual)
+  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
+  target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL
   )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON

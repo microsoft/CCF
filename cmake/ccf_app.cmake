@@ -140,6 +140,8 @@ function(add_ccf_app name)
 
     add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
 
+    target_compile_definitions(${enc_name} PUBLIC PLATFORM_SGX)
+
     target_include_directories(
       ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
@@ -157,13 +159,53 @@ function(add_ccf_app name)
     if(PARSED_ARGS_DEPS)
       add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
     endif()
-  endif()
 
-  if(COMPILE_TARGET STREQUAL "snp" OR COMPILE_TARGET STREQUAL "virtual")
+  elseif(COMPILE_TARGET STREQUAL "snp")
     # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 
     add_library(${virt_name} SHARED ${PARSED_ARGS_SRCS})
+
+    target_compile_definitions(${virt_name} PUBLIC PLATFORM_SNP)
+
+    target_include_directories(
+      ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+    add_warning_checks(${virt_name})
+
+    target_link_libraries(
+      ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
+    )
+
+    if(NOT SAN)
+      target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
+    endif()
+
+    target_link_options(
+      ${virt_name} PRIVATE
+      LINKER:--undefined=enclave_create_node,--undefined=enclave_run
+    )
+
+    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_san(${virt_name})
+
+    add_dependencies(${name} ${virt_name})
+    if(PARSED_ARGS_DEPS)
+      add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
+    endif()
+
+    if(${PARSED_ARGS_INSTALL_LIBS})
+      install(TARGETS ${virt_name} DESTINATION lib)
+    endif()
+
+  elseif(COMPILE_TARGET STREQUAL "virtual")
+    # Build a virtual enclave, loaded as a shared library without OE
+    set(virt_name ${name}.virtual)
+
+    add_library(${virt_name} SHARED ${PARSED_ARGS_SRCS})
+
+    target_compile_definitions(${virt_name} PUBLIC PLATFORM_VIRTUAL)
 
     target_include_directories(
       ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}

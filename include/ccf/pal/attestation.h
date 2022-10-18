@@ -29,7 +29,21 @@ namespace ccf::pal
     const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#if defined(PLATFORM_VIRTUAL)
+
+  static void generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb,
+    const snp::EndorsementsServers& endorsements_servers = {})
+  {
+    endorsement_cb(
+      {
+        .format = QuoteFormat::insecure_virtual,
+      },
+      {});
+  }
+
+#elif defined(PLATFORM_SNP)
 
   static void generate_quote(
     attestation_report_data& report_data,
@@ -37,16 +51,6 @@ namespace ccf::pal
     const snp::EndorsementsServers& endorsements_servers = {})
   {
     QuoteInfo node_quote_info = {};
-    auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
-
-    // If there is no SEV-SNP device, assume we are using insecure virtual
-    // quotes
-    if (!is_sev_snp)
-    {
-      node_quote_info.format = QuoteFormat::insecure_virtual;
-      endorsement_cb(node_quote_info, {});
-      return;
-    }
 
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
     int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
@@ -93,32 +97,22 @@ namespace ccf::pal
           *quote, endorsements_servers));
     }
   }
+#endif
+
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
   static void verify_quote(
     const QuoteInfo& quote_info,
     attestation_measurement& unique_id,
     attestation_report_data& report_data)
   {
-    auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
-
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
-      if (is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify virtual quote if node is SEV-SNP");
-      }
       unique_id = {};
       report_data = {};
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
-      if (!is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify SEV-SNP quote if node is virtual");
-      }
-
       auto quote =
         *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
 
@@ -193,17 +187,8 @@ namespace ccf::pal
     }
     else
     {
-      if (is_sev_snp)
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot verify non SEV-SNP attestation report: {}",
-          quote_info.format));
-      }
-      else
-      {
-        throw std::logic_error(
-          "Cannot verify real attestation report on virtual build");
-      }
+      throw std::logic_error(
+        "Cannot verify real attestation report on virtual/snp build");
     }
   }
 
