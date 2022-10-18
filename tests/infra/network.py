@@ -431,6 +431,10 @@ class Network:
         self._setup_common_folder(args.constitution)
 
         mc = max(1, args.initial_member_count)
+        assert (
+            mc >= args.initial_trusted_authority_count + args.initial_operator_count
+        ), f"Not enough members ({mc}) for the set amount of trusted authorities and operators"
+
         initial_members_info = []
         for i in range(mc):
             member_data = None
