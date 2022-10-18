@@ -35,11 +35,21 @@ steps:
       set -ex
       unsafe_build=$(grep unsafe /tmp/install_prefix) || true
       if [[ -n "$unsafe_build" ]]; then
-        ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON
+        ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGETS=sgx
       else
-        ./tests/test_install_build.sh
+        ./tests/test_install_build.sh -DCOMPILE_TARGETS=sgx
       fi
-    displayName: Test building a sample against installed CCF
+    displayName: Test building a sample against installed CCF (SGX)
+
+  - script: |
+      set -ex
+      unsafe_build=$(grep unsafe /tmp/install_prefix) || true
+      if [[ -n "$unsafe_build" ]]; then
+        ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGETS=virtual
+      else
+        ./tests/test_install_build.sh -DCOMPILE_TARGETS=virtual
+      fi
+    displayName: Test building a sample against installed CCF (Virtual)
 
   - task: PublishPipelineArtifact@1
     inputs:
