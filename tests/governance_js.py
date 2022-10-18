@@ -432,17 +432,17 @@ def test_operator_proposals_and_votes(network, args):
     return network
 
 
-@reqs.description("Test trusted authority proposals")
-def test_trusted_authority_proposals_and_votes(network, args):
+@reqs.description("Test operator provisioner proposals")
+def test_operator_provisioner_proposals_and_votes(network, args):
 
     node = network.find_random_node()
 
-    # Assign one member as a trusted authority
-    trusted_authority = network.consortium.get_member_by_local_id("member0")
+    # Assign one member as an operator provisioner
+    operator_provisioner = network.consortium.get_member_by_local_id("member0")
     network.consortium.set_member_data(
         node,
-        trusted_authority.service_id,
-        member_data={"is_trusted_authority": True},
+        operator_provisioner.service_id,
+        member_data={"is_operator_provisioner": True},
     )
 
     # Create a proposal to assign a member as an operator
@@ -453,7 +453,7 @@ def test_trusted_authority_proposals_and_votes(network, args):
         member_data={"is_operator": True},
     )
 
-    # Check a trusted authority can provision operators without a majority of votes
+    # Check an operator provisioner can provision operators without a majority of votes
     with node.client(None, "member0") as c:
         r = c.post("/gov/proposals", set_operator)
         assert r.status_code == 200, r.body.text()
@@ -462,7 +462,7 @@ def test_trusted_authority_proposals_and_votes(network, args):
     # Reset the member to an operator for other tests
     network.consortium.set_member_data(
         node,
-        trusted_authority.service_id,
+        operator_provisioner.service_id,
         member_data={"is_operator": True},
     )
 

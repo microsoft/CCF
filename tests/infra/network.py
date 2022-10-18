@@ -432,15 +432,18 @@ class Network:
 
         mc = max(1, args.initial_member_count)
         assert (
-            mc >= args.initial_trusted_authority_count + args.initial_operator_count
-        ), f"Not enough members ({mc}) for the set amount of trusted authorities and operators"
+            mc >= args.initial_operator_provisioner_count + args.initial_operator_count
+        ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
 
         initial_members_info = []
         for i in range(mc):
             member_data = None
-            if i < args.initial_trusted_authority_count:
-                member_data = {"is_trusted_authority": True}
-            elif i < args.initial_trusted_authority_count + args.initial_operator_count:
+            if i < args.initial_operator_provisioner_count:
+                member_data = {"is_operator_provisioner": True}
+            elif (
+                i
+                < args.initial_operator_provisioner_count + args.initial_operator_count
+            ):
                 member_data = {"is_operator": True}
             initial_members_info += [
                 (

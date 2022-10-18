@@ -21,19 +21,19 @@ function isOperator(memberId) {
   return getMemberInfo(memberId).member_data?.is_operator ?? false;
 }
 
-// Defines which of the members are trusted authorities.
-function isTrustedAuthority(memberId) {
-  return getMemberInfo(memberId).member_data?.is_trusted_authority ?? false;
+// Defines which of the members are operator provisioners.
+function isOperatorProvisioner(memberId) {
+  return getMemberInfo(memberId).member_data?.is_operator_provisioner ?? false;
 }
 
-// Defines actions that can be passed with sole trusted authority input.
-function canTrustedAuthorityPass(action) {
-  // Some actions can always be called by trusted authorities.
-  const allowedTrustedAuthorityActions = ["trust_node", "retire_node"];
-  if (allowedTrustedAuthorityActions.includes(action.name)) {
+// Defines actions that can be passed with sole operator provisioner input.
+function canOperatorProvisionerPass(action) {
+  // Some actions can always be called by operator provisioners.
+  const allowedOperatorProvisionerActions = ["trust_node", "retire_node"];
+  if (allowedOperatorProvisionerActions.includes(action.name)) {
     return true;
   }
-  // Trusted authorities can add or retire operators.
+  // Operator provisioners can add or retire operators.
   return (
     {
       set_member_data: () => action.args["member_data"]?.is_operator ?? false,
@@ -100,10 +100,10 @@ export function resolve(proposal, proposer_id, votes) {
     }
   }
 
-  // If the node is a trusted authority, strictly enforce what proposals it can
+  // If the node is an operator provisioner, strictly enforce what proposals it can
   // make
-  if (isTrustedAuthority(proposer_id)) {
-    return actions.every(canTrustedAuthorityPass) ? "Accepted" : "Rejected";
+  if (isOperatorProvisioner(proposer_id)) {
+    return actions.every(canOperatorProvisionerPass) ? "Accepted" : "Rejected";
   }
 
   // For all other proposals (i.e. the real ones), use member
@@ -116,7 +116,7 @@ export function resolve(proposal, proposer_id, votes) {
     const info = ccf.bufToJsonCompatible(v);
     if (
       info.status === "Active" &&
-      !isTrustedAuthority(memberId) &&
+      !isOperatorProvisioner(memberId) &&
       !isOperator(memberId)
     ) {
       activeMemberCount++;

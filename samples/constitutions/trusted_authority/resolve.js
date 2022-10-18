@@ -21,19 +21,19 @@ function isOperator(memberId) {
   return getMemberInfo(memberId).member_data?.is_operator ?? false;
 }
 
-// Defines which of the members are trusted authorities.
-function isTrustedAuthority(memberId) {
-  return getMemberInfo(memberId).member_data?.is_trusted_authority ?? false;
+// Defines which of the members are operator provisioners.
+function isOperatorProvisioner(memberId) {
+  return getMemberInfo(memberId).member_data?.is_operator_provisioner ?? false;
 }
 
-// Defines actions that can be passed with sole trusted authority input.
-function canTrustedAuthorityPass(action) {
-  // Some actions can always be called by trusted authorities.
-  const allowedTrustedAuthorityActions = ["trust_node", "retire_node"];
-  if (allowedTrustedAuthorityActions.includes(action.name)) {
+// Defines actions that can be passed with sole operator provisioner input.
+function canOperatorProvisionerPass(action) {
+  // Some actions can always be called by operator provisioners.
+  const allowedOperatorProvisionerActions = ["trust_node", "retire_node"];
+  if (allowedOperatorProvisionerActions.includes(action.name)) {
     return true;
   }
-  // Trusted authorities can add or retire operators.
+  // Operator provisioners can add or retire operators.
   return (
     {
       set_member_data: () => action.args["member_data"]?.is_operator ?? false,
@@ -46,26 +46,26 @@ function canTrustedAuthorityPass(action) {
 export function resolve(proposal, proposerId, votes) {
   const actions = JSON.parse(proposal)["actions"];
 
-  // If the node is a trusted authority, strictly enforce what proposals it can
+  // If the node is an operator provisioner, strictly enforce what proposals it can
   // make
-  if (isTrustedAuthority(proposer_id)) {
-    return actions.every(canTrustedAuthorityPass) ? "Accepted" : "Rejected";
+  if (isOperatorProvisioner(proposer_id)) {
+    return actions.every(canOperatorProvisionerPass) ? "Accepted" : "Rejected";
   }
 
   // Count member votes.
   const memberVoteCount = votes.filter(
     (v) =>
-      v.vote && !isTrustedAuthority(v.member_id) && !isOperator(v.member_id)
+      v.vote && !isOperatorProvisioner(v.member_id) && !isOperator(v.member_id)
   ).length;
 
-  // Count active members, excluding trusted authorities and operators.
+  // Count active members, excluding operator provisioners and operators.
   let activeMemberCount = 0;
   ccf.kv["public:ccf.gov.members.info"].forEach((value, key) => {
     const memberId = ccf.bufToStr(key);
     const info = ccf.bufToJsonCompatible(value);
     if (
       info.status === "Active" &&
-      !isTrustedAuthority(memberId) &&
+      !isOperatorProvisioner(memberId) &&
       !isOperator(memberId)
     ) {
       activeMemberCount++;
