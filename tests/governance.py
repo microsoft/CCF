@@ -21,6 +21,7 @@ import governance_history
 import tempfile
 import infra.interfaces
 import signing
+import infra.log_capture
 
 from loguru import logger as LOG
 
@@ -684,6 +685,8 @@ if __name__ == "__main__":
         )
 
     cr = ConcurrentRunner(add)
+
+    infra.log_capture.COLORS = False
 
     cr.add(
         "session_auth",
