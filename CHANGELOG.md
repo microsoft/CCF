@@ -1717,3 +1717,4 @@ Initial pre-release
 [unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased
 [3.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev4
 [3.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev6
+[3.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev7
