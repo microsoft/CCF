@@ -55,6 +55,9 @@ endif()
 function(add_lvi_mitigations name)
   if(LVI_MITIGATIONS)
     apply_lvi_mitigation(${name})
+    # Necessary to make sure Spectre mitigations are applied until
+    # https://github.com/openenclave/openenclave/issues/4641 is fixed
+    target_link_libraries(${name} PRIVATE openenclave::oecore)
   endif()
 endfunction()
 
