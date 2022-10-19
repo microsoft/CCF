@@ -110,8 +110,14 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_link_libraries(
-    ccf.enclave PUBLIC quickjs.enclave http_parser.enclave sss.enclave
-                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave ravl.enclave
+    ccf.enclave
+    PUBLIC quickjs.enclave
+           http_parser.enclave
+           sss.enclave
+           ccf_endpoints.enclave
+           ccfcrypto.enclave
+           ccf_kv.enclave
+           ravl.enclave
   )
 
   target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)

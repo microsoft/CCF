@@ -715,7 +715,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>
   )
   if(LVI_MITIGATIONS)
-    target_link_libraries(ravl.enclave INTERFACE openenclave::oecryptoopenssl-lvi-cfg)
+    target_link_libraries(
+      ravl.enclave INTERFACE openenclave::oecryptoopenssl-lvi-cfg
+    )
   else()
     target_link_libraries(ravl.enclave INTERFACE openenclave::oecryptoopenssl)
   endif()
