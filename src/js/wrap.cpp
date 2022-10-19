@@ -1666,7 +1666,8 @@ namespace ccf::js
       "bufToJsonCompatible",
       JS_NewCFunction(
         ctx, js_buf_to_json_compatible, "bufToJsonCompatible", 1));
-    /* Moved to ccf.crypto namespace. Only left here until this is deprecated */
+    /* Moved to ccf.crypto namespace and now deprecated. Can be removed in 4.x
+     */
     JS_SetPropertyStr(
       ctx,
       ccf,
@@ -1699,7 +1700,7 @@ namespace ccf::js
       "isValidX509CertChain",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
-    /* End of moved to crypto */
+    /* End of moved to ccf.crypto */
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     JS_SetPropertyStr(
