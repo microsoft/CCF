@@ -681,7 +681,7 @@ class Consortium:
         new_host_data,
     ):
         proposal_body, careful_vote = self.make_proposal(
-            "add_host_data",
+            "add_snp_host_data",
             security_policy=new_security_policy,
             host_data=new_host_data,
         )
@@ -690,7 +690,7 @@ class Consortium:
 
     def retire_host_data(self, remote_node, host_data):
         proposal_body, careful_vote = self.make_proposal(
-            "remove_host_data",
+            "remove_snp_host_data",
             host_data=host_data,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)

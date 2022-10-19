@@ -944,7 +944,7 @@ const actions = new Map([
     ),
   ],
   [
-    "add_host_data",
+    "add_snp_host_data",
     new Action(
       function (args) {
         checkType(args.security_policy, "string", "security_policy");
@@ -981,7 +981,7 @@ const actions = new Map([
     ),
   ],
   [
-    "remove_host_data",
+    "remove_snp_host_data",
     new Action(
       function (args) {
         checkType(

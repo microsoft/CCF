@@ -13,6 +13,6 @@ namespace ccf
   using HostDataMap = ServiceMap<HostData, HostDataMetadata>;
   namespace Tables
   {
-    static constexpr auto HOST_DATA = "public:ccf.gov.nodes.host_data";
+    static constexpr auto HOST_DATA = "public:ccf.gov.nodes.snp.host_data";
   }
 }
