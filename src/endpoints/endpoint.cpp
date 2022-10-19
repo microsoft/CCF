@@ -26,7 +26,7 @@ namespace ccf::endpoints
         using namespace ds::openapi;
 
         auto& rb = request_body(path_operation(
-          ds::openapi::path(document, endpoint.api_uri_path),
+          ds::openapi::path(document, endpoint.full_uri_path),
           http_verb.value()));
         schema(media_type(rb, http::headervalues::contenttype::JSON)) =
           endpoint.params_schema;
@@ -52,7 +52,7 @@ namespace ccf::endpoints
         using namespace ds::openapi;
         auto& r = response(
           path_operation(
-            ds::openapi::path(document, endpoint.api_uri_path),
+            ds::openapi::path(document, endpoint.full_uri_path),
             http_verb.value()),
           endpoint.success_status);
 
@@ -76,7 +76,7 @@ namespace ccf::endpoints
       LOG_FATAL_FMT(
         "Can't install this endpoint ({}) - it is not associated with an "
         "installer",
-        api_uri_path);
+        full_uri_path);
     }
     else
     {

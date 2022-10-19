@@ -633,6 +633,8 @@ def run(args):
                     network, args, from_snapshot=False
                 )
             else:
+                # Vary nodes certificate elliptic curve
+                args.curve_id = infra.network.EllipticCurve.secp256r1
                 network = test_recover_service(network, args, from_snapshot=False)
 
             for node in network.get_joined_nodes():

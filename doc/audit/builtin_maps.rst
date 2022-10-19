@@ -122,7 +122,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
-Versions of the code allowed to join the current network.
+Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`, or measurement of the initial VM pages on :doc:`SNP <../operations/platforms/snp>`.
 
 **Key** MRENCLAVE, represented as a base64 string.
 
@@ -144,9 +144,9 @@ Versions of the code allowed to join the current network.
 .. note:: On versions ``3.0.0-dev1`` and below, value was an enum with one possible value ``ALLOWED_TO_JOIN``
 
 ``nodes.security_policies``
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Security policies that nodes can run and join the current network.
+Security policies that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
 
 **Key** Security Policy Digest: Hash of the security policy string which is reported by the SNP attestation.
 
@@ -256,6 +256,18 @@ JavaScript engine version of the module cache, accessible by JavaScript endpoint
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 **Value** QuickJS version as a string.
+
+``js_runtime_options``
+~~~~~~~~~~~~~~~~~~~~~~
+QuickJS runtime memory, accessible by Javascript endpoint function.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** Represented as JSON.
+
+.. doxygenstruct:: ccf::JSRuntimeOptions
+   :project: CCF
+   :members:
 
 ``endpoints``
 ~~~~~~~~~~~~~

@@ -53,23 +53,6 @@ def test_module_import(network, args):
     return network
 
 
-@reqs.description("Test dynamic module import")
-@reqs.installed_package("libjs_v8")
-def test_dynamic_module_import(network, args):
-    primary, _ = network.find_nodes()
-
-    # Update JS app, deploying modules _and_ app script that imports module
-    bundle_dir = os.path.join(THIS_DIR, "dynamic-module-import")
-    network.consortium.set_js_app_from_dir(primary, bundle_dir)
-
-    with primary.client("user0") as c:
-        r = c.post("/app/test_module", {})
-        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
-        assert r.body.text() == "Hello world!"
-
-    return network
-
-
 @reqs.description("Test module bytecode caching")
 @reqs.installed_package("libjs_generic")
 def test_bytecode_cache(network, args):
@@ -136,6 +119,25 @@ def test_bytecode_cache(network, args):
         assert r.status_code == http.HTTPStatus.CREATED, r.status_code
         assert r.body.text() == "Hello world!"
 
+    return network
+
+
+@reqs.description("Test js runtime options")
+def test_set_js_runtime(network, args):
+    primary, _ = network.find_nodes()
+    # set js run time options
+    network.consortium.set_js_runtime_options(
+        primary, max_heap_bytes=50 * 1024 * 1024, max_stack_bytes=1024 * 512
+    )
+    with primary.client("user0") as c:
+        r = c.get("/node/js_metrics")
+        body = r.body.json()
+        assert body["max_heap_size"] == 50 * 1024 * 1024
+        assert body["max_stack_size"] == 1024 * 512
+    # reset the heap and stack sizes to default values
+    network.consortium.set_js_runtime_options(
+        primary, max_heap_bytes=100 * 1024 * 1024, max_stack_bytes=1024 * 1024
+    )
     return network
 
 
@@ -395,6 +397,12 @@ def test_npm_app(network, args):
             r.body.json()["privateKey"], r.body.json()["publicKey"]
         )
 
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256k1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+
         r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert infra.crypto.check_key_pair_pem(
@@ -487,6 +495,22 @@ def test_npm_app(network, args):
         assert r.body.json() == False, r.body
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256r1")
+        algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256k1")
         algorithm = {"name": "ECDSA", "hash": "SHA-256"}
         data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
@@ -606,8 +630,6 @@ def test_npm_app(network, args):
         primary_quote_info = r.body.json()
         if args.enclave_type not in ("release", "debug"):
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, non-sgx node")
-        elif args.package == "libjs_v8":
-            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, V8")
         else:
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
             OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
@@ -684,14 +706,11 @@ def run(args):
     ) as network:
         network.start_and_open(args)
         network = test_module_import(network, args)
-        network = test_dynamic_module_import(network, args)
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
-        if "v8" not in args.package:
-            # endpoint calls fail with "Cannot access \'logMap\' before init..."
-            # as if the const logMap wasn't preserved/captured
-            network = test_npm_app(network, args)
+        network = test_set_js_runtime(network, args)
+        network = test_npm_app(network, args)
 
 
 if __name__ == "__main__":
