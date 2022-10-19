@@ -32,8 +32,8 @@ function canOperatorProvisionerPass(action) {
   return (
     {
       set_member: () => action.args["member_data"]?.is_operator ?? false,
-      remove_member: () => isOperator(action.args.memberId),
-    }[action.name.toString()]() ?? false
+      remove_member: () => isOperator(action.args["member_id"]),
+    }[action.name]?.() ?? false
   );
 }
 

@@ -445,9 +445,8 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         member_data={"is_operator_provisioner": True},
     )
 
-    # Create a proposal to assign a member as an operator
     operator = infra.member.Member(
-        "operator_provisioner",
+        f"member{len(network.consortium.members)}",
         infra.network.EllipticCurve.secp256r1,
         network.consortium.common_dir,
         network.consortium.share_script,
@@ -459,36 +458,45 @@ def test_operator_provisioner_proposals_and_votes(network, args):
     set_operator, _ = network.consortium.make_proposal(
         "set_member",
         cert=open(
-            os.path.join(
-                network.consortium.common_dir, f"operator_provisioner_cert.pem"
-            ),
+            operator.member_info["certificate_file"],
             encoding="utf-8",
         ).read(),
         member_data={"is_operator": True},
     )
 
     remove_operator, _ = network.consortium.make_proposal(
-        "remove_member", member_id=str(operator.service_id)
+        "remove_member",
+        member_id=operator.service_id,
     )
 
-    illegal_action, _ = network.consortium.make_proposal(
+    # Create a proposal that the operator provisioner isn't allowed to make.
+    illegal_proposal, _ = network.consortium.make_proposal(
         "set_member_data",
-        member_id=operator.service_id,
-        member_data={"is_operator": True},
+        member_id=network.consortium.get_member_by_local_id("member1").service_id,
+        member_data={},
     )
 
     # Check an operator provisioner can provision operators without a majority of votes
     with node.client(None, "member0") as c:
-        # Test set_member
+        # Add operator
         r = c.post("/gov/proposals", set_operator)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
-        # Test remove_member
-        # r = c.post("/gov/proposals", remove_operator)
-        # assert r.status_code == 200, r.body.text()
-        # Test an action provisioners shouldn't be allowed to make
-        # r = c.post("/gov/proposals", illegal_action)
-        # assert r.status_code != 200, r.body.text()
+        # Remove operator
+        r = c.post("/gov/proposals", remove_operator)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+        # Check we can't propose any other action
+        r = c.post("/gov/proposals", illegal_proposal)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] != "Accepted", r.body.json()
+
+    # Reset the member to an operator for other tests
+    network.consortium.set_member_data(
+        node,
+        operator_provisioner.service_id,
+        member_data={"is_operator": True},
+    )
 
 
 @reqs.description("Test actions")
