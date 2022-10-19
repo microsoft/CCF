@@ -258,7 +258,7 @@ JavaScript engine version of the module cache, accessible by JavaScript endpoint
 **Value** QuickJS version as a string.
 
 ``js_runtime_options``
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 QuickJS runtime memory, accessible by Javascript endpoint function.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
