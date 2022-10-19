@@ -20,10 +20,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added a new proposal action `set_js_runtime_options` that accepts `max_heap_bytes` and `max_stack_bytes` for QuickJS runtime.
 - Experimental support for AMD SEV-SNP nodes (#4106, #4235)
 - New "attestation" section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
 - The `ccf::RpcContext` now contains functionality for storing user data with `set_user_data` and retrieving it with `get_user_data` (#4291).
 - There are now `make_endpoint_with_local_commit_handler` and `make_read_only_endpoint_with_local_commit_handler` functions to install endpoints with post local-commit logic (#4296).
+
+### Changed
+
+- The endpoint `GET /node/js_metrics` now also returns the QuickJS runtime memory options.
 
 ### Fixed
 
