@@ -1,6 +1,6 @@
 # The Confidential Consortium Framework [![Docs](https://img.shields.io/badge/Documentation-Up%20to%20date-green)](https://microsoft.github.io/CCF)
 
-<img alt="ccf" align="right" src="doc/img/ccf.png" width="200">
+<img alt="ccf" align="right" src="doc/_static/ccf.png" width="200">
 
 - Continuous Build: [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=main)
 - Daily Build: [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=7&branchName=main)
