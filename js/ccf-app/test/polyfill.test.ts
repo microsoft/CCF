@@ -333,7 +333,7 @@ describe("polyfill", function () {
           assert.equal(jwk.kid, my_kid);
         }
       });
-  }),
+  });
   describe("kv", function () {
     it("basic", function () {
       const foo = ccf.kv["foo"];
