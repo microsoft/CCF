@@ -5,6 +5,7 @@
 
 #include "ccf/pal/attestation.h"
 #include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/snp_measurements.h"
 
 namespace ccf
 {
@@ -13,15 +14,33 @@ namespace ccf
     const CodeDigest& unique_id,
     const QuoteFormat& quote_format)
   {
-    auto code_ids = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS);
-    auto code_id_info = code_ids->get(unique_id);
-    if (!code_id_info.has_value())
+    switch (quote_format)
     {
-      return QuoteVerificationResult::FailedCodeIdNotFound;
-    }
-    if (code_id_info->platform != quote_format)
-    {
-      return QuoteVerificationResult::FailedCodeIdNotFound;
+      case QuoteFormat::oe_sgx_v1:
+      {
+        auto code_id = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(unique_id);
+        if (!code_id.has_value())
+        {
+          return QuoteVerificationResult::FailedCodeIdNotFound;
+        }
+        break;
+      }
+      case QuoteFormat::amd_sev_snp_v1:
+      {
+        auto measurement =
+          tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)->get(unique_id);
+        if (!measurement.has_value())
+        {
+          return QuoteVerificationResult::FailedCodeIdNotFound;
+        }
+        break;
+      }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected quote format {} when verifying quote against store",
+          quote_format));
+      }
     }
 
     return QuoteVerificationResult::Verified;

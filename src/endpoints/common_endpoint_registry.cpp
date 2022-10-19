@@ -12,6 +12,7 @@
 #include "ccf/node_context.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/security_policies.h"
+#include "ccf/service/tables/snp_measurements.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
 
@@ -157,9 +158,9 @@ namespace ccf
 
       auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
       codes_ids->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
           auto digest = ds::to_hex(cd.data);
-          out.versions.push_back({digest, info.status, info.platform});
+          out.versions.push_back({digest, status});
           return true;
         });
 
@@ -167,6 +168,28 @@ namespace ccf
     };
     make_read_only_endpoint(
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
+      .set_auto_schema<void, GetCode::Out>()
+      .install();
+
+    auto get_trusted_measurements = [](auto& ctx, nlohmann::json&&) {
+      GetCode::Out out;
+
+      auto codes_ids =
+        ctx.tx.template ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS);
+      codes_ids->foreach(
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
+          auto digest = ds::to_hex(cd.data);
+          out.versions.push_back({digest, status});
+          return true;
+        });
+
+      return make_success(out);
+    };
+    make_read_only_endpoint(
+      "/measurements",
+      HTTP_GET,
+      json_read_only_adapter(get_trusted_measurements),
+      no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
       .install();
 
