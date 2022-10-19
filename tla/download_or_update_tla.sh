@@ -37,7 +37,7 @@ print_version() {
 }
 
 main() {
-	echo "Downloading tla2tools.jar..."
+	echo "Downloading tla2tools.jar (nightly release)..."
 	before=$(date -r tla2tools.jar 2>/dev/null)
 	download https://nightly.tlapl.us/dist/tla2tools.jar
 	after=$(date -r tla2tools.jar 2>/dev/null)
@@ -58,6 +58,9 @@ main() {
 	else
 		echo "No updates"
 	fi
+
+	echo "Downloading CommunityModules-deps.jar..."
+	download https://github.com/tlaplus/CommunityModules/releases/latest/download/CommunityModules-deps.jar
 }
 
 main
