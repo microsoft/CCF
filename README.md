@@ -17,7 +17,7 @@ and performant applications that focus on multi-party compute and data.
 - Quickly build and run the [sample CCF application](https://github.com/microsoft/ccf-app-template)
 - [Build new CCF applications](https://microsoft.github.io/CCF/main/build_apps/index.html) in TypeScript/JavaScript or C++
 
-## Contribute 
+## Contribute
 
 - [Contribute](https://microsoft.github.io/CCF/main/contribute) to this repository, following the [contribution guidelines](.github/CONTRIBUTING.md)
 - Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=)
