@@ -528,6 +528,15 @@ class Consortium:
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
 
+    def set_js_runtime_options(self, remote_node, max_heap_bytes, max_stack_bytes):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_js_runtime_options",
+            max_heap_bytes=max_heap_bytes,
+            max_stack_bytes=max_stack_bytes,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def remove_js_app(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("remove_js_app")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
