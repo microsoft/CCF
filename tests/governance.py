@@ -20,6 +20,8 @@ from infra.runner import ConcurrentRunner
 import governance_history
 import tempfile
 import infra.interfaces
+import signing
+import infra.log_capture
 
 from loguru import logger as LOG
 
@@ -45,7 +47,7 @@ def test_consensus_status(network, args):
 
 
 @reqs.description("Test quotes")
-@reqs.supports_methods("/quotes/self", "/quotes")
+@reqs.supports_methods("/app/quotes/self", "/app/quotes")
 def test_quote(network, args):
     if args.enclave_type == "virtual":
         LOG.warning("Quote test can only run in real enclaves, skipping")
@@ -103,7 +105,7 @@ def test_quote(network, args):
 
 
 @reqs.description("Add user, remove user")
-@reqs.supports_methods("/log/private")
+@reqs.supports_methods("/app/log/private")
 def test_user(network, args, verify=True):
     # Note: This test should not be chained in the test suite as it creates
     # a new user and uses its own LoggingTxs
@@ -127,7 +129,7 @@ def test_user(network, args, verify=True):
 
 
 @reqs.description("Validate sample Jinja templates")
-@reqs.supports_methods("/log/private")
+@reqs.supports_methods("/app/log/private")
 def test_jinja_templates(network, args, verify=True):
     primary, _ = network.find_primary()
 
@@ -592,6 +594,41 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
             ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
 
 
+@reqs.description("Test COSE Sign1 auth")
+def test_cose_auth(network, args):
+    primary, _ = network.find_primary()
+    identity = network.identity("member0")
+    signed_statement = signing.create_cose_sign1(
+        b"body",
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "proposal"},
+    )
+    with primary.client() as c:
+        r = c.post(
+            "/log/cose_signed_content",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+        assert r.body.text() == "body", r.body.text
+
+    identity = network.identity("user0")
+    signed_statement = signing.create_cose_sign1(
+        b"body",
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {},
+    )
+    with primary.client() as c:
+        r = c.post(
+            "/log/cose_signed_content",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 401
+
+
 def gov(args):
     for node in args.nodes:
         node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
@@ -617,6 +654,7 @@ def gov(args):
         test_all_nodes_cert_renewal(network, args)
         test_service_cert_renewal(network, args)
         test_service_cert_renewal_extended(network, args)
+        test_cose_auth(network, args)
 
 
 def js_gov(args):
@@ -647,6 +685,8 @@ if __name__ == "__main__":
         )
 
     cr = ConcurrentRunner(add)
+
+    infra.log_capture.COLORS = False
 
     cr.add(
         "session_auth",

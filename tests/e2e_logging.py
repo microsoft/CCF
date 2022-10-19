@@ -134,7 +134,7 @@ def verify_receipt(
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("/log/private", "/log/public")
+@reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
 @app.scoped_txs(verify=False)
@@ -154,7 +154,7 @@ def test(network, args):
 
 
 @reqs.description("Protocol-illegal traffic")
-@reqs.supports_methods("/log/private", "/log/public")
+@reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args):
     primary, _ = network.find_primary()
@@ -344,7 +344,7 @@ def test_protocols(network, args):
 
 
 @reqs.description("Write/Read/Delete messages on primary")
-@reqs.supports_methods("/log/private")
+@reqs.supports_methods("/app/log/private")
 def test_remove(network, args):
     check = infra.checker.Checker()
 
@@ -353,7 +353,7 @@ def test_remove(network, args):
         _, log_id = network.txs.get_log_id(txid)
         network.txs.delete(log_id, priv=priv)
         r = network.txs.request(log_id, priv=priv)
-        if args.package in ["libjs_generic", "libjs_v8"]:
+        if args.package in ["libjs_generic"]:
             check(r, result={"error": "No such key"})
         else:
             check(
@@ -366,7 +366,7 @@ def test_remove(network, args):
 
 
 @reqs.description("Write/Read/Clear messages on primary")
-@reqs.supports_methods("/log/private/all", "/log/public/all")
+@reqs.supports_methods("/app/log/private/all", "/app/log/public/all")
 @app.scoped_txs()
 def test_clear(network, args):
     primary, _ = network.find_primary()
@@ -394,7 +394,7 @@ def test_clear(network, args):
                 )
                 for log_id in log_ids:
                     get_r = c.get(f"{resource}?id={log_id}")
-                    if args.package in ["libjs_generic", "libjs_v8"]:
+                    if args.package in ["libjs_generic"]:
                         check(
                             get_r,
                             result={"error": "No such key"},
@@ -412,7 +412,7 @@ def test_clear(network, args):
 
 
 @reqs.description("Count messages on primary")
-@reqs.supports_methods("/log/private/count", "/log/public/count")
+@reqs.supports_methods("/app/log/private/count", "/app/log/public/count")
 @app.scoped_txs()
 def test_record_count(network, args):
     primary, _ = network.find_primary()
@@ -462,7 +462,7 @@ def test_record_count(network, args):
 
 
 @reqs.description("Write/Read with cert prefix")
-@reqs.supports_methods("/log/private/prefix_cert", "/log/private")
+@reqs.supports_methods("/app/log/private/prefix_cert", "/app/log/private")
 def test_cert_prefix(network, args):
     msg = "This message will be prefixed"
     log_id = 7
@@ -484,7 +484,7 @@ def test_cert_prefix(network, args):
 
 
 @reqs.description("Write as anonymous caller")
-@reqs.supports_methods("/log/private/anonymous", "/log/private")
+@reqs.supports_methods("/app/log/private/anonymous", "/app/log/private")
 @app.scoped_txs()
 def test_anonymous_caller(network, args):
     # Create a new user but do not record its identity
@@ -515,7 +515,7 @@ def test_anonymous_caller(network, args):
 
 
 @reqs.description("Use multiple auth types on the same endpoint")
-@reqs.supports_methods("/multi_auth")
+@reqs.supports_methods("/app/multi_auth")
 def test_multi_auth(network, args):
     primary, _ = network.find_primary()
     user = network.users[0]
@@ -613,7 +613,7 @@ def test_multi_auth(network, args):
 
 
 @reqs.description("Call an endpoint with a custom auth policy")
-@reqs.supports_methods("/custom_auth")
+@reqs.supports_methods("/app/custom_auth")
 @reqs.no_http2()
 def test_custom_auth(network, args):
     primary, other = network.find_primary_and_any_backup()
@@ -654,7 +654,7 @@ def test_custom_auth(network, args):
 
 
 @reqs.description("Call an endpoint with a custom auth policy which throws")
-@reqs.supports_methods("/custom_auth")
+@reqs.supports_methods("/app/custom_auth")
 @reqs.no_http2()
 def test_custom_auth_safety(network, args):
     primary, other = network.find_primary_and_any_backup()
@@ -673,7 +673,7 @@ def test_custom_auth_safety(network, args):
 
 
 @reqs.description("Write non-JSON body")
-@reqs.supports_methods("/log/private/raw_text/{id}", "/log/private")
+@reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
 @app.scoped_txs()
 def test_raw_text(network, args):
     log_id = 7
@@ -688,7 +688,7 @@ def test_raw_text(network, args):
 
 
 @reqs.description("Read metrics")
-@reqs.supports_methods("/api/metrics")
+@reqs.supports_methods("/app/api/metrics")
 def test_metrics(network, args):
     primary, _ = network.find_primary()
 
@@ -746,7 +746,7 @@ def test_metrics(network, args):
 
 
 @reqs.description("Read historical state")
-@reqs.supports_methods("/log/private", "/log/private/historical")
+@reqs.supports_methods("/app/log/private", "/app/log/private/historical")
 @reqs.no_http2()
 @app.scoped_txs()
 def test_historical_query(network, args):
@@ -776,7 +776,7 @@ def test_historical_query(network, args):
 
 
 @reqs.description("Read historical receipts")
-@reqs.supports_methods("/log/private", "/log/private/historical_receipt")
+@reqs.supports_methods("/app/log/private", "/app/log/private/historical_receipt")
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
@@ -805,7 +805,7 @@ def test_historical_receipts(network, args):
 
 
 @reqs.description("Read historical receipts with claims")
-@reqs.supports_methods("/log/public", "/log/public/historical_receipt")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical_receipt")
 def test_historical_receipts_with_claims(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
@@ -879,7 +879,7 @@ def get_all_entries(
 
 
 @reqs.description("Read range of historical state")
-@reqs.supports_methods("/log/public", "/log/public/historical/range")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 def test_historical_query_range(network, args):
     id_a = 142
     id_b = 143
@@ -964,7 +964,7 @@ def test_historical_query_range(network, args):
 
 
 @reqs.description("Read state at multiple distinct historical points")
-@reqs.supports_methods("/log/private", "/log/private/historical/sparse")
+@reqs.supports_methods("/app/log/private", "/app/log/private/historical/sparse")
 def test_historical_query_sparse(network, args):
     idx = 142
 
@@ -1106,7 +1106,7 @@ def escaped_query_tests(c, endpoint):
 
 
 @reqs.description("Testing forwarding on member and user frontends")
-@reqs.supports_methods("/log/private")
+@reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
 @app.scoped_txs()
@@ -1143,7 +1143,7 @@ def test_signed_escapes(network, args):
 
 
 @reqs.description("Test user-data used for access permissions")
-@reqs.supports_methods("/log/private/admin_only")
+@reqs.supports_methods("/app/log/private/admin_only")
 def test_user_data_ACL(network, args):
     primary, _ = network.find_primary()
 
@@ -1297,7 +1297,7 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("/log/private")
+@reqs.supports_methods("/app/log/private")
 @app.scoped_txs()
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
@@ -1341,7 +1341,7 @@ def test_tx_statuses(network, args):
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("/receipt", "/log/private")
+@reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
 @app.scoped_txs()
 def test_receipts(network, args):
@@ -1369,7 +1369,7 @@ def test_receipts(network, args):
 
 
 @reqs.description("Validate random receipts")
-@reqs.supports_methods("/receipt", "/log/private")
+@reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
 def test_random_receipts(
     network, args, lts=True, additional_seqnos=MappingProxyType({}), node=None
@@ -1503,7 +1503,7 @@ def test_udp_echo(network, args):
 
 
 @reqs.description("Check post-local-commit failure handling")
-@reqs.supports_methods("/log/private/anonymous/v2")
+@reqs.supports_methods("/app/log/private/anonymous/v2")
 def test_post_local_commit_failure(network, args):
     primary, _ = network.find_primary()
     with primary.client() as c:
@@ -1608,9 +1608,8 @@ def run(args):
         if args.package == "samples/apps/logging/liblogging":
             test_receipts(network, args)
             test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            test_historical_receipts(network, args)
-            test_historical_receipts_with_claims(network, args)
+        test_historical_receipts(network, args)
+        test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1640,21 +1639,6 @@ if __name__ == "__main__":
         initial_user_count=4,
         initial_member_count=2,
     )
-
-    # Is there a better way to do this?
-    if os.path.exists(
-        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-        cr.add(
-            "js_v8",
-            run,
-            package="libjs_v8",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-            election_timeout_ms=cr.args.election_timeout_ms
-            * 2,  # Larger election timeout as some large payloads may cause an election with v8
-        )
 
     cr.add(
         "cpp",

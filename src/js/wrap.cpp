@@ -81,6 +81,28 @@ namespace ccf::js
     }
   }
 
+  Runtime::Runtime(kv::Tx* tx)
+  {
+    rt = JS_NewRuntime();
+    if (rt == nullptr)
+    {
+      throw std::runtime_error("Failed to initialise QuickJS runtime");
+    }
+    size_t stack_size = 1024 * 1024;
+    size_t heap_size = 100 * 1024 * 1024;
+    const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
+    const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
+
+    if (js_runtime_options.has_value())
+    {
+      heap_size = js_runtime_options.value().max_heap_bytes;
+      stack_size = js_runtime_options.value().max_stack_bytes;
+    }
+
+    JS_SetMaxStackSize(rt, stack_size);
+    JS_SetMemoryLimit(rt, heap_size);
+  }
+
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -1301,7 +1323,7 @@ namespace ccf::js
 
     auto& tx = *tx_ctx_ptr->tx;
 
-    js::Runtime rt;
+    js::Runtime rt(tx_ctx_ptr->tx);
     JS_SetModuleLoaderFunc(rt, nullptr, js::js_app_module_loader, &tx);
     js::Context ctx2(rt, js::TxAccess::APP);
 
@@ -1666,6 +1688,8 @@ namespace ccf::js
       "bufToJsonCompatible",
       JS_NewCFunction(
         ctx, js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+    /* Moved to ccf.crypto namespace and now deprecated. Can be removed in 4.x
+     */
     JS_SetPropertyStr(
       ctx,
       ccf,
@@ -1698,6 +1722,7 @@ namespace ccf::js
       "isValidX509CertChain",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
+    /* End of moved to ccf.crypto */
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     JS_SetPropertyStr(
@@ -1715,6 +1740,38 @@ namespace ccf::js
       crypto,
       "verifySignature",
       JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "generateAesKey",
+      JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "generateRsaKeyPair",
+      JS_NewCFunction(ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "generateEcdsaKeyPair",
+      JS_NewCFunction(
+        ctx, js_generate_ecdsa_key_pair, "generateEcdsaKeyPair", 1));
+    JS_SetPropertyStr(
+      ctx, crypto, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
+    JS_SetPropertyStr(
+      ctx, crypto, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "isValidX509CertBundle",
+      JS_NewCFunction(
+        ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "isValidX509CertChain",
+      JS_NewCFunction(
+        ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
 
     if (txctx != nullptr)
     {
