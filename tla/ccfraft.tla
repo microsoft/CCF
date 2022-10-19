@@ -350,11 +350,11 @@ Init ==
 Timeout(i) ==
     \* Limit the term of each server to reduce state space
     /\ currentTerm[i] < TermLimit
+    \* Only servers that are not already leaders can become candidates
+    /\ state[i] \in {Follower, Candidate}
     \* Limit number of candidates in our relevant server set
     \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
     /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < MaxSimultaneousCandidates
-    \* Only servers that are not already leaders can become candidates
-    /\ state[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
     /\ \E k \in 1..Len(currentConfiguration[i]):
         /\ i \in currentConfiguration[i][k][2]
@@ -504,10 +504,10 @@ SignCommittableMessages(i) ==
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
 ChangeConfiguration(i, newConfiguration) ==
-    \* Limit reconfigurations
-    /\ reconfigurationCount < Len(Configurations)-1
     \* Only leader can propose changes
     /\ state[i] = Leader
+    \* Limit reconfigurations
+    /\ reconfigurationCount < Len(Configurations)-1
     \* Configuration is non empty
     /\ newConfiguration /= {}
     /\ newConfiguration = Configurations[reconfigurationCount+2]
