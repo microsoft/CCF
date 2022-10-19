@@ -945,7 +945,7 @@ ElectionSafetyInv ==
 \* Every (index, term) pair determines a log prefix
 LogMatchingInv ==
     \A i, j \in Servers : i /= j =>
-        \A n \in (1..Len(log[i])) \cap (1..Len(log[j])) :
+        \A n \in 1..min(Len(log[i]), Len(log[j])) :
             log[i][n].term = log[j][n].term =>
             SubSeq(log[i],1,n) = SubSeq(log[j],1,n)
 ----
