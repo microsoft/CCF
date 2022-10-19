@@ -66,10 +66,17 @@ namespace ccf
   {
     uint64_t bytecode_size;
     bool bytecode_used;
+    uint64_t max_heap_size;
+    uint64_t max_stack_size;
   };
 
   DECLARE_JSON_TYPE(JavaScriptMetrics);
-  DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JavaScriptMetrics,
+    bytecode_size,
+    bytecode_used,
+    max_heap_size,
+    max_stack_size);
 
   struct JWTMetrics
   {
@@ -374,7 +381,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.31.6";
+      openapi_info.document_version = "2.31.8";
     }
 
     void init_handlers() override
@@ -1378,10 +1385,21 @@ namespace ccf
             bytecode_size += bytecode.size();
             return true;
           });
+        auto js_engine_map = args.tx.ro(this->network.js_engine);
         JavaScriptMetrics m;
         m.bytecode_size = bytecode_size;
         m.bytecode_used =
           version_val->get() == std::string(ccf::quickjs_version);
+
+        auto js_engine_options = js_engine_map->get();
+        m.max_stack_size = 1024 * 1024;
+        m.max_heap_size = 100 * 1024 * 1024;
+        if (js_engine_options.has_value())
+        {
+          m.max_stack_size = js_engine_options.value().max_stack_bytes;
+          m.max_heap_size = js_engine_options.value().max_heap_bytes;
+        }
+
         return m;
       };
 

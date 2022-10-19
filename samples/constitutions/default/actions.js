@@ -763,6 +763,21 @@ const actions = new Map([
     ),
   ],
   [
+    "set_js_runtime_options",
+    new Action(
+      function (args) {
+        checkType(args.max_heap_bytes, "integer", "max_heap_bytes");
+        checkType(args.max_stack_bytes, "integer", "max_stack_bytes");
+      },
+      function (args) {
+        const js_engine_map = ccf.kv["public:ccf.gov.js_runtime_options"];
+        const heap_bytes = args.max_heap_bytes;
+        const stack_bytes = args.max_stack_bytes;
+        js_engine_map.set(getSingletonKvKey(), ccf.jsonCompatibleToBuf(args));
+      }
+    ),
+  ],
+  [
     "refresh_js_app_bytecode_cache",
     new Action(
       function (args) { },
