@@ -936,7 +936,7 @@ CandidateTermNotInLogInv ==
 ElectionSafetyInv ==
     \A i \in Servers :
         state[i] = Leader =>
-        \A j \in Servers :
+        \A j \in Servers : i /= j =>
             LET FilterAndMax(a, b) == 
                     IF a.term = currentTerm[i] THEN max(a.term, b) ELSE b
             IN FoldSeq(FilterAndMax, 0, log[i]) >= FoldSeq(FilterAndMax, 0, log[j])
@@ -944,7 +944,7 @@ ElectionSafetyInv ==
 ----
 \* Every (index, term) pair determines a log prefix
 LogMatchingInv ==
-    \A i, j \in Servers :
+    \A i, j \in Servers : i /= j =>
         \A n \in (1..Len(log[i])) \cap (1..Len(log[j])) :
             log[i][n].term = log[j][n].term =>
             SubSeq(log[i],1,n) = SubSeq(log[j],1,n)
@@ -967,11 +967,11 @@ QuorumLogInv ==
 \* a vote from j only if i has all of j's committed
 \* entries
 MoreUpToDateCorrectInv ==
-    \A i, j \in Servers :
-       (\/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
-        \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
-           /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
-       IsPrefix(Committed(j), log[i])
+    \A i, j \in Servers : i /= j =>
+        ((\/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
+         \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
+            /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
+        IsPrefix(Committed(j), log[i]))
 
 \* The committed entries in every log are a prefix of the
 \* leader's log up to the leader's term (since a next Leader may already be
@@ -979,7 +979,7 @@ MoreUpToDateCorrectInv ==
 LeaderCompletenessInv ==
     \A i \in Servers :
         state[i] = Leader =>
-        \A j \in Servers :
+        \A j \in Servers : i /= j =>
             IsPrefix(CommittedTermPrefix(j, currentTerm[i]),log[i])
 
 \* In CCF, only signature messages should ever be committed
@@ -1033,7 +1033,7 @@ MessageVarsTypeInv ==
                 /\ m.mvoteGranted \in BOOLEAN
             \/ /\ m.mtype = NotifyCommitMessage
                 /\ m.mcommitIndex \in 0..MaxLogLength
-    /\ \A i,j \in Servers :
+    /\ \A i,j \in Servers : i /= j =>
         /\ Len(messagesSent[i][j]) \in 0..MaxLogLength
         /\ IF Len(messagesSent[i][j]) > 0 THEN
             \A k \in 1..Len(messagesSent[i][j]) :
@@ -1053,11 +1053,11 @@ CandidateVarsTypeInv ==
     /\ \A i \in Servers :
         /\ votesSent[i] \in BOOLEAN
         /\ votesGranted[i] \subseteq Servers
-        /\ \A j \in Servers :
+        /\ \A j \in Servers : i /= j => 
             /\ votesRequested[i][j] \in 0..RequestVoteLimit
 
 LeaderVarsTypeInv ==
-    /\ \A i, j \in Servers :
+    /\ \A i, j \in Servers : i /= j =>
         /\ nextIndex[i][j] \in 1..MaxLogLength+1
         /\ matchIndex[i][j] \in 0..MaxLogLength
 
