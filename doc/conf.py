@@ -246,7 +246,7 @@ extlinks = {
 
 # Theme options
 
-html_logo = "_static/ccf.svg"
+html_logo = "_static/ccf.png"
 html_favicon = "_static/favicon.ico"
 
 html_context = {
