@@ -272,7 +272,7 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptImplPtr receipt)
     {
-      js::Runtime rt;
+      js::Runtime rt(&endpoint_ctx.tx);
       rt.add_ccf_classdefs();
 
       JS_SetModuleLoaderFunc(

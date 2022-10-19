@@ -81,6 +81,28 @@ namespace ccf::js
     }
   }
 
+  Runtime::Runtime(kv::Tx* tx)
+  {
+    rt = JS_NewRuntime();
+    if (rt == nullptr)
+    {
+      throw std::runtime_error("Failed to initialise QuickJS runtime");
+    }
+    size_t stack_size = 1024 * 1024;
+    size_t heap_size = 100 * 1024 * 1024;
+    const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
+    const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
+
+    if (js_runtime_options.has_value())
+    {
+      heap_size = js_runtime_options.value().max_heap_bytes;
+      stack_size = js_runtime_options.value().max_stack_bytes;
+    }
+
+    JS_SetMaxStackSize(rt, stack_size);
+    JS_SetMemoryLimit(rt, heap_size);
+  }
+
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -1301,7 +1323,7 @@ namespace ccf::js
 
     auto& tx = *tx_ctx_ptr->tx;
 
-    js::Runtime rt;
+    js::Runtime rt(tx_ctx_ptr->tx);
     JS_SetModuleLoaderFunc(rt, nullptr, js::js_app_module_loader, &tx);
     js::Context ctx2(rt, js::TxAccess::APP);
 
