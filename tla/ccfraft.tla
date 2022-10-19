@@ -263,9 +263,18 @@ GetServerSetForIndex(server, index) ==
     {currentConfiguration[server][relevant_configs][2] : relevant_configs \in
         {c \in 1..Len(currentConfiguration[server]) : currentConfiguration[server][c][1] <= index} \cup {}}
 
+IsInServerSetForIndex(candidate, server, index) ==
+    \E c \in 1..Len(currentConfiguration[server]) :
+        /\ index >= currentConfiguration[server][c][1]
+        /\ candidate \in currentConfiguration[server][c][2]
+
 \* Pick the union of all servers across all configurations
 GetServerSet(server) ==
     UNION {currentConfiguration[server][relevant_configs][2] : relevant_configs \in 1..Len(currentConfiguration[server])}
+
+IsInServerSet(candidate, server) ==
+    \E r \in 1..Len(currentConfiguration[server]) :
+        /\ candidate \in currentConfiguration[server][r][2]
 
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
@@ -378,7 +387,7 @@ RequestVote(i,j) ==
     \* Only requests vote if we are candidate
     /\ state[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
-    /\ j \in GetServerSet(i)
+    /\ IsInServerSet(j, i)
     \* State limitation: Limit requested votes
     /\ votesRequested[i][j] < RequestVoteLimit
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
@@ -389,14 +398,11 @@ RequestVote(i,j) ==
 \* While implementations may want to send more than 1 at a time, this spec uses
 \* just 1 because it minimizes atomic regions without loss of generality.
 AppendEntries(i, j) ==
-    LET
-        relevantServers == GetServerSetForIndex(i, nextIndex[i][j])
-    IN
     \* No messages to itself and sender is primary
     /\ state[i] = Leader
     /\ i /= j
     \* Recipient must exist in one configuration relevant to that index
-    /\ j \in relevantServers
+    /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     \* There must be an index to send
     /\ Len(log[i]) >= nextIndex[i][j]
     /\ LET prevLogIndex == nextIndex[i][j] - 1
@@ -588,7 +594,7 @@ NotifyCommit(i,j) ==
     \* Only RetiredLeader servers send these commit messages
     /\ state[i] = RetiredLeader
     \* Only send notifications of commit to servers in the server set
-    /\ j \in GetServerSetForIndex(i, commitIndex[i])
+    /\ IsInServerSetForIndex(j, i, commitIndex[i])
     /\ \/ commitsNotified[i][1] < commitIndex[i]
        \/ commitsNotified[i][2] < CommitNotificationLimit
     /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
@@ -819,7 +825,7 @@ DropIgnoredMessage(i,j,m) ==
        \*  OR if message is to a server that has surpassed the Pending stage ..
        \/ /\ state[i] /= Pending
         \* .. and it comes from a server outside of the configuration
-          /\ \lnot j \in GetServerSet(i)
+          /\ \lnot IsInServerSet(j, i)
        \*  OR if recipient is RetiredLeader and this is not a request to vote
        \/ /\ state[i] = RetiredLeader
           /\ m.mtype /= RequestVoteRequest
