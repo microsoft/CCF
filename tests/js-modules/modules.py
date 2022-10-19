@@ -53,23 +53,6 @@ def test_module_import(network, args):
     return network
 
 
-@reqs.description("Test dynamic module import")
-@reqs.installed_package("libjs_v8")
-def test_dynamic_module_import(network, args):
-    primary, _ = network.find_nodes()
-
-    # Update JS app, deploying modules _and_ app script that imports module
-    bundle_dir = os.path.join(THIS_DIR, "dynamic-module-import")
-    network.consortium.set_js_app_from_dir(primary, bundle_dir)
-
-    with primary.client("user0") as c:
-        r = c.post("/app/test_module", {})
-        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
-        assert r.body.text() == "Hello world!"
-
-    return network
-
-
 @reqs.description("Test module bytecode caching")
 @reqs.installed_package("libjs_generic")
 def test_bytecode_cache(network, args):
@@ -647,8 +630,6 @@ def test_npm_app(network, args):
         primary_quote_info = r.body.json()
         if args.enclave_type not in ("release", "debug"):
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, non-sgx node")
-        elif args.package == "libjs_v8":
-            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, V8")
         else:
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
             OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
@@ -725,15 +706,11 @@ def run(args):
     ) as network:
         network.start_and_open(args)
         network = test_module_import(network, args)
-        network = test_dynamic_module_import(network, args)
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
         network = test_set_js_runtime(network, args)
-        if "v8" not in args.package:
-            # endpoint calls fail with "Cannot access \'logMap\' before init..."
-            # as if the const logMap wasn't preserved/captured
-            network = test_npm_app(network, args)
+        network = test_npm_app(network, args)
 
 
 if __name__ == "__main__":

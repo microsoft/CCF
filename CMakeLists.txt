@@ -574,15 +574,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
-  if(LONG_TESTS)
-    add_e2e_test(
-      NAME recovery_test_curve_256
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --curve-id secp256r1
-    )
-  endif()
-
   add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
@@ -645,18 +636,6 @@ if(BUILD_TESTS)
       # large JS applications may trigger leadership changes
   )
 
-  if(ENABLE_V8)
-    add_e2e_test(
-      NAME modules_v8_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS
-        --package libjs_v8 --election-timeout-ms 10000 # Larger election timeout
-                                                       # as recording
-        # large JS applications may trigger leadership changes
-    )
-  endif()
-
   add_e2e_test(
     NAME auth
     PYTHON_SCRIPT
@@ -666,25 +645,16 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/tests
   )
 
-  if(ENABLE_V8)
+  if(LONG_TESTS)
     add_e2e_test(
-      NAME auth_v8
+      NAME launch_host_process_test
       PYTHON_SCRIPT
-        ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+        ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --package libjs_v8 --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/tests
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
     )
   endif()
-
-  add_e2e_test(
-    NAME launch_host_process_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
-  )
 
   add_e2e_test(
     NAME governance_test
@@ -928,27 +898,6 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
-  if(ENABLE_V8)
-    add_perf_test(
-      NAME ls_v8
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CONSENSUS cft
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --package
-        libjs_v8
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --msg-ser-fmt
-        text
-    )
-  endif()
 
   add_perf_test(
     NAME ls_full_js
@@ -967,27 +916,6 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
-  if(ENABLE_V8)
-    add_perf_test(
-      NAME ls_full_v8
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CONSENSUS cft
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --package
-        libjs_v8
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --msg-ser-fmt
-        text
-    )
-  endif()
 
   add_perf_test(
     NAME ls_js_jwt
