@@ -48,7 +48,7 @@ target_include_directories(
                      $<INSTALL_INTERFACE:include/3rdparty/t_cose>
 )
 
-target_link_libraries(t_cose.host PUBLIC qcbor.host OpenSSL::Crypto)
+target_link_libraries(t_cose.host PUBLIC qcbor.host crypto)
 set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(t_cose.host)
 
