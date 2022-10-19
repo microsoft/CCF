@@ -437,17 +437,24 @@ def test_operator_provisioner_proposals_and_votes(network, args):
 
     node = network.find_random_node()
 
-    # Assign one member as an operator provisioner
-    operator_provisioner = network.consortium.get_member_by_local_id("member0")
-    network.consortium.set_member_data(
-        node,
-        operator_provisioner.service_id,
+    def propose_and_assert_accepted(signer_id, proposal):
+        with node.client(None, signer_id) as c:
+            r = c.post("/gov/proposals", proposal)
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    # Create an operator provisioner
+    operator_provisioner = network.consortium.generate_and_add_new_member(
+        remote_node=node,
+        curve=args.participants_curve,
         member_data={"is_operator_provisioner": True},
     )
+    operator_provisioner.ack(node)
 
+    # Propose the creation of an operator signed by the operator provisioner
     operator = infra.member.Member(
-        f"member{len(network.consortium.members)}",
-        infra.network.EllipticCurve.secp256r1,
+        "operator",
+        args.participants_curve,
         network.consortium.common_dir,
         network.consortium.share_script,
         is_recovery_member=False,
@@ -464,38 +471,28 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         member_data={"is_operator": True},
     )
 
+    propose_and_assert_accepted(
+        signer_id=operator_provisioner.local_id,
+        proposal=set_operator,
+    )
+    network.consortium.members.append(operator)
+    operator.ack(node)
+
+    # Propose the removal of the operator signed by the operator provisioner
     remove_operator, _ = network.consortium.make_proposal(
         "remove_member",
         member_id=operator.service_id,
     )
 
-    # Create a proposal that the operator provisioner isn't allowed to make.
-    illegal_proposal, _ = network.consortium.make_proposal(
-        "set_member_data",
-        member_id=network.consortium.get_member_by_local_id("member1").service_id,
-        member_data={},
+    propose_and_assert_accepted(
+        signer_id=operator_provisioner.local_id,
+        proposal=remove_operator,
     )
+    network.consortium.members.remove(operator)
 
-    # Check an operator provisioner can provision operators without a majority of votes
-    with node.client(None, "member0") as c:
-        # Add operator
-        r = c.post("/gov/proposals", set_operator)
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Accepted", r.body.json()
-        # Remove operator
-        r = c.post("/gov/proposals", remove_operator)
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Accepted", r.body.json()
-        # Check we can't propose any other action
-        r = c.post("/gov/proposals", illegal_proposal)
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] != "Accepted", r.body.json()
-
-    # Reset the member to an operator for other tests
-    network.consortium.set_member_data(
-        node,
-        operator_provisioner.service_id,
-        member_data={"is_operator": True},
+    network.consortium.remove_member(
+        remote_node=node,
+        member_to_remove=operator_provisioner,
     )
 
 
