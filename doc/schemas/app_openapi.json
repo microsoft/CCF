@@ -131,35 +131,35 @@
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__Out": {
+      "GetHostDataMap__Out": {
         "properties": {
-          "policies": {
-            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
+          "host_data": {
+            "$ref": "#/components/schemas/GetHostDataMap__HostData_array"
           }
         },
         "required": [
-          "policies"
+          "host_data"
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__SecurityPolicy": {
+      "GetHostDataMap__HostData": {
         "properties": {
-          "digest": {
+          "raw": {
             "$ref": "#/components/schemas/string"
           },
-          "raw": {
+          "metadata": {
             "$ref": "#/components/schemas/string"
           }
         },
         "required": [
           "raw",
-          "digest"
+          "metadata"
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__SecurityPolicy_array": {
+      "GetHostDataMap__HostData_array": {
         "items": {
-          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
+          "$ref": "#/components/schemas/GetHostDataMap__HostData"
         },
         "type": "array"
       },
@@ -1337,7 +1337,7 @@
         }
       }
     },
-    "/app/security_policy": {
+    "/app/host_data": {
       "get": {
         "parameters": [
           {
@@ -1354,7 +1354,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
+                  "$ref": "#/components/schemas/GetHostDataMap__Out"
                 }
               }
             },

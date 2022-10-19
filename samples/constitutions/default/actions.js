@@ -747,7 +747,7 @@ const actions = new Map([
   [
     "remove_js_app",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const modulesQuickJsBytecodeMap =
@@ -765,7 +765,7 @@ const actions = new Map([
   [
     "refresh_js_app_bytecode_cache",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args) {
         ccf.refreshAppBytecodeCache();
       }
@@ -944,55 +944,55 @@ const actions = new Map([
     ),
   ],
   [
-    "add_security_policy",
+    "add_host_data",
     new Action(
       function (args) {
-        checkType(args.security_policy_raw, "string", "security_policy_raw");
+        checkType(args.security_policy, "string", "security_policy");
         checkType(
-          args.security_policy_digest,
+          args.host_data,
           "string",
-          "security_policy_digest"
+          "host_data"
         );
       },
       function (args, proposalId) {
-        const digest = ccf.strToBuf(args.security_policy_digest);
-        const raw = ccf.jsonCompatibleToBuf(args.security_policy_raw);
+        const host_data = ccf.strToBuf(args.host_data);
+        const security_policy = ccf.jsonCompatibleToBuf(args.security_policy);
 
-        if (args.security_policy_raw != "") {
-          const redigested_raw = ccf.bufToStr(
-            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
+        if (args.security_policy != "") {
+          const security_policy_digest = ccf.bufToStr(
+            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy))
           );
-          const quoted_digest = ccf.bufToStr(
-            hexStrToBuf(args.security_policy_digest)
+          const quoted_host_data = ccf.bufToStr(
+            hexStrToBuf(args.host_data)
           );
 
-          if (redigested_raw != quoted_digest) {
+          if (security_policy_digest != quoted_host_data) {
             throw new Error(
-              `The hash of raw policy ${raw} does not match digest ${digest}`
+              `The hash of raw policy ${security_policy_digest} does not match digest ${quoted_host_data}`
             );
           }
         }
 
-        ccf.kv["public:ccf.gov.nodes.security_policies"].set(digest, raw);
+        ccf.kv["public:ccf.gov.nodes.host_data"].set(host_data, security_policy);
 
-        // Adding a new allowed security policy changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
       }
     ),
   ],
   [
-    "remove_security_policy",
+    "remove_host_data",
     new Action(
       function (args) {
         checkType(
-          args.security_policy_digest,
+          args.host_data,
           "string",
-          "security_policy_digest"
+          "host_data"
         );
       },
       function (args) {
-        const digest = ccf.strToBuf(args.security_policy_digest);
-        ccf.kv["public:ccf.gov.nodes.security_policies"].delete(digest);
+        const host_data = ccf.strToBuf(args.host_data);
+        ccf.kv["public:ccf.gov.nodes.host_data"].delete(host_data);
       }
     ),
   ],
@@ -1283,7 +1283,7 @@ const actions = new Map([
   [
     "trigger_ledger_chunk",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args, proposalId) {
         ccf.node.triggerLedgerChunk();
       }
@@ -1292,7 +1292,7 @@ const actions = new Map([
   [
     "trigger_snapshot",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args, proposalId) {
         ccf.node.triggerSnapshot();
       }
@@ -1328,7 +1328,7 @@ const actions = new Map([
           throw new Error("Service identity certificate mismatch");
         }
       },
-      function (args) {}
+      function (args) { }
     ),
   ],
 ]);

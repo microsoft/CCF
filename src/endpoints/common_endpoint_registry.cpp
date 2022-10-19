@@ -11,7 +11,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/service/tables/code_id.h"
-#include "ccf/service/tables/security_policies.h"
+#include "ccf/service/tables/host_data.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
 
@@ -170,33 +170,33 @@ namespace ccf
       .set_auto_schema<void, GetCode::Out>()
       .install();
 
-    auto get_security_policies = [](auto& ctx, nlohmann::json&&) {
+    auto get_host_data = [](auto& ctx, nlohmann::json&&) {
       const auto parsed_query =
         http::parse_query(ctx.rpc_ctx->get_request_query());
       std::string error_string; // Ignored - params are optional
       const auto key = http::get_query_value_opt<std::string>(
         parsed_query, "key", error_string);
 
-      GetSecurityPolicies::Out out;
+      GetHostDataMap::Out out;
 
-      auto security_policies =
-        ctx.tx.template ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
-      security_policies->foreach(
-        [key, &out](const DigestedPolicy& digest, const RawPolicy& raw) {
-          auto digest_str = digest.hex_str();
-          if (!key.has_value() || key.value() == digest_str)
-            out.policies.push_back({raw, digest_str});
+      auto host_data = ctx.tx.template ro<HostDataMap>(Tables::HOST_DATA);
+      host_data->foreach(
+        [key, &out](
+          const HostData& host_data, const HostDataMetadata& security_policy) {
+          auto host_data_str = host_data.hex_str();
+          if (!key.has_value() || key.value() == host_data_str)
+            out.host_data.push_back({host_data_str, security_policy});
           return true;
         });
 
       return make_success(out);
     };
     make_read_only_endpoint(
-      "/security_policy",
+      "/host_data",
       HTTP_GET,
-      json_read_only_adapter(get_security_policies),
+      json_read_only_adapter(get_host_data),
       no_auth_required)
-      .set_auto_schema<void, GetSecurityPolicies::Out>()
+      .set_auto_schema<void, GetHostDataMap::Out>()
       .add_query_parameter<std::string>(
         "key", ccf::endpoints::OptionalParameter)
       .install();

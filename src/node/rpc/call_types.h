@@ -51,17 +51,17 @@ namespace ccf
     };
   };
 
-  struct GetSecurityPolicies
+  struct GetHostDataMap
   {
-    struct SecurityPolicy
+    struct HostData
     {
       std::string raw;
-      std::string digest;
+      std::string metadata;
     };
 
     struct Out
     {
-      std::vector<GetSecurityPolicies::SecurityPolicy> policies = {};
+      std::vector<GetHostDataMap::HostData> host_data = {};
     };
   };
 

@@ -150,14 +150,12 @@ namespace ccf
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED,
             "Quote report data does not contain node's public key hash");
-        case QuoteVerificationResult::FailedSecurityPolicyDigestNotFound:
+        case QuoteVerificationResult::FailedHostDataDigestNotFound:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote does not contain a security policy digest");
-        case QuoteVerificationResult::FailedInvalidSecurityPolicy:
+            HTTP_STATUS_UNAUTHORIZED, "Quote does not contain host data");
+        case QuoteVerificationResult::FailedInvalidHostData:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote security policy is not authorised");
+            HTTP_STATUS_UNAUTHORIZED, "Quote host data is not authorised");
         default:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1525,10 +1523,9 @@ namespace ccf
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
-          auto digest =
-            AttestationProvider::get_security_policy_digest(in.quote_info)
-              .value();
-          g.trust_node_security_policy(in.security_policy, digest);
+          auto host_data =
+            AttestationProvider::get_host_data(in.quote_info).value();
+          g.trust_node_host_data(in.security_policy, host_data);
         }
 
         LOG_INFO_FMT("Created service");
