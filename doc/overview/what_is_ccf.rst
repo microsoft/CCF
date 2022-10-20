@@ -6,7 +6,7 @@ This page gives a broad overview of the fundamentals of CCF. This is where you s
 CCF in a Hundred Words
 ----------------------
 
-The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly-available, and performant applications that focus on multi-party compute and data.
+The `Confidential Consortium Framework (CCF) <https://ccf.dev/>`_ is an open-source framework for building a new category of secure, highly-available, and performant applications that focus on multi-party compute and data.
 
 Leveraging the power of trusted execution environments (:term:`TEE`, or enclave), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty systems.
 
@@ -15,9 +15,9 @@ CCF is based on web technologies: clients interact with CCF JavaScript applicati
 Core Concepts
 -------------
 
-The following diagram shows a basic CCF network made of 3 nodes. All nodes run the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
+The following diagram shows a basic CCF network made of 3 nodes. All nodes run the same application inside an enclave. The effects of user (business) and member (governance) transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
-.. image:: ../img/ccf_concepts.svg
+.. image:: ../img/about-ccf.png
 
 Network and Nodes
 ~~~~~~~~~~~~~~~~~
