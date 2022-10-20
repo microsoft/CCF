@@ -20,7 +20,7 @@ parameters:
     SGX:
       cmake_args: "-DCOMPILE_TARGET=sgx"
     SNPCC:
-      cmake_args: "-DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
+      cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     unsafe:
