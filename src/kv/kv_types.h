@@ -500,6 +500,16 @@ namespace kv
     virtual void enable_all_domains() {}
 
     virtual ConsensusType type() = 0;
+
+    struct RollbackWatcher
+    {
+      virtual ~RollbackWatcher() = default;
+
+      virtual void on_rollback() = 0;
+    };
+    virtual void add_rollback_watcher(
+      const std::weak_ptr<RollbackWatcher>& watcher)
+    {}
   };
 
   struct PendingTxInfo

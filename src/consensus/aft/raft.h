@@ -169,6 +169,8 @@ namespace aft
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
 
+    std::vector<std::weak_ptr<RollbackWatcher>> watchers;
+
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -335,6 +337,12 @@ namespace aft
     ConsensusType type() override
     {
       return consensus_type;
+    }
+
+    void add_rollback_watcher(
+      const std::weak_ptr<RollbackWatcher>& watcher) override
+    {
+      watchers.push_back(watcher);
     }
 
     void force_become_primary() override
@@ -2546,6 +2554,22 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
+      }
+
+      // Notify all watchers
+      auto it = watchers.begin();
+      while (it != watchers.end())
+      {
+        auto p = it->lock();
+        if (p != nullptr)
+        {
+          p->on_rollback();
+          ++it;
+        }
+        else
+        {
+          it = watchers.erase(it);
+        }
       }
     }
 

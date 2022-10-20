@@ -2414,6 +2414,8 @@ namespace ccf
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
 
+      consensus->add_rollback_watcher(rpcsessions);
+
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
       network.tables->set_map_hook(
