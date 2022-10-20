@@ -12,8 +12,9 @@
 
 /**
  * This file defines various type traits and utils that are not available in the
- * standard library. Some are added in C++20, some are proposed, some are purely
- * custom. They are defined here to avoid repetition in other locations
+ * standard library. Some are added in future versions of the standard library,
+ * some are proposed, some are purely custom. They are defined here to avoid
+ * repetition in other locations.
  */
 namespace nonstd
 {
@@ -66,32 +67,6 @@ namespace nonstd
 
   template <typename T, T t>
   static constexpr bool value_dependent_false_v = dependent_false<T>::value;
-
-  /** remove_cvref combines remove_cv and remove_reference - this is present in
-   * C++20
-   */
-  template <class T>
-  struct remove_cvref
-  {
-    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
-  };
-
-  template <class T>
-  using remove_cvref_t = typename remove_cvref<T>::type;
-
-  /** These generic std::string member functions are present in C++20
-   */
-  static inline bool starts_with(
-    const std::string& s, const std::string& prefix)
-  {
-    return s.rfind(prefix, 0) == 0;
-  }
-
-  static inline bool ends_with(const std::string& s, const std::string& suffix)
-  {
-    return s.size() >= suffix.size() &&
-      s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
-  }
 
   /** split is based on Python's str.split
    */
@@ -206,28 +181,6 @@ namespace nonstd
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
       return std::tolower(c);
     });
-  }
-
-  static inline std::string remove_prefix(
-    const std::string& s, const std::string& prefix)
-  {
-    if (starts_with(s, prefix))
-    {
-      return s.substr(prefix.size());
-    }
-
-    return s;
-  }
-
-  static inline std::string remove_suffix(
-    const std::string& s, const std::string& suffix)
-  {
-    if (ends_with(s, suffix))
-    {
-      return s.substr(0, s.size() - suffix.size());
-    }
-
-    return s;
   }
 
   // Iterators for map-keys and map-values
