@@ -1,12 +1,14 @@
 #!/bin/bash -i
 
 ## Install TLA+ Tools
-echo "alias tlcrepl='java -XX:+UseParallelGC -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.REPL'" >> $HOME/.bashrc
-echo "alias tlc='java -XX:+UseParallelGC -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'" >> $HOME/.bashrc
-echo "alias tlcmax4='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=4g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'" >> $HOME/.bashrc
-echo "alias tlcmax8='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=8g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'" >> $HOME/.bashrc
-echo "alias tlcmax16='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=16g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'" >> $HOME/.bashrc
-echo "alias tlcmax32='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=32g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'" >> $HOME/.bashrc
+{
+    echo "alias tlcrepl='java -XX:+UseParallelGC -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.REPL'"
+    echo "alias tlc='java -XX:+UseParallelGC -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'"
+    echo "alias tlcmax4='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=4g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'"
+    echo "alias tlcmax8='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=8g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'"
+    echo "alias tlcmax16='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=16g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'"
+    echo "alias tlcmax32='java -XX:+UseParallelGC -XX:MaxDirectMemorySize=32g -Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true -cp ~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar tlc2.TLC'"
+} >> $HOME/.bashrc
 
 ## Place to install TLAPS, Apalache, ...
 mkdir -p tla/tools
@@ -34,6 +36,6 @@ echo 'export PATH=$PATH:/workspace/CCF/tla/tools/apalache/bin:/workspaces/CCF/tl
 ## - r-base iff tutorial covers statistics (TODO)
 sudo apt-get install -y graphviz htop
 ## No need because Apalache comes with z3 turnkey
-#sudo apt-get install -y z3 libz3-java 
+#sudo apt-get install -y z3 libz3-java
 sudo apt-get install -y --no-install-recommends texlive-latex-recommended
 #sudo apt-get install -y r-base
