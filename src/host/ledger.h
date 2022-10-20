@@ -64,23 +64,27 @@ namespace asynchost
 
   static inline bool is_ledger_file_name_committed(const std::string& file_name)
   {
-    return nonstd::ends_with(file_name, ledger_committed_suffix);
+    return file_name.ends_with(ledger_committed_suffix);
   }
 
   static inline bool is_ledger_file_name_recovery(const std::string& file_name)
   {
-    return nonstd::ends_with(file_name, ledger_recovery_file_suffix);
+    return file_name.ends_with(ledger_recovery_file_suffix);
   }
 
   static inline bool is_ledger_file_name_ignored(const std::string& file_name)
   {
-    return nonstd::ends_with(file_name, ledger_ignored_file_suffix);
+    return file_name.ends_with(ledger_ignored_file_suffix);
   }
 
-  static inline fs::path remove_recovery_suffix(const std::string& file_name)
+  static inline fs::path remove_recovery_suffix(std::string_view file_name)
   {
-    return nonstd::remove_suffix(
-      file_name, fmt::format(".{}", ledger_recovery_file_suffix));
+    const auto suffix = fmt::format(".{}", ledger_recovery_file_suffix);
+    if (file_name.ends_with(suffix))
+    {
+      file_name.remove_suffix(suffix.size());
+    }
+    return file_name;
   }
 
   static std::optional<std::string> get_file_name_with_idx(
@@ -544,7 +548,7 @@ namespace asynchost
 
     void open()
     {
-      auto new_file_name = remove_recovery_suffix(file_name);
+      auto new_file_name = remove_recovery_suffix(file_name.c_str());
       rename(new_file_name);
       recovery = false;
       LOG_DEBUG_FMT("Open recovery ledger file {}", new_file_name);

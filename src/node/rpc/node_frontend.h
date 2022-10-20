@@ -429,9 +429,9 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSeqnoIsOld,
             fmt::format(
-              "Node requested to join from seqno {} which is "
-              "older than this node startup seqno {}. A snapshot at least ",
-              "as recent as {} must be used instead.",
+              "Node requested to join from seqno {} which is older than this "
+              "node startup seqno {}. A snapshot at least as recent as {} must "
+              "be used instead.",
               in.startup_seqno.value(),
               this_startup_seqno,
               this_startup_seqno));
