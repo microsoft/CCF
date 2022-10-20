@@ -502,6 +502,153 @@ def test_forwarding_timeout(network, args):
     network.wait_for_primary_unanimity()
 
 
+@reqs.description(
+    "Session consistency is provided, and inconsistencies after elections are replaced by errors"
+)
+@reqs.supports_methods("/log/private")
+@reqs.no_http2()
+def test_session_consistency(network, args):
+    # Ensure we have 5 nodes
+    original_size = network.resize(5, args)
+
+    primary, backups = network.find_nodes()
+    backup = backups[0]
+
+    with contextlib.ExitStack() as stack:
+        client_primary_0 = stack.enter_context(
+            primary.client("user0", description="primary 0")
+        )
+        client_primary_1 = stack.enter_context(
+            primary.client("user0", description="primary 1")
+        )
+        client_backup_0 = stack.enter_context(
+            backup.client("user0", description="backup 0")
+        )
+        client_backup_1 = stack.enter_context(
+            backup.client("user0", description="backup 1")
+        )
+
+        # Create some new state
+        msg_id = 42
+        msg_a = "First write, to primary"
+        r = client_primary_0.post(
+            "/app/log/private",
+            {
+                "id": msg_id,
+                "msg": msg_a,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+
+        # Read this state on a second session
+        r = client_primary_1.get(f"/app/log/private?id={msg_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["msg"] == msg_a, r
+
+        # Wait for that to be committed on all backups
+        network.wait_for_all_nodes_to_commit(primary)
+
+        # Write on backup, resulting in a forwarded request
+        # Confirm that this session can read that write, since it remains forwarded
+        # Meanwhile another session to the same node may not see it
+        # NB: The latter property is not possible to test systematically, as it
+        # relies on a race - does the read on the second session happen before consensus
+        # update's the backup's state. So we try in a loop
+        n_attempts = 20
+        for i in range(n_attempts):
+            last_message = f"Second write, via backup ({i})"
+            r = client_backup_0.post(
+                "/app/log/private",
+                {
+                    "id": msg_id,
+                    "msg": last_message,
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r
+
+            r = client_backup_1.get(f"/app/log/private?id={msg_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            if r.body.json()["msg"] != last_message:
+                LOG.info(
+                    f"Successfully saw a different value on second session after {i} attempts"
+                )
+                break
+        else:
+            raise RuntimeError(
+                f"Failed to observe evidence of session forwarding after {n_attempts} attempts"
+            )
+
+        def check_session_consistency(sessions, should_error=False):
+            for client in sessions:
+                r = client.get(f"/app/log/private?id={msg_id}")
+                if should_error:
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+                    assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
+                else:
+                    assert r.status_code == http.HTTPStatus.OK, r
+
+        # Partition primary and forwarding backup from other backups
+        with network.partitioner.partition([primary, backup]):
+            # Write on partitioned primary
+            msg0 = "AA"
+            r0 = client_primary_0.post(
+                "/app/log/private",
+                {
+                    "id": msg_id,
+                    "msg": msg0,
+                },
+            )
+            assert r0.status_code == http.HTTPStatus.OK
+
+            # Read from partitioned backup, over forwarded session to primary
+            r1 = client_backup_0.get(f"/app/log/private?id={msg_id}")
+            assert r1.status_code == http.HTTPStatus.OK
+
+            # At this point despite partition these nodes believe this new transaction
+            # is still valid, and will still report it, so there is no consistency error
+            check_session_consistency(
+                # NB: Only use these sessions, or we 'pollute' the other sessions
+                # with recent TxIDs
+                (client_primary_0, client_backup_0),
+                False,
+            )
+
+            # Even once CheckQuorum takes effect and the primary stands down, they
+            # know nothing contradictory so session consistency is maintained
+            primary.wait_for_leadership_state(
+                r0.view, "Follower", timeout=2 * args.election_timeout_ms / 1000
+            )
+            check_session_consistency(
+                (client_primary_0, client_backup_0),
+                False,
+            )
+
+            # Ensure the majority partition have elected their own new primary
+            _, new_view = network.wait_for_new_primary(primary, nodes=backups[1:])
+
+        # Now the partition heals, and the partitioned primary and backup are brought
+        # back up-to-date. This causes them to discard the state produced while partitioned
+        network.wait_for_primary_unanimity(min_view=new_view - 1)
+
+        check_session_consistency(
+            # These sessions saw discarded state, either directly from their target node
+            # or via forwarding, so now report consistency errors
+            (client_primary_0, client_backup_0),
+            True,
+        )
+        check_session_consistency(
+            # These sessions saw earlier state from before the partition, which remains
+            # valid in the new view. Their session consistency is maintained
+            (client_primary_1, client_backup_1),
+            False,
+        )
+
+    # Restore original network size
+    network.resize(original_size, args)
+
+    return network
+
+
 def run_2tx_reconfig_tests(args):
     if not args.include_2tx_reconfig:
         return
@@ -546,6 +693,7 @@ def run(args):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_election_reconfiguration(network, args)
         test_forwarding_timeout(network, args)
+        test_session_consistency(network, args)
 
 
 if __name__ == "__main__":
@@ -561,6 +709,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
+    args.snapshot_tx_interval = 20
 
     run(args)
     run_2tx_reconfig_tests(args)

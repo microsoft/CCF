@@ -599,6 +599,7 @@ class Node:
         signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
         verify_ca=True,
+        description=None,
         **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
@@ -627,9 +628,11 @@ class Node:
             akwargs["http2"] = True
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
-        akwargs[
-            "description"
-        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
+        description = (
+            description
+            or f"{self.local_node_id}|{identity or ''}|{signing_identity or ''}"
+        )
+        akwargs["description"] = f"[{description}]"
         akwargs.update(kwargs)
 
         if self.curl:
