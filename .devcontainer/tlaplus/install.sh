@@ -21,12 +21,12 @@ mkdir -p tla/tools
 wget -N https://github.com/tlaplus/tlapm/releases/download/v1.4.5/tlaps-1.4.5-x86_64-linux-gnu-inst.bin -P /tmp
 chmod +x /tmp/tlaps-1.4.5-x86_64-linux-gnu-inst.bin
 /tmp/tlaps-1.4.5-x86_64-linux-gnu-inst.bin -d tla/tools/tlaps
-echo 'export PATH=$PATH:/workspace/CCF/tla/tools/tlaps/bin:/workspaces/CCF/tla/tools/tlaps/bin' >> $HOME/.bashrc
+echo "export PATH=\$PATH:/workspace/CCF/tla/tools/tlaps/bin:/workspaces/CCF/tla/tools/tlaps/bin" >> $HOME/.bashrc
 
 ## Install Apalache
 wget -qN https://github.com/informalsystems/apalache/releases/latest/download/apalache.tgz -P /tmp
 tar xvfz /tmp/apalache.tgz --directory tla/tools/
-echo 'export PATH=$PATH:/workspace/CCF/tla/tools/apalache/bin:/workspaces/CCF/tla/tools/apalache/bin' >> $HOME/.bashrc
+echo "export PATH=\$PATH:/workspace/CCF/tla/tools/apalache/bin:/workspaces/CCF/tla/tools/apalache/bin" >> $HOME/.bashrc
 
 ## (Moved to the end to let it run in the background while we get started)
 ## - graphviz to visualize TLC's state graphs
