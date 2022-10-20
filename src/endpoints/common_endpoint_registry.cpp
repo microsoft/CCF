@@ -192,7 +192,7 @@ namespace ccf
       return make_success(out);
     };
     make_read_only_endpoint(
-      "/host_data",
+      "/snp/host_data",
       HTTP_GET,
       json_read_only_adapter(get_host_data),
       no_auth_required)
