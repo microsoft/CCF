@@ -144,7 +144,7 @@ function checkJwks(value, field) {
 }
 
 function checkX509CertBundle(value, field) {
-  if (!ccf.isValidX509CertBundle(value)) {
+  if (!ccf.crypto.isValidX509CertBundle(value)) {
     throw new Error(
       `${field} must be a valid X509 certificate (bundle) in PEM format`
     );
@@ -975,7 +975,7 @@ const actions = new Map([
 
         if (args.security_policy_raw != "") {
           const redigested_raw = ccf.bufToStr(
-            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
+            ccf.crypto.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
           );
           const quoted_digest = ccf.bufToStr(
             hexStrToBuf(args.security_policy_digest)

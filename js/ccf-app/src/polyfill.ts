@@ -352,7 +352,7 @@ class CCFPolyfill implements CCF {
         jwk.kid = kid;
       }
       return jwk;
-    }
+    },
   };
 
   strToBuf(s: string): ArrayBuffer {
