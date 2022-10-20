@@ -186,13 +186,19 @@ namespace http
     void record_response_txid(std::span<const uint8_t> raw_response) override
     {
       // To avoid a full HTTP parse, search for the desired header directly
-      std::string_view response(
+      const std::string_view response(
         (char const*)raw_response.data(), raw_response.size());
-      std::string_view target(http::headers::CCF_TX_ID);
-      auto header_begin = std::search(
+      const std::string_view header_line_break = "\r\n";
+      const auto target =
+        fmt::format("{}{}:", header_line_break, http::headers::CCF_TX_ID);
+      const auto header_begin = std::search(
         response.begin(), response.end(), target.begin(), target.end());
-      auto header_name_end = std::find(header_begin, response.end(), ':');
-      auto header_value_end = std::find(header_name_end, response.end(), '\r');
+      const auto header_name_end = header_begin + target.length();
+      const auto header_value_end = std::search(
+        header_name_end,
+        response.end(),
+        header_line_break.begin(),
+        header_line_break.end());
 
       if (header_value_end == response.end())
       {
@@ -200,7 +206,7 @@ namespace http
         return;
       }
 
-      auto after_name_end = std::next(header_name_end);
+      const auto after_name_end = std::next(header_name_end);
       std::string_view header_value(
         after_name_end, header_value_end - after_name_end);
       const auto leading_spaces = header_value.find_first_not_of(' ');
@@ -209,7 +215,7 @@ namespace http
         header_value.remove_prefix(leading_spaces);
       }
 
-      auto tx_id = ccf::TxID::from_str(header_value);
+      const auto tx_id = ccf::TxID::from_str(header_value);
       if (!tx_id.has_value())
       {
         LOG_FAIL_FMT(
