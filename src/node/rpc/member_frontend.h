@@ -948,29 +948,13 @@ namespace ccf
         "/proposals",
         HTTP_GET,
         json_read_only_adapter(get_open_proposals_js),
-        member_cert_or_sig)
+        ccf::no_auth_required)
         .set_auto_schema<void, AllOpenProposals>()
         .install();
 
       auto get_proposal_js = [this](
                                endpoints::ReadOnlyEndpointContext& ctx,
                                nlohmann::json&&) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
-        }
-        if (!check_member_active(ctx.tx, member_id.value()))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
         // Take expand=ballots, return eg. "ballots": 3 if not set
         // or "ballots": list of ballots in full if passed
 
@@ -1014,7 +998,7 @@ namespace ccf
         "/proposals/{proposal_id}",
         HTTP_GET,
         json_read_only_adapter(get_proposal_js),
-        member_cert_or_sig)
+        ccf::no_auth_required)
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
 
@@ -1097,17 +1081,6 @@ namespace ccf
 
       auto get_proposal_actions_js =
         [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is not active.");
-            return;
-          }
-
           ProposalId proposal_id;
           std::string error;
           if (!get_proposal_id_from_path(
@@ -1143,7 +1116,7 @@ namespace ccf
         "/proposals/{proposal_id}/actions",
         HTTP_GET,
         get_proposal_actions_js,
-        member_cert_or_sig)
+        ccf::no_auth_required)
         .set_auto_schema<void, jsgov::Proposal>()
         .install();
 
@@ -1278,22 +1251,6 @@ namespace ccf
 
       auto get_vote_js =
         [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto member_id = get_caller_member_id(ctx);
-          if (!member_id.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is unknown.");
-          }
-          if (!check_member_active(ctx.tx, member_id.value()))
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is not active.");
-          }
-
           std::string error;
           ProposalId proposal_id;
           if (!get_proposal_id_from_path(
@@ -1340,7 +1297,7 @@ namespace ccf
         "/proposals/{proposal_id}/ballots/{member_id}",
         HTTP_GET,
         json_read_only_adapter(get_vote_js),
-        member_cert_or_sig)
+        ccf::no_auth_required)
         .set_auto_schema<void, jsgov::Ballot>()
         .install();
 
