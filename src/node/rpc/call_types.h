@@ -51,7 +51,7 @@ namespace ccf
     };
   };
 
-  struct GetHostDataMap
+  struct GetSnpHostDataMap
   {
     struct HostData
     {
@@ -61,7 +61,7 @@ namespace ccf
 
     struct Out
     {
-      std::vector<GetHostDataMap::HostData> host_data = {};
+      std::vector<GetSnpHostDataMap::HostData> host_data = {};
     };
   };
 

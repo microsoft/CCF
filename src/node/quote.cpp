@@ -101,7 +101,7 @@ namespace ccf
       return QuoteVerificationResult::FailedHostDataDigestNotFound;
     }
 
-    auto accepted_policies_table = tx.ro<HostDataMap>(Tables::HOST_DATA);
+    auto accepted_policies_table = tx.ro<SnpHostDataMap>(Tables::HOST_DATA);
     auto accepted_policy = accepted_policies_table->get(host_data.value());
     if (!accepted_policy.has_value())
     {

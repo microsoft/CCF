@@ -287,7 +287,7 @@
         ],
         "type": "object"
       },
-      "GetHostDataMap__HostData": {
+      "GetSnpHostDataMap__HostData": {
         "properties": {
           "metadata": {
             "$ref": "#/components/schemas/string"
@@ -302,16 +302,16 @@
         ],
         "type": "object"
       },
-      "GetHostDataMap__HostData_array": {
+      "GetSnpHostDataMap__HostData_array": {
         "items": {
-          "$ref": "#/components/schemas/GetHostDataMap__HostData"
+          "$ref": "#/components/schemas/GetSnpHostDataMap__HostData"
         },
         "type": "array"
       },
-      "GetHostDataMap__Out": {
+      "GetSnpHostDataMap__Out": {
         "properties": {
           "host_data": {
-            "$ref": "#/components/schemas/GetHostDataMap__HostData_array"
+            "$ref": "#/components/schemas/GetSnpHostDataMap__HostData_array"
           }
         },
         "required": [
@@ -1067,7 +1067,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetHostDataMap__Out"
+                  "$ref": "#/components/schemas/GetSnpHostDataMap__Out"
                 }
               }
             },

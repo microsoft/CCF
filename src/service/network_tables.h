@@ -60,7 +60,7 @@ namespace ccf
     ModulesQuickJsVersion modules_quickjs_version;
     JSEngine js_engine;
     CodeIDs node_code_ids;
-    HostDataMap host_data;
+    SnpHostDataMap host_data;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
     RecoveryShares shares;

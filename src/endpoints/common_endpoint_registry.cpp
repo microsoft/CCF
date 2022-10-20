@@ -177,9 +177,9 @@ namespace ccf
       const auto key = http::get_query_value_opt<std::string>(
         parsed_query, "key", error_string);
 
-      GetHostDataMap::Out out;
+      GetSnpHostDataMap::Out out;
 
-      auto host_data = ctx.tx.template ro<HostDataMap>(Tables::HOST_DATA);
+      auto host_data = ctx.tx.template ro<SnpHostDataMap>(Tables::HOST_DATA);
       host_data->foreach(
         [key, &out](
           const HostData& host_data, const HostDataMetadata& security_policy) {
@@ -196,7 +196,7 @@ namespace ccf
       HTTP_GET,
       json_read_only_adapter(get_host_data),
       no_auth_required)
-      .set_auto_schema<void, GetHostDataMap::Out>()
+      .set_auto_schema<void, GetSnpHostDataMap::Out>()
       .add_query_parameter<std::string>(
         "key", ccf::endpoints::OptionalParameter)
       .install();

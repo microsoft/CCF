@@ -122,10 +122,10 @@ namespace ccf
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
 
-  DECLARE_JSON_TYPE(GetHostDataMap::HostData)
-  DECLARE_JSON_REQUIRED_FIELDS(GetHostDataMap::HostData, raw, metadata)
-  DECLARE_JSON_TYPE(GetHostDataMap::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetHostDataMap::Out, host_data)
+  DECLARE_JSON_TYPE(GetSnpHostDataMap::HostData)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSnpHostDataMap::HostData, raw, metadata)
+  DECLARE_JSON_TYPE(GetSnpHostDataMap::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSnpHostDataMap::Out, host_data)
 
   DECLARE_JSON_TYPE(GetRecoveryShare::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetRecoveryShare::Out, encrypted_share)
