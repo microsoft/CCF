@@ -131,9 +131,20 @@
         ],
         "type": "object"
       },
-      "GetSnpHostDataMap__HostData": {
+      "GetSecurityPolicies__Out": {
         "properties": {
-          "metadata": {
+          "policies": {
+            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
+          }
+        },
+        "required": [
+          "policies"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy": {
+        "properties": {
+          "digest": {
             "$ref": "#/components/schemas/string"
           },
           "raw": {
@@ -142,26 +153,15 @@
         },
         "required": [
           "raw",
-          "metadata"
+          "digest"
         ],
         "type": "object"
       },
-      "GetSnpHostDataMap__HostData_array": {
+      "GetSecurityPolicies__SecurityPolicy_array": {
         "items": {
-          "$ref": "#/components/schemas/GetSnpHostDataMap__HostData"
+          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
         },
         "type": "array"
-      },
-      "GetSnpHostDataMap__Out": {
-        "properties": {
-          "host_data": {
-            "$ref": "#/components/schemas/GetSnpHostDataMap__HostData_array"
-          }
-        },
-        "required": [
-          "host_data"
-        ],
-        "type": "object"
       },
       "GetTxStatus__Out": {
         "properties": {
@@ -461,38 +461,6 @@
         },
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
-        }
-      }
-    },
-    "/app/host_data": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "key",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSnpHostDataMap__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1355,6 +1323,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/security_policy": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
                 }
               }
             },

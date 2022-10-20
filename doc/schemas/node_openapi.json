@@ -287,38 +287,6 @@
         ],
         "type": "object"
       },
-      "GetSnpHostDataMap__HostData": {
-        "properties": {
-          "metadata": {
-            "$ref": "#/components/schemas/string"
-          },
-          "raw": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "raw",
-          "metadata"
-        ],
-        "type": "object"
-      },
-      "GetSnpHostDataMap__HostData_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetSnpHostDataMap__HostData"
-        },
-        "type": "array"
-      },
-      "GetSnpHostDataMap__Out": {
-        "properties": {
-          "host_data": {
-            "$ref": "#/components/schemas/GetSnpHostDataMap__HostData_array"
-          }
-        },
-        "required": [
-          "host_data"
-        ],
-        "type": "object"
-      },
       "GetNetworkInfo__Out": {
         "properties": {
           "current_service_create_txid": {
@@ -412,6 +380,38 @@
           "quotes"
         ],
         "type": "object"
+      },
+      "GetSecurityPolicies__Out": {
+        "properties": {
+          "policies": {
+            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
+          }
+        },
+        "required": [
+          "policies"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "raw",
+          "digest"
+        ],
+        "type": "object"
+      },
+      "GetSecurityPolicies__SecurityPolicy_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
+        },
+        "type": "array"
       },
       "GetServicePreviousIdentity__Out": {
         "properties": {
@@ -1050,38 +1050,6 @@
         }
       }
     },
-    "/node/host_data": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "key",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSnpHostDataMap__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
     "/node/js_metrics": {
       "get": {
         "responses": {
@@ -1453,6 +1421,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/node/security_policy": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
                 }
               }
             },
