@@ -429,15 +429,25 @@ class Network:
         self._setup_common_folder(args.constitution)
 
         mc = max(1, args.initial_member_count)
+        assert (
+            mc >= args.initial_operator_provisioner_count + args.initial_operator_count
+        ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
+
         initial_members_info = []
         for i in range(mc):
+            member_data = None
+            if i < args.initial_operator_provisioner_count:
+                member_data = {"is_operator_provisioner": True}
+            elif (
+                i
+                < args.initial_operator_provisioner_count + args.initial_operator_count
+            ):
+                member_data = {"is_operator": True}
             initial_members_info += [
                 (
                     i,
                     (i < args.initial_recovery_member_count),
-                    {"is_operator": True}
-                    if (i < args.initial_operator_count)
-                    else None,
+                    member_data,
                 )
             ]
 

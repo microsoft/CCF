@@ -325,36 +325,90 @@ export interface CCFCrypto {
   ): boolean;
 
   /**
-   * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
+   * Generate an AES key.
    *
-   * @param pem Elliptic curve public key as PEM
-   * @param kid Key identifier (optional)
+   * @param size The length in bits of the key to generate. 128, 192, or 256.
    */
-  pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic;
+  generateAesKey(size: number): ArrayBuffer;
 
   /**
-   * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
+   * Generate an RSA key pair.
    *
-   * @param pem Elliptic curve private key as PEM
-   * @param kid Key identifier (optional)
+   * @param size The length in bits of the RSA modulus. Minimum: 2048.
+   * @param exponent The public exponent. Default: 65537.
    */
-  pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate;
+  generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
 
   /**
-   * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
+   * Generate an ECDSA key pair.
    *
-   * @param pem RSA public key as PEM
-   * @param kid Key identifier (optional)
+   * @param curve The name of the curve, one of "secp256r1", "secp256k1", "secp384r1".
    */
-  pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic;
+  generateEcdsaKeyPair(curve: string): CryptoKeyPair;
 
   /**
-   * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
+   * Wraps a key using a wrapping key.
    *
-   * @param pem RSA private key as PEM
-   * @param kid Key identifier (optional)
+   * Constraints on the `key` and `wrappingKey` parameters depend
+   * on the wrapping algorithm that is used (`wrapAlgo`).
    */
-  rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
+  wrapKey(
+    key: ArrayBuffer,
+    wrappingKey: ArrayBuffer,
+    wrapAlgo: WrapAlgoParams
+  ): ArrayBuffer;
+
+  /**
+   * Generate a digest (hash) of the given data.
+   */
+  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
+
+  /**
+   * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
+   *
+   * A bundle consists of one or more certificates.
+   * Certificates in the bundle do not have to be related to each other.
+   * Validation is only syntactical, properties like validity dates are not evaluated.
+   */
+  isValidX509CertBundle(pem: string): boolean;
+
+  /**
+   * Returns whether a certificate chain is valid given a set of trusted certificates.
+   * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
+   */
+  isValidX509CertChain(chain: string, trusted: string): boolean;
+
+  /**
+  * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
+  *
+  * @param pem Elliptic curve public key as PEM
+  * @param kid Key identifier (optional)
+  */
+ pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic;
+
+ /**
+  * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
+  *
+  * @param pem Elliptic curve private key as PEM
+  * @param kid Key identifier (optional)
+  */
+ pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate;
+
+ /**
+  * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
+  *
+  * @param pem RSA public key as PEM
+  * @param kid Key identifier (optional)
+  */
+ pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic;
+
+ /**
+  * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
+  *
+  * @param pem RSA private key as PEM
+  * @param kid Key identifier (optional)
+  */
+ rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
 }
 
 export interface CCFRpc {
@@ -476,32 +530,26 @@ export interface CCF {
   bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T;
 
   /**
-   * Generate an AES key.
-   *
-   * @param size The length in bits of the key to generate. 128, 192, or 256.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateAesKey
    */
   generateAesKey(size: number): ArrayBuffer;
 
   /**
-   * Generate an RSA key pair.
-   *
-   * @param size The length in bits of the RSA modulus. Minimum: 2048.
-   * @param exponent The public exponent. Default: 65537.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateRsaKeyPair
    */
   generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
 
   /**
-   * Generate an ECDSA key pair.
-   *
-   * @param curve The name of the curve, one of "secp256r1", "secp256k1", "secp384r1".
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateEcdsaKeyPair
    */
   generateEcdsaKeyPair(curve: string): CryptoKeyPair;
 
   /**
-   * Wraps a key using a wrapping key.
-   *
-   * Constraints on the `key` and `wrappingKey` parameters depend
-   * on the wrapping algorithm that is used (`wrapAlgo`).
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.wrapKey
    */
   wrapKey(
     key: ArrayBuffer,
@@ -510,22 +558,20 @@ export interface CCF {
   ): ArrayBuffer;
 
   /**
-   * Generate a digest (hash) of the given data.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.digest
    */
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
   /**
-   * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
-   *
-   * A bundle consists of one or more certificates.
-   * Certificates in the bundle do not have to be related to each other.
-   * Validation is only syntactical, properties like validity dates are not evaluated.
+   * @deprecated
+   * @see crypto.isValidX509CertBundle
    */
   isValidX509CertBundle(pem: string): boolean;
 
   /**
-   * Returns whether a certificate chain is valid given a set of trusted certificates.
-   * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.isValidX509CertChain
    */
   isValidX509CertChain(chain: string, trusted: string): boolean;
 
