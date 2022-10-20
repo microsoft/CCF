@@ -12,8 +12,8 @@
     "tlaplus.tlc.statisticsSharing": "share",
     "tlaplus.java.options": "-XX:+UseParallelGC",
     "tlaplus.java.home": "/home/codespace/.java/current/",
-    "[tlaplus]": {"editor.codeActionsOnSave": {"source": true} }
-    },
+    "[tlaplus]": { "editor.codeActionsOnSave": { "source": true } }
+  },
 
   "postCreateCommand": "bash -i .devcontainer/tlaplus/install.sh"
 }
