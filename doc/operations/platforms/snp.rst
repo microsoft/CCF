@@ -21,7 +21,7 @@ The first node in a new network will add its code id to the table. Members can t
 
 - Security Policy
 
-On startup, the UVM checks code in the container against a security policy. A digest of the security policy is then provided in the attestation in the host_data field. CCF stores authorised host data in the :ref:`audit/builtin_maps:``nodes.host_data``` table. New nodes joining a network will provide their policy digest and the primary will perform an identity check against the table entries.
+On startup, the UVM checks code in the container against a security policy. A digest of the security policy is then provided in the attestation in the host_data field. CCF stores authorised host data in the :ref:`audit/builtin_maps:``nodes.snp.host_data``` table. New nodes joining a network will provide their policy digest and the primary will perform an identity check against the table entries.
 
 The first node in a new network will add its policy digest to the table. Members can then manage which policy digests are present in the table with the ``add_snp_host_data`` and ``remove_snp_host_data`` actions.
 

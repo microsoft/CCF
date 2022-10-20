@@ -64,7 +64,7 @@ def test_host_data_table(network, args):
 
     primary, _ = network.find_nodes()
     with primary.client() as client:
-        r = client.get("/gov/host_data")
+        r = client.get("/gov/snp/host_data")
         host_data = sorted(r.body.json()["host_data"], key=lambda x: x["raw"])
 
     expected = [

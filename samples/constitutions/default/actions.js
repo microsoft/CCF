@@ -982,7 +982,7 @@ const actions = new Map([
           }
         }
 
-        ccf.kv["public:ccf.gov.nodes.host_data"].set(
+        ccf.kv["public:ccf.gov.nodes.snp.host_data"].set(
           host_data,
           security_policy
         );
@@ -1000,7 +1000,7 @@ const actions = new Map([
       },
       function (args) {
         const host_data = ccf.strToBuf(args.host_data);
-        ccf.kv["public:ccf.gov.nodes.host_data"].delete(host_data);
+        ccf.kv["public:ccf.gov.nodes.snp.host_data"].delete(host_data);
       }
     ),
   ],

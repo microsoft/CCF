@@ -143,7 +143,7 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
 
 .. note:: On versions ``3.0.0-dev1`` and below, value was an enum with one possible value ``ALLOWED_TO_JOIN``
 
-``nodes.host_data``
+``nodes.snp.host_data``
 ~~~~~~~~~~~~~~~~~~~
 
 Attestation report host data field for nodes that are allowed to join the current network on :doc:`SNP <../operations/platforms/snp>`.
