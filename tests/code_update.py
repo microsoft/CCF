@@ -274,9 +274,8 @@ def test_update_all_nodes(network, args):
         # Pretend this was already present
         network.consortium.add_new_code(primary, first_code_id)
 
-    LOG.info("Add new code id/measurement")
+    LOG.info("Add new code id")
     network.consortium.add_new_code(primary, new_code_id)
-
     LOG.info("Check reported trusted measurements")
     with primary.client() as uc:
         r = uc.get("/node/code")
@@ -293,7 +292,7 @@ def test_update_all_nodes(network, args):
         expected.sort(key=lambda x: x["digest"])
         assert versions == expected, f"{versions} != {expected}"
 
-    LOG.info("Remove old code id/measurement")
+    LOG.info("Remove old code id")
     network.consortium.retire_code(primary, first_code_id)
     with primary.client() as uc:
         r = uc.get("/node/code")
