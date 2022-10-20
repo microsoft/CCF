@@ -307,7 +307,10 @@ export function post_public(request) {
   public_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
   update_first_write(id, false);
   if (params.record_claim) {
-    const claims_digest = ccf.crypto.digest("SHA-256", ccf.strToBuf(params.msg));
+    const claims_digest = ccf.crypto.digest(
+      "SHA-256",
+      ccf.strToBuf(params.msg)
+    );
     ccf.rpc.setClaimsDigest(claims_digest);
   }
   return { body: true };
