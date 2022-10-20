@@ -489,11 +489,21 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         proposal=remove_operator,
     )
     network.consortium.members.remove(operator)
+    operator.set_retired()
 
-    network.consortium.remove_member(
-        remote_node=node,
-        member_to_remove=operator_provisioner,
+    # Create a proposal that the operator provisioner isn't allowed to make.
+    illegal_proposal, _ = network.consortium.make_proposal(
+        "set_member_data",
+        member_id=network.consortium.get_member_by_local_id("member0").service_id,
+        member_data={},
     )
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals", illegal_proposal)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] != "Accepted", r.body.json()
+
+    network.consortium.members.remove(operator_provisioner)
+    operator_provisioner.set_retired()
 
 
 @reqs.description("Test actions")
