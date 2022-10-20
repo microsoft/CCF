@@ -432,6 +432,80 @@ def test_operator_proposals_and_votes(network, args):
     return network
 
 
+@reqs.description("Test operator provisioner proposals")
+def test_operator_provisioner_proposals_and_votes(network, args):
+
+    node = network.find_random_node()
+
+    def propose_and_assert_accepted(signer_id, proposal):
+        with node.client(None, signer_id) as c:
+            r = c.post("/gov/proposals", proposal)
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    # Create an operator provisioner
+    operator_provisioner = network.consortium.generate_and_add_new_member(
+        remote_node=node,
+        curve=args.participants_curve,
+        member_data={"is_operator_provisioner": True},
+    )
+    operator_provisioner.ack(node)
+
+    # Propose the creation of an operator signed by the operator provisioner
+    operator = infra.member.Member(
+        "operator",
+        args.participants_curve,
+        network.consortium.common_dir,
+        network.consortium.share_script,
+        is_recovery_member=False,
+        key_generator=network.consortium.key_generator,
+        authenticate_session=network.consortium.authenticate_session,
+    )
+
+    set_operator, _ = network.consortium.make_proposal(
+        "set_member",
+        cert=open(
+            operator.member_info["certificate_file"],
+            encoding="utf-8",
+        ).read(),
+        member_data={"is_operator": True},
+    )
+
+    propose_and_assert_accepted(
+        signer_id=operator_provisioner.local_id,
+        proposal=set_operator,
+    )
+    network.consortium.members.append(operator)
+    operator.ack(node)
+
+    # Propose the removal of the operator signed by the operator provisioner
+    remove_operator, _ = network.consortium.make_proposal(
+        "remove_member",
+        member_id=operator.service_id,
+    )
+
+    propose_and_assert_accepted(
+        signer_id=operator_provisioner.local_id,
+        proposal=remove_operator,
+    )
+    network.consortium.members.remove(operator)
+    operator.set_retired()
+
+    # Create a proposal that the operator provisioner isn't allowed to make.
+    illegal_proposal, _ = network.consortium.make_proposal(
+        "set_member_data",
+        member_id=network.consortium.get_member_by_local_id("member0").service_id,
+        member_data={},
+    )
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals", illegal_proposal)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] != "Accepted", r.body.json()
+
+    network.consortium.members.remove(operator_provisioner)
+    operator_provisioner.set_retired()
+
+
 @reqs.description("Test actions")
 def test_actions(network, args):
     node = network.find_random_node()
