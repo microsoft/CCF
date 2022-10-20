@@ -304,7 +304,7 @@ namespace kv
 
   static inline SecurityDomain get_security_domain(const std::string& name)
   {
-    if (nonstd::starts_with(name, public_domain_prefix))
+    if (name.starts_with(public_domain_prefix))
     {
       return SecurityDomain::PUBLIC;
     }
@@ -313,29 +313,29 @@ namespace kv
   }
 
   static inline std::pair<SecurityDomain, AccessCategory> parse_map_name(
-    const std::string& name)
+    std::string_view name)
   {
     constexpr auto internal_category_prefix = "ccf.internal.";
-    constexpr auto governance_category_prefix = "public:ccf.gov.";
+    constexpr auto governance_category_prefix = "ccf.gov.";
     constexpr auto reserved_category_prefix = "ccf.";
 
     auto security_domain = SecurityDomain::PRIVATE;
-    const auto core_name = nonstd::remove_prefix(name, public_domain_prefix);
-    if (core_name != name)
+    if (name.starts_with(public_domain_prefix))
     {
+      name.remove_prefix(strlen(public_domain_prefix));
       security_domain = SecurityDomain::PUBLIC;
     }
 
     auto access_category = AccessCategory::APPLICATION;
-    if (nonstd::starts_with(core_name, internal_category_prefix))
+    if (name.starts_with(internal_category_prefix))
     {
       access_category = AccessCategory::INTERNAL;
     }
-    else if (nonstd::starts_with(name, governance_category_prefix))
+    else if (name.starts_with(governance_category_prefix))
     {
       access_category = AccessCategory::GOVERNANCE;
     }
-    else if (nonstd::starts_with(core_name, reserved_category_prefix))
+    else if (name.starts_with(reserved_category_prefix))
     {
       throw std::logic_error(fmt::format(
         "Map name '{}' includes disallowed reserved prefix '{}'",
