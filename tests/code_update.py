@@ -110,9 +110,7 @@ def test_add_node_with_no_security_policy_not_matching_kv(network, args):
 
     LOG.info("Change the entry for trusted security policies to include a raw policy")
     primary, _ = network.find_nodes()
-    network.consortium.retire_host_data(
-        primary, DEFAULT_SNP_HOST_DATA
-    )
+    network.consortium.retire_host_data(primary, DEFAULT_SNP_HOST_DATA)
     network.consortium.add_new_host_data(
         primary,
         DEFAULT_SNP_SECURITY_POLICY,
@@ -128,9 +126,7 @@ def test_add_node_with_no_security_policy_not_matching_kv(network, args):
         primary,
         DEFAULT_SNP_HOST_DATA,
     )
-    network.consortium.add_new_host_data(
-        primary, "", DEFAULT_SNP_HOST_DATA
-    )
+    network.consortium.add_new_host_data(primary, "", DEFAULT_SNP_HOST_DATA)
 
 
 @reqs.description("Node where raw security policy doesn't match digest fails to join")
@@ -164,9 +160,7 @@ def test_add_node_with_bad_host_data(network, args):
     LOG.info(
         "Removing security policy set by node 0 so that a new joiner is seen as an unmatching policy"
     )
-    network.consortium.retire_host_data(
-        primary, DEFAULT_SNP_HOST_DATA
-    )
+    network.consortium.retire_host_data(primary, DEFAULT_SNP_HOST_DATA)
 
     new_node = network.create_node("local://localhost")
     try:
@@ -183,9 +177,7 @@ def test_add_node_with_bad_host_data(network, args):
     else:
         raise AssertionError("Node joining unexpectedly succeeded")
 
-    network.consortium.add_new_host_data(
-        primary, "", DEFAULT_SNP_HOST_DATA
-    )
+    network.consortium.add_new_host_data(primary, "", DEFAULT_SNP_HOST_DATA)
     new_node.stop()
 
 

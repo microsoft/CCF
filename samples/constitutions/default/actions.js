@@ -747,7 +747,7 @@ const actions = new Map([
   [
     "remove_js_app",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const modulesQuickJsBytecodeMap =
@@ -780,7 +780,7 @@ const actions = new Map([
   [
     "refresh_js_app_bytecode_cache",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args) {
         ccf.refreshAppBytecodeCache();
       }
@@ -963,11 +963,7 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.security_policy, "string", "security_policy");
-        checkType(
-          args.host_data,
-          "string",
-          "host_data"
-        );
+        checkType(args.host_data, "string", "host_data");
       },
       function (args, proposalId) {
         const host_data = ccf.strToBuf(args.host_data);
@@ -977,9 +973,7 @@ const actions = new Map([
           const security_policy_digest = ccf.bufToStr(
             ccf.digest("SHA-256", ccf.strToBuf(args.security_policy))
           );
-          const quoted_host_data = ccf.bufToStr(
-            hexStrToBuf(args.host_data)
-          );
+          const quoted_host_data = ccf.bufToStr(hexStrToBuf(args.host_data));
 
           if (security_policy_digest != quoted_host_data) {
             throw new Error(
@@ -988,7 +982,10 @@ const actions = new Map([
           }
         }
 
-        ccf.kv["public:ccf.gov.nodes.host_data"].set(host_data, security_policy);
+        ccf.kv["public:ccf.gov.nodes.host_data"].set(
+          host_data,
+          security_policy
+        );
 
         // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
@@ -999,11 +996,7 @@ const actions = new Map([
     "remove_snp_host_data",
     new Action(
       function (args) {
-        checkType(
-          args.host_data,
-          "string",
-          "host_data"
-        );
+        checkType(args.host_data, "string", "host_data");
       },
       function (args) {
         const host_data = ccf.strToBuf(args.host_data);
@@ -1298,7 +1291,7 @@ const actions = new Map([
   [
     "trigger_ledger_chunk",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args, proposalId) {
         ccf.node.triggerLedgerChunk();
       }
@@ -1307,7 +1300,7 @@ const actions = new Map([
   [
     "trigger_snapshot",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args, proposalId) {
         ccf.node.triggerSnapshot();
       }
@@ -1343,7 +1336,7 @@ const actions = new Map([
           throw new Error("Service identity certificate mismatch");
         }
       },
-      function (args) { }
+      function (args) {}
     ),
   ],
 ]);
