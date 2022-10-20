@@ -10,7 +10,7 @@ using HostDataMetadata = std::string;
 
 namespace ccf
 {
-  using HostDataMap = ServiceMap<HostData, HostDataMetadata>;
+  using SnpHostDataMap = ServiceMap<HostData, HostDataMetadata>;
   namespace Tables
   {
     static constexpr auto HOST_DATA = "public:ccf.gov.nodes.snp.host_data";
