@@ -115,8 +115,7 @@ namespace ccf
           auto verb = nlohmann::json(method).get<RESTVerb>();
           endpoints->put(
             ccf::endpoints::EndpointKey{
-              nonstd::starts_with(url, "/") ? url : fmt::format("/{}", url),
-              verb},
+              url.starts_with("/") ? url : fmt::format("/{}", url), verb},
             info_);
         }
       }
@@ -162,7 +161,7 @@ namespace ccf
       auto tx_modules = tx.rw(network.modules);
       tx_modules->foreach(
         [&tx_modules, &prefix](const std::string& name, const Module&) {
-          if (nonstd::starts_with(name, prefix))
+          if (name.starts_with(prefix))
           {
             tx_modules->remove(name);
           }

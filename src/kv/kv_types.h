@@ -304,7 +304,7 @@ namespace kv
 
   static inline SecurityDomain get_security_domain(const std::string& name)
   {
-    if (nonstd::starts_with(name, public_domain_prefix))
+    if (name.starts_with(public_domain_prefix))
     {
       return SecurityDomain::PUBLIC;
     }
@@ -327,15 +327,15 @@ namespace kv
     }
 
     auto access_category = AccessCategory::APPLICATION;
-    if (nonstd::starts_with(core_name, internal_category_prefix))
+    if (core_name.starts_with(internal_category_prefix))
     {
       access_category = AccessCategory::INTERNAL;
     }
-    else if (nonstd::starts_with(name, governance_category_prefix))
+    else if (name.starts_with(governance_category_prefix))
     {
       access_category = AccessCategory::GOVERNANCE;
     }
-    else if (nonstd::starts_with(core_name, reserved_category_prefix))
+    else if (core_name.starts_with(reserved_category_prefix))
     {
       throw std::logic_error(fmt::format(
         "Map name '{}' includes disallowed reserved prefix '{}'",

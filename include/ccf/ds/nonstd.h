@@ -79,20 +79,6 @@ namespace nonstd
   template <class T>
   using remove_cvref_t = typename remove_cvref<T>::type;
 
-  /** These generic std::string member functions are present in C++20
-   */
-  static inline bool starts_with(
-    const std::string& s, const std::string& prefix)
-  {
-    return s.rfind(prefix, 0) == 0;
-  }
-
-  static inline bool ends_with(const std::string& s, const std::string& suffix)
-  {
-    return s.size() >= suffix.size() &&
-      s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
-  }
-
   /** split is based on Python's str.split
    */
   static inline std::vector<std::string_view> split(
@@ -153,7 +139,7 @@ namespace nonstd
   static inline std::string remove_prefix(
     const std::string& s, const std::string& prefix)
   {
-    if (starts_with(s, prefix))
+    if (s.starts_with(prefix))
     {
       return s.substr(prefix.size());
     }
@@ -164,7 +150,7 @@ namespace nonstd
   static inline std::string remove_suffix(
     const std::string& s, const std::string& suffix)
   {
-    if (ends_with(s, suffix))
+    if (s.ends_with(suffix))
     {
       return s.substr(0, s.size() - suffix.size());
     }

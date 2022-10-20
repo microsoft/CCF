@@ -116,7 +116,7 @@ namespace ccf::v8_tmpl
         sig = crypto::ecdsa_sig_p1363_to_der(sig);
       }
 
-      auto is_cert = nonstd::starts_with(key, "-----BEGIN CERTIFICATE");
+      auto is_cert = key.starts_with("-----BEGIN CERTIFICATE");
 
       bool valid = false;
 
