@@ -21,7 +21,7 @@ You can find the full specification in the :ccf_repo:`tla/` directory and more i
 Running the model checker
 -------------------------
 
-The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with TLC (version 2.17) from `TLA+ version 1.7.1 <https://github.com/tlaplus/tlaplus/releases/tag/v1.7.1>`_. The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, the scripts in this folder allow you to run TLC easily.
+The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with the nightly build of TLC. The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, the scripts in this folder allow you to run TLC easily.
 
 To download and then run TLC, simply execute:
 
