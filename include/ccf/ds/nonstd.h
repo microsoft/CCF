@@ -12,8 +12,9 @@
 
 /**
  * This file defines various type traits and utils that are not available in the
- * standard library. Some are added in C++20, some are proposed, some are purely
- * custom. They are defined here to avoid repetition in other locations
+ * standard library. Some are added in future versions of the standard library,
+ * some are proposed, some are purely custom. They are defined here to avoid
+ * repetition in other locations.
  */
 namespace nonstd
 {
@@ -66,18 +67,6 @@ namespace nonstd
 
   template <typename T, T t>
   static constexpr bool value_dependent_false_v = dependent_false<T>::value;
-
-  /** remove_cvref combines remove_cv and remove_reference - this is present in
-   * C++20
-   */
-  template <class T>
-  struct remove_cvref
-  {
-    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
-  };
-
-  template <class T>
-  using remove_cvref_t = typename remove_cvref<T>::type;
 
   /** split is based on Python's str.split
    */
