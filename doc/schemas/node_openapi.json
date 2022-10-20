@@ -287,6 +287,38 @@
         ],
         "type": "object"
       },
+      "GetHostDataMap__HostData": {
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/string"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "raw",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "GetHostDataMap__HostData_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetHostDataMap__HostData"
+        },
+        "type": "array"
+      },
+      "GetHostDataMap__Out": {
+        "properties": {
+          "host_data": {
+            "$ref": "#/components/schemas/GetHostDataMap__HostData_array"
+          }
+        },
+        "required": [
+          "host_data"
+        ],
+        "type": "object"
+      },
       "GetNetworkInfo__Out": {
         "properties": {
           "current_service_create_txid": {
@@ -380,38 +412,6 @@
           "quotes"
         ],
         "type": "object"
-      },
-      "GetHostDataMap__Out": {
-        "properties": {
-          "host_data": {
-            "$ref": "#/components/schemas/GetHostDataMap__HostData_array"
-          }
-        },
-        "required": [
-          "host_data"
-        ],
-        "type": "object"
-      },
-      "GetHostDataMap__HostData": {
-        "properties": {
-          "raw": {
-            "$ref": "#/components/schemas/string"
-          },
-          "metadata": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "raw",
-          "metadata"
-        ],
-        "type": "object"
-      },
-      "GetHostDataMap__HostData_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetHostDataMap__HostData"
-        },
-        "type": "array"
       },
       "GetServicePreviousIdentity__Out": {
         "properties": {
@@ -1050,6 +1050,38 @@
         }
       }
     },
+    "/node/host_data": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetHostDataMap__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/node/js_metrics": {
       "get": {
         "responses": {
@@ -1421,38 +1453,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/node/host_data": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "key",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetHostDataMap__Out"
                 }
               }
             },

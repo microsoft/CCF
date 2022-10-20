@@ -131,23 +131,12 @@
         ],
         "type": "object"
       },
-      "GetHostDataMap__Out": {
-        "properties": {
-          "host_data": {
-            "$ref": "#/components/schemas/GetHostDataMap__HostData_array"
-          }
-        },
-        "required": [
-          "host_data"
-        ],
-        "type": "object"
-      },
       "GetHostDataMap__HostData": {
         "properties": {
-          "raw": {
+          "metadata": {
             "$ref": "#/components/schemas/string"
           },
-          "metadata": {
+          "raw": {
             "$ref": "#/components/schemas/string"
           }
         },
@@ -162,6 +151,17 @@
           "$ref": "#/components/schemas/GetHostDataMap__HostData"
         },
         "type": "array"
+      },
+      "GetHostDataMap__Out": {
+        "properties": {
+          "host_data": {
+            "$ref": "#/components/schemas/GetHostDataMap__HostData_array"
+          }
+        },
+        "required": [
+          "host_data"
+        ],
+        "type": "object"
       },
       "GetTxStatus__Out": {
         "properties": {
@@ -461,6 +461,38 @@
         },
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/app/host_data": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetHostDataMap__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1323,38 +1355,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/app/host_data": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "key",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetHostDataMap__Out"
                 }
               }
             },
