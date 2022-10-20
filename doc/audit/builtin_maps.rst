@@ -146,7 +146,7 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
 ``nodes.host_data``
 ~~~~~~~~~~~~~~~~~~~
 
-Host data for nodes that can join the current network on :doc:`SNP <../operations/platforms/snp>`.
+Attestation report host data field for nodes that are allowed to join the current network on :doc:`SNP <../operations/platforms/snp>`.
 
 **Key** Host data: The host data.
 
