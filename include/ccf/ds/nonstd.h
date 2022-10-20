@@ -194,28 +194,6 @@ namespace nonstd
     });
   }
 
-  static inline std::string remove_prefix(
-    const std::string& s, const std::string& prefix)
-  {
-    if (s.starts_with(prefix))
-    {
-      return s.substr(prefix.size());
-    }
-
-    return s;
-  }
-
-  static inline std::string remove_suffix(
-    const std::string& s, const std::string& suffix)
-  {
-    if (s.ends_with(suffix))
-    {
-      return s.substr(0, s.size() - suffix.size());
-    }
-
-    return s;
-  }
-
   // Iterators for map-keys and map-values
   template <typename TMapIterator>
   class KeyIterator : public TMapIterator
