@@ -83,6 +83,18 @@ def test_snp_measurements_table(network, args):
         ]
     expected.sort(key=lambda x: x["digest"])
     assert measurements == expected, [(a, b) for a, b in zip(measurements, expected)]
+
+    network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
+    with primary.client() as client:
+        r = client.get("/gov/snp/measurements")
+        measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+    expected = [
+            {"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"}
+        ]
+    expected.sort(key=lambda x: x["digest"])
+    assert measurements == expected, [(a, b) for a, b in zip(measurements, expected)]
+
+
     return network
 
 

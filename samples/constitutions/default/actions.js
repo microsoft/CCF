@@ -1028,6 +1028,22 @@ const actions = new Map([
     ),
   ],
   [
+    "remove_snp_measurement",
+    new Action(
+      function (args) {
+        checkType(
+          args.measurement,
+          "string",
+          "measurement"
+        );
+      },
+      function (args) {
+        const measurement = ccf.strToBuf(args.measurement);
+        ccf.kv["public:ccf.gov.nodes.snp.measurements"].delete(measurement);
+      }
+    ),
+  ],
+  [
     "set_node_data",
     new Action(
       function (args) {
