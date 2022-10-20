@@ -154,11 +154,11 @@ elseif(COMPILE_TARGET STREQUAL "snp")
     ccf.virtual
     PUBLIC ${LINK_LIBCXX}
            -lgcc
-           ccfcrypto.host
            http_parser.host
            quickjs.host
            sss.host
            ccf_endpoints.host
+           ccfcrypto.host
            ccf_kv.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
