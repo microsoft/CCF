@@ -143,10 +143,16 @@ def no_http2():
 def snp_only():
     def check(network, args, *nargs, **kwargs):
         if not IS_SNP:
-            raise TestRequirementsNotMet("Platform doesn't support SNP")
+            raise TestRequirementsNotMet("Platform does not support SNP")
 
     return ensure_reqs(check)
 
+def not_snp():
+    def check(network, args, *nargs, **kwargs):
+        if IS_SNP:
+            raise TestRequirementsNotMet("Platform should not be SNP")
+            
+    return ensure_reqs(check)
 
 def recover(number_txs=5):
     # Runs some transactions before recovering the network and guarantees that all

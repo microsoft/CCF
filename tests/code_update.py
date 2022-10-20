@@ -57,6 +57,34 @@ def test_verify_quotes(network, args):
 
     return network
 
+@reqs.description("Test that the SNP measurements table")
+@reqs.snp_only()
+def test_snp_measurements_table(network, args):
+    primary, _ = network.find_nodes()
+    
+    with primary.client() as client:
+        r = client.get("/gov/snp/measurements")
+        measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+    expected = [
+            {"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"}
+        ]
+    expected.sort(key=lambda x: x["digest"])
+    assert measurements == expected, [(a, b) for a, b in zip(measurements, expected)]
+
+    dummy_snp_mesurement = "a" * 96
+    network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
+
+    with primary.client() as client:
+        r = client.get("/gov/snp/measurements")
+        measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+    expected = [
+            {"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"},
+            {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"},
+        ]
+    expected.sort(key=lambda x: x["digest"])
+    assert measurements == expected, [(a, b) for a, b in zip(measurements, expected)]
+    return network
+
 
 @reqs.description("Test that the security policies table is correctly populated")
 @reqs.snp_only()
@@ -229,6 +257,7 @@ def get_replacement_package(args):
 
 
 @reqs.description("Update all nodes code")
+@reqs.not_snp() # Not yet supported as all nodes run the same measurement/security policy in SNP CI
 def test_update_all_nodes(network, args):
     replacement_package = get_replacement_package(args)
 
@@ -245,43 +274,37 @@ def test_update_all_nodes(network, args):
         # Pretend this was already present
         network.consortium.add_new_code(primary, first_code_id)
 
-    LOG.info("Add new code id")
+    LOG.info("Add new code id/measurement")
     network.consortium.add_new_code(primary, new_code_id)
+
+    LOG.info("Check reported trusted measurements")
     with primary.client() as uc:
-        if IS_SNP:
-            r = uc.get("/node/snp/measurements")
-            expected = [{"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"}]
-        else:
-            r = uc.get("/node/code")
-            expected = [
-                {"digest": first_code_id, "status": "AllowedToJoin"},
-                {"digest": new_code_id, "status": "AllowedToJoin"},
-            ]
-            if args.enclave_type == "virtual":
-                expected.insert(
-                    0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"}
-                )
+        r = uc.get("/node/code")
+        expected = [
+            {"digest": first_code_id, "status": "AllowedToJoin"},
+            {"digest": new_code_id, "status": "AllowedToJoin"},
+        ]
+        if args.enclave_type == "virtual":
+            expected.insert(
+                0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"}
+            )
 
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected.sort(key=lambda x: x["digest"])
         assert versions == expected, f"{versions} != {expected}"
 
-    LOG.info("Remove old code id")
+    LOG.info("Remove old code id/measurement")
     network.consortium.retire_code(primary, first_code_id)
     with primary.client() as uc:
-        if IS_SNP:
-            r = uc.get("/node/snp/measurements")
-            expected = [{"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"}]
-        else:
-            r = uc.get("/node/code")
-            expected = [
-                {"digest": first_code_id, "status": "AllowedToJoin"},
-                {"digest": new_code_id, "status": "AllowedToJoin"},
-            ]
-            if args.enclave_type == "virtual":
-                expected.insert(
-                    0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"}
-                )
+        r = uc.get("/node/code")
+        expected = [
+            {"digest": first_code_id, "status": "AllowedToJoin"},
+            {"digest": new_code_id, "status": "AllowedToJoin"},
+        ]
+        if args.enclave_type == "virtual":
+            expected.insert(
+                0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"}
+            )
 
         expected.sort(key=lambda x: x["digest"])
         assert versions == expected, f"{versions} != {expected}"
@@ -350,6 +373,7 @@ def run(args):
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
+        test_snp_measurements_table(network, args)
         test_security_policy_table(network, args)
         test_add_node_with_raw_security_policy(network, args)
         test_add_node_with_no_raw_security_policy_not_matching_kv(network, args)
