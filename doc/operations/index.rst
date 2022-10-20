@@ -40,13 +40,6 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
-    :fa:`sync-alt` :doc:`code_upgrade_1x`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Specific guidelines to upgrade a service from CCF 1.x to 2.0.
-
-    ---
-
     :fa:`stamp` :doc:`certificates`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -102,7 +95,6 @@ This section describes how :term:`Operators` manage the different nodes constitu
     configuration
     ledger_snapshot
     code_upgrade
-    code_upgrade_1x
     certificates
     recovery
     data_persistence

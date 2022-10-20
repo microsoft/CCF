@@ -101,6 +101,7 @@ namespace nonstd
     }
 
     result.push_back(s.substr(separator_end));
+
     return result;
   }
 
@@ -118,6 +119,63 @@ namespace nonstd
     }
 
     return std::make_tuple(v[0], v[1]);
+  }
+
+  /** Similar to split, but splits first from the end rather than the beginning.
+   * This means the results are returned in reverse order, and if max_split is
+   * specified then only the final N entries will be kept.
+   * split("A:B:C", ":", 1) => ["A", "B:C"]
+   * rsplit("A:B:C", ":", 1) => ["C", "A:B"]
+   */
+  static inline std::vector<std::string_view> rsplit(
+    const std::string_view& s,
+    const std::string_view& separator = " ",
+    size_t max_split = SIZE_MAX)
+  {
+    std::vector<std::string_view> result;
+
+    auto prev_separator_start = s.size();
+    auto next_separator_start = s.rfind(separator);
+    while (next_separator_start != std::string_view::npos &&
+           result.size() < max_split)
+    {
+      auto separator_end = next_separator_start + separator.size();
+
+      result.push_back(
+        s.substr(separator_end, prev_separator_start - separator_end));
+
+      prev_separator_start = next_separator_start;
+
+      if (next_separator_start == 0)
+      {
+        break;
+      }
+      else
+      {
+        next_separator_start = s.rfind(separator, prev_separator_start - 1);
+      }
+    }
+
+    result.push_back(s.substr(0, prev_separator_start));
+
+    return result;
+  }
+
+  /* rsplit_1 wraps rsplit _and reverses the result order_ and allows writing
+   * things like:
+   * auto [host, port] = nonstd::rsplit_1("[1:2:3:4]:8000", ":")
+   */
+  static inline std::tuple<std::string_view, std::string_view> rsplit_1(
+    const std::string_view& s, const std::string_view& separator)
+  {
+    const auto v = rsplit(s, separator, 1);
+    if (v.size() == 1)
+    {
+      // If separator is not present, return {"", s};
+      return std::make_tuple("", v[0]);
+    }
+
+    return std::make_tuple(v[1], v[0]);
   }
 
   /** These convert strings to upper or lower case, in-place

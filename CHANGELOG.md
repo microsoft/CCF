@@ -5,10 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-dev7]
+
+### Changed
+
+- JavaScript crypto API (e.g. `generateAesKey` and `wrapKey`) are now included as part of the `ccf.crypto` package (#4372).
+
 ## [3.0.0-dev6]
 
 ### Added
 
+- Experimental `ccf::MemberCOSESign1AuthnPolicy` (#3875)
 - Add secp256k1 support to `ccf.crypto.generateEcdsaKeyPair()` and `ccf.crypto.verifySignature()` (#4347).
 
 ### Deprecated
@@ -19,10 +26,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added a new proposal action `set_js_runtime_options` that accepts `max_heap_bytes` and `max_stack_bytes` for QuickJS runtime.
 - Experimental support for AMD SEV-SNP nodes (#4106, #4235)
 - New "attestation" section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
 - The `ccf::RpcContext` now contains functionality for storing user data with `set_user_data` and retrieving it with `get_user_data` (#4291).
 - There are now `make_endpoint_with_local_commit_handler` and `make_read_only_endpoint_with_local_commit_handler` functions to install endpoints with post local-commit logic (#4296).
+
+### Changed
+
+- The endpoint `GET /node/js_metrics` now also returns the QuickJS runtime memory options.
 
 ### Fixed
 
@@ -1710,3 +1722,4 @@ Initial pre-release
 [unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased
 [3.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev4
 [3.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev6
+[3.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev7
