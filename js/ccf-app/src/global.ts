@@ -204,12 +204,12 @@ export type WrapAlgoParams = RsaOaepParams | AesKwpParams | RsaOaepAesKwpParams;
 
 export interface CryptoKeyPair {
   /**
-   * RSA private key in PEM encoding.
+   * Private key in PEM encoding.
    */
   privateKey: string;
 
   /**
-   * RSA public key in PEM encoding.
+   * Public key in PEM encoding.
    */
   publicKey: string;
 }
@@ -238,6 +238,73 @@ export interface EcdsaParams {
 export type SigningAlgorithm = RsaPkcsParams | EcdsaParams;
 
 export type DigestAlgorithm = "SHA-256";
+
+/**
+ * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).
+ */
+export interface JsonWebKey {
+  /**
+   * Key type.
+   */
+  kty: string;
+
+  /**
+   * Key ID.
+   */
+  kid?: string;
+}
+
+export interface JsonWebKeyECPublic extends JsonWebKey {
+  /**
+   * Elliptic curve identifier.
+   */
+  crv: string;
+
+  /**
+   * Base64url-encoded x coordinate.
+   */
+  x: string;
+
+  /**
+   * Base64url-encoded y coordinate.
+   */
+  y: string;
+}
+
+export interface JsonWebKeyECPrivate extends JsonWebKeyECPublic {
+  /**
+   * Base64url-encoded d coordinate.
+   */
+  d: string;
+}
+
+export interface JsonWebKeyRSAPublic extends JsonWebKey {
+  /**
+   * Base64url-encoded modulus.
+   */
+  n: string;
+
+  /**
+   * Base64url-encoded exponent.
+   */
+  e: string;
+}
+
+export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
+  /**
+   * Private exponent.
+   */
+  d: string;
+
+  /**
+   * Additional exponents.
+   */
+  p: string;
+  q: string;
+  dp: string;
+  dq: string;
+  qi: string;
+}
 
 export interface CCFCrypto {
   /**
@@ -310,6 +377,38 @@ export interface CCFCrypto {
    * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
    */
   isValidX509CertChain(chain: string, trusted: string): boolean;
+
+  /**
+   * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem Elliptic curve public key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic;
+
+  /**
+   * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem Elliptic curve private key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate;
+
+  /**
+   * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem RSA public key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic;
+
+  /**
+   * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem RSA private key as PEM
+   * @param kid Key identifier (optional)
+   */
+  rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
 }
 
 export interface CCFRpc {
