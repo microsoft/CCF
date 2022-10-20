@@ -124,7 +124,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 
 Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`.
 
-**Key** MRENCLAVE, represented as a base64 string.
+**Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 
 **Value** Represented as JSON.
 
@@ -152,7 +152,7 @@ Security policies that nodes can run and join the current network on :doc:`SNP <
 
 Measurement that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
 
-**Key** Measurement, represented as a base64 96-character hex-encoded string.
+**Key** Measurement, represented as a base64 hex-encoded string (length: 96).
 
 **Value** Represented as JSON.
 
