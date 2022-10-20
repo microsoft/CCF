@@ -72,18 +72,9 @@ namespace ccf
       "public:ccf.gov.jwt.public_signing_key_issuer";
   }
 
-  struct JsonWebKey : crypto::JsonWebKeyBase
-  {
-    std::vector<std::string> x5c;
-
-    bool operator==(const JsonWebKey&) const = default;
-  };
-  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKey, crypto::JsonWebKeyBase)
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, x5c)
-
   struct JsonWebKeySet
   {
-    std::vector<JsonWebKey> keys;
+    std::vector<crypto::JsonWebKey> keys;
 
     bool operator!=(const JsonWebKeySet& rhs) const
     {

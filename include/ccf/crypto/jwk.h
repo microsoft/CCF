@@ -18,16 +18,17 @@ namespace crypto
   DECLARE_JSON_ENUM(
     JsonWebKeyType, {{JsonWebKeyType::EC, "EC"}, {JsonWebKeyType::RSA, "RSA"}});
 
-  struct JsonWebKeyBase
+  struct JsonWebKey
   {
     JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
+    std::optional<std::vector<std::string>> x5c = std::nullopt;
 
-    bool operator==(const JsonWebKeyBase&) const = default;
+    bool operator==(const JsonWebKey&) const = default;
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKeyBase);
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyBase, kty);
-  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKeyBase, kid);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKey);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
+  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
 
   enum class JsonWebKeyECCurve
   {
@@ -60,13 +61,13 @@ namespace crypto
     }
   }
 
-  struct JsonWebKeyECPublic : JsonWebKeyBase
+  struct JsonWebKeyECPublic : JsonWebKey
   {
     JsonWebKeyECCurve crv;
     std::string x; // base64url
     std::string y; // base64url
   };
-  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPublic, JsonWebKeyBase);
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPublic, crv, x, y);
 
   struct JsonWebKeyECPrivate : JsonWebKeyECPublic
@@ -76,12 +77,12 @@ namespace crypto
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPrivate, JsonWebKeyECPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPrivate, d);
 
-  struct JsonWebKeyRSAPublic : JsonWebKeyBase
+  struct JsonWebKeyRSAPublic : JsonWebKey
   {
     std::string n; // base64url
     std::string e; // base64url
   };
-  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPublic, JsonWebKeyBase);
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPublic, n, e);
 
   struct JsonWebKeyRSAPrivate : JsonWebKeyRSAPublic

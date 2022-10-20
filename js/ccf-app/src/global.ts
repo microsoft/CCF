@@ -242,7 +242,7 @@ export type DigestAlgorithm = "SHA-256";
 /**
  * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).
  */
-export interface JsonWebKeyBase {
+export interface JsonWebKey {
   /**
    * Key type.
    */
@@ -254,7 +254,7 @@ export interface JsonWebKeyBase {
   kid?: string;
 }
 
-export interface JsonWebKeyECPublic extends JsonWebKeyBase {
+export interface JsonWebKeyECPublic extends JsonWebKey {
   /**
    * Elliptic curve identifier.
    */
@@ -278,7 +278,7 @@ export interface JsonWebKeyECPrivate extends JsonWebKeyECPublic {
   d: string;
 }
 
-export interface JsonWebKeyRSAPublic extends JsonWebKeyBase {
+export interface JsonWebKeyRSAPublic extends JsonWebKey {
   /**
    * Base64url-encoded modulus.
    */

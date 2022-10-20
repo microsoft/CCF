@@ -84,13 +84,13 @@ namespace ccf
           "{}: key id {} already added for different issuer", log_prefix, kid);
         return false;
       }
-      if (jwk.x5c.empty())
+      if (!jwk.x5c.has_value() && jwk.x5c->empty())
       {
         LOG_FAIL_FMT("{}: JWKS is invalid (empty x5c)", log_prefix);
         return false;
       }
 
-      auto& der_base64 = jwk.x5c[0];
+      auto& der_base64 = jwk.x5c.value()[0];
       ccf::Cert der;
       try
       {
