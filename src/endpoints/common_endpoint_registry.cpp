@@ -171,12 +171,12 @@ namespace ccf
       .set_auto_schema<void, GetCode::Out>()
       .install();
 
-    auto get_trusted_measurements = [](auto& ctx, nlohmann::json&&) {
+    auto get_trusted_snp_measurements = [](auto& ctx, nlohmann::json&&) {
       GetCode::Out out;
 
-      auto codes_ids =
+      auto measurements =
         ctx.tx.template ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS);
-      codes_ids->foreach(
+      measurements->foreach(
         [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
           auto digest = ds::to_hex(cd.data);
           out.versions.push_back({digest, status});
@@ -186,9 +186,9 @@ namespace ccf
       return make_success(out);
     };
     make_read_only_endpoint(
-      "/measurements",
+      "/snp/measurements",
       HTTP_GET,
-      json_read_only_adapter(get_trusted_measurements),
+      json_read_only_adapter(get_trusted_snp_measurements),
       no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
       .install();

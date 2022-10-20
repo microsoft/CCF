@@ -248,38 +248,26 @@ def test_update_all_nodes(network, args):
     LOG.info("Add new code id")
     network.consortium.add_new_code(primary, new_code_id)
     with primary.client() as uc:
-        r = uc.get("/node/code")
+        if args.enclave_type == "virtual" and IS_SNP:
+            r = uc.get("/node/snp/measurements")
+        else:
+            r = uc.get("/node/code")
+            expected = [
+                {"digest": first_code_id, "status": "AllowedToJoin"},
+                {"digest": new_code_id, "status": "AllowedToJoin"},
+            ]
+
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-        expected = [
-            {
-                "digest": first_code_id,
-                "status": "AllowedToJoin",
-                "platform": "OE_SGX_v1",
-            },
-            {
-                "digest": new_code_id,
-                "status": "AllowedToJoin",
-                "platform": "OE_SGX_v1",
-            },
-        ]
         if args.enclave_type == "virtual":
             if IS_SNP:
                 expected.insert(
                     0,
-                    {
-                        "digest": SNP_CODE_ID,
-                        "status": "AllowedToJoin",
-                        "platform": "AMD_SEV_SNP_v1",
-                    },
+                    {"digest": SNP_CODE_ID, "status": "AllowedToJoin"},
                 )
             else:
                 expected.insert(
                     0,
-                    {
-                        "digest": VIRTUAL_CODE_ID,
-                        "status": "AllowedToJoin",
-                        "platform": "Insecure_Virtual",
-                    },
+                    {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"},
                 )
         expected.sort(key=lambda x: x["digest"])
         assert versions == expected, [(a, b) for a, b in zip(versions, expected)]
@@ -287,33 +275,24 @@ def test_update_all_nodes(network, args):
     LOG.info("Remove old code id")
     network.consortium.retire_code(primary, first_code_id)
     with primary.client() as uc:
-        r = uc.get("/node/code")
+        if args.enclave_type == "virtual" and IS_SNP:
+            r = uc.get("/node/snp/measurements")
+        else:
+            r = uc.get("/node/code")
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
         expected = [
-            {
-                "digest": new_code_id,
-                "status": "AllowedToJoin",
-                "platform": "OE_SGX_v1",
-            },
+            {"digest": new_code_id, "status": "AllowedToJoin"},
         ]
         if args.enclave_type == "virtual":
             if IS_SNP:
                 expected.insert(
                     0,
-                    {
-                        "digest": SNP_CODE_ID,
-                        "status": "AllowedToJoin",
-                        "platform": "AMD_SEV_SNP_v1",
-                    },
+                    {"digest": SNP_CODE_ID, "status": "AllowedToJoin"},
                 )
             else:
                 expected.insert(
                     0,
-                    {
-                        "digest": VIRTUAL_CODE_ID,
-                        "status": "AllowedToJoin",
-                        "platform": "Insecure_Virtual",
-                    },
+                    {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"},
                 )
         expected.sort(key=lambda x: x["digest"])
         assert versions == expected, versions
