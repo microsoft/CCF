@@ -639,7 +639,13 @@ class RawSocketClient:
         content_length = 0
         if request.body is not None:
             if isinstance(request.body, str) and request.body.startswith("@"):
-                raise RuntimeError(f"Unsupported")
+                # Request is a file path - read contents
+                with open(request.body[1:], "rb") as f:
+                    request_body = f.read()
+                if request.body.lower().endswith(".json"):
+                    content_type = CONTENT_TYPE_JSON
+                else:
+                    content_type = CONTENT_TYPE_BINARY
             elif isinstance(request.body, str):
                 request_body = request.body.encode()
                 content_type = CONTENT_TYPE_TEXT
