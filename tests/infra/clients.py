@@ -394,9 +394,9 @@ class CurlClient:
         pass
 
 
-class RequestClient:
+class HttpxClient:
     """
-    CCF default client and wrapper around Python Requests, handling HTTP signatures.
+    CCF default client and wrapper around httpx, handling HTTP signatures.
     """
 
     _auth_provider = HttpSig
@@ -532,7 +532,7 @@ class CCFClient:
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    client_impl: Union[CurlClient, RequestClient]
+    client_impl: Union[CurlClient, HttpxClient]
 
     def __init__(
         self,
@@ -560,7 +560,7 @@ class CCFClient:
                 self.hostname, ca, session_auth, signing_auth, **kwargs
             )
         else:
-            self.client_impl = RequestClient(
+            self.client_impl = HttpxClient(
                 self.hostname, ca, session_auth, signing_auth, common_headers, **kwargs
             )
 
