@@ -5,6 +5,7 @@
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/sha256.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
@@ -860,8 +861,17 @@ namespace ccf
             }
         }
 
-        // TODO: handle cose_auth_id
-        auto request_digest = sig_auth_id->request_digest;
+        std::vector<uint8_t> request_digest;
+        if (sig_auth_id.has_value())
+        {
+          request_digest = sig_auth_id->request_digest;
+        }
+        if (cose_auth_id.has_value())
+        {
+          // This isn't right, instead the digest of the COSE Sign1
+          // TBS should be used here.
+          request_digest = crypto::sha256({cose_auth_id->envelope.begin(), cose_auth_id->envelope.end()});
+        }
 
         ProposalId proposal_id;
         if (consensus->type() == ConsensusType::CFT)
