@@ -7,6 +7,8 @@ set -ex
 # Work-around for https://github.com/intel/linux-sgx/issues/395
 mkdir -p /etc/init
 
+echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
+
 UBUNTU=focal
 PSW_VERSION=2.17.100
 

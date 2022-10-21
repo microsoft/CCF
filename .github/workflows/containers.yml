@@ -10,6 +10,7 @@ on:
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
   ACR_TOKEN_NAME: app-push-token
+  DOCKER_BUILDKIT: 1 # https://docs.docker.com/develop/develop-images/build_enhancements/
 
 jobs:
   build:
@@ -22,35 +23,37 @@ jobs:
         run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
         id: tref
 
+      # TODO: Templates!
+
       # Build development containers
-      # Note: Keep SGX lts-devcontainer tag as default dev container for now
+      # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
       - name: Build App Dev SGX container
-        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=true" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+        run: docker build -f docker/app_dev . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=true" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
 
       - name: Build App Dev SNP container
-        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-snp
+        run: docker build -f docker/app_dev . --build-arg="platform=snp" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-snp
 
       - name: Build App Dev Virtual container
-        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-virtual
+        run: docker build -f docker/app_dev . --build-arg="platform=virtual" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-virtual
 
       # Build runtime containers
       - name: Build App Run SGX container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=true" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
+        run: docker build -f docker/app_run . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=true" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
 
       - name: Build JS App Run SGX container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=true --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
+        run: docker build -f docker/app_run . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=true  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
 
       - name: Build App Run SNP container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-snp
+        run: docker build -f docker/app_run . --build-arg="platform=snp" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-snp
 
       - name: Build JS App Run SNP container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-snp
+        run: docker build -f docker/app_run . --build-arg="platform=snp" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=false  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-snp
 
       - name: Build App Run Virtual container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-virtual
+        run: docker build -f docker/app_run . --build-arg="platform=virtual" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-virtual
 
       - name: Build JS App Run Virtual container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-virtual
+        run: docker build -f docker/app_run . --build-arg="platform=virtual" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}} sgx_dependencies=false run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-virtual
 
   publish:
     name: "Publish Containers (release only)"

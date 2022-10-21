@@ -1,21 +1,32 @@
 # CCF Continuous Integration image
-# Contains CCF build dependencies, compile toolchain and Azure CLI tooling
+# Contains CCF build dependencies and toolchain for target platform
 
-FROM ubuntu:20.04
+ARG platform
+ARG ansible_vars
 
-ARG extra_vars
-
-RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
+# SGX
+FROM ubuntu:20.04 AS base-sgx
 
 WORKDIR /
 COPY ./docker/sgx_deps_pin.sh /
 RUN ./sgx_deps_pin.sh && rm ./sgx_deps_pin.sh
 
-COPY getting_started/setup_vm/ /setup_vm/
+# SNP
+FROM ubuntu:20.04 AS base-snp
+
+# Virtual
+FROM ubuntu:20.04 AS base-virtual
+
+# Final CCF CI image
+FROM base-${platform} AS final
+
+RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
+
+COPY getting_started/setup_vm/ /tmp/setup_vm/
 RUN apt update \
     && apt install -y ansible software-properties-common bsdmainutils dnsutils \
-    && cd setup_vm \
-    && ansible-playbook ccf-dev.yml \
+    && cd /tmp/setup_vm \
+    && ansible-playbook ccf-dev.yml --extra-vars "$ansible_vars" \
     && rm -rf /tmp/* \
     && apt remove -y ansible software-properties-common \
     && apt -y autoremove \
