@@ -15,11 +15,6 @@ env:
 jobs:
   build_matrix:
     name: "Build containers for all platforms"
-    steps:
-      - name: Get image tag from git tag (release)
-        run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
-        id: tref
-
     strategy:
       matrix:
         platform: [sgx, snp, virtual]
@@ -27,7 +22,6 @@ jobs:
     uses: ./.github/workflows/container_template.yml
     with:
       platform: ${{ matrix.platform }}
-      tag: ${{ steps.tref.outputs.tag }}
 
   build:
     name: "Build Containers"
