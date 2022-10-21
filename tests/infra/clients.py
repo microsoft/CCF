@@ -540,7 +540,7 @@ class HttpxClient:
             raise CCFConnectionException from exc
         except Exception as exc:
             raise RuntimeError(
-                f"Request client failed with unexpected error: {exc}"
+                f"HttpxClient failed with unexpected error: {exc}"
             ) from exc
 
         return Response.from_requests_response(response)
@@ -587,7 +587,7 @@ class RawSocketClient:
         hostname, port = infra.interfaces.split_netloc(netloc)
 
         end_time = time.time() + connection_timeout
-        while time.time() < end_time:
+        while True:
             try:
                 context = ssl.create_default_context(cafile=ca)
                 if session_auth is not None:
@@ -601,11 +601,14 @@ class RawSocketClient:
                     sock, server_side=False, server_hostname=hostname
                 )
                 self.socket.connect((hostname, port))
-                break
-            except ssl.SSLEOFError:
-                # If the initial connection fails (e.g. due to node certificate
-                # not yet being endorsed by the network) sleep briefly and try again
-                time.sleep(0.1)
+                return
+            except (ssl.SSLEOFError, ConnectionResetError) as exc:
+                if time.time() > end_time:
+                    raise TimeoutError("Timed out connecting to node") from exc
+                else:
+                    # If the initial connection fails (e.g. due to node certificate
+                    # not yet being endorsed by the network) sleep briefly and try again
+                    time.sleep(0.1)
 
     def _send_request(
         self,
@@ -688,10 +691,14 @@ class RawSocketClient:
         #     raise CCFConnectionException from exc
         except Exception as exc:
             raise RuntimeError(
-                f"Request client failed with unexpected error: {exc}"
+                f"RawSocketClient failed with unexpected error: {exc}"
             ) from exc
 
-        return Response.from_socket(self.socket)
+        response = Response.from_socket(self.socket)
+        if response.status_code == 308 and request.allow_redirects:
+            # TODO: Follow redirects
+            raise RuntimeError(f"Redirects are not currently supported by this client")
+        return response
 
     def close(self):
         self.socket.close()
