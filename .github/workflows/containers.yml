@@ -22,7 +22,6 @@ jobs:
     uses: ./.github/workflows/container_template.yml
     with:
       platform: ${{ matrix.platform }}
-      container_registry: ${{ env.ACR_REGISTRY }}
 
   build:
     name: "Build Containers"
