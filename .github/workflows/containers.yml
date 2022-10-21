@@ -14,13 +14,20 @@ env:
 
 jobs:
   build_matrix:
+    name: "Build containers for all platforms"
+    steps:
+      - name: Get image tag from git tag (release)
+          run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+          id: tref
+
     strategy:
       matrix:
         platform: [sgx, snp, virtual]
+
     uses: ./.github/workflows/container_template.yml
     with:
       platform: ${{ matrix.platform }}
-      tag: ${{steps.tref.outputs.tag}}
+      tag: ${{ steps.tref.outputs.tag }}
 
   build:
     name: "Build Containers"
@@ -35,7 +42,7 @@ jobs:
       # TODO: Templates!
 
       # Build development containers
-      # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
+      # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x TODO:: even with template
       - name: Build App Dev SGX container
         run: docker build -f docker/app_dev . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
 
