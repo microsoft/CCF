@@ -24,6 +24,7 @@ from typing import Union, Optional, List, Any
 from ccf.tx_id import TxID
 import ssl
 import socket
+import urllib.parse
 
 import httpx
 from loguru import logger as LOG  # type: ignore
@@ -565,7 +566,11 @@ class RawSocketClient:
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         **kwargs,
     ):
+        self.ca = ca
+        self.session_auth = session_auth
         self.common_headers = common_headers
+        self.connection_timeout = connection_timeout
+
         if signing_auth:
             with open(signing_auth.cert, encoding="utf-8") as cert_file:
                 key_id = (
@@ -586,6 +591,16 @@ class RawSocketClient:
 
         hostname, port = infra.interfaces.split_netloc(netloc)
 
+        self.socket = RawSocketClient._create_socket(
+            hostname,
+            port,
+            self.ca,
+            self.session_auth,
+            self.connection_timeout,
+        )
+
+    @staticmethod
+    def _create_socket(hostname, port, ca, session_auth, connection_timeout):
         end_time = time.time() + connection_timeout
         while True:
             try:
@@ -597,11 +612,11 @@ class RawSocketClient:
                     )
 
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket = context.wrap_socket(
+                ssl_socket = context.wrap_socket(
                     sock, server_side=False, server_hostname=hostname
                 )
-                self.socket.connect((hostname, port))
-                return
+                ssl_socket.connect((hostname, port))
+                return ssl_socket
             except (ssl.SSLEOFError, ConnectionResetError) as exc:
                 if time.time() > end_time:
                     raise TimeoutError("Timed out connecting to node") from exc
@@ -610,8 +625,9 @@ class RawSocketClient:
                     # not yet being endorsed by the network) sleep briefly and try again
                     time.sleep(0.1)
 
+    @staticmethod
     def _send_request(
-        self,
+        ssl_socket,
         verb,
         path,
         headers,
@@ -625,7 +641,7 @@ class RawSocketClient:
         if content is not None:
             data += content
 
-        self.socket.sendall(data)
+        ssl_socket.sendall(data)
 
     def request(
         self,
@@ -678,7 +694,8 @@ class RawSocketClient:
 
         try:
             self.socket.settimeout(timeout)
-            self._send_request(
+            RawSocketClient._send_request(
+                ssl_socket=self.socket,
                 verb=request.http_verb,
                 path=request.path,
                 headers=extra_headers,
@@ -695,9 +712,32 @@ class RawSocketClient:
             ) from exc
 
         response = Response.from_socket(self.socket)
-        if response.status_code == 308 and request.allow_redirects:
-            # TODO: Follow redirects
-            raise RuntimeError(f"Redirects are not currently supported by this client")
+        while response.status_code == 308 and request.allow_redirects:
+            assert (
+                self.signing_details is None
+            ), f"Received redirect response from {request.path}, but submitted signed request. Combination of signed requests and forwarding is currently unsupported"
+
+            # Create a temporary socket to follow this redirect
+            redirect_url = response.headers["location"]
+            LOG.trace(f"Following redirect to: {redirect_url}")
+            parsed = urllib.parse.urlparse(redirect_url)
+            with RawSocketClient._create_socket(
+                parsed.hostname,
+                parsed.port,
+                self.ca,
+                self.session_auth,
+                self.connection_timeout,
+            ) as redirect_socket:
+                redirect_socket.settimeout(timeout)
+                RawSocketClient._send_request(
+                    ssl_socket=redirect_socket,
+                    verb=request.http_verb,
+                    path=parsed.path,
+                    headers=extra_headers,
+                    content=request_body,
+                )
+                response = Response.from_socket(redirect_socket)
+
         return response
 
     def close(self):
