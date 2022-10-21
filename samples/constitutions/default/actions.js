@@ -946,6 +946,22 @@ const actions = new Map([
     ),
   ],
   [
+    "add_snp_measurement",
+    new Action(
+      function (args) {
+        checkType(args.measurement, "string", "measurement");
+      },
+      function (args, proposalId) {
+        const measurement = ccf.strToBuf(args.measurement);
+        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
+        ccf.kv["public:ccf.gov.nodes.snp.measurements"].set(measurement, ALLOWED);
+
+        // Adding a new allowed measurement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      }
+    ),
+  ],
+  [
     "add_executor_node_code",
     new Action(
       function (args) {
@@ -1001,6 +1017,22 @@ const actions = new Map([
       function (args) {
         const host_data = ccf.strToBuf(args.host_data);
         ccf.kv["public:ccf.gov.nodes.snp.host_data"].delete(host_data);
+      }
+    ),
+  ],
+  [
+    "remove_snp_measurement",
+    new Action(
+      function (args) {
+        checkType(
+          args.measurement,
+          "string",
+          "measurement"
+        );
+      },
+      function (args) {
+        const measurement = ccf.strToBuf(args.measurement);
+        ccf.kv["public:ccf.gov.nodes.snp.measurements"].delete(measurement);
       }
     ),
   ],

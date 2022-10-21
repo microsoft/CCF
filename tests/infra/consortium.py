@@ -676,9 +676,23 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def add_snp_measurement(self, remote_node, measurement):
+        proposal_body, careful_vote = self.make_proposal(
+            "add_snp_measurement", measurement=measurement
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def retire_code(self, remote_node, code_id):
         proposal_body, careful_vote = self.make_proposal(
             "remove_node_code", code_id=code_id
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def remove_snp_measurement(self, remote_node, measurement):
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_snp_measurement", measurement=measurement
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

@@ -124,12 +124,9 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 
 Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`.
 
-**Key** MRENCLAVE, represented as a base64 string.
+**Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 
 **Value** Represented as JSON.
-
-.. doxygenstruct:: ccf::CodeInfo
-   :project: CCF
 
 **Example**
 
@@ -139,7 +136,7 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
    * - Code ID
      - Status
    * - ``cae46d1...bb908b64e``
-     - ``{status: ALLOWED_TO_JOIN, platform: "OE_SGX_v1"}``
+     - ``ALLOWED_TO_JOIN``
 
 ``nodes.snp.host_data``
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -155,9 +152,19 @@ Attestation report host data field for nodes that are allowed to join the curren
 
 Measurement that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
 
-**Key** Measurement, represented as a base64 string.
+**Key** Measurement, represented as a base64 hex-encoded string (length: 96).
 
 **Value** Represented as JSON.
+
+**Example**
+
+.. list-table::
+   :header-rows: 1
+
+   * - Code ID
+     - Status
+   * - ``ede8268...01b66ed1``
+     - ``ALLOWED_TO_JOIN``
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
