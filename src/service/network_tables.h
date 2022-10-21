@@ -63,6 +63,7 @@ namespace ccf
     SecurityPolicies security_policies;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
+    COSEGovernanceHistory cose_governance_history;
     RecoveryShares shares;
     EncryptedLedgerSecretsInfo encrypted_ledger_secrets;
     EncryptedSubmittedShares encrypted_submitted_shares;
@@ -121,6 +122,7 @@ namespace ccf
       security_policies(Tables::SECURITY_POLICIES),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
+      cose_governance_history(Tables::COSE_GOV_HISTORY),
       shares(Tables::SHARES),
       encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       encrypted_submitted_shares(Tables::ENCRYPTED_SUBMITTED_SHARES),
