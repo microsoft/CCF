@@ -122,14 +122,11 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
-Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`, or measurement of the initial VM pages on :doc:`SNP <../operations/platforms/snp>`.
+Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`.
 
-**Key** MRENCLAVE, represented as a base64 string.
+**Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 
 **Value** Represented as JSON.
-
-.. doxygenstruct:: ccf::CodeInfo
-   :project: CCF
 
 **Example**
 
@@ -139,18 +136,35 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
    * - Code ID
      - Status
    * - ``cae46d1...bb908b64e``
-     - ``{status: ALLOWED_TO_JOIN, platform: "OE_SGX_v1"}``
-
-.. note:: On versions ``3.0.0-dev1`` and below, value was an enum with one possible value ``ALLOWED_TO_JOIN``
+     - ``ALLOWED_TO_JOIN``
 
 ``nodes.snp.host_data``
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Attestation report host data field for nodes that are allowed to join the current network on :doc:`SNP <../operations/platforms/snp>`.
 
 **Key** Host data: The host data.
 
 **Value** Metadata: The platform specific meaning of the host data.
+
+``nodes.snp.measurements``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Measurement that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
+
+**Key** Measurement, represented as a base64 hex-encoded string (length: 96).
+
+**Value** Represented as JSON.
+
+**Example**
+
+.. list-table::
+   :header-rows: 1
+
+   * - Code ID
+     - Status
+   * - ``ede8268...01b66ed1``
+     - ``ALLOWED_TO_JOIN``
 
 ``service.info``
 ~~~~~~~~~~~~~~~~

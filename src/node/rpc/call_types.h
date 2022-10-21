@@ -42,12 +42,11 @@ namespace ccf
     {
       std::string digest;
       ccf::CodeStatus status;
-      std::optional<ccf::QuoteFormat> platform;
     };
 
     struct Out
     {
-      std::vector<GetCode::Version> versions = {};
+      std::vector<Version> versions = {};
     };
   };
 
