@@ -397,7 +397,11 @@ namespace ccf
     static std::optional<MemberId> get_caller_member_id(
       endpoints::CommandEndpointContext& ctx)
     {
-      if (
+      if (const auto* cose_ident =
+            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+      {
+        return cose_ident->member_id;
+      } else if (
         const auto* sig_ident =
           ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
       {
@@ -418,13 +422,19 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers();
 
-      const AuthnPolicies member_sig_only = {member_signature_auth_policy};
+      const AuthnPolicies member_sig_only = {member_signature_auth_policy,
+                                             member_cose_sign1_auth_policy};
 
       const AuthnPolicies member_cert_or_sig = {
-        member_cert_auth_policy, member_signature_auth_policy};
+        member_cert_auth_policy,
+        member_signature_auth_policy};
 
       //! A member acknowledges state
-      auto ack = [this](auto& ctx, nlohmann::json&& params) {
+      auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
+        // TODO
+        auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+        // Branch on content type
+        // Expand MemberAck to contain a COSE_Sign1
         const auto& caller_identity =
           ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
         const auto& signed_request = caller_identity.signed_request;
@@ -433,21 +443,23 @@ namespace ccf
         const auto ma = mas->get(caller_identity.member_id);
         if (!ma)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
               "No ACK record exists for caller {}.",
               caller_identity.member_id));
+          return;
         }
 
         const auto digest = params.get<StateDigest>();
         if (ma->state_digest != digest.state_digest)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StateDigestMismatch,
             "Submitted state digest is not valid.");
+          return;
         }
 
         auto sig = ctx.tx.rw(this->network.signatures);
@@ -470,19 +482,21 @@ namespace ccf
         }
         catch (const std::logic_error& e)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format("Error activating new member: {}", e.what()));
+          return;
         }
 
         auto service_status = g.get_service_status();
         if (!service_status.has_value())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "No service currently available.");
+          return;
         }
 
         auto members = ctx.tx.rw(this->network.member_info);
@@ -499,27 +513,32 @@ namespace ccf
           }
           catch (const std::logic_error& e)
           {
-            return make_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               fmt::format("Error issuing new recovery shares: {}", e.what()));
+            return;
           }
         }
-        return make_success();
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return;
       };
-      make_endpoint("/ack", HTTP_POST, json_adapter(ack), member_sig_only)
+      make_endpoint("/ack", HTTP_POST, ack, member_sig_only)
         .set_auto_schema<StateDigest, void>()
         .install();
 
       //! A member asks for a fresher state digest
-      auto update_state_digest = [this](auto& ctx, nlohmann::json&&) {
+      auto update_state_digest = [this](ccf::endpoints::EndpointContext& ctx) {
+        // TODO
+        // Branch on content type
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Caller is a not a valid member id");
+          return;
         }
 
         auto mas = ctx.tx.rw(this->network.member_acks);
@@ -527,11 +546,12 @@ namespace ccf
         auto ma = mas->get(member_id.value());
         if (!ma)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
               "No ACK record exists for caller {}.", member_id.value()));
+          return;
         }
 
         auto s = sig->get();
@@ -543,31 +563,39 @@ namespace ccf
         nlohmann::json j;
         j["state_digest"] = ma->state_digest;
 
-        return make_success(j);
+        ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(j.dump());
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return;
       };
       make_endpoint(
         "/ack/update_state_digest",
         HTTP_POST,
-        json_adapter(update_state_digest),
+        update_state_digest,
         member_cert_or_sig)
         .set_auto_schema<void, StateDigest>()
         .install();
 
-      auto get_encrypted_recovery_share = [this](auto& ctx, nlohmann::json&&) {
+      auto get_encrypted_recovery_share = [this](ccf::endpoints::EndpointContext& ctx) {
+        // TODO
+        // Branch on content type
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Member is unknown.");
+          return;
         }
         if (!check_member_active(ctx.tx, member_id.value()))
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Only active members are given recovery shares.");
+          return;
         }
 
         auto encrypted_share =
@@ -575,50 +603,62 @@ namespace ccf
 
         if (!encrypted_share.has_value())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             fmt::format(
               "Recovery share not found for member {}.", member_id->value()));
+            return;
         }
 
-        return make_success(
-          GetRecoveryShare::Out{crypto::b64_from_raw(encrypted_share.value())});
+        auto rec_share =
+          GetRecoveryShare::Out{crypto::b64_from_raw(encrypted_share.value())};
+        ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(rec_share).dump());
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return;
       };
       make_endpoint(
         "/recovery_share",
         HTTP_GET,
-        json_adapter(get_encrypted_recovery_share),
+        get_encrypted_recovery_share,
         member_cert_or_sig)
         .set_auto_schema<GetRecoveryShare>()
         .install();
 
-      auto submit_recovery_share = [this](auto& ctx, nlohmann::json&& params) {
+      auto submit_recovery_share = [this](ccf::endpoints::EndpointContext& ctx) {
+        // TODO
+        // Branch on content type
+
         // Only active members can submit their shares for recovery
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Member is unknown.");
+          return;
         }
         if (!check_member_active(ctx.tx, member_id.value()))
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             errors::AuthorizationFailed,
             "Member is not active.");
+          return;
         }
 
         GenesisGenerator g(this->network, ctx.tx);
         if (
           g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             errors::ServiceNotWaitingForRecoveryShares,
             "Service is not waiting for recovery shares.");
+          return;
         }
 
         auto node_operation = context.get_subsystem<AbstractNodeOperation>();
@@ -630,10 +670,11 @@ namespace ccf
 
         if (node_operation->is_reading_private_ledger())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             errors::NodeAlreadyRecovering,
             "Node is already recovering private ledger.");
+          return;
         }
 
         const auto in = params.get<SubmitRecoveryShare::In>();
@@ -651,10 +692,11 @@ namespace ccf
           constexpr auto error_msg = "Error submitting recovery shares.";
           LOG_FAIL_FMT(error_msg);
           LOG_DEBUG_FMT("Error: {}", e.what());
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,
             error_msg);
+          return;
         }
         OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
@@ -734,6 +776,10 @@ namespace ccf
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
+        // TODO
+        // generic identity fetch
+        // store envelope in voting history table
+
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
@@ -1004,6 +1050,12 @@ namespace ccf
 
       auto withdraw_js = [this](
                            endpoints::EndpointContext& ctx, nlohmann::json&&) {
+
+        // TODO
+        // generic identity fetch
+        // remove json wrapper
+        // store envelope in voting history table
+
         const auto& caller_identity =
           ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
@@ -1121,6 +1173,9 @@ namespace ccf
         .install();
 
       auto vote_js = [this](ccf::endpoints::EndpointContext& ctx) {
+        // TODO
+        // generic identity fetch
+        // store envelope in voting history table
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
