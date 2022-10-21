@@ -16,6 +16,8 @@ import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
 import openapi_spec_validator
+from jwcrypto import jwk
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from loguru import logger as LOG
 
@@ -35,6 +37,61 @@ def validate_openapi(client):
             json.dump(openapi_doc, f, indent=2)
         LOG.error(f"Document written to {filename}")
         raise e
+
+
+def generate_and_verify_jwk(client):
+    LOG.info("Generate JWK from raw public key PEM")
+    r = client.post("/app/pubPemToJwk", body={"pem": "invalid_pem"})
+    assert r.status_code != http.HTTPStatus.OK
+
+    # Elliptic curve
+    curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
+    for curve in curves:
+        priv_pem, pub_pem = infra.crypto.generate_ec_keypair(curve)
+        # Private
+        ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/pemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "EC"
+        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+
+        # Public
+        ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/pubPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "EC"
+        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+
+    # RSA
+    key_sizes = [1024, 2048, 4096]
+    for key_size in key_sizes:
+        priv_pem, pub_pem = infra.crypto.generate_rsa_keypair(key_size)
+
+        # Private
+        ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/rsaPemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "RSA"
+        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+
+        # Public
+        ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/pubRsaPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "RSA"
+        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
 
 
 @reqs.description("Test module import")
@@ -494,37 +551,23 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() == False, r.body
 
-        key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256r1")
-        algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-        data = "foo".encode()
-        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
-        r = c.post(
-            "/app/verifySignature",
-            {
-                "algorithm": algorithm,
-                "key": key_pub_pem,
-                "signature": b64encode(signature).decode(),
-                "data": b64encode(data).decode(),
-            },
-        )
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
-
-        key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256k1")
-        algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-        data = "foo".encode()
-        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
-        r = c.post(
-            "/app/verifySignature",
-            {
-                "algorithm": algorithm,
-                "key": key_pub_pem,
-                "signature": b64encode(signature).decode(),
-                "data": b64encode(data).decode(),
-            },
-        )
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        curves = [ec.SECP256R1, ec.SECP256K1]
+        for curve in curves:
+            key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
+            algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+            data = "foo".encode()
+            signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+            r = c.post(
+                "/app/verifySignature",
+                {
+                    "algorithm": algorithm,
+                    "key": key_pub_pem,
+                    "signature": b64encode(signature).decode(),
+                    "data": b64encode(data).decode(),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert r.body.json() == True, r.body
 
         r = c.post(
             "/app/digest",
@@ -660,6 +703,7 @@ def test_npm_app(network, args):
             assert "sgx_report_data" in body["customClaims"], body
 
         validate_openapi(c)
+        generate_and_verify_jwk(c)
 
     LOG.info("Store JWT signing keys")
 

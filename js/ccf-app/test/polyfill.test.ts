@@ -283,6 +283,60 @@ describe("polyfill", function () {
       assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
     });
   });
+  describe("pemToJwk", function () {
+    it("EC", function () {
+      // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
+      const my_kid = "my_kid";
+      const curves = ["secp256r1", "secp384r1"];
+      for (const curve of curves) {
+        const pair = ccf.generateEcdsaKeyPair(curve);
+        {
+          const jwk = ccf.crypto.pubPemToJwk(pair.publicKey);
+          assert.equal(jwk.kty, "EC");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.pubPemToJwk(pair.publicKey, my_kid);
+          assert.equal(jwk.kty, "EC");
+          assert.equal(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.pemToJwk(pair.privateKey);
+          assert.equal(jwk.kty, "EC");
+          assert.notExists(jwk.kid);
+        }
+        {
+          const jwk = ccf.crypto.pemToJwk(pair.privateKey, my_kid);
+          assert.equal(jwk.kty, "EC");
+          assert.equal(jwk.kid, my_kid);
+        }
+      }
+    }),
+      it("RSA", function () {
+        const my_kid = "my_kid";
+        const pair = ccf.generateRsaKeyPair(1024);
+        {
+          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
+          assert.equal(jwk.kty, "RSA");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
+          assert.equal(jwk.kty, "RSA");
+          assert.equal(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
+          assert.equal(jwk.kty, "RSA");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
+          assert.equal(jwk.kty, "RSA");
+          assert.equal(jwk.kid, my_kid);
+        }
+      });
+  });
   describe("kv", function () {
     it("basic", function () {
       const foo = ccf.kv["foo"];
