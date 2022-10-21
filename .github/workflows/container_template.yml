@@ -11,7 +11,7 @@ on:
         type: string
 
 jobs:
-  template_build_container:
+  build_containers:
     runs-on: ubuntu-latest
     steps:
       - name: Get image tag from git tag (release)
