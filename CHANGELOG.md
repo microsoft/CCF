@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The functions `starts_with`, `ends_with`, `remove_prefix`, and `remove_suffix`, and the type `remove_cvref` have been removed from `nonstd::`. The C++20 equivalents should be used instead.
 
+### Added
+
+- Add `ccf.crypto.generateEddsaKeyPair()` API in the JavaScript runtime (MYTODO).
+
 ## [3.0.0-dev7]
 
 ### Added

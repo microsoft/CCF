@@ -3,6 +3,7 @@
 
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "crypto/ecdsa.h"
@@ -113,6 +114,40 @@ namespace ccf::js
         "Unsupported curve id, supported: secp256r1, secp256k1, secp384r1");
     }
     auto k = crypto::make_key_pair(cid);
+
+    crypto::Pem prv = k->private_key_pem();
+    crypto::Pem pub = k->public_key_pem();
+
+    auto r = JS_NewObject(ctx);
+    JS_SetPropertyStr(
+      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
+    JS_SetPropertyStr(
+      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
+    return r;
+  }
+
+  static JSValue js_generate_eddsa_key_pair(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto curve = jsctx.to_str(argv[0]);
+
+    crypto::CurveID cid;
+    if (curve == "curve25519")
+    {
+      cid = crypto::CurveID::CURVE25519;
+    }
+    else
+    {
+      return JS_ThrowRangeError(
+        ctx,
+        "Unsupported curve id, supported: curve25519");
+    }
+    auto k = crypto::make_eddsa_key_pair(cid);
 
     crypto::Pem prv = k->private_key_pem();
     crypto::Pem pub = k->public_key_pem();

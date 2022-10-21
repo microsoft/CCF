@@ -1781,6 +1781,12 @@ namespace ccf::js
       JS_NewCFunction(
         ctx, js_generate_ecdsa_key_pair, "generateEcdsaKeyPair", 1));
     JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "generateEddsaKeyPair",
+      JS_NewCFunction(
+        ctx, js_generate_eddsa_key_pair, "generateEddsaKeyPair", 1));
+    JS_SetPropertyStr(
       ctx, crypto, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
     JS_SetPropertyStr(
       ctx, crypto, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));

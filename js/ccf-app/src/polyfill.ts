@@ -192,6 +192,21 @@ class CCFPolyfill implements CCF {
       });
       return ecdsaKeyPair;
     },
+    generateEddsaKeyPair(curve: string): CryptoKeyPair {
+      // `type` is always "ed25519" because currently only "curve25519" is supported for `curve`.
+      const type = 'ed25519'  
+      const ecdsaKeyPair = jscrypto.generateKeyPairSync(type, {
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      return ecdsaKeyPair;
+    },
     wrapKey(
       key: ArrayBuffer,
       wrappingKey: ArrayBuffer,

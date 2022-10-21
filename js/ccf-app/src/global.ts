@@ -307,6 +307,7 @@ export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
 }
 
 export interface CCFCrypto {
+
   /**
    * Returns whether digital signature is valid.
    *
@@ -345,6 +346,13 @@ export interface CCFCrypto {
    * @param curve The name of the curve, one of "secp256r1", "secp256k1", "secp384r1".
    */
   generateEcdsaKeyPair(curve: string): CryptoKeyPair;
+
+  /**
+   * Generate an EdDSA key pair.
+   *
+   * @param curve The name of the curve. Currently only "curve25519" is supported.
+   */
+  generateEddsaKeyPair(curve: string): CryptoKeyPair;
 
   /**
    * Wraps a key using a wrapping key.
