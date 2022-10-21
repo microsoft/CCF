@@ -4,9 +4,10 @@
 # Original License below
 # Adapted from: https://github.com/pmer/tla-bin
 #
-# Downloads the TLA+ binary image (tla2tools.jar) from the Github
-# servers. If the file already exists locally, checks for an update & prints a
+# Downloads the TLA+ binary image (tla2tools.jar).
+# If the file already exists locally, checks for an update & prints a
 # message if one was found.
+# Also downloads the TLA+ community modules (CommunityModules-deps.jar).
 #
 
 download() {
