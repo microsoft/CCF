@@ -5,7 +5,6 @@ jobs:
       env:
         container: sgx
         pool: 1es-dcv2-focal
-        timeoutInMinutes: 120 # Trying to run 2 45-minute tests; these must complete in < 2 hours
       cmake_args: "-DCOMPILE_TARGETS=sgx"
       suffix: "StressTest"
       artifact_name: "StressTest"
