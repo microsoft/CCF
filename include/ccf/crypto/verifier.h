@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
@@ -215,6 +216,13 @@ namespace crypto
 
     /** The subject name of the certificate */
     virtual std::string subject() const = 0;
+
+    /** */
+    virtual JsonWebKeyECPublic public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const
+    {
+      return public_key->public_key_jwk(kid);
+    }
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;

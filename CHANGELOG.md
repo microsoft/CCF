@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.0-dev7]
 
+### Added
+
+- Added new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
+
 ### Changed
 
 - JavaScript crypto API (e.g. `generateAesKey` and `wrapKey`) are now included as part of the `ccf.crypto` package (#4372).
