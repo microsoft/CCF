@@ -143,14 +143,14 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
 
 .. note:: On versions ``3.0.0-dev1`` and below, value was an enum with one possible value ``ALLOWED_TO_JOIN``
 
-``nodes.security_policies``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``nodes.snp.host_data``
+~~~~~~~~~~~~~~~~~~~
 
-Security policies that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
+Attestation report host data field for nodes that are allowed to join the current network on :doc:`SNP <../operations/platforms/snp>`.
 
-**Key** Security Policy Digest: Hash of the security policy string which is reported by the SNP attestation.
+**Key** Host data: The host data.
 
-**Value** Raw Security Digest: The raw string of the security policy
+**Value** Metadata: The platform specific meaning of the host data.
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
