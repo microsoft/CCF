@@ -147,12 +147,14 @@ def snp_only():
 
     return ensure_reqs(check)
 
+
 def not_snp():
     def check(network, args, *nargs, **kwargs):
         if IS_SNP:
             raise TestRequirementsNotMet("Platform should not be SNP")
-            
+
     return ensure_reqs(check)
+
 
 def recover(number_txs=5):
     # Runs some transactions before recovering the network and guarantees that all

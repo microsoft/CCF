@@ -954,7 +954,10 @@ const actions = new Map([
       function (args, proposalId) {
         const measurement = ccf.strToBuf(args.measurement);
         const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
-        ccf.kv["public:ccf.gov.nodes.snp.measurements"].set(measurement, ALLOWED);
+        ccf.kv["public:ccf.gov.nodes.snp.measurements"].set(
+          measurement,
+          ALLOWED
+        );
 
         // Adding a new allowed measurement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
@@ -1024,11 +1027,7 @@ const actions = new Map([
     "remove_snp_measurement",
     new Action(
       function (args) {
-        checkType(
-          args.measurement,
-          "string",
-          "measurement"
-        );
+        checkType(args.measurement, "string", "measurement");
       },
       function (args) {
         const measurement = ccf.strToBuf(args.measurement);
