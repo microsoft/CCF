@@ -21,15 +21,15 @@ jobs:
 
       # For a release, get git tag...
       - name: Get image tag from git tag
-        run: echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
-        if: github.event.release.action == 'published'
+        run: echo "my_tag" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+        # if: github.event.release.action == 'published'
         id: tref
 
-      # ... otherwise, get branch name
-      - name: Get image tag from branch name
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-        if: github.event_name == 'push'
-        id: tref
+      # # ... otherwise, get branch name
+      # - name: Get image tag from branch name
+      #   run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      #   if: github.event_name == 'push'
+      #   id: tref
 
       # Build development containers
       - name: Build App Dev SGX container
