@@ -6,10 +6,11 @@ FROM ubuntu:20.04
 ARG extra_vars
 ARG target
 
-RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
+RUN echo "APT::Acquire::Retries \"5\";" | tee  /etc/apt/apt.conf.d/80-retries
 
+WORKDIR /
 COPY ./docker/sgx_deps_pin.sh /
-RUN /sgx_deps_pin.sh && rm /sgx_deps_pin.sh
+RUN ./sgx_deps_pin.sh && rm ./sgx_deps_pin.sh
 
 COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update \
