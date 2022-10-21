@@ -12,8 +12,9 @@
 
 /**
  * This file defines various type traits and utils that are not available in the
- * standard library. Some are added in C++20, some are proposed, some are purely
- * custom. They are defined here to avoid repetition in other locations
+ * standard library. Some are added in future versions of the standard library,
+ * some are proposed, some are purely custom. They are defined here to avoid
+ * repetition in other locations.
  */
 namespace nonstd
 {
@@ -67,32 +68,6 @@ namespace nonstd
   template <typename T, T t>
   static constexpr bool value_dependent_false_v = dependent_false<T>::value;
 
-  /** remove_cvref combines remove_cv and remove_reference - this is present in
-   * C++20
-   */
-  template <class T>
-  struct remove_cvref
-  {
-    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
-  };
-
-  template <class T>
-  using remove_cvref_t = typename remove_cvref<T>::type;
-
-  /** These generic std::string member functions are present in C++20
-   */
-  static inline bool starts_with(
-    const std::string& s, const std::string& prefix)
-  {
-    return s.rfind(prefix, 0) == 0;
-  }
-
-  static inline bool ends_with(const std::string& s, const std::string& suffix)
-  {
-    return s.size() >= suffix.size() &&
-      s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
-  }
-
   /** split is based on Python's str.split
    */
   static inline std::vector<std::string_view> split(
@@ -115,6 +90,7 @@ namespace nonstd
     }
 
     result.push_back(s.substr(separator_end));
+
     return result;
   }
 
@@ -134,6 +110,63 @@ namespace nonstd
     return std::make_tuple(v[0], v[1]);
   }
 
+  /** Similar to split, but splits first from the end rather than the beginning.
+   * This means the results are returned in reverse order, and if max_split is
+   * specified then only the final N entries will be kept.
+   * split("A:B:C", ":", 1) => ["A", "B:C"]
+   * rsplit("A:B:C", ":", 1) => ["C", "A:B"]
+   */
+  static inline std::vector<std::string_view> rsplit(
+    const std::string_view& s,
+    const std::string_view& separator = " ",
+    size_t max_split = SIZE_MAX)
+  {
+    std::vector<std::string_view> result;
+
+    auto prev_separator_start = s.size();
+    auto next_separator_start = s.rfind(separator);
+    while (next_separator_start != std::string_view::npos &&
+           result.size() < max_split)
+    {
+      auto separator_end = next_separator_start + separator.size();
+
+      result.push_back(
+        s.substr(separator_end, prev_separator_start - separator_end));
+
+      prev_separator_start = next_separator_start;
+
+      if (next_separator_start == 0)
+      {
+        break;
+      }
+      else
+      {
+        next_separator_start = s.rfind(separator, prev_separator_start - 1);
+      }
+    }
+
+    result.push_back(s.substr(0, prev_separator_start));
+
+    return result;
+  }
+
+  /* rsplit_1 wraps rsplit _and reverses the result order_ and allows writing
+   * things like:
+   * auto [host, port] = nonstd::rsplit_1("[1:2:3:4]:8000", ":")
+   */
+  static inline std::tuple<std::string_view, std::string_view> rsplit_1(
+    const std::string_view& s, const std::string_view& separator)
+  {
+    const auto v = rsplit(s, separator, 1);
+    if (v.size() == 1)
+    {
+      // If separator is not present, return {"", s};
+      return std::make_tuple("", v[0]);
+    }
+
+    return std::make_tuple(v[1], v[0]);
+  }
+
   /** These convert strings to upper or lower case, in-place
    */
   static inline void to_upper(std::string& s)
@@ -148,28 +181,6 @@ namespace nonstd
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
       return std::tolower(c);
     });
-  }
-
-  static inline std::string remove_prefix(
-    const std::string& s, const std::string& prefix)
-  {
-    if (starts_with(s, prefix))
-    {
-      return s.substr(prefix.size());
-    }
-
-    return s;
-  }
-
-  static inline std::string remove_suffix(
-    const std::string& s, const std::string& suffix)
-  {
-    if (ends_with(s, suffix))
-    {
-      return s.substr(0, s.size() - suffix.size());
-    }
-
-    return s;
   }
 
   // Iterators for map-keys and map-values

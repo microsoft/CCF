@@ -295,8 +295,7 @@ namespace ccf
       // Verify that the security policy matches the quoted digest of the policy
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        auto quoted_digest =
-          AttestationProvider::get_security_policy_digest(quote_info);
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
         if (!quoted_digest.has_value())
         {
           throw std::logic_error("Unable to find security policy");
@@ -1682,7 +1681,7 @@ namespace ccf
     {
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
-      // all-numeric. So this distinguishes "1.2.3.4" (and IP address) from
+      // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
       // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
       // throw. Attempts to handle IPv6 by also splitting on ':', but this is
       // untested.
@@ -1691,8 +1690,7 @@ namespace ccf
       if (final_component.empty())
       {
         throw std::runtime_error(fmt::format(
-          "{} has a trailing period, is not a valid hostname",
-          final_component));
+          "{} has a trailing period, is not a valid hostname", hostname));
       }
       for (const auto c : final_component)
       {

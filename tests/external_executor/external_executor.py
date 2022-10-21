@@ -250,7 +250,7 @@ def test_streaming(network, args):
 
 
 def run(args):
-    key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
+    key_priv_pem, _ = infra.crypto.generate_ec_keypair()
     cert = infra.crypto.generate_cert(key_priv_pem)
 
     with infra.network.network(

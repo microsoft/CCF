@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/hash_bytes.h"
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/san.h"
 
@@ -147,5 +148,8 @@ namespace crypto
      * The x/y coordinates of the public key
      */
     virtual Coordinates coordinates() const = 0;
+
+    virtual JsonWebKeyECPublic public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 }

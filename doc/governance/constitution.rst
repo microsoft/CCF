@@ -16,3 +16,8 @@ There are also more involved examples such as ``veto/resolve.js``. This accepts 
 
 .. literalinclude:: ../../samples/constitutions/veto/resolve.js
     :language: js
+
+There are also examples for specific member roles such as ``operator/resolve.js`` ``operator_provisioner/resolve.js``. Operators are allowed to add and remove nodes from the network without a majority vote, and operator provisioners are allowed to endorse members to be operators, which allows customers to control the operators in the case of disaster recovery.
+
+.. literalinclude:: ../../samples/constitutions/operator_provisioner/resolve.js
+    :language: js

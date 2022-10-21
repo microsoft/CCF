@@ -44,7 +44,7 @@ namespace host
     char const* expected_suffix,
     host::EnclaveType type)
   {
-    if (!nonstd::ends_with(file, expected_suffix))
+    if (!file.ends_with(expected_suffix))
     {
       // Remove possible suffixes to try and get root of filename, to build
       // suggested filename
@@ -52,7 +52,7 @@ namespace host
       for (const char* suffix :
            {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
       {
-        if (nonstd::ends_with(basename, suffix))
+        if (basename.ends_with(suffix))
         {
           basename = basename.substr(0, basename.size() - strlen(suffix));
         }

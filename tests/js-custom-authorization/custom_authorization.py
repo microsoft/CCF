@@ -70,13 +70,6 @@ def test_heap_size_limit(network, args):
 
 
 def run_limits(args):
-    if "v8" in args.package:
-        LOG.warning(
-            f"Skipping run_limits for {args.package} as heap and stack limits are not yet enforced"
-        )
-        # See https://github.com/microsoft/CCF/issues/3324
-        return
-
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:

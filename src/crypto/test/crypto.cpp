@@ -5,6 +5,7 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
@@ -51,9 +52,9 @@ void corrupt(T& buf)
 }
 
 static constexpr CurveID supported_curves[] = {
-  CurveID::SECP384R1, CurveID::SECP256R1};
+  CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
 
-static constexpr char const* labels[] = {"secp384r1", "secp256r1"};
+static constexpr char const* labels[] = {"secp384r1", "secp256r1", "secp256k1"};
 
 crypto::Pem generate_self_signed_cert(
   const KeyPairPtr& kp, const std::string& name)
@@ -156,15 +157,17 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
 
 TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
 {
-  for (const auto curve : supported_curves)
+  constexpr size_t num_supported_curves =
+    static_cast<size_t>(sizeof(supported_curves) / sizeof(CurveID));
+  for (auto i = 0; i < num_supported_curves; ++i)
   {
+    const auto curve = supported_curves[i];
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    const auto wrong_curve =
-      curve == CurveID::SECP384R1 ? CurveID::SECP256R1 : CurveID::SECP384R1;
+    const auto wrong_curve = supported_curves[(i + 1) % num_supported_curves];
     auto kp2 = make_key_pair(wrong_curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = make_public_key(public_key);
@@ -700,5 +703,56 @@ TEST_CASE("hmac")
     auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
     auto r1 = crypto::hmac(MDType::SHA256, key, mostly_zeros);
     REQUIRE(r0 != r1);
+  }
+}
+
+TEST_CASE("PEM to JWK")
+{
+  // More complete tests in end-to-end JS modules test
+  // to compare with JWK reference implementation.
+  auto kid = "my_kid";
+
+  INFO("EC");
+  {
+    auto kp = make_key_pair();
+    auto pubk = make_public_key(kp->public_key_pem());
+
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = pubk->public_key_jwk(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = kp->private_key_jwk(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+  }
+
+  INFO("RSA");
+  {
+    auto kp = make_rsa_key_pair();
+    auto pubk = make_rsa_public_key(kp->public_key_pem());
+
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk_rsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = pubk->public_key_jwk_rsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk_rsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = kp->private_key_jwk_rsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
   }
 }

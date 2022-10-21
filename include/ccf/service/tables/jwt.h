@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/jwk.h"
 #include "ccf/ds/json.h"
 #include "ccf/service/map.h"
 
@@ -71,23 +72,9 @@ namespace ccf
       "public:ccf.gov.jwt.public_signing_key_issuer";
   }
 
-  struct JsonWebKey
-  {
-    std::vector<std::string> x5c;
-    std::string kid;
-    std::string kty;
-
-    bool operator==(const JsonWebKey& rhs) const
-    {
-      return x5c == rhs.x5c && kid == rhs.kid && kty == rhs.kty;
-    }
-  };
-  DECLARE_JSON_TYPE(JsonWebKey)
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, x5c, kid, kty)
-
   struct JsonWebKeySet
   {
-    std::vector<JsonWebKey> keys;
+    std::vector<crypto::JsonWebKey> keys;
 
     bool operator!=(const JsonWebKeySet& rhs) const
     {

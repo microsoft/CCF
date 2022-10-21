@@ -110,8 +110,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_link_libraries(
-    ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
-                       sss.enclave ccf_endpoints.enclave ccf_kv.enclave
+    ccf.enclave PUBLIC quickjs.enclave http_parser.enclave sss.enclave
+                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave
   )
 
   target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
@@ -154,11 +154,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     ccf.virtual
     PUBLIC ${LINK_LIBCXX}
            -lgcc
-           ccfcrypto.host
            http_parser.host
            quickjs.host
            sss.host
            ccf_endpoints.host
+           ccfcrypto.host
            ccf_kv.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
@@ -294,6 +294,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
     )
@@ -350,7 +351,7 @@ if(BUILD_TESTS)
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
       js_test PRIVATE quickjs.host ccf_kv.host ccf_endpoints.host
-                      http_parser.host
+                      ccfcrypto.host http_parser.host
     )
 
     add_unit_test(
@@ -428,8 +429,14 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-                            ccf_endpoints.host ccf_kv.host quickjs.host
+      frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              sss.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              quickjs.host
     )
 
     add_unit_test(
@@ -443,8 +450,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-              ccf_endpoints.host quickjs.host ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              sss.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              quickjs.host
+              ccf_kv.host
     )
 
     add_unit_test(
@@ -454,8 +466,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
-              ccf_endpoints.host ccf_kv.host quickjs.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              sss.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              quickjs.host
     )
 
     add_unit_test(
@@ -557,15 +574,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
-  if(LONG_TESTS)
-    add_e2e_test(
-      NAME recovery_test_curve_256
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --curve-id secp256r1
-    )
-  endif()
-
   add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
@@ -628,18 +636,6 @@ if(BUILD_TESTS)
       # large JS applications may trigger leadership changes
   )
 
-  if(ENABLE_V8)
-    add_e2e_test(
-      NAME modules_v8_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS
-        --package libjs_v8 --election-timeout-ms 10000 # Larger election timeout
-                                                       # as recording
-        # large JS applications may trigger leadership changes
-    )
-  endif()
-
   add_e2e_test(
     NAME auth
     PYTHON_SCRIPT
@@ -649,25 +645,16 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/tests
   )
 
-  if(ENABLE_V8)
+  if(LONG_TESTS)
     add_e2e_test(
-      NAME auth_v8
+      NAME launch_host_process_test
       PYTHON_SCRIPT
-        ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+        ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --package libjs_v8 --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/tests
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
     )
   endif()
-
-  add_e2e_test(
-    NAME launch_host_process_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
-  )
 
   add_e2e_test(
     NAME governance_test
@@ -911,27 +898,6 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
-  if(ENABLE_V8)
-    add_perf_test(
-      NAME ls_v8
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CONSENSUS cft
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --package
-        libjs_v8
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --msg-ser-fmt
-        text
-    )
-  endif()
 
   add_perf_test(
     NAME ls_full_js
@@ -950,27 +916,6 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
-  if(ENABLE_V8)
-    add_perf_test(
-      NAME ls_full_v8
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CONSENSUS cft
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --package
-        libjs_v8
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --msg-ser-fmt
-        text
-    )
-  endif()
 
   add_perf_test(
     NAME ls_js_jwt

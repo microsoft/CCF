@@ -64,6 +64,8 @@ namespace crypto
         return CurveID::SECP384R1;
       case NID_X9_62_prime256v1:
         return CurveID::SECP256R1;
+      case NID_secp256k1:
+        return CurveID::SECP256K1;
       default:
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
     }
@@ -86,6 +88,8 @@ namespace crypto
         return NID_secp384r1;
       case CurveID::SECP256R1:
         return NID_X9_62_prime256v1;
+      case CurveID::SECP256K1:
+        return NID_secp256k1;
       default:
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
@@ -215,5 +219,18 @@ namespace crypto
     BN_bn2binpad(x, r.x.data(), sz);
     BN_bn2binpad(y, r.y.data(), sz);
     return r;
+  }
+
+  JsonWebKeyECPublic PublicKey_OpenSSL::public_key_jwk(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyECPublic jwk;
+    auto coords = coordinates();
+    jwk.x = b64url_from_raw(coords.x, false /* with_padding */);
+    jwk.y = b64url_from_raw(coords.y, false /* with_padding */);
+    jwk.crv = curve_id_to_jwk_curve(get_curve_id());
+    jwk.kid = kid;
+    jwk.kty = JsonWebKeyType::EC;
+    return jwk;
   }
 }
