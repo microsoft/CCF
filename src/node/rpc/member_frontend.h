@@ -418,6 +418,38 @@ namespace ccf
       return std::nullopt;
     }
 
+    bool authnz_active_member(ccf::endpoints::EndpointContext& ctx, std::optional<MemberId>& member_id)
+    {
+      if (const auto* cose_ident =
+            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+      {
+        member_id = cose_ident->member_id;
+      } else if (
+        const auto* sig_ident =
+          ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+      {
+        member_id = sig_ident->member_id;
+      } else {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_FORBIDDEN,
+          ccf::errors::AuthorizationFailed,
+          "Caller is a not a valid member id");
+
+        return false;
+      }
+
+      if (!check_member_active(ctx.tx, member_id.value()))
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_FORBIDDEN,
+          ccf::errors::AuthorizationFailed,
+          "Member is not active.");
+        return false;
+      }
+
+      return true;
+    }
+
     void init_handlers() override
     {
       CommonEndpointRegistry::init_handlers();
@@ -529,8 +561,6 @@ namespace ccf
 
       //! A member asks for a fresher state digest
       auto update_state_digest = [this](ccf::endpoints::EndpointContext& ctx) {
-        // TODO
-        // Branch on content type
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
         {
@@ -1060,22 +1090,21 @@ namespace ccf
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
 
-      auto withdraw_js = [this](
-                           endpoints::EndpointContext& ctx, nlohmann::json&&) {
+      auto withdraw_js = [this](ccf::endpoints::EndpointContext& ctx) {
 
         // TODO
         // generic identity fetch
-        // remove json wrapper
         // store envelope in voting history table
 
         const auto& caller_identity =
           ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Member is not active.");
+          return;
         }
 
         ProposalId proposal_id;
@@ -1083,8 +1112,9 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, std::move(error));
+          return;
         }
 
         auto pi =
@@ -1093,15 +1123,16 @@ namespace ccf
 
         if (!pi_)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ProposalNotFound,
             fmt::format("Proposal {} does not exist.", proposal_id));
+          return;
         }
 
         if (caller_identity.member_id != pi_->proposer_id)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
@@ -1110,11 +1141,12 @@ namespace ccf
               proposal_id,
               pi_->proposer_id,
               caller_identity.member_id));
+          return;
         }
 
         if (pi_->state != ProposalState::OPEN)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ProposalNotOpen,
             fmt::format(
@@ -1123,6 +1155,7 @@ namespace ccf
               proposal_id,
               pi_->state,
               ProposalState::OPEN));
+          return;
         }
 
         pi_->state = ProposalState::WITHDRAWN;
@@ -1132,13 +1165,16 @@ namespace ccf
         record_voting_history(
           ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
-        return make_success(pi_.value());
+        ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(pi_.value()).dump());
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
 
       make_endpoint(
         "/proposals/{proposal_id}/withdraw",
         HTTP_POST,
-        json_adapter(withdraw_js),
+        withdraw_js,
         member_sig_only)
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
