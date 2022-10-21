@@ -57,6 +57,26 @@ export const isValidX509CertBundle = ccf.crypto.isValidX509CertBundle;
  */
 export const isValidX509CertChain = ccf.crypto.isValidX509CertChain;
 
+/**
+ * @inheritDoc CCF.pubPemToJwk
+ */
+export const pubPemToJwk = ccf.crypto.pubPemToJwk;
+
+/**
+ * @inheritDoc CCF.pemToJwk
+ */
+export const pemToJwk = ccf.crypto.pemToJwk;
+
+/**
+ * @inheritDoc CCF.pubRsaPemToJwk
+ */
+export const pubRsaPemToJwk = ccf.crypto.pubRsaPemToJwk;
+
+/**
+ * @inheritDoc CCF.rsaPemToJwk
+ */
+export const rsaPemToJwk = ccf.crypto.rsaPemToJwk;
+
 export {
   WrapAlgoParams,
   AesKwpParams,

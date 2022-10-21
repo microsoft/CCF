@@ -273,6 +273,74 @@ namespace ccf::js
     return JS_NewString(ctx, id.c_str());
   }
 
+  template <typename T>
+  static JSValue js_pem_to_jwk(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1 && argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1 or 2", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto pem_str = jsctx.to_str(argv[0]);
+    if (!pem_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    std::optional<std::string> kid = std::nullopt;
+    if (argc == 2)
+    {
+      auto kid_str = jsctx.to_str(argv[1]);
+      if (!kid_str)
+      {
+        js::js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+      kid = kid_str;
+    }
+
+    T jwk;
+    try
+    {
+      if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPublic>)
+      {
+        auto pubk = crypto::make_public_key(*pem_str);
+        jwk = pubk->public_key_jwk(kid);
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPrivate>)
+      {
+        auto kp = crypto::make_key_pair(*pem_str);
+        jwk = kp->private_key_jwk(kid);
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPublic>)
+      {
+        auto pubk = crypto::make_rsa_public_key(*pem_str);
+        jwk = pubk->public_key_jwk_rsa(kid);
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPrivate>)
+      {
+        auto kp = crypto::make_rsa_key_pair(*pem_str);
+        jwk = kp->private_key_jwk_rsa(kid);
+      }
+      else
+      {
+        static_assert(nonstd::dependent_false_v<T>, "Unknown type");
+      }
+    }
+    catch (const std::exception& ex)
+    {
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+      js::js_dump_error(ctx);
+      return e;
+    }
+
+    auto jwk_str = nlohmann::json(jwk).dump();
+    return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
+  }
+
   static JSValue js_wrap_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
@@ -491,7 +559,7 @@ namespace ccf::js
         sig = crypto::ecdsa_sig_p1363_to_der(sig);
       }
 
-      auto is_cert = nonstd::starts_with(key, "-----BEGIN CERTIFICATE");
+      auto is_cert = key.starts_with("-----BEGIN CERTIFICATE");
 
       bool valid = false;
 
@@ -510,7 +578,7 @@ namespace ccf::js
 
       return JS_NewBool(ctx, valid);
     }
-    catch (std::exception& ex)
+    catch (const std::exception& ex)
     {
       auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);

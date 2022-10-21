@@ -141,19 +141,17 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
    * - ``cae46d1...bb908b64e``
      - ``{status: ALLOWED_TO_JOIN, platform: "OE_SGX_v1"}``
 
-``nodes.security_policies``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``nodes.snp.host_data``
+~~~~~~~~~~~~~~~~~~~~~~~
 
-Security policies that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
+Attestation report host data field for nodes that are allowed to join the current network on :doc:`SNP <../operations/platforms/snp>`.
 
-**Key** Security Policy Digest: Hash of the security policy string which is reported by the SNP attestation.
+**Key** Host data: The host data.
 
-**Value** Raw Security Digest: The raw string of the security policy
+**Value** Metadata: The platform specific meaning of the host data.
 
 ``nodes.snp.measurements``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# TODO: Add size here and on code_ids
 
 Measurement that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
 

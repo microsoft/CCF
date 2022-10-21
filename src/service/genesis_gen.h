@@ -439,21 +439,20 @@ namespace ccf
       }
     }
 
-    void trust_node_security_policy(
-      const std::optional<RawPolicy>& security_policy_raw,
-      const DigestedPolicy& host_data)
+    void trust_node_host_data(
+      const std::optional<HostDataMetadata>& security_policy,
+      const HostData& host_data)
     {
-      auto security_policies = tx.rw(tables.security_policies);
-      if (security_policy_raw.has_value())
+      auto host_data_table = tx.rw(tables.host_data);
+      if (security_policy.has_value())
       {
-        LOG_INFO_FMT(
-          "Trusting node with policy {}", security_policy_raw.value());
-        security_policies->put(host_data, security_policy_raw.value());
+        LOG_INFO_FMT("Trusting node with policy {}", security_policy.value());
+        host_data_table->put(host_data, security_policy.value());
       }
       else
       {
         LOG_INFO_FMT("Trusting node with unset policy");
-        security_policies->put(host_data, pal::snp::NO_RAW_SECURITY_POLICY);
+        host_data_table->put(host_data, pal::snp::NO_SECURITY_POLICY);
       }
     }
 

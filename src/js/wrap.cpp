@@ -1743,6 +1743,30 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx,
       crypto,
+      "pubPemToJwk",
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyECPublic>, "pubPemToJwk", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "pemToJwk",
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyECPrivate>, "pemToJwk", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "pubRsaPemToJwk",
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyRSAPublic>, "pubRsaPemToJwk", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "rsaPemToJwk",
+      JS_NewCFunction(
+        ctx, js_pem_to_jwk<crypto::JsonWebKeyRSAPrivate>, "rsaPemToJwk", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
       "generateAesKey",
       JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
     JS_SetPropertyStr(
