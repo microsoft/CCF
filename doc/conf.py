@@ -237,6 +237,20 @@ for arg in sys.argv:
         docs_version = arg.split("=")[1]
 
 
+print(f"TODO TODO TODO TODO TODO TODO TODO")
+print(f"TODO TODO TODO TODO TODO TODO TODO")
+print()
+print(f"This is some temporary debugging")
+print(f"Build.SourceBranch: {os.environ.get('BUILD_SOURCEBRANCH')}")
+print(f"Build.SourceBranchName: {os.environ.get('BUILD_SOURCEBRANCHNAME')}")
+print(f"Dumping all:")
+for k, v in os.environ.items():
+    print(f"  {k} = {v}")
+print()
+print(f"TODO TODO TODO TODO TODO TODO TODO")
+print(f"TODO TODO TODO TODO TODO TODO TODO")
+
+
 # :ccf_repo: directive can be used to create a versioned link to GitHub repo
 extlinks = {
     "ccf_repo": (
