@@ -1,0 +1,15 @@
+# Re-usable workflow for per-platform container build
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+
+jobs:
+  template_build_container:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build App Dev SGX container
+        run: docker build -f docker/app_dev . --build-arg="platform=${{ inputs.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
