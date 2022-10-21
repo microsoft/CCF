@@ -6,19 +6,19 @@
     - import_role:
         name: intel
         tasks_from: sgx-psw.yml
-        when: sgx_dependencies|bool
+      when: sgx_dependencies|bool
     - import_role:
         name: intel
         tasks_from: sgx-group.yml
-        when: sgx_dependencies|bool
+      when: sgx_dependencies|bool
     - import_role:
         name: az_dcap
         tasks_from: install.yml
-        when: sgx_dependencies|bool
+      when: sgx_dependencies|bool
     - import_role:
         name: openenclave
         tasks_from: binary_install.yml
-        when: sgx_dependencies|bool
+      when: sgx_dependencies|bool
     - import_role:
         name: ccf_build
         tasks_from: install.yml
@@ -26,5 +26,5 @@
         name: ccf_install
         tasks_from: deb_install.yml
     - import_role:
-        name: protoc
-        tasks_from: install.yml
+      name: protoc
+      tasks_from: install.yml
