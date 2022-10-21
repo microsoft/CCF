@@ -6,6 +6,9 @@ on:
       platform:
         required: true
         type: string
+      container_registry:
+        required: true
+        type: string
 
 jobs:
   template_build_container:
@@ -16,4 +19,4 @@ jobs:
         id: tref
 
       - name: Build App Dev ${{ inputs.platform }} container
-        run: docker build -f docker/app_dev . --build-arg="platform=${{ inputs.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ inputs.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ inputs.platform }}
+        run: docker build -f docker/app_dev . --build-arg="platform=${{ inputs.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t ${{ inputs.container_registry }}/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ inputs.platform }} -t  ${{ inputs.container_registry }}/public/ccf/app/dev:lts-devcontainer-${{ inputs.platform }}
