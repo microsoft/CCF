@@ -19,18 +19,20 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Get image tag from git tag (release) or branch name
-        run: |
-          if [ ${GITHUB_REF} == *"ref/tags"* ]; then
-            echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
-          else
-            echo "##[set-output name=tag;]${GITHUB_REF#refs/heads/}"
-          fi
+      - name: Get image tag from git tag (release)
+        run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
         id: tref
 
       # Build development containers
+      # Note: Keep SGX lts-devcontainer tag as default dev container for now
       - name: Build App Dev SGX container
-        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=true" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+
+      - name: Build App Dev SNP container
+        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-snp
+
+      - name: Build App Dev Virtual container
+        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-virtual
 
       # Build runtime containers
       - name: Build App Run SGX container
@@ -63,6 +65,12 @@ jobs:
       # Push development containers
       - name: Push App Dev SGX container
         run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx
+
+      - name: Push App Dev SNP container
+        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-snp
+
+      - name: Push App Dev Virtual container
+        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-virtual
 
       # Push runtime containers
       - name: Push App Run SGX container
