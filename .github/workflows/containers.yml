@@ -40,13 +40,13 @@ jobs:
         run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=true --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
 
       - name: Build App Run SNP container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" --extra-vars sgx_dependencies=false -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-snp
+        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-snp
 
       - name: Build JS App Run SNP container
         run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-snp
 
       - name: Build App Run Virtual container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" --extra-vars sgx_dependencies=false -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-virtual
+        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-virtual
 
       - name: Build JS App Run Virtual container
         run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars sgx_dependencies=false --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-virtual
