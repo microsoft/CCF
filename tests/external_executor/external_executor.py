@@ -172,9 +172,9 @@ def test_simple_executor(network, credentials, args):
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):
         with primary.client() as c:
-            c.post("/not/a/real/endpoint", timeout=2)
-            c.post("/update_cache/Earth", timeout=2)
-            c.get("/article_description/Earth", timeout=2)
+            c.post("/not/a/real/endpoint")
+            c.post("/update_cache/Earth")
+            c.get("/article_description/Earth")
 
         time.sleep(2)
 
