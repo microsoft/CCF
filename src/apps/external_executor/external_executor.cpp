@@ -42,7 +42,7 @@ namespace externalexecutor
     {
       std::unique_ptr<kv::CommittableTx> tx = nullptr;
       externalexecutor::protobuf::RequestDescription request_description;
-      std::shared_ptr<http::HTTPResponder> responder;
+      std::shared_ptr<http::HTTPResponder> http_responder;
     };
     std::queue<PendingRequest> pending_requests;
 
@@ -143,19 +143,21 @@ namespace externalexecutor
             "Already managing an active transaction");
         }
 
-        externalexecutor::protobuf::OptionalRequestDescription opt_rd;
+        externalexecutor::protobuf::OptionalRequestDescription
+          optional_request_description;
 
         if (!pending_requests.empty())
         {
-          auto* rd = opt_rd.mutable_optional();
-          auto& pr = pending_requests.front();
-          *rd = pr.request_description;
+          auto* request_description =
+            optional_request_description.mutable_optional();
+          auto& pending_request = pending_requests.front();
+          *request_description = pending_request.request_description;
           // NB: Move for unique_ptr
-          active_request = std::move(pr);
+          active_request = std::move(pending_request);
           pending_requests.pop();
         }
 
-        return ccf::grpc::make_success(opt_rd);
+        return ccf::grpc::make_success(optional_request_description);
       };
 
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
@@ -225,7 +227,7 @@ namespace externalexecutor
             http::HeaderMap trailers;
 
             const std::string& body_s = payload.body();
-            active_request->responder->send_response(
+            active_request->http_responder->send_response(
               (http_status)payload.status_code(),
               std::move(headers),
               std::move(trailers),
@@ -442,7 +444,7 @@ namespace externalexecutor
     void queue_request_for_external_execution(
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      PendingRequest pr;
+      PendingRequest pending_request;
 
       // Take ownership of underlying tx
       {
@@ -453,23 +455,25 @@ namespace externalexecutor
           throw std::logic_error("Unexpected context type");
         }
 
-        pr.tx = std::move(ctx_impl->owned_tx);
+        pending_request.tx = std::move(ctx_impl->owned_tx);
       }
 
       // Construct RequestDescription from EndpointContext
       {
-        externalexecutor::protobuf::RequestDescription& rd =
-          pr.request_description;
-        rd.set_method(endpoint_ctx.rpc_ctx->get_request_verb().c_str());
-        rd.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
+        externalexecutor::protobuf::RequestDescription& request_description =
+          pending_request.request_description;
+        request_description.set_method(
+          endpoint_ctx.rpc_ctx->get_request_verb().c_str());
+        request_description.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
         for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
         {
-          externalexecutor::protobuf::Header* header = rd.add_headers();
+          externalexecutor::protobuf::Header* header =
+            request_description.add_headers();
           header->set_field(k);
           header->set_value(v);
         }
         const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
-        rd.set_body(body.data(), body.size());
+        request_description.set_body(body.data(), body.size());
       }
 
       // Lookup originating session and store handle for responding later
@@ -485,9 +489,9 @@ namespace externalexecutor
         const auto session_id = http2_session_context->client_session_id;
         const auto stream_id = http2_session_context->stream_id;
 
-        auto responder =
+        auto http_responder =
           responder_lookup->lookup_responder(session_id, stream_id);
-        if (responder == nullptr)
+        if (http_responder == nullptr)
         {
           throw std::logic_error(fmt::format(
             "Found no responder for session {}, stream {}",
@@ -495,7 +499,7 @@ namespace externalexecutor
             stream_id));
         }
 
-        pr.responder = responder;
+        pending_request.http_responder = http_responder;
       }
 
       // Mark response as pending
@@ -510,7 +514,7 @@ namespace externalexecutor
         rpc_ctx_impl->response_is_pending = true;
       }
 
-      pending_requests.push(std::move(pr));
+      pending_requests.push(std::move(pending_request));
     }
 
     struct ExternallyExecutedEndpoint
