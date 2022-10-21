@@ -1,0 +1,38 @@
+# Re-usable workflow for per-platform container build
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+
+env:
+  ACR_REGISTRY: ccfmsrc.azurecr.io
+
+jobs:
+  publish_containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Log in
+        run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
+
+      - name: Get image tag from git tag (release)
+        run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+        id: tref
+
+      - name: Push App Dev ${{ inputs.platform }} container
+        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-${{ inputs.platform }}
+
+      - name: Push App Run ${{ inputs.platform }} container
+        run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ inputs.platform }}
+
+      - name: Push JS App Run ${{ inputs.platform }} container
+        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ inputs.platform }}
+
+      # - name: Push App Dev SGX devcontainer
+      #   run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+
+      # TODO: # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x TODO:: even with template

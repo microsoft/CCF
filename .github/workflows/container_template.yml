@@ -28,3 +28,5 @@ jobs:
 
       - name: Build JS App Run ${{ inputs.platform }} container
         run: docker build -f docker/app_run . --build-arg="platform=${{ inputs.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ inputs.platform }}
+
+      # TODO: # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x TODO:: even with template
