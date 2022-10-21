@@ -41,6 +41,13 @@ from loguru import logger as LOG
 def wrap_tx(stub, primary):
     with primary.client(connection_timeout=0.1) as c:
         try:
+            # This wrapper is used to test the gRPC KV API directly. That is
+            # only possible when this executor is processing an active request
+            # (StartTx() returns a non-empty response). To trigger that, we do
+            # this placeholder GET request. It immediately times out and fails,
+            # but then the node we're speaking to will return a
+            # RequestDescription for us to operate over.
+            # This is a temporary hack to allow direct access to the KV API.
             c.get("/placeholder", timeout=0.1)
         except Exception as e:
             LOG.trace(e)
