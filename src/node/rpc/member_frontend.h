@@ -520,7 +520,7 @@ namespace ccf
             return;
           }
         }
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
         return;
       };
       make_endpoint("/ack", HTTP_POST, ack, member_sig_only)
@@ -631,6 +631,8 @@ namespace ccf
         // TODO
         // Branch on content type
 
+        auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+
         // Only active members can submit their shares for recovery
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
@@ -677,9 +679,9 @@ namespace ccf
           return;
         }
 
-        const auto in = params.get<SubmitRecoveryShare::In>();
-        auto raw_recovery_share = crypto::raw_from_b64(in.share);
-        OPENSSL_cleanse(const_cast<char*>(in.share.data()), in.share.size());
+        std::string share = params["share"];
+        auto raw_recovery_share = crypto::raw_from_b64(share);
+        OPENSSL_cleanse(const_cast<char*>(share.data()), share.size());
 
         size_t submitted_shares_count = 0;
         try
@@ -704,10 +706,15 @@ namespace ccf
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
-          return make_success(SubmitRecoveryShare::Out{fmt::format(
+          auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
             "{}/{} recovery shares successfully submitted.",
             submitted_shares_count,
-            g.get_recovery_threshold())});
+            g.get_recovery_threshold())};
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          return;
         }
 
         LOG_DEBUG_FMT(
@@ -726,22 +733,27 @@ namespace ccf
           LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(ctx.tx);
           ctx.rpc_ctx->set_apply_writes(true);
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,
             error_msg);
+          return;
         }
 
-        return make_success(SubmitRecoveryShare::Out{fmt::format(
+        auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",
           submitted_shares_count,
-          g.get_recovery_threshold())});
+          g.get_recovery_threshold())};
+        ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
         "/recovery_share",
         HTTP_POST,
-        json_adapter(submit_recovery_share),
+        submit_recovery_share,
         member_cert_or_sig)
         .set_auto_schema<SubmitRecoveryShare>()
         .install();

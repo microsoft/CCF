@@ -688,14 +688,14 @@ if __name__ == "__main__":
 
     infra.log_capture.COLORS = False
 
-    cr.add(
-        "session_auth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
+    # cr.add(
+    #     "session_auth",
+    #     gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=True,
+    # )
 
     cr.add(
         "session_noauth",
@@ -706,20 +706,20 @@ if __name__ == "__main__":
         authenticate_session=False,
     )
 
-    cr.add(
-        "js",
-        js_gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
+    # cr.add(
+    #     "js",
+    #     js_gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=True,
+    # )
 
-    cr.add(
-        "history",
-        governance_history.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "history",
+    #     governance_history.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run(2)
