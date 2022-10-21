@@ -21,7 +21,7 @@ jobs:
 
       # For a release, get git tag...
       - name: Get image tag from git tag
-        run: echo "my_tag" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+        run: echo "##[set-output name=tag;]my_tag" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
         # if: github.event.release.action == 'published'
         id: tref
 
