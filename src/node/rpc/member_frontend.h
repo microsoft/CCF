@@ -621,8 +621,6 @@ namespace ccf
         .install();
 
       auto get_encrypted_recovery_share = [this](ccf::endpoints::EndpointContext& ctx) {
-        // TODO
-        // Branch on content type
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
         {
@@ -639,6 +637,20 @@ namespace ccf
             ccf::errors::AuthorizationFailed,
             "Only active members are given recovery shares.");
           return;
+        }
+
+        if (const auto* cose_auth_id =
+            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+        {
+          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
+                cose_auth_id->protected_header.gov_msg_type.value() == "encrypted_recovery_share"))
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                "Unexpected message type");
+              return;
+            }
         }
 
         auto encrypted_share =
@@ -671,9 +683,6 @@ namespace ccf
         .install();
 
       auto submit_recovery_share = [this](ccf::endpoints::EndpointContext& ctx) {
-        // TODO
-        // Branch on content type
-
         auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
         // Only active members can submit their shares for recovery
@@ -693,6 +702,20 @@ namespace ccf
             errors::AuthorizationFailed,
             "Member is not active.");
           return;
+        }
+
+        if (const auto* cose_auth_id =
+            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+        {
+          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
+                cose_auth_id->protected_header.gov_msg_type.value() == "recovery_share"))
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                "Unexpected message type");
+              return;
+            }
         }
 
         GenesisGenerator g(this->network, ctx.tx);
