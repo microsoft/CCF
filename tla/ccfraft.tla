@@ -851,28 +851,29 @@ UpdateCommitIndex(i,j,m) ==
                    votedFor, candidateVars, leaderVars, log, clientRequests, committedLog, committedLogConflict >>
 
 \* Receive a message.
-Receive(m) ==
-  LET i == m.mdest
-      j == m.msource
-  IN
-  \/ /\ m.mtype = NotifyCommitMessage
-     /\ UpdateCommitIndex(i,j,m)
-     /\ Discard(m)
-  \* Drop any message that are to be ignored by the recipient
-  \/ DropIgnoredMessage(i,j,m)
-  \* Any RPC with a newer term causes the recipient to advance
-  \* its term first. Responses with stale terms are ignored.
-  \/ UpdateTerm(i, j, m)
-  \/ /\ m.mtype = RequestVoteRequest
-     /\ HandleRequestVoteRequest(i, j, m)
-  \/ /\ m.mtype = RequestVoteResponse
-     /\ \/ DropStaleResponse(i, j, m)
-        \/ HandleRequestVoteResponse(i, j, m)
-  \/ /\ m.mtype = AppendEntriesRequest
-     /\ HandleAppendEntriesRequest(i, j, m)
-  \/ /\ m.mtype = AppendEntriesResponse
-     /\ \/ DropStaleResponse(i, j, m)
-        \/ HandleAppendEntriesResponse(i, j, m)
+Receive ==
+    \E m \in messages : 
+        LET i == m.mdest
+            j == m.msource
+        IN
+        \/ /\ m.mtype = NotifyCommitMessage
+           /\ UpdateCommitIndex(i,j,m)
+           /\ Discard(m)
+        \* Drop any message that are to be ignored by the recipient
+        \/ DropIgnoredMessage(i,j,m)
+        \* Any RPC with a newer term causes the recipient to advance
+        \* its term first. Responses with stale terms are ignored.
+        \/ UpdateTerm(i, j, m)
+        \/ /\ m.mtype = RequestVoteRequest
+           /\ HandleRequestVoteRequest(i, j, m)
+        \/ /\ m.mtype = RequestVoteResponse
+           /\ \/ DropStaleResponse(i, j, m)
+              \/ HandleRequestVoteResponse(i, j, m)
+        \/ /\ m.mtype = AppendEntriesRequest
+           /\ HandleAppendEntriesRequest(i, j, m)
+        \/ /\ m.mtype = AppendEntriesResponse
+           /\ \/ DropStaleResponse(i, j, m)
+              \/ HandleAppendEntriesResponse(i, j, m)
 
 \* End of message handlers.
 ----
@@ -890,7 +891,7 @@ Next ==
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i \in Servers : CheckQuorum(i)
-    \/ \E m \in messages : Receive(m)
+    \/ Receive
 \* SNIPPET_END: next_states
 
 \* The specification must start with the initial state and transition according
