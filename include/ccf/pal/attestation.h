@@ -125,11 +125,10 @@ namespace ccf::pal
 
       try
       {
-        using namespace ravl;
-        auto attestation = std::make_shared<sev_snp::Attestation>(
+        auto attestation = std::make_shared<ravl::sev_snp::Attestation>(
           quote_info.quote, quote_info.endorsements);
-        auto claims = attestation->verify(Options(), {});
-        auto sev_snp_claims = Claims::get<sev_snp::Claims>(claims);
+        auto claims = attestation->verify(ravl::Options(), {});
+        auto sev_snp_claims = ravl::Claims::get<ravl::sev_snp::Claims>(claims);
 
         report_data = sev_snp_claims->report_data;
         unique_id = sev_snp_claims->measurement;
@@ -230,11 +229,10 @@ namespace ccf::pal
 
     try
     {
-      using namespace ravl;
-      auto attestation = std::make_shared<oe::Attestation>(
+      auto attestation = std::make_shared<ravl::oe::Attestation>(
         quote_info.quote, quote_info.endorsements);
-      auto claims = attestation->verify();
-      auto oe_claims = Claims::get<oe::Claims>(claims);
+      auto claims = attestation->verify(ravl::Options(), {});
+      auto oe_claims = ravl::Claims::get<ravl::oe::Claims>(claims);
 
       unique_id = oe_claims->sgx_claims->report_body.mr_enclave;
 
