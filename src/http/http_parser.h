@@ -308,7 +308,7 @@ namespace http
         complete_header();
         auto const& max_headers_count =
           configuration.max_headers_count.value_or(default_max_headers_count);
-        if (headers.size() > max_headers_count)
+        if (headers.size() >= max_headers_count)
         {
           throw RequestHeaderTooLarge(fmt::format(
             "Too many headers (max number allowed: {})", max_headers_count));
