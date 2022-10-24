@@ -41,14 +41,13 @@ namespace crypto
 
     OpenSSL::CHECK1(EVP_DigestSignInit(ctx, &pkctx, NULL, NULL, key));
 
-    size_t siglen = 64; // 64 for Ed25519 signautre
-    std::vector<uint8_t> sigret(siglen);
+    std::vector<uint8_t> sigret(EVP_PKEY_size(key));
+    size_t siglen = sigret.size();
 
-    OpenSSL::CHECK1(EVP_DigestSign(ctx, &sigret[0], &siglen, &d[0], d.size()));
+    OpenSSL::CHECK1(
+      EVP_DigestSign(ctx, sigret.data(), &siglen, d.data(), d.size()));
 
-    // MYTODO: is it the best way?
     sigret.resize(siglen);
-
     return sigret;
   }
 
