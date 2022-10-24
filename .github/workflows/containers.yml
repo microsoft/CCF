@@ -27,14 +27,13 @@ jobs:
         run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
         id: tref
 
-      # TODO: Move me down!
+      - name: Build App Dev ${{ matrix.platform }} container
+        run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
+
       # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
       - name: Tag App Dev SGX image as lts-devcontainer
         run: docker tag $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }} $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
         if: matrix.platform == 'sgx'
-
-      - name: Build App Dev ${{ matrix.platform }} container
-        run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
 
       - name: Build App Run ${{ matrix.platform }} container
         run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
