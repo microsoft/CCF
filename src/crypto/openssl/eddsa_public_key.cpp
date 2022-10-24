@@ -44,28 +44,13 @@ namespace crypto
     const uint8_t* signature,
     size_t signature_size)
   {
-    // MYTODO: remove unnecessary print, error handling
     Unique_EVP_MD_CTX ctx;
     EVP_PKEY_CTX* pkctx = nullptr;
 
-    if (EVP_PKEY_base_id(key) != EVP_PKEY_ED25519)
-    {
-      printf("wrong base id\n");
-    }
+    OpenSSL::CHECK1(EVP_DigestVerifyInit(ctx, &pkctx, NULL, NULL, key));
 
-    if (1 != EVP_DigestVerifyInit(ctx, &pkctx, NULL, NULL, key))
-    {
-      printf("EVP_DigestVerifyInit failed\n");
-    }
-    char buffer[512];
-    int ret =
+    return 1 ==
       EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);
-    if (ret != 1)
-    {
-      printf(
-        "EVP_DigestVerify: %s\n", ERR_error_string(ERR_get_error(), buffer));
-    }
-    return ret == 1;
   }
 
   int EdDSAPublicKey_OpenSSL::get_openssl_group_id(CurveID gid)

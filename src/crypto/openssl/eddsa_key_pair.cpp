@@ -12,8 +12,8 @@ namespace crypto
     int curve_nid = get_openssl_group_id(curve_id);
     key = EVP_PKEY_new();
     OpenSSL::Unique_EVP_PKEY_CTX pkctx(curve_nid);
-    EVP_PKEY_keygen_init(pkctx);
-    EVP_PKEY_keygen(pkctx, &key);
+    OpenSSL::CHECK1(EVP_PKEY_keygen_init(pkctx));
+    OpenSSL::CHECK1(EVP_PKEY_keygen(pkctx, &key));
   }
 
   Pem EdDSAKeyPair_OpenSSL::private_key_pem() const
@@ -39,12 +39,12 @@ namespace crypto
     EVP_PKEY_CTX* pkctx = nullptr;
     OpenSSL::Unique_EVP_MD_CTX ctx;
 
-    EVP_DigestSignInit(ctx, &pkctx, NULL, NULL, key);
+    OpenSSL::CHECK1(EVP_DigestSignInit(ctx, &pkctx, NULL, NULL, key));
 
     size_t siglen = 64; // 64 for Ed25519 signautre
     std::vector<uint8_t> sigret(siglen);
 
-    EVP_DigestSign(ctx, &sigret[0], &siglen, &d[0], d.size());
+    OpenSSL::CHECK1(EVP_DigestSign(ctx, &sigret[0], &siglen, &d[0], d.size()));
 
     // MYTODO: is it the best way?
     sigret.resize(siglen);
