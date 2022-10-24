@@ -220,4 +220,17 @@ namespace crypto
     BN_bn2binpad(y, r.y.data(), sz);
     return r;
   }
+
+  JsonWebKeyECPublic PublicKey_OpenSSL::public_key_jwk(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyECPublic jwk;
+    auto coords = coordinates();
+    jwk.x = b64url_from_raw(coords.x, false /* with_padding */);
+    jwk.y = b64url_from_raw(coords.y, false /* with_padding */);
+    jwk.crv = curve_id_to_jwk_curve(get_curve_id());
+    jwk.kid = kid;
+    jwk.kty = JsonWebKeyType::EC;
+    return jwk;
+  }
 }

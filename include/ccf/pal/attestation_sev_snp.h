@@ -24,7 +24,7 @@ namespace ccf::pal
 
   namespace snp
   {
-    static constexpr auto NO_RAW_SECURITY_POLICY = "";
+    static constexpr auto NO_SECURITY_POLICY = "";
 
     // From https://developer.amd.com/sev/
     constexpr auto amd_milan_root_signing_public_key =
