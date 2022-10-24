@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [sgx] #, snp, virtual] TODO: Fix
+        platform: [sgx, snp, virtual]
 
     steps:
       - uses: actions/checkout@v2
@@ -27,7 +27,7 @@ jobs:
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
           if [ ${GITHUB_REF} == *"ref/tags"* ]; then
-            echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+            echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
           else
             echo echo "##[set-output name=tag;]latest"
           fi
@@ -63,7 +63,7 @@ jobs:
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Get image tag from git tag (release)
-        run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+        run: echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
         id: tref
 
       - name: Push App Dev ${{ matrix.platform }} container
