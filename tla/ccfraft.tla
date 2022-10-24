@@ -311,7 +311,7 @@ InitMessagesVars ==
 
 InitServerVars ==
     /\ currentTerm = [i \in Servers |-> 1]
-    /\ state       = [i \in Servers |-> IF i \in Configurations[1] THEN Follower ELSE Pending]
+    /\ state       = [i \in Servers |-> IF i \in currentConfiguration[i][1][2] THEN Follower ELSE Pending]
     /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
