@@ -7,11 +7,12 @@
 
 namespace ccf
 {
-  using CodeIDs = ServiceMap<CodeDigest, CodeStatus>;
+  using SnpMeasurements = ServiceMap<CodeDigest, CodeStatus>;
 
   namespace Tables
   {
-    // Note: Only used for SGX
-    static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
+    // Note: Only used for SNP
+    static constexpr auto NODE_SNP_MEASUREMENTS =
+      "public:ccf.gov.nodes.snp.measurements";
   }
 }
