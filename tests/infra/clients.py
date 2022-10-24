@@ -311,7 +311,7 @@ class CurlClient:
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
-        self.common_headers = common_headers
+        self.common_headers = common_headers or {}
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
