@@ -74,12 +74,12 @@ Note that this diagram deliberately does not represent host-to-enclave communica
 .. mermaid::
 
     flowchart TB
-        Client[HTTPS/1.1 Client <a href='../build_apps/auth/index.html'>auth</a>] -- TLS 1.2 or 1.3 --> TLSEndpoint
-        TLSEndpoint[TLS Endpoint <a href='https://github.com/microsoft/CCF/blob/main/src/enclave/tls_endpoint.h'>src</a>] -- PlainText --> HTTPEndpoint
-        HTTPEndpoint[HTTP Endpoint <a href='https://github.com/microsoft/CCF/blob/main/src/http/http_endpoint.h'>src</a>] -- Request --> Endpoint[Application Endpoint <a href='../build_apps/api.html#application-endpoint-registration'>doc</a>]
-        Endpoint -- Response --> HTTPEndpoint
-        HTTPEndpoint --> TLSEndpoint
-        TLSEndpoint --> Client
+        Client[HTTPS/1.1 Client <a href='../build_apps/auth/index.html'>auth</a>] -- TLS 1.2 or 1.3 --> TLSSession
+        TLSSession[TLS Session <a href='https://github.com/microsoft/CCF/blob/main/src/enclave/tls_session.h'>src</a>] -- PlainText --> HTTPSession
+        HTTPSession[HTTP Session <a href='https://github.com/microsoft/CCF/blob/main/src/http/http_session.h'>src</a>] -- Request --> Endpoint[Application Endpoint <a href='../build_apps/api.html#application-endpoint-registration'>doc</a>]
+        Endpoint -- Response --> HTTPSession
+        HTTPSession --> TLSSession
+        TLSSession --> Client
         Endpoint -- WriteSet --> Store[Store <a href='../build_apps/kv/index.html'>doc</a>]
         Store -- LedgerEntry --> Ledger[Ledger <a href='../architecture/ledger.html'>doc</a>]
         Ledger -- LedgerEntry --> Disk
