@@ -1003,7 +1003,7 @@ LogTypeOK(xlog) ==
                \/ /\ xlog[k].contentType = TypeSignature
                   /\ xlog[k].value = Nil
                \/ /\ xlog[k].contentType = TypeReconfiguration
-                  /\ xlog[k].value \in {Configurations[l]: l \in 1..Len(Configurations)}
+                  /\ xlog[k].value \subseteq Servers
     ELSE TRUE
 
 ReconfigurationVarsTypeInv ==
@@ -1012,7 +1012,7 @@ ReconfigurationVarsTypeInv ==
         /\ currentConfiguration[i] /= <<>>
         /\ \A k \in 1..Len(currentConfiguration[i]) :
             /\ currentConfiguration[i][k][1] \in 0..MaxLogLength
-            /\ currentConfiguration[i][k][2] \in {Configurations[l]: l \in 1..Len(Configurations)}
+            /\ currentConfiguration[i][k][2] \subseteq Servers
 
 MessageVarsTypeInv ==
     /\ \A m \in messages :
