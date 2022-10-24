@@ -587,7 +587,7 @@ def test_session_consistency(network, args):
                     assert (
                         not should_error
                     ), f"Session {client.description} survived unexpectedly"
-                except RuntimeError as e:
+                except infra.clients.CCFConnectionException as e:
                     assert (
                         should_error
                     ), f"Session {client.description} was killed unexpectedly: {e}"
@@ -625,33 +625,31 @@ def test_session_consistency(network, args):
                     r0.view, "Follower", timeout=2 * args.election_timeout_ms / 1000
                 )
             except TimeoutError:
-                LOG.warning("Timed out, ignoring")
+                # TODO: Shouldn't be happening
+                LOG.error("Timed out, ignoring")
             check_session_consistency(
                 (client_primary_0, client_backup_0),
-                False,
+                True,
             )
 
             # Ensure the majority partition have elected their own new primary
             try:
                 _, new_view = network.wait_for_new_primary(primary, nodes=backups[1:])
             except TimeoutError:
-                LOG.warning("Timed out, ignoring")
+                # TODO: Shouldn't be happening
+                LOG.error("Timed out, ignoring")
 
-        # Now the partition heals, and the partitioned primary and backup are brought
-        # back up-to-date. This causes them to discard the state produced while partitioned
+        # TODO: Describe what we're seeing and expecting here
         network.wait_for_primary_unanimity(min_view=new_view - 1)
 
         check_session_consistency(
-            # These sessions saw discarded state, either directly from their target node
-            # or via forwarding, so now report consistency errors
-            (client_primary_0, client_backup_0),
+            (
+                client_primary_0,
+                client_primary_1,
+                client_backup_0,
+                client_backup_1,
+            ),
             True,
-        )
-        check_session_consistency(
-            # These sessions saw earlier state from before the partition, which remains
-            # valid in the new view. Their session consistency is maintained
-            (client_primary_1, client_backup_1),
-            False,
         )
 
     # Restore original network size
