@@ -27,21 +27,20 @@ jobs:
         run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
         id: tref
 
-      - name: Build App Dev ${{ matrix.platform }} container
-        run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
-
+      # TODO: Move me down!
       # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
       - name: Tag App Dev SGX image as lts-devcontainer
         run: docker tag $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }} $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
         if: ${{ matrix.platform }} == "sgx"
+
+      - name: Build App Dev ${{ matrix.platform }} container
+        run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
 
       - name: Build App Run ${{ matrix.platform }} container
         run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
 
       - name: Build JS App Run ${{ matrix.platform }} container
         run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
-
-      # TODO: # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x TODO:: even with template
 
   publish:
     name: "Publish containers for all platforms"
