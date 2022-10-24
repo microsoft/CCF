@@ -553,6 +553,7 @@ class HttpxClient:
     def close(self):
         self.session.close()
 
+
 class RawSocketClient:
     """
     This client wraps a single SSL socket, and reports errors if the TCP or SSL layers fail.
@@ -777,8 +778,12 @@ class CCFClient:
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    default_impl_type: Union[CurlClient, HttpxClient, RawSocketClient] = (
-        CurlClient if os.getenv("CURL_CLIENT") else HttpxClient
+    default_impl_type = (
+        CurlClient
+        if os.getenv("CURL_CLIENT")
+        else RawSocketClient
+        if os.getenv("SOCKET_CLIENT")
+        else HttpxClient
     )
 
     def __init__(
@@ -790,7 +795,7 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
-        curl: bool = False,
+        impl_type: Union[CurlClient, HttpxClient, RawSocketClient] = default_impl_type,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
@@ -801,11 +806,6 @@ class CCFClient:
         self.is_connected = False
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
-
-        impl_type = CCFClient.default_impl_type
-
-        if curl:
-            impl_type = CurlClient
 
         self.client_impl = impl_type(
             self.hostname, ca, session_auth, signing_auth, common_headers, **kwargs
