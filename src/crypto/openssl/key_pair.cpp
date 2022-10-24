@@ -438,6 +438,8 @@ namespace crypto
   {
     JsonWebKeyECPrivate jwk = {PublicKey_OpenSSL::public_key_jwk(kid)};
 
+    // As per https://www.openssl.org/docs/man1.0.2/man3/BN_num_bytes.html, size
+    // shouldn't be calculated with BN_num_bytes(d)!
     size_t size = EVP_PKEY_bits(key) / 8;
     Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
     const BIGNUM* d = EC_KEY_get0_private_key(eckey);
