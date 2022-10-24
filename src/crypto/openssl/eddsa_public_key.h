@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/eddsa_public_key.h"
+#include "ccf/crypto/key_pair.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
 
@@ -17,10 +17,11 @@ namespace crypto
   {
   protected:
     EVP_PKEY* key = nullptr;
+
   public:
     EdDSAPublicKey_OpenSSL() = default;
     EdDSAPublicKey_OpenSSL(const Pem& pem);
-    virtual ~EdDSAPublicKey_OpenSSL() = default;
+    virtual ~EdDSAPublicKey_OpenSSL();
 
     virtual Pem public_key_pem() const override;
 
@@ -29,5 +30,7 @@ namespace crypto
       size_t contents_size,
       const uint8_t* sig,
       size_t sig_size) override;
+
+    static int get_openssl_group_id(CurveID gid);
   };
 }

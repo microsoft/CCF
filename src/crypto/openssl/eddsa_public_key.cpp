@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/openssl/hash.h"
 #include "crypto/openssl/eddsa_key_pair.h"
+#include "crypto/openssl/hash.h"
 #include "openssl_wrappers.h"
 
 namespace crypto
@@ -16,6 +16,14 @@ namespace crypto
     if (!key)
     {
       throw std::runtime_error("could not parse PEM");
+    }
+  }
+
+  EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
+  {
+    if (key)
+    {
+      EVP_PKEY_free(key);
     }
   }
 
@@ -36,22 +44,26 @@ namespace crypto
     const uint8_t* signature,
     size_t signature_size)
   {
-    // MYTODO: free, remove unnecessary print, error handling
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new(); // MYTODO: free it?
+    // MYTODO: remove unnecessary print, error handling
+    Unique_EVP_MD_CTX ctx;
     EVP_PKEY_CTX* pkctx = nullptr;
 
-    if (EVP_PKEY_base_id(key) != EVP_PKEY_ED25519) {
+    if (EVP_PKEY_base_id(key) != EVP_PKEY_ED25519)
+    {
       printf("wrong base id\n");
     }
 
-    if (1 != EVP_DigestVerifyInit(ctx, &pkctx, NULL, NULL, key)) {
+    if (1 != EVP_DigestVerifyInit(ctx, &pkctx, NULL, NULL, key))
+    {
       printf("EVP_DigestVerifyInit failed\n");
     }
     char buffer[512];
-    // printf("signature, signature_size, contents, contents_size: %s, %ld, %s, %ld\n", signature, signature_size, contents, contents_size);
-    int ret = EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);
-    if (ret != 1) {
-      printf("EVP_DigestVerify: %s\n", ERR_error_string(ERR_get_error(), buffer));
+    int ret =
+      EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);
+    if (ret != 1)
+    {
+      printf(
+        "EVP_DigestVerify: %s\n", ERR_error_string(ERR_get_error(), buffer));
     }
     return ret == 1;
   }

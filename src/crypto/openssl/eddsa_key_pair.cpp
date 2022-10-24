@@ -3,18 +3,17 @@
 
 #include "crypto/openssl/eddsa_key_pair.h"
 
+#include "openssl_wrappers.h"
+
 namespace crypto
 {
-
   EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(CurveID curve_id)
   {
     int curve_nid = get_openssl_group_id(curve_id);
     key = EVP_PKEY_new();
-    EVP_PKEY_CTX* pkctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, NULL);
-    // MYTODO: Error handling (also for similar codes)
+    OpenSSL::Unique_EVP_PKEY_CTX pkctx(curve_nid);
     EVP_PKEY_keygen_init(pkctx);
     EVP_PKEY_keygen(pkctx, &key);
-    EVP_PKEY_CTX_free(pkctx); // MYTODO: necessary here?
   }
 
   Pem EdDSAKeyPair_OpenSSL::private_key_pem() const
@@ -38,9 +37,8 @@ namespace crypto
     std::span<const uint8_t> d, MDType md_type) const
   {
     EVP_PKEY_CTX* pkctx = nullptr;
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new(); // MYTODO: free it?
+    OpenSSL::Unique_EVP_MD_CTX ctx;
 
-    // type parameter must be NULL for ED25519 since it is PureEdDSA.
     EVP_DigestSignInit(ctx, &pkctx, NULL, NULL, key);
 
     size_t siglen = 64; // 64 for Ed25519 signautre
