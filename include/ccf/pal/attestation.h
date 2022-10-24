@@ -106,6 +106,8 @@ namespace ccf::pal
     attestation_measurement& unique_id,
     attestation_report_data& report_data)
   {
+    auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
+
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
       unique_id = {};
@@ -113,6 +115,12 @@ namespace ccf::pal
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
+      if (!is_sev_snp)
+      {
+        throw std::logic_error(
+          "Cannot verify SEV-SNP quote if node is virtual");
+      }
+
       auto quote =
         *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
 
@@ -187,8 +195,17 @@ namespace ccf::pal
     }
     else
     {
-      throw std::logic_error(
-        "Cannot verify real attestation report on virtual/snp build");
+      if (is_sev_snp)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot verify non SEV-SNP attestation report: {}",
+          quote_info.format));
+      }
+      else
+      {
+        throw std::logic_error(
+          "Cannot verify real attestation report on virtual build");
+      }
     }
   }
 
