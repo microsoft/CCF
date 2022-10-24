@@ -1,4 +1,4 @@
----------- MODULE MCraft ----------
+---------- MODULE MCccfraft ----------
 EXTENDS ccfraft, TLC
 
 Servers_mc == {NodeOne, NodeTwo, NodeThree}
