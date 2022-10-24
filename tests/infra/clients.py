@@ -299,12 +299,19 @@ class CurlClient:
     """
 
     def __init__(
-        self, hostname, ca=None, session_auth=None, signing_auth=None, **kwargs
+        self,
+        hostname,
+        ca=None,
+        session_auth=None,
+        signing_auth=None,
+        common_headers=None,
+        **kwargs,
     ):
         self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
+        self.common_headers = common_headers
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
@@ -359,6 +366,9 @@ class CurlClient:
             for k, v in request.headers.items():
                 cmd.extend(["-H", f"{k}: {v}"])
 
+            for k, v in self.common_headers.items():
+                cmd.extend(["-H", f"{k}: {v}"])
+
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
             if self.session_auth:
@@ -392,6 +402,13 @@ class CurlClient:
 
     def close(self):
         pass
+
+    def extra_headers_count():
+        # curl inserts the following headers in every request
+        #  host: <address>
+        #  user-agent: curl/<version>
+        #  accept: */*
+        return 3
 
 
 class RequestClient:
@@ -509,6 +526,16 @@ class RequestClient:
     def close(self):
         self.session.close()
 
+    @staticmethod
+    def extra_headers_count():
+        # httpx inserts the following headers in every request
+        #  host: <address>
+        #  accept: */*
+        #  accept-encoding: gzip, deflate, br
+        #  connection: keep-alive
+        #  user-agent: python-httpx/<version>
+        return 5
+
 
 class CCFClient:
     """
@@ -532,7 +559,9 @@ class CCFClient:
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    client_impl: Union[CurlClient, RequestClient]
+    default_impl_type: Union[CurlClient, RequestClient] = (
+        CurlClient if os.getenv("CURL_CLIENT") else RequestClient
+    )
 
     def __init__(
         self,
@@ -555,14 +584,14 @@ class CCFClient:
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
 
-        if curl or os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(
-                self.hostname, ca, session_auth, signing_auth, **kwargs
-            )
-        else:
-            self.client_impl = RequestClient(
-                self.hostname, ca, session_auth, signing_auth, common_headers, **kwargs
-            )
+        impl_type = CCFClient.default_impl_type
+
+        if curl:
+            impl_type = CurlClient
+
+        self.client_impl = impl_type(
+            self.hostname, ca, session_auth, signing_auth, common_headers, **kwargs
+        )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)
