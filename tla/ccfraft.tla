@@ -910,11 +910,11 @@ LogInv ==
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
 MoreThanOneLeaderInv ==
-    \lnot \E i, j \in Servers :
-        /\ i /= j
-        /\ currentTerm[i] = currentTerm[j]
-        /\ state[i] = Leader
-        /\ state[j] = Leader
+    \A i,j \in Servers :
+        (/\ currentTerm[i] = currentTerm[j]
+         /\ state[i] = Leader
+         /\ state[j] = Leader)
+        => i = j
 
 \* If a candidate has a chance of being elected, there
 \* are no log entries with that candidate's term
