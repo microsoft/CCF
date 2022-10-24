@@ -3,3 +3,4 @@ states/
 tools/
 *.out
 *.toolbox/
+*.tlaps/
