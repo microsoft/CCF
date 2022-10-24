@@ -10,20 +10,23 @@ set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
 if(CCF_VERSION_SUFFIX)
   set(CPACK_DEBIAN_PACKAGE_VERSION
-      "${CCF_RELEASE_VERSION}~${CCF_VERSION_SUFFIX}"
+    "${CCF_RELEASE_VERSION}~${CCF_VERSION_SUFFIX}"
   )
   message(
     STATUS "Debian package will include suffix: ${CPACK_DEBIAN_PACKAGE_VERSION}"
   )
 endif()
 
+set(CCF_DEB_BASE_DEPENDENCIES "libuv1 (>= 1.34.2);libc++1-10;libc++abi1-10;openssl (>=1.1.1)")
+set(CCF_DEB_DEPENDENCIES ${CCF_DEB_BASE_DEPENDENCIES})
+
+if("sgx" IN_LIST COMPILE_TARGETS)
+  list(APPEND CCF_DEB_DEPENDENCIES "open-enclave (>=0.18.2)")
+endif()
+
 # CPack variables for Debian packages
 if("sgx" IN_LIST COMPILE_TARGETS)
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS
-      "open-enclave (>=0.18.2), libuv1 (>= 1.34.2), libc++1-10, libc++abi1-10, openssl (>=1.1.1)"
-  )
-else()
-
+  list(JOIN CCF_DEB_DEPENDENCIES ", " CPACK_DEBIAN_PACKAGE_DEPENDS)
 endif()
 
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
