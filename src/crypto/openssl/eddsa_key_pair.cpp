@@ -8,8 +8,7 @@ namespace crypto
 
   EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(CurveID curve_id)
   {
-    // MYTODO: mechanizm to get value of EVP_PKEY_ED25519
-    // int curve_nid = get_openssl_group_id(curve_id);
+    int curve_nid = get_openssl_group_id(curve_id);
     key = EVP_PKEY_new();
     EVP_PKEY_CTX* pkctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, NULL);
     // MYTODO: Error handling (also for similar codes)

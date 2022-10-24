@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/key_wrap.h"
-#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "crypto/ecdsa.h"
@@ -144,8 +144,7 @@ namespace ccf::js
     else
     {
       return JS_ThrowRangeError(
-        ctx,
-        "Unsupported curve id, supported: curve25519");
+        ctx, "Unsupported curve id, supported: curve25519");
     }
     auto k = crypto::make_eddsa_key_pair(cid);
 

@@ -55,4 +55,17 @@ namespace crypto
     }
     return ret == 1;
   }
+
+  int EdDSAPublicKey_OpenSSL::get_openssl_group_id(CurveID gid)
+  {
+    switch (gid)
+    {
+      case CurveID::CURVE25519:
+        return EVP_PKEY_ED25519;
+      default:
+        throw std::logic_error(
+          fmt::format("unsupported OpenSSL CurveID {}", gid));
+    }
+    return NID_undef;
+  }
 }

@@ -213,17 +213,17 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
 
 TEST_CASE("Sign, fail to verify with wrong key on correct curve (EdDSA)")
 {
-    constexpr auto curve = "curve25519";
-    constexpr auto curve_id = CurveID::CURVE25519;
-    INFO("With curve: " << curve);
-    auto kp = make_eddsa_key_pair(curve_id);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    vector<uint8_t> signature = kp->sign(contents);
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(contents);
 
-    auto kp2 = make_eddsa_key_pair(curve_id);
-    const auto public_key = kp2->public_key_pem();
-    auto pubk = make_eddsa_public_key(public_key);
-    CHECK_FALSE(pubk->verify(contents, signature));
+  auto kp2 = make_eddsa_key_pair(curve_id);
+  const auto public_key = kp2->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  CHECK_FALSE(pubk->verify(contents, signature));
 }
 
 // MYTODO: test non supported curve
