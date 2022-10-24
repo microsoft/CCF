@@ -4,9 +4,7 @@ Performance
 Overview
 --------
 
-CCF pairs strong confidentiality guarantees with `very high performance <TR_>`_. CCF can sustain high transaction throughput, while also reaching consensus over commits with low latency.
-
-.. _TR: https://github.com/microsoft/CCF/blob/main/CCF-TECHNICAL-REPORT.pdf
+CCF pairs strong confidentiality guarantees with :ccf_repo:`very high performance </CCF-TECHNICAL-REPORT.pdf>`. CCF can sustain high transaction throughput, while also reaching consensus over commits with low latency.
 
 There are several performance metrics in the CI test suite to ensure this, ranging from micro-benchmarks of critical systems to end-to-end tests measuring peak throughput. These are run against every PR and commit to the main branch. You can also run these locally to test the configuration of your machines, and use them as a basis for creating performance tests of your own CCF application.
 

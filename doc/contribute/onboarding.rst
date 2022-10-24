@@ -47,17 +47,17 @@ To run a locally built copy of this application in a sandbox, see :doc:`/build_a
 Have a look at the Continuous Integration jobs
 ----------------------------------------------
 
-The main CI job for CCF is defined in `a YAML file in the repo <https://github.com/microsoft/CCF/blob/main/.azure-pipelines.yml>`_ and runs are accessible `here <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=3&_a=summary>`__.
+The main CI job for CCF is defined in :ccf_repo:`a YAML file in the repo </.azure-pipelines.yml>` and runs are accessible `here <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=3&_a=summary>`__.
 
 That job gates pull requests, and is also used with a different trigger (on tags like ``ccf-*``) to produce releases.
 
 Three more in-depth jobs are run every day:
 
-- The `Daily build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=7>`_ (`.daily.yml <https://github.com/microsoft/CCF/blob/main/.daily.yml>`_) is longer version of the CI, and makes use of instrumentation (ASAN, UBSAN...).
-- The `Threading build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=13>`_ (`.multi-thread.yml <https://github.com/microsoft/CCF/blob/main/.multi-thread.yml>`_) tests CCF with multiple worker threads.
-- The `Stress build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=9>`_ (`.stress.yml <https://github.com/microsoft/CCF/blob/main/.stress.yml>`_) runs long-lived tests against CCF networks.
+- The `Daily build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=7>`_ (:ccf_repo:`.daily.yml </.daily.yml>`) is longer version of the CI, and makes use of instrumentation (ASAN, UBSAN...).
+- The `Threading build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=13>`_ (:ccf_repo:`.multi-thread.yml </.multi-thread.yml>`) tests CCF with multiple worker threads.
+- The `Stress build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=9>`_ (:ccf_repo:`.stress.yml </.stress.yml>`) runs long-lived tests against CCF networks.
 
-Documentation is built and published to GitHub Pages by `this job <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=4>`_ (`YAML <https://github.com/microsoft/CCF/blob/main/.azure-pipelines-gh-pages.yml>`_).
+Documentation is built and published to GitHub Pages by `this job <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=4>`_ (:ccf_repo:`YAML </.azure-pipelines-gh-pages.yml>`).
 
 Review the release and compatibility policy
 -------------------------------------------
@@ -74,12 +74,12 @@ Note that this diagram deliberately does not represent host-to-enclave communica
 .. mermaid::
 
     flowchart TB
-        Client[HTTPS/1.1 Client <a href='../build_apps/auth/index.html'>auth</a>] -- TLS 1.2 or 1.3 --> TLSEndpoint
-        TLSEndpoint[TLS Endpoint <a href='https://github.com/microsoft/CCF/blob/main/src/enclave/tls_endpoint.h'>src</a>] -- PlainText --> HTTPEndpoint
-        HTTPEndpoint[HTTP Endpoint <a href='https://github.com/microsoft/CCF/blob/main/src/http/http_endpoint.h'>src</a>] -- Request --> Endpoint[Application Endpoint <a href='../build_apps/api.html#application-endpoint-registration'>doc</a>]
-        Endpoint -- Response --> HTTPEndpoint
-        HTTPEndpoint --> TLSEndpoint
-        TLSEndpoint --> Client
+        Client[HTTPS/1.1 Client <a href='../build_apps/auth/index.html'>auth</a>] -- TLS 1.2 or 1.3 --> TLSSession
+        TLSSession[TLS Session <a href='https://github.com/microsoft/CCF/blob/main/src/enclave/tls_session.h'>src</a>] -- PlainText --> HTTPSession
+        HTTPSession[HTTP Session <a href='https://github.com/microsoft/CCF/blob/main/src/http/http_session.h'>src</a>] -- Request --> Endpoint[Application Endpoint <a href='../build_apps/api.html#application-endpoint-registration'>doc</a>]
+        Endpoint -- Response --> HTTPSession
+        HTTPSession --> TLSSession
+        TLSSession --> Client
         Endpoint -- WriteSet --> Store[Store <a href='../build_apps/kv/index.html'>doc</a>]
         Store -- LedgerEntry --> Ledger[Ledger <a href='../architecture/ledger.html'>doc</a>]
         Ledger -- LedgerEntry --> Disk

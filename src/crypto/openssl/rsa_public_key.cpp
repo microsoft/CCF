@@ -129,4 +129,37 @@ namespace crypto
     return EVP_PKEY_verify(
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
+
+  std::vector<uint8_t> RSAPublicKey_OpenSSL::bn_bytes(const BIGNUM* bn)
+  {
+    std::vector<uint8_t> r(BN_num_bytes(bn));
+    BN_bn2bin(bn, r.data());
+    return r;
+  }
+
+  RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
+  {
+    RSA* rsa = EVP_PKEY_get0_RSA(key);
+    if (!rsa)
+    {
+      throw std::logic_error("invalid RSA key");
+    }
+
+    Components r;
+    r.n = bn_bytes(RSA_get0_n(rsa));
+    r.e = bn_bytes(RSA_get0_e(rsa));
+    return r;
+  }
+
+  JsonWebKeyRSAPublic RSAPublicKey_OpenSSL::public_key_jwk_rsa(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyRSAPublic jwk;
+    auto comps = components();
+    jwk.n = b64url_from_raw(comps.n, false /* with_padding */);
+    jwk.e = b64url_from_raw(comps.e, false /* with_padding */);
+    jwk.kid = kid;
+    jwk.kty = JsonWebKeyType::RSA;
+    return jwk;
+  }
 }
