@@ -7,14 +7,15 @@
 #include "ds/pending_io.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
-#include "enclave/endpoint.h"
+#include "enclave/session.h"
 #include "quic/msg_types.h"
 
 #include <exception>
 
 namespace quic
 {
-  class QUICEndpoint : public ccf::Endpoint
+  class QUICSession : public ccf::Session,
+                      public std::enable_shared_from_this<QUICSession>
   {
   protected:
     ringbuffer::WriterPtr to_host;
@@ -48,7 +49,7 @@ namespace quic
     Status status;
 
   public:
-    QUICEndpoint(
+    QUICSession(
       int64_t session_id_, ringbuffer::AbstractWriterFactory& writer_factory_) :
       to_host(writer_factory_.create_writer_to_outside()),
       session_id(session_id_),
@@ -58,7 +59,7 @@ namespace quic
         threading::ThreadMessaging::get_execution_thread(session_id);
     }
 
-    ~QUICEndpoint()
+    ~QUICSession()
     {
       // RINGBUFFER_WRITE_MESSAGE(quic::quic_closed, to_host, session_id);
     }
@@ -147,7 +148,7 @@ namespace quic
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
-      LOG_TRACE_FMT("QUIC Endpoint recv_buffered with {} bytes", size);
+      LOG_TRACE_FMT("QUIC Session recv_buffered with {} bytes", size);
       pending_reads.emplace_back(const_cast<uint8_t*>(data), size, addr);
       do_handshake();
     }
@@ -155,21 +156,20 @@ namespace quic
     struct SendRecvMsg
     {
       std::vector<uint8_t> data;
-      std::shared_ptr<Endpoint> self;
+      std::shared_ptr<QUICSession> self;
       sockaddr addr;
     };
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<QUICEndpoint*>(msg->data.self.get())
-        ->send_raw_thread(msg->data.data, msg->data.addr);
+      msg->data.self->send_raw_thread(msg->data.data, msg->data.addr);
     }
 
-    void send_raw(std::vector<uint8_t>&& data, sockaddr addr)
+    void send_raw(const uint8_t* data, size_t size, sockaddr addr)
     {
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data = std::move(data);
+      msg->data.data = std::vector<uint8_t>(data, data + size);
       msg->data.addr = addr;
 
       threading::ThreadMessaging::thread_messaging.add_task(
@@ -252,12 +252,12 @@ namespace quic
 
     struct EmptyMsg
     {
-      std::shared_ptr<Endpoint> self;
+      std::shared_ptr<QUICSession> self;
     };
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
-      reinterpret_cast<QUICEndpoint*>(msg->data.self.get())->close_thread();
+      msg->data.self->close_thread();
     }
 
     void close()
@@ -381,10 +381,10 @@ namespace quic
     }
   };
 
-  // This is a wrapper for the QUICEndpoint so we can use in rpc_sessions
-  // Ultimately, this needs to be an HTTP3ServerEndpoint : HTTP3Endpoint :
-  // QUICEndpoint
-  class QUICEchoEndpoint : public QUICEndpoint
+  // This is a wrapper for the QUICSession so we can use in rpc_sessions
+  // Ultimately, this needs to be an HTTP3ServerSession : HTTP3Session :
+  // QUICSession
+  class QUICEchoSession : public QUICSession
   {
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
@@ -401,42 +401,46 @@ namespace quic
     }
 
   public:
-    QUICEchoEndpoint(
+    QUICEchoSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
       int64_t session_id,
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory) :
-      QUICEndpoint(session_id, writer_factory),
+      QUICSession(session_id, writer_factory),
       rpc_map(rpc_map),
       session_id(session_id),
       interface_id(interface_id)
     {}
 
-    void send(std::vector<uint8_t>&& data, sockaddr addr) override
+    void send_data(std::span<const uint8_t> data) override
     {
-      send_raw(std::move(data), addr);
+      send_raw(data.data(), data.size(), addr);
     }
 
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<QUICEchoEndpoint*>(msg->data.self.get())
+      reinterpret_cast<QUICEchoSession*>(msg->data.self.get())
         ->recv_(msg->data.data.data(), msg->data.data.size(), msg->data.addr);
     }
 
-    void recv(const uint8_t* data, size_t size, sockaddr addr) override
+    void handle_incoming_data(std::span<const uint8_t> data) override
     {
+      auto [_, addr_family, addr_data, body] =
+        ringbuffer::read_message<quic::quic_inbound>(data);
+
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data.assign(data, data + size);
-      msg->data.addr = addr;
+      msg->data.data.assign(body.data, body.data + body.size);
+      msg->data.addr = quic::sockaddr_decode(addr_family, addr_data);
 
       threading::ThreadMessaging::thread_messaging.add_task(
         execution_thread, std::move(msg));
     }
 
-    void recv_(const uint8_t* data_, size_t size_, sockaddr addr)
+    void recv_(const uint8_t* data_, size_t size_, sockaddr addr_)
     {
-      recv_buffered(data_, size_, addr);
+      recv_buffered(data_, size_, addr_);
+      addr = addr_;
 
       LOG_TRACE_FMT("recv called with {} bytes", size_);
 
