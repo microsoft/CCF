@@ -403,6 +403,7 @@ class CurlClient:
     def close(self):
         pass
 
+    @staticmethod
     def extra_headers_count():
         # curl inserts the following headers in every request
         #  host: <address>
