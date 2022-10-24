@@ -197,6 +197,7 @@ include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
+include(${CCF_DIR}/cmake/ravl.cmake)
 set(MESSAGE_QUIET ON)
 include(${CCF_DIR}/cmake/protobuf.cmake)
 unset(MESSAGE_QUIET)
@@ -705,31 +706,3 @@ function(add_picobench name)
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
 endfunction()
-
-if("sgx" IN_LIST COMPILE_TARGETS)
-  add_library(ravl.enclave INTERFACE)
-  target_compile_definitions(ravl.enclave INTERFACE RAVL_HAVE_OPENSSL)
-  target_include_directories(
-    ravl.enclave
-    INTERFACE
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>
-  )
-  if(LVI_MITIGATIONS)
-    target_link_libraries(
-      ravl.enclave INTERFACE openenclave::oecryptoopenssl-lvi-cfg
-    )
-  else()
-    target_link_libraries(ravl.enclave INTERFACE openenclave::oecryptoopenssl)
-  endif()
-  install(TARGETS ravl.enclave EXPORT ccf)
-endif()
-
-add_library(ravl.host INTERFACE)
-target_compile_definitions(ravl.host INTERFACE RAVL_HAVE_OPENSSL)
-target_include_directories(
-  ravl.host
-  INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/ravl/include>
-)
-target_link_libraries(ravl.host INTERFACE crypto)
-install(TARGETS ravl.host EXPORT ccf)
