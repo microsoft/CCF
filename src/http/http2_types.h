@@ -21,29 +21,20 @@ namespace http2
 
   struct StreamData
   {
-    StreamId id;
-    http::HeaderMap headers;
-    http::HeaderMap trailers;
-    std::string url;
-    ccf::RESTVerb verb;
-    std::vector<uint8_t> request_body;
-    http_status status;
+    http::HeaderMap headers; // Only used for incoming headers
+    http::HeaderMap trailers; // Only used for outgoing trailers
+    std::vector<uint8_t> body;
     size_t current_offset = 0;
-
-    // Response
-    std::vector<uint8_t> response_body;
-
-    StreamData(StreamId id_) : id(id_) {}
   };
 
-  class AbstractSession
+  class AbstractParser
   {
   public:
-    virtual ~AbstractSession() = default;
-    virtual void send(const uint8_t* data, size_t length) = 0;
-    virtual void handle_request(StreamData* stream_data) = 0;
-    virtual void handle_response(StreamData* stream_data) = 0;
-    virtual void add_stream(const std::shared_ptr<StreamData>& stream_data) = 0;
+    virtual ~AbstractParser() = default;
+    virtual void handle_completed(
+      StreamId stream_id, StreamData* stream_data) = 0;
+    virtual std::shared_ptr<StreamData> create_stream(StreamId stream_id) = 0;
+    virtual void destroy_stream(StreamId stream_id) = 0;
   };
 
   // Functions to create HTTP2 headers
@@ -58,17 +49,18 @@ namespace http2
       NGHTTP2_NV_FLAG_NONE};
   }
 
-  static nghttp2_nv make_nv(const char* key, const char* value)
+  static inline nghttp2_nv make_nv(const char* key, const char* value)
   {
     return make_nv((uint8_t*)key, (uint8_t*)value);
   }
 
-  AbstractSession* get_session(void* user_data)
+  static inline AbstractParser* get_parser(void* user_data)
   {
-    return reinterpret_cast<AbstractSession*>(user_data);
+    return reinterpret_cast<AbstractParser*>(user_data);
   }
 
-  StreamData* get_stream_data(nghttp2_session* session, StreamId stream_id)
+  static inline StreamData* get_stream_data(
+    nghttp2_session* session, StreamId stream_id)
   {
     return reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
