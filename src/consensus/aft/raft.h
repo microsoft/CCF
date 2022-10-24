@@ -152,12 +152,6 @@ namespace aft
     // Earliest index at which this node's retirement can be committed
     std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
 
-    size_t entry_size_not_limited = 0;
-    size_t entry_count = 0;
-    Index entries_batch_size = 20;
-    static constexpr int batch_window_size = 100;
-    int batch_window_sum = 0;
-
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
@@ -170,7 +164,6 @@ namespace aft
     std::default_random_engine rand;
 
   public:
-    static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
 
@@ -805,20 +798,12 @@ namespace aft
         state->last_idx = index;
         ledger->put_entry(
           *data, globally_committable, state->current_view, index);
-        entry_size_not_limited += data->size();
-        entry_count++;
 
         state->view_history.update(index, state->current_view);
-        if (entry_size_not_limited >= append_entries_size_limit)
+        for (const auto& it : all_other_nodes)
         {
-          update_batch_size();
-          entry_count = 0;
-          entry_size_not_limited = 0;
-          for (const auto& it : all_other_nodes)
-          {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
-            send_append_entries(it.first, it.second.sent_idx + 1);
-          }
+          LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
+          send_append_entries(it.first, it.second.sent_idx + 1);
         }
       }
 
@@ -905,7 +890,6 @@ namespace aft
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 
-          update_batch_size();
           // Send newly available entries to all other nodes.
           for (const auto& node : all_other_nodes)
           {
@@ -1008,22 +992,6 @@ namespace aft
       return probe_index;
     }
 
-    inline void update_batch_size()
-    {
-      auto avg_entry_size = (entry_count == 0) ?
-        append_entries_size_limit :
-        entry_size_not_limited / entry_count;
-
-      auto batch_size = (avg_entry_size == 0) ?
-        append_entries_size_limit / 2 :
-        append_entries_size_limit / avg_entry_size;
-
-      auto batch_avg = batch_window_sum / batch_window_size;
-      // balance out total batch size across batch window
-      batch_window_sum += (batch_size - batch_avg);
-      entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
-    }
-
     Term get_term_internal(Index idx)
     {
       if (idx > state->last_idx)
@@ -1054,16 +1022,14 @@ namespace aft
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
       LOG_TRACE_FMT(
-        "Sending append entries to node {} in batches of {}, covering the "
+        "Sending append entries to node {}, covering the "
         "range {} -> {}",
         to,
-        entries_batch_size,
         start_idx,
         state->last_idx);
 
       auto calculate_end_index = [this](Index start) {
-        // Cap the end index in 2 ways:
-        // - Must contain no more than entries_batch_size entries
+        // Cap the end index such that:
         // - Must contain entries from a single term
         auto max_idx = state->last_idx;
         const auto term_of_ae = state->view_history.view_at(start);
@@ -1073,7 +1039,7 @@ namespace aft
         {
           max_idx = index_at_end_of_term;
         }
-        return std::min(start + entries_batch_size, max_idx);
+        return max_idx;
       };
 
       Index end_idx;
