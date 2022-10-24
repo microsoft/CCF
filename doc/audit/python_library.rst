@@ -100,7 +100,7 @@ Alternatively, ``read_ledger.py`` can parse the content of a snapshot file:
 Example
 -------
 
-An example of how to read and verify entries on the ledger can be found in `governance_history.py <https://github.com/microsoft/CCF/blob/main/tests/governance_history.py>`_, which verifies the member voting history for a short-lived service.
+An example of how to read and verify entries on the ledger can be found in :ccf_repo:`governance_history.py </tests/governance_history.py>`, which verifies the member voting history for a short-lived service.
 
 Since every vote request is signed by the voting member, verified by the primary node and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
 
