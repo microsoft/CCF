@@ -1,4 +1,4 @@
-name: "Build and Publish Release Containers to ACR"
+name: "Build and Publish Release Containers to MCR"
 
 on:
   release:
