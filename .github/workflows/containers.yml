@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - "additional_containers" # TODO: Remove
+      - "main"
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
@@ -23,9 +24,19 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Get image tag from git tag (release)
-        run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+      - name: Get image tag from git tag (release) or latest (branch)
+        run: |
+          if [ ${GITHUB_REF} == *"ref/tags"* ]; then
+            echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+          else
+            echo "latest"
+          fi
         id: tref
+
+      # - name: Get image tag from git tag (release)
+      #   run: |
+      #   echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+      #   id: tref
 
       - name: Build App Dev ${{ matrix.platform }} container
         run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
