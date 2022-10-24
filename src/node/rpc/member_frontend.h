@@ -362,10 +362,14 @@ namespace ccf
       governance_history->put(caller_id, {signed_request});
     }
 
-    void record_cose_governance_history(kv::Tx& tx, const MemberId& caller_id, const std::span<const uint8_t>& cose_sign1)
+    void record_cose_governance_history(
+      kv::Tx& tx,
+      const MemberId& caller_id,
+      const std::span<const uint8_t>& cose_sign1)
     {
       auto cose_governance_history = tx.rw(network.cose_governance_history);
-      cose_governance_history->put(caller_id, {cose_sign1.begin(), cose_sign1.end()});
+      cose_governance_history->put(
+        caller_id, {cose_sign1.begin(), cose_sign1.end()});
     }
 
     bool get_proposal_id_from_path(
@@ -404,11 +408,13 @@ namespace ccf
     static std::optional<MemberId> get_caller_member_id(
       endpoints::CommandEndpointContext& ctx)
     {
-      if (const auto* cose_ident =
-            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+      if (
+        const auto* cose_ident =
+          ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
       {
         return cose_ident->member_id;
-      } else if (
+      }
+      else if (
         const auto* sig_ident =
           ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
       {
@@ -431,18 +437,22 @@ namespace ccf
       std::optional<ccf::MemberSignatureAuthnIdentity>& sig_auth_id,
       std::optional<ccf::MemberCOSESign1AuthnIdentity>& cose_auth_id)
     {
-      if (const auto* cose_ident =
-            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+      if (
+        const auto* cose_ident =
+          ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
       {
         member_id = cose_ident->member_id;
         cose_auth_id = *cose_ident;
-      } else if (
+      }
+      else if (
         const auto* sig_ident =
           ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
       {
         member_id = sig_ident->member_id;
         sig_auth_id = *sig_ident;
-      } else {
+      }
+      else
+      {
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_FORBIDDEN,
           ccf::errors::AuthorizationFailed,
@@ -467,33 +477,35 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers();
 
-      const AuthnPolicies member_sig_only = {member_signature_auth_policy,
-                                             member_cose_sign1_auth_policy};
+      const AuthnPolicies member_sig_only = {
+        member_signature_auth_policy, member_cose_sign1_auth_policy};
 
       const AuthnPolicies member_cert_or_sig = {
-        member_cert_auth_policy,
-        member_signature_auth_policy};
+        member_cert_auth_policy, member_signature_auth_policy};
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
-        // TODO
+        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
+          std::nullopt;
+        std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
+          std::nullopt;
+        std::optional<MemberId> member_id = std::nullopt;
+        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        {
+          return;
+        }
+
         auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
-        // Branch on content type
-        // Expand MemberAck to contain a COSE_Sign1
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
-        const auto& signed_request = caller_identity.signed_request;
 
         auto mas = ctx.tx.rw(this->network.member_acks);
-        const auto ma = mas->get(caller_identity.member_id);
+        const auto ma = mas->get(member_id.value());
         if (!ma)
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
-              "No ACK record exists for caller {}.",
-              caller_identity.member_id));
+              "No ACK record exists for caller {}.", member_id.value()));
           return;
         }
 
@@ -509,21 +521,40 @@ namespace ccf
 
         auto sig = ctx.tx.rw(this->network.signatures);
         const auto s = sig->get();
-        if (!s)
+        if (sig_auth_id.has_value())
         {
-          mas->put(caller_identity.member_id, MemberAck({}, signed_request));
+          if (!s)
+          {
+            mas->put(
+              member_id.value(), MemberAck({}, sig_auth_id->signed_request));
+          }
+          else
+          {
+            mas->put(
+              member_id.value(),
+              MemberAck(s->root, sig_auth_id->signed_request));
+          }
         }
-        else
+
+        if (cose_auth_id.has_value())
         {
-          mas->put(
-            caller_identity.member_id, MemberAck(s->root, signed_request));
+          std::vector<uint8_t> cose_sign1 = {
+            cose_auth_id->envelope.begin(), cose_auth_id->envelope.end()};
+          if (!s)
+          {
+            mas->put(member_id.value(), MemberAck({}, cose_sign1));
+          }
+          else
+          {
+            mas->put(member_id.value(), MemberAck(s->root, cose_sign1));
+          }
         }
 
         // update member status to ACTIVE
         GenesisGenerator g(this->network, ctx.tx);
         try
         {
-          g.activate_member(caller_identity.member_id);
+          g.activate_member(member_id.value());
         }
         catch (const std::logic_error& e)
         {
@@ -545,10 +576,10 @@ namespace ccf
         }
 
         auto members = ctx.tx.rw(this->network.member_info);
-        auto member_info = members->get(caller_identity.member_id);
+        auto member_info = members->get(member_id.value());
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          g.is_recovery_member(caller_identity.member_id))
+          g.is_recovery_member(member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery
           // member, all recovery members are allocated new recovery shares
@@ -607,8 +638,8 @@ namespace ccf
         j["state_digest"] = ma->state_digest;
 
         ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-          ctx.rpc_ctx->set_response_body(j.dump());
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(j.dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         return;
       };
@@ -620,30 +651,33 @@ namespace ccf
         .set_auto_schema<void, StateDigest>()
         .install();
 
-      auto get_encrypted_recovery_share = [this](ccf::endpoints::EndpointContext& ctx) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
-          return;
-        }
-        if (!check_member_active(ctx.tx, member_id.value()))
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Only active members are given recovery shares.");
-          return;
-        }
+      auto get_encrypted_recovery_share =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+            return;
+          }
+          if (!check_member_active(ctx.tx, member_id.value()))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Only active members are given recovery shares.");
+            return;
+          }
 
-        if (const auto* cose_auth_id =
-            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
-        {
-          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() == "encrypted_recovery_share"))
+          if (
+            const auto* cose_auth_id =
+              ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+          {
+            if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
+                  cose_auth_id->protected_header.gov_msg_type.value() ==
+                    "encrypted_recovery_share"))
             {
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
@@ -651,29 +685,29 @@ namespace ccf
                 "Unexpected message type");
               return;
             }
-        }
+          }
 
-        auto encrypted_share =
-          share_manager.get_encrypted_share(ctx.tx, member_id.value());
+          auto encrypted_share =
+            share_manager.get_encrypted_share(ctx.tx, member_id.value());
 
-        if (!encrypted_share.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format(
-              "Recovery share not found for member {}.", member_id->value()));
+          if (!encrypted_share.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format(
+                "Recovery share not found for member {}.", member_id->value()));
             return;
-        }
+          }
 
-        auto rec_share =
-          GetRecoveryShare::Out{crypto::b64_from_raw(encrypted_share.value())};
-        ctx.rpc_ctx->set_response_header(
+          auto rec_share = GetRecoveryShare::Out{
+            crypto::b64_from_raw(encrypted_share.value())};
+          ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rec_share).dump());
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        return;
-      };
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          return;
+        };
       make_endpoint(
         "/recovery_share",
         HTTP_GET,
@@ -682,7 +716,8 @@ namespace ccf
         .set_auto_schema<GetRecoveryShare>()
         .install();
 
-      auto submit_recovery_share = [this](ccf::endpoints::EndpointContext& ctx) {
+      auto submit_recovery_share = [this](
+                                     ccf::endpoints::EndpointContext& ctx) {
         auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
         // Only active members can submit their shares for recovery
@@ -704,18 +739,20 @@ namespace ccf
           return;
         }
 
-        if (const auto* cose_auth_id =
+        if (
+          const auto* cose_auth_id =
             ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
         {
           if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() == "recovery_share"))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Unexpected message type");
-              return;
-            }
+                cose_auth_id->protected_header.gov_msg_type.value() ==
+                  "recovery_share"))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Unexpected message type");
+            return;
+          }
         }
 
         GenesisGenerator g(this->network, ctx.tx);
@@ -812,15 +849,12 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold())};
         ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
-        "/recovery_share",
-        HTTP_POST,
-        submit_recovery_share,
-        member_cert_or_sig)
+        "/recovery_share", HTTP_POST, submit_recovery_share, member_cert_or_sig)
         .set_auto_schema<SubmitRecoveryShare>()
         .install();
 
@@ -854,8 +888,10 @@ namespace ccf
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id = std::nullopt;
-        std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id = std::nullopt;
+        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
+          std::nullopt;
+        std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
+          std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
         if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
         {
@@ -874,14 +910,15 @@ namespace ccf
         if (cose_auth_id.has_value())
         {
           if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() == "proposal"))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Unexpected message type");
-              return;
-            }
+                cose_auth_id->protected_header.gov_msg_type.value() ==
+                  "proposal"))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Unexpected message type");
+            return;
+          }
         }
 
         std::vector<uint8_t> request_digest;
@@ -893,7 +930,8 @@ namespace ccf
         {
           // This isn't right, instead the digest of the COSE Sign1
           // TBS should be used here.
-          request_digest = crypto::sha256({cose_auth_id->envelope.begin(), cose_auth_id->envelope.end()});
+          request_digest = crypto::sha256(
+            {cose_auth_id->envelope.begin(), cose_auth_id->envelope.end()});
         }
 
         ProposalId proposal_id;
@@ -915,17 +953,13 @@ namespace ccf
           // request digest.
           std::vector<uint8_t> acc(
             root_at_read.value().h.begin(), root_at_read.value().h.end());
-          acc.insert(
-            acc.end(),
-            request_digest.begin(),
-            request_digest.end());
+          acc.insert(acc.end(), request_digest.begin(), request_digest.end());
           const crypto::Sha256Hash proposal_digest(acc);
           proposal_id = proposal_digest.hex_str();
         }
         else
         {
-          proposal_id = fmt::format(
-            "{:02x}", fmt::join(request_digest, ""));
+          proposal_id = fmt::format("{:02x}", fmt::join(request_digest, ""));
         }
 
         auto constitution = ctx.tx.ro(network.constitution)->get();
@@ -1023,18 +1057,17 @@ namespace ccf
 
         auto pi =
           ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
-        pi->put(
-          proposal_id,
-          {member_id.value(), ccf::ProposalState::OPEN, {}});
+        pi->put(proposal_id, {member_id.value(), ccf::ProposalState::OPEN, {}});
 
         if (sig_auth_id.has_value())
         {
-        record_voting_history(
-          ctx.tx, member_id.value(), sig_auth_id->signed_request);
+          record_voting_history(
+            ctx.tx, member_id.value(), sig_auth_id->signed_request);
         }
         if (cose_auth_id.has_value())
         {
-          record_cose_governance_history(ctx.tx, member_id.value(), cose_auth_id->envelope);
+          record_cose_governance_history(
+            ctx.tx, member_id.value(), cose_auth_id->envelope);
         }
 
         auto rv = resolve_proposal(
@@ -1057,12 +1090,7 @@ namespace ccf
         {
           pi->put(
             proposal_id,
-            {member_id.value(),
-             rv.state,
-             {},
-             {},
-             std::nullopt,
-             rv.failure});
+            {member_id.value(), rv.state, {}, {}, std::nullopt, rv.failure});
           ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
@@ -1152,8 +1180,10 @@ namespace ccf
         .install();
 
       auto withdraw_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id = std::nullopt;
-        std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id = std::nullopt;
+        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
+          std::nullopt;
+        std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
+          std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
         if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
         {
@@ -1166,30 +1196,35 @@ namespace ccf
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
           ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, std::move(error));
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
           return;
         }
 
         if (cose_auth_id.has_value())
         {
           if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() == "withdrawal"))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Unexpected message type");
-              return;
-            }
-          if (!(cose_auth_id->protected_header.gov_msg_proposal_id.has_value() &&
-                cose_auth_id->protected_header.gov_msg_proposal_id.value() == proposal_id))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Authenticated proposal id does not match URL");
-              return;
-            }
+                cose_auth_id->protected_header.gov_msg_type.value() ==
+                  "withdrawal"))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Unexpected message type");
+            return;
+          }
+          if (!(cose_auth_id->protected_header.gov_msg_proposal_id
+                  .has_value() &&
+                cose_auth_id->protected_header.gov_msg_proposal_id.value() ==
+                  proposal_id))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Authenticated proposal id does not match URL");
+            return;
+          }
         }
 
         auto pi =
@@ -1244,11 +1279,12 @@ namespace ccf
         }
         if (cose_auth_id.has_value())
         {
-          record_cose_governance_history(ctx.tx, member_id.value(), cose_auth_id->envelope);
+          record_cose_governance_history(
+            ctx.tx, member_id.value(), cose_auth_id->envelope);
         }
 
         ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(pi_.value()).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -1303,8 +1339,10 @@ namespace ccf
         .install();
 
       auto vote_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id = std::nullopt;
-        std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id = std::nullopt;
+        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
+          std::nullopt;
+        std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
+          std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
         if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
         {
@@ -1325,23 +1363,26 @@ namespace ccf
         if (cose_auth_id.has_value())
         {
           if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() == "ballot"))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Unexpected message type");
-              return;
-            }
-          if (!(cose_auth_id->protected_header.gov_msg_proposal_id.has_value() &&
-                cose_auth_id->protected_header.gov_msg_proposal_id.value() == proposal_id))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Authenticated proposal id does not match URL");
-              return;
-            }
+                cose_auth_id->protected_header.gov_msg_type.value() ==
+                  "ballot"))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Unexpected message type");
+            return;
+          }
+          if (!(cose_auth_id->protected_header.gov_msg_proposal_id
+                  .has_value() &&
+                cose_auth_id->protected_header.gov_msg_proposal_id.value() ==
+                  proposal_id))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Authenticated proposal id does not match URL");
+            return;
+          }
         }
 
         auto constitution = ctx.tx.ro(network.constitution)->get();
@@ -1416,12 +1457,13 @@ namespace ccf
 
         if (sig_auth_id.has_value())
         {
-        record_voting_history(
-          ctx.tx, member_id.value(), sig_auth_id->signed_request);
+          record_voting_history(
+            ctx.tx, member_id.value(), sig_auth_id->signed_request);
         }
         if (cose_auth_id.has_value())
         {
-          record_cose_governance_history(ctx.tx, member_id.value(), cose_auth_id->envelope);
+          record_cose_governance_history(
+            ctx.tx, member_id.value(), cose_auth_id->envelope);
         }
 
         auto rv = resolve_proposal(
