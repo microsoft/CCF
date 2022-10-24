@@ -587,7 +587,7 @@ def test_session_consistency(network, args):
                     assert (
                         not should_error
                     ), f"Session {client.description} survived unexpectedly"
-                except infra.clients.CCFConnectionException as e:
+                except ConnectionResetError as e:
                     assert (
                         should_error
                     ), f"Session {client.description} was killed unexpectedly: {e}"

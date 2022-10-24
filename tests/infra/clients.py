@@ -274,21 +274,17 @@ class Response:
 
     @staticmethod
     def from_socket(socket):
-        try:
-            response = HTTPResponse(socket)
-            response.begin()
-            raw_body = response.read()
-            tx_id = TxID.from_str(response.getheader(CCF_TX_ID_HEADER))
-            return Response(
-                response.status,
-                body=RawResponseBody(raw_body),
-                seqno=tx_id.seqno,
-                view=tx_id.view,
-                headers=response.headers,
-            )
-        except ConnectionResetError as exc:
-            LOG.error(f"Re-raising from socket: {exc}")
-            raise CCFConnectionException from exc
+        response = HTTPResponse(socket)
+        response.begin()
+        raw_body = response.read()
+        tx_id = TxID.from_str(response.getheader(CCF_TX_ID_HEADER))
+        return Response(
+            response.status,
+            body=RawResponseBody(raw_body),
+            seqno=tx_id.seqno,
+            view=tx_id.view,
+            headers=response.headers,
+        )
 
 
 def human_readable_size(n):
