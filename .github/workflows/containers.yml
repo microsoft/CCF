@@ -30,14 +30,43 @@ jobs:
       - name: Build App Dev ${{ matrix.platform }} container
         run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t  $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
 
+      - name: Build App Run ${{ matrix.platform }} container
+        run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+
+      - name: Build JS App Run ${{ matrix.platform }} container
+        run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+
+      # TODO: # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x TODO:: even with template
+
   publish:
     name: "Publish containers for all platforms"
+    runs-on: ubuntu-latest
     if: github.event.release.action == 'published'
     needs: build
     strategy:
       matrix:
         platform: [sgx, snp, virtual]
 
-    uses: ./.github/workflows/publish_containers.yml
-    with:
-      platform: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Log in
+        run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
+
+      - name: Get image tag from git tag (release)
+        run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+        id: tref
+
+      - name: Push App Dev ${{ matrix.platform }} container
+        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+
+      - name: Push App Run ${{ matrix.platform }} container
+        run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+
+      - name: Push JS App Run ${{ matrix.platform }} container
+        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+
+        # - name: Push App Dev SGX devcontainer
+      #   run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+
+      # TODO: # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x TODO:: even with template
