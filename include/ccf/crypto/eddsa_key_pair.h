@@ -7,8 +7,8 @@
 #include "ccf/crypto/public_key.h"
 #include "ccf/crypto/eddsa_public_key.h"
 #include "ccf/crypto/san.h"
-#include "eddsa_key_pair.h"
-#include "key_pair.h"
+#include "ccf/crypto/eddsa_key_pair.h"
+#include "ccf/crypto/key_pair.h"
 
 #include <cstdint>
 #include <optional>
