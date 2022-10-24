@@ -435,7 +435,8 @@ namespace ccf
       ccf::endpoints::EndpointContext& ctx,
       std::optional<MemberId>& member_id,
       std::optional<ccf::MemberSignatureAuthnIdentity>& sig_auth_id,
-      std::optional<ccf::MemberCOSESign1AuthnIdentity>& cose_auth_id)
+      std::optional<ccf::MemberCOSESign1AuthnIdentity>& cose_auth_id,
+      bool must_be_active=true)
     {
       if (
         const auto* cose_ident =
@@ -461,7 +462,7 @@ namespace ccf
         return false;
       }
 
-      if (!check_member_active(ctx.tx, member_id.value()))
+      if (must_be_active && !check_member_active(ctx.tx, member_id.value()))
       {
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_FORBIDDEN,
@@ -490,7 +491,7 @@ namespace ccf
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id, false))
         {
           return;
         }
