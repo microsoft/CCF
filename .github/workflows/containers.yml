@@ -19,9 +19,15 @@ jobs:
       matrix:
         platform: [sgx, snp, virtual]
 
-    uses: ./.github/workflows/container_template.yml
-    with:
-      platform: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Get image tag from git tag (release)
+        run: echo "##[set-output name=tag;]2.0.8" # echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}" TODO: Revert
+        id: tref
+
+      - name: Build App Dev ${{ matrix.platform }} container
+        run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t  $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
 
   publish:
     name: "Publish containers for all platforms"
