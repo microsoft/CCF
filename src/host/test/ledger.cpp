@@ -44,7 +44,7 @@ void move_all_from_to(
   {
     if (
       !suffix.has_value() ||
-      nonstd::ends_with(f.path().filename(), suffix.value()))
+      std::string_view(f.path().filename().c_str()).ends_with(suffix.value()))
     {
       fs::copy_file(f.path(), fs::path(to) / f.path().filename());
       if (move)

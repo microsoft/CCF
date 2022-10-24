@@ -42,26 +42,25 @@ namespace ccf
     {
       std::string digest;
       ccf::CodeStatus status;
-      std::optional<ccf::QuoteFormat> platform;
     };
 
     struct Out
     {
-      std::vector<GetCode::Version> versions = {};
+      std::vector<Version> versions = {};
     };
   };
 
-  struct GetSecurityPolicies
+  struct GetSnpHostDataMap
   {
-    struct SecurityPolicy
+    struct HostData
     {
       std::string raw;
-      std::string digest;
+      std::string metadata;
     };
 
     struct Out
     {
-      std::vector<GetSecurityPolicies::SecurityPolicy> policies = {};
+      std::vector<GetSnpHostDataMap::HostData> host_data = {};
     };
   };
 

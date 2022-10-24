@@ -295,8 +295,7 @@ namespace ccf
       // Verify that the security policy matches the quoted digest of the policy
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        auto quoted_digest =
-          AttestationProvider::get_security_policy_digest(quote_info);
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
         if (!quoted_digest.has_value())
         {
           throw std::logic_error("Unable to find security policy");
@@ -745,7 +744,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_request(r);
+      join_client->send_request(std::move(r));
     }
 
     void initiate_join()

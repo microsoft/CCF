@@ -58,6 +58,9 @@ namespace crypto
     }
 
     virtual Coordinates coordinates() const override;
+
+    virtual JsonWebKeyECPublic public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const override;
   };
 
   OpenSSL::Unique_PKEY key_from_raw_ec_point(

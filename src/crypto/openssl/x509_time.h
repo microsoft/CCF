@@ -9,7 +9,7 @@
 
 namespace crypto::OpenSSL
 {
-  /** Set of utilites functions for working with x509 time, as defined in RFC
+  /** Set of utilities functions for working with x509 time, as defined in RFC
   5280 (https://datatracker.ietf.org/doc/html/rfc5280#section-4.1.2.5.1) */
 
   static inline bool validate_chronological_times(

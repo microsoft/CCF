@@ -18,6 +18,7 @@
 
 import * as jscrypto from "crypto";
 import { TextEncoder, TextDecoder } from "util";
+import * as rs from "jsrsasign";
 
 // Note: It is important that only types are imported here to prevent executing
 // the module at this point (which would query the ccf global before we polyfilled it).
@@ -32,6 +33,10 @@ import {
   EvidenceClaims,
   OpenEnclave,
   SigningAlgorithm,
+  JsonWebKeyECPublic,
+  JsonWebKeyECPrivate,
+  JsonWebKeyRSAPublic,
+  JsonWebKeyRSAPrivate,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -311,6 +316,42 @@ class CCFPolyfill implements CCF {
         console.error(`certificate chain validation failed: ${e.message}`);
         return false;
       }
+    },
+    pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA
+      ) as JsonWebKeyECPublic;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+    pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA
+      ) as JsonWebKeyECPrivate;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+    pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.RSAKey
+      ) as JsonWebKeyRSAPublic;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+    rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.RSAKey
+      ) as JsonWebKeyRSAPrivate;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
     },
   };
 

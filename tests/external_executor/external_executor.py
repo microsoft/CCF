@@ -38,10 +38,23 @@ from loguru import logger as LOG
 
 
 @contextlib.contextmanager
-def wrap_tx(stub):
-    stub.StartTx(Empty())
-    yield stub
-    stub.EndTx(KV.ResponseDescription())
+def wrap_tx(stub, primary):
+    with primary.client(connection_timeout=0.1) as c:
+        try:
+            # This wrapper is used to test the gRPC KV API directly. That is
+            # only possible when this executor is processing an active request
+            # (StartTx() returns a non-empty response). To trigger that, we do
+            # this placeholder GET request. It immediately times out and fails,
+            # but then the node we're speaking to will return a
+            # RequestDescription for us to operate over.
+            # This is a temporary hack to allow direct access to the KV API.
+            c.get("/placeholder", timeout=0.1)
+        except Exception as e:
+            LOG.trace(e)
+        rd = stub.StartTx(Empty())
+        assert rd.HasField("optional"), rd
+        yield stub
+        stub.EndTx(KV.ResponseDescription())
 
 
 @reqs.description("Register an external executor")
@@ -105,23 +118,23 @@ def test_put_get(network, credentials, args):
     ) as channel:
         stub = Service.KVStub(channel)
 
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Put key '{my_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Put key {my_key} in table '{my_table}'")
             tx.Put(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
 
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Get key '{my_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Get key {my_key} in table '{my_table}'")
             r = tx.Get(KV.KVKey(table=my_table, key=my_key))
             assert r.HasField("optional")
             assert r.optional.value == my_value
-            LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
+            LOG.success(f"Successfully read key {my_key} in table '{my_table}'")
 
         unknown_key = b"unknown_key"
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Get unknown key {unknown_key} in table '{my_table}'")
             r = tx.Get(KV.KVKey(table=my_table, key=unknown_key))
             assert not r.HasField("optional")
-            LOG.success(f"Unable to read key '{unknown_key}' as expected")
+            LOG.success(f"Unable to read key {unknown_key} as expected")
 
         tables = ("public:table_a", "public:table_b", "public:table_c")
         writes = [
@@ -133,7 +146,7 @@ def test_put_get(network, credentials, args):
             for i in range(10)
         ]
 
-        with wrap_tx(stub) as tx:
+        with wrap_tx(stub, primary) as tx:
             LOG.info("Write multiple entries in single transaction")
             for t, k, v in writes:
                 tx.Put(KV.KVKeyValue(table=t, key=k, value=v))
@@ -151,7 +164,7 @@ def test_put_get(network, credentials, args):
             #     for t, k, v in writes:
             #         require_missing(tx2, t, k)
 
-        with wrap_tx(stub) as tx3:
+        with wrap_tx(stub, primary) as tx3:
             LOG.info("Read applied writes")
             for t, k, v in writes:
                 r = tx3.Get(KV.KVKeyValue(table=t, key=k))
@@ -244,7 +257,7 @@ def test_streaming(network, args):
 
 
 def run(args):
-    key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
+    key_priv_pem, _ = infra.crypto.generate_ec_keypair()
     cert = infra.crypto.generate_cert(key_priv_pem)
 
     with infra.network.network(

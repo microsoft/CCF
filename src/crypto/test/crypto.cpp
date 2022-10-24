@@ -5,6 +5,7 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
@@ -702,5 +703,56 @@ TEST_CASE("hmac")
     auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
     auto r1 = crypto::hmac(MDType::SHA256, key, mostly_zeros);
     REQUIRE(r0 != r1);
+  }
+}
+
+TEST_CASE("PEM to JWK")
+{
+  // More complete tests in end-to-end JS modules test
+  // to compare with JWK reference implementation.
+  auto kid = "my_kid";
+
+  INFO("EC");
+  {
+    auto kp = make_key_pair();
+    auto pubk = make_public_key(kp->public_key_pem());
+
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = pubk->public_key_jwk(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = kp->private_key_jwk(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+  }
+
+  INFO("RSA");
+  {
+    auto kp = make_rsa_key_pair();
+    auto pubk = make_rsa_public_key(kp->public_key_pem());
+
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk_rsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = pubk->public_key_jwk_rsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk_rsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = kp->private_key_jwk_rsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
   }
 }

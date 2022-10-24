@@ -20,6 +20,7 @@ import http
 from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.asymmetric import ec
 
 
 from loguru import logger as LOG
@@ -255,7 +256,7 @@ def run_pebble(args):
     with open(config_filename, "w", encoding="ascii") as f:
         json.dump(config, f)
 
-    ca_key, _ = infra.crypto.generate_ec_keypair("secp384r1")
+    ca_key, _ = infra.crypto.generate_ec_keypair(ec.SECP384R1)
     with open(ca_key_filename, "w", encoding="ascii") as f:
         f.write(ca_key)
 

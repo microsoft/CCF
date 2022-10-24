@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Removed
+
+- The functions `starts_with`, `ends_with`, `remove_prefix`, and `remove_suffix`, and the type `remove_cvref` have been removed from `nonstd::`. The C++20 equivalents should be used instead.
+
 ## [3.0.0-dev7]
+
+### Added
+
+- Added new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
 
 ### Changed
 
