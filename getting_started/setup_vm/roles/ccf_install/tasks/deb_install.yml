@@ -14,7 +14,8 @@
 - name: Install CCF
   apt:
     deb: "{{ ccf_deb_url.stdout }}"
-  become: yes
+  become: true
+  install_recommends: no
 
 - name: Copy cchost
   copy:
