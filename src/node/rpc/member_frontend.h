@@ -402,7 +402,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.9.8";
+      openapi_info.document_version = "2.10.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -436,7 +436,7 @@ namespace ccf
       std::optional<MemberId>& member_id,
       std::optional<ccf::MemberSignatureAuthnIdentity>& sig_auth_id,
       std::optional<ccf::MemberCOSESign1AuthnIdentity>& cose_auth_id,
-      bool must_be_active=true)
+      bool must_be_active = true)
     {
       if (
         const auto* cose_ident =
@@ -491,7 +491,8 @@ namespace ccf
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id, false))
+        if (!authnz_active_member(
+              ctx, member_id, sig_auth_id, cose_auth_id, false))
         {
           return;
         }
