@@ -59,7 +59,7 @@ Three more in-depth jobs are run every day:
 
 Documentation is built and published to GitHub Pages by `this job <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=4>`_ (:ccf_repo:`YAML </.azure-pipelines-gh-pages.yml>`).
 
-The `v8 build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=17>`_ (`.azure-pipelines-v8.yml <https://github.com/microsoft/CCF/blob/main/.azure-pipelines-v8.yml>`_) produces builds of v8 uses by CCF's experimental v8 runtime.
+The `v8 build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=17>`_ (:ccf_repo:`.azure-pipelines-v8.yml </.azure-pipelines-v8.yml>`_) produces builds of v8 uses by CCF's experimental v8 runtime.
 
 Review the release and compatibility policy
 -------------------------------------------
