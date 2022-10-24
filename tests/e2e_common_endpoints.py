@@ -223,7 +223,7 @@ def test_large_messages(network, args):
 
         for s in msg_sizes:
             long_msg = "X" * s
-            LOG.info("Verifying cap on max body size")
+            LOG.info(f"Verifying cap on max body size, sending a {s} byte body")
             run_large_message_test(
                 c,
                 args.max_http_body_size,
@@ -243,7 +243,9 @@ def test_large_messages(network, args):
 
         for s in header_sizes:
             long_header = "X" * s
-            LOG.info("Verifying cap on max header value")
+            LOG.info(
+                f"Verifying cap on max header value, sending a {s} byte header value"
+            )
             run_large_message_test(
                 c,
                 args.max_http_header_size,
@@ -254,7 +256,9 @@ def test_large_messages(network, args):
                 headers={"some-header": long_header},
             )
 
-            LOG.info("Verifying on cap on max header key")
+            LOG.info(
+                f"Verifying on cap on max header key, sending a {s} byte header key"
+            )
             run_large_message_test(
                 c,
                 args.max_http_header_size,
@@ -265,14 +269,12 @@ def test_large_messages(network, args):
                 headers={long_header: "some header value"},
             )
 
-        header_counts = [
-            args.max_http_headers_count - 1,
-            args.max_http_headers_count,
-            args.max_http_headers_count + 1,
-        ]
+        header_counts = range(
+            args.max_http_headers_count - 10, args.max_http_header_count + 10, 2
+        )
 
         for s in header_counts:
-            LOG.info("Verifying on cap on max headers count")
+            LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
             headers = {f"header-{h}": str(h) for h in range(s)}
             # Note: infra adds 2 extra headers (content type and length)
             extra_headers_count = 2
