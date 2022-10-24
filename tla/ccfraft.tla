@@ -18,7 +18,7 @@
 \* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
 \*   (e.g. certain invariants)
 
-EXTENDS Naturals, FiniteSets, Sequences, TLC
+EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt
 
 ----
 \* Constants
@@ -215,6 +215,10 @@ vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVar
 ----
 \* Helpers
 
+min(a, b) == IF a < b THEN a ELSE b
+
+max(a, b) == IF a > b THEN a ELSE b
+
 \* Helper for Send and Reply. Given a message m and set of messages, return a
 \* new set of messages with one more m in it.
 WithMessage(m, msgs) == msgs \union {m}
@@ -236,48 +240,22 @@ Discard(m) == messages' = WithoutMessage(m, messages)
 Reply(response, request) ==
     messages' = WithoutMessage(request, WithMessage(response, messages))
 
-\* Return the minimum value from a set, or undefined if the set is empty.
-Min(s) == CHOOSE x \in s : \A y \in s : x <= y
-
-\* Return the maximum value from a set, or undefined if the set is empty.
-Max(s)         == CHOOSE x \in s          : \A y \in s : x >= y
-MaxWithZero(s) == CHOOSE x \in s \cup {0} : \A y \in s : x >= y
-
-\* We utilize the IsPrefix from the TLA community modules here (MIT license):
-\* https://github.com/tlaplus/CommunityModules/blob/master/modules/SequencesExt.tla
-\* IsPrefix returns TRUE iff the sequence s is a prefix of the sequence t, s.t.
-\* \E u \in Seq(Range(t)) : t = s \o u. In other words, there exists
-\* a suffix u that with s prepended equals t.
-IsPrefix(s, t) ==
-  IF s = << >>
-  THEN TRUE
-  ELSE DOMAIN s \subseteq DOMAIN t /\ \A i \in DOMAIN s: s[i] = t[i]
+HasTypeSignature(e) == e.contentType = TypeSignature
 
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
 MaxCommittableIndex(xlog) ==
-    \* If the log contains messages and has at least one signature message
-    IF Len(xlog) > 0 /\ \E s \in 1..Len(xlog) : xlog[s].contentType = TypeSignature
-    THEN
-    \* Choose that index..
-    CHOOSE x \in 1..Len(xlog) :
-        \* That points to a signature message in log of node i
-        /\ xlog[x].contentType = TypeSignature
-        \* And that is either the largest index in log of i
-        /\ \A y \in 1..Len(xlog) :
-            \/ x >= y
-            \* Or that is only succeeeded by a postfix of unsigned commits
-            \/ xlog[y].contentType /= TypeSignature
-    ELSE 0
+    SelectLastInSeq(xlog, HasTypeSignature)
 
 \* CCF: Returns the term associated with the MaxCommittableIndex(xlog)
 MaxCommittableTerm(xlog) ==
     LET iMax == MaxCommittableIndex(xlog)
     IN IF iMax = 0 THEN 0 ELSE xlog[iMax].term
 
-CalculateQuorum(s) ==
+Quorums ==
     \* Helper function to calculate the Quorum. Needed on each reconfiguration
-    {i \in SUBSET(s) : Cardinality(i) * 2 > Cardinality(s)}
+    [ s \in SUBSET Servers |-> {i \in SUBSET(s) : Cardinality(i) * 2 > Cardinality(s)} ]
+    
 
 GetServerSetForIndex(server, index) ==
     \* Pick the sets of servers (aka configs) up to that index
@@ -285,9 +263,18 @@ GetServerSetForIndex(server, index) ==
     {currentConfiguration[server][relevant_configs][2] : relevant_configs \in
         {c \in 1..Len(currentConfiguration[server]) : currentConfiguration[server][c][1] <= index} \cup {}}
 
+IsInServerSetForIndex(candidate, server, index) ==
+    \E c \in 1..Len(currentConfiguration[server]) :
+        /\ index >= currentConfiguration[server][c][1]
+        /\ candidate \in currentConfiguration[server][c][2]
+
 \* Pick the union of all servers across all configurations
 GetServerSet(server) ==
     UNION {currentConfiguration[server][relevant_configs][2] : relevant_configs \in 1..Len(currentConfiguration[server])}
+
+IsInServerSet(candidate, server) ==
+    \E r \in 1..Len(currentConfiguration[server]) :
+        /\ candidate \in currentConfiguration[server][r][2]
 
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
@@ -305,7 +292,7 @@ CommittedTermPrefix(i, x) ==
           CHOOSE y \in DOMAIN log[i] :
             /\ log[i][y].term <= x
             /\ \A z \in DOMAIN log[i] : log[i][z].term <= x  => y >= z
-      IN SubSeq(log[i], 1, Min({maxTermIndex, commitIndex[i]}))
+      IN SubSeq(log[i], 1, min(maxTermIndex, commitIndex[i]))
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
@@ -363,11 +350,11 @@ Init ==
 Timeout(i) ==
     \* Limit the term of each server to reduce state space
     /\ currentTerm[i] < TermLimit
+    \* Only servers that are not already leaders can become candidates
+    /\ state[i] \in {Follower, Candidate}
     \* Limit number of candidates in our relevant server set
     \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
     /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < MaxSimultaneousCandidates
-    \* Only servers that are not already leaders can become candidates
-    /\ state[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
     /\ \E k \in 1..Len(currentConfiguration[i]):
         /\ i \in currentConfiguration[i][k][2]
@@ -400,7 +387,7 @@ RequestVote(i,j) ==
     \* Only requests vote if we are candidate
     /\ state[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
-    /\ j \in GetServerSet(i)
+    /\ IsInServerSet(j, i)
     \* State limitation: Limit requested votes
     /\ votesRequested[i][j] < RequestVoteLimit
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
@@ -411,14 +398,11 @@ RequestVote(i,j) ==
 \* While implementations may want to send more than 1 at a time, this spec uses
 \* just 1 because it minimizes atomic regions without loss of generality.
 AppendEntries(i, j) ==
-    LET
-        relevantServers == GetServerSetForIndex(i, nextIndex[i][j])
-    IN
     \* No messages to itself and sender is primary
     /\ state[i] = Leader
     /\ i /= j
     \* Recipient must exist in one configuration relevant to that index
-    /\ j \in relevantServers
+    /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     \* There must be an index to send
     /\ Len(log[i]) >= nextIndex[i][j]
     /\ LET prevLogIndex == nextIndex[i][j] - 1
@@ -427,14 +411,14 @@ AppendEntries(i, j) ==
                           ELSE
                               0
            \* Send up to 1 entry, constrained by the end of the log.
-           lastEntry == Min({Len(log[i]), nextIndex[i][j]})
+           lastEntry == min(Len(log[i]), nextIndex[i][j])
            entries == SubSeq(log[i], nextIndex[i][j], lastEntry)
            msg == [mtype          |-> AppendEntriesRequest,
                    mterm          |-> currentTerm[i],
                    mprevLogIndex  |-> prevLogIndex,
                    mprevLogTerm   |-> prevLogTerm,
                    mentries       |-> entries,
-                   mcommitIndex   |-> Min({commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry))}),
+                   mcommitIndex   |-> min(commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry))),
                    msource        |-> i,
                    mdest          |-> j]
            index == nextIndex[i][j]
@@ -453,7 +437,7 @@ AppendEntries(i, j) ==
 BecomeLeader(i) ==
     /\ state[i] = Candidate
     \* To become leader, the candidate must have received votes from a majority in each active configuration
-    /\ \A k \in 1..Len(currentConfiguration[i]) : votesGranted[i] \in CalculateQuorum(currentConfiguration[i][k][2])
+    /\ \A k \in 1..Len(currentConfiguration[i]) : votesGranted[i] \in Quorums[currentConfiguration[i][k][2]]
     /\ state'      = [state EXCEPT ![i] = Leader]
     /\ nextIndex'  = [nextIndex EXCEPT ![i] =
                          [j \in Servers |-> Len(log[i]) + 1]]
@@ -520,10 +504,10 @@ SignCommittableMessages(i) ==
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
 ChangeConfiguration(i, newConfiguration) ==
-    \* Limit reconfigurations
-    /\ reconfigurationCount < Len(Configurations)-1
     \* Only leader can propose changes
     /\ state[i] = Leader
+    \* Limit reconfigurations
+    /\ reconfigurationCount < Len(Configurations)-1
     \* Configuration is non empty
     /\ newConfiguration /= {}
     /\ newConfiguration = Configurations[reconfigurationCount+2]
@@ -560,16 +544,9 @@ ChangeConfiguration(i, newConfiguration) ==
 \*    servers agree on the index before it can be seen as committed.
 AdvanceCommitIndex(i) ==
     /\ state[i] = Leader
-    \* Since the below computation is expensive, make sure that there is even
-    \* an entry we can advance to
-    /\ \E log_index \in 1..Len(log[i]) :
-            /\ log_index > commitIndex[i]
-            /\ log[i][log_index].contentType = TypeSignature
     /\ LET
         \* We want to get the smallest such index forward that is a signature
-        new_index == Min( {index \in 1..Len(log[i]) :
-            /\ index > commitIndex[i]
-            /\ log[i][index].contentType = TypeSignature} )
+        new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]), HasTypeSignature)
         new_log ==
             IF new_index > 1 THEN
                [ j \in 1..new_index |-> log[i][j] ]
@@ -581,7 +558,7 @@ AdvanceCommitIndex(i) ==
             {c \in 1..Len(currentConfiguration[i]) : new_index >= currentConfiguration[i][c][1] } :
                 \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
                 LET config_servers == currentConfiguration[i][config_index][2]
-                    required_quorum == CalculateQuorum(config_servers)
+                    required_quorum == Quorums[config_servers]
                     agree_servers == {i} \cup {k \in Servers :
                                             matchIndex[i][k] >= new_index}
                 IN (agree_servers \cap config_servers) \in required_quorum
@@ -617,7 +594,7 @@ NotifyCommit(i,j) ==
     \* Only RetiredLeader servers send these commit messages
     /\ state[i] = RetiredLeader
     \* Only send notifications of commit to servers in the server set
-    /\ j \in GetServerSetForIndex(i, commitIndex[i])
+    /\ IsInServerSetForIndex(j, i, commitIndex[i])
     /\ \/ commitsNotified[i][1] < commitIndex[i]
        \/ commitsNotified[i][2] < CommitNotificationLimit
     /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
@@ -733,7 +710,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
     \* On conflicts, we shorten the log. This means we also want to reset the
     \*  sent messages that we track to limit the state space
     /\ LET newCounts == [j \in Servers
-                |-> [n \in 1..Min({Len(messagesSent[i][j]) - 1, index - 1})
+                |-> [n \in 1..min(Len(messagesSent[i][j]) - 1, index - 1)
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
     /\ UNCHANGED <<reconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog, committedLogConflict>>
@@ -749,7 +726,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         added_config        == IF have_added_config
                                THEN << m.mprevLogIndex + 1, m.mentries[1].value >>
                                ELSE << >>
-        new_commit_index    == Max({m.mcommitIndex, commitIndex[i]})
+        new_commit_index    == max(m.mcommitIndex, commitIndex[i])
         \* A config can be removed if the new commit index reaches at least the next config index.
         \* This happens either on configs that are already in the currentConfiguration list or on new configs that
         \* are already committed.
@@ -848,7 +825,7 @@ DropIgnoredMessage(i,j,m) ==
        \*  OR if message is to a server that has surpassed the Pending stage ..
        \/ /\ state[i] /= Pending
         \* .. and it comes from a server outside of the configuration
-          /\ \lnot j \in GetServerSet(i)
+          /\ \lnot IsInServerSet(j, i)
        \*  OR if recipient is RetiredLeader and this is not a request to vote
        \/ /\ state[i] = RetiredLeader
           /\ m.mtype /= RequestVoteRequest
@@ -947,7 +924,7 @@ CandidateTermNotInLogInv ==
             {j \in Servers :
                 /\ currentTerm[j] = currentTerm[i]
                 /\ votedFor[j] = i
-            } \in CalculateQuorum(currentConfiguration[i][k][2])
+            } \in Quorums[currentConfiguration[i][k][2]]
         )
         =>
         \A j \in Servers :
@@ -959,14 +936,16 @@ CandidateTermNotInLogInv ==
 ElectionSafetyInv ==
     \A i \in Servers :
         state[i] = Leader =>
-        \A j \in Servers :
-            MaxWithZero({n \in DOMAIN log[i] : log[i][n].term = currentTerm[i]}) >=
-            MaxWithZero({n \in DOMAIN log[j] : log[j][n].term = currentTerm[i]})
+        \A j \in Servers : i /= j =>
+            LET FilterAndMax(a, b) == 
+                    IF a.term = currentTerm[i] THEN max(a.term, b) ELSE b
+            IN FoldSeq(FilterAndMax, 0, log[i]) >= FoldSeq(FilterAndMax, 0, log[j])
+
 ----
 \* Every (index, term) pair determines a log prefix
 LogMatchingInv ==
-    \A i, j \in Servers :
-        \A n \in (1..Len(log[i])) \cap (1..Len(log[j])) :
+    \A i, j \in Servers : i /= j =>
+        \A n \in 1..min(Len(log[i]), Len(log[j])) :
             log[i][n].term = log[j][n].term =>
             SubSeq(log[i],1,n) = SubSeq(log[j],1,n)
 ----
@@ -979,7 +958,7 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in CalculateQuorum(GetServerSetForIndex(i, commitIndex[i])) :
+        \A S \in Quorums[GetServerSetForIndex(i, commitIndex[i])] :
             \E j \in S :
                 IsPrefix(Committed(i), log[j])
 
@@ -988,11 +967,11 @@ QuorumLogInv ==
 \* a vote from j only if i has all of j's committed
 \* entries
 MoreUpToDateCorrectInv ==
-    \A i, j \in Servers :
-       (\/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
-        \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
-           /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
-       IsPrefix(Committed(j), log[i])
+    \A i, j \in Servers : i /= j =>
+        ((\/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
+         \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
+            /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
+        IsPrefix(Committed(j), log[i]))
 
 \* The committed entries in every log are a prefix of the
 \* leader's log up to the leader's term (since a next Leader may already be
@@ -1000,7 +979,7 @@ MoreUpToDateCorrectInv ==
 LeaderCompletenessInv ==
     \A i \in Servers :
         state[i] = Leader =>
-        \A j \in Servers :
+        \A j \in Servers : i /= j =>
             IsPrefix(CommittedTermPrefix(j, currentTerm[i]),log[i])
 
 \* In CCF, only signature messages should ever be committed
@@ -1054,7 +1033,7 @@ MessageVarsTypeInv ==
                 /\ m.mvoteGranted \in BOOLEAN
             \/ /\ m.mtype = NotifyCommitMessage
                 /\ m.mcommitIndex \in 0..MaxLogLength
-    /\ \A i,j \in Servers :
+    /\ \A i,j \in Servers : i /= j =>
         /\ Len(messagesSent[i][j]) \in 0..MaxLogLength
         /\ IF Len(messagesSent[i][j]) > 0 THEN
             \A k \in 1..Len(messagesSent[i][j]) :
@@ -1074,11 +1053,11 @@ CandidateVarsTypeInv ==
     /\ \A i \in Servers :
         /\ votesSent[i] \in BOOLEAN
         /\ votesGranted[i] \subseteq Servers
-        /\ \A j \in Servers :
+        /\ \A j \in Servers : i /= j => 
             /\ votesRequested[i][j] \in 0..RequestVoteLimit
 
 LeaderVarsTypeInv ==
-    /\ \A i, j \in Servers :
+    /\ \A i, j \in Servers : i /= j =>
         /\ nextIndex[i][j] \in 1..MaxLogLength+1
         /\ matchIndex[i][j] \in 0..MaxLogLength
 
