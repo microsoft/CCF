@@ -170,22 +170,6 @@ def test_large_messages(network, args):
                 infra.interfaces.PRIMARY_RPC_INTERFACE
             ]["errors"]
 
-    # TLS libraries usually have 16K internal buffers, so we start at
-    # 1K and move up to 1M and make sure they can cope with it.
-    # Starting below 16K also helps identify problems (by seeing some
-    # pass but not others, and finding where does it fail).
-    msg_sizes = [2**n for n in range(10, 20)]
-    msg_sizes.extend(
-        [
-            args.max_http_body_size // 2,
-            args.max_http_body_size - 1,
-            args.max_http_body_size,
-            args.max_http_body_size + 1,
-            args.max_http_body_size * 2,
-            args.max_http_body_size * 200,
-        ]
-    )
-
     def run_large_message_test(
         threshold,
         expected_status,
@@ -224,6 +208,22 @@ def test_large_messages(network, args):
                     assert (
                         get_main_interface_errors()[metrics_name] == before_errors_count
                     )
+
+    # TLS libraries usually have 16K internal buffers, so we start at
+    # 1K and move up to 1M and make sure they can cope with it.
+    # Starting below 16K also helps identify problems (by seeing some
+    # pass but not others, and finding where does it fail).
+    msg_sizes = [2**n for n in range(10, 20)]
+    msg_sizes.extend(
+        [
+            args.max_http_body_size // 2,
+            args.max_http_body_size - 1,
+            args.max_http_body_size,
+            args.max_http_body_size + 1,
+            args.max_http_body_size * 2,
+            args.max_http_body_size * 200,
+        ]
+    )
 
     for s in msg_sizes:
         long_msg = "X" * s
