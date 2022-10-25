@@ -772,7 +772,8 @@ namespace ccf
           return;
         }
 
-        const auto* cose_auth_id = ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+        const auto* cose_auth_id =
+          ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
         if (cose_auth_id)
         {
           if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
@@ -1030,9 +1031,12 @@ namespace ccf
         auto validate_func = context.function(
           validate_script, "validate", "public:ccf.gov.constitution[0]");
 
-        auto body =
-          reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());
-        auto body_len = ctx.rpc_ctx->get_request_body().size();
+        const std::span<const uint8_t> proposal_body =
+          cose_auth_id.has_value() ? cose_auth_id->content :
+                                     ctx.rpc_ctx->get_request_body();
+
+        auto body = reinterpret_cast<const char*>(proposal_body.data());
+        auto body_len = proposal_body.size();
 
         auto proposal = context.new_string_len(body, body_len);
         auto val = context.call(validate_func, {proposal});
@@ -1089,7 +1093,7 @@ namespace ccf
             "Proposal ID collision.");
           return;
         }
-        pm->put(proposal_id, ctx.rpc_ctx->get_request_body());
+        pm->put(proposal_id, {proposal_body.begin(), proposal_body.end()});
 
         auto pi =
           ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
@@ -1109,7 +1113,7 @@ namespace ccf
         auto rv = resolve_proposal(
           ctx.tx,
           proposal_id,
-          ctx.rpc_ctx->get_request_body(),
+          {proposal_body.begin(), proposal_body.end()},
           constitution.value());
 
         if (rv.state == ProposalState::FAILED)
