@@ -744,7 +744,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_request(r);
+      join_client->send_request(std::move(r));
     }
 
     void initiate_join()

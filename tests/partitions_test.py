@@ -300,6 +300,10 @@ def test_election_reconfiguration(network, args):
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
+    # Wait until all backups know about these joins, so they have an equal chance of
+    # becoming primary afterwards
+    network.wait_for_node_commit_sync()
+
     LOG.info("Isolate original backups and issue reconfiguration of another quorum")
     # Partition backups _from each other_
     with network.partitioner.partitions([backup] for backup in backups):
