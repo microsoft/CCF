@@ -492,7 +492,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.10.0"
+    "version": "2.11.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -549,6 +549,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -1026,6 +1029,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -1061,6 +1067,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {

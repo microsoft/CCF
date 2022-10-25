@@ -402,7 +402,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.10.0";
+      openapi_info.document_version = "2.11.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -482,7 +482,9 @@ namespace ccf
         member_signature_auth_policy, member_cose_sign1_auth_policy};
 
       const AuthnPolicies member_cert_or_sig = {
-        member_cert_auth_policy, member_signature_auth_policy};
+        member_cert_auth_policy,
+        member_signature_auth_policy,
+        member_cose_sign1_auth_policy};
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -495,6 +497,19 @@ namespace ccf
               ctx, member_id, sig_auth_id, cose_auth_id, false))
         {
           return;
+        }
+
+        if (cose_auth_id.has_value())
+        {
+          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
+                cose_auth_id->protected_header.gov_msg_type.value() == "ack"))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Unexpected message type");
+            return;
+          }
         }
 
         auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
@@ -615,6 +630,22 @@ namespace ccf
             ccf::errors::AuthorizationFailed,
             "Caller is a not a valid member id");
           return;
+        }
+
+        if (
+          const auto* cose_auth_id =
+            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+        {
+          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
+                cose_auth_id->protected_header.gov_msg_type.value() ==
+                  "state_digest"))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Unexpected message type");
+            return;
+          }
         }
 
         auto mas = ctx.tx.rw(this->network.member_acks);
