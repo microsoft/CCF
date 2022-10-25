@@ -9,6 +9,13 @@ Overview
     CCF in a hundred words, and the fundamental concepts it implements. Start Here.
 
     ---
+
+    :fa:`question` :doc:`faq`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Frequently Asked Questions.
+
+    ---
     
     :fa:`scroll` :doc:`governance`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -36,6 +43,7 @@ Overview
     :maxdepth: 1
 
     what_is_ccf
+    faq
     governance
     performance
     glossary
