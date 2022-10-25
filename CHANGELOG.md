@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Add `ccf.crypto.generateEddsaKeyPair()` API in the JavaScript runtime (#4391).
+- Add `ccf.crypto.generateEddsaKeyPair()` API with Curve25519 support in the JavaScript runtime (#4391).
 
 ## [3.0.0-dev7]
 

@@ -565,6 +565,7 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
+    // Handle algorithms that don't use algo_hash here
     if (*algo_name_str == "EdDSA")
     {
       try
