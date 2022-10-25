@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Truncate ref
-        run: echo "{tag}=${GITHUB_REF#refs/tags/ccf_ci_image/}" >> $GITHUB_OUTPUT
+        run: echo "tag=${GITHUB_REF#refs/tags/ccf_ci_image/}" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Build CCF CI container
