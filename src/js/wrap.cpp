@@ -8,6 +8,7 @@
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
+#include "enclave/enclave_time.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
@@ -81,6 +82,30 @@ namespace ccf::js
     }
   }
 
+  struct UntrustedHostTime
+  {
+    std::chrono::microseconds start_time;
+    std::chrono::seconds max_execution_time;
+  };
+
+  static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
+  {
+    UntrustedHostTime* time = reinterpret_cast<UntrustedHostTime*>(opaque);
+    auto now = ccf::get_enclave_time();
+    auto elapsed_time = now - time->start_time;
+    auto elapsed_seconds =
+      std::chrono::duration_cast<std::chrono::seconds>(elapsed_time);
+    if (elapsed_seconds.count() >= time->max_execution_time.count())
+    {
+      LOG_DEBUG_FMT("JS execution has timed out");
+      return 1;
+    }
+    else
+    {
+      return 0;
+    }
+  }
+
   Runtime::Runtime(kv::Tx* tx)
   {
     rt = JS_NewRuntime();
@@ -90,6 +115,8 @@ namespace ccf::js
     }
     size_t stack_size = 1024 * 1024;
     size_t heap_size = 100 * 1024 * 1024;
+    std::chrono::seconds default_max_execution_time{240};
+
     const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
     const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
 
@@ -97,10 +124,23 @@ namespace ccf::js
     {
       heap_size = js_runtime_options.value().max_heap_bytes;
       stack_size = js_runtime_options.value().max_stack_bytes;
+      default_max_execution_time =
+        std::chrono::seconds{js_runtime_options.value().max_execution_time};
     }
 
     JS_SetMaxStackSize(rt, stack_size);
     JS_SetMemoryLimit(rt, heap_size);
+    UntrustedHostTime* host_time = new UntrustedHostTime();
+    const auto curr_time = ccf::get_enclave_time();
+    host_time->start_time = curr_time;
+    host_time->max_execution_time = default_max_execution_time;
+    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, host_time);
+  }
+
+  Runtime::~Runtime()
+  {
+    JS_FreeRuntime(rt);
+    JS_SetInterruptHandler(rt, NULL, NULL);
   }
 
   static JSValue js_kv_map_has(

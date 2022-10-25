@@ -221,11 +221,7 @@ namespace ccf::js
 
   public:
     Runtime(kv::Tx* tx);
-
-    ~Runtime()
-    {
-      JS_FreeRuntime(rt);
-    }
+    ~Runtime();
 
     operator JSRuntime*() const
     {
