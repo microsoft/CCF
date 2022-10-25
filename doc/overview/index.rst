@@ -43,7 +43,7 @@ Overview
     :maxdepth: 1
 
     what_is_ccf
-    faq
     governance
     performance
+    faq
     glossary
