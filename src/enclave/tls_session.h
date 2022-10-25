@@ -6,7 +6,7 @@
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
-#include "enclave/endpoint.h"
+#include "enclave/session.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
 #include "tls/tls.h"
@@ -15,27 +15,25 @@
 
 namespace ccf
 {
-  class TLSEndpoint : public Endpoint
+  enum SessionStatus
   {
+    handshake,
+    ready,
+    closing,
+    closed,
+    authfail,
+    error
+  };
+
+  class TLSSession : public std::enable_shared_from_this<TLSSession>
+  {
+  public:
+    using HandshakeErrorCB = std::function<void(std::string&&)>;
+
   protected:
     ringbuffer::WriterPtr to_host;
     tls::ConnID session_id;
     size_t execution_thread;
-
-    enum Status
-    {
-      handshake,
-      ready,
-      closing,
-      closed,
-      authfail,
-      error
-    };
-
-    Status get_status() const
-    {
-      return status;
-    }
 
   private:
     std::vector<uint8_t> pending_write;
@@ -44,7 +42,9 @@ namespace ccf
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
-    Status status;
+    SessionStatus status;
+
+    HandshakeErrorCB handshake_error_cb;
 
     bool can_send()
     {
@@ -58,8 +58,19 @@ namespace ccf
       return status == ready || status == handshake;
     }
 
+    struct SendRecvMsg
+    {
+      std::vector<uint8_t> data;
+      std::shared_ptr<TLSSession> self;
+    };
+
+    struct EmptyMsg
+    {
+      std::shared_ptr<TLSSession> self;
+    };
+
   public:
-    TLSEndpoint(
+    TLSSession(
       int64_t session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory_,
       std::unique_ptr<tls::Context> ctx_) :
@@ -73,14 +84,31 @@ namespace ccf
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
-    ~TLSEndpoint()
+    virtual ~TLSSession()
     {
       RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
     }
 
-    virtual void on_handshake_error(const std::string& error_msg)
+    SessionStatus get_status() const
     {
-      LOG_TRACE_FMT("{}", error_msg);
+      return status;
+    }
+
+    void on_handshake_error(std::string&& error_msg)
+    {
+      if (handshake_error_cb)
+      {
+        handshake_error_cb(std::move(error_msg));
+      }
+      else
+      {
+        LOG_TRACE_FMT("{}", error_msg);
+      }
+    }
+
+    void set_handshake_error_cb(HandshakeErrorCB&& cb)
+    {
+      handshake_error_cb = std::move(cb);
     }
 
     std::string hostname()
@@ -221,122 +249,30 @@ namespace ccf
       do_handshake();
     }
 
-    struct SendRecvMsg
+    virtual void close()
     {
-      std::vector<uint8_t> data;
-      std::shared_ptr<Endpoint> self;
-    };
-
-    static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
-    {
-      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
-        ->send_raw_thread(msg->data.data);
-    }
-
-    void send_raw(std::vector<uint8_t>&& data)
-    {
-      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data = std::move(data);
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
-    }
-
-    void send_raw_thread(const std::vector<uint8_t>& data)
-    {
+      status = closing;
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::runtime_error(
-          "Called send_raw_thread from incorrect thread");
+        auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
+        msg->data.self = this->shared_from_this();
+
+        threading::ThreadMessaging::thread_messaging.add_task(
+          execution_thread, std::move(msg));
       }
-      // Writes as much of the data as possible. If the data cannot all
-      // be written now, we store the remainder. We
-      // will try to send pending writes again whenever write() is called.
-      do_handshake();
-
-      if (status == handshake)
+      else
       {
-        pending_write.insert(pending_write.end(), data.begin(), data.end());
-        return;
-      }
-
-      if (!can_send())
-      {
-        return;
-      }
-
-      pending_write.insert(pending_write.end(), data.begin(), data.end());
-
-      flush();
-    }
-
-    void send_buffered(const std::vector<uint8_t>& data)
-    {
-      if (threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called send_buffered from incorrect thread");
-      }
-
-      pending_write.insert(pending_write.end(), data.begin(), data.end());
-    }
-
-    void flush()
-    {
-      if (threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called flush from incorrect thread");
-      }
-
-      do_handshake();
-
-      if (!can_send())
-      {
-        return;
-      }
-
-      while (pending_write.size() > 0)
-      {
-        auto r = write_some(pending_write);
-
-        if (r > 0)
-        {
-          pending_write.erase(pending_write.begin(), pending_write.begin() + r);
-        }
-        else if (r == 0)
-        {
-          break;
-        }
-        else
-        {
-          LOG_TRACE_FMT(
-            "TLS {} on flush: {}", session_id, tls::error_string(r));
-          stop(error);
-        }
+        // Close inline immediately
+        close_thread();
       }
     }
-
-    struct EmptyMsg
-    {
-      std::shared_ptr<Endpoint> self;
-    };
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
-      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())->close_thread();
+      msg->data.self->close_thread();
     }
 
-    void close()
-    {
-      status = closing;
-      auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
-      msg->data.self = this->shared_from_this();
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        execution_thread, std::move(msg));
-    }
-
-    void close_thread()
+    virtual void close_thread()
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
@@ -389,7 +325,104 @@ namespace ccf
       }
     }
 
+    void send_raw(const uint8_t* data, size_t size)
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
+        msg->data.self = this->shared_from_this();
+        msg->data.data = std::vector<uint8_t>(data, data + size);
+
+        threading::ThreadMessaging::thread_messaging.add_task(
+          execution_thread, std::move(msg));
+      }
+      else
+      {
+        // Send inline immediately
+        send_raw_thread(data, size);
+      }
+    }
+
   private:
+    static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+    {
+      msg->data.self->send_raw_thread(
+        msg->data.data.data(), msg->data.data.size());
+    }
+
+    void send_raw_thread(const uint8_t* data, size_t size)
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        throw std::runtime_error(
+          "Called send_raw_thread from incorrect thread");
+      }
+      // Writes as much of the data as possible. If the data cannot all
+      // be written now, we store the remainder. We
+      // will try to send pending writes again whenever write() is called.
+      do_handshake();
+
+      if (status == handshake)
+      {
+        pending_write.insert(pending_write.end(), data, data + size);
+        return;
+      }
+
+      if (!can_send())
+      {
+        return;
+      }
+
+      pending_write.insert(pending_write.end(), data, data + size);
+
+      flush();
+    }
+
+    void send_buffered(const std::vector<uint8_t>& data)
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        throw std::runtime_error("Called send_buffered from incorrect thread");
+      }
+
+      pending_write.insert(pending_write.end(), data.begin(), data.end());
+    }
+
+    void flush()
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        throw std::runtime_error("Called flush from incorrect thread");
+      }
+
+      do_handshake();
+
+      if (!can_send())
+      {
+        return;
+      }
+
+      while (pending_write.size() > 0)
+      {
+        auto r = write_some(pending_write);
+
+        if (r > 0)
+        {
+          pending_write.erase(pending_write.begin(), pending_write.begin() + r);
+        }
+        else if (r == 0)
+        {
+          break;
+        }
+        else
+        {
+          LOG_TRACE_FMT(
+            "TLS {} on flush: {}", session_id, tls::error_string(r));
+          stop(error);
+        }
+      }
+    }
+
     void do_handshake()
     {
       // This should be called when additional data is written to the
@@ -472,7 +505,7 @@ namespace ccf
       }
     }
 
-    void stop(Status status_)
+    void stop(SessionStatus status_)
     {
       switch (status)
       {
@@ -564,12 +597,12 @@ namespace ccf
 
     static int send_callback(void* ctx, const unsigned char* buf, size_t len)
     {
-      return reinterpret_cast<TLSEndpoint*>(ctx)->handle_send(buf, len);
+      return reinterpret_cast<TLSSession*>(ctx)->handle_send(buf, len);
     }
 
     static int recv_callback(void* ctx, unsigned char* buf, size_t len)
     {
-      return reinterpret_cast<TLSEndpoint*>(ctx)->handle_recv(buf, len);
+      return reinterpret_cast<TLSSession*>(ctx)->handle_recv(buf, len);
     }
 
     // These callbacks below are complex, using the callbacks above and
@@ -609,13 +642,13 @@ namespace ccf
         // WANTS_WRITE
         if (put == TLS_WRITING)
         {
-          LOG_TRACE_FMT("TLS Endpoint::send_cb() : WANTS_WRITE");
+          LOG_TRACE_FMT("TLS Session::send_cb() : WANTS_WRITE");
           *processed = 0;
           return -1;
         }
         else
         {
-          LOG_TRACE_FMT("TLS Endpoint::send_cb() : Put {} bytes", put);
+          LOG_TRACE_FMT("TLS Session::send_cb() : Put {} bytes", put);
         }
 
         // Update the number of bytes to external users
@@ -650,14 +683,14 @@ namespace ccf
         // WANTS_READ
         if (got == TLS_READING)
         {
-          LOG_TRACE_FMT("TLS Endpoint::recv_cb() : WANTS_READ");
+          LOG_TRACE_FMT("TLS Session::recv_cb() : WANTS_READ");
           *processed = 0;
           return -1;
         }
         else
         {
           LOG_TRACE_FMT(
-            "TLS Endpoint::recv_cb() : Got {} bytes of {}", got, len);
+            "TLS Session::recv_cb() : Got {} bytes of {}", got, len);
         }
 
         // If got less than requested, return WANT_READ
@@ -673,7 +706,7 @@ namespace ccf
         // The buffer should be enough, we can't return WANT_WRITE here
         if ((size_t)got != *processed)
         {
-          LOG_TRACE_FMT("TLS Endpoint::recv_cb() : BIO error");
+          LOG_TRACE_FMT("TLS Session::recv_cb() : BIO error");
           *processed = got;
           return -1;
         }

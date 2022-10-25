@@ -70,7 +70,7 @@ namespace ccf
       size_t request_id;
     };
 
-    std::shared_ptr<ClientEndpoint> create_unauthenticated_client()
+    std::shared_ptr<ClientSession> create_unauthenticated_client()
     {
       // Note: server CA is not checked here as this client is not sending
       // private data. If the server was malicious and the certificate chain was
@@ -81,22 +81,24 @@ namespace ccf
     }
 
     void send_request(
-      const std::shared_ptr<ClientEndpoint>& client,
+      const std::shared_ptr<ClientSession>& client,
       const EndpointInfo& endpoint)
     {
-      http::Request r(endpoint.uri, HTTP_GET);
-      for (auto const& [k, v] : endpoint.params)
       {
-        r.set_query_param(k, v);
-      }
-      r.set_header(http::headers::HOST, endpoint.host);
+        http::Request r(endpoint.uri, HTTP_GET);
+        for (auto const& [k, v] : endpoint.params)
+        {
+          r.set_query_param(k, v);
+        }
+        r.set_header(http::headers::HOST, endpoint.host);
 
-      LOG_INFO_FMT(
-        "Fetching endorsements for attestation report at https://{}{}{}",
-        endpoint.host,
-        r.get_path(),
-        r.get_formatted_query());
-      client->send_request(r);
+        LOG_INFO_FMT(
+          "Fetching endorsements for attestation report at https://{}{}{}",
+          endpoint.host,
+          r.get_path(),
+          r.get_formatted_query());
+        client->send_request(std::move(r));
+      }
 
       // Start watchdog to send request on new server if it is unresponsive
       auto msg = std::make_unique<
