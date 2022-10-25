@@ -809,10 +809,11 @@ def gov(args):
         test_all_nodes_cert_renewal(network, args)
         test_service_cert_renewal(network, args)
         test_service_cert_renewal_extended(network, args)
-        test_cose_auth(network, args)
-        test_cose_ack(network, args)
-        test_cose_proposal(network, args)
-        test_cose_withdrawal(network, args)
+        if args.authenticate_session != "COSE":
+            test_cose_auth(network, args)
+            test_cose_ack(network, args)
+            test_cose_proposal(network, args)
+            test_cose_withdrawal(network, args)
 
 
 def js_gov(args):
@@ -846,6 +847,15 @@ if __name__ == "__main__":
     cr = ConcurrentRunner(add)
 
     infra.log_capture.COLORS = False
+
+    cr.add(
+        "session_coseauth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
 
     cr.add(
         "session_auth",
