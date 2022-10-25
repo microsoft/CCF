@@ -574,7 +574,7 @@ def test_npm_app(network, args):
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
             assert r.body.json() == True, r.body
-        
+
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
         data = "foo".encode()

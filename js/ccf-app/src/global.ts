@@ -307,7 +307,6 @@ export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
 }
 
 export interface CCFCrypto {
-
   /**
    * Returns whether digital signature is valid.
    *

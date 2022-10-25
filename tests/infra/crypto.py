@@ -96,6 +96,7 @@ def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> Tuple[str, st
     )
     return priv_pem, pub_pem
 
+
 def generate_eddsa_keypair() -> Tuple[str, str]:
     # Currently only Curve25519 is supported
     priv = ed25519.Ed25519PrivateKey.generate()
