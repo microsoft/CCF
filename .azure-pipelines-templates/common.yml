@@ -1,5 +1,6 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
+    timeoutInMinutes: 0
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
 
