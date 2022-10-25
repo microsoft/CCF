@@ -170,22 +170,6 @@ def test_large_messages(network, args):
                 infra.interfaces.PRIMARY_RPC_INTERFACE
             ]["errors"]
 
-    # TLS libraries usually have 16K internal buffers, so we start at
-    # 1K and move up to 1M and make sure they can cope with it.
-    # Starting below 16K also helps identify problems (by seeing some
-    # pass but not others, and finding where does it fail).
-    msg_sizes = [2**n for n in range(10, 20)]
-    msg_sizes.extend(
-        [
-            args.max_http_body_size // 2,
-            args.max_http_body_size - 1,
-            args.max_http_body_size,
-            args.max_http_body_size + 1,
-            args.max_http_body_size * 2,
-            args.max_http_body_size * 200,
-        ]
-    )
-
     def run_large_message_test(
         client,
         threshold,
@@ -221,9 +205,25 @@ def test_large_messages(network, args):
                 assert get_main_interface_errors()[metrics_name] == before_errors_count
 
     with primary.client("user0") as c:
+        # TLS libraries usually have 16K internal buffers, so we start at
+        # 1K and move up to 1M and make sure they can cope with it.
+        # Starting below 16K also helps identify problems (by seeing some
+        # pass but not others, and finding where does it fail).
+        msg_sizes = [2**n for n in range(10, 20)]
+        msg_sizes.extend(
+            [
+                args.max_http_body_size // 2,
+                args.max_http_body_size - 1,
+                args.max_http_body_size,
+                args.max_http_body_size + 1,
+                args.max_http_body_size * 2,
+                args.max_http_body_size * 200,
+            ]
+        )
+
         for s in msg_sizes:
             long_msg = "X" * s
-            LOG.info("Verifying cap on max body size")
+            LOG.info(f"Verifying cap on max body size, sending a {s} byte body")
             run_large_message_test(
                 c,
                 args.max_http_body_size,
@@ -243,7 +243,9 @@ def test_large_messages(network, args):
 
         for s in header_sizes:
             long_header = "X" * s
-            LOG.info("Verifying cap on max header value")
+            LOG.info(
+                f"Verifying cap on max header value, sending a {s} byte header value"
+            )
             run_large_message_test(
                 c,
                 args.max_http_header_size,
@@ -254,7 +256,9 @@ def test_large_messages(network, args):
                 headers={"some-header": long_header},
             )
 
-            LOG.info("Verifying on cap on max header key")
+            LOG.info(
+                f"Verifying on cap on max header key, sending a {s} byte header key"
+            )
             run_large_message_test(
                 c,
                 args.max_http_header_size,
@@ -266,23 +270,27 @@ def test_large_messages(network, args):
             )
 
         header_counts = [
+            args.max_http_headers_count - 10,
             args.max_http_headers_count - 1,
             args.max_http_headers_count,
             args.max_http_headers_count + 1,
+            args.max_http_headers_count + 10,
         ]
 
+        # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
+        extra_headers_count = (
+            infra.clients.CCFClient.default_impl_type.extra_headers_count()
+        )
         for s in header_counts:
-            LOG.info("Verifying on cap on max headers count")
-            headers = {f"header-{h}": str(h) for h in range(s)}
-            # Note: infra adds 2 extra headers (content type and length)
-            extra_headers_count = 2
+            LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
+            headers = {f"header-{h}": str(h) for h in range(s - extra_headers_count)}
             run_large_message_test(
                 c,
-                args.max_http_headers_count - extra_headers_count,
+                args.max_http_headers_count,
                 http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
                 "RequestHeaderTooLarge",
                 "request_header_too_large",
-                len(headers),
+                len(headers) + extra_headers_count,
                 headers=headers,
             )
 
