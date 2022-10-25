@@ -87,9 +87,9 @@ namespace ccf::js
     UntrustedHostTime* time = reinterpret_cast<UntrustedHostTime*>(opaque);
     auto now = ccf::get_enclave_time();
     auto elapsed_time = now - time->start_time;
-    auto elapsed_seconds =
-      std::chrono::duration_cast<std::chrono::seconds>(elapsed_time);
-    if (elapsed_seconds.count() >= time->max_execution_time.count())
+    auto elapsed_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
+    if (elapsed_ms.count() >= time->max_execution_time.count())
     {
       LOG_DEBUG_FMT("JS execution has timed out");
       return 1;
@@ -109,7 +109,7 @@ namespace ccf::js
     }
     size_t stack_size = 1024 * 1024;
     size_t heap_size = 100 * 1024 * 1024;
-    std::chrono::seconds default_max_execution_time{240};
+    std::chrono::milliseconds default_max_execution_time{100};
 
     const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
     const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
@@ -118,8 +118,8 @@ namespace ccf::js
     {
       heap_size = js_runtime_options.value().max_heap_bytes;
       stack_size = js_runtime_options.value().max_stack_bytes;
-      default_max_execution_time =
-        std::chrono::seconds{js_runtime_options.value().max_execution_time};
+      default_max_execution_time = std::chrono::milliseconds{
+        js_runtime_options.value().max_execution_time};
     }
 
     JS_SetMaxStackSize(rt, stack_size);

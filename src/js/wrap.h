@@ -218,7 +218,7 @@ namespace ccf::js
   struct UntrustedHostTime
   {
     std::chrono::microseconds start_time;
-    std::chrono::seconds max_execution_time;
+    std::chrono::milliseconds max_execution_time;
   };
 
   class Runtime
