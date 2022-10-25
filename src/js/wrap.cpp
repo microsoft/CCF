@@ -82,12 +82,6 @@ namespace ccf::js
     }
   }
 
-  struct UntrustedHostTime
-  {
-    std::chrono::microseconds start_time;
-    std::chrono::seconds max_execution_time;
-  };
-
   static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
   {
     UntrustedHostTime* time = reinterpret_cast<UntrustedHostTime*>(opaque);
@@ -130,7 +124,7 @@ namespace ccf::js
 
     JS_SetMaxStackSize(rt, stack_size);
     JS_SetMemoryLimit(rt, heap_size);
-    UntrustedHostTime* host_time = new UntrustedHostTime();
+    host_time = new UntrustedHostTime();
     const auto curr_time = ccf::get_enclave_time();
     host_time->start_time = curr_time;
     host_time->max_execution_time = default_max_execution_time;
@@ -139,8 +133,9 @@ namespace ccf::js
 
   Runtime::~Runtime()
   {
-    JS_FreeRuntime(rt);
+    delete host_time;
     JS_SetInterruptHandler(rt, NULL, NULL);
+    JS_FreeRuntime(rt);
   }
 
   static JSValue js_kv_map_has(

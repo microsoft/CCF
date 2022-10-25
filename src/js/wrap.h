@@ -215,9 +215,16 @@ namespace ccf::js
   JSWrappedValue load_app_module(
     JSContext* ctx, const char* module_name, kv::Tx* tx);
 
+  struct UntrustedHostTime
+  {
+    std::chrono::microseconds start_time;
+    std::chrono::seconds max_execution_time;
+  };
+
   class Runtime
   {
     JSRuntime* rt;
+    UntrustedHostTime* host_time;
 
   public:
     Runtime(kv::Tx* tx);
