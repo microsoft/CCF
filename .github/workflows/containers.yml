@@ -27,9 +27,9 @@ jobs:
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
           if [ ${GITHUB_REF} == *"ref/tags"* ]; then
-            echo "{tag}=${GITHUB_REF#refs/tags/ccf-} >> $GITHUB_STATE"
+            echo "{tag}=${GITHUB_REF#refs/tags/ccf-} >> $GITHUB_OUTPUT"
           else
-            echo "{tag}={latest} >> $GITHUB_STATE"
+            echo "{tag}={latest} >> $GITHUB_OUTPUT"
           fi
         id: tref
 
@@ -63,7 +63,7 @@ jobs:
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Get image tag from git tag (release)
-        run: echo "{tag}=${GITHUB_REF#refs/tags/ccf-} >> $GITHUB_STATE"
+        run: echo "{tag}=${GITHUB_REF#refs/tags/ccf-} >> $GITHUB_OUTPUT"
         id: tref
 
       - name: Push App Dev ${{ matrix.platform }} container
