@@ -714,26 +714,14 @@ class RawSocketClient:
                 private_key=self.signing_details[1],
             )
 
-        try:
-            self.socket.settimeout(timeout)
-            RawSocketClient._send_request(
-                ssl_socket=self.socket,
-                verb=request.http_verb,
-                path=request.path,
-                headers=extra_headers,
-                content=request_body,
-            )
-        except:
-            pass
-        # TODO: Map error types
-        # except httpx.TimeoutException as exc:
-        #     raise TimeoutError from exc
-        # except ssl.SSLEOFError as exc:
-        #     raise CCFConnectionException from exc
-        # except Exception as exc:
-        #     raise RuntimeError(
-        #         f"RawSocketClient failed with unexpected error: {exc}"
-        #     ) from exc
+        self.socket.settimeout(timeout)
+        RawSocketClient._send_request(
+            ssl_socket=self.socket,
+            verb=request.http_verb,
+            path=request.path,
+            headers=extra_headers,
+            content=request_body,
+        )
 
         response = Response.from_socket(self.socket)
         while response.status_code == 308 and request.allow_redirects:
