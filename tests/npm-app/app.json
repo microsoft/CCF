@@ -214,6 +214,54 @@
         }
       }
     },
+    "/generateEddsaKeyPair": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "generateEddsaKeyPair",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "curve": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["curve"],
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Generated key pair",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "privateKey": {
+                        "type": "string"
+                      },
+                      "publicKey": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["privateKey", "publicKey"],
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/wrapKey": {
       "post": {
         "js_module": "endpoints/crypto.js",
