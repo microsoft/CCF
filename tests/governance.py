@@ -734,6 +734,56 @@ def test_cose_proposal(network, args):
         assert r.body.json()["state"] == "Accepted"
 
 
+@reqs.description("Test COSE withdraw")
+def test_cose_withdrawal(network, args):
+    primary, _ = network.find_primary()
+    identity = network.identity("member0")
+
+    new_user_local_id = "alice"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    template_loader = jinja2.ChoiceLoader(
+        [
+            jinja2.FileSystemLoader(args.jinja_templates_path),
+            jinja2.FileSystemLoader(os.path.dirname(new_user.cert_path)),
+        ]
+    )
+    template_env = jinja2.Environment(
+        loader=template_loader, undefined=jinja2.StrictUndefined
+    )
+    proposal_template = template_env.get_template("set_user_proposal.json.jinja")
+    proposal_body = proposal_template.render(cert=os.path.basename(new_user.cert_path))
+
+    signed_statement = signing.create_cose_sign1(
+        proposal_body.encode(),
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "proposal"},
+    )
+    with primary.client() as c:
+        r = c.post(
+            "/gov/proposals",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+    proposal_id = r.body.json()["proposal_id"]
+
+    signed_withdrawal = signing.create_cose_sign1(
+        b"",
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "withdrawal", "ccf.gov.msg.proposal_id": proposal_id},
+    )
+
+    with primary.client() as c:
+        r = c.post(
+            f"/gov/proposals/{proposal_id}/withdraw",
+            body=signed_withdrawal,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+
+
 def gov(args):
     for node in args.nodes:
         node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
@@ -762,6 +812,7 @@ def gov(args):
         test_cose_auth(network, args)
         test_cose_ack(network, args)
         test_cose_proposal(network, args)
+        test_cose_withdrawal(network, args)
 
 
 def js_gov(args):
