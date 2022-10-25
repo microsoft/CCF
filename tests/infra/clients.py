@@ -337,7 +337,7 @@ class CurlClient:
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
-        self.common_headers = common_headers
+        self.common_headers = common_headers or {}
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
@@ -399,6 +399,9 @@ class CurlClient:
             for k, v in extra_headers.items():
                 cmd.extend(["-H", f"{k}: {v}"])
 
+            for k, v in self.common_headers.items():
+                cmd.extend(["-H", f"{k}: {v}"])
+
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
             if self.session_auth:
@@ -433,10 +436,18 @@ class CurlClient:
     def close(self):
         pass
 
+    @staticmethod
+    def extra_headers_count():
+        # curl inserts the following headers in every request
+        #  host: <address>
+        #  user-agent: curl/<version>
+        #  accept: */*
+        return 3
+
 
 class HttpxClient:
     """
-    CCF default client and wrapper around httpx, handling HTTP signatures.
+    CCF default client and wrapper around Python httpx, handling HTTP signatures.
     """
 
     _auth_provider = HttpSig
@@ -548,6 +559,16 @@ class HttpxClient:
 
     def close(self):
         self.session.close()
+
+    @staticmethod
+    def extra_headers_count():
+        # httpx inserts the following headers in every request
+        #  host: <address>
+        #  accept: */*
+        #  accept-encoding: gzip, deflate, br
+        #  connection: keep-alive
+        #  user-agent: python-httpx/<version>
+        return 5
 
 
 class RawSocketClient:
