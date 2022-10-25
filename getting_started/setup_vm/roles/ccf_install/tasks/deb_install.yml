@@ -5,18 +5,15 @@
   shell:
     cmd: |
       if [ "{{ ccf_ver }}" = "latest" ]; then
-        curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | egrep -v unsafe | cut -d\" -f4
-        # TODO: Revert curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | egrep {{ platform }} | egrep -v unsafe | cut -d\" -f4
+        curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | egrep {{ platform }} | egrep -v unsafe | cut -d\" -f4
       else
-        echo "https://github.com/microsoft/CCF/releases/download/ccf-{{ ccf_ver }}/ccf_{{ ccf_ver | replace('-', '_') }}_amd64.deb"
-        # TODO Revert echo "https://github.com/microsoft/CCF/releases/download/ccf-{{ ccf_ver }}/ccf_{{ ccf_ver | replace('-', '_') }}-{{ platform }}_amd64.deb"
+        echo "https://github.com/microsoft/CCF/releases/download/ccf-{{ ccf_ver }}/ccf_{{ ccf_ver | replace('-', '_') }}-{{ platform }}_amd64.deb"
       fi
   register: ccf_deb_url
 
 - name: Install CCF
   apt:
     deb: "{{ ccf_deb_url.stdout }}"
-    install_recommends: no
   become: true
 
 - name: Copy cchost
