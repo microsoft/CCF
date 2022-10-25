@@ -126,6 +126,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   add_dependencies(ccf ccf.enclave)
 
+# Same as virtual for the time being but will diverge soon
 elseif(COMPILE_TARGET STREQUAL "snp")
 
   # virtual version
