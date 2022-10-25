@@ -347,6 +347,13 @@ export interface CCFCrypto {
   generateEcdsaKeyPair(curve: string): CryptoKeyPair;
 
   /**
+   * Generate an EdDSA key pair.
+   *
+   * @param curve The name of the curve. Currently only "curve25519" is supported.
+   */
+  generateEddsaKeyPair(curve: string): CryptoKeyPair;
+
+  /**
    * Wraps a key using a wrapping key.
    *
    * Constraints on the `key` and `wrappingKey` parameters depend
