@@ -535,7 +535,7 @@ class Consortium:
             "set_js_runtime_options",
             max_heap_bytes=max_heap_bytes,
             max_stack_bytes=max_stack_bytes,
-            max_execution_time=max_execution_time,
+            max_execution_time_ms=max_execution_time,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

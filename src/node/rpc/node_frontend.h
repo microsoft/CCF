@@ -1401,7 +1401,8 @@ namespace ccf
         {
           m.max_stack_size = js_engine_options.value().max_stack_bytes;
           m.max_heap_size = js_engine_options.value().max_heap_bytes;
-          m.max_execution_time = js_engine_options.value().max_execution_time;
+          m.max_execution_time =
+            js_engine_options.value().max_execution_time_ms;
         }
 
         return m;
