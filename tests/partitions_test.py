@@ -519,23 +519,39 @@ def test_session_consistency(network, args):
     backup = backups[0]
 
     with contextlib.ExitStack() as stack:
-        client_primary_0 = stack.enter_context(
-            primary.client("user0", description="primary 0")
+        client_primary_A = stack.enter_context(
+            primary.client(
+                "user0",
+                description_suffix="A",
+                impl_type=infra.clients.RawSocketClient,
+            )
         )
-        client_primary_1 = stack.enter_context(
-            primary.client("user0", description="primary 1")
+        client_primary_B = stack.enter_context(
+            primary.client(
+                "user0",
+                description_suffix="B",
+                impl_type=infra.clients.RawSocketClient,
+            )
         )
-        client_backup_0 = stack.enter_context(
-            backup.client("user0", description="backup 0")
+        client_backup_C = stack.enter_context(
+            backup.client(
+                "user0",
+                description_suffix="C",
+                impl_type=infra.clients.RawSocketClient,
+            )
         )
-        client_backup_1 = stack.enter_context(
-            backup.client("user0", description="backup 1")
+        client_backup_D = stack.enter_context(
+            backup.client(
+                "user0",
+                description_suffix="D",
+                impl_type=infra.clients.RawSocketClient,
+            )
         )
 
         # Create some new state
         msg_id = 42
         msg_a = "First write, to primary"
-        r = client_primary_0.post(
+        r = client_primary_A.post(
             "/app/log/private",
             {
                 "id": msg_id,
@@ -545,23 +561,24 @@ def test_session_consistency(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
 
         # Read this state on a second session
-        r = client_primary_1.get(f"/app/log/private?id={msg_id}")
+        r = client_primary_B.get(f"/app/log/private?id={msg_id}")
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == msg_a, r
 
         # Wait for that to be committed on all backups
         network.wait_for_all_nodes_to_commit(primary)
 
-        # Write on backup, resulting in a forwarded request
-        # Confirm that this session can read that write, since it remains forwarded
-        # Meanwhile another session to the same node may not see it
+        # Write on backup, resulting in a forwarded request.
+        # Confirm that this session can read that write, since it remains forwarded.
+        # Meanwhile a separate session to the same backup node may not see it.
         # NB: The latter property is not possible to test systematically, as it
         # relies on a race - does the read on the second session happen before consensus
-        # update's the backup's state. So we try in a loop
+        # update's the backup's state. Solution is to try in a loop, with a high probability
+        # that we observe the desired ordering after just a few iterations.
         n_attempts = 20
         for i in range(n_attempts):
             last_message = f"Second write, via backup ({i})"
-            r = client_backup_0.post(
+            r = client_backup_C.post(
                 "/app/log/private",
                 {
                     "id": msg_id,
@@ -570,7 +587,7 @@ def test_session_consistency(network, args):
             )
             assert r.status_code == http.HTTPStatus.OK, r
 
-            r = client_backup_1.get(f"/app/log/private?id={msg_id}")
+            r = client_backup_D.get(f"/app/log/private?id={msg_id}")
             assert r.status_code == http.HTTPStatus.OK, r
             if r.body.json()["msg"] != last_message:
                 LOG.info(
@@ -582,25 +599,31 @@ def test_session_consistency(network, args):
                 f"Failed to observe evidence of session forwarding after {n_attempts} attempts"
             )
 
-        @reqs.description("check_session_consistency")
-        def check_session_consistency(sessions, should_error=False):
+        def check_sessions_alive(sessions):
             for client in sessions:
                 try:
                     r = client.get(f"/app/log/private?id={msg_id}")
                     assert r.status_code == http.HTTPStatus.OK, r
-                    assert (
-                        not should_error
-                    ), f"Session {client.description} survived unexpectedly"
                 except ConnectionResetError as e:
-                    assert (
-                        should_error
-                    ), f"Session {client.description} was killed unexpectedly: {e}"
+                    raise AssertionError(
+                        f"Session {client.description} was killed unexpectedly: {e}"
+                    ) from e
+
+        def check_sessions_dead(sessions):
+            for client in sessions:
+                try:
+                    client.get(f"/app/log/private?id={msg_id}")
+                    raise AssertionError(
+                        f"Session {client.description} survived unexpectedly"
+                    )
+                except ConnectionResetError as e:
+                    pass
 
         # Partition primary and forwarding backup from other backups
         with network.partitioner.partition([primary, backup]):
             # Write on partitioned primary
-            msg0 = "AA"
-            r0 = client_primary_0.post(
+            msg0 = "Hello world"
+            r0 = client_primary_A.post(
                 "/app/log/private",
                 {
                     "id": msg_id,
@@ -610,51 +633,34 @@ def test_session_consistency(network, args):
             assert r0.status_code == http.HTTPStatus.OK
 
             # Read from partitioned backup, over forwarded session to primary
-            r1 = client_backup_0.get(f"/app/log/private?id={msg_id}")
+            r1 = client_backup_C.get(f"/app/log/private?id={msg_id}")
             assert r1.status_code == http.HTTPStatus.OK
+            assert r1.body.json()["msg"] == msg0, r1
 
-            # At this point despite partition these nodes believe this new transaction
-            # is still valid, and will still report it, so there is no consistency error
-            check_session_consistency(
-                # NB: Only use these sessions, or we 'pollute' the other sessions
-                # with recent TxIDs
-                (client_primary_0, client_backup_0),
-                False,
+            # Despite partition, these sessions remain live
+            check_sessions_alive((client_primary_A, client_backup_C))
+
+            # Once CheckQuorum takes effect and the primary stands down, all sessions
+            # on the primary are terminated
+            primary.wait_for_leadership_state(
+                r0.view, "Follower", timeout=4 * args.election_timeout_ms / 1000
             )
-
-            # Even once CheckQuorum takes effect and the primary stands down, they
-            # know nothing contradictory so session consistency is maintained
-            try:
-                primary.wait_for_leadership_state(
-                    r0.view, "Follower", timeout=2 * args.election_timeout_ms / 1000
+            check_sessions_dead(
+                (
+                    # This session wrote state which is now at risk of being lost
+                    client_primary_A,
+                    # This session only read old state which is still valid
+                    client_primary_B,
                 )
-            except TimeoutError:
-                # TODO: Shouldn't be happening
-                LOG.error("Timed out, ignoring")
-            check_session_consistency(
-                (client_primary_0, client_backup_0),
-                True,
             )
 
-            # Ensure the majority partition have elected their own new primary
-            try:
-                _, new_view = network.wait_for_new_primary(primary, nodes=backups[1:])
-            except TimeoutError:
-                # TODO: Shouldn't be happening
-                LOG.error("Timed out, ignoring")
+            # Once the backup advances term (from the standing-down primary, or by
+            # calling its own election), it terminates all its own sessions
+            # TODO
 
-        # TODO: Describe what we're seeing and expecting here
-        network.wait_for_primary_unanimity(min_view=new_view - 1)
 
-        check_session_consistency(
-            (
-                client_primary_0,
-                client_primary_1,
-                client_backup_0,
-                client_backup_1,
-            ),
-            True,
-        )
+    # Wait for network stability after healing partition
+    network.wait_for_primary_unanimity(min_view=r0.view)
 
     # Restore original network size
     network.resize(original_size, args)
