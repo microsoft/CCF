@@ -21,12 +21,3 @@ However, for the :term:`TEE` security guarantees to be trusted by clients and op
 While Azure caches these endorsements transparently, on-prem CCF deployments require the development of a specific infrastructure to store and serve the endorsements.
 The procedure to follow is described `here <https://github.com/openenclave/openenclave/tree/master/docs/GettingStartedDocs/Contributors/NonAccMachineSGXLinuxGettingStarted.md>`_. 
 Note that this alternative process is not tested with CCF and is provided via the :term:`Open Enclave` SDK.
-
-
-
-
-
-
-
-
-
