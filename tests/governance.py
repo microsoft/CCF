@@ -627,6 +627,7 @@ def test_cose_auth(network, args):
             headers={"content-type": "application/cose"},
         )
         assert r.status_code == 401
+    return network
 
 
 @reqs.description("Test COSE ack")
@@ -660,6 +661,7 @@ def test_cose_ack(network, args):
             headers={"content-type": "application/cose"},
         )
         assert r.status_code == 204
+    return network
 
 
 @reqs.description("Test COSE proposal")
@@ -732,6 +734,7 @@ def test_cose_proposal(network, args):
         )
         assert r.status_code == 200
         assert r.body.json()["state"] == "Accepted"
+    return network
 
 
 @reqs.description("Test COSE withdraw")
@@ -782,6 +785,7 @@ def test_cose_withdrawal(network, args):
             headers={"content-type": "application/cose"},
         )
         assert r.status_code == 200
+    return network
 
 
 def gov(args):

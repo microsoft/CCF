@@ -605,6 +605,7 @@ if(BUILD_TESTS)
       200
       --test-suite
       all
+      --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
   )
 
   add_e2e_test(

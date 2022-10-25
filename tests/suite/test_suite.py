@@ -123,6 +123,8 @@ all_tests_suite = [
     # governance
     governance.test_each_node_cert_renewal,
     governance.test_service_cert_renewal,
+    governance.test_cose_ack,
+    governance.test_cose_withdrawal,
     # e2e_operations:
     e2e_operations.test_forced_ledger_chunk,
     e2e_operations.test_forced_snapshot,
