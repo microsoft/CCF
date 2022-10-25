@@ -574,6 +574,22 @@ def test_npm_app(network, args):
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
             assert r.body.json() == True, r.body
+        
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        algorithm = {"name": "EdDSA"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
 
         r = c.post(
             "/app/digest",

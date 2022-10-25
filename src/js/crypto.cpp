@@ -503,6 +503,18 @@ namespace ccf::js
     }
   }
 
+  static bool verify_eddsa_signature(
+    uint8_t* contents,
+    size_t contents_size,
+    uint8_t* signature,
+    size_t signature_size,
+    const std::string& pub_key)
+  {
+    auto public_key = crypto::make_eddsa_public_key(pub_key);
+    return public_key->verify(
+      contents, contents_size, signature, signature_size);
+  }
+
   static JSValue js_verify_signature(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
@@ -534,24 +546,44 @@ namespace ccf::js
     }
 
     auto algorithm = argv[0];
+
     JSValue algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
     JSValue algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
 
     auto algo_name_str = jsctx.to_str(algo_name_val);
+
+    auto key_str = jsctx.to_str(argv[1]);
+    if (!key_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
     if (!algo_name_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
-    auto algo_hash_str = jsctx.to_str(algo_hash_val);
-    if (!algo_hash_str)
+
+    if (*algo_name_str == "EdDSA")
     {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      try
+      {
+        return JS_NewBool(
+          ctx,
+          verify_eddsa_signature(
+            data, data_size, signature, signature_size, *key_str));
+      }
+      catch (const std::exception& ex)
+      {
+        auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+        js::js_dump_error(ctx);
+        return e;
+      }
     }
 
-    auto key_str = jsctx.to_str(argv[1]);
-    if (!key_str)
+    auto algo_hash_str = jsctx.to_str(algo_hash_val);
+    if (!algo_hash_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
