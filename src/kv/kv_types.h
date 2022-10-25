@@ -486,7 +486,6 @@ namespace kv
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
     virtual ccf::View get_view() = 0;
     virtual std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo) = 0;
-    virtual void initialise_view_history(const std::vector<ccf::SeqNo>&) = 0;
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
     virtual bool view_change_in_progress() = 0;
@@ -500,16 +499,6 @@ namespace kv
     virtual void enable_all_domains() {}
 
     virtual ConsensusType type() = 0;
-
-    struct RollbackWatcher
-    {
-      virtual ~RollbackWatcher() = default;
-
-      virtual void on_rollback() = 0;
-    };
-    virtual void add_rollback_watcher(
-      const std::weak_ptr<RollbackWatcher>& watcher)
-    {}
   };
 
   struct PendingTxInfo

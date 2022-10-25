@@ -169,8 +169,6 @@ namespace aft
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
 
-    std::vector<std::weak_ptr<RollbackWatcher>> watchers;
-
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -339,12 +337,6 @@ namespace aft
       return consensus_type;
     }
 
-    void add_rollback_watcher(
-      const std::weak_ptr<RollbackWatcher>& watcher) override
-    {
-      watchers.push_back(watcher);
-    }
-
     void force_become_primary() override
     {
       // This is unsafe and should only be called when the node is certain
@@ -454,13 +446,6 @@ namespace aft
     {
       // This should only be called when the spin lock is held.
       return state->view_history.get_history_until(idx);
-    }
-
-    void initialise_view_history(
-      const std::vector<Index>& view_history) override
-    {
-      // This should only be called when the spin lock is held.
-      return state->view_history.initialise(view_history);
     }
 
   private:
@@ -2554,22 +2539,6 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
-      }
-
-      // Notify all watchers
-      auto it = watchers.begin();
-      while (it != watchers.end())
-      {
-        auto p = it->lock();
-        if (p != nullptr)
-        {
-          p->on_rollback();
-          ++it;
-        }
-        else
-        {
-          it = watchers.erase(it);
-        }
       }
     }
 

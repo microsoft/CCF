@@ -38,8 +38,7 @@ namespace ccf
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
                       public http::ErrorReporter,
-                      public http::ResponderLookup,
-                      public kv::Consensus::RollbackWatcher
+                      public http::ResponderLookup
   {
   private:
     struct ListenInterface
@@ -488,12 +487,6 @@ namespace ccf
 
       session->send_data(data);
       return true;
-    }
-
-    void on_rollback() override
-    {
-      LOG_FAIL_FMT("Rollback - closing all open sessions");
-      sessions.clear();
     }
 
     void remove_session(tls::ConnID id)

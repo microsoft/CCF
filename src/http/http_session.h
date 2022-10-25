@@ -203,6 +203,7 @@ namespace http
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format("Error constructing RpcContext: {}", e.what())});
+          tls_io->close();
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -238,6 +239,11 @@ namespace http
             rpc_ctx->get_response_headers(),
             rpc_ctx->get_response_trailers(),
             std::move(rpc_ctx->get_response_body()));
+
+          if (rpc_ctx->terminate_session)
+          {
+            tls_io->close();
+          }
         }
       }
       catch (const std::exception& e)
