@@ -110,6 +110,11 @@ namespace ccf::pal
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
+      if (is_sev_snp)
+      {
+        throw std::logic_error(
+          "Cannot verify virtual quote if node is SEV-SNP");
+      }
       unique_id = {};
       report_data = {};
     }
