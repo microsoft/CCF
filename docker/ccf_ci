@@ -1,8 +1,7 @@
 # CCF Continuous Integration image
 # Contains CCF build dependencies and toolchain for target platform
 
-ARG platform
-ARG ansible_vars
+ARG platform=sgx
 
 # SGX
 FROM ubuntu:20.04 AS base-sgx
@@ -19,6 +18,9 @@ FROM ubuntu:20.04 AS base-virtual
 
 # Final CCF CI image
 FROM base-${platform} AS final
+
+ARG platform=sgx
+ARG ansible_vars
 
 RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 
