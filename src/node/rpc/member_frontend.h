@@ -467,7 +467,7 @@ namespace ccf
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_FORBIDDEN,
           ccf::errors::AuthorizationFailed,
-          "Member is not active.");
+          fmt::format("Member {} is not active.", member_id.value()));
         return false;
       }
 
@@ -512,7 +512,9 @@ namespace ccf
           }
         }
 
-        auto params = nlohmann::json::parse(cose_auth_id.has_value() ? cose_auth_id->content : ctx.rpc_ctx->get_request_body());
+        auto params = nlohmann::json::parse(
+          cose_auth_id.has_value() ? cose_auth_id->content :
+                                     ctx.rpc_ctx->get_request_body());
 
         auto mas = ctx.tx.rw(this->network.member_acks);
         const auto ma = mas->get(member_id.value());
@@ -751,8 +753,6 @@ namespace ccf
 
       auto submit_recovery_share = [this](
                                      ccf::endpoints::EndpointContext& ctx) {
-        auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
-
         // Only active members can submit their shares for recovery
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
@@ -772,9 +772,8 @@ namespace ccf
           return;
         }
 
-        if (
-          const auto* cose_auth_id =
-            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
+        const auto* cose_auth_id = ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+        if (cose_auth_id)
         {
           if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
                 cose_auth_id->protected_header.gov_msg_type.value() ==
@@ -787,6 +786,10 @@ namespace ccf
             return;
           }
         }
+
+        auto params = nlohmann::json::parse(
+          cose_auth_id ? cose_auth_id->content :
+                         ctx.rpc_ctx->get_request_body());
 
         GenesisGenerator g(this->network, ctx.tx);
         if (
@@ -1476,7 +1479,9 @@ namespace ccf
         }
         // Validate vote
 
-        auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+        auto params = nlohmann::json::parse(
+          cose_auth_id.has_value() ? cose_auth_id->content :
+                                     ctx.rpc_ctx->get_request_body());
 
         {
           js::Runtime rt(&ctx.tx);

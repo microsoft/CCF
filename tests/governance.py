@@ -628,6 +628,7 @@ def test_cose_auth(network, args):
         )
         assert r.status_code == 401
 
+
 @reqs.description("Test COSE ack")
 def test_cose_ack(network, args):
     primary, _ = network.find_primary()
@@ -645,7 +646,7 @@ def test_cose_ack(network, args):
             headers={"content-type": "application/cose"},
         )
         assert r.status_code == 200
-    
+
     signed_state_digest = signing.create_cose_sign1(
         r.body.data(),
         open(identity.key, encoding="utf-8").read(),
@@ -659,6 +660,7 @@ def test_cose_ack(network, args):
             headers={"content-type": "application/cose"},
         )
         assert r.status_code == 204
+
 
 def gov(args):
     for node in args.nodes:
