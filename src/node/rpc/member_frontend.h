@@ -512,7 +512,7 @@ namespace ccf
           }
         }
 
-        auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+        auto params = nlohmann::json::parse(cose_auth_id.has_value() ? cose_auth_id->content : ctx.rpc_ctx->get_request_body());
 
         auto mas = ctx.tx.rw(this->network.member_acks);
         const auto ma = mas->get(member_id.value());
