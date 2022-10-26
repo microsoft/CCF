@@ -809,167 +809,105 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   }
 }
 
-// DOCTEST_TEST_CASE("Exceed append entries limit")
-// {
-//   logger::config::level() = logger::INFO;
+DOCTEST_TEST_CASE("Append entries batching")
+{
+  logger::config::level() = logger::INFO;
 
-//   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
-//   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
-//   ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
 
-//   auto kv_store0 = std::make_shared<Store>(node_id0);
-//   auto kv_store1 = std::make_shared<Store>(node_id1);
-//   auto kv_store2 = std::make_shared<Store>(node_id2);
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store2 = std::make_shared<Store>(node_id2);
 
-//   TRaft r0(
-//     raft_settings,
-//     std::make_unique<Adaptor>(kv_store0),
-//     std::make_unique<aft::LedgerStubProxy>(node_id0),
-//     std::make_shared<aft::ChannelStubProxy>(),
-//     std::make_shared<aft::State>(node_id0),
-//     nullptr,
-//     nullptr);
-//   TRaft r1(
-//     raft_settings,
-//     std::make_unique<Adaptor>(kv_store1),
-//     std::make_unique<aft::LedgerStubProxy>(node_id1),
-//     std::make_shared<aft::ChannelStubProxy>(),
-//     std::make_shared<aft::State>(node_id1),
-//     nullptr,
-//     nullptr);
-//   TRaft r2(
-//     raft_settings,
-//     std::make_unique<Adaptor>(kv_store2),
-//     std::make_unique<aft::LedgerStubProxy>(node_id2),
-//     std::make_shared<aft::ChannelStubProxy>(),
-//     std::make_shared<aft::State>(node_id2),
-//     nullptr,
-//     nullptr);
+  TRaft r0(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store0),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr);
+  TRaft r1(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store1),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr);
 
-//   aft::Configuration::Nodes config0;
-//   config0[node_id0] = {};
-//   config0[node_id1] = {};
-//   r0.add_configuration(0, config0);
-//   r1.add_configuration(0, config0);
+  aft::Configuration::Nodes config0;
+  config0[node_id0] = {};
+  config0[node_id1] = {};
+  r0.add_configuration(0, config0);
+  r1.add_configuration(0, config0);
 
-//   std::map<ccf::NodeId, TRaft*> nodes;
-//   nodes[node_id0] = &r0;
-//   nodes[node_id1] = &r1;
+  std::map<ccf::NodeId, TRaft*> nodes;
+  nodes[node_id0] = &r0;
+  nodes[node_id1] = &r1;
 
-//   auto r0c = channel_stub_proxy(r0);
-//   auto r1c = channel_stub_proxy(r1);
+  auto r0c = channel_stub_proxy(r0);
+  auto r1c = channel_stub_proxy(r1);
 
-//   r0.start_ticking();
-//   r0.periodic(election_timeout * 2);
+  r0.start_ticking();
+  r0.periodic(election_timeout * 2);
 
-//   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
-//   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
-//   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
 
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
-//       nodes, node_id1, r1c->messages, [](const auto& msg) {
-//         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-//         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
-//       }));
+  DOCTEST_REQUIRE(
+    1 ==
+    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+      nodes, node_id1, r1c->messages, [](const auto& msg) {
+        DOCTEST_REQUIRE(msg.last_log_idx == 0);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
+      }));
 
-//   DOCTEST_REQUIRE(r0c->messages.size() == 0);
-//   DOCTEST_REQUIRE(r1c->messages.size() == 0);
+  DOCTEST_REQUIRE(r0c->messages.size() == 0);
+  DOCTEST_REQUIRE(r1c->messages.size() == 0);
 
-//   // large entries of size (append_entries_size_limit / 2), so 2nd and 4th
-//   entry
-//   // will exceed append entries limit size which means that 2nd and 4th
-//   entries
-//   // will trigger send_append_entries()
-//   auto data = std::make_shared<std::vector<uint8_t>>(
-//     (r0.append_entries_size_limit / 2), 1);
-//   // I want to get ~500 messages sent over 1mill entries
-//   auto individual_entries = 1'000'000;
-//   auto num_small_entries_sent = 500;
-//   auto num_big_entries = 4;
+  auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
-//   // send_append_entries() triggered or not
-//   bool msg_response = false;
+  // Replicating many uncommittable entries (even large ones!) does not
+  // immediately produce an AE
+  auto data = std::make_shared<std::vector<uint8_t>>(20'000, 1);
+  auto ledger_entries = 1'000;
+  for (size_t i = 1; i <= ledger_entries; ++i)
+  {
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, false, hooks}}, 1));
+    DOCTEST_REQUIRE(r0c->messages.size() == 0);
+  }
 
-//   for (size_t i = 1; i <= num_big_entries; ++i)
-//   {
-//     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-//     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}},
-//     1)); DOCTEST_REQUIRE(
-//       msg_response ==
-//       dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
-//         nodes, node_id0, r0c->messages, [&i](const auto& msg) {
-//           DOCTEST_REQUIRE(msg.idx == i);
-//           DOCTEST_REQUIRE(msg.term == 1);
-//           DOCTEST_REQUIRE(msg.prev_idx == ((i <= 2) ? 0 : 2));
-//         }));
-//     msg_response = !msg_response;
-//   }
+  // Replicating a single committable entry flushes all previous entries,
+  // producing an AE
+  DOCTEST_REQUIRE(r0.replicate(
+    kv::BatchVector{{r0.ledger->ledger.size() + 1, data, true, hooks}}, 1));
+  ++ledger_entries;
+  DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
-//   int data_size = (num_small_entries_sent * r0.append_entries_size_limit) /
-//     (individual_entries - num_big_entries);
-//   auto smaller_data = std::make_shared<std::vector<uint8_t>>(data_size, 1);
+  // Each periodic produces additional AE messages
+  r0.periodic(request_timeout);
+  DOCTEST_REQUIRE(r0c->messages.size() == 2);
 
-//   for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
-//   {
-//     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-//     DOCTEST_REQUIRE(
-//       r0.replicate(kv::BatchVector{{i, smaller_data, true, hooks}}, 1));
-//     dispatch_all(nodes, node_id0, r0c->messages);
-//   }
+  // Those periodics might include new non-committable entries
+  DOCTEST_REQUIRE(r0.replicate(
+    kv::BatchVector{{r0.ledger->ledger.size() + 1, data, false, hooks}}, 1));
+  ++ledger_entries;
+  r0.periodic(request_timeout);
+  DOCTEST_REQUIRE(r0c->messages.size() == 3);
 
-//   // Tick to allow any remaining entries to be sent
-//   r0.periodic(request_timeout);
-//   dispatch_all(nodes, node_id0, r0c->messages);
+  // Eventually, those messages are actually sent + received
+  dispatch_all(nodes, node_id0, r0c->messages);
 
-//   {
-//     DOCTEST_INFO("Nodes 0 and 1 have the same complete ledger");
-//     DOCTEST_REQUIRE(r0.ledger->ledger.size() == individual_entries);
-//     DOCTEST_REQUIRE(r1.ledger->ledger.size() == individual_entries);
-//   }
-
-//   DOCTEST_INFO("Node 2 joins the ensemble");
-
-//   aft::Configuration::Nodes config1;
-//   config1[node_id0] = {};
-//   config1[node_id1] = {};
-//   config1[node_id2] = {};
-//   r0.add_configuration(0, config1);
-//   r1.add_configuration(0, config1);
-//   r2.add_configuration(0, config1);
-
-//   nodes[node_id2] = &r2;
-
-//   auto r2c = channel_stub_proxy(r2);
-
-//   DOCTEST_INFO("Node 0 sends Node 2 what it's missed by joining late");
-//   DOCTEST_REQUIRE(r2c->messages.size() == 0);
-
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
-//       nodes, node_id0, r0c->messages, [&individual_entries](const auto& msg)
-//       {
-//         DOCTEST_REQUIRE(msg.idx == individual_entries);
-//         DOCTEST_REQUIRE(msg.term == 1);
-//         DOCTEST_REQUIRE(msg.prev_idx == individual_entries);
-//       }));
-
-//   DOCTEST_REQUIRE(r2.ledger->ledger.size() == 0);
-
-//   DOCTEST_INFO("Node 2 asks for Node 0 to send all the data up to now");
-//   DOCTEST_REQUIRE(r2c->messages.size() == 1);
-//   auto aer = r2c->messages.front().second;
-//   r2c->messages.pop_front();
-//   receive_message(r2, r0, aer);
-//   r0.periodic(request_timeout);
-
-//   DOCTEST_REQUIRE(r0c->messages.size() > num_small_entries_sent);
-//   auto sent_entries = dispatch_all(nodes, node_id0, r0c->messages);
-//   DOCTEST_REQUIRE(sent_entries > num_small_entries_sent);
-//   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
-// }
+  {
+    DOCTEST_INFO("Nodes 0 and 1 have the same complete ledger");
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == ledger_entries);
+    DOCTEST_REQUIRE(r0.ledger->ledger == r1.ledger->ledger);
+  }
+}
 
 DOCTEST_TEST_CASE(
   "Nodes only run for election when they should" *
