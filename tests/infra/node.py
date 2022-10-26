@@ -21,7 +21,6 @@ import copy
 import json
 import time
 import http
-import infra.is_snp
 
 # pylint: disable=protected-access
 import ccf._versionifier
