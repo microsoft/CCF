@@ -106,7 +106,7 @@ jobs:
 
       - template: common.yml
         parameters:
-          target: SNP
+          target: SNPCC
           env: ${{ parameters.env.SNPCC }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }}"
           suffix: "Release"
