@@ -12,7 +12,8 @@ MCInTermLimit(i) ==
     currentTerm[i] < 3
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit_mc == 2
+MCInRequestLimit ==
+    clientRequests <= 2
 
 \* Limit on number of request votes that can be sent to each other node
 MCInRequestVoteLimit(i,j) ==

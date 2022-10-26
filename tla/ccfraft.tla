@@ -57,10 +57,6 @@ CONSTANTS
     TypeSignature,
     TypeReconfiguration
 
-\* Limit on client requests
-CONSTANTS RequestLimit
-ASSUME RequestLimit \in Nat
-
 CONSTANTS
     NodeOne,
     NodeTwo,
@@ -211,6 +207,10 @@ InCommitNotificationLimit(i) ==
 \* not an issue since breadth-first search will make sure that a similar
 \* situation is simulated at term==1 which results in a term increase to 2.
 InMaxSimultaneousCandidates(i) ==
+    TRUE
+
+\* Limit on client requests
+InRequestLimit ==
     TRUE
 
 \* Helpers
@@ -456,7 +456,7 @@ BecomeLeader(i) ==
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
     \* Limit number of client requests
-    /\ clientRequests <= RequestLimit
+    /\ InRequestLimit
     \* Only leaders receive client requests
     /\ state[i] = Leader
     /\ LET entry == [term  |-> currentTerm[i],
@@ -986,17 +986,13 @@ SignatureInv ==
         \/ commitIndex[i] = 0
         \/ log[i][commitIndex[i]].contentType = TypeSignature
 
-\* Since a signature transaction cannot follow another signature transaction,
-\* the following is the maximum log length
-MaxLogLength == (RequestLimit + reconfigurationCount) * 2
-
 \* Helper function for checking the type safety of log entries
 LogTypeOK(xlog) ==
     IF Len(xlog) > 0 THEN
         \A k \in 1..Len(xlog) :
             /\ xlog[k].term \in Nat \ {0}
             /\ \/ /\ xlog[k].contentType = TypeEntry
-                  /\ xlog[k].value \in 1..RequestLimit+1
+                  /\ xlog[k].value \in Nat \ {0}
                \/ /\ xlog[k].contentType = TypeSignature
                   /\ xlog[k].value = Nil
                \/ /\ xlog[k].contentType = TypeReconfiguration
@@ -1008,7 +1004,7 @@ ReconfigurationVarsTypeInv ==
     /\ \A i \in Servers :
         /\ currentConfiguration[i] /= <<>>
         /\ \A k \in 1..Len(currentConfiguration[i]) :
-            /\ currentConfiguration[i][k][1] \in 0..MaxLogLength
+            /\ currentConfiguration[i][k][1] \in Nat
             /\ currentConfiguration[i][k][2] \subseteq Servers
 
 MessageVarsTypeInv ==
@@ -1017,28 +1013,28 @@ MessageVarsTypeInv ==
         /\ m.mdest \in Servers
         /\ m.mterm \in Nat \ {0}
         /\ \/ /\ m.mtype = AppendEntriesRequest
-                /\ m.mprevLogIndex \in 0..MaxLogLength
+                /\ m.mprevLogIndex \in Nat
                 /\ m.mprevLogTerm \in Nat
                 /\ LogTypeOK(m.mentries)
-                /\ m.mcommitIndex \in 0..MaxLogLength
+                /\ m.mcommitIndex \in Nat
             \/ /\ m.mtype = AppendEntriesResponse
                 /\ m.msuccess \in BOOLEAN
-                /\ m.mmatchIndex \in 0..MaxLogLength
+                /\ m.mmatchIndex \in Nat
             \/ /\ m.mtype = RequestVoteRequest
                 /\ m.mlastLogTerm \in Nat
-                /\ m.mlastLogIndex \in 0..MaxLogLength
+                /\ m.mlastLogIndex \in Nat
             \/ /\ m.mtype = RequestVoteResponse
                 /\ m.mvoteGranted \in BOOLEAN
             \/ /\ m.mtype = NotifyCommitMessage
-                /\ m.mcommitIndex \in 0..MaxLogLength
+                /\ m.mcommitIndex \in Nat
     /\ \A i,j \in Servers : i /= j =>
-        /\ Len(messagesSent[i][j]) \in 0..MaxLogLength
+        /\ Len(messagesSent[i][j]) \in Nat
         /\ IF Len(messagesSent[i][j]) > 0 THEN
             \A k \in 1..Len(messagesSent[i][j]) :
                 messagesSent[i][j][k] \in Nat \ {0}
             ELSE TRUE
     /\ \A i \in Servers :
-        /\ commitsNotified[i][1] \in 0..MaxLogLength
+        /\ commitsNotified[i][1] \in Nat
         /\ commitsNotified[i][2] \in Nat
 
 ServerVarsTypeInv ==
@@ -1056,15 +1052,15 @@ CandidateVarsTypeInv ==
 
 LeaderVarsTypeInv ==
     /\ \A i, j \in Servers : i /= j =>
-        /\ nextIndex[i][j] \in 1..MaxLogLength+1
-        /\ matchIndex[i][j] \in 0..MaxLogLength
+        /\ nextIndex[i][j] \in Nat \ {0}
+        /\ matchIndex[i][j] \in Nat
 
 LogVarsTypeInv ==
     /\ \A i \in Servers :
-        /\ Len(log[i]) \in 0..MaxLogLength
+        /\ Len(log[i]) \in Nat
         /\ LogTypeOK(log[i])
-        /\ commitIndex[i] \in 0..MaxLogLength
-    /\ clientRequests \in 1..RequestLimit+1
+        /\ commitIndex[i] \in Nat
+    /\ clientRequests \in Nat \ {0}
     /\ LogTypeOK(committedLog)
     /\ committedLogConflict \in BOOLEAN
 
@@ -1116,22 +1112,6 @@ DebugInvLeaderCannotStepDown ==
         /\ m.mtype = AppendEntriesRequest
         /\ currentTerm[m.msource] = m.mterm
         => state[m.msource] = Leader
-
-\* Returns true if server i has committed value v, false otherwise
-IsCommittedByServer(v,i) ==
-    IF commitIndex[i]  = 0
-    THEN FALSE
-    ELSE \E k \in 1..commitIndex[i] :
-        /\ log[i][k].contentType = TypeEntry
-        /\ log[i][k].value = v
-
-\* This invariant shows that at least one value is committed on at least one server
-DebugInvAnyCommitted ==
-    \lnot (\E v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
-
-\* This invariant shows that all values are committed on at least one server each
-DebugInvAllCommitted ==
-    \lnot (\A v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
 
 \* This invariant shows that it should be possible for Node 4 or 5 to become leader
 \* Note that symmetry for the set of servers should be disabled to check this debug invariant

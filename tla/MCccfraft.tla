@@ -12,7 +12,9 @@ MCInTermLimit(i) ==
     currentTerm[i] < 2
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit_mc == 1
+RequestLimit == 1
+MCInRequestLimit ==
+    clientRequests <= RequestLimit
 
 \* Limit on number of request votes that can be sent to each other node
 MCInRequestVoteLimit(i,j) ==
@@ -38,5 +40,23 @@ mc_spec == Spec
 \* Symmetry set over possible servers. May dangerous and is only enabled
 \* via the Symmetry option in cfg file.
 Symmetry == Permutations(Servers_mc)
+
+----
+
+\* Returns true if server i has committed value v, false otherwise
+IsCommittedByServer(v,i) ==
+    IF commitIndex[i]  = 0
+    THEN FALSE
+    ELSE \E k \in 1..commitIndex[i] :
+        /\ log[i][k].contentType = TypeEntry
+        /\ log[i][k].value = v
+
+\* This invariant shows that at least one value is committed on at least one server
+DebugInvAnyCommitted ==
+    \lnot (\E v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
+
+\* This invariant shows that all values are committed on at least one server each
+DebugInvAllCommitted ==
+    \lnot (\A v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
 
 ===================================
