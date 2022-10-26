@@ -53,12 +53,12 @@ jobs:
       - ${{ if eq(parameters.suffix, 'Release') }}:
           - template: install_deb.yml
 
-      - ? ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}
-        : - template: cg.yml
+      - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
+          - template: cg.yml
           - template: publish_tls_report.yml
           - template: publish_compatibility_report.yml
           - template: install_others.yml
           - template: publish_sbom.yml
 
-      - ? ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}
-        : - template: install_deb.yml
+      - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
+          - template: install_deb.yml
