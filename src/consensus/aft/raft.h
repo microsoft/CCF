@@ -157,7 +157,6 @@ namespace aft
 
     // TODO: The problem with removing the batching logic is:
     // - A) lots of tests expected it, and require tweaks for the new behaviour
-    // - B) you need to always send early, or always wait for periodics to batch
 
     // When this is set, only public domain is deserialised when receiving
     // append entries
@@ -804,10 +803,21 @@ namespace aft
           *data, globally_committable, state->current_view, index);
 
         state->view_history.update(index, state->current_view);
-        for (const auto& it : all_other_nodes)
+
+        // Normal entries wait until the next periodic to be shared, but
+        // committable entries are sent immediately
+        if (globally_committable)
         {
-          LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
-          send_append_entries(it.first, it.second.sent_idx + 1);
+          LOG_DEBUG_FMT(
+            "Sending AppendEntries to all followers for committable entry at "
+            "{}",
+            index);
+
+          for (const auto& it : all_other_nodes)
+          {
+            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
+            send_append_entries(it.first, it.second.sent_idx + 1);
+          }
         }
       }
 
