@@ -576,8 +576,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
 
+  DOCTEST_INFO("Initial election");
   {
-    DOCTEST_INFO("Initial election");
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
 
@@ -592,8 +592,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   std::vector<uint8_t> ae_idx_2;
   std::vector<uint8_t> ae_idx_3;
 
+  DOCTEST_INFO("Replicate two entries");
   {
-    DOCTEST_INFO("Replicate two entries");
     std::vector<uint8_t> first_entry = {1, 1, 1};
     auto data_1 = std::make_shared<std::vector<uint8_t>>(first_entry);
     std::vector<uint8_t> second_entry = {2, 2, 2};
@@ -622,14 +622,14 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
   }
 
+  DOCTEST_INFO("Receiving same append entries has no effect");
   {
-    DOCTEST_INFO("Receiving same append entries has no effect");
     DOCTEST_REQUIRE(3 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
   }
 
+  DOCTEST_INFO("Replicate one more entry but send AE all entries");
   {
-    DOCTEST_INFO("Replicate one more entry but send AE all entries");
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
@@ -656,8 +656,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(r1.ledger->skip_count == 2);
   }
 
+  DOCTEST_INFO("Receiving stale append entries has no effect");
   {
-    DOCTEST_INFO("Receiving stale append entries has no effect");
     receive_message(r0, r1, ae_idx_2);
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
     receive_message(r0, r1, ae_idx_1);
@@ -666,8 +666,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
   }
 
+  DOCTEST_INFO("Replicate one more entry (normal behaviour)");
   {
-    DOCTEST_INFO("Replicate one more entry (normal behaviour)");
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
@@ -677,9 +677,9 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 4);
   }
 
+  DOCTEST_INFO(
+    "Replicate one more entry without AE response from previous entry");
   {
-    DOCTEST_INFO(
-      "Replicate one more entry without AE response from previous entry");
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
@@ -705,8 +705,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(r1.ledger->skip_count == 3);
   }
 
+  DOCTEST_INFO("Receive a maliciously crafted cross-view AppendEntries");
   {
-    DOCTEST_INFO("Receive a maliciously crafted cross-view AppendEntries");
     {
       std::vector<uint8_t> entry_6 = {6, 6, 6};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_6);
