@@ -14,7 +14,8 @@ TermLimit_mc == 2
 RequestLimit_mc == 1
 
 \* Limit on number of request votes that can be sent to each other node
-RequestVoteLimit_mc == 1
+MCInRequestVoteLimit(i,j) ==
+    votesRequested[i][j] < 1
 
 \* Limit number of duplicate messages sent to the same server
 MessagesLimit_mc == 1

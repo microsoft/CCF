@@ -57,12 +57,6 @@ CONSTANTS
     TypeSignature,
     TypeReconfiguration
 
-\* CCF: Limit on vote requests to be sent to each other node per election
-\* Generally, this should be set to one
-\* If zero, then a candidate will not receive any votes (except from itself)
-CONSTANTS RequestVoteLimit
-ASSUME RequestVoteLimit \in Nat
-
 \* Limit on terms
 \* By default, all servers start as followers in term one
 \* So this should therefore be at least two
@@ -213,6 +207,12 @@ leaderVars == <<nextIndex, matchIndex>>
 vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, logVars>>
 
 ----
+\* Fine-grained state constraint for model-checking.
+
+\* State limitation: Limit requested votes
+InRequestVoteLimit(i,j) ==
+    TRUE
+
 \* Helpers
 
 min(a, b) == IF a < b THEN a ELSE b
@@ -386,10 +386,9 @@ RequestVote(i,j) ==
     /\ i /= j
     \* Only requests vote if we are candidate
     /\ state[i] = Candidate
+    /\ InRequestVoteLimit(i, j)
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
-    \* State limitation: Limit requested votes
-    /\ votesRequested[i][j] < RequestVoteLimit
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, votesGranted, leaderVars, logVars, votesSent>>
@@ -1055,7 +1054,7 @@ CandidateVarsTypeInv ==
         /\ votesSent[i] \in BOOLEAN
         /\ votesGranted[i] \subseteq Servers
         /\ \A j \in Servers : i /= j => 
-            /\ votesRequested[i][j] \in 0..RequestVoteLimit
+            /\ votesRequested[i][j] \in Nat
 
 LeaderVarsTypeInv ==
     /\ \A i, j \in Servers : i /= j =>
