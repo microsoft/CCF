@@ -91,6 +91,7 @@ namespace ccf
     ERROR(PrimaryNotFound)
     ERROR(RequestAlreadyForwarded)
     ERROR(NodeNotRetiredCommitted)
+    ERROR(SessionConsistencyLost)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)

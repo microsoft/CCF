@@ -409,6 +409,36 @@ namespace ccf
 
           endpoints.execute_endpoint(endpoint, args);
 
+          // Ensure session consistency
+          if (consensus != nullptr)
+          {
+            auto current_view = consensus->get_view();
+            auto session_ctx = ctx->get_session_context();
+            if (!session_ctx->active_view.has_value())
+            {
+              // First request on this session - assign the active term
+              session_ctx->active_view = current_view;
+            }
+            else if (current_view != session_ctx->active_view.value())
+            {
+              auto msg = fmt::format(
+                "Potential loss of session consistency on session {}. Started "
+                "in view {}, now in view {}. Closing session.",
+                session_ctx->client_session_id,
+                session_ctx->active_view.value(),
+                current_view);
+              LOG_INFO_FMT("{}", msg);
+
+              // TODO: Make error session fatal
+              ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::SessionConsistencyLost,
+                std::move(msg));
+              ctx->terminate_session = true;
+              return;
+            }
+          }
+
           if (!ctx->should_apply_writes())
           {
             update_metrics(ctx);
