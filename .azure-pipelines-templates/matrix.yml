@@ -118,15 +118,15 @@ jobs:
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
 
-      # - template: common.yml
-      #   parameters:
-      #     target: Virtual
-      #     env: ${{ parameters.env.Virtual }}
-      #     cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
-      #     suffix: "Release"
-      #     artifact_name: "Virtual_Release"
-      #     ctest_filter: "${{ parameters.test.release.ctest_args }}"
-      #     depends_on: configure
+      - template: common.yml
+        parameters:
+          target: Virtual
+          env: ${{ parameters.env.Virtual }}
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+          suffix: "Release"
+          artifact_name: "Virtual_Release"
+          ctest_filter: "${{ parameters.test.release.ctest_args }}"
+          depends_on: configure
 
       # Build that produces unsafe binaries for troubleshooting purposes
       - template: common.yml
