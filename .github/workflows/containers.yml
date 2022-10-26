@@ -42,7 +42,7 @@ jobs:
           context: .
           file: docker/app_dev
           build-args: platform=${{ matrix.platform }}, ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}
-          tags: $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}, $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
+          tags: ccfmsrc.azurecr.io/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}, ccfmsrc.azurecr.io/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
           outputs: type=docker,dest=/tmp/app-dev-${{ matrix.platform }}.tar
 
       - name: Upload artifact
