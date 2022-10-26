@@ -8,7 +8,8 @@ Configurations_mc == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
 \* constraint below is too restrictive.
-TermLimit_mc == 3
+MCInTermLimit(i) ==
+    currentTerm[i] < 3
 
 \* Limit number of requests (new entries) that can be made
 RequestLimit_mc == 2

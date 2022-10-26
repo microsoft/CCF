@@ -57,12 +57,6 @@ CONSTANTS
     TypeSignature,
     TypeReconfiguration
 
-\* Limit on terms
-\* By default, all servers start as followers in term one
-\* So this should therefore be at least two
-CONSTANTS TermLimit
-ASSUME TermLimit \in Nat \ {0}
-
 \* Limit on client requests
 CONSTANTS RequestLimit
 ASSUME RequestLimit \in Nat
@@ -213,6 +207,12 @@ vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVar
 InRequestVoteLimit(i,j) ==
     TRUE
 
+\* Limit on terms
+\* By default, all servers start as followers in term one
+\* So this should therefore be at least two
+InTermLimit(i) ==
+    TRUE
+
 \* Helpers
 
 min(a, b) == IF a < b THEN a ELSE b
@@ -349,7 +349,7 @@ Init ==
 \* Server i times out and starts a new election.
 Timeout(i) ==
     \* Limit the term of each server to reduce state space
-    /\ currentTerm[i] < TermLimit
+    /\ InTermLimit(i)
     \* Only servers that are not already leaders can become candidates
     /\ state[i] \in {Follower, Candidate}
     \* Limit number of candidates in our relevant server set
@@ -996,7 +996,7 @@ MaxLogLength == (RequestLimit + reconfigurationCount) * 2
 LogTypeOK(xlog) ==
     IF Len(xlog) > 0 THEN
         \A k \in 1..Len(xlog) :
-            /\ xlog[k].term \in 1..TermLimit
+            /\ xlog[k].term \in Nat \ {0}
             /\ \/ /\ xlog[k].contentType = TypeEntry
                   /\ xlog[k].value \in 1..RequestLimit+1
                \/ /\ xlog[k].contentType = TypeSignature
@@ -1017,17 +1017,17 @@ MessageVarsTypeInv ==
     /\ \A m \in messages :
         /\ m.msource \in Servers
         /\ m.mdest \in Servers
-        /\ m.mterm \in 1..TermLimit
+        /\ m.mterm \in Nat \ {0}
         /\ \/ /\ m.mtype = AppendEntriesRequest
                 /\ m.mprevLogIndex \in 0..MaxLogLength
-                /\ m.mprevLogTerm \in 0..TermLimit
+                /\ m.mprevLogTerm \in Nat
                 /\ LogTypeOK(m.mentries)
                 /\ m.mcommitIndex \in 0..MaxLogLength
             \/ /\ m.mtype = AppendEntriesResponse
                 /\ m.msuccess \in BOOLEAN
                 /\ m.mmatchIndex \in 0..MaxLogLength
             \/ /\ m.mtype = RequestVoteRequest
-                /\ m.mlastLogTerm \in 0..TermLimit
+                /\ m.mlastLogTerm \in Nat
                 /\ m.mlastLogIndex \in 0..MaxLogLength
             \/ /\ m.mtype = RequestVoteResponse
                 /\ m.mvoteGranted \in BOOLEAN
@@ -1045,7 +1045,7 @@ MessageVarsTypeInv ==
 
 ServerVarsTypeInv ==
     /\ \A i \in Servers :
-        /\ currentTerm[i] \in 1..TermLimit
+        /\ currentTerm[i] \in Nat \ {0}
         /\ state[i] \in States
         /\ votedFor[i] \in {Nil} \cup Servers
 
