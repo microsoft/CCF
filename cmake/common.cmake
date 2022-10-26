@@ -266,10 +266,8 @@ if(COMPILE_TARGET STREQUAL "sgx")
   target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
 elseif(COMPILE_TARGET STREQUAL "snp")
   target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
-  target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
 elseif(COMPILE_TARGET STREQUAL "virtual")
   target_compile_definitions(cchost PUBLIC PLATFORM_VIRTUAL)
-  target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
 endif()
 
 target_link_libraries(
