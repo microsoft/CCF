@@ -50,7 +50,7 @@ jobs:
   publish:
     name: "Publish containers for all platforms"
     runs-on: ubuntu-latest
-    if: github.event.release.action == 'published'
+    # if: github.event.release.action == 'published' TODO: Revert
     needs: build
     strategy:
       matrix:
@@ -66,6 +66,7 @@ jobs:
       #   run: echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
       #   id: tref
 
+      # TODO: Delete me
       - name: Delete me
         run: docker images
 
