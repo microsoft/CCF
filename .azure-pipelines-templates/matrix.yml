@@ -144,7 +144,7 @@ jobs:
         parameters:
           env: ${{ parameters.env.Hosted }}
           depends_on:
-            - Checks
+            # - Checks
             - SGX_Release
             - Virtual_Release
             - SNPCC_Release
