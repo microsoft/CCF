@@ -21,6 +21,7 @@ import copy
 import json
 import time
 import http
+import infra.is_snp
 
 # pylint: disable=protected-access
 import ccf._versionifier
@@ -150,7 +151,7 @@ class Node:
         self.initial_node_data_json_file = node_data_json_file
         self.label = None
 
-        if os.getenv("CONTAINER_NODES"):
+        if os.getenv("CONTAINER_NODES") and not infra.is_snp.IS_SNP:
             self.remote_shim = infra.remote_shim.DockerShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim
