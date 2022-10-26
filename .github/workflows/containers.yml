@@ -3,9 +3,6 @@ name: "Build and Publish Release Containers to MCR"
 on:
   release:
     types: [published]
-  push:
-    branches:
-      - "additional_containers" # TODO: Remove
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
