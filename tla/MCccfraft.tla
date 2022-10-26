@@ -25,7 +25,8 @@ MCInMessagesLimit(i, j, index) ==
     ELSE TRUE
 
 \* Limit number of times a RetiredLeader server sends commit notifications
-CommitNotificationLimit_mc == 0
+MCInCommitNotificationLimit(i) ==
+    commitsNotified[i][2] < 0
 
 \* Limit max number of simultaneous candidates
 MaxSimultaneousCandidates_mc == 1

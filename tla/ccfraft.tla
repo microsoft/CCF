@@ -73,10 +73,6 @@ ASSUME RequestLimit \in Nat
 CONSTANTS MaxSimultaneousCandidates
 ASSUME MaxSimultaneousCandidates \in Nat
 
-\* CCF: Limit the number of commit notifications per commit Index and server
-CONSTANTS CommitNotificationLimit
-ASSUME CommitNotificationLimit \in Nat
-
 CONSTANTS
     NodeOne,
     NodeTwo,
@@ -211,6 +207,10 @@ InTermLimit(i) ==
 
 \* CCF: Limit how many identical append entries messages each node can send to another
 InMessagesLimit(i, j, index) ==
+    TRUE
+
+\* CCF: Limit the number of commit notifications per commit Index and server
+InCommitNotificationLimit(i) ==
     TRUE
 
 \* Helpers
@@ -593,7 +593,7 @@ NotifyCommit(i,j) ==
     \* Only send notifications of commit to servers in the server set
     /\ IsInServerSetForIndex(j, i, commitIndex[i])
     /\ \/ commitsNotified[i][1] < commitIndex[i]
-       \/ commitsNotified[i][2] < CommitNotificationLimit
+       \/ InCommitNotificationLimit(i)
     /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
                            THEN <<commitsNotified[i][1], commitsNotified[i][2] + 1>>
                            ELSE <<commitIndex[i], 1>>
@@ -1039,7 +1039,7 @@ MessageVarsTypeInv ==
             ELSE TRUE
     /\ \A i \in Servers :
         /\ commitsNotified[i][1] \in 0..MaxLogLength
-        /\ commitsNotified[i][2] \in 0..CommitNotificationLimit
+        /\ commitsNotified[i][2] \in Nat
 
 ServerVarsTypeInv ==
     /\ \A i \in Servers :
