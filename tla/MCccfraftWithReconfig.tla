@@ -19,7 +19,10 @@ MCInRequestVoteLimit(i,j) ==
     votesRequested[i][j] < 1
 
 \* Limit number of duplicate messages sent to the same server
-MessagesLimit_mc == 1
+MCInMessagesLimit(i, j, index) ==
+    IF Len(messagesSent[i][j]) >= index
+    THEN messagesSent[i][j][index] < 1
+    ELSE TRUE
 
 \* Limit number of times a RetiredLeader server sends commit notifications
 CommitNotificationLimit_mc == 2
