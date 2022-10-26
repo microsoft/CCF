@@ -425,11 +425,11 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 
     // Repeatedly send only the first AppendEntries to B, and process its
     // response, until it has rolled back
-    const auto tail_of_b = rB.get_last_idx();
+    bool accepted = false;
     size_t iterations = 0;
     const size_t max_iterations =
       rC.get_last_idx(); // Don't repeat indefinitely
-    while (tail_of_b == rB.get_last_idx() && iterations++ < max_iterations)
+    while (!accepted && iterations++ < max_iterations)
     {
       // Only the first AppendEntries to B is kept, all other
       // AppendEntries are lost
@@ -437,30 +437,27 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
       keep_first_for(node_idB, channelsC->messages);
       DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC, channelsC->messages));
 
-      DOCTEST_REQUIRE(
-        1 ==
+      const auto dispatched =
         dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
           nodes, node_idB, channelsB->messages, [&](const auto& msg) {
             // B NACKs, until it accepts a rollback
-            if (tail_of_b == rB.get_last_idx())
+            if (msg.success == aft::AppendEntriesResponseType::OK)
             {
-              DOCTEST_REQUIRE(
-                msg.success == aft::AppendEntriesResponseType::FAIL);
+              accepted = true;
             }
             else
             {
               DOCTEST_REQUIRE(
-                msg.success == aft::AppendEntriesResponseType::OK);
+                msg.success == aft::AppendEntriesResponseType::FAIL);
             }
-          }));
+          });
+      DOCTEST_REQUIRE(1 == dispatched);
     }
-
-    DOCTEST_REQUIRE(rB.get_last_idx() != tail_of_b);
 
     // B must still be holding the committed index it holds from A
     DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_committed_seqno());
 
-    // B's term history must match the current primary's
+    // B's term history must match the current primary's (up to B's last idx)
     DOCTEST_REQUIRE(rB.get_last_idx() <= rC.get_last_idx());
     DOCTEST_REQUIRE(
       rB.get_view_history(rB.get_last_idx()) ==
