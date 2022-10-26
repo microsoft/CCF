@@ -94,10 +94,9 @@ jobs:
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
-      # TODO: Re-enable.
-      # - template: checks.yml
-      #   parameters:
-      #     env: ${{ parameters.env.Hosted }}
+      - template: checks.yml
+        parameters:
+          env: ${{ parameters.env.Hosted }}
 
       - template: common.yml
         parameters:
@@ -144,7 +143,7 @@ jobs:
         parameters:
           env: ${{ parameters.env.Hosted }}
           depends_on:
-            # - Checks TODO: Re-enable
+            - Checks
             - SGX_Release
             - Virtual_Release
             - SNPCC_Release

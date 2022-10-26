@@ -22,7 +22,6 @@
     - import_role:
         name: ccf_build
         tasks_from: install.yml
-    # TODO: Currently does not work on non-SGX as unique debian package requires Open Enclave!
     - import_role:
         name: ccf_install
         tasks_from: deb_install.yml
