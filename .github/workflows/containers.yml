@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [sgx, snp, virtual]
+        platform: [sgx] # TODO: Reenable, snp, virtual]
 
     steps:
       - uses: actions/checkout@v3
@@ -59,23 +59,26 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Log in
-        run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
+      # - name: Log in
+      #   run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
-      - name: Get image tag from git tag (release)
-        run: echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
-        id: tref
+      # - name: Get image tag from git tag (release)
+      #   run: echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+      #   id: tref
 
-      - name: Push App Dev ${{ matrix.platform }} container
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+      - name: Delete me
+        run: docker images
 
-      # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
-      - name: Push App Dev ${{ matrix.platform }} container
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
-        if: matrix.platform == 'sgx'
+      # - name: Push App Dev ${{ matrix.platform }} container
+      #   run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
 
-      - name: Push App Run ${{ matrix.platform }} container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+      # # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
+      # - name: Push App Dev ${{ matrix.platform }} container
+      #   run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+      #   if: matrix.platform == 'sgx'
 
-      - name: Push JS App Run ${{ matrix.platform }} container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+      # - name: Push App Run ${{ matrix.platform }} container
+      #   run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+
+      # - name: Push JS App Run ${{ matrix.platform }} container
+      #   run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
