@@ -36,7 +36,6 @@ jobs:
       # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
       - name: Tag App Dev sgx image as lts-devcontainer
         run: docker tag $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-sgx $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
-        if: matrix.platform == 'sgx'
 
       - name: Build App Run sgx container
         run: docker build -f docker/app_run . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
