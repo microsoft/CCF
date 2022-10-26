@@ -29,7 +29,8 @@ MCInCommitNotificationLimit(i) ==
     commitsNotified[i][2] < 0
 
 \* Limit max number of simultaneous candidates
-MaxSimultaneousCandidates_mc == 1
+MCInMaxSimultaneousCandidates(i) ==
+    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
 \* SNIPPET_END: mc_config
 
 mc_spec == Spec
