@@ -33,19 +33,39 @@ jobs:
           fi
         id: tref
 
-      - name: Build App Dev ${{ matrix.platform }} container
-        run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
-      - name: Tag App Dev SGX image as lts-devcontainer
-        run: docker tag $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }} $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
-        if: matrix.platform == 'sgx'
+      - name: Build and export
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: docker/app_dev
+          build-args: platform=${{ matrix.platform }}, ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}
+          tags: $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}, $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
+          outputs: type=docker,dest=/tmp/app-dev-${{ matrix.platform }}.tar
 
-      - name: Build App Run ${{ matrix.platform }} container
-        run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-dev-${{ matrix.platform }}
+          path: /tmp/app-dev-${{ matrix.platform }}.tar
 
-      - name: Build JS App Run ${{ matrix.platform }} container
-        run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+      # - name: Build App Dev ${{ matrix.platform }} container
+      #   run: docker build -f docker/app_dev . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}"
+
+      # -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-${{ matrix.platform }} -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }}
+
+      # # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
+      # - name: Tag App Dev SGX image as lts-devcontainer
+      #   run: docker tag $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer-${{ matrix.platform }} $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+      #   if: matrix.platform == 'sgx'
+
+      # - name: Build App Run ${{ matrix.platform }} container
+      #   run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+
+      # - name: Build JS App Run ${{ matrix.platform }} container
+      #   run: docker build -f docker/app_run . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
 
   publish:
     name: "Publish containers for all platforms"
@@ -59,6 +79,20 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: app-dev-${{ matrix.platform }}
+          path: /tmp
+
+      - name: Load image
+        run: |
+          docker load --input /tmp/app-dev-${{ matrix.platform }}.tar
+          docker image ls -a
+
       # - name: Log in
       #   run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
@@ -67,8 +101,8 @@ jobs:
       #   id: tref
 
       # TODO: Delete me
-      - name: Delete me
-        run: docker images
+      # - name: Delete me
+      #   run: docker images
 
       # - name: Push App Dev ${{ matrix.platform }} container
       #   run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
