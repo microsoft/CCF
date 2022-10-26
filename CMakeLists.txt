@@ -90,7 +90,7 @@ set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/node/quote.cpp
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   # enclave version
   add_enclave_library(
     ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
@@ -125,15 +125,68 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   add_dependencies(ccf ccf.enclave)
-endif()
 
-if("virtual" IN_LIST COMPILE_TARGETS)
+  # Same as virtual for the time being but will diverge soon
+elseif(COMPILE_TARGET STREQUAL "snp")
+
   # virtual version
   add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
     ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD
+                       _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+  )
+
+  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
+  add_warning_checks(ccf.virtual)
+
+  target_include_directories(
+    ccf.virtual SYSTEM
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
+  )
+
+  target_link_libraries(
+    ccf.virtual
+    PUBLIC ${LINK_LIBCXX}
+           -lgcc
+           http_parser.host
+           quickjs.host
+           sss.host
+           ccf_endpoints.host
+           ccfcrypto.host
+           ccf_kv.host
+           openenclave::oehost
+           ${CMAKE_THREAD_LIBS_INIT}
+  )
+
+  target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
+
+  set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+  add_san(ccf.virtual)
+
+  install(
+    TARGETS ccf.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+
+  add_dependencies(ccf ccf.virtual)
+
+elseif(COMPILE_TARGET STREQUAL "virtual")
+
+  # virtual version
+  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
+
+  target_compile_definitions(
+    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                       _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL
   )
 
   target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
