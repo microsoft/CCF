@@ -25,7 +25,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(ccfcrypto.enclave ${CCFCRYPTO_SRC})
   target_link_libraries(ccfcrypto.enclave PUBLIC qcbor.enclave)
   target_link_libraries(ccfcrypto.enclave PUBLIC t_cose.enclave)
