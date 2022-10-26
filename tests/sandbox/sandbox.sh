@@ -54,7 +54,7 @@ if [ -f "${VERSION_FILE}" ]; then
     VERSION=$(<"${VERSION_FILE}")
     VERSION=${VERSION#"ccf-"}
     platform=$(<"${PLATFORM_FILE}")
-    if [ ${platform} == "sgx" ]; then
+    if [ "${platform}" == "sgx" ]; then
         enclave_type="release"
     else
         enclave_type="virtual"
