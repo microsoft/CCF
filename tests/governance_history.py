@@ -16,6 +16,7 @@ from loguru import logger as LOG
 import suite.test_requirements as reqs
 import ccf.read_ledger
 import infra.logging_app as app
+import governance
 
 
 def check_operations(ledger, operations):
@@ -204,6 +205,8 @@ def run(args):
         governance_operations.add(
             (new_member_proposal.proposal_id, member.service_id, "withdraw")
         )
+
+        governance.test_cose_proposal(network, args)
 
         # Force ledger flush of all transactions so far
         network.get_latest_ledger_public_state()

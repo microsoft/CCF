@@ -627,6 +627,165 @@ def test_cose_auth(network, args):
             headers={"content-type": "application/cose"},
         )
         assert r.status_code == 401
+    return network
+
+
+@reqs.description("Test COSE ack")
+def test_cose_ack(network, args):
+    primary, _ = network.find_primary()
+    identity = network.identity("member0")
+    signed_statement = signing.create_cose_sign1(
+        b"",
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "state_digest"},
+    )
+    with primary.client() as c:
+        r = c.post(
+            "/gov/ack/update_state_digest",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+
+    signed_state_digest = signing.create_cose_sign1(
+        r.body.data(),
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "ack"},
+    )
+    with primary.client() as c:
+        r = c.post(
+            "/gov/ack",
+            body=signed_state_digest,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 204
+    return network
+
+
+@reqs.description("Test COSE proposal")
+def test_cose_proposal(network, args):
+    primary, _ = network.find_primary()
+    identity = network.identity("member0")
+    other_identity = network.identity("member1")
+
+    new_user_local_id = "alice"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    template_loader = jinja2.ChoiceLoader(
+        [
+            jinja2.FileSystemLoader(args.jinja_templates_path),
+            jinja2.FileSystemLoader(os.path.dirname(new_user.cert_path)),
+        ]
+    )
+    template_env = jinja2.Environment(
+        loader=template_loader, undefined=jinja2.StrictUndefined
+    )
+    proposal_template = template_env.get_template("set_user_proposal.json.jinja")
+    proposal_body = proposal_template.render(cert=os.path.basename(new_user.cert_path))
+
+    signed_statement = signing.create_cose_sign1(
+        proposal_body.encode(),
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "proposal"},
+    )
+    with primary.client() as c:
+        r = c.post(
+            "/gov/proposals",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+    proposal_id = r.body.json()["proposal_id"]
+
+    def vote(body):
+        return {"ballot": f"export function vote (proposal, proposer_id) {{ {body} }}"}
+
+    ballot_yes = vote("return true")
+
+    signed_ballot0 = signing.create_cose_sign1(
+        json.dumps(ballot_yes).encode(),
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "ballot", "ccf.gov.msg.proposal_id": proposal_id},
+    )
+
+    with primary.client() as c:
+        r = c.post(
+            f"/gov/proposals/{proposal_id}/ballots",
+            body=signed_ballot0,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+
+    signed_ballot1 = signing.create_cose_sign1(
+        json.dumps(ballot_yes).encode(),
+        open(other_identity.key, encoding="utf-8").read(),
+        open(other_identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "ballot", "ccf.gov.msg.proposal_id": proposal_id},
+    )
+
+    with primary.client() as c:
+        r = c.post(
+            f"/gov/proposals/{proposal_id}/ballots",
+            body=signed_ballot1,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+        assert r.body.json()["state"] == "Accepted"
+    return network
+
+
+@reqs.description("Test COSE withdraw")
+def test_cose_withdrawal(network, args):
+    primary, _ = network.find_primary()
+    identity = network.identity("member0")
+
+    new_user_local_id = "alice"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    template_loader = jinja2.ChoiceLoader(
+        [
+            jinja2.FileSystemLoader(args.jinja_templates_path),
+            jinja2.FileSystemLoader(os.path.dirname(new_user.cert_path)),
+        ]
+    )
+    template_env = jinja2.Environment(
+        loader=template_loader, undefined=jinja2.StrictUndefined
+    )
+    proposal_template = template_env.get_template("set_user_proposal.json.jinja")
+    proposal_body = proposal_template.render(cert=os.path.basename(new_user.cert_path))
+
+    signed_statement = signing.create_cose_sign1(
+        proposal_body.encode(),
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "proposal"},
+    )
+    with primary.client() as c:
+        r = c.post(
+            "/gov/proposals",
+            body=signed_statement,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+    proposal_id = r.body.json()["proposal_id"]
+
+    signed_withdrawal = signing.create_cose_sign1(
+        b"",
+        open(identity.key, encoding="utf-8").read(),
+        open(identity.cert, encoding="utf-8").read(),
+        {"ccf.gov.msg.type": "withdrawal", "ccf.gov.msg.proposal_id": proposal_id},
+    )
+
+    with primary.client() as c:
+        r = c.post(
+            f"/gov/proposals/{proposal_id}/withdraw",
+            body=signed_withdrawal,
+            headers={"content-type": "application/cose"},
+        )
+        assert r.status_code == 200
+    return network
 
 
 def gov(args):
@@ -654,7 +813,11 @@ def gov(args):
         test_all_nodes_cert_renewal(network, args)
         test_service_cert_renewal(network, args)
         test_service_cert_renewal_extended(network, args)
-        test_cose_auth(network, args)
+        if args.authenticate_session != "COSE":
+            test_cose_auth(network, args)
+            test_cose_ack(network, args)
+            test_cose_proposal(network, args)
+            test_cose_withdrawal(network, args)
 
 
 def js_gov(args):
@@ -688,6 +851,15 @@ if __name__ == "__main__":
     cr = ConcurrentRunner(add)
 
     infra.log_capture.COLORS = False
+
+    cr.add(
+        "session_coseauth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
 
     cr.add(
         "session_auth",

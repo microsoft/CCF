@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.0-rc0]
 
+### Experimental
+
+- Governance endpoints now support [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) input, as well as signed HTTP requests (#4392).
+
 ### Removed
 
 - The functions `starts_with`, `ends_with`, `remove_prefix`, and `remove_suffix`, and the type `remove_cvref` have been removed from `nonstd::`. The C++20 equivalents should be used instead.
