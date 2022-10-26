@@ -195,7 +195,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         # The isolated primary will stay in follower state once Pre-Vote
         # is implemented. https://github.com/microsoft/CCF/issues/2577
         primary.wait_for_leadership_state(
-            primary_view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
+            primary_view, ["Candidate"], timeout=2 * args.election_timeout_ms / 1000
         )
 
     # Check reconnected former primary has caught up
@@ -609,15 +609,42 @@ def test_session_consistency(network, args):
                         f"Session {client.description} was killed unexpectedly: {e}"
                     ) from e
 
-        def check_sessions_dead(sessions):
+        def check_sessions_dead(
+            sessions,
+        ):
             for client in sessions:
                 try:
-                    client.get(f"/app/log/private?id={msg_id}")
+                    r = client.get(f"/app/log/private?id={msg_id}")
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+                    assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
+                except ConnectionResetError as e:
+                    raise AssertionError(
+                        f"Session {client.description} was killed without first returning an error: {e}"
+                    ) from e
+
+                # After returning error, session should be terminated, so all subsequent requests should fail
+                try:
+                    client.get("/node/commit")
                     raise AssertionError(
                         f"Session {client.description} survived unexpectedly"
                     )
                 except ConnectionResetError as e:
-                    pass
+                    LOG.info(f"Session {client.description} was terminated as expected")
+
+        def wait_for_new_view(node, original_view, timeout_multiplier):
+            election_s = args.election_timeout_ms / 1000
+            timeout = election_s * timeout_multiplier
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                with node.client() as c:
+                    r = c.get("/node/network")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    if r.body.json()["current_view"] > original_view:
+                        return
+                time.sleep(0.1)
+            raise TimeoutError(
+                f"Node failed to reach view higher than {original_view} after waiting {timeout}s"
+            )
 
         # Partition primary and forwarding backup from other backups
         with network.partitioner.partition([primary, backup]):
@@ -641,23 +668,26 @@ def test_session_consistency(network, args):
             check_sessions_alive((client_primary_A, client_backup_C))
 
             # Once CheckQuorum takes effect and the primary stands down, all sessions
-            # on the primary are terminated
-            primary.wait_for_leadership_state(
-                r0.view, "Follower", timeout=4 * args.election_timeout_ms / 1000
-            )
+            # on the primary report a risk of inconsistency
+            wait_for_new_view(backup, r0.view, 4)
             check_sessions_dead(
                 (
                     # This session wrote state which is now at risk of being lost
                     client_primary_A,
                     # This session only read old state which is still valid
                     client_primary_B,
+                    # This is also immediately true for forwarded sessions on the backup
+                    client_backup_C,
                 )
             )
 
-            # Once the backup advances term (from the standing-down primary, or by
-            # calling its own election), it terminates all its own sessions
-            # TODO
-
+            # The backup may not have received any view increment yet, so a non-forwarded
+            # session on the backup may still be valid. This is a temporary, racey situation,
+            # and safe (the backup has not rolled back, and is still reporting state in the
+            # old session).
+            # Test that once the view has advanced, that backup session is also terminated.
+            wait_for_new_view(backup, r0.view, 1)
+            check_sessions_dead((client_backup_D,))
 
     # Wait for network stability after healing partition
     network.wait_for_primary_unanimity(min_view=r0.view)

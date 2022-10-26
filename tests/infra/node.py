@@ -759,19 +759,19 @@ class Node:
                 f"Unable to retrieve entry at TxID {view}.{seqno} on node {node.local_node_id} after {timeout}s"
             )
 
-    def wait_for_leadership_state(self, min_view, leadership_state, timeout=3):
+    def wait_for_leadership_state(self, min_view, leadership_states, timeout=3):
         end_time = time.time() + timeout
         while time.time() < end_time:
             with self.client() as c:
                 r = c.get("/node/consensus").body.json()["details"]
                 if (
                     r["current_view"] > min_view
-                    and r["leadership_state"] == leadership_state
+                    and r["leadership_state"] in leadership_states
                 ):
                     return
             time.sleep(0.1)
         raise TimeoutError(
-            f"Node {self.local_node_id} was not in leadership state {leadership_state} in view > {min_view} after {timeout}s: {r}"
+            f"Node {self.local_node_id} was not in leadership states {leadership_states} in view > {min_view} after {timeout}s: {r}"
         )
 
 
