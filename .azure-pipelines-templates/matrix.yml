@@ -94,9 +94,10 @@ jobs:
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
-      - template: checks.yml
-        parameters:
-          env: ${{ parameters.env.Hosted }}
+      # TODO: Re-enable
+      # - template: checks.yml
+      #   parameters:
+      #     env: ${{ parameters.env.Hosted }}
 
       - template: common.yml
         parameters:
