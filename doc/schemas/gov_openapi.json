@@ -464,7 +464,7 @@
     },
     "securitySchemes": {
       "member_cose_sign1": {
-        "description": "Request payload must be a COSE Sign1 document, with expected protected headers.Signer must be a member identity registered with this service.",
+        "description": "Request payload must be a COSE Sign1 document, with expected protected headers. Signer must be a member identity registered with this service.",
         "scheme": "cose_sign1",
         "type": "http"
       },
