@@ -1,4 +1,4 @@
----------- MODULE MCraftWithReconfig ----------
+---------- MODULE MCccfraftWithReconfig ----------
 EXTENDS ccfraft, TLC
 
 Servers_mc == {NodeOne, NodeTwo}

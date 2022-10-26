@@ -8,6 +8,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/sha256_hash.cpp
     ${CCF_DIR}/src/crypto/symmetric_key.cpp
     ${CCF_DIR}/src/crypto/key_pair.cpp
+    ${CCF_DIR}/src/crypto/eddsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/verifier.cpp
     ${CCF_DIR}/src/crypto/key_wrap.cpp
@@ -15,6 +16,8 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/symmetric_key.cpp
     ${CCF_DIR}/src/crypto/openssl/public_key.cpp
     ${CCF_DIR}/src/crypto/openssl/key_pair.cpp
+    ${CCF_DIR}/src/crypto/openssl/eddsa_public_key.cpp
+    ${CCF_DIR}/src/crypto/openssl/eddsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/openssl/hash.cpp
     ${CCF_DIR}/src/crypto/openssl/rsa_public_key.cpp
     ${CCF_DIR}/src/crypto/openssl/rsa_key_pair.cpp
