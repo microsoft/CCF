@@ -22,7 +22,7 @@ namespace ccf
   {
     size_t client_session_id = InvalidSessionId;
 
-    // Usually a DER certificate, may be a PEM on forwardee
+    // Contains DER encoding of original caller
     std::vector<uint8_t> caller_cert = {};
     bool is_forwarding = false;
 
