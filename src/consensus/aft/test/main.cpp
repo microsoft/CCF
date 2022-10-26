@@ -485,7 +485,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
-  r0.periodic(request_timeout);
 
   DOCTEST_REQUIRE(
     1 ==
@@ -498,8 +497,21 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
         DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
       }));
 
+  r0.periodic(request_timeout);
+
   DOCTEST_REQUIRE(
     1 ==
+    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
+      nodes, node_id0, r0c->messages, [](const auto& msg) {
+        DOCTEST_REQUIRE(msg.idx == 1);
+        DOCTEST_REQUIRE(msg.term == 1);
+        DOCTEST_REQUIRE(msg.prev_idx == 1);
+        DOCTEST_REQUIRE(msg.prev_term == 1);
+        DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
+      }));
+
+  DOCTEST_REQUIRE(
+    2 ==
     dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
       nodes, node_id1, r1c->messages, [](const auto& msg) {
         DOCTEST_REQUIRE(msg.last_log_idx == 1);
