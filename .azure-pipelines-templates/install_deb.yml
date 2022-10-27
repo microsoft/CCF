@@ -54,7 +54,7 @@ steps:
           else
             ./tests/test_install_build.sh -DCOMPILE_TARGET=virtual
           fi
-        displayName: Test building a sample against installed CCF (non-SGX)
+        displayName: Test building a sample against installed CCF (virtual)
 
   - ${{ if eq(parameters.target, 'SNPCC') }}:
       - script: |
@@ -65,7 +65,7 @@ steps:
           else
             ./tests/test_install_build.sh -DCOMPILE_TARGET=snp
           fi
-        displayName: Test building a sample against installed CCF (non-SGX)
+        displayName: Test building a sample against installed CCF (SNP)
 
   - task: PublishPipelineArtifact@1
     inputs:
