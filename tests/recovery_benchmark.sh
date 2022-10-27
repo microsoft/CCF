@@ -77,7 +77,7 @@ if [ -n "$PYTHON_PACKAGE_PATH" ]; then
 fi
 
 echo "** Start original service"
-"${ccf_install_path}"/bin/sandbox.sh -e release --sig-tx-interval "${signature_tx_interval}" & 
+"${ccf_install_path}"/bin/sandbox.sh --sig-tx-interval "${signature_tx_interval}" & 
 sandbox_pid=$!
 
 network_live_time=60
@@ -113,7 +113,7 @@ fi
 echo "** Recover service"
 seconds_before_recovery=$SECONDS
 # shellcheck disable=SC2086
-"${ccf_install_path}"/bin/sandbox.sh -e release --recover --ledger-dir $LEDGER_DIR --common-dir ./workspace/sandbox_common --ledger-recovery-timeout 1000 ${recovery_snapshot_dir_args} &
+"${ccf_install_path}"/bin/sandbox.sh --recover --ledger-dir $LEDGER_DIR --common-dir ./workspace/sandbox_common --ledger-recovery-timeout 1000 ${recovery_snapshot_dir_args} &
 network_live_time=600
 if poll_for_service_open ${network_live_time}; then
     echo "Error: Timeout waiting for service to open"

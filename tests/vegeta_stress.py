@@ -7,6 +7,7 @@ import threading
 import time
 import generate_vegeta_targets as TargetGenerator
 from loguru import logger as LOG
+import infra.is_snp
 
 VEGETA_BIN = "/opt/vegeta/vegeta"
 
@@ -110,7 +111,10 @@ if __name__ == "__main__":
     def add(parser):
         pass
 
-    args, unknown_args = infra.e2e_args.cli_args(add=add, accept_unknown=True)
-    args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args, unknown_args)
+    if not infra.is_snp.IS_SNP:
+        args, unknown_args = infra.e2e_args.cli_args(add=add, accept_unknown=True)
+        args.package = "samples/apps/logging/liblogging"
+        args.nodes = infra.e2e_args.min_nodes(args, f=1)
+        run(args, unknown_args)
+    else:
+        LOG.warning("Test skipped on SEV-SNP")
