@@ -155,9 +155,6 @@ namespace aft
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
-    // TODO: The problem with removing the batching logic is:
-    // - A) lots of tests expected it, and require tweaks for the new behaviour
-
     // When this is set, only public domain is deserialised when receiving
     // append entries
     bool public_only = false;
