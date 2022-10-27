@@ -298,7 +298,7 @@ CommittedTermPrefix(i, x) ==
 \* Define initial values for all variables
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
-    /\ \E c \in SUBSET Servers :
+    /\ \E c \in SUBSET Servers \ {{}}:
         currentConfiguration = [i \in Servers |-> << << 0, c >> >> ]
 
 InitMessagesVars ==
