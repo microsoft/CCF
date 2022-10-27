@@ -390,7 +390,15 @@ namespace ccf
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info = quote_info_;
               quote_info.endorsements = std::move(endorsements);
-              launch_node();
+              try
+              {
+                launch_node();
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT("{}", e.what());
+                throw;
+              }
               quote_endorsements_client.reset();
             });
 
