@@ -61,9 +61,9 @@ steps:
           set -ex
           unsafe_build=$(grep unsafe /tmp/install_prefix) || true
           if [[ -n "$unsafe_build" ]]; then
-            ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=virtual
+          ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=snp
           else
-            ./tests/test_install_build.sh -DCOMPILE_TARGET=virtual
+            ./tests/test_install_build.sh -DCOMPILE_TARGET=snp
           fi
         displayName: Test building a sample against installed CCF (non-SGX)
 
