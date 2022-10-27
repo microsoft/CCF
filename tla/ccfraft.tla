@@ -77,13 +77,6 @@ CONSTANTS Servers
 ASSUME Servers /= {}
 ASSUME Servers \subseteq AllServers
 
-\* Set of configurations - Each new server should have a new identity
-CONSTANTS Configurations
-ASSUME Configurations /= <<>>
-ASSUME \A k \in 1..Len(Configurations):
-    /\ Configurations[k] /= {}
-    /\ Configurations[k] \subseteq Servers
-
 ----
 \* Global variables
 
@@ -177,7 +170,7 @@ leaderVars == <<nextIndex, matchIndex>>
 vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, logVars>>
 
 ----
-\* Fine-grained state constraint for model-checking.
+\* Fine-grained state constraint "hooks" for model-checking with TLC.
 
 \* State limitation: Limit requested votes
 InRequestVoteLimit(i,j) ==
@@ -211,6 +204,9 @@ InMaxSimultaneousCandidates(i) ==
 
 \* Limit on client requests
 InRequestLimit ==
+    TRUE
+
+IsInConfigurations(i, newConfiguration) ==
     TRUE
 
 \* Helpers
@@ -302,7 +298,8 @@ CommittedTermPrefix(i, x) ==
 \* Define initial values for all variables
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
-    /\ currentConfiguration = [i \in Servers |-> << << 0, Configurations[1] >> >> ]
+    /\ \E c \in SUBSET Servers :
+        currentConfiguration = [i \in Servers |-> << << 0, c >> >> ]
 
 InitMessagesVars ==
     /\ messages = {}
@@ -504,10 +501,9 @@ ChangeConfiguration(i, newConfiguration) ==
     \* Only leader can propose changes
     /\ state[i] = Leader
     \* Limit reconfigurations
-    /\ reconfigurationCount < Len(Configurations)-1
+    /\ IsInConfigurations(i, newConfiguration)
     \* Configuration is non empty
     /\ newConfiguration /= {}
-    /\ newConfiguration = Configurations[reconfigurationCount+2]
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
     \* Configuration is not equal to current configuration
@@ -1000,7 +996,7 @@ LogTypeOK(xlog) ==
     ELSE TRUE
 
 ReconfigurationVarsTypeInv ==
-    /\ reconfigurationCount \in 0..Len(Configurations)
+    /\ reconfigurationCount \in Nat
     /\ \A i \in Servers :
         /\ currentConfiguration[i] /= <<>>
         /\ \A k \in 1..Len(currentConfiguration[i]) :

@@ -2,9 +2,14 @@
 EXTENDS ccfraft, TLC
 
 Servers_mc == {NodeOne, NodeTwo}
-Configurations_mc == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
+Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 
 \*  SNIPPET_START: mc_config
+
+MCIsInConfigurations(i, newConfiguration) ==
+    /\ reconfigurationCount < Len(Configurations)-1
+    /\ newConfiguration = Configurations[reconfigurationCount+2]
+
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
 \* constraint below is too restrictive.
