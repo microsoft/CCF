@@ -552,9 +552,8 @@ AdvanceCommitIndex(i) ==
                 \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
                 LET config_servers == currentConfiguration[i][config_index][2]
                     required_quorum == Quorums[config_servers]
-                    agree_servers == {i} \cup {k \in Servers :
-                                            matchIndex[i][k] >= new_index}
-                IN (agree_servers \cap config_servers) \in required_quorum
+                    agree_servers == {k \in config_servers : matchIndex[i][k] >= new_index}
+                IN (IF i \in config_servers THEN {i} ELSE {}) \cup agree_servers \in required_quorum
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
