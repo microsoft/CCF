@@ -569,7 +569,7 @@ AdvanceCommitIndex(i) ==
               /\ new_index >= currentConfiguration[i][2][1]
               /\ currentConfiguration' = [currentConfiguration EXCEPT ![i] = Tail(@)]
               \* Get the set of relevant servers of all configurations after the first
-              /\ \/ /\ \lnot i \in UNION {currentConfiguration[i][relevant_configs][2] : relevant_configs \in
+              /\ \/ /\ i \notin UNION {currentConfiguration[i][relevant_configs][2] : relevant_configs \in
                              {c \in 2..Len(currentConfiguration[i]) : new_index >= currentConfiguration[i][c][1]} \cup {}}
                     \* Retire if i is not in next configuration anymore
                     /\ state' = [state EXCEPT ![i] = RetiredLeader]
