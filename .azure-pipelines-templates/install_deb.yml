@@ -45,7 +45,18 @@ steps:
         fi
       displayName: Test building a sample against installed CCF (SGX)
 
-  - ${{ if ne(or(eq(parameters.target, 'SGX'), eq(parameters.target, 'SGXIceLake'))) }}:
+  - ${{ if eq(parameters.target, 'Virtual') }}:
+    - script: |
+        set -ex
+        unsafe_build=$(grep unsafe /tmp/install_prefix) || true
+        if [[ -n "$unsafe_build" ]]; then
+          ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=virtual
+        else
+          ./tests/test_install_build.sh -DCOMPILE_TARGET=virtual
+        fi
+      displayName: Test building a sample against installed CCF (non-SGX)
+
+  - ${{ if eq(parameters.target, 'SNPCC') }}:
     - script: |
         set -ex
         unsafe_build=$(grep unsafe /tmp/install_prefix) || true
