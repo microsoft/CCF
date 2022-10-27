@@ -638,7 +638,7 @@ class Node:
         if signing_identity is not None:
             description += f"|sig={signing_identity}"
         if cose_signing_identity is not None:
-            description += f"|cose=|{cose_signing_identity}"
+            description += f"|cose={cose_signing_identity}"
         if description_suffix is not None:
             description += f"|{description_suffix}"
         akwargs["description"] = f"[{description}]"
