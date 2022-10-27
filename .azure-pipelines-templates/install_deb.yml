@@ -45,7 +45,7 @@ steps:
         fi
       displayName: Test building a sample against installed CCF (SGX)
 
-  - ${{ if ne(parameters.target, 'SGX') }}:
+  - ${{ if ne(or(eq(parameters.target, 'SGX'), eq(parameters.target, 'SGXIceLake'))) }}:
     - script: |
         set -ex
         unsafe_build=$(grep unsafe /tmp/install_prefix) || true
