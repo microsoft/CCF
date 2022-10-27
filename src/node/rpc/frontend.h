@@ -325,9 +325,6 @@ namespace ccf
         return;
       }
 
-      // TODO: Forward the current active_view, report session-killing errors
-      // with the response
-
       // Ignore return value - false only means it is pending
       cmd_forwarder->forward_command(
         ctx, primary_id.value(), ctx->get_session_context()->caller_cert);

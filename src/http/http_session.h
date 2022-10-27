@@ -40,6 +40,11 @@ namespace http
       tls_io->send_raw(data.data(), data.size());
     }
 
+    void close_session() override
+    {
+      tls_io->close();
+    }
+
     void handle_incoming_data_thread(std::span<const uint8_t> data) override
     {
       tls_io->recv_buffered(data.data(), data.size());

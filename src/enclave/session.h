@@ -16,6 +16,7 @@ namespace ccf
 
     virtual void handle_incoming_data(std::span<const uint8_t> data) = 0;
     virtual void send_data(std::span<const uint8_t> data) = 0;
+    virtual void close_session() = 0;
   };
 
   class ThreadedSession : public Session,

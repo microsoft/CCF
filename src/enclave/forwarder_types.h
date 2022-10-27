@@ -14,7 +14,8 @@ namespace ccf
   {
   public:
     virtual ~AbstractRPCResponder() {}
-    virtual bool reply_async(int64_t id, std::vector<uint8_t>&& data) = 0;
+    virtual bool reply_async(
+      int64_t id, bool terminate_after_reply, std::vector<uint8_t>&& data) = 0;
   };
 
   class AbstractForwarder

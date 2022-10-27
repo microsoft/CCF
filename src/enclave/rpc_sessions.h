@@ -474,7 +474,10 @@ namespace ccf
       return search->second.second;
     }
 
-    bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
+    bool reply_async(
+      tls::ConnID id,
+      bool terminate_after_send,
+      std::vector<uint8_t>&& data) override
     {
       auto session = find_session(id);
       if (session == nullptr)
@@ -486,6 +489,12 @@ namespace ccf
       LOG_DEBUG_FMT("Replying to session {}", id);
 
       session->send_data(data);
+
+      if (terminate_after_send)
+      {
+        session->close_session();
+      }
+
       return true;
     }
 
