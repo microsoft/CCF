@@ -645,7 +645,7 @@ class Node:
         akwargs.update(kwargs)
 
         if hasattr(self, "client_impl"):
-            akwargs["client_impl"] = self.client_impl
+            akwargs["impl_type"] = self.client_impl
 
         return infra.clients.client(
             rpc_interface.public_host, rpc_interface.public_port, **akwargs
