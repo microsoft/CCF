@@ -644,7 +644,7 @@ HandleRequestVoteResponse(i, j, m) ==
     /\ \/ /\ m.mvoteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
-          /\ UNCHANGED <<votesSent>>
+          /\ UNCHANGED votesSent
        \/ /\ ~m.mvoteGranted
           /\ UNCHANGED <<votesSent, votesGranted>>
     /\ Discard(m)
@@ -743,7 +743,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ \/ /\ state[i] = Pending
               /\ \E conf_index \in 1..Len(new_config) : i \in new_config[conf_index][2]
               /\ state' = [state EXCEPT ![i] = Follower ]
-           \/ UNCHANGED <<state>>
+           \/ UNCHANGED state
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
               msuccess        |-> TRUE,
@@ -788,7 +788,7 @@ HandleAppendEntriesResponse(i, j, m) ==
        \/ /\ \lnot m.msuccess \* not successful
           /\ nextIndex' = [nextIndex EXCEPT ![i][j] =
                                Max({nextIndex[i][j] - 1, 1})]
-          /\ UNCHANGED <<matchIndex>>
+          /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, candidateVars, logVars>>
 
