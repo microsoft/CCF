@@ -308,6 +308,7 @@ namespace ccf
 
       // Before attempting to forward, make sure we're in the same View as we
       // previously thought we were.
+      // TODO: Remember that this is non-atomic with checking the primary below
       if (!check_session_consistency(ctx))
       {
         return;
@@ -323,6 +324,9 @@ namespace ccf
         update_metrics(ctx);
         return;
       }
+
+      // TODO: Forward the current active_view, report session-killing errors
+      // with the response
 
       // Ignore return value - false only means it is pending
       cmd_forwarder->forward_command(
