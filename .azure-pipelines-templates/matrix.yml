@@ -111,7 +111,7 @@ jobs:
       - template: common.yml
         parameters:
           target: SNPCC
-          env: ${{ parameters.env.SNPCC }}
+          env: ${{ parameters.env.Virtual }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.SNPCC.cmake_args }}"
           suffix: "Release"
           artifact_name: "SNPCC_Release"
