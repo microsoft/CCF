@@ -112,6 +112,8 @@ class Member:
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
     def auth(self, write=False):
+        if self.authenticate_session == "COSE":
+            return (None, None, self.local_id)
         if self.authenticate_session:
             if write:
                 return (self.local_id, self.local_id)
