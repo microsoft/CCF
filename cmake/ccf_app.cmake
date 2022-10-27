@@ -1,31 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set(ALLOWED_TARGETS "sgx;virtual")
+set(ALLOWED_TARGETS "sgx;snp;virtual")
 
-set(COMPILE_TARGETS
-    "sgx;virtual"
-    CACHE
-      STRING
-      "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
+set(COMPILE_TARGET
+    "sgx"
+    CACHE STRING
+          "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
 )
 
-set(IS_VALID_TARGET "FALSE")
-foreach(REQUESTED_TARGET ${COMPILE_TARGETS})
-  if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
-    set(IS_VALID_TARGET "TRUE")
-  else()
-    message(
-      FATAL_ERROR
-        "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
-    )
-  endif()
-endforeach()
-
-if((NOT ${IS_VALID_TARGET}))
+if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
   message(
     FATAL_ERROR
-      "Variable list 'COMPILE_TARGETS' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
+      "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
 
@@ -150,10 +137,12 @@ function(add_ccf_app name)
   )
   add_custom_target(${name} ALL)
 
-  if("sgx" IN_LIST COMPILE_TARGETS)
+  if(COMPILE_TARGET STREQUAL "sgx")
     set(enc_name ${name}.enclave)
 
     add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
+
+    target_compile_definitions(${enc_name} PUBLIC PLATFORM_SGX)
 
     target_include_directories(
       ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
@@ -172,13 +161,53 @@ function(add_ccf_app name)
     if(PARSED_ARGS_DEPS)
       add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
     endif()
-  endif()
 
-  if("virtual" IN_LIST COMPILE_TARGETS)
+  elseif(COMPILE_TARGET STREQUAL "snp")
     # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 
     add_library(${virt_name} SHARED ${PARSED_ARGS_SRCS})
+
+    target_compile_definitions(${virt_name} PUBLIC PLATFORM_SNP)
+
+    target_include_directories(
+      ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+    add_warning_checks(${virt_name})
+
+    target_link_libraries(
+      ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
+    )
+
+    if(NOT SAN)
+      target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
+    endif()
+
+    target_link_options(
+      ${virt_name} PRIVATE
+      LINKER:--undefined=enclave_create_node,--undefined=enclave_run
+    )
+
+    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_san(${virt_name})
+
+    add_dependencies(${name} ${virt_name})
+    if(PARSED_ARGS_DEPS)
+      add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
+    endif()
+
+    if(${PARSED_ARGS_INSTALL_LIBS})
+      install(TARGETS ${virt_name} DESTINATION lib)
+    endif()
+
+  elseif(COMPILE_TARGET STREQUAL "virtual")
+    # Build a virtual enclave, loaded as a shared library without OE
+    set(virt_name ${name}.virtual)
+
+    add_library(${virt_name} SHARED ${PARSED_ARGS_SRCS})
+
+    target_compile_definitions(${virt_name} PUBLIC PLATFORM_VIRTUAL)
 
     target_include_directories(
       ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}

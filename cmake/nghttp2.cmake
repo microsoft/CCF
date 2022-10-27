@@ -32,7 +32,7 @@ set(NGHTTP2_SRCS
     ${NGHTTP2_PREFIX}/nghttp2_version.c
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library_c(nghttp2.enclave ${NGHTTP2_SRCS})
   target_include_directories(
     nghttp2.enclave PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>

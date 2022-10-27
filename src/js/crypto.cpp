@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
@@ -113,6 +114,39 @@ namespace ccf::js
         "Unsupported curve id, supported: secp256r1, secp256k1, secp384r1");
     }
     auto k = crypto::make_key_pair(cid);
+
+    crypto::Pem prv = k->private_key_pem();
+    crypto::Pem pub = k->public_key_pem();
+
+    auto r = JS_NewObject(ctx);
+    JS_SetPropertyStr(
+      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
+    JS_SetPropertyStr(
+      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
+    return r;
+  }
+
+  static JSValue js_generate_eddsa_key_pair(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto curve = jsctx.to_str(argv[0]);
+
+    crypto::CurveID cid;
+    if (curve == "curve25519")
+    {
+      cid = crypto::CurveID::CURVE25519;
+    }
+    else
+    {
+      return JS_ThrowRangeError(
+        ctx, "Unsupported curve id, supported: curve25519");
+    }
+    auto k = crypto::make_eddsa_key_pair(cid);
 
     crypto::Pem prv = k->private_key_pem();
     crypto::Pem pub = k->public_key_pem();
@@ -469,6 +503,18 @@ namespace ccf::js
     }
   }
 
+  static bool verify_eddsa_signature(
+    uint8_t* contents,
+    size_t contents_size,
+    uint8_t* signature,
+    size_t signature_size,
+    const std::string& pub_key)
+  {
+    auto public_key = crypto::make_eddsa_public_key(pub_key);
+    return public_key->verify(
+      contents, contents_size, signature, signature_size);
+  }
+
   static JSValue js_verify_signature(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
@@ -500,24 +546,45 @@ namespace ccf::js
     }
 
     auto algorithm = argv[0];
+
     JSValue algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
     JSValue algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
 
     auto algo_name_str = jsctx.to_str(algo_name_val);
+
+    auto key_str = jsctx.to_str(argv[1]);
+    if (!key_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
     if (!algo_name_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
-    auto algo_hash_str = jsctx.to_str(algo_hash_val);
-    if (!algo_hash_str)
+
+    // Handle algorithms that don't use algo_hash here
+    if (*algo_name_str == "EdDSA")
     {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      try
+      {
+        return JS_NewBool(
+          ctx,
+          verify_eddsa_signature(
+            data, data_size, signature, signature_size, *key_str));
+      }
+      catch (const std::exception& ex)
+      {
+        auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+        js::js_dump_error(ctx);
+        return e;
+      }
     }
 
-    auto key_str = jsctx.to_str(argv[1]);
-    if (!key_str)
+    auto algo_hash_str = jsctx.to_str(algo_hash_val);
+    if (!algo_hash_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;

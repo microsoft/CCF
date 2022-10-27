@@ -33,6 +33,11 @@ export const generateRsaKeyPair = ccf.crypto.generateRsaKeyPair;
 export const generateEcdsaKeyPair = ccf.crypto.generateEcdsaKeyPair;
 
 /**
+ * @inheritDoc CCFCrypto.generateEcdsaKeyPair
+ */
+export const generateEddsaKeyPair = ccf.crypto.generateEddsaKeyPair;
+
+/**
  * @inheritDoc CCF.wrapKey
  */
 export const wrapKey = ccf.crypto.wrapKey;
