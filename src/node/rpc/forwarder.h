@@ -205,6 +205,11 @@ namespace ccf
         std::make_shared<ccf::SessionContext>(client_session_id, caller_cert);
       session->is_forwarded = true;
 
+      if constexpr (std::is_same_v<TFwdHdr, ForwardedCommandHeader_v3>)
+      {
+        session->active_view = r.first.active_view;
+      }
+
       try
       {
         return ccf::make_fwd_rpc_context(
