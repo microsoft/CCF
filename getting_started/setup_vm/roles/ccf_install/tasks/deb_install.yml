@@ -55,7 +55,7 @@
     dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
     remote_src: true
   become: true
-  when: (run_js|bool) and (platform == "SNP")
+  when: (run_js|bool) and (platform == "snp")
 
 - name: Remove release
   apt:
