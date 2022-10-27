@@ -5,7 +5,8 @@ on:
     types: [published]
 on:
   push:
-    branch: "publish_3_0_0_rc0"
+    branches:
+      - "publish_3_0_0_rc0"
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
