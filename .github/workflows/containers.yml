@@ -3,9 +3,6 @@ name: "Build and Publish Release Containers to MCR"
 on:
   release:
     types: [published]
-  push:
-    branches:
-      - "publish_3_0_0_rc0"
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
@@ -22,7 +19,7 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          echo "tag=3.0.0-rc0" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
       # SGX
