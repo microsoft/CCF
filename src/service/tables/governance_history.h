@@ -13,4 +13,9 @@ namespace ccf
   {
     static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
   }
+  using COSEGovernanceHistory = ServiceMap<MemberId, std::vector<uint8_t>>;
+  namespace Tables
+  {
+    static constexpr auto COSE_GOV_HISTORY = "public:ccf.gov.cose_history";
+  }
 }

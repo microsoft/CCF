@@ -26,7 +26,7 @@ Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
     $ cd CCF
     $ mkdir build
     $ cd build
-    $ cmake -GNinja -DCOMPILE_TARGETS=virtual ..
+    $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
     $ ninja
 
 .. note:::
@@ -46,7 +46,7 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **COMPILE_TARGETS**: String. List of target compilation platforms. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
+* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``sgx``. Supported values are ``sgx``, ``snp``, or ``virtual``.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
 Run Tests

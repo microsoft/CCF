@@ -466,6 +466,12 @@ def test_npm_app(network, args):
             r.body.json()["privateKey"], r.body.json()["publicKey"]
         )
 
+        r = c.post("/app/generateEddsaKeyPair", {"curve": "curve25519"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
             2048
@@ -568,6 +574,22 @@ def test_npm_app(network, args):
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
             assert r.body.json() == True, r.body
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        algorithm = {"name": "EdDSA"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
 
         r = c.post(
             "/app/digest",

@@ -4,7 +4,7 @@
 
 #include "ccf/ds/hex.h"
 #include "ccf/http_configuration.h"
-#include "enclave/tls_endpoint.h"
+#include "enclave/tls_session.h"
 #include "http_builder.h"
 #include "http_proc.h"
 
@@ -306,13 +306,14 @@ namespace http
       if (!partial_parsed_header.second.empty())
       {
         complete_header();
-        auto const& max_headers_count =
-          configuration.max_headers_count.value_or(default_max_headers_count);
-        if (headers.size() > max_headers_count)
-        {
-          throw RequestHeaderTooLarge(fmt::format(
-            "Too many headers (max number allowed: {})", max_headers_count));
-        }
+      }
+
+      const auto max_headers_count =
+        configuration.max_headers_count.value_or(default_max_headers_count);
+      if (headers.size() >= max_headers_count)
+      {
+        throw RequestHeaderTooLarge(fmt::format(
+          "Too many headers (max number allowed: {})", max_headers_count));
       }
 
       // HTTP headers are stored lowercase as it is easier to verify HTTP

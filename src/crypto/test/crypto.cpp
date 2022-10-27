@@ -3,6 +3,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/jwk.h"
@@ -267,6 +268,76 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     corrupt(hash);
     CHECK_FALSE(verifier->verify(hash, signature));
   }
+}
+
+TEST_CASE("Sign, verify, with KeyPair of EdDSA")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp->sign(contents);
+  CHECK(kp->verify(contents, signature));
+}
+
+TEST_CASE("Sign, verify, with PublicKey of EdDSA")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp->sign(contents);
+
+  const auto public_key = kp->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  CHECK(pubk->verify(contents, signature));
+}
+
+TEST_CASE("Sign, fail to verify with bad signature (EdDSA)")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(contents);
+
+  const auto public_key = kp->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  corrupt(signature);
+  CHECK_FALSE(pubk->verify(contents, signature));
+}
+
+TEST_CASE("Sign, fail to verify with bad contents (EdDSA)")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(contents);
+
+  const auto public_key = kp->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  corrupt(contents);
+  CHECK_FALSE(pubk->verify(contents, signature));
+}
+
+TEST_CASE("Sign, fail to verify with wrong key on correct curve (EdDSA)")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(contents);
+
+  auto kp2 = make_eddsa_key_pair(curve_id);
+  const auto public_key = kp2->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  CHECK_FALSE(pubk->verify(contents, signature));
 }
 
 TEST_CASE("base64")

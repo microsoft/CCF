@@ -109,6 +109,9 @@ namespace ccf
     /// Signed request containing the last state digest.
     std::optional<SignedReq> signed_req = std::nullopt;
 
+    /// COSE Sign1 containing the last state digest
+    std::optional<std::vector<uint8_t>> cose_sign1_req = std::nullopt;
+
     MemberAck() {}
 
     MemberAck(const crypto::Sha256Hash& root) : StateDigest(root) {}
@@ -117,6 +120,13 @@ namespace ccf
       StateDigest(root),
       signed_req(signed_req_)
     {}
+
+    MemberAck(
+      const crypto::Sha256Hash& root,
+      const std::vector<uint8_t>& cose_sign1_req_) :
+      StateDigest(root),
+      cose_sign1_req(cose_sign1_req_)
+    {}
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(MemberAck, StateDigest)
 #pragma clang diagnostic push
@@ -124,7 +134,7 @@ namespace ccf
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
   DECLARE_JSON_REQUIRED_FIELDS(MemberAck)
 #pragma clang diagnostic pop
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberAck, signed_req)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberAck, signed_req, cose_sign1_req)
   using MemberAcks = ServiceMap<MemberId, MemberAck>;
   namespace Tables
   {

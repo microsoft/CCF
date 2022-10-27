@@ -181,9 +181,16 @@ namespace crypto
       Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
         Unique_SSL_OBJECT(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
       {}
-      Unique_EVP_PKEY_CTX() :
+      Unique_EVP_PKEY_CTX(int key_type = EVP_PKEY_EC) :
         Unique_SSL_OBJECT(
-          EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL), EVP_PKEY_CTX_free)
+          EVP_PKEY_CTX_new_id(key_type, NULL), EVP_PKEY_CTX_free)
+      {}
+    };
+
+    struct Unique_EVP_MD_CTX
+      : public Unique_SSL_OBJECT<EVP_MD_CTX, nullptr, nullptr>
+    {
+      Unique_EVP_MD_CTX() : Unique_SSL_OBJECT(EVP_MD_CTX_new(), EVP_MD_CTX_free)
       {}
     };
 

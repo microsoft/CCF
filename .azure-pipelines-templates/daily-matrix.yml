@@ -16,11 +16,11 @@ parameters:
     common:
       cmake_args: '-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON -DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     Virtual:
-      cmake_args: "-DCOMPILE_TARGETS=virtual"
+      cmake_args: "-DCOMPILE_TARGET=virtual"
     SGX:
-      cmake_args: "-DCOMPILE_TARGETS=sgx"
+      cmake_args: "-DCOMPILE_TARGET=sgx"
     SNPCC:
-      cmake_args: "-DCOMPILE_TARGETS=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
+      cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     unsafe:
