@@ -16,8 +16,8 @@ add_custom_target(dummy ALL DEPENDS libprotobuf)
 
 get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
 
-set(PROTOBUF_TARGETS "protobuf.host")
-add_host_library(protobuf.host ${LIBPROTOBUF_SOURCES})
+set(PROTOBUF_TARGETS "protobuf.virtual")
+add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
 
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
@@ -29,7 +29,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 else()
   install(
-    TARGETS protobuf.host
+    TARGETS protobuf.virtual
     EXPORT ccf
     DESTINATION lib
   )
