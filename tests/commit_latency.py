@@ -19,7 +19,10 @@ def poll_for_commit(client, view, seqno, timeout=3):
     logs = []
     while time.time() < end_time:
         logs.clear()
-        r = client.get(f"/node/tx?transaction_id={view}.{seqno}", log_capture=logs)
+        r = client.get(
+            f"/node/tx?transaction_id={view}.{seqno}",
+            log_capture=logs,
+        )
         assert r.status_code == http.HTTPStatus.OK, r
         status = TxStatus(r.body.json()["status"])
         if status == TxStatus.Committed:
@@ -46,13 +49,13 @@ class Stats:
             "stdev": statistics.stdev(ns),
         }
 
-    def print(self):
-        LOG.warning(f"{self.label} ({len(self.ns)} entries)")
+    def display(self, print_fn):
+        print_fn(f"{self.label} ({len(self.ns)} entries)")
         keylen = max(len(k) for k in self.stats.keys())
         valuelen = max(len(f"{v:.2f}") for v in self.stats.values())
 
         for k, v in self.stats.items():
-            LOG.warning(
+            print_fn(
                 f" - {{:>{keylen}}} = {{:>{valuelen}.2f}}{{}}".format(k, v, self.units)
             )
 
@@ -77,7 +80,9 @@ def measure_commit_latency(args, sig_interval=100):
         with primary.client("user0") as c:
             for _ in range(iterations):
                 r = c.post(
-                    "/app/log/private", {"id": 42, "msg": "Hello world"}, log_capture=[]
+                    "/app/log/private",
+                    {"id": 42, "msg": "Hello world"},
+                    log_capture=[],
                 )
                 assert r.status_code == http.HTTPStatus.OK, r
                 poll_time_s = poll_for_commit(c, r.view, r.seqno)
@@ -92,21 +97,34 @@ def measure_commit_latency(args, sig_interval=100):
 
 def run(args):
     all_stats = {}
-    for sig_interval in (1, 2, 4, 8, 16, 32, 64, 128, 256):
+    for sig_interval in (
+        1,
+        2,
+        4,
+        8,
+        16,
+        32,
+        64,
+        128,
+        256,
+    ):
         all_stats[sig_interval] = measure_commit_latency(
             args, sig_interval=sig_interval
         )
 
     for sig_interval, stats in all_stats.items():
-        stats.print()
         factor = stats.mean() / sig_interval
-        LOG.warning(f" - Mean commit latency / sig_interval = {factor:.2f}")
+        print_fn = (
+            LOG.success if factor <= 1 else LOG.warning if factor < 2 else LOG.error
+        )
+        stats.display(print_fn)
+        print_fn(f"Mean commit latency / sig_interval = {factor:.2f}")
 
 
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)  # TODO: Configurable?
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
 
     run(args)
