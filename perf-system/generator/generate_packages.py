@@ -22,26 +22,19 @@ def main():
     parser.add_argument(
         "-hs",
         "--host",
-        help="The main host to submit the request. Default `http://localhost:8000`",
+        help="The host to submit the request. Default `https://127.0.0.1:8000`",
         type=str,
     )
     parser.add_argument(
         "-p",
         "--path",
-        help="The realtive path to submit the request. Default `app/log/private`",
-        type=str,
-    )
-    parser.add_argument(
-        "-t",
-        "--type",
-        help="The type of the HTTP request (Only HTTP/1.1 which is the\
-        default is supported for now)",
+        help="The relative path to submit the request. Default `app/log/private`",
         type=str,
     )
     parser.add_argument(
         "-vr",
         "--verb",
-        help="The request action. Default `POST` (Only `POST` and `GET` are supported for now)",
+        help="The request action. Default `POST`",
     )
     parser.add_argument(
         "-r", "--rows", help="The number of requests to send. Default `16` ", type=int
@@ -56,7 +49,7 @@ def main():
     parser.add_argument(
         "-d",
         "--data",
-        help="A string with the data to be sent in the POST request",
+        help="A string with the data to be sent with a request",
         type=str,
     )
 
@@ -70,8 +63,6 @@ def main():
         args.rows or arg_iterations,
         args.data or arg_data,
     )
-    # create_post("https://127.0.0.1:8000", "/app/log/private", "HTTP/1.1", 30)
-    # create_get("https://127.0.0.1:8000", "/app/log/private?id=1", "HTTP/1.1", 20)
 
     generator.create_parquet(args.parquet_filename or arg_parquet_filename)
 

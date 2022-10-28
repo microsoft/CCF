@@ -15,7 +15,9 @@ REQUEST_LENGTH_TEXT = "content-length: "
 df = pd.DataFrame(columns=["messageID", "request"])
 
 
-def fill_df(host, req_path, req_type, req_verb, req_iters, data):
+def fill_df(
+    host: str, req_path: str, req_type: str, req_verb: str, req_iters: int, data: str
+):
     """
     Creates a dataframe with the data
     required for the requests
@@ -68,7 +70,7 @@ def create_verb(
     ]
 
 
-def create_parquet(parquet_filename):
+def create_parquet(parquet_filename: str):
     """
     Takes the dataframe data and stores them
     in a parquet file in the current directory
