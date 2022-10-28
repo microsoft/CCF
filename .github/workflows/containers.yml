@@ -19,11 +19,7 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          if [ ${GITHUB_REF} == *"ref/tags"* ]; then
-            echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
+          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
       # SGX
