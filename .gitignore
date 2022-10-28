@@ -4,7 +4,8 @@ build*/
 Debug*/
 Release*/
 CMakeFiles/
-.vscode/
+.vscode/settings.json
+.vscode/launch.json
 .vs/
 libuv/
 raft_tests.md
@@ -17,7 +18,7 @@ doxygen/
 obj/
 *.retry
 tests/env/
-tests/**/*pb2*.py
+tests/*pb2*.py
 sphinx/env/
 html/
 latex/
@@ -36,3 +37,4 @@ workspace/*
 ledger_[0-9]*
 snapshot_[0-9]*
 doc/operations/generated_config.rst
+*.parquet
