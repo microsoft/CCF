@@ -50,19 +50,21 @@ endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
-  quickjs.host
-  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
-  PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
-)
-add_san(quickjs.host)
-set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(
-  quickjs.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
-                      $<INSTALL_INTERFACE:include/3rdparty/quickjs>
-)
-
-install(
-  TARGETS quickjs.host
-  EXPORT ccf
-  DESTINATION lib
-)
+    quickjs.host
+    PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
+    PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
+  )
+  add_san(quickjs.host)
+  set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(
+    quickjs.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+    $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+    )
+    
+if(NOT COMPILE_TARGET STREQUAL "sgx")
+    install(
+      TARGETS quickjs.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

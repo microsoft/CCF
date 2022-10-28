@@ -27,13 +27,15 @@ add_library(qcbor.host STATIC ${QCBOR_SRCS})
 
 target_include_directories(
   qcbor.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR>
-                    $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
-)
+  $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
+  )
 set_property(TARGET qcbor.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(qcbor.host)
-
-install(
-  TARGETS qcbor.host
-  EXPORT ccf
-  DESTINATION lib
-)
+  
+if(NOT COMPILE_TARGET STREQUAL "sgx")
+  install(
+    TARGETS qcbor.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

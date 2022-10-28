@@ -312,13 +312,16 @@ if(COMPILE_TARGET STREQUAL "sgx")
     DESTINATION lib
   )
 endif()
+
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS http_parser.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(NOT COMPILE_TARGET STREQUAL "sgx")
+  install(
+    TARGETS http_parser.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # CCF kv libs
 set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
@@ -336,12 +339,14 @@ if(COMPILE_TARGET STREQUAL "sgx")
 endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
+if(NOT COMPILE_TARGET STREQUAL "sgx")
 add_warning_checks(ccf_kv.host)
-install(
-  TARGETS ccf_kv.host
-  EXPORT ccf
-  DESTINATION lib
-)
+  install(
+    TARGETS ccf_kv.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # CCF endpoints libs
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -361,11 +366,14 @@ target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
 target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
-install(
-  TARGETS ccf_endpoints.host
-  EXPORT ccf
-  DESTINATION lib
-)
+
+if(NOT COMPILE_TARGET STREQUAL "sgx")
+  install(
+    TARGETS ccf_endpoints.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
