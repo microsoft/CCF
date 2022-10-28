@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set(CPACK_PACKAGE_NAME ${CCF_PROJECT})
+set(CPACK_PACKAGE_NAME "${CCF_PROJECT}_${COMPILE_TARGET}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Confidential Consortium Framework")
 set(CPACK_PACKAGE_CONTACT "https://github.com/Microsoft/CCF")
 set(CPACK_RESOURCE_FILE_LICENSE "${CCF_DIR}/LICENSE")
