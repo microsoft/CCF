@@ -6,10 +6,10 @@ MYHOST = "127.0.0.1:8000"
 REQUEST_CONTENT_TYPE = "content-type: application/json"
 
 
-for i in range(12):
+for i in range(14):
     req_type = "HTTP/1.1"
     req_path = "/app/log/private"
-    req_data = '{"id": 45, "msg": "Logged to private table"}'
+    req_data = '{"id": ' + str(i) + ', "msg": "Logged ' + str(i) + ' to private table"}'
 
     create_verb(
         "post",
@@ -23,14 +23,14 @@ for i in range(12):
 for i in range(14):
 
     req_type = "HTTP/1.1"
-    req_path = "/app/log/private?id=45"
+    req_path = "/app/log/private?id=" + str(i)
 
     create_verb("GET", MYHOST, req_path, req_type, headers=[REQUEST_CONTENT_TYPE])
 
 for i in range(14):
 
     req_type = "HTTP/1.1"
-    req_path = "/app/log/private?id=45"
+    req_path = "/app/log/private?id=" + str(i)
 
     create_verb("delete", MYHOST, req_path, req_type, headers=[REQUEST_CONTENT_TYPE])
 
