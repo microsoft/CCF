@@ -64,7 +64,7 @@ class Stats:
 def measure_commit_latency(args, sig_interval=100):
     args.sig_ms_interval = sig_interval
 
-    iterations = 50
+    iterations = 20
 
     times = []
     with infra.network.network(
