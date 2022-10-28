@@ -210,8 +210,7 @@ function(add_unit_test name)
   )
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
-  )
+  ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host ${OE_HOST_LIBRARY})
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
