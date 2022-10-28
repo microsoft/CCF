@@ -88,6 +88,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/open_enclave.cmake DESTINATION cmake)
 
 if(SAN AND LVI_MITIGATIONS)
   message(
