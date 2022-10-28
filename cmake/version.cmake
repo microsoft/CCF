@@ -8,6 +8,7 @@ unset(CCF_VERSION_SUFFIX)
 option(UNSAFE_VERSION "Produce build with unsafe logging levels" OFF)
 
 set(CCF_PROJECT "ccf")
+set(CCF_PROJECT "${CCF_PROJECT}_${COMPILE_TARGET}")
 if(UNSAFE_VERSION)
   set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
   add_compile_definitions(UNSAFE_VERSION)
