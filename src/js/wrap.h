@@ -39,6 +39,12 @@ namespace ccf::js
   extern JSClassDef node_class_def;
   extern JSClassDef network_class_def;
 
+  const std::chrono::milliseconds default_max_execution_time{200};
+  const size_t default_stack_size = 1024 * 1024;
+  const size_t default_heap_size = 100 * 1024 * 1024;
+  static std::chrono::milliseconds max_execution_time =
+    default_max_execution_time;
+
   enum class TxAccess
   {
     APP,
@@ -219,12 +225,12 @@ namespace ccf::js
   {
     std::chrono::microseconds start_time;
     std::chrono::milliseconds max_execution_time;
+    bool request_timed_out = false;
   };
 
   class Runtime
   {
     JSRuntime* rt;
-    UntrustedHostTime* host_time;
 
   public:
     Runtime(kv::Tx* tx);
@@ -241,22 +247,28 @@ namespace ccf::js
   class Context
   {
     JSContext* ctx;
+    JSRuntime* js_run_time;
 
   public:
     const TxAccess access;
+    UntrustedHostTime* host_time;
 
     Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {
-      ctx = JS_NewContext(rt);
+      js_run_time = rt;
+      ctx = JS_NewContext(js_run_time);
       if (ctx == nullptr)
       {
         throw std::runtime_error("Failed to initialise QuickJS context");
       }
+      host_time = new UntrustedHostTime();
       JS_SetContextOpaque(ctx, this);
     }
 
     ~Context()
     {
+      delete host_time;
+      JS_SetInterruptHandler(js_run_time, NULL, NULL);
       JS_FreeContext(ctx);
     }
 
@@ -413,16 +425,7 @@ namespace ccf::js
 
     JSWrappedValue call(
       const JSWrappedValue& f,
-      const std::vector<js::JSWrappedValue>& argv) const
-    {
-      std::vector<JSValue> argvn;
-      argvn.reserve(argv.size());
-      for (auto& a : argv)
-      {
-        argvn.push_back(a.val);
-      }
-      return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
-    }
+      const std::vector<js::JSWrappedValue>& argv) const;
 
     JSWrappedValue parse_json(const nlohmann::json& j) const
     {

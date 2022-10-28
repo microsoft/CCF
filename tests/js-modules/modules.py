@@ -816,14 +816,14 @@ def test_js_execution_time(network, args):
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
         body = r.body.json()
-        assert body["error"]["message"] == "Exception thrown while executing."
+        assert body["error"]["message"] == "Operation took too long to complete."
 
         # reset the execution time
         network.consortium.set_js_runtime_options(
             primary,
             max_heap_bytes=50 * 1024 * 1024,
             max_stack_bytes=1024 * 512,
-            max_execution_time=250,
+            max_execution_time=200,
         )
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.OK, r.status_code

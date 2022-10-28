@@ -17,6 +17,7 @@
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
+#include "js/wrap.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/serialization.h"
@@ -1394,9 +1395,9 @@ namespace ccf
           version_val->get() == std::string(ccf::quickjs_version);
 
         auto js_engine_options = js_engine_map->get();
-        m.max_stack_size = 1024 * 1024;
-        m.max_heap_size = 100 * 1024 * 1024;
-        m.max_execution_time = 240;
+        m.max_stack_size = js::default_stack_size;
+        m.max_heap_size = js::default_heap_size;
+        m.max_execution_time = js::default_max_execution_time.count();
         if (js_engine_options.has_value())
         {
           m.max_stack_size = js_engine_options.value().max_stack_bytes;

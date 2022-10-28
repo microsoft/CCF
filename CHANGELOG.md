@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New `snpinfo.sh` script (#4196).
 - New `"attestation"` section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
 
+<<<<<<< HEAD
 #### Release artefacts
 
 - `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
@@ -88,6 +89,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ---
 
 ### Dependencies
+=======
+- Add `ccf.crypto.generateEddsaKeyPair()` API with Curve25519 support in the JavaScript runtime (#4391).
+
+### Changed
+>>>>>>> Move interrupt handler closer to execution
 
 - Updated PSW in images to 2.16.100.
 - Upgraded Open Enclave to 0.18.1 (#4023).

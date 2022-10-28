@@ -92,12 +92,31 @@ namespace ccf::js
     if (elapsed_ms.count() >= time->max_execution_time.count())
     {
       LOG_INFO_FMT("JS execution has timed out");
+      time->request_timed_out = true;
       return 1;
     }
     else
     {
       return 0;
     }
+  }
+
+  JSWrappedValue Context::call(
+    const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv) const
+  {
+    std::vector<JSValue> argvn;
+    argvn.reserve(argv.size());
+    for (auto& a : argv)
+    {
+      argvn.push_back(a.val);
+    }
+
+    const auto curr_time = ccf::get_enclave_time();
+    host_time->start_time = curr_time;
+    host_time->max_execution_time = max_execution_time;
+    JS_SetInterruptHandler(js_run_time, js_custom_interrupt_handler, host_time);
+
+    return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
   }
 
   Runtime::Runtime(kv::Tx* tx)
@@ -107,9 +126,8 @@ namespace ccf::js
     {
       throw std::runtime_error("Failed to initialise QuickJS runtime");
     }
-    size_t stack_size = 1024 * 1024;
-    size_t heap_size = 100 * 1024 * 1024;
-    std::chrono::milliseconds default_max_execution_time{1000};
+    size_t stack_size = default_stack_size;
+    size_t heap_size = default_heap_size;
 
     const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
     const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
@@ -118,23 +136,16 @@ namespace ccf::js
     {
       heap_size = js_runtime_options.value().max_heap_bytes;
       stack_size = js_runtime_options.value().max_stack_bytes;
-      default_max_execution_time = std::chrono::milliseconds{
+      max_execution_time = std::chrono::milliseconds{
         js_runtime_options.value().max_execution_time_ms};
     }
 
     JS_SetMaxStackSize(rt, stack_size);
     JS_SetMemoryLimit(rt, heap_size);
-    host_time = new UntrustedHostTime();
-    const auto curr_time = ccf::get_enclave_time();
-    host_time->start_time = curr_time;
-    host_time->max_execution_time = default_max_execution_time;
-    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, host_time);
   }
 
   Runtime::~Runtime()
   {
-    delete host_time;
-    JS_SetInterruptHandler(rt, NULL, NULL);
     JS_FreeRuntime(rt);
   }
 
