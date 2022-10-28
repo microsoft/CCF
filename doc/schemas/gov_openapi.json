@@ -463,6 +463,11 @@
       }
     },
     "securitySchemes": {
+      "member_cose_sign1": {
+        "description": "Request payload must be a COSE Sign1 document, with expected protected headers. Signer must be a member identity registered with this service.",
+        "scheme": "cose_sign1",
+        "type": "http"
+      },
       "member_signature": {
         "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
         "scheme": "signature",
@@ -487,7 +492,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.9.8"
+    "version": "2.12.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -514,6 +519,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -541,6 +549,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -729,11 +740,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -767,6 +773,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -791,11 +800,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -828,11 +832,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -888,6 +887,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -912,11 +914,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -970,6 +967,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -1029,6 +1029,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -1064,6 +1067,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {

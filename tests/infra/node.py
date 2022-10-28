@@ -552,6 +552,9 @@ class Node:
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
+    def cose_signing_auth(self, name=None):
+        return {"cose_signing_auth": self.identity(name)}
+
     def get_public_rpc_host(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
@@ -597,6 +600,7 @@ class Node:
         self,
         identity=None,
         signing_identity=None,
+        cose_signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
         verify_ca=True,
         **kwargs,
@@ -627,9 +631,10 @@ class Node:
             akwargs["http2"] = True
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
+        akwargs.update(self.cose_signing_auth(cose_signing_identity))
         akwargs[
             "description"
-        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
+        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}|{cose_signing_identity or ''}]"
         akwargs.update(kwargs)
 
         if self.curl:
