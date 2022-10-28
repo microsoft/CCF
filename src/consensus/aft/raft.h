@@ -809,9 +809,7 @@ namespace aft
         entry_count++;
 
         state->view_history.update(index, state->current_view);
-        if (
-          entry_size_not_limited >= append_entries_size_limit ||
-          globally_committable)
+        if (entry_size_not_limited >= append_entries_size_limit)
         {
           update_batch_size();
           entry_count = 0;
