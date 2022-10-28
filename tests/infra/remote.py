@@ -685,8 +685,14 @@ class CCFRemote(object):
             snp_endorsements_servers_list.append(s)
 
         # Validate consensus timers
-        if (election_timeout_ms is not None and consensus_update_timeout_ms is not None and election_timeout_ms < 4*consensus_update_timeout_ms):
-            LOG.error(f"Consensus message timeout ({consensus_update_timeout_ms}ms) is not significantly less than election timeout ({election_timeout_ms}ms). This may lead to many unintended elections")
+        if (
+            election_timeout_ms is not None
+            and consensus_update_timeout_ms is not None
+            and election_timeout_ms < 4 * consensus_update_timeout_ms
+        ):
+            LOG.error(
+                f"Consensus message timeout ({consensus_update_timeout_ms}ms) is not significantly less than election timeout ({election_timeout_ms}ms). This may lead to many unintended elections"
+            )
 
         # Configuration file
         if config_file:
