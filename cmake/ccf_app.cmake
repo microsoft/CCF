@@ -16,6 +16,7 @@ if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
   )
 endif()
 
+# TODO: Fix this on install
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/open_enclave.cmake)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)

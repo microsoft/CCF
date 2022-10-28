@@ -6,7 +6,7 @@
     - import_role:
         name: intel
         tasks_from: sgx-psw.yml
-      # when: platform == "sgx"
+      when: platform == "sgx"
     - import_role:
         name: intel
         tasks_from: sgx-group.yml
