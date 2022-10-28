@@ -45,13 +45,13 @@ target_include_directories(t_cose.host PRIVATE "${T_COSE_SRC}")
 
 target_include_directories(
   t_cose.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose>
-                    $<INSTALL_INTERFACE:include/3rdparty/t_cose>
+                     $<INSTALL_INTERFACE:include/3rdparty/t_cose>
 )
 
 target_link_libraries(t_cose.host PUBLIC qcbor.host crypto)
 set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(t_cose.host)
-  
+
 if(NOT COMPILE_TARGET STREQUAL "sgx")
   install(
     TARGETS t_cose.host

@@ -52,13 +52,13 @@ endif()
 add_library(nghttp2.host STATIC ${NGHTTP2_SRCS})
 target_include_directories(
   nghttp2.host PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>
-  $<INSTALL_INTERFACE:include/3rdparty/nghttp2>
-  )
-  target_compile_definitions(
-    nghttp2.host PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1
-    )
-    add_san(nghttp2.host)
-    set_property(TARGET nghttp2.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+                      $<INSTALL_INTERFACE:include/3rdparty/nghttp2>
+)
+target_compile_definitions(
+  nghttp2.host PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1
+)
+add_san(nghttp2.host)
+set_property(TARGET nghttp2.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 if(NOT COMPILE_TARGET STREQUAL "sgx")
   install(
