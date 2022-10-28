@@ -138,11 +138,6 @@ VARIABLE committedLogConflict
 
 logVars == <<log, commitIndex, clientRequests, committedLog, committedLogConflict>>
 
-\* The following variables are used only on candidates:
-\* The set of servers from which the candidate has received a RequestVote
-\* response in its currentTerm.
-VARIABLE votesSent
-
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
 VARIABLE votesGranted
@@ -151,7 +146,7 @@ VARIABLE votesGranted
 \* of requests to other nodes
 VARIABLE votesRequested
 
-candidateVars == <<votesSent, votesGranted, votesRequested>>
+candidateVars == <<votesGranted, votesRequested>>
 
 \* The following variables are used only on leaders:
 \* The next entry to send to each follower.
@@ -329,7 +324,6 @@ InitServerVars ==
     /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
-    /\ votesSent = [i \in Servers |-> FALSE ]
     /\ votesGranted   = [i \in Servers |-> {}]
     /\ votesRequested = [i \in Servers |-> [j \in Servers |-> 0]]
 
@@ -380,7 +374,6 @@ Timeout(i) ==
     \*   CCF change: We do this atomically to reduce state space
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in Servers |-> 0]]
-    /\ votesSent' = [votesSent EXCEPT ![i] = TRUE ]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars>>
 \* SNIPPET_END: timeout
@@ -405,7 +398,7 @@ RequestVote(i,j) ==
     /\ IsInServerSet(j, i)
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
     /\ Send(msg)
-    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, votesGranted, leaderVars, logVars, votesSent>>
+    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, votesGranted, leaderVars, logVars>>
 
 \* Leader i sends j an AppendEntries request containing up to 1 entry.
 \* While implementations may want to send more than 1 at a time, this spec uses
@@ -657,9 +650,8 @@ HandleRequestVoteResponse(i, j, m) ==
     /\ \/ /\ m.mvoteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
-          /\ UNCHANGED votesSent
        \/ /\ ~m.mvoteGranted
-          /\ UNCHANGED <<votesSent, votesGranted>>
+          /\ UNCHANGED votesGranted
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, votedFor, votesRequested, leaderVars, logVars>>
 
@@ -1054,7 +1046,6 @@ ServerVarsTypeInv ==
 
 CandidateVarsTypeInv ==
     /\ \A i \in Servers :
-        /\ votesSent[i] \in BOOLEAN
         /\ votesGranted[i] \subseteq Servers
         /\ \A j \in Servers : i /= j => 
             /\ votesRequested[i][j] \in Nat
