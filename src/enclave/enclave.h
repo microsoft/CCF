@@ -300,7 +300,7 @@ namespace ccf
                 time_now - last_tick_time);
             if (elapsed_ms.count() > 0)
             {
-              last_tick_time = time_now;
+              last_tick_time += elapsed_ms;
 
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);
