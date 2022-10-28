@@ -811,7 +811,7 @@ def test_js_execution_time(network, args):
             primary,
             max_heap_bytes=50 * 1024 * 1024,
             max_stack_bytes=1024 * 512,
-            max_execution_time=100,
+            max_execution_time=0.5,
         )
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
@@ -823,7 +823,7 @@ def test_js_execution_time(network, args):
             primary,
             max_heap_bytes=50 * 1024 * 1024,
             max_stack_bytes=1024 * 512,
-            max_execution_time=200,
+            max_execution_time=1000,
         )
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
