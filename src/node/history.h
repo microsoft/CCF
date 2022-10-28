@@ -553,7 +553,7 @@ namespace ccf
                   if (
                     self->store.committable_gap() > 0 &&
                     time > time_of_last_signature &&
-                    (time - time_of_last_signature) > sig_ms_interval)
+                    (time - time_of_last_signature) >= sig_ms_interval)
                   {
                     should_emit_signature = true;
                   }
