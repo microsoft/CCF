@@ -9,10 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [3.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc1
 
-TODO: Summary of release: 
-- New deb package and docker images
-- Improved application API (logging and crypto)
-- Experimental support for HTTP/2 and SEV-SNP and COSE Sign1 governance input.
+## [3.0.0-rc0]
 
 ### Developer API
 
@@ -34,13 +31,14 @@ TODO: Summary of release:
 - Add `ccf.generateEcdsaKeyPair` API in the JavaScript runtime (#4271).
 - Add `secp256k1` support to `ccf.crypto.generateEcdsaKeyPair()` and `ccf.crypto.verifySignature()` (#4347).
 - Add `ccf.crypto.generateEddsaKeyPair()` API with `Curve25519` support in the JavaScript runtime (#4391).
+- Add new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
 
 ---
 
 ### Governance
 
 - `set_user` action in sample constitutions correctly handles user_data (#4229).
-- Governance endpoints now support COSE Sign1 input, as well as signed HTTP requests (#4392).
+- Governance endpoints now support [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) input, as well as signed HTTP requests (#4392).
 
 ---
 
@@ -60,7 +58,8 @@ TODO: Summary of release:
 #### Release artefacts
 
 - `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
-- TODO: Docker images + debian packages
+- Release assets now include variants per TEE platform: `ccf_sgx_<version>_amd64.deb`, `ccf_snp_<version>_amd64.deb` and `ccf_virtual_<version>_amd64.deb`.
+- Docker images now include variants per TEE platform, identified via image tag: `:<version>-sgx`, `:<version>-snp` and `:<version>-virtual`.
 
 --- 
 
@@ -75,7 +74,7 @@ TODO: Summary of release:
 - Added a `GET /node/service/previous_identity` endpoint, which can be used during a recovery to look up the identity of the service before the catastrophic failure (#3880).
 - `GET /node/version` now contains an `unsafe` flag reflecting the status of the build.
 - Added new recovery_count field to `GET /node/network` endpoint to track the number of disaster recovery procedures undergone by the service (#3982).
-- Added new `service_data_json_fil`e configuration entry to `cchost` to point to free-form JSON file to set arbitrary data to service (#3997).
+- Added new `service_data_json_file` configuration entry to `cchost` to point to free-form JSON file to set arbitrary data to service (#3997).
 - Added new `current_service_create_txid` field to `GET /node/network` endpoint to indicate `TxID` at which current service was created (#3996).
 - Experimental support for HTTP/2 (#4010).
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
@@ -94,20 +93,6 @@ TODO: Summary of release:
 ### Documentation
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
-
-## [3.0.0-rc0]
-
-### Experimental
-
-- Governance endpoints now support [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) input, as well as signed HTTP requests (#4392).
-
-### Removed
-
-- The functions `starts_with`, `ends_with`, `remove_prefix`, and `remove_suffix`, and the type `remove_cvref` have been removed from `nonstd::`. The C++20 equivalents should be used instead.
-
-### Added
-
-- Add `ccf.crypto.generateEddsaKeyPair()` API with Curve25519 support in the JavaScript runtime (#4391).
 
 ## [3.0.0-dev7]
 
