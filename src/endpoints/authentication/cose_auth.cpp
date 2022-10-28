@@ -240,6 +240,6 @@ namespace ccf
         {"scheme", "cose_sign1"},
         {"description",
          "Request payload must be a COSE Sign1 document, with expected "
-         "protected headers."
+         "protected headers. "
          "Signer must be a member identity registered with this service."}});
 }

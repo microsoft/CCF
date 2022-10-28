@@ -365,13 +365,22 @@ Service constitution: JavaScript module, exporting ``validate()``, ``resolve()``
 ``history``
 ~~~~~~~~~~~
 
-Governance history of the service, captures all governance requests submitted by members.
+Governance history of the service, captures signed governance requests submitted by members.
 
 **Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
 **Value** Represented as JSON.
 
 See :cpp:struct:`ccf::SignedReq`
+
+``cose_history``
+~~~~~~~~~~~~~~~~
+
+Governance history of the service, captures all COSE Sign 1 governance requests submitted by members.
+
+**Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
+
+**Value** COSE Sign1
 
 ``public:ccf.internal.``
 ------------------------
