@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### C++
 
 - Removed deprecated `set_execute_outside_consensus()` API (#3886, #3673).
-- Application code should now use the `CCF_APP_*` macros rather than LOG_*_FMT (eg - `CCF_APP_INFO` replacing `LOG_INFO_FMT`). The new macros will add an `[app]` tag to all lines so they can be easily filtered from framework code (#4024).
+- Application code should now use the `CCF_APP_*` macros rather than `LOG_*_FMT` (eg - `CCF_APP_INFO` replacing `LOG_INFO_FMT`). The new macros will add an `[app]` tag to all lines so they can be easily filtered from framework code (#4024).
 - The previous logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) have been deprecated, and should no longer be used by application code. Replace with the `CCF_APP_*` equivalent.
 - Added a new method `get_decoded_request_path_param`s that returns a map of decoded path parameters (#4126).
 - New `crypto::hmac` API (#4204).
@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Release assets now include variants per TEE platform: `ccf_sgx_<version>_amd64.deb`, `ccf_snp_<version>_amd64.deb` and `ccf_virtual_<version>_amd64.deb`.
 - Docker images now include variants per TEE platform, identified via image tag: `:<version>-sgx`, `:<version>-snp` and `:<version>-virtual`.
 
---- 
+---
 
 ### Auditor
 
