@@ -131,6 +131,9 @@ namespace externalexecutor
 
     void install_kv_service()
     {
+      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
+      ccf::AuthnPolicies executor_only{executor_auth_policy};
+
       auto start = [this](
                      ccf::endpoints::CommandEndpointContext& ctx,
                      google::protobuf::Empty&& payload)
@@ -159,15 +162,13 @@ namespace externalexecutor
 
         return ccf::grpc::make_success(optional_request_description);
       };
-
-      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       make_endpoint(
         "/externalexecutor.protobuf.KV/StartTx",
         HTTP_POST,
         ccf::grpc_command_adapter<
           google::protobuf::Empty,
           externalexecutor::protobuf::OptionalRequestDescription>(start),
-        ccf::no_auth_required)
+        executor_only)
         .install();
 
       auto end = [this](
@@ -259,7 +260,7 @@ namespace externalexecutor
         ccf::grpc_adapter<
           externalexecutor::protobuf::ResponseDescription,
           google::protobuf::Empty>(end),
-        ccf::no_auth_required)
+        executor_only)
         .install();
 
       auto put = [this](
@@ -287,7 +288,7 @@ namespace externalexecutor
         ccf::grpc_adapter<
           externalexecutor::protobuf::KVKeyValue,
           google::protobuf::Empty>(put),
-        {executor_auth_policy})
+        executor_only)
         .install();
 
       auto get = [this](
@@ -324,7 +325,7 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
           externalexecutor::protobuf::OptionalKVValue>(get),
-        {executor_auth_policy})
+        executor_only)
         .install();
 
       auto has = [this](
@@ -355,7 +356,7 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
           externalexecutor::protobuf::KVHasResult>(has),
-        {executor_auth_policy})
+        executor_only)
         .install();
 
       auto get_version = [this](
@@ -392,7 +393,7 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
           externalexecutor::protobuf::OptionalKVVersion>(get_version),
-        {executor_auth_policy})
+        executor_only)
         .install();
 
       auto kv_delete = [this](
@@ -420,7 +421,7 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
           google::protobuf::Empty>(kv_delete),
-        {executor_auth_policy})
+        executor_only)
         .install();
 
       auto get_all = [this](
@@ -437,7 +438,7 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVTable,
           externalexecutor::protobuf::KVValue>(get_all),
-        {executor_auth_policy})
+        executor_only)
         .install();
     }
 
