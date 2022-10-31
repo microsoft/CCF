@@ -14,12 +14,14 @@ find_package(OpenEnclave 0.18.2 CONFIG REQUIRED)
 
 if(COMPILE_TARGET STREQUAL "sgx")
   set(OE_TARGET_LIBC openenclave::oelibc)
-  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
-                                openenclave::oelibc openenclave::oecryptoopenssl
+  set(OE_TARGET_ENCLAVE_AND_STD
+      openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
+      openenclave::oecryptoopenssl
   )
   # These oe libraries must be linked in specific order
-  set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
-                                  openenclave::oecore openenclave::oesyscall
+  set(OE_TARGET_ENCLAVE_CORE_LIBS
+      openenclave::oeenclave openenclave::oesnmalloc openenclave::oecore
+      openenclave::oesyscall
   )
 
   option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
@@ -52,4 +54,3 @@ if(COMPILE_TARGET STREQUAL "sgx")
 else()
   set(OE_HOST_LIBRARY openenclave::oehostverify)
 endif()
-  

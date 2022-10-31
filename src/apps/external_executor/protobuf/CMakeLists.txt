@@ -67,10 +67,10 @@ foreach(proto_file ${PROTO_FILES})
       ${PROTO_NAME_WE}.proto.virtual
       ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.cc
       ${CMAKE_CURRENT_BINARY_DIR}/${PROTO_NAME_WE}.pb.h
-      )
-      target_include_directories(
-        ${PROTO_NAME_WE}.proto.virtual PUBLIC ${PROTOBUF_INCLUDE_DIR}
-        )
+    )
+    target_include_directories(
+      ${PROTO_NAME_WE}.proto.virtual PUBLIC ${PROTOBUF_INCLUDE_DIR}
+    )
   endif()
 endforeach()
 

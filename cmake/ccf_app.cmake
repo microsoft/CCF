@@ -214,8 +214,8 @@ if(COMPILE_TARGET STREQUAL "sgx")
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
   endfunction()
 
-  # Convenience wrapper to build C++-libraries that can be linked in enclave, ie.
-  # in a CCF application.
+  # Convenience wrapper to build C++-libraries that can be linked in enclave,
+  # ie. in a CCF application.
   function(add_enclave_library name)
     cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
     set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
