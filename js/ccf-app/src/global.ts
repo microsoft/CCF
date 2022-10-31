@@ -238,7 +238,7 @@ export interface EcdsaParams {
 /**
  * EdDSA signature algorithm parameters.
  */
- export interface EddsaParams {
+export interface EddsaParams {
   name: "EdDSA";
   hash: null;
 }
@@ -324,7 +324,7 @@ export interface CCFCrypto {
    * @throws Will throw an error if the key is not compatible with the
    *  signing algorithm or if an unknown algorithm is used.
    */
-   sign(
+  sign(
     algorithm: SigningAlgorithm,
     key: string,
     data: ArrayBuffer

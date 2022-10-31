@@ -146,8 +146,7 @@ class CCFPolyfill implements CCF {
         if (algorithm.name !== "EdDSA") {
           throw new Error("incompatible signing algorithm for given key type");
         }
-      }
-      else {
+      } else {
         throw new Error("unrecognized signing algorithm");
       }
       if (algorithm.name === "EdDSA") {

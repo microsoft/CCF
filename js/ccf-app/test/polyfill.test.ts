@@ -149,30 +149,36 @@ describe("polyfill", function () {
         },
         privateKey,
         data
-      )
+      );
 
       {
-        const verifier = crypto.createVerify('SHA256');
+        const verifier = crypto.createVerify("SHA256");
         verifier.update(new Uint8Array(data));
         verifier.end();
-        assert.isTrue(verifier.verify(
-          {
-            key: publicKey,
-            dsaEncoding: "ieee-p1363",
-          },
-          new Uint8Array(signature)));
+        assert.isTrue(
+          verifier.verify(
+            {
+              key: publicKey,
+              dsaEncoding: "ieee-p1363",
+            },
+            new Uint8Array(signature)
+          )
+        );
       }
 
       {
-        const verifier = crypto.createVerify('SHA256');
+        const verifier = crypto.createVerify("SHA256");
         verifier.update("bar");
         verifier.end();
-        assert.isFalse(verifier.verify(
-          {
-            key: publicKey,
-            dsaEncoding: "ieee-p1363",
-          },
-          new Uint8Array(signature)));
+        assert.isFalse(
+          verifier.verify(
+            {
+              key: publicKey,
+              dsaEncoding: "ieee-p1363",
+            },
+            new Uint8Array(signature)
+          )
+        );
       }
     });
     it("performs ECDSA sign correctly", function () {
@@ -195,31 +201,36 @@ describe("polyfill", function () {
         },
         privateKey,
         data
-      )
+      );
 
       {
-        const verifier = crypto.createVerify('SHA256');
+        const verifier = crypto.createVerify("SHA256");
         verifier.update(new Uint8Array(data));
         verifier.end();
-        assert.isTrue(verifier.verify(
-          {
-            key: publicKey,
-            dsaEncoding: "ieee-p1363",
-          },
-          new Uint8Array(signature))
+        assert.isTrue(
+          verifier.verify(
+            {
+              key: publicKey,
+              dsaEncoding: "ieee-p1363",
+            },
+            new Uint8Array(signature)
+          )
         );
       }
 
       {
-        const verifier = crypto.createVerify('SHA256');
+        const verifier = crypto.createVerify("SHA256");
         verifier.update("bar");
         verifier.end();
-        assert.isFalse(verifier.verify(
-          {
-            key: publicKey,
-            dsaEncoding: "ieee-p1363",
-          },
-          new Uint8Array(signature)));
+        assert.isFalse(
+          verifier.verify(
+            {
+              key: publicKey,
+              dsaEncoding: "ieee-p1363",
+            },
+            new Uint8Array(signature)
+          )
+        );
       }
     });
     it("performs EdDSA with Curve25519 sign correctly", function () {
@@ -237,25 +248,27 @@ describe("polyfill", function () {
       const signature = ccf.crypto.sign(
         {
           name: "EdDSA",
-          hash: null
+          hash: null,
         },
         privateKey,
         data
-      )
+      );
 
-      assert.isTrue(crypto.verify(
-        null,
-        new Uint8Array(data),
-        publicKey,
-        new Uint8Array(signature)
+      assert.isTrue(
+        crypto.verify(
+          null,
+          new Uint8Array(data),
+          publicKey,
+          new Uint8Array(signature)
         )
       );
 
-      assert.isFalse(crypto.verify(
-        null,
-        new Uint8Array(ccf.strToBuf("bar")),
-        publicKey,
-        new Uint8Array(signature)
+      assert.isFalse(
+        crypto.verify(
+          null,
+          new Uint8Array(ccf.strToBuf("bar")),
+          publicKey,
+          new Uint8Array(signature)
         )
       );
     });

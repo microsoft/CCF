@@ -45,7 +45,7 @@ export const wrapKey = ccf.crypto.wrapKey;
 /**
  * @inheritDoc CCFCrypto.sign
  */
- export const sign = ccf.crypto.sign;
+export const sign = ccf.crypto.sign;
 
 /**
  * @inheritDoc CCFCrypto.verifySignature
