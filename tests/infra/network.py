@@ -104,6 +104,7 @@ class Network:
         "sig_tx_interval",
         "sig_ms_interval",
         "election_timeout_ms",
+        "consensus_update_timeout_ms",
         "consensus",
         "log_format_json",
         "constitution",
