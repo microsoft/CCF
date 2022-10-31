@@ -39,21 +39,21 @@
     name: doxygen
     state: absent
   become: yes
-# TODO: Revert
-# - name: Download doxygen
-#   get_url:
-#     url: "{{ doxygen_url }}"
-#     dest: "{{ workspace }}/{{ doxygen_bin }}"
 
-# - name: Expand doxygen
-#   unarchive:
-#     src: "{{ workspace }}/{{ doxygen_bin }}"
-#     dest: "{{ workspace }}"
-#     copy: no
-#     creates: "{{ workspace }}/doxygen-{{ doxygen_ver }}/Makefile"
+- name: Download doxygen
+  get_url:
+    url: "{{ doxygen_url }}"
+    dest: "{{ workspace }}/{{ doxygen_bin }}"
 
-# - name: Install doxygen
-#   command: make install
-#   args:
-#     chdir: "{{ workspace }}/doxygen-{{ doxygen_ver }}"
-#   become: true
+- name: Expand doxygen
+  unarchive:
+    src: "{{ workspace }}/{{ doxygen_bin }}"
+    dest: "{{ workspace }}"
+    copy: no
+    creates: "{{ workspace }}/doxygen-{{ doxygen_ver }}/Makefile"
+
+- name: Install doxygen
+  command: make install
+  args:
+    chdir: "{{ workspace }}/doxygen-{{ doxygen_ver }}"
+  become: true
