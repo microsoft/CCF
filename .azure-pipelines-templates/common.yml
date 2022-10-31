@@ -1,5 +1,4 @@
 jobs:
-
   - job: deploy_aci
     condition: eq('${{ parameters.target }}', 'SNP')
     steps:
