@@ -34,7 +34,7 @@ namespace crypto
   }
 
   std::vector<uint8_t> EdDSAKeyPair_OpenSSL::sign(
-    std::span<const uint8_t> d, MDType md_type) const
+    std::span<const uint8_t> d) const
   {
     EVP_PKEY_CTX* pkctx = nullptr;
     OpenSSL::Unique_EVP_MD_CTX ctx;

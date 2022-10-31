@@ -18,8 +18,7 @@ namespace crypto
 
     Pem public_key_pem() const override;
 
-    std::vector<uint8_t> sign(
-      std::span<const uint8_t> d, MDType md_type) const override;
+    std::vector<uint8_t> sign(std::span<const uint8_t> d) const override;
 
     bool verify(
       const uint8_t* contents,
