@@ -9,6 +9,9 @@ option(UNSAFE_VERSION "Produce build with unsafe logging levels" OFF)
 
 set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 if(UNSAFE_VERSION)
+  if(NOT ${COMPILE_TARGET} STREQUAL "sgx")
+    # TODO: throw error
+  endif()
   set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
   add_compile_definitions(UNSAFE_VERSION)
   file(WRITE ${CMAKE_BINARY_DIR}/UNSAFE "UNSAFE")

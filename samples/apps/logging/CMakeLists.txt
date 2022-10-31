@@ -7,16 +7,13 @@ project(logging LANGUAGES C CXX)
 
 option(USE_UNSAFE_VERSION "Use build with unsafe logging levels" OFF)
 
-set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
-list(APPEND CMAKE_PREFIX_PATH "${CCF_PROJECT}")
-list(APPEND CMAKE_MODULE_PATH "${CCF_PROJECT}")
-set("${CCF_PROJECT}_DIR" "${CMAKE_CURRENT_BINARY_DIR}/cmake")
+set(CCF_PROJECT "ccf")
 if(USE_UNSAFE_VERSION)
   set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
 endif()
 
 if(NOT TARGET ${CCF_PROJECT})
-  find_package(${CCF_PROJECT} REQUIRED)
+  find_package("${CCF_PROJECT}_${COMPILE_TARGET}" REQUIRED)
 endif()
 
 add_ccf_app(logging SRCS logging.cpp)

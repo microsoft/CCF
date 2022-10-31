@@ -5,10 +5,10 @@ cmake_minimum_required(VERSION 3.16)
 
 project(external_executor LANGUAGES C CXX)
 
-set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
+set(CCF_PROJECT "ccf")
 
 if(NOT TARGET ${CCF_PROJECT})
-  find_package(${CCF_PROJECT} REQUIRED)
+  find_package("${CCF_PROJECT}_${COMPILE_TARGET}" REQUIRED)
 endif()
 
 add_subdirectory(protobuf)
