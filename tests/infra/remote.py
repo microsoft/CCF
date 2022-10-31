@@ -594,6 +594,7 @@ class CCFRemote(object):
         sig_ms_interval=None,
         jwt_key_refresh_interval_s=None,
         election_timeout_ms=None,
+        consensus_update_timeout_ms=None,
         node_data_json_file=None,
         service_cert_file="service_cert.pem",
         service_data_json_file=None,
@@ -683,6 +684,16 @@ class CCFRemote(object):
             s["url"] = url
             snp_endorsements_servers_list.append(s)
 
+        # Validate consensus timers
+        if (
+            election_timeout_ms is not None
+            and consensus_update_timeout_ms is not None
+            and election_timeout_ms < 4 * consensus_update_timeout_ms
+        ):
+            LOG.error(
+                f"Consensus message timeout ({consensus_update_timeout_ms}ms) is not significantly less than election timeout ({election_timeout_ms}ms). This may lead to many unintended elections"
+            )
+
         # Configuration file
         if config_file:
             LOG.info(
@@ -717,6 +728,7 @@ class CCFRemote(object):
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
                 election_timeout=f"{election_timeout_ms}ms",
+                message_timeout=f"{consensus_update_timeout_ms}ms",
                 node_data_json_file=node_data_json_file,
                 service_data_json_file=service_data_json_file,
                 service_cert_file=service_cert_file,
