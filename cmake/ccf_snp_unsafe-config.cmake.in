@@ -1,0 +1,9 @@
+@PACKAGE_INIT@
+
+set(CCF_DIR "@CMAKE_INSTALL_PREFIX@")
+set(SAN "@SAN@")
+
+include("${CCF_DIR}/cmake/ccf-targets.cmake")
+include("${CCF_DIR}/cmake/preproject.cmake")
+include("${CCF_DIR}/cmake/ccf_app.cmake")
+include("${CCF_DIR}/cmake/tools.cmake")
