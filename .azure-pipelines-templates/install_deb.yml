@@ -67,8 +67,11 @@ steps:
           fi
         displayName: Test building a sample against installed CCF (SNP)
 
-  - task: PublishPipelineArtifact@1
-    inputs:
-      path: $(Build.ArtifactStagingDirectory)/$(pkgname)
-      artifact: $(pkgname)
-      displayName: "Publish CCF Debian Package"
+  # Note: Do not publish pipeline artefact for SGXIceLake to avoid
+  # publishing the same artefact twice (SGX and SGXIceLake)
+  - ${{ if ne(parameters.target, 'SGXIceLake') }}:
+      - task: PublishPipelineArtifact@1
+        inputs:
+          path: $(Build.ArtifactStagingDirectory)/$(pkgname)
+          artifact: $(pkgname)
+          displayName: "Publish CCF Debian Package"
