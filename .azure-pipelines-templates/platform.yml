@@ -4,7 +4,7 @@ parameters:
 steps:
   # 119 is GID of special "sgx_prv" group on underlying VM that is
   # required to run SGX on kernel > 5.11
-  - ${{ if or(eq(parameters.target, 'SGX'), eq(parameters.target, 'SGXIceLake')) }}:
+  - ${{ if eq(parameters.target, 'SGX') }}:
       - script: |
           set -ex
           sudo groupadd -g 119 sgx_prv
