@@ -43,6 +43,11 @@ export const generateEddsaKeyPair = ccf.crypto.generateEddsaKeyPair;
 export const wrapKey = ccf.crypto.wrapKey;
 
 /**
+ * @inheritDoc CCFCrypto.sign
+ */
+ export const sign = ccf.crypto.sign;
+
+/**
  * @inheritDoc CCFCrypto.verifySignature
  */
 export const verifySignature = ccf.crypto.verifySignature;

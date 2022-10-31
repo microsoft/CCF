@@ -128,6 +128,138 @@ describe("polyfill", function () {
       assert.deepEqual(unwrapped, key);
     });
   });
+  describe("sign", function () {
+    it("performs RSASSA-PKCS1-v1_5 sign correctly", function () {
+      const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
+        modulusLength: 2048,
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      const data = ccf.strToBuf("foo");
+      const signature = ccf.crypto.sign(
+        {
+          name: "RSASSA-PKCS1-v1_5",
+          hash: "SHA-256",
+        },
+        privateKey,
+        data
+      )
+
+      {
+        const verifier = crypto.createVerify('SHA256');
+        verifier.update(new Uint8Array(data));
+        verifier.end();
+        assert.isTrue(verifier.verify(
+          {
+            key: publicKey,
+            dsaEncoding: "ieee-p1363",
+          },
+          new Uint8Array(signature)));
+      }
+
+      {
+        const verifier = crypto.createVerify('SHA256');
+        verifier.update("bar");
+        verifier.end();
+        assert.isFalse(verifier.verify(
+          {
+            key: publicKey,
+            dsaEncoding: "ieee-p1363",
+          },
+          new Uint8Array(signature)));
+      }
+    });
+    it("performs ECDSA sign correctly", function () {
+      const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", {
+        namedCurve: "P-256",
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      const data = ccf.strToBuf("foo");
+      const signature = ccf.crypto.sign(
+        {
+          name: "ECDSA",
+          hash: "SHA-256",
+        },
+        privateKey,
+        data
+      )
+
+      {
+        const verifier = crypto.createVerify('SHA256');
+        verifier.update(new Uint8Array(data));
+        verifier.end();
+        assert.isTrue(verifier.verify(
+          {
+            key: publicKey,
+            dsaEncoding: "ieee-p1363",
+          },
+          new Uint8Array(signature))
+        );
+      }
+
+      {
+        const verifier = crypto.createVerify('SHA256');
+        verifier.update("bar");
+        verifier.end();
+        assert.isFalse(verifier.verify(
+          {
+            key: publicKey,
+            dsaEncoding: "ieee-p1363",
+          },
+          new Uint8Array(signature)));
+      }
+    });
+    it("performs EdDSA with Curve25519 sign correctly", function () {
+      const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519", {
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      const data = ccf.strToBuf("foo");
+      const signature = ccf.crypto.sign(
+        {
+          name: "EdDSA",
+          hash: null
+        },
+        privateKey,
+        data
+      )
+
+      assert.isTrue(crypto.verify(
+        null,
+        new Uint8Array(data),
+        publicKey,
+        new Uint8Array(signature)
+        )
+      );
+
+      assert.isFalse(crypto.verify(
+        null,
+        new Uint8Array(ccf.strToBuf("bar")),
+        publicKey,
+        new Uint8Array(signature)
+        )
+      );
+    });
+  });
   describe("verifySignature", function () {
     it("performs RSASSA-PKCS1-v1_5 validation correctly", function () {
       const { cert, publicKey, privateKey } = generateSelfSignedCert();

@@ -235,7 +235,15 @@ export interface EcdsaParams {
   hash: DigestAlgorithm;
 }
 
-export type SigningAlgorithm = RsaPkcsParams | EcdsaParams;
+/**
+ * EdDSA signature algorithm parameters.
+ */
+ export interface EddsaParams {
+  name: "EdDSA";
+  hash: null;
+}
+
+export type SigningAlgorithm = RsaPkcsParams | EcdsaParams | EddsaParams;
 
 export type DigestAlgorithm = "SHA-256";
 
@@ -307,6 +315,21 @@ export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
 }
 
 export interface CCFCrypto {
+  /**
+   * Generate a signature.
+   *
+   * @param algorithm Signing algorithm and parameters
+   * @param key A PEM-encoded private key
+   * @param data Data that was signed
+   * @throws Will throw an error if the key is not compatible with the
+   *  signing algorithm or if an unknown algorithm is used.
+   */
+   sign(
+    algorithm: SigningAlgorithm,
+    key: string,
+    data: ArrayBuffer
+  ): ArrayBuffer;
+
   /**
    * Returns whether digital signature is valid.
    *
