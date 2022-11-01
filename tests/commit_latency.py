@@ -66,6 +66,7 @@ class Stats:
 @reqs.description("Measure commit latency")
 def measure_commit_latency(args, sig_interval=100):
     args.sig_ms_interval = sig_interval
+    args.consensus_update_timeout_ms = sig_interval
 
     iterations = 20
 
