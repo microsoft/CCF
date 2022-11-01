@@ -339,8 +339,8 @@ if(COMPILE_TARGET STREQUAL "sgx")
 endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
+add_warning_checks(ccf_kv.host)
 if(INSTALL_VIRTUAL_LIBRARIES)
-  add_warning_checks(ccf_kv.host)
   install(
     TARGETS ccf_kv.host
     EXPORT ccf
