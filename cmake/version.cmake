@@ -10,7 +10,7 @@ option(UNSAFE_VERSION "Produce build with unsafe logging levels" OFF)
 set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 if(UNSAFE_VERSION)
   if(NOT ${COMPILE_TARGET} STREQUAL "sgx")
-    # TODO: throw error
+    message(FATAL_ERROR "UNSAFE_VERSION can only be set for sgx compile target (-DCOMPILE_TARGET=sgx)")
   endif()
   set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
   add_compile_definitions(UNSAFE_VERSION)
