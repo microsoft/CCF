@@ -15,4 +15,5 @@ resource_client = ResourceManagementClient(DefaultAzureCredential(), SUB_ID)
 try:
     deletion = resource_client.deployments.begin_delete(RESOURCE_GROUP, DEPLOYMENT)
     deletion.wait()
-except Exception: ...
+except Exception:
+    ...
