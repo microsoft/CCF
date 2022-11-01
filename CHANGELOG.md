@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
 
+### Changed
+
+- CCF is now a separate CMake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
+  - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
+  - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
+
 ## [3.0.0-rc0]
 
 ### Developer API
