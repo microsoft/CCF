@@ -683,6 +683,13 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME commit_latency
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
+    CONSENSUS cft
+    LABEL perf
+  )
+
+  add_e2e_test(
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS cft
