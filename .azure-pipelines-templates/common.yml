@@ -1,6 +1,6 @@
 jobs:
-  - job: ${{ parameters.target }}_${{ parameters.suffix }}_deploy_aci
-    condition: eq('${{ parameters.target }}', 'SNP')
+  - job: "${{ parameters.target }} ${{ parameters.suffix }} Deploy ACI"
+    condition: eq('${{ parameters.target }}', 'SNPCC')
     steps:
       - script: python3.8 scripts/deploy_snp_aci.py
 
@@ -9,7 +9,7 @@ jobs:
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn:
       - ${{ parameters.depends_on }}
-      - ${{ parameters.target }}_${{ parameters.suffix }}_deploy_aci
+      - "${{ parameters.target }} ${{ parameters.suffix }} Deploy ACI"
     condition: eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false')
 
     ${{ insert }}: ${{ parameters.env }}
