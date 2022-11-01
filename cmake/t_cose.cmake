@@ -52,8 +52,10 @@ target_link_libraries(t_cose.host PUBLIC qcbor.host crypto)
 set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(t_cose.host)
 
-install(
-  TARGETS t_cose.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS t_cose.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

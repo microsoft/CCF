@@ -35,4 +35,4 @@ docker_debs:
 
 doxygen_ver: "1.9.5"
 doxygen_bin: "doxygen-{{ doxygen_ver }}.linux.bin.tar.gz"
-doxygen_url: "https://doxygen.nl/files/{{ doxygen_bin }}"
+doxygen_url: "https://sourceforge.net/projects/doxygen/files/rel-{{ doxygen_ver }}/{{ doxygen_bin }}/download"

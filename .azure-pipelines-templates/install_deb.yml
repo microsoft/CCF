@@ -35,7 +35,7 @@ steps:
         workingDirectory: build
         displayName: Recovery benchmark for installed CCF
 
-  - ${{ if or(eq(parameters.target, 'SGX'), eq(parameters.target, 'SGXIceLake')) }}:
+  - ${{ if eq(parameters.target, 'SGX') }}:
       - script: |
           set -ex
           unsafe_build=$(grep unsafe /tmp/install_prefix) || true

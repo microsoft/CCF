@@ -5,9 +5,6 @@ parameters:
       pool: 1es-dv4-focal
     SGX:
       container: sgx
-      pool: 1es-dcv2-focal
-    SGXIceLake:
-      container: sgx
       pool: 1es-dcdv3-focal
     SNPCC:
       pool: sev-snp-pool
@@ -73,16 +70,6 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
       suffix: "Unsafe"
       artifact_name: "SGX_Unsafe"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
-      depends_on: configure
-
-  - template: common.yml
-    parameters:
-      target: SGXIceLake
-      env: "${{ parameters.env.SGXIceLake }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
-      suffix: "Release"
-      artifact_name: "SGX_IceLake_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
 
