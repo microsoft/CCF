@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-import generator
+from generator import Messages
 
 
 def main():
@@ -12,10 +12,11 @@ def main():
     """
     arg_host = "https://127.0.0.1:8000"
     arg_path = "/app/log/private"  # default path to request
-    arg_type = "HTTP/1.1"  # default type
+    arg_request_type = "HTTP/1.1"  # default type
     arg_verb = "POST"  # default verb
+    arg_content_type = "application/json"
     arg_iterations = 16
-    arg_parquet_filename = "requests.parquet"
+    arg_path_to_parquet = "requests.parquet"
     arg_data = '{"id": 1, "msg": "Send message with id 1"}'
 
     parser = argparse.ArgumentParser()
@@ -40,10 +41,25 @@ def main():
         "-r", "--rows", help="The number of requests to send. Default `16` ", type=int
     )
     parser.add_argument(
+        "-rt",
+        "--request_type",
+        help="The transfer protocol for the request.\
+            Default type `HTTP/1.1`",
+        type=str,
+    )
+    parser.add_argument(
         "-pf",
-        "--parquet_filename",
-        help="Name of the parquet file to store the\
-            generated requests. Default file `./requests.parquet`",
+        "--path_to_parquet",
+        help="Path to the parquet file to store the\
+            generated requests. Default path `./requests.parquet`",
+        type=str,
+    )
+    parser.add_argument(
+        "-ct",
+        "--content_type",
+        help="he Content-Type representation header is used\
+            to indicate the original media type of the resource.\
+            Default `application-json`",
         type=str,
     )
     parser.add_argument(
@@ -55,16 +71,18 @@ def main():
 
     args = parser.parse_args()
 
-    generator.fill_df(
+    msg = Messages()
+    msg.append(
         args.host or arg_host,
         args.path or arg_path,
-        args.type or arg_type,
         args.verb or arg_verb,
-        args.rows or arg_iterations,
+        args.request_type or arg_request_type,
+        args.content_type or arg_content_type,
         args.data or arg_data,
+        args.rows or arg_iterations,
     )
 
-    generator.create_parquet(args.parquet_filename or arg_parquet_filename)
+    msg.to_parquet_file(args.path_to_parquet or arg_path_to_parquet)
 
 
 if __name__ == "__main__":
