@@ -202,6 +202,7 @@ namespace externalexecutor
           google::protobuf::Empty,
           externalexecutor::protobuf::OptionalRequestDescription>(start),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto end = [this](
@@ -294,6 +295,7 @@ namespace externalexecutor
           externalexecutor::protobuf::ResponseDescription,
           google::protobuf::Empty>(end),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto put = [this](
@@ -319,6 +321,7 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKeyValue,
           google::protobuf::Empty>(put),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto get = [this](
@@ -353,6 +356,7 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKey,
           externalexecutor::protobuf::OptionalKVValue>(get),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto has = [this](
@@ -381,6 +385,7 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKey,
           externalexecutor::protobuf::KVHasResult>(has),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_version = [this](
@@ -415,6 +420,7 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKey,
           externalexecutor::protobuf::OptionalKVVersion>(get_version),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto kv_delete = [this](
@@ -440,6 +446,7 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKey,
           google::protobuf::Empty>(kv_delete),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_all = [this](
@@ -457,6 +464,7 @@ namespace externalexecutor
           externalexecutor::protobuf::KVTable,
           externalexecutor::protobuf::KVValue>(get_all),
         executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
     }
 
