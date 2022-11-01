@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
 
+### Changed
+
+- CCF is now a separate CMake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
+  - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
+  - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
+- We now support QuickJS runtime caps such as `max_heap_bytes`, `max_stack_bytes` and `max_execution_time_ms`. These can be set via a governance proposal. They can also be fetched via the `GET /node/js_metrics` endpoint (#4396).
+
 ## [3.0.0-rc0]
 
 ### Developer API
