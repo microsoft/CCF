@@ -62,7 +62,7 @@ The ``Pending`` joining node automatically polls the service (interval configura
 
 .. tip:: After the node has been trusted by members, operators should poll the :http:GET:`/node/state` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
 
-.. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operations/ledger_snapshot:Join/Recover From Snapshot>`.
+.. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operations/ledger_snapshot:Join or Recover From Snapshot>`.
 
 The following diagram summarises the steps that operators and members should follow to add a new node to an open CCF service, and wait for it to be trusted by the consortium and in state ``PartOfNetwork``:
 
