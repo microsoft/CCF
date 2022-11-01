@@ -249,7 +249,7 @@ namespace ccf::js
 
   public:
     const TxAccess access;
-    UntrustedHostTime* host_time;
+    UntrustedHostTime host_time;
 
     Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {
@@ -259,13 +259,11 @@ namespace ccf::js
       {
         throw std::runtime_error("Failed to initialise QuickJS context");
       }
-      host_time = new UntrustedHostTime();
       JS_SetContextOpaque(ctx, this);
     }
 
     ~Context()
     {
-      delete host_time;
       JS_SetInterruptHandler(js_run_time, NULL, NULL);
       JS_FreeContext(ctx);
     }
@@ -422,8 +420,7 @@ namespace ccf::js
     }
 
     JSWrappedValue call(
-      const JSWrappedValue& f,
-      const std::vector<js::JSWrappedValue>& argv) const;
+      const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv);
 
     JSWrappedValue parse_json(const nlohmann::json& j) const
     {

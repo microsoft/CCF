@@ -103,7 +103,7 @@ namespace ccf::js
   }
 
   JSWrappedValue Context::call(
-    const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv) const
+    const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
   {
     std::vector<JSValue> argvn;
     argvn.reserve(argv.size());
@@ -111,11 +111,11 @@ namespace ccf::js
     {
       argvn.push_back(a.val);
     }
-
     const auto curr_time = ccf::get_enclave_time();
-    host_time->start_time = curr_time;
-    host_time->max_execution_time = execution_time;
-    JS_SetInterruptHandler(js_run_time, js_custom_interrupt_handler, host_time);
+    host_time.start_time = curr_time;
+    host_time.max_execution_time = execution_time;
+    JS_SetInterruptHandler(
+      js_run_time, js_custom_interrupt_handler, &host_time);
 
     return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
   }

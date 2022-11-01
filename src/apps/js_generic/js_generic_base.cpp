@@ -320,7 +320,7 @@ namespace ccfapp
 
       if (JS_IsException(val))
       {
-        bool time_out = ctx.host_time->request_timed_out;
+        bool time_out = ctx.host_time.request_timed_out;
         std::string error_msg = "Exception thrown while executing.";
 
         js::js_dump_error(ctx);
