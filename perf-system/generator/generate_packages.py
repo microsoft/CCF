@@ -26,7 +26,7 @@ def main():
         "-p",
         "--path",
         help="The relative path to submit the request.",
-        default="app/log/private",
+        default="/app/log/private",
         type=str,
     )
     parser.add_argument(
