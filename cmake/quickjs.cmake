@@ -61,7 +61,7 @@ target_include_directories(
                       $<INSTALL_INTERFACE:include/3rdparty/quickjs>
 )
 
-if(NOT COMPILE_TARGET STREQUAL "sgx")
+if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS quickjs.host
     EXPORT ccf

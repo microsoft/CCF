@@ -32,7 +32,7 @@ target_include_directories(
 set_property(TARGET qcbor.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(qcbor.host)
 
-if(NOT COMPILE_TARGET STREQUAL "sgx")
+if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS qcbor.host
     EXPORT ccf

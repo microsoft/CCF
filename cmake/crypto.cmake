@@ -47,7 +47,7 @@ target_link_libraries(ccfcrypto.host PUBLIC crypto)
 target_link_libraries(ccfcrypto.host PUBLIC ssl)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-if(NOT COMPILE_TARGET STREQUAL "sgx")
+if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS ccfcrypto.host
     EXPORT ccf

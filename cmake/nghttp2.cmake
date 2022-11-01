@@ -60,7 +60,7 @@ target_compile_definitions(
 add_san(nghttp2.host)
 set_property(TARGET nghttp2.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-if(NOT COMPILE_TARGET STREQUAL "sgx")
+if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS nghttp2.host
     EXPORT ccf

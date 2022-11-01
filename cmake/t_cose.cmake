@@ -52,7 +52,7 @@ target_link_libraries(t_cose.host PUBLIC qcbor.host crypto)
 set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(t_cose.host)
 
-if(NOT COMPILE_TARGET STREQUAL "sgx")
+if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS t_cose.host
     EXPORT ccf
