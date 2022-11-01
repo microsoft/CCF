@@ -37,11 +37,6 @@ namespace crypto
     virtual std::vector<uint8_t> sign(
       std::span<const uint8_t> d, MDType md_type = MDType::NONE) const override;
 
-    static std::vector<uint8_t> sign(
-      const std::vector<uint8_t>& data,
-      const Pem& private_key,
-      MDType md_type = MDType::NONE);
-
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,

@@ -54,10 +54,4 @@ namespace crypto
   {
     return std::make_shared<RSAKeyPairImpl>(pem);
   }
-
-  std::vector<uint8_t> rsa_sign(
-    const std::vector<uint8_t>& data, const Pem& private_key, MDType md_type)
-  {
-    return RSAKeyPairImpl::sign(data, private_key, md_type);
-  }
 }

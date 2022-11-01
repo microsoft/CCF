@@ -533,6 +533,7 @@ namespace ccf::js
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
+    auto key = *key_str;
 
     size_t data_size;
     uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[2]);
@@ -548,7 +549,9 @@ namespace ccf::js
       try
       {
         std::vector<uint8_t> contents(data, data + data_size);
-        auto sig = crypto::eddsa_sign(contents, *key_str);
+        crypto::Pem key_pem(key);
+        auto key_pair = crypto::make_eddsa_key_pair(key_pem);
+        auto sig = key_pair->sign(contents);
         return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
       }
       catch (const std::exception& ex)
@@ -570,7 +573,6 @@ namespace ccf::js
     {
       auto algo_name = *algo_name_str;
       auto algo_hash = *algo_hash_str;
-      auto key = *key_str;
 
       crypto::MDType mdtype;
       if (algo_hash == "SHA-256")
@@ -588,13 +590,15 @@ namespace ccf::js
       if (algo_name == "ECDSA")
       {
         std::vector<uint8_t> contents(data, data + data_size);
-        auto sig = crypto::sign(contents, key, mdtype);
+        auto key_pair = crypto::make_key_pair(key);
+        auto sig = key_pair->sign(contents, mdtype);
         return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
       }
       else if (algo_name == "RSASSA-PKCS1-v1_5")
       {
         std::vector<uint8_t> contents(data, data + data_size);
-        auto sig = crypto::rsa_sign(contents, key, mdtype);
+        auto key_pair = crypto::make_rsa_key_pair(key);
+        auto sig = key_pair->sign(contents, mdtype);
         return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
       }
       else

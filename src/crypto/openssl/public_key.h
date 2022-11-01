@@ -48,7 +48,6 @@ namespace crypto
     virtual std::vector<uint8_t> public_key_raw() const override;
 
     virtual CurveID get_curve_id() const override;
-    static CurveID get_curve_id(EVP_PKEY* key);
 
     int get_openssl_group_id() const;
     static int get_openssl_group_id(CurveID gid);

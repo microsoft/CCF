@@ -99,12 +99,4 @@ namespace crypto
    * Create a public / private RSA key pair from existing private key data
    */
   RSAKeyPairPtr make_rsa_key_pair(const Pem& pem);
-
-  /**
-   * MYTODO: comment, consider better interface/implementation
-   */
-  std::vector<uint8_t> rsa_sign(
-    const std::vector<uint8_t>& data,
-    const Pem& private_key,
-    MDType md_type = MDType::NONE);
 }

@@ -47,29 +47,14 @@ namespace crypto
       uint8_t* sig,
       MDType md_type = {}) const;
 
-    static std::vector<uint8_t> sign(
-      const std::vector<uint8_t>& data,
-      const Pem& private_key,
-      MDType md_type = MDType::NONE);
-
     std::vector<uint8_t> sign_hash(
       const uint8_t* hash, size_t hash_size) const override;
-
-    static std::vector<uint8_t> sign_hash(
-      const uint8_t* hash, size_t hash_size, EVP_PKEY* key);
 
     virtual int sign_hash(
       const uint8_t* hash,
       size_t hash_size,
       size_t* sig_size,
       uint8_t* sig) const override;
-
-    static int sign_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      size_t* sig_size,
-      uint8_t* sig,
-      EVP_PKEY* key);
 
     virtual Pem create_csr(
       const std::string& subject_name,

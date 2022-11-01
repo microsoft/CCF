@@ -141,40 +141,13 @@ namespace crypto
     return sign_hash(hash.data(), hash.size(), sig_size, sig);
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::sign(
-    const std::vector<uint8_t>& d, const Pem& private_key, MDType md_type)
-  {
-    // MYTODO: remove duplication
-    OpenSSL::Unique_BIO mem(private_key);
-    // MYTODO: manage memory properly
-    auto priv_key = PEM_read_bio_PrivateKey(mem, NULL, NULL, NULL);
-    if (!priv_key)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
-
-    if (md_type == MDType::NONE)
-    {
-      md_type = get_md_for_ec(PublicKey_OpenSSL::get_curve_id(priv_key));
-    }
-    OpenSSLHashProvider hp;
-    HashBytes hash = hp.Hash(d.data(), d.size(), md_type);
-    return sign_hash(hash.data(), hash.size(), priv_key);
-  }
-
   std::vector<uint8_t> KeyPair_OpenSSL::sign_hash(
     const uint8_t* hash, size_t hash_size) const
-  {
-    return sign_hash(hash, hash_size, key);
-  }
-
-  std::vector<uint8_t> KeyPair_OpenSSL::sign_hash(
-    const uint8_t* hash, size_t hash_size, EVP_PKEY* key)
   {
     std::vector<uint8_t> sig(EVP_PKEY_size(key));
     size_t written = sig.size();
 
-    if (sign_hash(hash, hash_size, &written, sig.data(), key) != 0)
+    if (sign_hash(hash, hash_size, &written, sig.data()) != 0)
     {
       return {};
     }
@@ -185,16 +158,6 @@ namespace crypto
 
   int KeyPair_OpenSSL::sign_hash(
     const uint8_t* hash, size_t hash_size, size_t* sig_size, uint8_t* sig) const
-  {
-    return sign_hash(hash, hash_size, sig_size, sig, key);
-  }
-
-  int KeyPair_OpenSSL::sign_hash(
-    const uint8_t* hash,
-    size_t hash_size,
-    size_t* sig_size,
-    uint8_t* sig,
-    EVP_PKEY* key)
   {
     Unique_EVP_PKEY_CTX pctx(key);
     OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));

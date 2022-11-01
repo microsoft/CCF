@@ -13,15 +13,13 @@ namespace crypto
   {
   public:
     EdDSAKeyPair_OpenSSL(CurveID curve_id);
+    EdDSAKeyPair_OpenSSL(const Pem& pem);
 
     Pem private_key_pem() const override;
 
     Pem public_key_pem() const override;
 
     std::vector<uint8_t> sign(std::span<const uint8_t> d) const override;
-
-    static std::vector<uint8_t> sign(
-      std::span<const uint8_t> d, const Pem& private_key);
 
     bool verify(
       const uint8_t* contents,
