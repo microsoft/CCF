@@ -151,8 +151,8 @@ install(
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
-  # While virtual libraries need to be built for sgx for unit tests,
-  # these do not get installed to minimise installation size
+  # While virtual libraries need to be built for sgx for unit tests, these do
+  # not get installed to minimise installation size
   set(INSTALL_VIRTUAL_LIBRARIES OFF)
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
