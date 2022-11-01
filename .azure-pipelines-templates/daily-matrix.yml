@@ -49,8 +49,7 @@ jobs:
       - checkout: self
         clean: true
         fetchDepth: 10000
-      - script: |
-          ./docker/build_release_containers.yml ccfmsrc.azurecr.io
+      - script: docker/build_release_containers.yml ccfmsrc.azurecr.io
         displayName: Build release containers
 
   - template: common.yml
