@@ -87,7 +87,7 @@ sandbox_pid=$!
 
 network_live_time=60
 if poll_for_service_open ${network_live_time} ${sandbox_pid}; then
-    echo "Error: Timeout waiting for service to open"
+    echo "Error: Timeout waiting ${network_live_time}s for service to open"
     kill "$(jobs -p)"
     exit 1
 fi
@@ -122,7 +122,7 @@ seconds_before_recovery=$SECONDS
 sandbox_pid=$!
 network_live_time=600
 if poll_for_service_open ${network_live_time} ${sandbox_pid}; then
-    echo "Error: Timeout waiting for service to open"
+    echo "Error: Timeout waiting ${network_live_time}s for service to open"
     kill "$(jobs -p)"
     exit 1
 fi
