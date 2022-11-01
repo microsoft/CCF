@@ -23,7 +23,7 @@ jobs:
         id: tref
 
       - name: Build All Release Containers
-        run: docker/build_release_containers.yml $ACR_REGISTRY ${{ steps.tref.outputs.tag }}
+        run: docker/build_release_images.yml $ACR_REGISTRY ${{ steps.tref.outputs.tag }}
 
       # Publish
       - name: Log in
