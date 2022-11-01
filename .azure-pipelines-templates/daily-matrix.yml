@@ -11,7 +11,7 @@ parameters:
 
   build:
     common:
-      cmake_args: '-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON -DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
+      cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON"
     Virtual:
       cmake_args: "-DCOMPILE_TARGET=virtual"
     SGX:
