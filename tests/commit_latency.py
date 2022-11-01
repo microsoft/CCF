@@ -4,6 +4,7 @@
 import time
 import http
 import statistics
+import cimetrics.upload
 import infra.e2e_args
 import infra.network
 import suite.test_requirements as reqs
@@ -113,6 +114,7 @@ def run(args):
             args, sig_interval=sig_interval
         )
 
+    factors = []
     for sig_interval, stats in all_stats.items():
         factor = stats.mean() / sig_interval
         print_fn = (
@@ -120,6 +122,10 @@ def run(args):
         )
         stats.display(print_fn)
         print_fn(f"Mean commit latency / sig_interval = {factor:.2f}")
+        factors.append(factor)
+
+    with cimetrics.upload.metrics(complete=False) as metrics:
+        metrics.put("Commit latency factor", statistics.mean(factors))
 
 
 if __name__ == "__main__":

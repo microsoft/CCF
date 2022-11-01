@@ -686,6 +686,7 @@ if(BUILD_TESTS)
     NAME commit_latency
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
     CONSENSUS cft
+    LABEL perf
   )
 
   add_e2e_test(
