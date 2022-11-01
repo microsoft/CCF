@@ -31,8 +31,8 @@ from google.protobuf.empty_pb2 import Empty as Empty
 import grpc
 import os
 import contextlib
+import http
 import random
-import time
 
 from loguru import logger as LOG
 
@@ -222,11 +222,31 @@ def test_simple_executor(network, args):
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):
         with primary.client() as c:
+            r = c.post("/not/a/real/endpoint")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+            r = c.post("/update_cache/Earth")
+            assert r.status_code == http.HTTPStatus.OK
+            content = r.body.text().splitlines()[-1]
+
+            r = c.get("/article_description/Earth")
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.text() == content
+
+    return network
+
+
+def test_parallel_executors(network, args):
+    primary, _ = network.find_primary()
+
+    # with contextlib.ExitStack() as es:
+    credentials = register_new_executor(primary, network)
+
+    with executor_thread(WikiCacherExecutor(primary, credentials)):
+        with primary.client() as c:
             c.post("/not/a/real/endpoint")
             c.post("/update_cache/Earth")
             c.get("/article_description/Earth")
-
-        time.sleep(2)
 
     return network
 
@@ -320,10 +340,12 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        network = test_executor_registration(network, args)
-        network = test_put_get(network, args)
-        network = test_simple_executor(network, args)
-        network = test_streaming(network, args)
+        # TODO: Re-enable all
+        # network = test_executor_registration(network, args)
+        # network = test_put_get(network, args)
+        # network = test_simple_executor(network, args)
+        # network = test_streaming(network, args)
+        network = test_parallel_executors(network, args)
 
 
 if __name__ == "__main__":
