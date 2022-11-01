@@ -11,7 +11,6 @@ VERSION=${2:-"latest"}
 platforms="sgx snp virtual"
 
 for platform in $platforms; do
-
     echo "** Building release containers for ${platform} platform"
 
     # Dev
@@ -24,6 +23,3 @@ for platform in $platforms; do
     docker build -f docker/app_run . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${VERSION}  run_js=true" -t "$ACR_REGISTRY/public/ccf/app/run-js:${VERSION}-${platform}"
 
 done
-
-
-
