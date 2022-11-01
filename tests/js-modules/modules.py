@@ -532,6 +532,58 @@ def test_npm_app(network, args):
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
         algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
         data = "foo".encode()
+        r = c.post(
+            "/app/sign",
+            {
+                "algorithm": algorithm,
+                "key": key_priv_pem,
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        signature = r.body.data()
+        infra.crypto.verify_signature(signature, data, key_pub_pem, algorithm["hash"])
+
+        curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
+        for curve in curves:
+            key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
+            algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+            data = "foo".encode()
+            r = c.post(
+                "/app/sign",
+                {
+                    "algorithm": algorithm,
+                    "key": key_priv_pem,
+                    "data": b64encode(data).decode(),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+            signature = r.body.data()
+            infra.crypto.verify_signature(
+                signature, data, key_pub_pem, algorithm["hash"]
+            )
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        algorithm = {"name": "EdDSA"}
+        data = "foo".encode()
+        r = c.post(
+            "/app/sign",
+            {
+                "algorithm": algorithm,
+                "key": key_priv_pem,
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        signature = r.body.data()
+        infra.crypto.verify_signature(signature, data, key_pub_pem)
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
+        algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
+        data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(
             "/app/verifySignature",

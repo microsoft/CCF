@@ -65,4 +65,10 @@ namespace crypto
    * Create a public / private RSA key pair from existing private key data
    */
   EdDSAPublicKeyPtr make_eddsa_public_key(const Pem& pem);
+
+  /**
+   * MYTODO: comment, consider better interface/implementation
+   */
+  std::vector<uint8_t> eddsa_sign(
+    const std::vector<uint8_t>& data, const Pem& private_key);
 }

@@ -56,6 +56,11 @@ namespace crypto
 
   CurveID PublicKey_OpenSSL::get_curve_id() const
   {
+    return get_curve_id(key);
+  }
+
+  CurveID PublicKey_OpenSSL::get_curve_id(EVP_PKEY* key)
+  {
     int nid =
       EC_GROUP_get_curve_name(EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
     switch (nid)

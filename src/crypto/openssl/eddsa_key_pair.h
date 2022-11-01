@@ -20,6 +20,9 @@ namespace crypto
 
     std::vector<uint8_t> sign(std::span<const uint8_t> d) const override;
 
+    static std::vector<uint8_t> sign(
+      std::span<const uint8_t> d, const Pem& private_key);
+
     bool verify(
       const uint8_t* contents,
       size_t contents_size,

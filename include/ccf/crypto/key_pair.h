@@ -176,4 +176,12 @@ namespace crypto
    * @return Key pair
    */
   KeyPairPtr make_key_pair(const Pem& pkey);
+
+  /**
+   * MYTODO: comment, consider better interface/implementation
+   */
+  std::vector<uint8_t> sign(
+    const std::vector<uint8_t>& data,
+    const Pem& private_key,
+    MDType md_type = MDType::NONE);
 }

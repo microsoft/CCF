@@ -503,6 +503,118 @@ namespace ccf::js
     }
   }
 
+  static JSValue js_sign(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    if (argc != 3)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 3", argc);
+    }
+
+    auto algorithm = argv[0];
+
+    JSValue algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
+    JSValue algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
+
+    auto algo_name_str = jsctx.to_str(algo_name_val);
+
+    if (!algo_name_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto key_str = jsctx.to_str(argv[1]);
+    if (!key_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    size_t data_size;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[2]);
+    if (!data)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    // Handle algorithms that don't use algo_hash here
+    if (*algo_name_str == "EdDSA")
+    {
+      try
+      {
+        std::vector<uint8_t> contents(data, data + data_size);
+        auto sig = crypto::eddsa_sign(contents, *key_str);
+        return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
+      }
+      catch (const std::exception& ex)
+      {
+        auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+        js::js_dump_error(ctx);
+        return e;
+      }
+    }
+
+    auto algo_hash_str = jsctx.to_str(algo_hash_val);
+    if (!algo_hash_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    try
+    {
+      auto algo_name = *algo_name_str;
+      auto algo_hash = *algo_hash_str;
+      auto key = *key_str;
+
+      crypto::MDType mdtype;
+      if (algo_hash == "SHA-256")
+      {
+        mdtype = crypto::MDType::SHA256;
+      }
+      else
+      {
+        auto e = JS_ThrowRangeError(
+          ctx, "Unsupported hash algorithm, supported: SHA-256");
+        js::js_dump_error(ctx);
+        return e;
+      }
+
+      if (algo_name == "ECDSA")
+      {
+        std::vector<uint8_t> contents(data, data + data_size);
+        auto sig = crypto::sign(contents, key, mdtype);
+        return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
+      }
+      else if (algo_name == "RSASSA-PKCS1-v1_5")
+      {
+        std::vector<uint8_t> contents(data, data + data_size);
+        auto sig = crypto::rsa_sign(contents, key, mdtype);
+        return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
+      }
+      else
+      {
+        auto e = JS_ThrowRangeError(
+          ctx,
+          "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
+          "ECDSA, EdDSA");
+        js::js_dump_error(ctx);
+        return e;
+      }
+    }
+    catch (const std::exception& ex)
+    {
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+      js::js_dump_error(ctx);
+      return e;
+    }
+  }
+
   static bool verify_eddsa_signature(
     uint8_t* contents,
     size_t contents_size,
@@ -614,7 +726,7 @@ namespace ccf::js
         auto e = JS_ThrowRangeError(
           ctx,
           "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
-          "ECDSA");
+          "ECDSA, EdDSA");
         js::js_dump_error(ctx);
         return e;
       }

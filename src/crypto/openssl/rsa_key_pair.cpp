@@ -126,6 +126,30 @@ namespace crypto
     return r;
   }
 
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(
+    const std::vector<uint8_t>& d, const Pem& private_key, MDType md_type)
+  {
+    // MYTODO: remove duplication
+    OpenSSL::Unique_BIO mem(private_key);
+    // MYTODO: manage memory properly
+    auto priv_key = PEM_read_bio_PrivateKey(mem, NULL, NULL, NULL);
+    if (!priv_key)
+    {
+      throw std::runtime_error("could not parse PEM");
+    }
+
+    std::vector<uint8_t> r(2048);
+    auto hash = OpenSSLHashProvider().Hash(d.data(), d.size(), md_type);
+    Unique_EVP_PKEY_CTX pctx(priv_key);
+    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
+    OpenSSL::CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    size_t olen = r.size();
+    OpenSSL::CHECK1(
+      EVP_PKEY_sign(pctx, r.data(), &olen, hash.data(), hash.size()));
+    r.resize(olen);
+    return r;
+  }
+
   bool RSAKeyPair_OpenSSL::verify(
     const uint8_t* contents,
     size_t contents_size,

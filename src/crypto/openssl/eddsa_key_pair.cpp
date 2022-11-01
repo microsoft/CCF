@@ -51,6 +51,33 @@ namespace crypto
     return sigret;
   }
 
+  std::vector<uint8_t> EdDSAKeyPair_OpenSSL::sign(
+    std::span<const uint8_t> d, const Pem& private_key)
+  {
+    // MYTODO: remove duplication
+    OpenSSL::Unique_BIO mem(private_key);
+    // MYTODO: manage memory properly
+    auto priv_key = PEM_read_bio_PrivateKey(mem, NULL, NULL, NULL);
+    if (!priv_key)
+    {
+      throw std::runtime_error("could not parse PEM");
+    }
+    EVP_PKEY_CTX* pkctx = nullptr;
+    OpenSSL::Unique_EVP_MD_CTX ctx;
+
+    OpenSSL::CHECK1(EVP_DigestSignInit(ctx, &pkctx, NULL, NULL, priv_key));
+
+    std::vector<uint8_t> sigret(EVP_PKEY_size(priv_key));
+    size_t siglen = sigret.size();
+
+    OpenSSL::CHECK1(
+      EVP_DigestSign(ctx, sigret.data(), &siglen, d.data(), d.size()));
+
+    sigret.resize(siglen);
+
+    return sigret;
+  }
+
   bool EdDSAKeyPair_OpenSSL::verify(
     const uint8_t* contents,
     size_t contents_size,

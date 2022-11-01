@@ -1736,6 +1736,8 @@ namespace ccf::js
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
 
     JS_SetPropertyStr(
+      ctx, crypto, "sign", JS_NewCFunction(ctx, js_sign, "sign", 3));
+    JS_SetPropertyStr(
       ctx,
       crypto,
       "verifySignature",

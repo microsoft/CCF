@@ -36,4 +36,10 @@ namespace crypto
   {
     return std::make_shared<KeyPairImpl>(pem);
   }
+
+  std::vector<uint8_t> sign(
+    const std::vector<uint8_t>& data, const Pem& private_key, MDType md_type)
+  {
+    return KeyPairImpl::sign(data, private_key, md_type);
+  }
 }
