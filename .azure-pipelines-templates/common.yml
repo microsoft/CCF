@@ -4,6 +4,7 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - script: pip install azure-mgmt-resource
       - script: python3.8 scripts/deploy_snp_aci.py
 
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
@@ -81,4 +82,5 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - script: pip install azure-mgmt-resource
       - script: python3.8 scripts/cleanup_snp_aci.py
