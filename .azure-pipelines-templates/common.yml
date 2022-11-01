@@ -4,8 +4,9 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
       - script: pip install azure-mgmt-resource azure-identity
-      - script: python3.8 scripts/deploy_snp_aci.py
+      - script: python3.8 scripts/deploy_snp_aci.py --subscription-id $(ccfAzureSubscriptionId)
 
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
     timeoutInMinutes: 0
@@ -82,5 +83,6 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
       - script: pip install azure-mgmt-resource azure-identity
-      - script: python3.8 scripts/cleanup_snp_aci.py
+      - script: python3.8 scripts/cleanup_snp_aci.py --subscription-id $(ccfAzureSubscriptionId)

@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import os
+import argparse
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource import ResourceManagementClient
@@ -11,12 +12,23 @@ from azure.mgmt.resource.resources.models import (
     DeploymentMode,
 )
 
-SUB_ID = os.environ.get("CCFAZURESUBSCRIPTIONID")
+parser = argparse.ArgumentParser(
+    description="Deploy an Azure Container Instance",
+)
+
+parser.add_argument(
+    "--subscription-id",
+    help="The subscription ID used to provision the container instance",
+    type=str,
+)
+
+args = parser.parse_args()
+
 RESOURCE_GROUP = "ccf-aci"
 IMAGE = "ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc"
 DEPLOYMENT = "snp-ci"
 
-resource_client = ResourceManagementClient(DefaultAzureCredential(), SUB_ID)
+resource_client = ResourceManagementClient(DefaultAzureCredential(), args.subscription_id)
 
 creation = resource_client.deployments.begin_create_or_update(
     RESOURCE_GROUP,
