@@ -1,0 +1,13 @@
+jobs:
+  - job: Release_Containers
+    displayName: "Release Containers"
+
+    ${{ insert }}: ${{ parameters.env }}
+
+    steps:
+      - checkout: self
+        clean: true
+        fetchDepth: 1
+
+      - script: docker/build_release_containers.yml ccfmsrc.azurecr.io
+        displayName: "Build Release Containers"

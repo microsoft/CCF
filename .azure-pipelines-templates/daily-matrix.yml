@@ -41,16 +41,9 @@ jobs:
           cmake -L .. ${{ parameters.build.Virtual.cmake_args }}
         displayName: CMake
 
-  - job: "Release_Containers"
-    displayName: "Release Containers"
-    ${{ insert }}: "${{ parameters.env.Virtual }}"
-    dependsOn: configure
-    steps:
-      - checkout: self
-        clean: true
-        fetchDepth: 10000
-      - script: docker/build_release_containers.yml ccfmsrc.azurecr.io
-        displayName: Build release containers
+  - template: containers.yml
+    parameters:
+      env: ${{ parameters.env.Virtual }}
 
   - template: common.yml
     parameters:

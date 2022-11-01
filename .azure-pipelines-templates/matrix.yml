@@ -98,6 +98,10 @@ jobs:
         parameters:
           env: ${{ parameters.env.Hosted }}
 
+      - template: containers.yml
+        parameters:
+          env: ${{ parameters.env.Hosted }}
+
       - template: common.yml
         parameters:
           target: SGX
@@ -144,6 +148,7 @@ jobs:
           env: ${{ parameters.env.Hosted }}
           depends_on:
             - Checks
+            - Release_Containers
             - SGX_Release
             - Virtual_Release
             - SNPCC_Release
