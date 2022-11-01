@@ -47,8 +47,10 @@ target_link_libraries(ccfcrypto.host PUBLIC crypto)
 target_link_libraries(ccfcrypto.host PUBLIC ssl)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-install(
-  TARGETS ccfcrypto.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccfcrypto.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
