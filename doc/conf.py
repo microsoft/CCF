@@ -216,9 +216,9 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-smv_tag_whitelist = ""
+smv_tag_whitelist = None
 smv_branch_whitelist = r"^(main)|(release\/([2-9]|\d\d\d*)\.x)$"
-smv_remote_whitelist = ""
+smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
 assert re.match(smv_branch_whitelist, "main")
