@@ -57,19 +57,21 @@ def wrap_tx(stub, primary):
         stub.EndTx(KV.ResponseDescription())
 
 
-@reqs.description("Register an external executor")
-def test_executor_registration(network, args):
-    primary, backup = network.find_primary_and_any_backup()
-
-    attestation_format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
-    quote = "testquote"
-    endorsements = "testendorsement"
-    uris = "/foo/hello/bar"
-    methods = "GET"
-
+def register_new_executor(node, network, message=None):
     # Generate a new executor identity
     key_priv_pem, _ = infra.crypto.generate_ec_keypair()
     cert = infra.crypto.generate_cert(key_priv_pem)
+
+    if message is None:
+        # Create a default NewExecutor message
+        message = ExecutorRegistration.NewExecutor()
+        message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
+        message.attestation.quote = b"testquote"
+        message.attestation.endorsements = b"testendorsement"
+
+        message.supported_endpoints.add(method="GET", uri="/app/foo/bar")
+
+    message.cert = cert.encode()
 
     # Connect anonymously to register this executor
     anonymous_credentials = grpc.ssl_channel_credentials(
@@ -77,21 +79,11 @@ def test_executor_registration(network, args):
     )
 
     with grpc.secure_channel(
-        target=primary.get_public_rpc_address(),
+        target=node.get_public_rpc_address(),
         credentials=anonymous_credentials,
     ) as channel:
-        register = ExecutorRegistration.NewExecutor()
-        register.attestation.format = attestation_format
-        register.attestation.quote = quote.encode()
-        register.attestation.endorsements = endorsements.encode()
-        register.cert = cert.encode()
-
-        supported_endpoint = register.supported_endpoints.add()
-        supported_endpoint.method = methods
-        supported_endpoint.uri = uris
-
         stub = RegistrationService.ExecutorRegistrationStub(channel)
-        r = stub.RegisterExecutor(register)
+        r = stub.RegisterExecutor(message)
         assert r.details == "Executor registration is accepted."
         LOG.success(f"Registered new executor {r.executor_id}")
 
@@ -102,6 +94,19 @@ def test_executor_registration(network, args):
         ).read(),
         private_key=key_priv_pem.encode(),
         certificate_chain=cert.encode(),
+    )
+
+    return executor_credentials
+
+
+@reqs.description("Register an external executor")
+def test_executor_registration(network, args):
+    primary, backup = network.find_primary_and_any_backup()
+
+    executor_credentials = register_new_executor(primary, network)
+
+    anonymous_credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
     # Confirm that these credentials (and NOT anoymous credentials) provide
@@ -127,15 +132,15 @@ def test_executor_registration(network, args):
                     assert not should_pass
                     assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
 
-    return network, executor_credentials
+    return network
 
 
 @reqs.description("Store and retrieve key via external executor app")
-def test_put_get(network, args, credentials):
-    assert (
-        len(credentials) >= 2
-    ), f"This test requires at least 2 different idents, got {credentials}"
+def test_put_get(network, args):
     primary, _ = network.find_primary()
+
+    executor_a = register_new_executor(primary, network)
+    executor_b = register_new_executor(primary, network)
 
     my_table = "public:my_table"
     my_key = b"my_key"
@@ -143,7 +148,7 @@ def test_put_get(network, args, credentials):
 
     with grpc.secure_channel(
         target=primary.get_public_rpc_address(),
-        credentials=credentials[0],
+        credentials=executor_a,
     ) as channel:
         stub = Service.KVStub(channel)
 
@@ -189,7 +194,7 @@ def test_put_get(network, args, credentials):
             LOG.info("Snapshot isolation")
             with grpc.secure_channel(
                 target=primary.get_public_rpc_address(),
-                credentials=credentials[1],
+                credentials=executor_b,
             ) as channel_alt:
                 stub_alt = Service.KVStub(channel_alt)
                 with wrap_tx(stub_alt, primary) as tx2:
@@ -210,8 +215,10 @@ def test_put_get(network, args, credentials):
     return network
 
 
-def test_simple_executor(network, args, credentials):
+def test_simple_executor(network, args):
     primary, _ = network.find_primary()
+
+    credentials = register_new_executor(primary, network)
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):
         with primary.client() as c:
@@ -313,12 +320,9 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        network, credentials_a = test_executor_registration(network, args)
-        network, credentials_b = test_executor_registration(network, args)
-        assert credentials_a != credentials_b
-        credentials = [credentials_a, credentials_b]
-        network = test_put_get(network, args, credentials)
-        network = test_simple_executor(network, args, credentials_a)
+        network = test_executor_registration(network, args)
+        network = test_put_get(network, args)
+        network = test_simple_executor(network, args)
         network = test_streaming(network, args)
 
 
