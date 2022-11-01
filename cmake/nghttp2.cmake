@@ -59,8 +59,11 @@ target_compile_definitions(
 )
 add_san(nghttp2.host)
 set_property(TARGET nghttp2.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS nghttp2.host
-  EXPORT ccf
-  DESTINATION lib
-)
+
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS nghttp2.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
