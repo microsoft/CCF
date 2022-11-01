@@ -507,6 +507,9 @@
           "bytecode_used": {
             "$ref": "#/components/schemas/boolean"
           },
+          "max_execution_time": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "max_heap_size": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -518,7 +521,8 @@
           "bytecode_size",
           "bytecode_used",
           "max_heap_size",
-          "max_stack_size"
+          "max_stack_size",
+          "max_execution_time"
         ],
         "type": "object"
       },
@@ -911,7 +915,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.31.9"
+    "version": "2.31.11"
   },
   "openapi": "3.0.0",
   "paths": {

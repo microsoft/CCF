@@ -61,7 +61,7 @@ jobs:
     parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
@@ -71,7 +71,7 @@ jobs:
     parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
       suffix: "Unsafe"
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
