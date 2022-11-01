@@ -1,5 +1,5 @@
 jobs:
-  - job: deploy_aci
+  - job: ${{ parameters.target }}_${{ parameters.suffix }}_deploy_aci
     condition: eq('${{ parameters.target }}', 'SNP')
     steps:
       - script: python3.8 scripts/deploy_snp_aci.py
@@ -9,7 +9,7 @@ jobs:
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn:
       - ${{ parameters.depends_on }}
-      - deploy_aci
+      - ${{ parameters.target }}_${{ parameters.suffix }}_deploy_aci
     condition: eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false')
 
     ${{ insert }}: ${{ parameters.env }}
@@ -73,7 +73,7 @@ jobs:
       - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
           - template: install_deb.yml
 
-  - job: cleanup_aci
+  - job: ${{ parameters.target }}_${{ parameters.suffix }}_cleanup_aci
     condition: always()
     dependsOn: ${{ parameters.target }}_${{ parameters.suffix }}
     steps:
