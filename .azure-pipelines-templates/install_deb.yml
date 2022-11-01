@@ -34,7 +34,7 @@ steps:
     workingDirectory: build
     displayName: Recovery benchmark for installed CCF
 
-  - ${{ if or(eq(parameters.target, 'SGX'), eq(parameters.target, 'SGXIceLake')) }}:
+  - ${{ if eq(parameters.target, 'SGX') }}:
       - script: |
           set -ex
           unsafe_build=$(grep unsafe /tmp/install_prefix) || true
@@ -67,11 +67,8 @@ steps:
           fi
         displayName: Test building a sample against installed CCF (SNP)
 
-  # Note: Do not publish pipeline artefact for SGXIceLake to avoid
-  # publishing the same artefact twice (SGX and SGXIceLake)
-  - ${{ if ne(parameters.target, 'SGXIceLake') }}:
-      - task: PublishPipelineArtifact@1
-        inputs:
-          path: $(Build.ArtifactStagingDirectory)/$(pkgname)
-          artifact: $(pkgname)
-          displayName: "Publish CCF Debian Package"
+  - task: PublishPipelineArtifact@1
+    inputs:
+      path: $(Build.ArtifactStagingDirectory)/$(pkgname)
+      artifact: $(pkgname)
+      displayName: "Publish CCF Debian Package"
