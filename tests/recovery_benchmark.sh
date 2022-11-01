@@ -53,11 +53,16 @@ function current_ledger_length()
 function poll_for_service_open()
 {
     network_live_time=$1
+    sandbox_pid=$2
     polls=0
     while [ ! "$(service_http_status)" == "200" ] && [ "${polls}" -lt "${network_live_time}" ]; do
         echo "Waiting for service to open..."
         polls=$((polls+1))
         sleep 1
+        if ! ps -p ${sandbox_pid} > /dev/null; then
+            echo "Sandbox process has terminated"
+            return 0
+        fi
     done
 
     if [ "$(service_http_status)" == "200" ]; then
@@ -81,7 +86,7 @@ echo "** Start original service"
 sandbox_pid=$!
 
 network_live_time=60
-if poll_for_service_open ${network_live_time}; then
+if poll_for_service_open ${network_live_time} ${sandbox_pid}; then
     echo "Error: Timeout waiting for service to open"
     kill "$(jobs -p)"
     exit 1
@@ -114,8 +119,9 @@ echo "** Recover service"
 seconds_before_recovery=$SECONDS
 # shellcheck disable=SC2086
 "${ccf_install_path}"/bin/sandbox.sh --recover --ledger-dir $LEDGER_DIR --common-dir ./workspace/sandbox_common --ledger-recovery-timeout 1000 ${recovery_snapshot_dir_args} &
+sandbox_pid=$!
 network_live_time=600
-if poll_for_service_open ${network_live_time}; then
+if poll_for_service_open ${network_live_time} ${sandbox_pid}; then
     echo "Error: Timeout waiting for service to open"
     kill "$(jobs -p)"
     exit 1
