@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- CCF is now a separate project and package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse (#4421).
+- CCF is now a separate project and package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
 
 ## [3.0.0-rc0]
 

@@ -44,7 +44,6 @@ if(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
-option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
@@ -152,14 +151,15 @@ install(
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
-  if(NOT DISABLE_QUOTE_VERIFICATION)
-    set(QUOTES_ENABLED ON)
-  endif()
+  # While virtual libraries need to be built for sgx for unit tests, these do
+  # not get installed to minimise installation size
+  set(INSTALL_VIRTUAL_LIBRARIES OFF)
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(DEFAULT_ENCLAVE_TYPE debug)
   endif()
 else()
+  set(INSTALL_VIRTUAL_LIBRARIES ON)
   set(DEFAULT_ENCLAVE_TYPE virtual)
 endif()
 
@@ -312,13 +312,16 @@ if(COMPILE_TARGET STREQUAL "sgx")
     DESTINATION lib
   )
 endif()
+
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS http_parser.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS http_parser.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # CCF kv libs
 set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
@@ -337,11 +340,13 @@ endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
-install(
-  TARGETS ccf_kv.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_kv.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # CCF endpoints libs
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -361,11 +366,14 @@ target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
 target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
-install(
-  TARGETS ccf_endpoints.host
-  EXPORT ccf
-  DESTINATION lib
-)
+
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_endpoints.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
