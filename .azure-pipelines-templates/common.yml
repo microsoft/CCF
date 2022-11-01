@@ -1,5 +1,5 @@
 jobs:
-  - job: "${{ parameters.target }} ${{ parameters.suffix }} Deploy ACI"
+  - job: "${{ parameters.target }}_${{ parameters.suffix }}_Deploy_ACI"
     condition: eq('${{ parameters.target }}', 'SNPCC')
     steps:
       - script: python3.8 scripts/deploy_snp_aci.py
@@ -9,7 +9,7 @@ jobs:
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn:
       - ${{ parameters.depends_on }}
-      - "${{ parameters.target }} ${{ parameters.suffix }} Deploy ACI"
+      - "${{ parameters.target }}_${{ parameters.suffix }}_Deploy_ACI"
     condition: eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false')
 
     ${{ insert }}: ${{ parameters.env }}
@@ -73,7 +73,7 @@ jobs:
       - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
           - template: install_deb.yml
 
-  - job: ${{ parameters.target }}_${{ parameters.suffix }}_cleanup_aci
+  - job: ${{ parameters.target }}_${{ parameters.suffix }}_Cleanup_ACI
     condition: always()
     dependsOn: ${{ parameters.target }}_${{ parameters.suffix }}
     steps:
