@@ -48,7 +48,7 @@ def wrap_tx(stub, primary):
             # but then the node we're speaking to will return a
             # RequestDescription for us to operate over.
             # This is a temporary hack to allow direct access to the KV API.
-            c.get("/placeholder", timeout=0.1)
+            c.get("/placeholder", timeout=0.1, log_capture=[])
         except Exception as e:
             LOG.trace(e)
         rd = stub.StartTx(Empty())
@@ -58,12 +58,8 @@ def wrap_tx(stub, primary):
 
 
 @reqs.description("Register an external executor")
-def test_executor_registration(network, cert, args):
-    primary, _ = network.find_primary()
-
-    credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-    )
+def test_executor_registration(network, args):
+    primary, backup = network.find_primary_and_any_backup()
 
     attestation_format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
     quote = "testquote"
@@ -71,9 +67,18 @@ def test_executor_registration(network, cert, args):
     uris = "/foo/hello/bar"
     methods = "GET"
 
+    # Generate a new executor identity
+    key_priv_pem, _ = infra.crypto.generate_ec_keypair()
+    cert = infra.crypto.generate_cert(key_priv_pem)
+
+    # Connect anonymously to register this executor
+    anonymous_credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
     with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-        credentials=credentials,
+        target=primary.get_public_rpc_address(),
+        credentials=anonymous_credentials,
     ) as channel:
         register = ExecutorRegistration.NewExecutor()
         register.attestation.format = attestation_format
@@ -88,33 +93,57 @@ def test_executor_registration(network, cert, args):
         stub = RegistrationService.ExecutorRegistrationStub(channel)
         r = stub.RegisterExecutor(register)
         assert r.details == "Executor registration is accepted."
-        return network
+        LOG.success(f"Registered new executor {r.executor_id}")
+
+    # Create (and return) credentials that allow authentication as this new executor
+    executor_credentials = grpc.ssl_channel_credentials(
+        root_certificates=open(
+            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+        ).read(),
+        private_key=key_priv_pem.encode(),
+        certificate_chain=cert.encode(),
+    )
+
+    # Confirm that these credentials (and NOT anoymous credentials) provide
+    # access to the KV service on the target node, but no other nodes
+    for node in (
+        primary,
+        backup,
+    ):
+        for credentials in (
+            anonymous_credentials,
+            executor_credentials,
+        ):
+            with grpc.secure_channel(
+                target=node.get_public_rpc_address(),
+                credentials=credentials,
+            ) as channel:
+                should_pass = node == primary and credentials == executor_credentials
+                try:
+                    rd = Service.KVStub(channel).StartTx(Empty())
+                    assert should_pass, "Expected StartTx to fail"
+                    assert not rd.HasField("optional")
+                except grpc.RpcError as e:
+                    assert not should_pass
+                    assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
+
+    return network, executor_credentials
 
 
 @reqs.description("Store and retrieve key via external executor app")
-def test_put_get(network, credentials, args):
+def test_put_get(network, args, credentials):
+    assert (
+        len(credentials) >= 2
+    ), f"This test requires at least 2 different idents, got {credentials}"
     primary, _ = network.find_primary()
-
-    LOG.info("Check that endpoint supports HTTP/2")
-    with primary.client() as c:
-        r = c.get("/node/network/nodes").body.json()
-        assert (
-            r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
-                "app_protocol"
-            ]
-            == "HTTP2"
-        ), "Target node does not support HTTP/2"
-
-    # Note: set following envvar for debug logs:
-    # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 
     my_table = "public:my_table"
     my_key = b"my_key"
     my_value = b"my_value"
 
     with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-        credentials=credentials,
+        target=primary.get_public_rpc_address(),
+        credentials=credentials[0],
     ) as channel:
         stub = Service.KVStub(channel)
 
@@ -157,12 +186,19 @@ def test_put_get(network, credentials, args):
                 assert r.HasField("optional")
                 assert r.optional.value == v
 
-            # Note: It should be possible to test this here, but currently
-            # unsupported as we only allow one remote transaction at a time
-            # LOG.info("Snapshot isolation")
-            # with wrap_tx(stub) as tx2:
-            #     for t, k, v in writes:
-            #         require_missing(tx2, t, k)
+            LOG.info("Snapshot isolation")
+            with grpc.secure_channel(
+                target=primary.get_public_rpc_address(),
+                credentials=credentials[1],
+            ) as channel_alt:
+                stub_alt = Service.KVStub(channel_alt)
+                with wrap_tx(stub_alt, primary) as tx2:
+                    for t, k, v in writes:
+                        r = tx2.Get(KV.KVKey(table=t, key=k))
+                        assert not r.HasField("optional")
+                        LOG.success(
+                            f"Unable to read key {k} from table {t} (in concurrent transaction) as expected"
+                        )
 
         with wrap_tx(stub, primary) as tx3:
             LOG.info("Read applied writes")
@@ -174,7 +210,7 @@ def test_put_get(network, credentials, args):
     return network
 
 
-def test_simple_executor(network, credentials, args):
+def test_simple_executor(network, args, credentials):
     primary, _ = network.find_primary()
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):
@@ -192,6 +228,7 @@ def test_simple_executor(network, credentials, args):
 def test_streaming(network, args):
     primary, _ = network.find_primary()
 
+    # Create new anonymous credentials
     credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
@@ -245,7 +282,7 @@ def test_streaming(network, args):
         assert len(expected_results) == 0, "Fewer responses than requests"
 
     with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        target=primary.get_public_rpc_address(),
         credentials=credentials,
     ) as channel:
         stub = StringOpsService.TestStub(channel)
@@ -257,9 +294,6 @@ def test_streaming(network, args):
 
 
 def run(args):
-    key_priv_pem, _ = infra.crypto.generate_ec_keypair()
-    cert = infra.crypto.generate_cert(key_priv_pem)
-
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -267,16 +301,24 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        credentials = grpc.ssl_channel_credentials(
-            root_certificates=open(
-                os.path.join(network.common_dir, "service_cert.pem"), "rb"
-            ).read(),
-            private_key=key_priv_pem.encode(),
-            certificate_chain=cert.encode(),
-        )
-        network = test_executor_registration(network, cert, args)
-        network = test_put_get(network, credentials, args)
-        network = test_simple_executor(network, credentials, args)
+
+        primary, _ = network.find_primary()
+        LOG.info("Check that endpoint supports HTTP/2")
+        with primary.client() as c:
+            r = c.get("/node/network/nodes").body.json()
+            assert (
+                r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
+                    "app_protocol"
+                ]
+                == "HTTP2"
+            ), "Target node does not support HTTP/2"
+
+        network, credentials_a = test_executor_registration(network, args)
+        network, credentials_b = test_executor_registration(network, args)
+        assert credentials_a != credentials_b
+        credentials = [credentials_a, credentials_b]
+        network = test_put_get(network, args, credentials)
+        network = test_simple_executor(network, args, credentials_a)
         network = test_streaming(network, args)
 
 
@@ -285,6 +327,9 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+
+    # Note: set following envvar for debug logs:
+    # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 
     run(args)
