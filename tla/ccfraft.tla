@@ -552,9 +552,8 @@ AdvanceCommitIndex(i) ==
                 \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
                 LET config_servers == currentConfiguration[i][config_index][2]
                     required_quorum == Quorums[config_servers]
-                    agree_servers == {i} \cup {k \in Servers :
-                                            matchIndex[i][k] >= new_index}
-                IN (agree_servers \cap config_servers) \in required_quorum
+                    agree_servers == {k \in config_servers : matchIndex[i][k] >= new_index}
+                IN (IF i \in config_servers THEN {i} ELSE {}) \cup agree_servers \in required_quorum
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
@@ -569,8 +568,8 @@ AdvanceCommitIndex(i) ==
               /\ new_index >= currentConfiguration[i][2][1]
               /\ currentConfiguration' = [currentConfiguration EXCEPT ![i] = Tail(@)]
               \* Get the set of relevant servers of all configurations after the first
-              /\ \/ /\ \lnot i \in UNION {currentConfiguration[i][relevant_configs][2] : relevant_configs \in
-                             {c \in 2..Len(currentConfiguration[i]) : new_index >= currentConfiguration[i][c][1]} \cup {}}
+              /\ \/ /\ \A c \in 2..Len(currentConfiguration[i]) :
+                        new_index >= currentConfiguration[i][c][1] => i \notin currentConfiguration[i][c][2]
                     \* Retire if i is not in next configuration anymore
                     /\ state' = [state EXCEPT ![i] = RetiredLeader]
                     /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount >>
@@ -644,7 +643,7 @@ HandleRequestVoteResponse(i, j, m) ==
     /\ \/ /\ m.mvoteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
-          /\ UNCHANGED <<votesSent>>
+          /\ UNCHANGED votesSent
        \/ /\ ~m.mvoteGranted
           /\ UNCHANGED <<votesSent, votesGranted>>
     /\ Discard(m)
@@ -741,9 +740,9 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ currentConfiguration' = [currentConfiguration EXCEPT  ![i] = new_config]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ \/ /\ state[i] = Pending
-              /\ i \in UNION {new_config[conf_index][2] : conf_index \in 1..Len(new_config)}
+              /\ \E conf_index \in 1..Len(new_config) : i \in new_config[conf_index][2]
               /\ state' = [state EXCEPT ![i] = Follower ]
-           \/ UNCHANGED <<state>>
+           \/ UNCHANGED state
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
               msuccess        |-> TRUE,
@@ -788,7 +787,7 @@ HandleAppendEntriesResponse(i, j, m) ==
        \/ /\ \lnot m.msuccess \* not successful
           /\ nextIndex' = [nextIndex EXCEPT ![i][j] =
                                Max({nextIndex[i][j] - 1, 1})]
-          /\ UNCHANGED <<matchIndex>>
+          /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, candidateVars, logVars>>
 
