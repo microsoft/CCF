@@ -115,7 +115,7 @@ namespace ccf::js
     host_time.start_time = curr_time;
     host_time.max_execution_time = execution_time;
     JS_SetInterruptHandler(
-      js_run_time, js_custom_interrupt_handler, &host_time);
+      JS_GetRuntime(ctx), js_custom_interrupt_handler, &host_time);
 
     return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
   }

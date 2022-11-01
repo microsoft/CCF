@@ -245,7 +245,6 @@ namespace ccf::js
   class Context
   {
     JSContext* ctx;
-    JSRuntime* js_run_time;
 
   public:
     const TxAccess access;
@@ -253,8 +252,7 @@ namespace ccf::js
 
     Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {
-      js_run_time = rt;
-      ctx = JS_NewContext(js_run_time);
+      ctx = JS_NewContext(rt);
       if (ctx == nullptr)
       {
         throw std::runtime_error("Failed to initialise QuickJS context");
@@ -264,7 +262,7 @@ namespace ccf::js
 
     ~Context()
     {
-      JS_SetInterruptHandler(js_run_time, NULL, NULL);
+      JS_SetInterruptHandler(JS_GetRuntime(ctx), NULL, NULL);
       JS_FreeContext(ctx);
     }
 

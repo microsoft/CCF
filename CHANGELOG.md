@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
 
+### Operations
+
+- We now support QuickJS runtime caps such as `max_heap_bytes`, `max_stack_bytes` and `max_execution_time_ms`. These can be set via a governance proposal. They can also be fetched via the `GET /node/js_metrics` endpoint (#4396).
+
 ## [3.0.0-rc0]
 
 ### Developer API
@@ -59,7 +63,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New `snpinfo.sh` script (#4196).
 - New `"attestation"` section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
 
-<<<<<<< HEAD
 #### Release artefacts
 
 - `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
@@ -89,13 +92,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ---
 
 ### Dependencies
-=======
-- Add `ccf.crypto.generateEddsaKeyPair()` API with Curve25519 support in the JavaScript runtime (#4391).
 
-### Changed
->>>>>>> Move interrupt handler closer to execution
-
-<<<<<<< HEAD
 - Updated PSW in images to 2.16.100.
 - Upgraded Open Enclave to 0.18.1 (#4023).
 
@@ -104,9 +101,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Documentation
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
-=======
-- The endpoint `GET /node/js_metrics` now also returns the QuickJS runtime maximum execution time
->>>>>>> Feedback
 
 ## [3.0.0-dev7]
 
