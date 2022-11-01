@@ -57,42 +57,6 @@ CONSTANTS
     TypeSignature,
     TypeReconfiguration
 
-\* CCF: Limit on vote requests to be sent to each other node per election
-\* Generally, this should be set to one
-\* If zero, then a candidate will not receive any votes (except from itself)
-CONSTANTS RequestVoteLimit
-ASSUME RequestVoteLimit \in Nat
-
-\* Limit on terms
-\* By default, all servers start as followers in term one
-\* So this should therefore be at least two
-CONSTANTS TermLimit
-ASSUME TermLimit \in Nat \ {0}
-
-\* Limit on client requests
-CONSTANTS RequestLimit
-ASSUME RequestLimit \in Nat
-
-\* Limit max number of simultaneous candidates
-\* We made several restrictions to the state space of Raft. However since we
-\* made these restrictions, Deadlocks can occur at places that Raft would in
-\* real-world deployments handle graciously.
-\* One example of this is if a Quorum of nodes becomes Candidate but can not
-\* timeout anymore since we constrained the terms. Then, an artificial Deadlock
-\* is reached. We solve this below. If TermLimit is set to any number >2, this is
-\* not an issue since breadth-first search will make sure that a similar
-\* situation is simulated at term==1 which results in a term increase to 2.
-CONSTANTS MaxSimultaneousCandidates
-ASSUME MaxSimultaneousCandidates \in Nat
-
-\* CCF: Limit how many identical append entries messages each node can send to another
-CONSTANTS MessagesLimit
-ASSUME MessagesLimit \in Nat
-
-\* CCF: Limit the number of commit notifications per commit Index and server
-CONSTANTS CommitNotificationLimit
-ASSUME CommitNotificationLimit \in Nat
-
 CONSTANTS
     NodeOne,
     NodeTwo,
@@ -112,13 +76,6 @@ AllServers == {
 CONSTANTS Servers
 ASSUME Servers /= {}
 ASSUME Servers \subseteq AllServers
-
-\* Set of configurations - Each new server should have a new identity
-CONSTANTS Configurations
-ASSUME Configurations /= <<>>
-ASSUME \A k \in 1..Len(Configurations):
-    /\ Configurations[k] /= {}
-    /\ Configurations[k] \subseteq Servers
 
 ----
 \* Global variables
@@ -213,6 +170,45 @@ leaderVars == <<nextIndex, matchIndex>>
 vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, logVars>>
 
 ----
+\* Fine-grained state constraint "hooks" for model-checking with TLC.
+
+\* State limitation: Limit requested votes
+InRequestVoteLimit(i,j) ==
+    TRUE
+
+\* Limit on terms
+\* By default, all servers start as followers in term one
+\* So this should therefore be at least two
+InTermLimit(i) ==
+    TRUE
+
+\* CCF: Limit how many identical append entries messages each node can send to another
+InMessagesLimit(i, j, index) ==
+    TRUE
+
+\* CCF: Limit the number of commit notifications per commit Index and server
+InCommitNotificationLimit(i) ==
+    TRUE
+
+\* Limit max number of simultaneous candidates
+\* We made several restrictions to the state space of Raft. However since we
+\* made these restrictions, Deadlocks can occur at places that Raft would in
+\* real-world deployments handle graciously.
+\* One example of this is if a Quorum of nodes becomes Candidate but can not
+\* timeout anymore since we constrained the terms. Then, an artificial Deadlock
+\* is reached. We solve this below. If TermLimit is set to any number >2, this is
+\* not an issue since breadth-first search will make sure that a similar
+\* situation is simulated at term==1 which results in a term increase to 2.
+InMaxSimultaneousCandidates(i) ==
+    TRUE
+
+\* Limit on client requests
+InRequestLimit ==
+    TRUE
+
+IsInConfigurations(i, newConfiguration) ==
+    TRUE
+
 \* Helpers
 
 min(a, b) == IF a < b THEN a ELSE b
@@ -302,7 +298,8 @@ CommittedTermPrefix(i, x) ==
 \* Define initial values for all variables
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
-    /\ currentConfiguration = [i \in Servers |-> << << 0, Configurations[1] >> >> ]
+    /\ \E c \in SUBSET Servers \ {{}}:
+        currentConfiguration = [i \in Servers |-> << << 0, c >> >> ]
 
 InitMessagesVars ==
     /\ messages = {}
@@ -311,7 +308,7 @@ InitMessagesVars ==
 
 InitServerVars ==
     /\ currentTerm = [i \in Servers |-> 1]
-    /\ state       = [i \in Servers |-> IF i \in Configurations[1] THEN Follower ELSE Pending]
+    /\ state       = [i \in Servers |-> IF i \in currentConfiguration[i][1][2] THEN Follower ELSE Pending]
     /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
@@ -349,12 +346,12 @@ Init ==
 \* Server i times out and starts a new election.
 Timeout(i) ==
     \* Limit the term of each server to reduce state space
-    /\ currentTerm[i] < TermLimit
+    /\ InTermLimit(i)
     \* Only servers that are not already leaders can become candidates
     /\ state[i] \in {Follower, Candidate}
     \* Limit number of candidates in our relevant server set
     \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
-    /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < MaxSimultaneousCandidates
+    /\ InMaxSimultaneousCandidates(i)
     \* Check that the reconfiguration which added this node is at least committable
     /\ \E k \in 1..Len(currentConfiguration[i]):
         /\ i \in currentConfiguration[i][k][2]
@@ -386,10 +383,9 @@ RequestVote(i,j) ==
     /\ i /= j
     \* Only requests vote if we are candidate
     /\ state[i] = Candidate
+    /\ InRequestVoteLimit(i, j)
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
-    \* State limitation: Limit requested votes
-    /\ votesRequested[i][j] < RequestVoteLimit
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, votesGranted, leaderVars, logVars, votesSent>>
@@ -423,9 +419,7 @@ AppendEntries(i, j) ==
                    mdest          |-> j]
            index == nextIndex[i][j]
        IN
-       /\ IF Len(messagesSent[i][j]) >= index
-          THEN messagesSent[i][j][index] < MessagesLimit
-          ELSE TRUE
+       /\ InMessagesLimit(i, j, index)
        /\ messagesSent' =
             IF Len(messagesSent[i][j]) < index
             THEN [messagesSent EXCEPT ![i][j] = Append(messagesSent[i][j], 1) ]
@@ -459,7 +453,7 @@ BecomeLeader(i) ==
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
     \* Limit number of client requests
-    /\ clientRequests <= RequestLimit
+    /\ InRequestLimit
     \* Only leaders receive client requests
     /\ state[i] = Leader
     /\ LET entry == [term  |-> currentTerm[i],
@@ -507,10 +501,9 @@ ChangeConfiguration(i, newConfiguration) ==
     \* Only leader can propose changes
     /\ state[i] = Leader
     \* Limit reconfigurations
-    /\ reconfigurationCount < Len(Configurations)-1
+    /\ IsInConfigurations(i, newConfiguration)
     \* Configuration is non empty
     /\ newConfiguration /= {}
-    /\ newConfiguration = Configurations[reconfigurationCount+2]
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
     \* Configuration is not equal to current configuration
@@ -596,7 +589,7 @@ NotifyCommit(i,j) ==
     \* Only send notifications of commit to servers in the server set
     /\ IsInServerSetForIndex(j, i, commitIndex[i])
     /\ \/ commitsNotified[i][1] < commitIndex[i]
-       \/ commitsNotified[i][2] < CommitNotificationLimit
+       \/ InCommitNotificationLimit(i)
     /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
                            THEN <<commitsNotified[i][1], commitsNotified[i][2] + 1>>
                            ELSE <<commitIndex[i], 1>>
@@ -851,28 +844,29 @@ UpdateCommitIndex(i,j,m) ==
                    votedFor, candidateVars, leaderVars, log, clientRequests, committedLog, committedLogConflict >>
 
 \* Receive a message.
-Receive(m) ==
-  LET i == m.mdest
-      j == m.msource
-  IN
-  \/ /\ m.mtype = NotifyCommitMessage
-     /\ UpdateCommitIndex(i,j,m)
-     /\ Discard(m)
-  \* Drop any message that are to be ignored by the recipient
-  \/ DropIgnoredMessage(i,j,m)
-  \* Any RPC with a newer term causes the recipient to advance
-  \* its term first. Responses with stale terms are ignored.
-  \/ UpdateTerm(i, j, m)
-  \/ /\ m.mtype = RequestVoteRequest
-     /\ HandleRequestVoteRequest(i, j, m)
-  \/ /\ m.mtype = RequestVoteResponse
-     /\ \/ DropStaleResponse(i, j, m)
-        \/ HandleRequestVoteResponse(i, j, m)
-  \/ /\ m.mtype = AppendEntriesRequest
-     /\ HandleAppendEntriesRequest(i, j, m)
-  \/ /\ m.mtype = AppendEntriesResponse
-     /\ \/ DropStaleResponse(i, j, m)
-        \/ HandleAppendEntriesResponse(i, j, m)
+Receive ==
+    \E m \in messages : 
+        LET i == m.mdest
+            j == m.msource
+        IN
+        \/ /\ m.mtype = NotifyCommitMessage
+           /\ UpdateCommitIndex(i,j,m)
+           /\ Discard(m)
+        \* Drop any message that are to be ignored by the recipient
+        \/ DropIgnoredMessage(i,j,m)
+        \* Any RPC with a newer term causes the recipient to advance
+        \* its term first. Responses with stale terms are ignored.
+        \/ UpdateTerm(i, j, m)
+        \/ /\ m.mtype = RequestVoteRequest
+           /\ HandleRequestVoteRequest(i, j, m)
+        \/ /\ m.mtype = RequestVoteResponse
+           /\ \/ DropStaleResponse(i, j, m)
+              \/ HandleRequestVoteResponse(i, j, m)
+        \/ /\ m.mtype = AppendEntriesRequest
+           /\ HandleAppendEntriesRequest(i, j, m)
+        \/ /\ m.mtype = AppendEntriesResponse
+           /\ \/ DropStaleResponse(i, j, m)
+              \/ HandleAppendEntriesResponse(i, j, m)
 
 \* End of message handlers.
 ----
@@ -890,7 +884,7 @@ Next ==
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i \in Servers : CheckQuorum(i)
-    \/ \E m \in messages : Receive(m)
+    \/ Receive
 \* SNIPPET_END: next_states
 
 \* The specification must start with the initial state and transition according
@@ -909,11 +903,11 @@ LogInv ==
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
 MoreThanOneLeaderInv ==
-    \lnot \E i, j \in Servers :
-        /\ i /= j
-        /\ currentTerm[i] = currentTerm[j]
-        /\ state[i] = Leader
-        /\ state[j] = Leader
+    \A i,j \in Servers :
+        (/\ currentTerm[i] = currentTerm[j]
+         /\ state[i] = Leader
+         /\ state[j] = Leader)
+        => i = j
 
 \* If a candidate has a chance of being elected, there
 \* are no log entries with that candidate's term
@@ -988,64 +982,60 @@ SignatureInv ==
         \/ commitIndex[i] = 0
         \/ log[i][commitIndex[i]].contentType = TypeSignature
 
-\* Since a signature transaction cannot follow another signature transaction,
-\* the following is the maximum log length
-MaxLogLength == (RequestLimit + reconfigurationCount) * 2
-
 \* Helper function for checking the type safety of log entries
 LogTypeOK(xlog) ==
     IF Len(xlog) > 0 THEN
         \A k \in 1..Len(xlog) :
-            /\ xlog[k].term \in 1..TermLimit
+            /\ xlog[k].term \in Nat \ {0}
             /\ \/ /\ xlog[k].contentType = TypeEntry
-                  /\ xlog[k].value \in 1..RequestLimit+1
+                  /\ xlog[k].value \in Nat \ {0}
                \/ /\ xlog[k].contentType = TypeSignature
                   /\ xlog[k].value = Nil
                \/ /\ xlog[k].contentType = TypeReconfiguration
-                  /\ xlog[k].value \in {Configurations[l]: l \in 1..Len(Configurations)}
+                  /\ xlog[k].value \subseteq Servers
     ELSE TRUE
 
 ReconfigurationVarsTypeInv ==
-    /\ reconfigurationCount \in 0..Len(Configurations)
+    /\ reconfigurationCount \in Nat
     /\ \A i \in Servers :
         /\ currentConfiguration[i] /= <<>>
         /\ \A k \in 1..Len(currentConfiguration[i]) :
-            /\ currentConfiguration[i][k][1] \in 0..MaxLogLength
-            /\ currentConfiguration[i][k][2] \in {Configurations[l]: l \in 1..Len(Configurations)}
+            /\ currentConfiguration[i][k][1] \in Nat
+            /\ currentConfiguration[i][k][2] \subseteq Servers
 
 MessageVarsTypeInv ==
     /\ \A m \in messages :
         /\ m.msource \in Servers
         /\ m.mdest \in Servers
-        /\ m.mterm \in 1..TermLimit
+        /\ m.mterm \in Nat \ {0}
         /\ \/ /\ m.mtype = AppendEntriesRequest
-                /\ m.mprevLogIndex \in 0..MaxLogLength
-                /\ m.mprevLogTerm \in 0..TermLimit
+                /\ m.mprevLogIndex \in Nat
+                /\ m.mprevLogTerm \in Nat
                 /\ LogTypeOK(m.mentries)
-                /\ m.mcommitIndex \in 0..MaxLogLength
+                /\ m.mcommitIndex \in Nat
             \/ /\ m.mtype = AppendEntriesResponse
                 /\ m.msuccess \in BOOLEAN
-                /\ m.mmatchIndex \in 0..MaxLogLength
+                /\ m.mmatchIndex \in Nat
             \/ /\ m.mtype = RequestVoteRequest
-                /\ m.mlastLogTerm \in 0..TermLimit
-                /\ m.mlastLogIndex \in 0..MaxLogLength
+                /\ m.mlastLogTerm \in Nat
+                /\ m.mlastLogIndex \in Nat
             \/ /\ m.mtype = RequestVoteResponse
                 /\ m.mvoteGranted \in BOOLEAN
             \/ /\ m.mtype = NotifyCommitMessage
-                /\ m.mcommitIndex \in 0..MaxLogLength
+                /\ m.mcommitIndex \in Nat
     /\ \A i,j \in Servers : i /= j =>
-        /\ Len(messagesSent[i][j]) \in 0..MaxLogLength
+        /\ Len(messagesSent[i][j]) \in Nat
         /\ IF Len(messagesSent[i][j]) > 0 THEN
             \A k \in 1..Len(messagesSent[i][j]) :
-                messagesSent[i][j][k] \in 1..MessagesLimit
+                messagesSent[i][j][k] \in Nat \ {0}
             ELSE TRUE
     /\ \A i \in Servers :
-        /\ commitsNotified[i][1] \in 0..MaxLogLength
-        /\ commitsNotified[i][2] \in 0..CommitNotificationLimit
+        /\ commitsNotified[i][1] \in Nat
+        /\ commitsNotified[i][2] \in Nat
 
 ServerVarsTypeInv ==
     /\ \A i \in Servers :
-        /\ currentTerm[i] \in 1..TermLimit
+        /\ currentTerm[i] \in Nat \ {0}
         /\ state[i] \in States
         /\ votedFor[i] \in {Nil} \cup Servers
 
@@ -1054,19 +1044,19 @@ CandidateVarsTypeInv ==
         /\ votesSent[i] \in BOOLEAN
         /\ votesGranted[i] \subseteq Servers
         /\ \A j \in Servers : i /= j => 
-            /\ votesRequested[i][j] \in 0..RequestVoteLimit
+            /\ votesRequested[i][j] \in Nat
 
 LeaderVarsTypeInv ==
     /\ \A i, j \in Servers : i /= j =>
-        /\ nextIndex[i][j] \in 1..MaxLogLength+1
-        /\ matchIndex[i][j] \in 0..MaxLogLength
+        /\ nextIndex[i][j] \in Nat \ {0}
+        /\ matchIndex[i][j] \in Nat
 
 LogVarsTypeInv ==
     /\ \A i \in Servers :
-        /\ Len(log[i]) \in 0..MaxLogLength
+        /\ Len(log[i]) \in Nat
         /\ LogTypeOK(log[i])
-        /\ commitIndex[i] \in 0..MaxLogLength
-    /\ clientRequests \in 1..RequestLimit+1
+        /\ commitIndex[i] \in Nat
+    /\ clientRequests \in Nat \ {0}
     /\ LogTypeOK(committedLog)
     /\ committedLogConflict \in BOOLEAN
 
@@ -1118,22 +1108,6 @@ DebugInvLeaderCannotStepDown ==
         /\ m.mtype = AppendEntriesRequest
         /\ currentTerm[m.msource] = m.mterm
         => state[m.msource] = Leader
-
-\* Returns true if server i has committed value v, false otherwise
-IsCommittedByServer(v,i) ==
-    IF commitIndex[i]  = 0
-    THEN FALSE
-    ELSE \E k \in 1..commitIndex[i] :
-        /\ log[i][k].contentType = TypeEntry
-        /\ log[i][k].value = v
-
-\* This invariant shows that at least one value is committed on at least one server
-DebugInvAnyCommitted ==
-    \lnot (\E v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
-
-\* This invariant shows that all values are committed on at least one server each
-DebugInvAllCommitted ==
-    \lnot (\A v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
 
 \* This invariant shows that it should be possible for Node 4 or 5 to become leader
 \* Note that symmetry for the set of servers should be disabled to check this debug invariant
