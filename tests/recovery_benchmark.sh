@@ -59,7 +59,7 @@ function poll_for_service_open()
         echo "Waiting for service to open..."
         polls=$((polls+1))
         sleep 1
-        if ! ps -p ${sandbox_pid} > /dev/null; then
+        if ! ps -p "${sandbox_pid}" > /dev/null; then
             echo "Sandbox process has terminated"
             return 0
         fi
