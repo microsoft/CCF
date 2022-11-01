@@ -1,6 +1,8 @@
 jobs:
   - job: "${{ parameters.target }}_${{ parameters.suffix }}_Deploy_ACI"
     condition: eq('${{ parameters.target }}', 'SNPCC')
+    pool:
+      vmImage: ubuntu-20.04
     steps:
       - script: python3.8 scripts/deploy_snp_aci.py
 
@@ -76,5 +78,7 @@ jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}_Cleanup_ACI
     condition: always()
     dependsOn: ${{ parameters.target }}_${{ parameters.suffix }}
+    pool:
+      vmImage: ubuntu-20.04
     steps:
       - script: python3.8 scripts/cleanup_snp_aci.py
