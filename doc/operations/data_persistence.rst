@@ -1,7 +1,7 @@
 Data Persistence
 =====================
 
-When a new node has joined the network or when a failed node needs to be recovered, latest committed snapshot file can be copied to the node before it is started. It will then automatically resume from the latest snapshot file (see :ref:`operations/ledger_snapshot:Join/Recover From Snapshot`).
+When a new node has joined the network or when a failed node needs to be recovered, latest committed snapshot file can be copied to the node before it is started. It will then automatically resume from the latest snapshot file (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`).
 
 The new/recovered node may also need to have access to all ``.committed`` ledger files in some cases, for example, if the node needs to serve historical queries. It is therefore safe to back up all the ``.committed`` ledger and snapshot files. It is recommended to have two separate directories on each node - one being a read-write directory where *all* the ledger and snapshot files reside and another shared read-only directory where *only* the ``.committed`` ledger and snapshot files reside.
 

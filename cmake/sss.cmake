@@ -23,8 +23,11 @@ endif()
 add_library(sss.host STATIC ${SSS_SRC})
 add_san(sss.host)
 set_property(TARGET sss.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS sss.host
-  EXPORT ccf
-  DESTINATION lib
-)
+
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS sss.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

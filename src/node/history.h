@@ -524,20 +524,10 @@ namespace ccf
           std::unique_lock<ccf::pal::Mutex> mguard(
             self->signature_lock, std::defer_lock);
 
-          const int64_t sig_ms_interval = self->sig_ms_interval;
-          int64_t delta_time_to_next_sig = sig_ms_interval;
           bool should_emit_signature = false;
 
           if (mguard.try_lock())
           {
-            // NOTE: time is set on every thread via a thread message
-            //       time_of_last_signature is a atomic that can be set by any
-            //       thread
-            auto time = threading::ThreadMessaging::thread_messaging
-                          .get_current_time_offset()
-                          .count();
-            auto time_of_last_signature = self->time_of_last_signature.count();
-
             auto consensus = self->store.get_consensus();
             if (consensus != nullptr)
             {
@@ -550,10 +540,7 @@ namespace ccf
                 }
                 case kv::Consensus::SignatureDisposition::CAN_SIGN:
                 {
-                  if (
-                    self->store.committable_gap() > 0 &&
-                    time > time_of_last_signature &&
-                    (time - time_of_last_signature) > sig_ms_interval)
+                  if (self->store.committable_gap() > 0)
                   {
                     should_emit_signature = true;
                   }
@@ -566,16 +553,6 @@ namespace ccf
                 }
               }
             }
-
-            delta_time_to_next_sig =
-              sig_ms_interval - (time - self->time_of_last_signature.count());
-
-            if (
-              delta_time_to_next_sig <= 0 ||
-              delta_time_to_next_sig > sig_ms_interval)
-            {
-              delta_time_to_next_sig = sig_ms_interval;
-            }
           }
 
           if (should_emit_signature)
@@ -585,14 +562,13 @@ namespace ccf
 
           self->emit_signature_timer_entry =
             threading::ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg),
-              std::chrono::milliseconds(delta_time_to_next_sig));
+              std::move(msg), std::chrono::milliseconds(self->sig_ms_interval));
         },
         this);
 
       emit_signature_timer_entry =
         threading::ThreadMessaging::thread_messaging.add_task_after(
-          std::move(emit_sig_msg), std::chrono::milliseconds(1000));
+          std::move(emit_sig_msg), std::chrono::milliseconds(sig_ms_interval));
     }
 
     ~HashedTxHistory()
