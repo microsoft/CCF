@@ -7,7 +7,7 @@
       if [ "{{ ccf_ver }}" = "latest" ]; then
         curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | egrep {{ platform }} | egrep -v unsafe | cut -d\" -f4
       else
-        echo "https://github.com/microsoft/CCF/releases/download/ccf-{{ ccf_ver }}/ccf_{{ ccf_ver | replace('-', '_') }}-{{ platform }}_amd64.deb"
+        echo "https://github.com/microsoft/CCF/releases/download/ccf-{{ ccf_ver }}/ccf_{{ platform }}_{{ ccf_ver | replace('-', '_') }}_amd64.deb"
       fi
   register: ccf_deb_url
 
@@ -33,13 +33,29 @@
   become: true
   when: run_js|bool
 
-- name: Copy JS generic
+- name: Copy JS generic (SGX)
   copy:
-    src: "/opt/ccf/lib/{{ ccf_js_app_name }}"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}"
+    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.enclave.so.signed"
+    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.enclave.so.signed"
     remote_src: true
   become: true
-  when: run_js|bool
+  when: (run_js|bool) and (platform == "sgx")
+
+- name: Copy JS generic (Virtual)
+  copy:
+    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.virtual.so"
+    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
+    remote_src: true
+  become: true
+  when: (run_js|bool) and (platform == "virtual")
+
+- name: Copy JS generic (SNP)
+  copy:
+    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.virtual.so"
+    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
+    remote_src: true
+  become: true
+  when: (run_js|bool) and (platform == "snp")
 
 - name: Remove release
   apt:
