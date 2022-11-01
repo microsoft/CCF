@@ -160,7 +160,13 @@ namespace ccf
           {
             vote_failures = ccf::jsgov::VoteFailures();
           }
+
           auto [reason, trace] = js::js_error_message(context);
+
+          if (context.host_time.request_timed_out)
+          {
+            reason = "Operation took too long to complete.";
+          }
           vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
         }
       }
@@ -215,6 +221,10 @@ namespace ccf
         {
           pi_.value().state = ProposalState::FAILED;
           auto [reason, trace] = js::js_error_message(js_context);
+          if (js_context.host_time.request_timed_out)
+          {
+            reason = "Operation took too long to complete.";
+          }
           failure = ccf::jsgov::Failure{
             fmt::format("Failed to resolve(): {}", reason), trace};
         }
@@ -311,6 +321,10 @@ namespace ccf
             {
               pi_.value().state = ProposalState::FAILED;
               auto [reason, trace] = js::js_error_message(js_context);
+              if (js_context.host_time.request_timed_out)
+              {
+                reason = "Operation took too long to complete.";
+              }
               failure = ccf::jsgov::Failure{
                 fmt::format("Failed to apply(): {}", reason), trace};
             }
@@ -1044,6 +1058,10 @@ namespace ccf
         if (JS_IsException(val))
         {
           auto [reason, trace] = js_error_message(context);
+          if (context.host_time.request_timed_out)
+          {
+            reason = "Operation took too long to complete.";
+          }
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
