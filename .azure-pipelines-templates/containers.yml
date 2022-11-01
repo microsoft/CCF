@@ -9,5 +9,5 @@ jobs:
         clean: true
         fetchDepth: 1
 
-      - script: docker/build_release_images.yml ccfmsrc.azurecr.io
+      - script: docker/build_release_images.sh ccfmsrc.azurecr.io
         displayName: "Build Release Containers"
