@@ -24,14 +24,20 @@ class Messages:
         data="",
         iterations=1,
     ):
-        for _ in range(iterations):
-            data_headers = "\r\n"
-            if len(data) > 0:
-                data_headers = "content-length: " + str(len(data)) + "\r\n\r\n" + data
+        """
+        Create a new df with the contents specified by the arguments,
+        append it to self.df and return the new df
+        """
+        batch_df = pd.DataFrame(columns=["messageID", "request"])
+        data_headers = "\r\n"
+        if len(data) > 0:
+            data_headers = "content-length: " + str(len(data)) + "\r\n\r\n" + data
 
-            ind = len(self.df.index)
-            self.df.loc[ind] = [
-                str(ind),
+        df_size = len(self.df.index)
+
+        for ind in range(iterations):
+            batch_df.loc[ind] = [
+                str(ind + df_size),
                 verb.upper()
                 + " "
                 + path
@@ -47,7 +53,8 @@ class Messages:
                 + data_headers,
             ]
 
-        return self.df
+        self.df = pd.concat([self.df, batch_df])
+        return batch_df
 
     def to_parquet_file(self, path):
         fp.write(path, self.df)
