@@ -768,7 +768,11 @@ const actions = new Map([
       function (args) {
         checkType(args.max_heap_bytes, "integer", "max_heap_bytes");
         checkType(args.max_stack_bytes, "integer", "max_stack_bytes");
-        checkType(args.max_stack_bytes, "integer", "max_execution_time_ms");
+        checkType(
+          args.max_execution_time_ms,
+          "integer",
+          "max_execution_time_ms"
+        );
       },
       function (args) {
         const js_engine_map = ccf.kv["public:ccf.gov.js_runtime_options"];

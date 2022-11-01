@@ -39,11 +39,9 @@ namespace ccf::js
   extern JSClassDef node_class_def;
   extern JSClassDef network_class_def;
 
-  const std::chrono::milliseconds default_max_execution_time{200};
+  const std::chrono::milliseconds default_max_execution_time{1000};
   const size_t default_stack_size = 1024 * 1024;
   const size_t default_heap_size = 100 * 1024 * 1024;
-  static std::chrono::milliseconds max_execution_time =
-    default_max_execution_time;
 
   enum class TxAccess
   {

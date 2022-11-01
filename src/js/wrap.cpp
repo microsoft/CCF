@@ -58,6 +58,7 @@ namespace ccf::js
   JSClassDef historical_class_def = {};
   JSClassDef historical_state_class_def = {};
 
+  std::chrono::milliseconds execution_time = default_max_execution_time;
   std::vector<FFIPlugin> ffi_plugins;
 
   static void register_ffi_plugin(const FFIPlugin& plugin)
@@ -91,7 +92,7 @@ namespace ccf::js
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
     if (elapsed_ms.count() >= time->max_execution_time.count())
     {
-      LOG_INFO_FMT("JS execution has timed out");
+      LOG_INFO_FMT("JS execution has timed out after {}ms", elapsed_ms.count());
       time->request_timed_out = true;
       return 1;
     }
@@ -113,7 +114,7 @@ namespace ccf::js
 
     const auto curr_time = ccf::get_enclave_time();
     host_time->start_time = curr_time;
-    host_time->max_execution_time = max_execution_time;
+    host_time->max_execution_time = execution_time;
     JS_SetInterruptHandler(js_run_time, js_custom_interrupt_handler, host_time);
 
     return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
@@ -136,7 +137,7 @@ namespace ccf::js
     {
       heap_size = js_runtime_options.value().max_heap_bytes;
       stack_size = js_runtime_options.value().max_stack_bytes;
-      max_execution_time = std::chrono::milliseconds{
+      execution_time = std::chrono::milliseconds{
         js_runtime_options.value().max_execution_time_ms};
     }
 

@@ -187,7 +187,7 @@ def test_set_js_runtime(network, args):
         primary,
         max_heap_bytes=50 * 1024 * 1024,
         max_stack_bytes=1024 * 512,
-        max_execution_time=500,
+        max_execution_time_ms=500,
     )
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
@@ -200,7 +200,7 @@ def test_set_js_runtime(network, args):
         primary,
         max_heap_bytes=100 * 1024 * 1024,
         max_stack_bytes=1024 * 1024,
-        max_execution_time=1000,
+        max_execution_time_ms=1000,
     )
     return network
 
@@ -802,8 +802,12 @@ def test_js_execution_time(network, args):
 
     LOG.info("Calling jwt endpoint after storing keys")
     with primary.client("user0") as c:
-        user_id = "user0"
-        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
+        # fetch defaults from js_metrics endpoint
+        r = c.get("/node/js_metrics")
+        body = r.body.json()
+        default_max_heap_size = body["max_heap_size"]
+        default_max_stack_size = body["max_stack_size"]
+        default_max_execution_time = body["max_execution_time"]
 
         # set JS execution time to a lower value which will timeout this
         # endpoint execution
@@ -811,8 +815,11 @@ def test_js_execution_time(network, args):
             primary,
             max_heap_bytes=50 * 1024 * 1024,
             max_stack_bytes=1024 * 512,
-            max_execution_time=0.5,
+            max_execution_time_ms=1,
         )
+        user_id = "user0"
+        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
+
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
         body = r.body.json()
@@ -821,9 +828,9 @@ def test_js_execution_time(network, args):
         # reset the execution time
         network.consortium.set_js_runtime_options(
             primary,
-            max_heap_bytes=50 * 1024 * 1024,
-            max_stack_bytes=1024 * 512,
-            max_execution_time=1000,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
         )
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.OK, r.status_code

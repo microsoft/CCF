@@ -95,6 +95,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 >>>>>>> Move interrupt handler closer to execution
 
+<<<<<<< HEAD
 - Updated PSW in images to 2.16.100.
 - Upgraded Open Enclave to 0.18.1 (#4023).
 
@@ -103,6 +104,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Documentation
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
+=======
+- The endpoint `GET /node/js_metrics` now also returns the QuickJS runtime maximum execution time
+>>>>>>> Feedback
 
 ## [3.0.0-dev7]
 
