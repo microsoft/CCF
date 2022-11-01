@@ -33,6 +33,8 @@ import os
 import contextlib
 import http
 import random
+import threading
+import time
 
 from loguru import logger as LOG
 
@@ -225,6 +227,9 @@ def test_simple_executor(network, args):
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
 
+            r = c.get("/article_description/Earth")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
+
             r = c.post("/update_cache/Earth")
             assert r.status_code == http.HTTPStatus.OK
             content = r.body.text().splitlines()[-1]
@@ -239,14 +244,67 @@ def test_simple_executor(network, args):
 def test_parallel_executors(network, args):
     primary, _ = network.find_primary()
 
-    # with contextlib.ExitStack() as es:
-    credentials = register_new_executor(primary, network)
+    executor_count = 10
 
-    with executor_thread(WikiCacherExecutor(primary, credentials)):
+    topics = [
+        "England",
+        "Scotland",
+        "France",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Red",
+        "Green",
+        "Blue",
+        "Cat",
+        "Dog",
+        "Alligator",
+        "Garfield",
+    ]
+
+    def read_topic(topic):
         with primary.client() as c:
-            c.post("/not/a/real/endpoint")
-            c.post("/update_cache/Earth")
-            c.get("/article_description/Earth")
+            while True:
+                r = c.get(f"/article_description/{topic}", log_capture=[])
+                if r.status_code == http.HTTPStatus.NOT_FOUND:
+                    time.sleep(0.1)
+                elif r.status_code == http.HTTPStatus.OK:
+                    LOG.success(f"Found out about {topic}: {r.body.text()}")
+                    return
+                else:
+                    raise ValueError(f"Unexpected response: {r}")
+
+    executors = []
+
+    with contextlib.ExitStack() as stack:
+        for i in range(executor_count):
+            credentials = register_new_executor(primary, network)
+            executor = WikiCacherExecutor(primary, credentials, label=f"Executor {i}")
+            executors.append(executor)
+            stack.enter_context(executor_thread(executor))
+
+        for executor in executors:
+            assert executor.handled_requests_count == 0
+
+        reader_threads = [
+            threading.Thread(target=read_topic, args=(topic,)) for topic in topics * 3
+        ]
+
+        for thread in reader_threads:
+            thread.start()
+
+        with primary.client() as c:
+            random.shuffle(topics)
+            for topic in topics:
+                r = c.post(f"/update_cache/{topic}", log_capture=[])
+                assert r.status_code == http.HTTPStatus.OK
+                time.sleep(0.25)
+
+        for thread in reader_threads:
+            thread.join()
+
+    for executor in executors:
+        assert executor.handled_requests_count > 0
 
     return network
 
