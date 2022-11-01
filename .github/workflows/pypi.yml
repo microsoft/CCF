@@ -1,4 +1,4 @@
-name: "Build and Publish NPM package"
+name: "Build and Publish PyPi package"
 
 on:
   release:
@@ -22,12 +22,15 @@ jobs:
           echo "${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
-      - name: Fetch NPM Package from release
+      - name: Fetch PyPi Package from release
         run: |
-          wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.tag}}/microsoft-ccf-app-${{steps.tref.outputs.tag}}.tgz
+          wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.tag}}/ccf-${{steps.tref.outputs.tag}}-py3-none-any.whl
 
-      - name: Publish NPM Package to https://www.npmjs.com/package/@microsoft/ccf-app
+      - name: Publish PyPi Package to https://pypi.org/project/ccf/
         run: |
           set -ex
-          echo "//registry.npmjs.org/:_authToken=\${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm publish microsoft-ccf-app*.tgz --access public
+          python3.8 -m venv env
+          source ./env/bin/activate
+          pip install -r requirements.txt
+          pip install twine
+          twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} *.whl
