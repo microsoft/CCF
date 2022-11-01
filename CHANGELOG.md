@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
 
+### Changed
+
+- CCF is now a separate project and package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse (#4421).
+
 ## [3.0.0-rc0]
 
 ### Developer API
