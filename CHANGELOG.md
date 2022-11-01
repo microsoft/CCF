@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- CCF is now a separate project and package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
+- CCF is now a separate Cmake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
+  - C++ applications should find the appropriate CCF package in Cmake with `find_package("ccf_<platform>" REQUIRED)`.
+  - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
 
 ## [3.0.0-rc0]
 
