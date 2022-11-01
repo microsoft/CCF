@@ -5,8 +5,10 @@ cmake_minimum_required(VERSION 3.16)
 
 project(nobuiltins LANGUAGES C CXX)
 
-if(NOT TARGET ccf)
-  find_package("ccf_${COMPILE_TARGET}" REQUIRED)
+set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
+
+if(NOT TARGET "ccf")
+  find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
 add_ccf_app(nobuiltins SRCS nobuiltins.cpp)

@@ -7,13 +7,13 @@ project(logging LANGUAGES C CXX)
 
 option(USE_UNSAFE_VERSION "Use build with unsafe logging levels" OFF)
 
-set(CCF_PROJECT "ccf")
+set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 if(USE_UNSAFE_VERSION)
   set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
 endif()
 
-if(NOT TARGET ${CCF_PROJECT})
-  find_package("${CCF_PROJECT}_${COMPILE_TARGET}" REQUIRED)
+if(NOT TARGET "ccf")
+  find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
 add_ccf_app(logging SRCS logging.cpp)
