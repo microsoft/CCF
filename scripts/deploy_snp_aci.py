@@ -27,6 +27,14 @@ parser.add_argument(
     type=str,
 )
 
+parser.add_argument(
+    "--count",
+    "-c",
+    help="The number of container instances to deploy",
+    type=int,
+    default=1,
+)
+
 args = parser.parse_args()
 
 RESOURCE_GROUP = "ccf-aci"
@@ -51,7 +59,7 @@ creation = resource_client.deployments.begin_create_or_update(
                     {
                         "type": "Microsoft.ContainerInstance/containerGroups",
                         "apiVersion": "2022-04-01-preview",
-                        "name": f"{args.deployment_name}",
+                        "name": f"{args.deployment_name}-{i}",
                         "location": "westeurope",
                         "properties": {
                             "sku": "Standard",
@@ -61,7 +69,7 @@ creation = resource_client.deployments.begin_create_or_update(
                             },
                             "containers": [
                                 {
-                                    "name": f"{args.deployment_name}",
+                                    "name": f"{args.deployment_name}-{i}",
                                     "properties": {
                                         "image": IMAGE,
                                         "command": ["tail", "-f", "/dev/null"],
@@ -87,7 +95,7 @@ creation = resource_client.deployments.begin_create_or_update(
                             },
                             "osType": "Linux",
                         },
-                    }
+                    } for i in range(args.count)
                 ],
             },
         )
