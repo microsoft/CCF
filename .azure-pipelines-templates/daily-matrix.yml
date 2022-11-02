@@ -45,44 +45,45 @@ jobs:
     parameters:
       env: ${{ parameters.env.Virtual }}
 
-  - template: common.yml
-    parameters:
-      target: Virtual
-      env: "${{ parameters.env.Virtual }}"
-      fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
-      suffix: "Instrumented"
-      artifact_name: "Virtual_Instrumented"
-      ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: "800"
-      depends_on: configure
+  # TODO: Re-add
+  # - template: common.yml
+  #   parameters:
+  #     target: Virtual
+  #     env: "${{ parameters.env.Virtual }}"
+  #     fetch_quictls: debug
+  #     cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+  #     suffix: "Instrumented"
+  #     artifact_name: "Virtual_Instrumented"
+  #     ctest_filter: '-LE "benchmark|perf"'
+  #     ctest_timeout: "800"
+  #     depends_on: configure
 
-  - template: common.yml
-    parameters:
-      target: SGX
-      env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
-      suffix: "Release"
-      artifact_name: "SGX_Release"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
-      depends_on: configure
+  # - template: common.yml
+  #   parameters:
+  #     target: SGX
+  #     env: "${{ parameters.env.SGX }}"
+  #     cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
+  #     suffix: "Release"
+  #     artifact_name: "SGX_Release"
+  #     ctest_filter: '-LE "benchmark|perf|rotation"'
+  #     depends_on: configure
 
-  - template: common.yml
-    parameters:
-      target: SGX
-      env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
-      suffix: "Unsafe"
-      artifact_name: "SGX_Unsafe"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
-      depends_on: configure
+  # - template: common.yml
+  #   parameters:
+  #     target: SGX
+  #     env: "${{ parameters.env.SGX }}"
+  #     cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
+  #     suffix: "Unsafe"
+  #     artifact_name: "SGX_Unsafe"
+  #     ctest_filter: '-LE "benchmark|perf|rotation"'
+  #     depends_on: configure
 
-  - template: common.yml
-    parameters:
-      target: SNPCC
-      env: "${{ parameters.env.SNPCC }}"
-      cmake_args: "${{ parameters.build.SNPCC.cmake_args }}"
-      suffix: "Debug"
-      artifact_name: "SNPCC_Debug"
-      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
-      depends_on: configure
+  # - template: common.yml
+  #   parameters:
+  #     target: SNPCC
+  #     env: "${{ parameters.env.SNPCC }}"
+  #     cmake_args: "${{ parameters.build.SNPCC.cmake_args }}"
+  #     suffix: "Debug"
+  #     artifact_name: "SNPCC_Debug"
+  #     ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
+  #     depends_on: configure
