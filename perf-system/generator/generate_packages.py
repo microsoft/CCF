@@ -57,7 +57,8 @@ def main():
     parser.add_argument(
         "-ct",
         "--content_type",
-        help="he Content-Type representation header is used\
+        help="The Content-Type representation header is used\
+
             to indicate the original media type of the resource.\
             Default `application-json`",
         default="application-json",
