@@ -42,6 +42,7 @@ jobs:
         displayName: CMake
 
   - template: containers.yml
+    dependsOn: configure
     parameters:
       env: ${{ parameters.env.Virtual }}
 
