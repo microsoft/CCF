@@ -165,7 +165,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           openenclave::oehost
+           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -217,7 +217,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           openenclave::oehost
+           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -680,6 +680,13 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
     ADDITIONAL_ARGS --sig-ms-interval 100
+  )
+
+  add_e2e_test(
+    NAME commit_latency
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
+    CONSENSUS cft
+    LABEL perf
   )
 
   add_e2e_test(

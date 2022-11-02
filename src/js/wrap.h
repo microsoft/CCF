@@ -39,6 +39,10 @@ namespace ccf::js
   extern JSClassDef node_class_def;
   extern JSClassDef network_class_def;
 
+  const std::chrono::milliseconds default_max_execution_time{1000};
+  const size_t default_stack_size = 1024 * 1024;
+  const size_t default_heap_size = 100 * 1024 * 1024;
+
   enum class TxAccess
   {
     APP,
@@ -215,17 +219,20 @@ namespace ccf::js
   JSWrappedValue load_app_module(
     JSContext* ctx, const char* module_name, kv::Tx* tx);
 
+  struct UntrustedHostTime
+  {
+    std::chrono::microseconds start_time;
+    std::chrono::milliseconds max_execution_time;
+    bool request_timed_out = false;
+  };
+
   class Runtime
   {
     JSRuntime* rt;
 
   public:
     Runtime(kv::Tx* tx);
-
-    ~Runtime()
-    {
-      JS_FreeRuntime(rt);
-    }
+    ~Runtime();
 
     operator JSRuntime*() const
     {
@@ -241,6 +248,7 @@ namespace ccf::js
 
   public:
     const TxAccess access;
+    UntrustedHostTime host_time;
 
     Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {
@@ -254,6 +262,7 @@ namespace ccf::js
 
     ~Context()
     {
+      JS_SetInterruptHandler(JS_GetRuntime(ctx), NULL, NULL);
       JS_FreeContext(ctx);
     }
 
@@ -409,17 +418,7 @@ namespace ccf::js
     }
 
     JSWrappedValue call(
-      const JSWrappedValue& f,
-      const std::vector<js::JSWrappedValue>& argv) const
-    {
-      std::vector<JSValue> argvn;
-      argvn.reserve(argv.size());
-      for (auto& a : argv)
-      {
-        argvn.push_back(a.val);
-      }
-      return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
-    }
+      const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv);
 
     JSWrappedValue parse_json(const nlohmann::json& j) const
     {

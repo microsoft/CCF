@@ -2,7 +2,7 @@
   apt_key:
     url: "https://packages.microsoft.com/keys/microsoft.asc"
     state: present
-  become: yes
+  become: true
 
 - name: Add Microsoft sources list
   apt_repository:
