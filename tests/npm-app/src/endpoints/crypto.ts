@@ -135,7 +135,6 @@ export function wrapKey(
 interface SignRequest {
   algorithm: ccfcrypto.SigningAlgorithm;
   key: string;
-  signature: Base64;
   data: Base64;
 }
 
