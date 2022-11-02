@@ -329,7 +329,6 @@ namespace loggingapp
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       committed_records = std::make_shared<CommittedRecords>(PRIVATE_RECORDS);
-      context.get_indexing_strategies().install_strategy(committed_records);
 
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
@@ -469,6 +468,25 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
+
+      // install the committed index and tell the historical fetcher to keep
+      // track of deleted keys too, so that the index can observe the deleted
+      // keys.
+      auto install_committed_index = [this, &context](auto& ctx) {
+        // tracking committed records also wants to track deletes so enable that
+        // in the historical queries too
+        context.get_historical_state().track_deletes_on_missing_keys(true);
+
+        context.get_indexing_strategies().install_strategy(committed_records);
+      };
+
+      make_command_endpoint(
+        "/log/private/install_committed_index",
+        HTTP_POST,
+        install_committed_index,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .install();
 
       auto get_committed = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
