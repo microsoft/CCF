@@ -42,9 +42,9 @@ jobs:
         displayName: CMake
 
   - template: containers.yml
-    dependsOn: configure
     parameters:
       env: ${{ parameters.env.Virtual }}
+      dependsOn: configure
 
   # TODO: Re-add
   # - template: common.yml
