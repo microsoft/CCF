@@ -8,6 +8,7 @@
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
+#include "enclave/enclave_time.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
@@ -57,6 +58,7 @@ namespace ccf::js
   JSClassDef historical_class_def = {};
   JSClassDef historical_state_class_def = {};
 
+  std::chrono::milliseconds execution_time = default_max_execution_time;
   std::vector<FFIPlugin> ffi_plugins;
 
   static void register_ffi_plugin(const FFIPlugin& plugin)
@@ -81,6 +83,43 @@ namespace ccf::js
     }
   }
 
+  static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
+  {
+    UntrustedHostTime* time = reinterpret_cast<UntrustedHostTime*>(opaque);
+    auto now = ccf::get_enclave_time();
+    auto elapsed_time = now - time->start_time;
+    auto elapsed_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
+    if (elapsed_ms.count() >= time->max_execution_time.count())
+    {
+      LOG_INFO_FMT("JS execution has timed out after {}ms", elapsed_ms.count());
+      time->request_timed_out = true;
+      return 1;
+    }
+    else
+    {
+      return 0;
+    }
+  }
+
+  JSWrappedValue Context::call(
+    const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
+  {
+    std::vector<JSValue> argvn;
+    argvn.reserve(argv.size());
+    for (auto& a : argv)
+    {
+      argvn.push_back(a.val);
+    }
+    const auto curr_time = ccf::get_enclave_time();
+    host_time.start_time = curr_time;
+    host_time.max_execution_time = execution_time;
+    JS_SetInterruptHandler(
+      JS_GetRuntime(ctx), js_custom_interrupt_handler, &host_time);
+
+    return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
+  }
+
   Runtime::Runtime(kv::Tx* tx)
   {
     rt = JS_NewRuntime();
@@ -88,8 +127,9 @@ namespace ccf::js
     {
       throw std::runtime_error("Failed to initialise QuickJS runtime");
     }
-    size_t stack_size = 1024 * 1024;
-    size_t heap_size = 100 * 1024 * 1024;
+    size_t stack_size = default_stack_size;
+    size_t heap_size = default_heap_size;
+
     const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
     const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
 
@@ -97,10 +137,17 @@ namespace ccf::js
     {
       heap_size = js_runtime_options.value().max_heap_bytes;
       stack_size = js_runtime_options.value().max_stack_bytes;
+      execution_time = std::chrono::milliseconds{
+        js_runtime_options.value().max_execution_time_ms};
     }
 
     JS_SetMaxStackSize(rt, stack_size);
     JS_SetMemoryLimit(rt, heap_size);
+  }
+
+  Runtime::~Runtime()
+  {
+    JS_FreeRuntime(rt);
   }
 
   static JSValue js_kv_map_has(

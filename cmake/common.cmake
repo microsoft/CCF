@@ -679,11 +679,7 @@ function(add_perf_test)
 
   set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
 
-  if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "${TEST_NAME}^")
-  else()
-    set(LABEL_ARG "${TEST_NAME}^")
-  endif()
+  set(LABEL_ARG "${TEST_NAME}^")
 
   string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
   add_test(
