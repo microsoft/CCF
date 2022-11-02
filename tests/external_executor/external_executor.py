@@ -135,6 +135,7 @@ def test_executor_registration(network, args):
                     #   Error parsing metadata: error=invalid value key=content-type value=application/json
                     # These are harmless and expected, and I haven't found a way to swallow them
                     assert not should_pass
+                    # pylint: disable=no-member
                     assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
 
     return network
