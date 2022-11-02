@@ -87,6 +87,9 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/open_enclave.cmake
+        DESTINATION cmake
+)
 
 if(SAN AND LVI_MITIGATIONS)
   message(
@@ -210,7 +213,7 @@ function(add_unit_test name)
   )
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host ${OE_HOST_LIBRARY}
   )
   add_san(${name})
 
