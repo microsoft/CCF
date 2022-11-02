@@ -331,6 +331,9 @@ namespace loggingapp
 
       committed_records = std::make_shared<CommittedRecords>(PRIVATE_RECORDS);
 
+      context.get_historical_state().track_deletes_on_missing_keys(true);
+      context.get_indexing_strategies().install_strategy(committed_records);
+
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
