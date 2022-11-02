@@ -133,7 +133,10 @@ VARIABLE log
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
 
-logVars == <<log, commitIndex, clientRequests>>
+\* The index that gets committed
+VARIABLE committedLog
+
+logVars == <<log, commitIndex, clientRequests, committedLog>>
 
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
@@ -336,6 +339,7 @@ InitLogVars ==
     /\ log          = [i \in Servers |-> << >>]
     /\ commitIndex  = [i \in Servers |-> 0]
     /\ clientRequests = 1
+    /\ committedLog = << >>
 
 Init ==
     /\ InitReconfigurationVars
@@ -454,7 +458,7 @@ BecomeLeader(i) ==
         \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
         /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_conf_index)]
     /\ UNCHANGED <<reconfigurationCount, messageVars, currentTerm, votedFor, votesRequested, candidateVars,
-        commitIndex, clientRequests>>
+        commitIndex, clientRequests, committedLog>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -470,7 +474,7 @@ ClientRequest(i) ==
            \* Make sure that each request is unique, reduce state space to be explored
            /\ clientRequests' = clientRequests + 1
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex>>
+                   leaderVars, commitIndex, committedLog>>
 
 \*  SNIPPET_START: signing
 \* CCF extension: Signed commits
@@ -494,7 +498,7 @@ SignCommittableMessages(i) ==
             newLog == Append(log[i], entry)
             IN log' = [log EXCEPT ![i] = newLog]
         /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex>>
+                    leaderVars, commitIndex, committedLog>>
 \* SNIPPET_END: signing
 
 \*  SNIPPET_START: reconfig
@@ -525,7 +529,7 @@ ChangeConfiguration(i, newConfiguration) ==
            /\ log' = [log EXCEPT ![i] = newLog]
            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex>>
+                    leaderVars, commitIndex, committedLog>>
 \* SNIPPET_END: reconfig
 
 
@@ -560,6 +564,12 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
+        /\ IF new_index <= Len(committedLog) THEN
+            /\ Assert(\A j \in 1..new_index : committedLog[j] = new_log[j], "committedLogConflict")
+            /\ UNCHANGED committedLog
+           ELSE
+            /\ Assert(\A j \in 1..Len(committedLog) : committedLog[j] = new_log[j], "committedLogConflict")
+            /\ committedLog' = new_log
         \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
         /\ \/ /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
@@ -685,7 +695,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests>>
+    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.mentries /= << >>
@@ -702,7 +712,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
                 |-> [n \in 1..min(Len(messagesSent[i][j]) - 1, index - 1)
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
-    /\ UNCHANGED <<reconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
@@ -748,7 +758,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -839,7 +849,7 @@ UpdateCommitIndex(i,j,m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = [configurations EXCEPT ![i] = new_config]
     /\ UNCHANGED <<reconfigurationCount, messages, messagesSent, commitsNotified, currentTerm,
-                   votedFor, candidateVars, leaderVars, log, clientRequests>>
+                   votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
 
 \* Receive a message.
 Receive ==
@@ -892,6 +902,10 @@ Spec == Init /\ [][Next]_vars
 ----
 \* Correctness invariants
 \* These invariants should be true for all possible states
+
+\* Committed log entries should not conflict
+LogInv ==
+    /\ \A i \in Servers : IsPrefix(Committed(i),committedLog)
 
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
@@ -1048,6 +1062,7 @@ LogVarsTypeInv ==
         /\ LogTypeOK(log[i])
         /\ commitIndex[i] \in Nat
     /\ clientRequests \in Nat \ {0}
+    /\ LogTypeOK(committedLog)
 
 \* Invariant to check the type safety of all variables
 TypeInv ==
