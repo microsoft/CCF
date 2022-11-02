@@ -165,7 +165,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           openenclave::oehost
+           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -217,7 +217,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           openenclave::oehost
+           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
