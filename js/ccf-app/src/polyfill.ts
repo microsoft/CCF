@@ -182,7 +182,7 @@ class CCFPolyfill implements CCF {
       } else {
         throw new Error("unrecognized signing algorithm");
       }
-      const hashAlg = algorithm.hash.replace("-", "").toLowerCase();
+      const hashAlg = (algorithm.hash as string).replace("-", "").toLowerCase();
       const verifier = jscrypto.createVerify(hashAlg);
       verifier.update(new Uint8Array(data));
       return verifier.verify(

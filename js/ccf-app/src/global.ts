@@ -214,38 +214,18 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
-/**
- * RSASSA-PKCS1-v1_5 signature algorithm parameters.
- */
-export interface RsaPkcsParams {
-  name: "RSASSA-PKCS1-v1_5";
-  hash: DigestAlgorithm;
-}
-
-/**
- * ECDSA signature algorithm parameters.
- *
- * Note: ECDSA signatures are assumed to be encoded according
- * to the Web Crypto API specification, which is the same
- * format used in JSON Web Tokens and more generally known
- * as IEEE P1363 encoding.
- */
-export interface EcdsaParams {
-  name: "ECDSA";
-  hash: DigestAlgorithm;
-}
-
-/**
- * EdDSA signature algorithm parameters.
- */
-export interface EddsaParams {
-  name: "EdDSA";
-  hash: null;
-}
-
-export type SigningAlgorithm = RsaPkcsParams | EcdsaParams | EddsaParams;
+export type AlgorithmName = "RSASSA-PKCS1-v1_5" | "ECDSA" | "EdDSA";
 
 export type DigestAlgorithm = "SHA-256";
+
+export interface SigningAlgorithm {
+  name: AlgorithmName;
+
+  /**
+   * Digest algorithm. It's necessary for "RSASSA-PKCS1-v1_5" and "ECDSA"
+   */
+  hash?: DigestAlgorithm;
+}
 
 /**
  * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).

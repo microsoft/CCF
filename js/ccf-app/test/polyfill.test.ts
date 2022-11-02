@@ -248,7 +248,6 @@ describe("polyfill", function () {
       const signature = ccf.crypto.sign(
         {
           name: "EdDSA",
-          hash: null,
         },
         privateKey,
         data

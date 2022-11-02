@@ -95,6 +95,4 @@ export {
   CryptoKeyPair,
   DigestAlgorithm,
   SigningAlgorithm,
-  RsaPkcsParams,
-  EcdsaParams,
 } from "./global";
