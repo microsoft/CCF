@@ -925,6 +925,21 @@
         }
       }
     },
+    "/app/log/private/install_committed_index": {
+      "post": {
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/app/log/private/prefix_cert": {
       "post": {
         "requestBody": {
