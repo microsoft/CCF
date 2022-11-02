@@ -12,11 +12,13 @@ namespace ccf
     size_t max_heap_bytes;
     /// @brief stack size for QuickJS runtime
     size_t max_stack_bytes;
+    /// @brief max execution time for QuickJS
+    uint64_t max_execution_time_ms;
   };
 
   DECLARE_JSON_TYPE(JSRuntimeOptions)
   DECLARE_JSON_REQUIRED_FIELDS(
-    JSRuntimeOptions, max_heap_bytes, max_stack_bytes)
+    JSRuntimeOptions, max_heap_bytes, max_stack_bytes, max_execution_time_ms)
 
   using JSEngine = ServiceValue<JSRuntimeOptions>;
 
