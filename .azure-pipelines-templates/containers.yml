@@ -9,7 +9,21 @@ jobs:
         clean: true
         fetchDepth: 1
 
+      - ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
+        - script: |
+            set -ex
+            VERSION=${(Build.SourceBranch):"-refs/tags/ccf-"}
+            echo "##vso[task.setvariable variable=version]$VERSION"
+          displayName: "Retrieve Version"
+      
       # Note: Version is hardcoded until 3.0.0 final is released as Debian package
-      # naming scheme was changed for 3.x and latest still points to 2.x
-      - script: docker/build_release_images.sh ccfmsrc.azurecr.io 3.0.0-rc0
+      # naming scheme was changed for 3.x and latest still points to incompatible 2.x
+      - ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
+        - script: |
+            set -ex
+            VERSION="3.0.0-rc0"
+            echo "##vso[task.setvariable variable=version]$VERSION"
+          displayName: "Retrieve Version"
+
+      - script: docker/build_release_images.sh ccfmsrc.azurecr.io $version
         displayName: "Build Release Containers"
