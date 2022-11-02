@@ -131,6 +131,9 @@ def test_executor_registration(network, args):
                     assert should_pass, "Expected StartTx to fail"
                     assert not rd.HasField("optional")
                 except grpc.RpcError as e:
+                    # NB: This failure will have printed errors like:
+                    #   Error parsing metadata: error=invalid value key=content-type value=application/json
+                    # These are harmless and expected, and I haven't found a way to swallow them
                     assert not should_pass
                     assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
 
@@ -377,6 +380,8 @@ def test_streaming(network, args):
         compare_op_results(stub, 30)
         compare_op_results(stub, 1000)
 
+    return network
+
 
 def run(args):
     with infra.network.network(
@@ -398,12 +403,11 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        # TODO: Re-enable all
-        # network = test_executor_registration(network, args)
-        # network = test_put_get(network, args)
-        # network = test_simple_executor(network, args)
-        # network = test_streaming(network, args)
+        network = test_executor_registration(network, args)
+        network = test_put_get(network, args)
+        network = test_simple_executor(network, args)
         network = test_parallel_executors(network, args)
+        network = test_streaming(network, args)
 
 
 if __name__ == "__main__":
