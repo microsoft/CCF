@@ -26,7 +26,7 @@ jobs:
       # Used to generate version.py
       - template: .azure-pipelines-templates/cmake.yml
         parameters:
-          cmake_args: ""
+          cmake_args: "-DCOMPILE_TARGET=virtual"
 
       - script: |
           set -ex

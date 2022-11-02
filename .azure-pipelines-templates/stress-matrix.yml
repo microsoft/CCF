@@ -4,7 +4,7 @@ jobs:
       target: SGX
       env:
         container: sgx
-        pool: 1es-dcv2-focal
+        pool: 1es-DC16s_v3-focal
       cmake_args: "-DCOMPILE_TARGET=sgx"
       suffix: "StressTest"
       artifact_name: "StressTest"

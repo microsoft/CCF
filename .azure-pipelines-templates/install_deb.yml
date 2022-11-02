@@ -22,20 +22,19 @@ steps:
     workingDirectory: build
     displayName: Install CCF Debian package
 
-  - ${{ if not(eq(parameters.target, 'SNPCC')) }}:
-      - script: |
-          set -ex
-          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
-        workingDirectory: build
-        displayName: Test installed CCF
+  - script: |
+      set -ex
+      cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
+    workingDirectory: build
+    displayName: Test installed CCF
 
-      - script: |
-          set -ex
-          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
-        workingDirectory: build
-        displayName: Recovery benchmark for installed CCF
+  - script: |
+      set -ex
+      cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
+    workingDirectory: build
+    displayName: Recovery benchmark for installed CCF
 
-  - ${{ if or(eq(parameters.target, 'SGX'), eq(parameters.target, 'SGXIceLake')) }}:
+  - ${{ if eq(parameters.target, 'SGX') }}:
       - script: |
           set -ex
           unsafe_build=$(grep unsafe /tmp/install_prefix) || true
