@@ -613,7 +613,7 @@ namespace ccf::js
     }
     catch (const std::exception& ex)
     {
-      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+      auto e = JS_ThrowInternalError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);
       return e;
     }
