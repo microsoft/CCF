@@ -61,8 +61,10 @@ target_include_directories(
                       $<INSTALL_INTERFACE:include/3rdparty/quickjs>
 )
 
-install(
-  TARGETS quickjs.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS quickjs.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

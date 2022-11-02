@@ -183,14 +183,17 @@ def run(get_command, args):
 
                         results = r.body.json()
 
-                        # Construct name for heap metric, removing ^ suffix if present
-                        heap_peak_metric = args.label
-                        if heap_peak_metric.endswith("^"):
-                            heap_peak_metric = heap_peak_metric[:-1]
-                        heap_peak_metric += "_mem"
-
                         peak_value = results["peak_allocated_heap_size"]
-                        metrics.put(heap_peak_metric, peak_value)
+
+                        # Do not upload empty metrics (virtual doesn't report memory use)
+                        if peak_value != 0:
+                            # Construct name for heap metric, removing ^ suffix if present
+                            heap_peak_metric = args.label
+                            if heap_peak_metric.endswith("^"):
+                                heap_peak_metric = heap_peak_metric[:-1]
+                            heap_peak_metric += "_mem"
+
+                            metrics.put(heap_peak_metric, peak_value)
 
                     for remote_client in clients:
                         remote_client.stop()

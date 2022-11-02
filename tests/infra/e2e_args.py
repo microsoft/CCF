@@ -173,6 +173,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=4000,
     )
     parser.add_argument(
+        "--consensus-update-timeout-ms",
+        help="Raft maximum timeout before primary sends updates",
+        type=int,
+        default=100,
+    )
+    parser.add_argument(
         "--consensus",
         help="Consensus",
         default="CFT",

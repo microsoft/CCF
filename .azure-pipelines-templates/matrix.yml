@@ -11,7 +11,7 @@ parameters:
       pool: 1es-dv4-focal
     SGX:
       container: sgx
-      pool: 1es-dcv2-focal
+      pool: 1es-DC16s_v3-focal
     SNPCC:
       pool: sev-snp-pool
 
