@@ -90,6 +90,9 @@ namespace ccf::historical
     std::shared_ptr<ccf::LedgerSecrets> historical_ledger_secrets;
     std::shared_ptr<ccf::NodeEncryptor> historical_encryptor;
 
+    // whether to keep all the writes so that we can build a diff later
+    bool track_deletes_on_missing_keys_v;
+
     enum class RequestStage
     {
       Fetching,
@@ -994,6 +997,11 @@ namespace ccf::historical
       default_expiry_duration = duration;
     }
 
+    void track_deletes_on_missing_keys(bool track)
+    {
+      track_deletes_on_missing_keys_v = track;
+    }
+
     bool drop_cached_states(const CompoundHandle& handle)
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
@@ -1196,9 +1204,7 @@ namespace ccf::historical
           return nullptr;
         }
 
-        // keep all the writes so that we can build a diff later
-        bool track_deletes_on_missing_keys = true;
-        result = exec->apply(track_deletes_on_missing_keys);
+        result = exec->apply(track_deletes_on_missing_keys_v);
         claims_digest = std::move(exec->consume_claims_digest());
 
         auto commit_evidence_digest =
@@ -1358,6 +1364,11 @@ namespace ccf::historical
     void set_default_expiry_duration(ExpiryDuration duration) override
     {
       StateCacheImpl::set_default_expiry_duration(duration);
+    }
+
+    void track_deletes_on_missing_keys(bool track) override
+    {
+      StateCacheImpl::track_deletes_on_missing_keys(track);
     }
 
     bool drop_cached_states(RequestHandle handle) override
