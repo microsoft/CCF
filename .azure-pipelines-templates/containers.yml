@@ -27,5 +27,6 @@ jobs:
 
       - script: | 
           set -ex 
+          echo ${release_version}
           docker/build_release_images.sh ccfmsrc.azurecr.io $(release_version)
         displayName: "Build Release Containers"
