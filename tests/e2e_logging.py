@@ -1535,8 +1535,13 @@ def test_post_local_commit_failure(network, args):
 @reqs.description(
     "Check that the committed index gets populated with creates and deletes"
 )
-@reqs.supports_methods("log/private/committed", "log/private")
+@reqs.supports_methods("/app/log/private/committed", "/app/log/private")
 def test_committed_index(network, args):
+    remote_node, _ = network.find_primary()
+    with remote_node.client() as c:
+        res = c.post("/app/log/private/install_committed_index")
+        assert res.status_code == http.HTTPStatus.OK
+
     txid = network.txs.issue(network, number_txs=1, send_public=False)
 
     _, log_id = network.txs.get_log_id(txid)
