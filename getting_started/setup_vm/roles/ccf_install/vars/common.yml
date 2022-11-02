@@ -1,3 +1,4 @@
 ccf_ver: "latest"
 run_js: false
-ccf_js_app_name: "libjs_generic.enclave.so.signed"
+ccf_js_app_name: "libjs_generic"
+platform: "sgx"

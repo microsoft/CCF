@@ -77,7 +77,7 @@ namespace asynchost
   std::pair<std::string, std::string> addr_to_str(
     const sockaddr* addr, int address_family = AF_INET)
   {
-    constexpr auto buf_len = UV_IF_NAMESIZE;
+    constexpr auto buf_len = INET6_ADDRSTRLEN;
     char buf[buf_len] = {};
     int rc;
 
@@ -89,7 +89,8 @@ namespace asynchost
         LOG_FAIL_FMT("uv_ip6_name failed: {}", uv_strerror(rc));
       }
 
-      return {buf, fmt::format("{}", ntohs(in6->sin6_port))};
+      return {
+        fmt::format("[{}]", buf), fmt::format("{}", ntohs(in6->sin6_port))};
     }
 
     assert(address_family == AF_INET);

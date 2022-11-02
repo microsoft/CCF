@@ -3,7 +3,7 @@ Contribute
 
 The CCF team welcome contributions to any part of the framework, including this documentation.
 
-- Contributions guidelines are outlined on `GitHub <https://github.com/microsoft/CCF/blob/main/.github/CONTRIBUTING.md>`_
+- Contributions guidelines are outlined on :ccf_repo:`GitHub </.github/CONTRIBUTING.md>`
 - Submit `bugs <https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=>`_ and `feature requests <https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=>`_
 
 .. panels::

@@ -10,6 +10,6 @@ CCF can run on several hardware platforms/trusted execution environments, which 
     snp
     virtual
 
-Which platform code is run is determined partly by the compile time flag ``COMPILE_TARGETS`` and partly by runtime detection of the hardware.
+Which platform code is run is determined partly by the compile time flag ``COMPILE_TARGET`` and partly by runtime detection of the hardware.
 
 .. note:: CCF networks running a mix of node platforms are not currently supported.

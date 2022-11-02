@@ -3,8 +3,10 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
@@ -266,6 +268,76 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     corrupt(hash);
     CHECK_FALSE(verifier->verify(hash, signature));
   }
+}
+
+TEST_CASE("Sign, verify, with KeyPair of EdDSA")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp->sign(contents);
+  CHECK(kp->verify(contents, signature));
+}
+
+TEST_CASE("Sign, verify, with PublicKey of EdDSA")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp->sign(contents);
+
+  const auto public_key = kp->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  CHECK(pubk->verify(contents, signature));
+}
+
+TEST_CASE("Sign, fail to verify with bad signature (EdDSA)")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(contents);
+
+  const auto public_key = kp->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  corrupt(signature);
+  CHECK_FALSE(pubk->verify(contents, signature));
+}
+
+TEST_CASE("Sign, fail to verify with bad contents (EdDSA)")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(contents);
+
+  const auto public_key = kp->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  corrupt(contents);
+  CHECK_FALSE(pubk->verify(contents, signature));
+}
+
+TEST_CASE("Sign, fail to verify with wrong key on correct curve (EdDSA)")
+{
+  constexpr auto curve = "curve25519";
+  constexpr auto curve_id = CurveID::CURVE25519;
+  INFO("With curve: " << curve);
+  auto kp = make_eddsa_key_pair(curve_id);
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(contents);
+
+  auto kp2 = make_eddsa_key_pair(curve_id);
+  const auto public_key = kp2->public_key_pem();
+  auto pubk = make_eddsa_public_key(public_key);
+  CHECK_FALSE(pubk->verify(contents, signature));
 }
 
 TEST_CASE("base64")
@@ -702,5 +774,56 @@ TEST_CASE("hmac")
     auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
     auto r1 = crypto::hmac(MDType::SHA256, key, mostly_zeros);
     REQUIRE(r0 != r1);
+  }
+}
+
+TEST_CASE("PEM to JWK")
+{
+  // More complete tests in end-to-end JS modules test
+  // to compare with JWK reference implementation.
+  auto kid = "my_kid";
+
+  INFO("EC");
+  {
+    auto kp = make_key_pair();
+    auto pubk = make_public_key(kp->public_key_pem());
+
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = pubk->public_key_jwk(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = kp->private_key_jwk(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+  }
+
+  INFO("RSA");
+  {
+    auto kp = make_rsa_key_pair();
+    auto pubk = make_rsa_public_key(kp->public_key_pem());
+
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk_rsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = pubk->public_key_jwk_rsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk_rsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = kp->private_key_jwk_rsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
   }
 }

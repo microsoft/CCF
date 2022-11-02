@@ -1,0 +1,19 @@
+{
+  "name": "TLA+ CCF",
+
+  "extensions": [
+    "alygin.vscode-tlaplus-nightly",
+    "joaompinto.vscode-graphviz",
+    "EFanZh.graphviz-preview",
+    "cssho.vscode-svgviewer"
+  ],
+
+  "settings": {
+    "tlaplus.tlc.statisticsSharing": "share",
+    "tlaplus.java.options": "-XX:+UseParallelGC",
+    "tlaplus.java.home": "/home/codespace/.java/current/",
+    "[tlaplus]": { "editor.codeActionsOnSave": { "source": true } }
+  },
+
+  "postCreateCommand": "bash -i .devcontainer/tlaplus/install.sh"
+}

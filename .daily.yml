@@ -18,6 +18,8 @@ schedules:
       include:
         - main
         - "release/*"
+      exclude:
+        - "release/1.x"
     always: true
 
 resources:

@@ -1,3 +1,6 @@
+parameters:
+  target: ""
+
 steps:
   - script: |
       set -ex
@@ -31,15 +34,38 @@ steps:
     workingDirectory: build
     displayName: Recovery benchmark for installed CCF
 
-  - script: |
-      set -ex
-      unsafe_build=$(grep unsafe /tmp/install_prefix) || true
-      if [[ -n "$unsafe_build" ]]; then
-        ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON
-      else
-        ./tests/test_install_build.sh
-      fi
-    displayName: Test building a sample against installed CCF
+  - ${{ if eq(parameters.target, 'SGX') }}:
+      - script: |
+          set -ex
+          unsafe_build=$(grep unsafe /tmp/install_prefix) || true
+          if [[ -n "$unsafe_build" ]]; then
+            ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=sgx
+          else
+            ./tests/test_install_build.sh -DCOMPILE_TARGET=sgx
+          fi
+        displayName: Test building a sample against installed CCF (SGX)
+
+  - ${{ if eq(parameters.target, 'Virtual') }}:
+      - script: |
+          set -ex
+          unsafe_build=$(grep unsafe /tmp/install_prefix) || true
+          if [[ -n "$unsafe_build" ]]; then
+            ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=virtual
+          else
+            ./tests/test_install_build.sh -DCOMPILE_TARGET=virtual
+          fi
+        displayName: Test building a sample against installed CCF (virtual)
+
+  - ${{ if eq(parameters.target, 'SNPCC') }}:
+      - script: |
+          set -ex
+          unsafe_build=$(grep unsafe /tmp/install_prefix) || true
+          if [[ -n "$unsafe_build" ]]; then
+          ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=snp
+          else
+            ./tests/test_install_build.sh -DCOMPILE_TARGET=snp
+          fi
+        displayName: Test building a sample against installed CCF (SNP)
 
   - task: PublishPipelineArtifact@1
     inputs:

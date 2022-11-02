@@ -5,10 +5,7 @@ parameters:
       pool: 1es-dv4-focal
     SGX:
       container: sgx
-      pool: 1es-dcv2-focal
-    SGXIceLake:
-      container: sgx
-      pool: 1es-dcdv3-focal
+      pool: 1es-DC16s_v3-focal
     SNPCC:
       pool: sev-snp-pool
 
@@ -16,11 +13,11 @@ parameters:
     common:
       cmake_args: '-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON -DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     Virtual:
-      cmake_args: "-DCOMPILE_TARGETS=virtual"
+      cmake_args: "-DCOMPILE_TARGET=virtual"
     SGX:
-      cmake_args: "-DCOMPILE_TARGETS=sgx"
+      cmake_args: "-DCOMPILE_TARGET=sgx"
     SNPCC:
-      cmake_args: "-DCOMPILE_TARGETS=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
+      cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     unsafe:
@@ -60,7 +57,7 @@ jobs:
     parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
@@ -70,19 +67,9 @@ jobs:
     parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
       suffix: "Unsafe"
       artifact_name: "SGX_Unsafe"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
-      depends_on: configure
-
-  - template: common.yml
-    parameters:
-      target: SGXIceLake
-      env: "${{ parameters.env.SGXIceLake }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
-      suffix: "Release"
-      artifact_name: "SGX_IceLake_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
 

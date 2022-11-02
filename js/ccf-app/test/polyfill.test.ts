@@ -35,48 +35,58 @@ describe("polyfill", function () {
   });
   describe("generateAesKey", function () {
     it("generates a random AES key", function () {
-      assert.equal(ccf.generateAesKey(128).byteLength, 16);
-      assert.equal(ccf.generateAesKey(192).byteLength, 24);
-      assert.equal(ccf.generateAesKey(256).byteLength, 32);
-      assert.notDeepEqual(ccf.generateAesKey(256), ccf.generateAesKey(256));
+      assert.equal(ccf.crypto.generateAesKey(128).byteLength, 16);
+      assert.equal(ccf.crypto.generateAesKey(192).byteLength, 24);
+      assert.equal(ccf.crypto.generateAesKey(256).byteLength, 32);
+      assert.notDeepEqual(
+        ccf.crypto.generateAesKey(256),
+        ccf.crypto.generateAesKey(256)
+      );
     });
   });
   describe("generateRsaKeyPair", function () {
     it("generates a random RSA key pair", function () {
-      const pair = ccf.generateRsaKeyPair(2048);
+      const pair = ccf.crypto.generateRsaKeyPair(2048);
       assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEcdsaKeyPair/secp256r1", function () {
     it("generates a random ECDSA P256R1 key pair", function () {
-      const pair = ccf.generateEcdsaKeyPair("secp256r1");
+      const pair = ccf.crypto.generateEcdsaKeyPair("secp256r1");
       assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEcdsaKeyPair/secp256k1", function () {
     it("generates a random ECDSA P256K1 key pair", function () {
-      const pair = ccf.generateEcdsaKeyPair("secp256k1");
+      const pair = ccf.crypto.generateEcdsaKeyPair("secp256k1");
       assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEcdsaKeyPair/secp384r1", function () {
     it("generates a random ECDSA P384R1 key pair", function () {
-      const pair = ccf.generateEcdsaKeyPair("secp384r1");
+      const pair = ccf.crypto.generateEcdsaKeyPair("secp384r1");
+      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+    });
+  });
+  describe("generateEddsaKeyPair/Curve25519", function () {
+    it("generates a random EdDSA Curve25519 key pair", function () {
+      const pair = ccf.crypto.generateEddsaKeyPair("curve25519");
       assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("wrapKey", function () {
     it("performs RSA-OAEP wrapping correctly", function () {
-      const key = ccf.generateAesKey(128);
-      const wrappingKey = ccf.generateRsaKeyPair(2048);
+      const key = ccf.crypto.generateAesKey(128);
+      const wrappingKey = ccf.crypto.generateRsaKeyPair(2048);
       const wrapAlgo: RsaOaepParams = {
         name: "RSA-OAEP",
       };
-      const wrapped = ccf.wrapKey(
+      const wrapped = ccf.crypto.wrapKey(
         key,
         ccf.strToBuf(wrappingKey.publicKey),
         wrapAlgo
@@ -89,23 +99,23 @@ describe("polyfill", function () {
       assert.deepEqual(unwrapped, key);
     });
     it("performs AES-KWP wrapping correctly", function () {
-      const key = ccf.generateAesKey(128);
-      const wrappingKey = ccf.generateAesKey(256);
+      const key = ccf.crypto.generateAesKey(128);
+      const wrappingKey = ccf.crypto.generateAesKey(256);
       const wrapAlgo: AesKwpParams = {
         name: "AES-KWP",
       };
-      const wrapped = ccf.wrapKey(key, wrappingKey, wrapAlgo);
+      const wrapped = ccf.crypto.wrapKey(key, wrappingKey, wrapAlgo);
       const unwrapped = unwrapKey(wrapped, wrappingKey, wrapAlgo);
       assert.deepEqual(unwrapped, key);
     });
     it("performs RSA-OAEP-AES-KWP wrapping correctly", function () {
-      const key = ccf.generateAesKey(128);
-      const wrappingKey = ccf.generateRsaKeyPair(2048);
+      const key = ccf.crypto.generateAesKey(128);
+      const wrappingKey = ccf.crypto.generateRsaKeyPair(2048);
       const wrapAlgo: RsaOaepAesKwpParams = {
         name: "RSA-OAEP-AES-KWP",
         aesKeySize: 256,
       };
-      const wrapped = ccf.wrapKey(
+      const wrapped = ccf.crypto.wrapKey(
         key,
         ccf.strToBuf(wrappingKey.publicKey),
         wrapAlgo
@@ -236,7 +246,7 @@ describe("polyfill", function () {
       const data = "Hello world!";
       const expected =
         "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a";
-      const digest = ccf.digest("SHA-256", ccf.strToBuf(data));
+      const digest = ccf.crypto.digest("SHA-256", ccf.strToBuf(data));
       const actual = Buffer.from(digest).toString("hex");
       assert.equal(actual, expected);
     });
@@ -249,14 +259,14 @@ describe("polyfill", function () {
       }
       const pem1 = generateSelfSignedCert().cert;
       const pem2 = generateSelfSignedCert().cert;
-      assert.isTrue(ccf.isValidX509CertBundle(pem1));
-      assert.isTrue(ccf.isValidX509CertBundle(pem1 + "\n" + pem2));
+      assert.isTrue(ccf.crypto.isValidX509CertBundle(pem1));
+      assert.isTrue(ccf.crypto.isValidX509CertBundle(pem1 + "\n" + pem2));
     });
     it("returns false for invalid certs", function () {
       if (!supported) {
         this.skip();
       }
-      assert.isFalse(ccf.isValidX509CertBundle("garbage"));
+      assert.isFalse(ccf.crypto.isValidX509CertBundle("garbage"));
     });
   });
   describe("isValidX509CertChain", function (this) {
@@ -268,7 +278,7 @@ describe("polyfill", function () {
       const pems = generateCertChain(3);
       const chain = [pems[0], pems[1]].join("\n");
       const trusted = pems[2];
-      assert.isTrue(ccf.isValidX509CertChain(chain, trusted));
+      assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
     });
     it("returns false for invalid cert chains", function () {
       if (!supported) {
@@ -277,8 +287,62 @@ describe("polyfill", function () {
       const pems = generateCertChain(3);
       const chain = pems[0];
       const trusted = pems[2];
-      assert.isFalse(ccf.isValidX509CertChain(chain, trusted));
+      assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
     });
+  });
+  describe("pemToJwk", function () {
+    it("EC", function () {
+      // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
+      const my_kid = "my_kid";
+      const curves = ["secp256r1", "secp384r1"];
+      for (const curve of curves) {
+        const pair = ccf.generateEcdsaKeyPair(curve);
+        {
+          const jwk = ccf.crypto.pubPemToJwk(pair.publicKey);
+          assert.equal(jwk.kty, "EC");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.pubPemToJwk(pair.publicKey, my_kid);
+          assert.equal(jwk.kty, "EC");
+          assert.equal(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.pemToJwk(pair.privateKey);
+          assert.equal(jwk.kty, "EC");
+          assert.notExists(jwk.kid);
+        }
+        {
+          const jwk = ccf.crypto.pemToJwk(pair.privateKey, my_kid);
+          assert.equal(jwk.kty, "EC");
+          assert.equal(jwk.kid, my_kid);
+        }
+      }
+    }),
+      it("RSA", function () {
+        const my_kid = "my_kid";
+        const pair = ccf.generateRsaKeyPair(1024);
+        {
+          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
+          assert.equal(jwk.kty, "RSA");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
+          assert.equal(jwk.kty, "RSA");
+          assert.equal(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
+          assert.equal(jwk.kty, "RSA");
+          assert.notEqual(jwk.kid, my_kid);
+        }
+        {
+          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
+          assert.equal(jwk.kty, "RSA");
+          assert.equal(jwk.kid, my_kid);
+        }
+      });
   });
   describe("kv", function () {
     it("basic", function () {

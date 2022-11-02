@@ -26,7 +26,7 @@ Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
     $ cd CCF
     $ mkdir build
     $ cd build
-    $ cmake -GNinja -DCOMPILE_TARGETS=virtual ..
+    $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
     $ ninja
 
 .. note:::
@@ -46,7 +46,7 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **COMPILE_TARGETS**: String. List of target compilation platforms. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
+* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``sgx``. Supported values are ``sgx``, ``snp``, or ``virtual``.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
 Run Tests
@@ -59,7 +59,7 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
     $ cd build
     $ ./tests.sh
 
-Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. `tests.sh <https://github.com/microsoft/CCF/blob/main/tests/tests.sh>`_ will set up a virtual environment with these dependencies and activate it before running ``ctest`` (use ``-VV`` for verbose test output). Further runs will re-use that virtual environment.
+Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
 
 .. note::
     On a full build of CCF, it is also possible to run tests with virtual enclaves by setting the ``TEST_ENCLAVE`` environment variable:

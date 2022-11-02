@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/rsa_public_key.h"
@@ -75,6 +76,9 @@ namespace crypto
         signature.size(),
         md_type);
     }
+
+    virtual JsonWebKeyRSAPrivate private_key_jwk_rsa(
+      const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 
   using RSAPublicKeyPtr = std::shared_ptr<RSAPublicKey>;

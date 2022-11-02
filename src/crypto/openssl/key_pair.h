@@ -83,6 +83,9 @@ namespace crypto
 
     virtual PublicKey::Coordinates coordinates() const override;
 
+    virtual JsonWebKeyECPrivate private_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const override;
+
   protected:
     OpenSSL::Unique_X509_REQ create_req(
       const std::string& subject_name,

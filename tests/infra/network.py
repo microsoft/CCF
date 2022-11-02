@@ -104,6 +104,7 @@ class Network:
         "sig_tx_interval",
         "sig_ms_interval",
         "election_timeout_ms",
+        "consensus_update_timeout_ms",
         "consensus",
         "log_format_json",
         "constitution",
@@ -287,9 +288,7 @@ class Network:
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
-            target_rpc_address=infra.interfaces.make_address(
-                target_node.get_public_rpc_host(), target_node.get_public_rpc_port()
-            ),
+            target_rpc_address=target_node.get_public_rpc_address(),
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
@@ -431,15 +430,25 @@ class Network:
         self._setup_common_folder(args.constitution)
 
         mc = max(1, args.initial_member_count)
+        assert (
+            mc >= args.initial_operator_provisioner_count + args.initial_operator_count
+        ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
+
         initial_members_info = []
         for i in range(mc):
+            member_data = None
+            if i < args.initial_operator_provisioner_count:
+                member_data = {"is_operator_provisioner": True}
+            elif (
+                i
+                < args.initial_operator_provisioner_count + args.initial_operator_count
+            ):
+                member_data = {"is_operator": True}
             initial_members_info += [
                 (
                     i,
                     (i < args.initial_recovery_member_count),
-                    {"is_operator": True}
-                    if (i < args.initial_operator_count)
-                    else None,
+                    member_data,
                 )
             ]
 
@@ -1378,6 +1387,14 @@ class Network:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
+
+    def identity(self, name=None):
+        if name is not None:
+            return infra.clients.Identity(
+                os.path.join(self.common_dir, f"{name}_privk.pem"),
+                os.path.join(self.common_dir, f"{name}_cert.pem"),
+                name,
+            )
 
 
 @contextmanager

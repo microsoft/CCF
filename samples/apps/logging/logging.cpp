@@ -322,7 +322,8 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.13.0";
+
+      openapi_info.document_version = "1.14.1";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -1755,6 +1756,27 @@ namespace loggingapp
         HTTP_GET,
         get_signed_request_query,
         {ccf::user_signature_auth_policy})
+        .set_auto_schema<void, std::string>()
+        .install();
+
+      auto post_cose_signed_content =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          const auto& caller_identity =
+            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          std::vector<uint8_t> response_body(
+            caller_identity.content.begin(), caller_identity.content.end());
+          ctx.rpc_ctx->set_response_body(response_body);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        };
+
+      make_endpoint(
+        "/log/cose_signed_content",
+        HTTP_POST,
+        post_cose_signed_content,
+        {ccf::member_cose_sign1_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
     }

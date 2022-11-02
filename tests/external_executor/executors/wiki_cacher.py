@@ -133,7 +133,6 @@ class WikiCacherExecutor:
                 request_description_opt = stub.StartTx(Empty())
                 if not request_description_opt.HasField("optional"):
                     LOG.trace("No request pending")
-                    stub.EndTx(KV.ResponseDescription())
                     time.sleep(0.1)
                     continue
 
@@ -156,7 +155,12 @@ class WikiCacherExecutor:
 
                 else:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
-                    # TODO: Build a precise 404 response
+                    response.status_code = HTTP.HttpStatusCode.NOT_FOUND
+                    response.body = (
+                        f"No resource found at {request.method} {request.uri}".encode(
+                            "utf-8"
+                        )
+                    )
 
                 stub.EndTx(response)
 

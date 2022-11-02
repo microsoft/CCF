@@ -21,7 +21,7 @@ You can find the full specification in the :ccf_repo:`tla/` directory and more i
 Running the model checker
 -------------------------
 
-The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with TLC (version 2.17) from `TLA+ version 1.7.1 <https://github.com/tlaplus/tlaplus/releases/tag/v1.7.1>`_. The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, the scripts in this folder allow you to run TLC easily.
+The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with the nightly build of TLC. The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, the scripts in this folder allow you to run TLC easily.
 
 To download and then run TLC, simply execute:
 
@@ -29,13 +29,13 @@ To download and then run TLC, simply execute:
 
     $ cd tla
     $ ./download_or_update_tla.sh
-    $ ./tlc.sh MCraft.tla
+    $ ./tlc.sh MCccfraft.tla
 
 You can also check the specification including reconfiguration as follows:
 
 .. code-block:: bash
 
-    $ ./tlc.sh MCraftWithReconfig.tla -config MCraft.cfg -deadlock
+    $ ./tlc.sh MCccfraftWithReconfig.tla -config MCccfraft.cfg
 
 Running TLC on our models can take any time between minutes (for small configurations) and days (especially for the full model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
 
@@ -47,9 +47,9 @@ Running TLC on our models can take any time between minutes (for small configura
 The given specification consists of four files:
 
 - ``ccfraft.tla`` : The core formal specification that implements CCF Raft.
-- ``MCraft.tla`` : The model checking implementation for the specification (that uses a static configuration). Sets the constants and can be modified for each run to fine tune the settings, for instance to increase or decrease the size of the model checking.
-- ``MCraft.cfg`` : The core configuration that defines which invariants are to be checked etc. Usually stays untouched during normal model checking.
-- ``MCraftWithReconfig.tla``: Analogous to ``MCraft.tla`` but with support for reconfiguration.
+- ``MCccfraft.tla`` : The model checking implementation for the specification (that uses a static configuration). Sets the constants and can be modified for each run to fine tune the settings, for instance to increase or decrease the size of the model checking.
+- ``MCccfraft.cfg`` : The core configuration that defines which invariants are to be checked etc. Usually stays untouched during normal model checking.
+- ``MCccfraftWithReconfig.tla``: Analogous to ``MCccfraft.tla`` but with support for reconfiguration.
 
 
 Building blocks of the TLA+ spec
@@ -57,11 +57,11 @@ Building blocks of the TLA+ spec
 
 .. warning:: This specification was created to verify certain safety properties of the Raft protocol as it is implemented in CCF. In doing so, this specification does not check any liveness guarantees. To allow model checking in a reasonable amount of time, the implementation focuses on the safety guarantees and places certain limitations on the state space to be explored. Since these limitations can lead certain traces of the execution into a deadlock, **liveness is not checkable with this model**.
 
-The core model is maintained in the :ccf_repo:`tla/ccfraft.tla` file, however the constants defined in this file are controlled through a model check file such as :ccf_repo:`tla/MCraft.tla`.
+The core model is maintained in the :ccf_repo:`tla/ccfraft.tla` file, however the constants defined in this file are controlled through a model check file such as :ccf_repo:`tla/MCccfraft.tla`.
 
 This file controls the constants as seen below. In addition to basic settings of how many nodes are to be model checked, the model allows to place additional limitations on the state space of the program.
 
-.. literalinclude:: ../../tla/MCraft.tla
+.. literalinclude:: ../../tla/MCccfraft.tla
     :language: text
     :start-after: SNIPPET_START: mc_config
     :end-before: SNIPPET_END: mc_config
@@ -80,7 +80,7 @@ During the model check, the model checker will exhaustively search through all p
 Variables and their initial state
 ---------------------------------
 
-The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in :ccf_repo:`tla/MCraft.tla`.
+The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either ``Follower``, ``Leader``, ``Retired``, or ``Pending``. In the initial state shown below, all nodes states are set to the ``InitialConfig`` that is set in :ccf_repo:`tla/MCccfraft.tla`.
 
 .. literalinclude:: ../../tla/ccfraft.tla
     :language: text

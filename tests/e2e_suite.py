@@ -217,6 +217,11 @@ if __name__ == "__main__":
             help="If set, tests execution is skipped",
             default=False,
         )
+        parser.add_argument(
+            "--jinja-templates-path",
+            help="Path to directory containing sample Jinja templates",
+            required=True,
+        )
 
     args = infra.e2e_args.cli_args(add)
     args.package = "samples/apps/logging/liblogging"

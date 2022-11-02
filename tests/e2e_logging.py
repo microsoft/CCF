@@ -353,7 +353,7 @@ def test_remove(network, args):
         _, log_id = network.txs.get_log_id(txid)
         network.txs.delete(log_id, priv=priv)
         r = network.txs.request(log_id, priv=priv)
-        if args.package in ["libjs_generic", "libjs_v8"]:
+        if args.package in ["libjs_generic"]:
             check(r, result={"error": "No such key"})
         else:
             check(
@@ -394,7 +394,7 @@ def test_clear(network, args):
                 )
                 for log_id in log_ids:
                     get_r = c.get(f"{resource}?id={log_id}")
-                    if args.package in ["libjs_generic", "libjs_v8"]:
+                    if args.package in ["libjs_generic"]:
                         check(
                             get_r,
                             result={"error": "No such key"},
@@ -805,7 +805,7 @@ def test_historical_receipts(network, args):
 
 
 @reqs.description("Read historical receipts with claims")
-@reqs.supports_methods("/log/public", "/log/public/historical_receipt")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical_receipt")
 def test_historical_receipts_with_claims(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
@@ -1642,9 +1642,8 @@ def run(args):
         if args.package == "samples/apps/logging/liblogging":
             test_receipts(network, args)
             test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            test_historical_receipts(network, args)
-            test_historical_receipts_with_claims(network, args)
+        test_historical_receipts(network, args)
+        test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1674,21 +1673,6 @@ if __name__ == "__main__":
         initial_user_count=4,
         initial_member_count=2,
     )
-
-    # Is there a better way to do this?
-    if os.path.exists(
-        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-        cr.add(
-            "js_v8",
-            run,
-            package="libjs_v8",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-            election_timeout_ms=cr.args.election_timeout_ms
-            * 2,  # Larger election timeout as some large payloads may cause an election with v8
-        )
 
     cr.add(
         "cpp",

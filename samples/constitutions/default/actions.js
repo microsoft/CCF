@@ -144,7 +144,7 @@ function checkJwks(value, field) {
 }
 
 function checkX509CertBundle(value, field) {
-  if (!ccf.isValidX509CertBundle(value)) {
+  if (!ccf.crypto.isValidX509CertBundle(value)) {
     throw new Error(
       `${field} must be a valid X509 certificate (bundle) in PEM format`
     );
@@ -763,6 +763,24 @@ const actions = new Map([
     ),
   ],
   [
+    "set_js_runtime_options",
+    new Action(
+      function (args) {
+        checkType(args.max_heap_bytes, "integer", "max_heap_bytes");
+        checkType(args.max_stack_bytes, "integer", "max_stack_bytes");
+        checkType(
+          args.max_execution_time_ms,
+          "integer",
+          "max_execution_time_ms"
+        );
+      },
+      function (args) {
+        const js_engine_map = ccf.kv["public:ccf.gov.js_runtime_options"];
+        js_engine_map.set(getSingletonKvKey(), ccf.jsonCompatibleToBuf(args));
+      }
+    ),
+  ],
+  [
     "refresh_js_app_bytecode_cache",
     new Action(
       function (args) {},
@@ -931,6 +949,25 @@ const actions = new Map([
     ),
   ],
   [
+    "add_snp_measurement",
+    new Action(
+      function (args) {
+        checkType(args.measurement, "string", "measurement");
+      },
+      function (args, proposalId) {
+        const measurement = ccf.strToBuf(args.measurement);
+        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
+        ccf.kv["public:ccf.gov.nodes.snp.measurements"].set(
+          measurement,
+          ALLOWED
+        );
+
+        // Adding a new allowed measurement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      }
+    ),
+  ],
+  [
     "add_executor_node_code",
     new Action(
       function (args) {
@@ -944,55 +981,60 @@ const actions = new Map([
     ),
   ],
   [
-    "add_security_policy",
+    "add_snp_host_data",
     new Action(
       function (args) {
-        checkType(args.security_policy_raw, "string", "security_policy_raw");
-        checkType(
-          args.security_policy_digest,
-          "string",
-          "security_policy_digest"
-        );
+        checkType(args.security_policy, "string", "security_policy");
+        checkType(args.host_data, "string", "host_data");
       },
       function (args, proposalId) {
-        const digest = ccf.strToBuf(args.security_policy_digest);
-        const raw = ccf.jsonCompatibleToBuf(args.security_policy_raw);
+        const host_data = ccf.strToBuf(args.host_data);
+        const security_policy = ccf.jsonCompatibleToBuf(args.security_policy);
 
-        if (args.security_policy_raw != "") {
-          const redigested_raw = ccf.bufToStr(
-            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy_raw))
+        if (args.security_policy != "") {
+          const security_policy_digest = ccf.bufToStr(
+            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy))
           );
-          const quoted_digest = ccf.bufToStr(
-            hexStrToBuf(args.security_policy_digest)
-          );
+          const quoted_host_data = ccf.bufToStr(hexStrToBuf(args.host_data));
 
-          if (redigested_raw != quoted_digest) {
+          if (security_policy_digest != quoted_host_data) {
             throw new Error(
-              `The hash of raw policy ${raw} does not match digest ${digest}`
+              `The hash of raw policy ${security_policy_digest} does not match digest ${quoted_host_data}`
             );
           }
         }
 
-        ccf.kv["public:ccf.gov.nodes.security_policies"].set(digest, raw);
+        ccf.kv["public:ccf.gov.nodes.snp.host_data"].set(
+          host_data,
+          security_policy
+        );
 
-        // Adding a new allowed security policy changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
       }
     ),
   ],
   [
-    "remove_security_policy",
+    "remove_snp_host_data",
     new Action(
       function (args) {
-        checkType(
-          args.security_policy_digest,
-          "string",
-          "security_policy_digest"
-        );
+        checkType(args.host_data, "string", "host_data");
       },
       function (args) {
-        const digest = ccf.strToBuf(args.security_policy_digest);
-        ccf.kv["public:ccf.gov.nodes.security_policies"].delete(digest);
+        const host_data = ccf.strToBuf(args.host_data);
+        ccf.kv["public:ccf.gov.nodes.snp.host_data"].delete(host_data);
+      }
+    ),
+  ],
+  [
+    "remove_snp_measurement",
+    new Action(
+      function (args) {
+        checkType(args.measurement, "string", "measurement");
+      },
+      function (args) {
+        const measurement = ccf.strToBuf(args.measurement);
+        ccf.kv["public:ccf.gov.nodes.snp.measurements"].delete(measurement);
       }
     ),
   ],

@@ -5,9 +5,9 @@ cmake_minimum_required(VERSION 3.16)
 
 project(external_executor LANGUAGES C CXX)
 
-set(CCF_PROJECT "ccf")
+set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 
-if(NOT TARGET ${CCF_PROJECT})
+if(NOT TARGET "ccf")
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 

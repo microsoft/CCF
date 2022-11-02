@@ -78,8 +78,8 @@ namespace serializer
       struct close_enough_at
       {
         using CanonTarget =
-          nonstd::remove_cvref_t<typename std::tuple_element_t<I, Tup>>;
-        using CanonArgument = nonstd::remove_cvref_t<T>;
+          std::remove_cvref_t<typename std::tuple_element_t<I, Tup>>;
+        using CanonArgument = std::remove_cvref_t<T>;
 
         // This determines what types a Serializer will accept as arguments to
         // serialize(...), relative to the declared param types.
@@ -392,7 +392,7 @@ namespace serializer
     template <typename T, typename... Ts>
     static auto deserialize_impl(const uint8_t* data, size_t size)
     {
-      using StrippedT = nonstd::remove_cvref_t<T>;
+      using StrippedT = std::remove_cvref_t<T>;
 
       if constexpr (sizeof...(Ts) == 0)
       {

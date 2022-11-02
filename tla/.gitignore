@@ -1,3 +1,6 @@
-tla2tools.jar
+*.jar
 states/
+tools/
 *.out
+*.toolbox/
+*.tlaps/

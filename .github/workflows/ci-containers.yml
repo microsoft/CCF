@@ -14,10 +14,10 @@ jobs:
     name: "Build and Publish SGX CI Containers"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Truncate ref
-        run: echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf_ci_image/}"
+        run: echo "tag=${GITHUB_REF#refs/tags/ccf_ci_image/}" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Build CCF CI container

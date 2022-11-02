@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/endpoints/authentication/cert_auth.h"
+#include "ccf/endpoints/authentication/cose_auth.h"
 #include "ccf/endpoints/authentication/empty_auth.h"
 #include "ccf/endpoints/authentication/jwt_auth.h"
 #include "ccf/endpoints/authentication/sig_auth.h"
@@ -47,6 +48,12 @@ namespace ccf
    * @c public:ccf.gov.jwt.public_signing_keys tables */
   static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
     std::make_shared<JwtAuthnPolicy>();
+
+  /** Authenticate using COSE Sign1 payloads, and
+   * @c public:ccf.gov.members.certs table */
+  static std::shared_ptr<MemberCOSESign1AuthnPolicy>
+    member_cose_sign1_auth_policy =
+      std::make_shared<MemberCOSESign1AuthnPolicy>();
 
   /** A clear name for the empty auth policy, to reduce errors where it is
    * accidentally defaulted or unspecified.

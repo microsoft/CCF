@@ -1,5 +1,6 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
+    timeoutInMinutes: 0
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
     condition: eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false')
@@ -49,11 +50,15 @@ jobs:
       - ${{ if eq(parameters.suffix, 'Perf') }}:
           - template: push_perf_data.yml
 
+      - ${{ if eq(parameters.suffix, 'Release') }}:
+          - template: install_deb.yml
+            parameters:
+              target: "${{ parameters.target }}"
+
       - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
           - template: cg.yml
           - template: publish_tls_report.yml
           - template: publish_compatibility_report.yml
-          - template: install_deb.yml
           - template: install_others.yml
           - template: publish_sbom.yml
 

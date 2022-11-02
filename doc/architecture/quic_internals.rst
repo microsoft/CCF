@@ -33,7 +33,7 @@ Both host and enclave will send ring buffer messages using those types (via the 
 Enclave Side
 ~~~~~~~~~~~~
 
-This is the biggest change. We'll need to create a new 'HTTP3Endpoint' that will listen for 'quic_inbound' messages and communicate with the 'QUICEndpoint' layer (likely a super-class) that will perform the same job as 'TLSEndpoint'. However, this is where the similarities end.
+This is the biggest change. We'll need to create a new 'HTTP3Session' that will listen for 'quic_inbound' messages and communicate with the 'QUICSession' layer (likely a super-class) that will perform the same job as 'TLSSession'. However, this is where the similarities end.
 
 While TLS is a layer over TCP, QUIC's encryption is entangled with data transmission in a much closer way.
 

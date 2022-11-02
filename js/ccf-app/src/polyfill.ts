@@ -16,8 +16,9 @@
  * @module
  */
 
-import * as crypto from "crypto";
+import * as jscrypto from "crypto";
 import { TextEncoder, TextDecoder } from "util";
+import * as rs from "jsrsasign";
 
 // Note: It is important that only types are imported here to prevent executing
 // the module at this point (which would query the ccf global before we polyfilled it).
@@ -32,6 +33,10 @@ import {
   EvidenceClaims,
   OpenEnclave,
   SigningAlgorithm,
+  JsonWebKeyECPublic,
+  JsonWebKeyECPrivate,
+  JsonWebKeyRSAPublic,
+  JsonWebKeyRSAPrivate,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -127,10 +132,10 @@ class CCFPolyfill implements CCF {
       data: ArrayBuffer
     ): boolean {
       let padding = undefined;
-      const pubKey = crypto.createPublicKey(key);
+      const pubKey = jscrypto.createPublicKey(key);
       if (pubKey.asymmetricKeyType == "rsa") {
         if (algorithm.name === "RSASSA-PKCS1-v1_5") {
-          padding = crypto.constants.RSA_PKCS1_PADDING;
+          padding = jscrypto.constants.RSA_PKCS1_PADDING;
         } else {
           throw new Error("incompatible signing algorithm for given key type");
         }
@@ -142,7 +147,7 @@ class CCFPolyfill implements CCF {
         throw new Error("unrecognized signing algorithm");
       }
       const hashAlg = algorithm.hash.replace("-", "").toLowerCase();
-      const verifier = crypto.createVerify(hashAlg);
+      const verifier = jscrypto.createVerify(hashAlg);
       verifier.update(new Uint8Array(data));
       return verifier.verify(
         {
@@ -152,6 +157,216 @@ class CCFPolyfill implements CCF {
         },
         new Uint8Array(signature)
       );
+    },
+    generateAesKey(size: number): ArrayBuffer {
+      return nodeBufToArrBuf(jscrypto.randomBytes(size / 8));
+    },
+    generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair {
+      const rsaKeyPair = jscrypto.generateKeyPairSync("rsa", {
+        modulusLength: size,
+        publicExponent: exponent,
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      return rsaKeyPair;
+    },
+    generateEcdsaKeyPair(curve: string): CryptoKeyPair {
+      var curve_name = curve;
+      if (curve == "secp256r1") curve_name = "prime256v1";
+      const ecdsaKeyPair = jscrypto.generateKeyPairSync("ec", {
+        namedCurve: curve_name,
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      return ecdsaKeyPair;
+    },
+    generateEddsaKeyPair(curve: string): CryptoKeyPair {
+      // `type` is always "ed25519" because currently only "curve25519" is supported for `curve`.
+      const type = "ed25519";
+      const ecdsaKeyPair = jscrypto.generateKeyPairSync(type, {
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      return ecdsaKeyPair;
+    },
+    wrapKey(
+      key: ArrayBuffer,
+      wrappingKey: ArrayBuffer,
+      parameters: WrapAlgoParams
+    ): ArrayBuffer {
+      if (parameters.name === "RSA-OAEP") {
+        return nodeBufToArrBuf(
+          jscrypto.publicEncrypt(
+            {
+              key: Buffer.from(wrappingKey),
+              oaepHash: "sha256",
+              oaepLabel: parameters.label
+                ? new Uint8Array(parameters.label)
+                : undefined,
+              padding: jscrypto.constants.RSA_PKCS1_OAEP_PADDING,
+            },
+            new Uint8Array(key)
+          )
+        );
+      } else if (parameters.name === "AES-KWP") {
+        const iv = Buffer.from("A65959A6", "hex"); // defined in RFC 5649
+        const cipher = jscrypto.createCipheriv(
+          "id-aes256-wrap-pad",
+          new Uint8Array(wrappingKey),
+          iv
+        );
+        return nodeBufToArrBuf(
+          Buffer.concat([cipher.update(new Uint8Array(key)), cipher.final()])
+        );
+      } else if (parameters.name === "RSA-OAEP-AES-KWP") {
+        const randomAesKey = this.generateAesKey(parameters.aesKeySize);
+        const wrap1 = this.wrapKey(randomAesKey, wrappingKey, {
+          name: "RSA-OAEP",
+          label: parameters.label,
+        });
+        const wrap2 = this.wrapKey(key, randomAesKey, {
+          name: "AES-KWP",
+        });
+        return nodeBufToArrBuf(
+          Buffer.concat([Buffer.from(wrap1), Buffer.from(wrap2)])
+        );
+      } else {
+        throw new Error("unsupported wrapAlgo.name");
+      }
+    },
+    digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {
+      if (algorithm === "SHA-256") {
+        return nodeBufToArrBuf(
+          jscrypto.createHash("sha256").update(new Uint8Array(data)).digest()
+        );
+      } else {
+        throw new Error("unsupported algorithm");
+      }
+    },
+    isValidX509CertBundle(pem: string): boolean {
+      if ("X509Certificate" in jscrypto) {
+        const sep = "-----END CERTIFICATE-----";
+        const items = pem.split(sep);
+        if (items.length === 1) {
+          return false;
+        }
+        const pems = items.slice(0, -1).map((p) => p + sep);
+        for (const [i, p] of pems.entries()) {
+          try {
+            new (<any>jscrypto).X509Certificate(p);
+          } catch (e: any) {
+            console.error(`cert ${i} is not valid: ${e.message}`);
+            console.error(p);
+            return false;
+          }
+        }
+        return true;
+      } else {
+        throw new Error(
+          "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+        );
+      }
+    },
+    isValidX509CertChain(chain: string, trusted: string): boolean {
+      if (!("X509Certificate" in jscrypto)) {
+        throw new Error(
+          "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+        );
+      }
+      try {
+        const toX509Array = (pem: string) => {
+          const sep = "-----END CERTIFICATE-----";
+          const items = pem.split(sep);
+          if (items.length === 1) {
+            return [];
+          }
+          const pems = items.slice(0, -1).map((p) => p + sep);
+          const arr = pems.map(
+            (pem) => new (<any>jscrypto).X509Certificate(pem)
+          );
+          return arr;
+        };
+        const certsChain = toX509Array(chain);
+        const certsTrusted = toX509Array(trusted);
+        if (certsChain.length === 0) {
+          throw new Error("chain cannot be empty");
+        }
+        for (let i = 0; i < certsChain.length - 1; i++) {
+          if (!certsChain[i].checkIssued(certsChain[i + 1])) {
+            throw new Error(`chain[${i}] is not issued by chain[${i + 1}]`);
+          }
+        }
+        for (const certChain of certsChain) {
+          for (const certTrusted of certsTrusted) {
+            if (certChain.fingerprint === certTrusted.fingerprint) {
+              return true;
+            }
+            if (certChain.verify(certTrusted.publicKey)) {
+              return true;
+            }
+          }
+        }
+        throw new Error(
+          "none of the chain certificates are identical to or issued by a trusted certificate"
+        );
+      } catch (e: any) {
+        console.error(`certificate chain validation failed: ${e.message}`);
+        return false;
+      }
+    },
+    pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA
+      ) as JsonWebKeyECPublic;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+    pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA
+      ) as JsonWebKeyECPrivate;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+    pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.RSAKey
+      ) as JsonWebKeyRSAPublic;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
+    },
+    rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate {
+      let jwk = rs.KEYUTIL.getJWK(
+        rs.KEYUTIL.getKey(pem) as rs.RSAKey
+      ) as JsonWebKeyRSAPrivate;
+      if (kid !== undefined) {
+        jwk.kid = kid;
+      }
+      return jwk;
     },
   };
 
@@ -172,40 +387,15 @@ class CCFPolyfill implements CCF {
   }
 
   generateAesKey(size: number): ArrayBuffer {
-    return nodeBufToArrBuf(crypto.randomBytes(size / 8));
+    return this.crypto.generateAesKey(size);
   }
 
   generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair {
-    const rsaKeyPair = crypto.generateKeyPairSync("rsa", {
-      modulusLength: size,
-      publicExponent: exponent,
-      publicKeyEncoding: {
-        type: "spki",
-        format: "pem",
-      },
-      privateKeyEncoding: {
-        type: "pkcs8",
-        format: "pem",
-      },
-    });
-    return rsaKeyPair;
+    return this.crypto.generateRsaKeyPair(size, exponent);
   }
 
   generateEcdsaKeyPair(curve: string): CryptoKeyPair {
-    var curve_name = curve;
-    if (curve == "secp256r1") curve_name = "prime256v1";
-    const ecdsaKeyPair = crypto.generateKeyPairSync("ec", {
-      namedCurve: curve_name,
-      publicKeyEncoding: {
-        type: "spki",
-        format: "pem",
-      },
-      privateKeyEncoding: {
-        type: "pkcs8",
-        format: "pem",
-      },
-    });
-    return ecdsaKeyPair;
+    return this.crypto.generateEcdsaKeyPair(curve);
   }
 
   wrapKey(
@@ -213,126 +403,19 @@ class CCFPolyfill implements CCF {
     wrappingKey: ArrayBuffer,
     parameters: WrapAlgoParams
   ): ArrayBuffer {
-    if (parameters.name === "RSA-OAEP") {
-      return nodeBufToArrBuf(
-        crypto.publicEncrypt(
-          {
-            key: Buffer.from(wrappingKey),
-            oaepHash: "sha256",
-            oaepLabel: parameters.label
-              ? new Uint8Array(parameters.label)
-              : undefined,
-            padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-          },
-          new Uint8Array(key)
-        )
-      );
-    } else if (parameters.name === "AES-KWP") {
-      const iv = Buffer.from("A65959A6", "hex"); // defined in RFC 5649
-      const cipher = crypto.createCipheriv(
-        "id-aes256-wrap-pad",
-        new Uint8Array(wrappingKey),
-        iv
-      );
-      return nodeBufToArrBuf(
-        Buffer.concat([cipher.update(new Uint8Array(key)), cipher.final()])
-      );
-    } else if (parameters.name === "RSA-OAEP-AES-KWP") {
-      const randomAesKey = this.generateAesKey(parameters.aesKeySize);
-      const wrap1 = this.wrapKey(randomAesKey, wrappingKey, {
-        name: "RSA-OAEP",
-        label: parameters.label,
-      });
-      const wrap2 = this.wrapKey(key, randomAesKey, {
-        name: "AES-KWP",
-      });
-      return nodeBufToArrBuf(
-        Buffer.concat([Buffer.from(wrap1), Buffer.from(wrap2)])
-      );
-    } else {
-      throw new Error("unsupported wrapAlgo.name");
-    }
+    return this.crypto.wrapKey(key, wrappingKey, parameters);
   }
 
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {
-    if (algorithm === "SHA-256") {
-      return nodeBufToArrBuf(
-        crypto.createHash("sha256").update(new Uint8Array(data)).digest()
-      );
-    } else {
-      throw new Error("unsupported algorithm");
-    }
+    return this.crypto.digest(algorithm, data);
   }
 
   isValidX509CertBundle(pem: string): boolean {
-    if ("X509Certificate" in crypto) {
-      const sep = "-----END CERTIFICATE-----";
-      const items = pem.split(sep);
-      if (items.length === 1) {
-        return false;
-      }
-      const pems = items.slice(0, -1).map((p) => p + sep);
-      for (const [i, p] of pems.entries()) {
-        try {
-          new (<any>crypto).X509Certificate(p);
-        } catch (e: any) {
-          console.error(`cert ${i} is not valid: ${e.message}`);
-          console.error(p);
-          return false;
-        }
-      }
-      return true;
-    } else {
-      throw new Error(
-        "X509 validation unsupported, Node.js version too old (< 15.6.0)"
-      );
-    }
+    return this.crypto.isValidX509CertBundle(pem);
   }
 
   isValidX509CertChain(chain: string, trusted: string): boolean {
-    if (!("X509Certificate" in crypto)) {
-      throw new Error(
-        "X509 validation unsupported, Node.js version too old (< 15.6.0)"
-      );
-    }
-    try {
-      const toX509Array = (pem: string) => {
-        const sep = "-----END CERTIFICATE-----";
-        const items = pem.split(sep);
-        if (items.length === 1) {
-          return [];
-        }
-        const pems = items.slice(0, -1).map((p) => p + sep);
-        const arr = pems.map((pem) => new (<any>crypto).X509Certificate(pem));
-        return arr;
-      };
-      const certsChain = toX509Array(chain);
-      const certsTrusted = toX509Array(trusted);
-      if (certsChain.length === 0) {
-        throw new Error("chain cannot be empty");
-      }
-      for (let i = 0; i < certsChain.length - 1; i++) {
-        if (!certsChain[i].checkIssued(certsChain[i + 1])) {
-          throw new Error(`chain[${i}] is not issued by chain[${i + 1}]`);
-        }
-      }
-      for (const certChain of certsChain) {
-        for (const certTrusted of certsTrusted) {
-          if (certChain.fingerprint === certTrusted.fingerprint) {
-            return true;
-          }
-          if (certChain.verify(certTrusted.publicKey)) {
-            return true;
-          }
-        }
-      }
-      throw new Error(
-        "none of the chain certificates are identical to or issued by a trusted certificate"
-      );
-    } catch (e: any) {
-      console.error(`certificate chain validation failed: ${e.message}`);
-      return false;
-    }
+    return this.crypto.isValidX509CertChain(chain, trusted);
   }
 }
 

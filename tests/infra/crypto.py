@@ -16,7 +16,7 @@ from cryptography.x509 import (
     load_pem_x509_certificate,
     load_der_x509_certificate,
 )
-from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
+from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding, ed25519
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
@@ -82,19 +82,24 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
-def generate_ec_keypair(curve_name: str) -> Tuple[str, str]:
-    if curve_name == "secp256r1":
-        curve = ec.SECP256R1()
-    elif curve_name == "secp256k1":
-        curve = ec.SECP256K1()
-    elif curve_name == "secp384r1":
-        curve = ec.SECP384R1()
-    else:
-        raise ValueError("unsupported curve")
+def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> Tuple[str, str]:
     priv = ec.generate_private_key(
         curve=curve,
         backend=default_backend(),
     )
+    pub = priv.public_key()
+    priv_pem = priv.private_bytes(
+        Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
+    ).decode("ascii")
+    pub_pem = pub.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
+        "ascii"
+    )
+    return priv_pem, pub_pem
+
+
+def generate_eddsa_keypair() -> Tuple[str, str]:
+    # Currently only Curve25519 is supported
+    priv = ed25519.Ed25519PrivateKey.generate()
     pub = priv.public_key()
     priv_pem = priv.private_bytes(
         Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
@@ -184,7 +189,9 @@ def unwrap_key_rsa_oaep_aes_pad(
 
 def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
     key = load_pem_private_key(key_pem.encode("ascii"), None, default_backend())
-    if algorithm["hash"] == "SHA-256":
+    if "hash" not in algorithm:
+        pass
+    elif algorithm["hash"] == "SHA-256":
         hash_alg = hashes.SHA256()
     else:
         raise ValueError("Unsupported hash algorithm")
@@ -210,6 +217,8 @@ def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
             return signature
         else:
             raise ValueError("Unsupported signing algorithm")
+    elif isinstance(key, ed25519.Ed25519PrivateKey):
+        return key.sign(data)
     else:
         raise ValueError("Unsupported key type")
 

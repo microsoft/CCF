@@ -65,6 +65,23 @@ export function generateEcdsaKeyPair(
   return { body: res };
 }
 
+interface GenerateEddsaKeyPairRequest {
+  curve: string;
+}
+
+export interface GenerateEddsaKeyPairResponse {
+  privateKey: string;
+  publicKey: string;
+}
+
+export function generateEddsaKeyPair(
+  request: ccfapp.Request<GenerateEddsaKeyPairRequest>
+): ccfapp.Response<GenerateEddsaKeyPairResponse> {
+  const req = request.body.json();
+  const res = ccfcrypto.generateEddsaKeyPair(req.curve);
+  return { body: res };
+}
+
 type Base64 = string;
 
 interface RsaOaepParams {
@@ -169,6 +186,43 @@ export function isValidX509CertChain(
 ): ccfapp.Response<boolean> {
   const { chain, trusted } = request.body.json();
   return { body: ccfcrypto.isValidX509CertChain(chain, trusted) };
+}
+
+interface pemToJWKRequest {
+  pem: string;
+  kid: string;
+}
+
+export function pubPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubPemToJwk(req.pem, req.kid);
+  return { body: res };
+}
+
+export function pemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pemToJwk(req.pem, req.kid);
+  return { body: res };
+}
+
+export function pubRsaPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubRsaPemToJwk(req.pem, req.kid);
+  return { body: res };
+}
+
+export function rsaPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.rsaPemToJwk(req.pem, req.kid);
+  return { body: res };
 }
 
 function b64ToBuf(b64: string): ArrayBuffer {
