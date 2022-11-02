@@ -61,6 +61,7 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
 
     constitution
     proposals
+    js_runtime
     open_network
     accept_recovery
     common_member_operations

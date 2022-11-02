@@ -15,6 +15,7 @@ if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
       "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
+message(STATUS "Compile target platform: ${COMPILE_TARGET}")
 
 include(${CCF_DIR}/cmake/open_enclave.cmake)
 
