@@ -320,14 +320,14 @@ export interface CCFCrypto {
    *
    * @param algorithm Signing algorithm and parameters
    * @param key A PEM-encoded private key
-   * @param data Data that was signed
+   * @param plaintext Input data that will be signed
    * @throws Will throw an error if the key is not compatible with the
    *  signing algorithm or if an unknown algorithm is used.
    */
   sign(
     algorithm: SigningAlgorithm,
     key: string,
-    data: ArrayBuffer
+    plaintext: ArrayBuffer
   ): ArrayBuffer;
 
   /**
