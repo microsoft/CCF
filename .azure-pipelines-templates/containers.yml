@@ -13,7 +13,7 @@ jobs:
         - script: |
             set -ex
             VERSION=${(Build.SourceBranch):"-refs/tags/ccf-"}
-            echo "##vso[task.setvariable variable=version]$VERSION"
+            echo "##vso[task.setvariable variable=release_version]$VERSION"
           displayName: "Retrieve Version"
       
       # Note: Version is hardcoded until 3.0.0 final is released as Debian package
@@ -22,10 +22,10 @@ jobs:
         - script: |
             set -ex
             VERSION="3.0.0-rc0"
-            echo "##vso[task.setvariable variable=version]$VERSION"
+            echo "##vso[task.setvariable variable=release_version]$VERSION"
           displayName: "Retrieve Version"
 
       - script: | 
           set -ex 
-          docker/build_release_images.sh ccfmsrc.azurecr.io "$(version)"
+          docker/build_release_images.sh ccfmsrc.azurecr.io $(release_version)
         displayName: "Build Release Containers"
