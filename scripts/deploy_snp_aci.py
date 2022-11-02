@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource.resources.models import (
@@ -10,6 +9,7 @@ from azure.mgmt.resource.resources.models import (
     DeploymentProperties,
     DeploymentMode,
 )
+from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
 parser = argparse.ArgumentParser(
     description="Deploy an Azure Container Instance",
@@ -39,9 +39,12 @@ args = parser.parse_args()
 
 RESOURCE_GROUP = "ccf-aci"
 # TODO: Use "ubuntu:20.04" for faster deployment
+# IMAGE = "ubuntu:20.04"
 IMAGE = "ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc"
+HOST_PUB_KEY = open("/root/.ssh/id_rsa.pub", "r").read().replace("\n", "")
 
 resource_client = ResourceManagementClient(DefaultAzureCredential(), args.subscription_id)
+container_client = ContainerInstanceManagementClient(DefaultAzureCredential(), args.subscription_id)
 
 creation = resource_client.deployments.begin_create_or_update(
     RESOURCE_GROUP,
@@ -72,7 +75,20 @@ creation = resource_client.deployments.begin_create_or_update(
                                     "name": f"{args.deployment_name}-{i}",
                                     "properties": {
                                         "image": IMAGE,
-                                        "command": ["tail", "-f", "/dev/null"],
+                                        "command": [
+                                            "/bin/sh",
+                                            "-c",
+                                            " && ".join([
+                                                "apt-get update",
+                                                "apt-get install -y openssh-server",
+                                                "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
+                                                "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
+                                                "service ssh restart",
+                                                "mkdir /root/.ssh",
+                                                f"echo {HOST_PUB_KEY} >> /root/.ssh/authorized_keys",
+                                                "tail -f /dev/null",
+                                            ]),
+                                        ],
                                         "ports": [
                                             {"protocol": "TCP", "port": 8000},
                                             {"protocol": "TCP", "port": 22},
@@ -100,5 +116,8 @@ creation = resource_client.deployments.begin_create_or_update(
             },
         )
     ),
-)
-creation.wait()
+).wait()
+for resource in resource_client.deployments.get(RESOURCE_GROUP, args.deployment_name).properties.output_resources:
+    container_name = resource.id.split("/")[-1]
+    container_group = container_client.container_groups.get(RESOURCE_GROUP, container_name)
+    print(container_group.ip_address.ip)

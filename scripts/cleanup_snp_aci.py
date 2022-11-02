@@ -34,10 +34,9 @@ try:
     # Delete the container groups
     for resource in resource_client.deployments.get(RESOURCE_GROUP, args.deployment_name).properties.output_resources:
         container_name = resource.id.split("/")[-1]
-        deletion = container_client.container_groups.begin_delete(RESOURCE_GROUP, container_name)
-        deletion.wait()
+        container_group = container_client.container_groups.get(RESOURCE_GROUP, container_name)
+        container_client.container_groups.begin_delete(RESOURCE_GROUP, container_name).wait()
     # Delete the deployment
-    deletion = resource_client.deployments.begin_delete(RESOURCE_GROUP, args.deployment_name)
-    deletion.wait()
+    resource_client.deployments.begin_delete(RESOURCE_GROUP, args.deployment_name).wait()
 except Exception as e:
     print(e)
