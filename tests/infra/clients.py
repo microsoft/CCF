@@ -611,14 +611,13 @@ class RawSocketClient:
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        cose_signing_auth: Optional[Identity] = None,
         common_headers: Optional[dict] = None,
-        connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         **kwargs,
     ):
         self.ca = ca
         self.session_auth = session_auth
         self.common_headers = common_headers
-        self.connection_timeout = connection_timeout
 
         if signing_auth:
             with open(signing_auth.cert, encoding="utf-8") as cert_file:
@@ -645,12 +644,11 @@ class RawSocketClient:
             port,
             self.ca,
             self.session_auth,
-            self.connection_timeout,
         )
 
     @staticmethod
-    def _create_socket(hostname, port, ca, session_auth, connection_timeout):
-        end_time = time.time() + connection_timeout
+    def _create_socket(hostname, port, ca, session_auth):
+        end_time = time.time() + DEFAULT_CONNECTION_TIMEOUT_SEC
         while True:
             try:
                 context = ssl.create_default_context(cafile=ca)
@@ -767,7 +765,6 @@ class RawSocketClient:
                 parsed.port,
                 self.ca,
                 self.session_auth,
-                self.connection_timeout,
             ) as redirect_socket:
                 redirect_socket.settimeout(timeout)
                 RawSocketClient._send_request(
