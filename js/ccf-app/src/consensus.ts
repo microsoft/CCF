@@ -11,21 +11,21 @@
 import { ccf } from "./global.js";
 
 /**
- * @inheritDoc CCFConsensus.getLastCommittedTxId;
+ * @inheritDoc global!CCFConsensus.getLastCommittedTxId
  */
 export const getLastCommittedTxId = ccf.consensus.getLastCommittedTxId.bind(
   ccf.consensus
 );
 
 /**
- * @inheritDoc CCFConsensus.getStatusForTxId;
+ * @inheritDoc global!CCFConsensus.getStatusForTxId
  */
 export const getStatusForTxId = ccf.consensus.getStatusForTxId.bind(
   ccf.consensus
 );
 
 /**
- * @inheritDoc CCFConsensus.getViewForSeqno;
+ * @inheritDoc global!CCFConsensus.getViewForSeqno
  */
 export const getViewForSeqno = ccf.consensus.getViewForSeqno.bind(
   ccf.consensus
