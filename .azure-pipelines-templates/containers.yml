@@ -9,5 +9,7 @@ jobs:
         clean: true
         fetchDepth: 1
 
-      - script: docker/build_release_images.sh ccfmsrc.azurecr.io
+      # Note: Version is hardcoded until 3.0.0 final is released as Debian package
+      # naming scheme was changed for 3.x and latest still points to 2.x
+      - script: docker/build_release_images.sh ccfmsrc.azurecr.io 3.0.0-rc0
         displayName: "Build Release Containers"
