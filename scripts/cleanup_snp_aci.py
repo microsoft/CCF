@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import os
 import argparse
 
 from azure.identity import DefaultAzureCredential
@@ -17,16 +16,20 @@ parser.add_argument(
     type=str,
 )
 
+parser.add_argument(
+    "--deployment-name",
+    help="The name of the ACI deployment, used for agent names and cleanup",
+    type=str,
+)
+
 args = parser.parse_args()
 
 RESOURCE_GROUP = "ccf-aci"
-IMAGE = "ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc"
-DEPLOYMENT = "snp-ci"
 
 resource_client = ResourceManagementClient(DefaultAzureCredential(), args.subscription_id)
 
 try:
-    deletion = resource_client.deployments.begin_delete(RESOURCE_GROUP, DEPLOYMENT)
+    deletion = resource_client.deployments.begin_delete(RESOURCE_GROUP, args.deployment_name)
     deletion.wait()
 except Exception as e:
     print(e)

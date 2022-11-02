@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import os
 import argparse
 
 from azure.identity import DefaultAzureCredential
@@ -22,17 +21,23 @@ parser.add_argument(
     type=str,
 )
 
+parser.add_argument(
+    "--deployment-name",
+    help="The name of the ACI deployment, used for agent names and cleanup",
+    type=str,
+)
+
 args = parser.parse_args()
 
 RESOURCE_GROUP = "ccf-aci"
+# TODO: Use "ubuntu:20.04" for faster deployment
 IMAGE = "ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc"
-DEPLOYMENT = "snp-ci"
 
 resource_client = ResourceManagementClient(DefaultAzureCredential(), args.subscription_id)
 
 creation = resource_client.deployments.begin_create_or_update(
     RESOURCE_GROUP,
-    DEPLOYMENT,
+    args.deployment_name,
     Deployment(
         properties=DeploymentProperties(
             mode=DeploymentMode.INCREMENTAL,
@@ -46,7 +51,7 @@ creation = resource_client.deployments.begin_create_or_update(
                     {
                         "type": "Microsoft.ContainerInstance/containerGroups",
                         "apiVersion": "2022-04-01-preview",
-                        "name": "test-agent",
+                        "name": f"{args.deployment_name}",
                         "location": "westeurope",
                         "properties": {
                             "sku": "Standard",
@@ -56,7 +61,7 @@ creation = resource_client.deployments.begin_create_or_update(
                             },
                             "containers": [
                                 {
-                                    "name": "test-agent",
+                                    "name": f"{args.deployment_name}",
                                     "properties": {
                                         "image": IMAGE,
                                         "command": ["tail", "-f", "/dev/null"],
