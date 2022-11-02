@@ -316,7 +316,7 @@ export interface CCFCrypto {
    * @param algorithm Signing algorithm and parameters
    * @param key A PEM-encoded public key or X.509 certificate
    * @param signature Signature to verify
-   * @param data Data that was signed
+   * @param plaintext Input data that was signed
    * @throws Will throw an error if the key is not compatible with the
    *  signing algorithm or if an unknown algorithm is used.
    */
@@ -324,7 +324,7 @@ export interface CCFCrypto {
     algorithm: SigningAlgorithm,
     key: string,
     signature: ArrayBuffer,
-    data: ArrayBuffer
+    plaintext: ArrayBuffer
   ): boolean;
 
   /**
@@ -371,7 +371,7 @@ export interface CCFCrypto {
   /**
    * Generate a digest (hash) of the given data.
    */
-  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
+  digest(algorithm: DigestAlgorithm, plaintext: ArrayBuffer): ArrayBuffer;
 
   /**
    * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
