@@ -9,24 +9,25 @@ jobs:
         clean: true
         fetchDepth: 1
 
+      # Release
       - ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
-          - script: |
-              set -ex
-              VERSION=${(Build.SourceBranch):"-refs/tags/ccf-"}
-              echo "##vso[task.setvariable variable=release-version]$VERSION"
-            displayName: "Retrieve Version"
-
+        - script: |
+            set -ex
+            VERSION=${(Build.SourceBranch):"-refs/tags/ccf-"}
+            echo "##vso[task.setvariable variable=release-version]$VERSION"
+          displayName: "Retrieve Version"
+      
+      # Otherwise (e.g. daily)
       # Note: Version is hardcoded until 3.0.0 final is released as Debian package
       # naming scheme was changed for 3.x and latest still points to incompatible 2.x
-      - ? ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}
-        : - script: |
-              set -ex
-              VERSION="3.0.0-rc0"
-              echo "##vso[task.setvariable variable=release-version]$VERSION"
-            displayName: "Retrieve Version"
+      - ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
+        - script: |
+            set -ex
+            VERSION="3.0.0-rc0"
+            echo "##vso[task.setvariable variable=release-version]$VERSION"
+          displayName: "Retrieve Version"
 
-      - script: |
+      - script: | 
           set -ex 
-          echo $(release-version)
-          docker/build_release_images.sh ccfmsrc.azurecr.io $(release-version)
+          echo $(release-version) && ./docker/build_release_images.sh ccfmsrc.azurecr.io $(release-version)
         displayName: "Build Release Containers"
