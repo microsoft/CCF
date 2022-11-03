@@ -4,10 +4,6 @@ on:
   release:
     types: [published]
 
-env:
-  ACR_REGISTRY: ccfmsrc.azurecr.io
-  ACR_TOKEN_NAME: app-push-token
-  DOCKER_BUILDKIT: 1 # https://docs.docker.com/develop/develop-images/build_enhancements/
 
 jobs:
   build_and_publish:
