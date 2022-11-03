@@ -40,7 +40,7 @@ args = parser.parse_args()
 RESOURCE_GROUP = "ccf-aci"
 # TODO: Use "ubuntu:20.04" for faster deployment
 # IMAGE = "ubuntu:20.04"
-IMAGE = "ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc"
+IMAGE = "ccfmsrc.azurecr.io/ccf/ci:oe-0.18.2-snp"
 HOST_PUB_KEY = open("/root/.ssh/id_rsa.pub", "r").read().replace("\n", "")
 
 resource_client = ResourceManagementClient(DefaultAzureCredential(), args.subscription_id)
