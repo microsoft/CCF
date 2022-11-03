@@ -27,7 +27,7 @@ set(OE_VERSION "0.18.2")
 if(COMPILE_TARGET STREQUAL "sgx")
   list(APPEND CCF_DEB_DEPENDENCIES "open-enclave (>=${OE_VERSION})")
 else()
-  list(APPEND CCF_DEB_DEPENDENCIES "open-enclave-host-verify (>=${OE_VERSION})")
+  list(APPEND CCF_DEB_DEPENDENCIES "open-enclave-hostverify (>=${OE_VERSION})")
 endif()
 
 list(JOIN CCF_DEB_DEPENDENCIES ", " CPACK_DEBIAN_PACKAGE_DEPENDS)
