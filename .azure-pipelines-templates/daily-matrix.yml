@@ -53,17 +53,6 @@ jobs:
       ctest_timeout: "800"
       depends_on: configure
 
-  # TODO: Delete this before merging (only testing virtual release)
-  - template: common.yml
-    parameters:
-      target: Virtual
-      env: ${{ parameters.env.Virtual }}
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
-      suffix: "Release"
-      artifact_name: "Virtual_Release"
-      ctest_filter: "-R no_test_please"
-      depends_on: configure
-
   - template: common.yml
     parameters:
       target: SGX
