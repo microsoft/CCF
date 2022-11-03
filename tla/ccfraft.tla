@@ -10,6 +10,7 @@
 \* Author of these modifications:
 \*      Fritz Alder <fritz.alder@acm.org>
 \*      Heidi Howard <heidi.howard@microsoft.com>
+\*      Markus Alexander Kuppe <makuppe@microsoft.com>
 \* Partially based on
 \* - https://github.com/ongardie/raft.tla/blob/master/raft.tla
 \*   (base spec, modified)
@@ -133,7 +134,10 @@ VARIABLE log
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
 
-\* The index that gets committed
+\* The log and index denoting the operations that have been committed. Instead
+\* of copying the committed prefix of the current leader's log, remember the
+\* node and the index (up to which the operations have been committed) into its log.
+\* This variable is a history variable in TLA+ jargon. It does not exist in an implementation.
 VARIABLE committedLog
 
 logVars == <<log, commitIndex, clientRequests, committedLog>>
@@ -339,7 +343,7 @@ InitLogVars ==
     /\ log          = [i \in Servers |-> << >>]
     /\ commitIndex  = [i \in Servers |-> 0]
     /\ clientRequests = 1
-    /\ committedLog = << >>
+    /\ committedLog = [ node |-> NodeOne, index |-> 0]
 
 Init ==
     /\ InitReconfigurationVars
@@ -564,12 +568,7 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
-        /\ IF new_index <= Len(committedLog) THEN
-            /\ Assert(\A j \in 1..new_index : committedLog[j] = new_log[j], "committedLogConflict")
-            /\ UNCHANGED committedLog
-           ELSE
-            /\ Assert(\A j \in 1..Len(committedLog) : committedLog[j] = new_log[j], "committedLogConflict")
-            /\ committedLog' = new_log
+        /\ committedLog' = IF new_index > committedLog.index THEN [ node |-> i, index |-> new_index ] ELSE committedLog
         \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
         /\ \/ /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
@@ -905,7 +904,7 @@ Spec == Init /\ [][Next]_vars
 
 \* Committed log entries should not conflict
 LogInv ==
-    /\ \A i \in Servers : IsPrefix(Committed(i),committedLog)
+    /\ \A i \in Servers : IsPrefix(Committed(i),SubSeq(log[committedLog.node],1,committedLog.index))
 
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
@@ -1062,7 +1061,7 @@ LogVarsTypeInv ==
         /\ LogTypeOK(log[i])
         /\ commitIndex[i] \in Nat
     /\ clientRequests \in Nat \ {0}
-    /\ LogTypeOK(committedLog)
+    /\ committedLog \in [ node: Servers, index: Nat ]
 
 \* Invariant to check the type safety of all variables
 TypeInv ==
