@@ -80,7 +80,8 @@ ASSUME Servers \subseteq AllServers
 ----
 \* Global variables
 
-\* Keep track of current number of reconfigurations to limit it through the MC
+\* Keep track of current number of reconfigurations to limit it through the MC.
+\* TLC: Finite state space.
 VARIABLE reconfigurationCount
 \* Each server keeps track of the pending configurations
 VARIABLE configurations
@@ -94,7 +95,8 @@ reconfigurationVars == <<reconfigurationCount, configurations>>
 VARIABLE messages
 
 \* CCF: Keep track of each append entries message sent from each server to each other server
-\* and cap it to a maximum
+\* and cap it to a maximum to constraint the state-space for model-checking.
+\* TLC: Finite state space.
 VARIABLE messagesSent
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
@@ -119,7 +121,8 @@ VARIABLE votedFor
 
 serverVars == <<currentTerm, state, votedFor>>
 
-\* The set of requests that can go into the log
+\* The set of requests that can go into the log. 
+\* TLC: Finite state space.
 VARIABLE clientRequests
 
 \* A Sequence of log entries. The index into this sequence is the index of the
@@ -130,7 +133,8 @@ VARIABLE log
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
 
-\* The index that gets committed
+\* The index that gets committed.  This is a history variable (in TLA+ jargon) that 
+\* does not exist in an implementation.
 VARIABLE committedLog
 
 \* Have conflicting log entries been committed?
@@ -143,7 +147,8 @@ logVars == <<log, commitIndex, clientRequests, committedLog, committedLogConflic
 VARIABLE votesGranted
 
 \* State space limitation: Restrict each node to send a limited amount
-\* of requests to other nodes
+\* of requests to other nodes.
+\* TLC: Finite state space.
 VARIABLE votesRequested
 
 candidateVars == <<votesGranted, votesRequested>>
@@ -683,9 +688,10 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ Len(log[i]) >= index
           /\ log[i][index].term = m.mentries[1].term
     \* In normal Raft, this could make our commitIndex decrease (for
-    \* example if we process an old, duplicated request)
+    \* example if we process an old, duplicated request).
     \* In CCF however, messages are encrypted and integrity protected
-    \*  which also prevents message replays and duplications.
+    \* which also prevents message replays and duplications.
+    \* Note, though, that [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars is not a theorem of the specification.
     /\ commitIndex' = [commitIndex EXCEPT ![i] = m.mcommitIndex]
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
@@ -943,7 +949,8 @@ ElectionSafetyInv ==
             IN FoldSeq(FilterAndMax, 0, log[i]) >= FoldSeq(FilterAndMax, 0, log[j])
 
 ----
-\* Every (index, term) pair determines a log prefix
+\* Every (index, term) pair determines a log prefix.
+\* From page 8 of the Raft paper: "If two logs contain an entry with the same index and term, then the logs are identical in all preceding entries."
 LogMatchingInv ==
     \A i, j \in Servers : i /= j =>
         \A n \in 1..min(Len(log[i]), Len(log[j])) :
