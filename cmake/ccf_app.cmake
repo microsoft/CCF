@@ -3,11 +3,13 @@
 
 set(ALLOWED_TARGETS "sgx;snp;virtual")
 
-set(COMPILE_TARGET
-    "sgx"
-    CACHE STRING
-          "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
-)
+if(NOT DEFINED COMPILE_TARGET)
+  set(COMPILE_TARGET
+      "sgx"
+      CACHE STRING
+            "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
+  )
+endif()
 
 if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
   message(
