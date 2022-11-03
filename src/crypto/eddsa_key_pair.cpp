@@ -22,6 +22,11 @@ namespace crypto
     return std::make_shared<KeyPairImpl>(curve_id);
   }
 
+  EdDSAKeyPairPtr make_eddsa_key_pair(const Pem& pem)
+  {
+    return std::make_shared<KeyPairImpl>(pem);
+  }
+
   EdDSAPublicKeyPtr make_eddsa_public_key(const Pem& pem)
   {
     return std::make_shared<PublicKeyImpl>(pem);

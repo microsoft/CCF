@@ -18,6 +18,7 @@ import suite.test_requirements as reqs
 import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.exceptions import InvalidSignature
 
 from loguru import logger as LOG
 
@@ -535,6 +536,80 @@ def test_npm_app(network, args):
             r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
         )
         assert unwrapped == aes_key_to_wrap
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
+        algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
+        data = "foo".encode()
+        r = c.post(
+            "/app/sign",
+            {
+                "algorithm": algorithm,
+                "key": key_priv_pem,
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        signature = r.body.data()
+        infra.crypto.verify_signature(signature, data, key_pub_pem, algorithm["hash"])
+
+        try:
+            infra.crypto.verify_signature(
+                signature, "bar".encode(), key_pub_pem, algorithm["hash"]
+            )
+            assert False, "verify_signature() should throw"
+        except InvalidSignature:
+            pass
+
+        curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
+        for curve in curves:
+            key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
+            algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+            data = "foo".encode()
+            r = c.post(
+                "/app/sign",
+                {
+                    "algorithm": algorithm,
+                    "key": key_priv_pem,
+                    "data": b64encode(data).decode(),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+            signature = r.body.data()
+            infra.crypto.verify_signature(
+                signature, data, key_pub_pem, algorithm["hash"]
+            )
+
+            try:
+                infra.crypto.verify_signature(
+                    signature, "bar".encode(), key_pub_pem, algorithm["hash"]
+                )
+                assert False, "verify_signature() should throw"
+            except InvalidSignature:
+                pass
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        algorithm = {"name": "EdDSA"}
+        data = "foo".encode()
+        r = c.post(
+            "/app/sign",
+            {
+                "algorithm": algorithm,
+                "key": key_priv_pem,
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        signature = r.body.data()
+        infra.crypto.verify_signature(signature, data, key_pub_pem)
+
+        try:
+            infra.crypto.verify_signature(signature, "bar".encode(), key_pub_pem)
+            assert False, "verify_signature() should throw"
+        except InvalidSignature:
+            pass
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
         algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}

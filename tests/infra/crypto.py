@@ -233,6 +233,24 @@ def convert_ecdsa_signature_from_der_to_p1363(
     return signature_p1363
 
 
+def verify_signature(
+    signature: bytes, data: bytes, key_pub_pem: str, hash_alg: Optional[str] = None
+):
+    key_pub = load_pem_public_key(key_pub_pem.encode())
+    if isinstance(key_pub, rsa.RSAPublicKey):
+        if hash_alg != "SHA-256":
+            raise ValueError("Unsupported hash algorithm")
+        key_pub.verify(signature, data, padding.PKCS1v15(), hashes.SHA256())
+    elif isinstance(key_pub, ec.EllipticCurvePublicKey):
+        if hash_alg != "SHA-256":
+            raise ValueError("Unsupported hash algorithm")
+        key_pub.verify(signature, data, ec.ECDSA(hashes.SHA256()))
+    elif isinstance(key_pub, ed25519.Ed25519PublicKey):
+        return key_pub.verify(signature, data)
+    else:
+        raise ValueError("Unsupported key type")
+
+
 def pub_key_pem_to_der(pem: str) -> bytes:
     cert = load_pem_public_key(pem.encode("ascii"), default_backend())
     return cert.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
