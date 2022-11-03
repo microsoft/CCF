@@ -214,30 +214,18 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
-/**
- * RSASSA-PKCS1-v1_5 signature algorithm parameters.
- */
-export interface RsaPkcsParams {
-  name: "RSASSA-PKCS1-v1_5";
-  hash: DigestAlgorithm;
-}
-
-/**
- * ECDSA signature algorithm parameters.
- *
- * Note: ECDSA signatures are assumed to be encoded according
- * to the Web Crypto API specification, which is the same
- * format used in JSON Web Tokens and more generally known
- * as IEEE P1363 encoding.
- */
-export interface EcdsaParams {
-  name: "ECDSA";
-  hash: DigestAlgorithm;
-}
-
-export type SigningAlgorithm = RsaPkcsParams | EcdsaParams;
+export type AlgorithmName = "RSASSA-PKCS1-v1_5" | "ECDSA" | "EdDSA";
 
 export type DigestAlgorithm = "SHA-256";
+
+export interface SigningAlgorithm {
+  name: AlgorithmName;
+
+  /**
+   * Digest algorithm. It's necessary for "RSASSA-PKCS1-v1_5" and "ECDSA"
+   */
+  hash?: DigestAlgorithm;
+}
 
 /**
  * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).
@@ -308,12 +296,27 @@ export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
 
 export interface CCFCrypto {
   /**
+   * Generate a signature.
+   *
+   * @param algorithm Signing algorithm and parameters
+   * @param key A PEM-encoded private key
+   * @param plaintext Input data that will be signed
+   * @throws Will throw an error if the key is not compatible with the
+   *  signing algorithm or if an unknown algorithm is used.
+   */
+  sign(
+    algorithm: SigningAlgorithm,
+    key: string,
+    plaintext: ArrayBuffer
+  ): ArrayBuffer;
+
+  /**
    * Returns whether digital signature is valid.
    *
    * @param algorithm Signing algorithm and parameters
    * @param key A PEM-encoded public key or X.509 certificate
    * @param signature Signature to verify
-   * @param data Data that was signed
+   * @param plaintext Input data that was signed
    * @throws Will throw an error if the key is not compatible with the
    *  signing algorithm or if an unknown algorithm is used.
    */
@@ -321,7 +324,7 @@ export interface CCFCrypto {
     algorithm: SigningAlgorithm,
     key: string,
     signature: ArrayBuffer,
-    data: ArrayBuffer
+    plaintext: ArrayBuffer
   ): boolean;
 
   /**
@@ -368,7 +371,7 @@ export interface CCFCrypto {
   /**
    * Generate a digest (hash) of the given data.
    */
-  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
+  digest(algorithm: DigestAlgorithm, plaintext: ArrayBuffer): ArrayBuffer;
 
   /**
    * Returns whether a string is a PEM-encoded bundle of X.509 certificates.

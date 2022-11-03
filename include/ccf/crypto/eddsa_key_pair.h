@@ -32,8 +32,7 @@ namespace crypto
      */
     virtual Pem public_key_pem() const = 0;
 
-    virtual std::vector<uint8_t> sign(
-      std::span<const uint8_t> d, MDType md_type = MDType::NONE) const = 0;
+    virtual std::vector<uint8_t> sign(std::span<const uint8_t> d) const = 0;
 
     virtual bool verify(
       const uint8_t* contents,
@@ -61,6 +60,11 @@ namespace crypto
    * @return Key pair
    */
   EdDSAKeyPairPtr make_eddsa_key_pair(CurveID curve_id);
+
+  /**
+   * Create a public / private RSA key pair from existing private key data
+   */
+  EdDSAKeyPairPtr make_eddsa_key_pair(const Pem& pem);
 
   /**
    * Create a public / private RSA key pair from existing private key data
