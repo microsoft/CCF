@@ -2,7 +2,7 @@ jobs:
   - job: cimetrics_render
     displayName: "CI Metrics Render"
     dependsOn: ${{ parameters.depends_on }}
-    condition: eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false')
+    condition: and(succeeded(), eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false'))
 
     ${{ insert }}: ${{ parameters.env }}
 

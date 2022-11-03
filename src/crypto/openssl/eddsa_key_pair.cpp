@@ -16,6 +16,16 @@ namespace crypto
     OpenSSL::CHECK1(EVP_PKEY_keygen(pkctx, &key));
   }
 
+  EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(const Pem& pem)
+  {
+    OpenSSL::Unique_BIO mem(pem);
+    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, NULL);
+    if (!key)
+    {
+      throw std::runtime_error("could not parse PEM");
+    }
+  }
+
   Pem EdDSAKeyPair_OpenSSL::private_key_pem() const
   {
     OpenSSL::Unique_BIO buf;
@@ -34,7 +44,7 @@ namespace crypto
   }
 
   std::vector<uint8_t> EdDSAKeyPair_OpenSSL::sign(
-    std::span<const uint8_t> d, MDType md_type) const
+    std::span<const uint8_t> d) const
   {
     EVP_PKEY_CTX* pkctx = nullptr;
     OpenSSL::Unique_EVP_MD_CTX ctx;

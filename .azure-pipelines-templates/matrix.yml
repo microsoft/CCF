@@ -17,7 +17,7 @@ parameters:
 
   build:
     common:
-      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
+      cmake_args: ""
     Virtual:
       cmake_args: "-DCOMPILE_TARGET=virtual"
     SGX:
@@ -102,7 +102,7 @@ jobs:
         parameters:
           target: SGX
           env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }}"
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
           suffix: "Release"
           artifact_name: "SGX_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
@@ -133,7 +133,7 @@ jobs:
         parameters:
           target: SGX
           env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
           suffix: "Unsafe"
           artifact_name: "SGX_Unsafe"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"

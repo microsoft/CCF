@@ -17,7 +17,7 @@ resources:
   containers:
     - container: sgx
       image: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
 
 jobs:
   - template: .azure-pipelines-templates/configure.yml
@@ -31,6 +31,5 @@ jobs:
       cmake_args: "-DCOMPILE_TARGET=sgx -DWORKER_THREADS=2 -DENABLE_2TX_RECONFIG=ON"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
-      ctest_filter: '-LE "perf|bft"'
-      ctest_timeout: "0" # No timeout
+      ctest_filter: '-LE "perf"'
       depends_on: configure
