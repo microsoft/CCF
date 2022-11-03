@@ -1,6 +1,6 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
-    timeoutInMinutes: 0
+    timeoutInMinutes: 120
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
     condition: and(succeeded(), eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false'))
