@@ -4,7 +4,6 @@ on:
   release:
     types: [published]
 
-
 jobs:
   build_and_publish:
     name: "Build and publish containers for all platforms"
