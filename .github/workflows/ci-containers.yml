@@ -2,6 +2,8 @@ name: "Build and Publish CI Containers to ACR"
 
 on:
   push:
+    branches:
+      - "ci_docker_image_variants" # TODO: Remove before merge
     tags:
       - "ccf_ci_image/*"
 
