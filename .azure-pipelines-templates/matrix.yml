@@ -17,7 +17,7 @@ parameters:
 
   build:
     common:
-      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
+      cmake_args: ""
     Virtual:
       cmake_args: "-DCOMPILE_TARGET=virtual"
     SGX:
