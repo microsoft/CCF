@@ -2,8 +2,6 @@ name: "Build and Publish CI Containers to ACR"
 
 on:
   push:
-    branches:
-      - "ci_docker_image_variants" # TODO: Remove before merge
     tags:
       - "ccf_ci_image/*"
 
@@ -20,7 +18,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Truncate ref
-        run: echo "tag=temp-platform" >> $GITHUB_OUTPUT # "tag=${GITHUB_REF#refs/tags/ccf_ci_image/}" >> $GITHUB_OUTPUT TODO: Revert
+        run: echo "tag=${GITHUB_REF#refs/tags/ccf_ci_image/}" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Build CCF CI sgx container
