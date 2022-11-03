@@ -11,9 +11,6 @@
         name: intel
         tasks_from: sgx-group.yml
       when: platform == "sgx"
-    # Note: The az_dcap role is required so that open-enclave/
-    # open-enclave-host-verify is automatically installed when
-    # the CCF debian package is.
     - import_role:
         name: az_dcap
         tasks_from: install.yml
