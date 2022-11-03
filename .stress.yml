@@ -6,7 +6,6 @@ pr:
     include:
       - .stress.yml
       - .stress-matrix.yml
-      - .azure-pipelines-templates/*
 
 trigger: none
 
