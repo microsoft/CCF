@@ -18,67 +18,72 @@
 import { ccf } from "./global.js";
 
 /**
- * @inheritDoc CCF.generateAesKey
+ * @inheritDoc global!CCF.generateAesKey
  */
 export const generateAesKey = ccf.crypto.generateAesKey;
 
 /**
- * @inheritDoc CCF.generateRsaKeyPair
+ * @inheritDoc global!CCF.generateRsaKeyPair
  */
 export const generateRsaKeyPair = ccf.crypto.generateRsaKeyPair;
 
 /**
- * @inheritDoc CCF.generateEcdsaKeyPair
+ * @inheritDoc global!CCF.generateEcdsaKeyPair
  */
 export const generateEcdsaKeyPair = ccf.crypto.generateEcdsaKeyPair;
 
 /**
- * @inheritDoc CCFCrypto.generateEcdsaKeyPair
+ * @inheritDoc global!CCF.generateEcdsaKeyPair
  */
 export const generateEddsaKeyPair = ccf.crypto.generateEddsaKeyPair;
 
 /**
- * @inheritDoc CCF.wrapKey
+ * @inheritDoc global!CCF.wrapKey
  */
 export const wrapKey = ccf.crypto.wrapKey;
 
 /**
- * @inheritDoc CCFCrypto.verifySignature
+ * @inheritDoc global!CCFCrypto.verifySignature
+ */
+export const sign = ccf.crypto.sign;
+
+/**
+ * @inheritDoc global!CCFCrypto.verifySignature
  */
 export const verifySignature = ccf.crypto.verifySignature;
 
 /**
- * @inheritDoc CCF.digest
+ * @inheritDoc global!CCFCrypto.digest
  */
 export const digest = ccf.crypto.digest;
 
 /**
- * @inheritDoc CCF.isValidX509CertBundle
+ * @inheritDoc global!CCFCrypto.isValidX509CertBundle
  */
 export const isValidX509CertBundle = ccf.crypto.isValidX509CertBundle;
 
 /**
- * @inheritDoc CCF.isValidX509CertChain
+ * @inheritDoc global!CCFCrypto.isValidX509CertChain
  */
 export const isValidX509CertChain = ccf.crypto.isValidX509CertChain;
 
 /**
- * @inheritDoc CCF.pubPemToJwk
+ * @inheritDoc global!CCFCrypto.pubPemToJwk
  */
 export const pubPemToJwk = ccf.crypto.pubPemToJwk;
 
 /**
- * @inheritDoc CCF.pemToJwk
+ * @inheritDoc global!CCFCrypto.pemToJwk
  */
 export const pemToJwk = ccf.crypto.pemToJwk;
 
 /**
- * @inheritDoc CCF.pubRsaPemToJwk
+ * @inheritDoc global!CCFCrypto.pubRsaPemToJwk
  */
 export const pubRsaPemToJwk = ccf.crypto.pubRsaPemToJwk;
 
 /**
- * @inheritDoc CCF.rsaPemToJwk
+ * @inheritDoc global!CCFCrypto.rsaPemToJwk
  */
 export const rsaPemToJwk = ccf.crypto.rsaPemToJwk;
 
@@ -90,6 +95,4 @@ export {
   CryptoKeyPair,
   DigestAlgorithm,
   SigningAlgorithm,
-  RsaPkcsParams,
-  EcdsaParams,
 } from "./global";
