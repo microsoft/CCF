@@ -37,12 +37,12 @@ import { ccf } from "./global.js";
 export const historicalState = ccf.historicalState;
 
 /**
- * @inheritDoc CCFHistorical.getStateRange
+ * @inheritDoc global!CCFHistorical.getStateRange
  */
 export const getStateRange = ccf.historical.getStateRange.bind(ccf.historical);
 
 /**
- * @inheritDoc CCFHistorical.dropCachedStates
+ * @inheritDoc global!CCFHistorical.dropCachedStates
  */
 export const dropCachedStates = ccf.historical.dropCachedStates.bind(
   ccf.historical

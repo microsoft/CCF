@@ -2,6 +2,14 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.16)
 
+set(ALLOWED_TARGETS "sgx;snp;virtual")
+
+set(COMPILE_TARGET
+    "sgx"
+    CACHE STRING
+          "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
+)
+
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
@@ -165,7 +173,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           openenclave::oehost
+           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -217,7 +225,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           openenclave::oehost
+           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 

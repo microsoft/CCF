@@ -3,11 +3,13 @@
 
 set(ALLOWED_TARGETS "sgx;snp;virtual")
 
-set(COMPILE_TARGET
-    "sgx"
-    CACHE STRING
-          "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
-)
+if(NOT DEFINED COMPILE_TARGET)
+  set(COMPILE_TARGET
+      "sgx"
+      CACHE STRING
+            "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
+  )
+endif()
 
 if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
   message(
@@ -17,47 +19,7 @@ if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
 endif()
 message(STATUS "Compile target platform: ${COMPILE_TARGET}")
 
-# Find OpenEnclave package
-find_package(OpenEnclave 0.18.2 CONFIG REQUIRED)
-# As well as pulling in openenclave:: targets, this sets variables which can be
-# used for our edge cases (eg - for virtual libraries). These do not follow the
-# standard naming patterns, for example use OE_INCLUDEDIR rather than
-# OpenEnclave_INCLUDE_DIRS
-
-set(OE_TARGET_LIBC openenclave::oelibc)
-set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
-                              openenclave::oelibc openenclave::oecryptoopenssl
-)
-# These oe libraries must be linked in specific order
-set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
-                                openenclave::oecore openenclave::oesyscall
-)
-
-option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
-if(LVI_MITIGATIONS)
-  string(APPEND OE_TARGET_LIBC -lvi-cfg)
-  list(TRANSFORM OE_TARGET_ENCLAVE_AND_STD APPEND -lvi-cfg)
-  list(TRANSFORM OE_TARGET_ENCLAVE_CORE_LIBS APPEND -lvi-cfg)
-endif()
-
-function(add_lvi_mitigations name)
-  if(LVI_MITIGATIONS)
-    apply_lvi_mitigation(${name})
-    # Necessary to make sure Spectre mitigations are applied until
-    # https://github.com/openenclave/openenclave/issues/4641 is fixed
-    target_link_libraries(${name} PRIVATE openenclave::oecore)
-  endif()
-endfunction()
-
-if(LVI_MITIGATIONS)
-  set(LVI_MITIGATION_BINDIR
-      /opt/oe_lvi
-      CACHE STRING "Path to the LVI mitigation bindir."
-  )
-  find_package(
-    OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
-  )
-endif()
+include(${CCF_DIR}/cmake/open_enclave.cmake)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
@@ -245,34 +207,36 @@ endfunction()
 
 # Convenience wrapper to build C-libraries that can be linked in enclave, ie. in
 # a CCF application.
-function(add_enclave_library_c name)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
-  set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
-  add_library(${name} STATIC ${files})
-  target_compile_options(${name} PRIVATE -nostdinc)
-  target_link_libraries(${name} PRIVATE ${OE_TARGET_LIBC})
-  set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-endfunction()
+if(COMPILE_TARGET STREQUAL "sgx")
+  function(add_enclave_library_c name)
+    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
+    set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
+    add_library(${name} STATIC ${files})
+    target_compile_options(${name} PRIVATE -nostdinc)
+    target_link_libraries(${name} PRIVATE ${OE_TARGET_LIBC})
+    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endfunction()
 
-# Convenience wrapper to build C++-libraries that can be linked in enclave, ie.
-# in a CCF application.
-function(add_enclave_library name)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
-  set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
-  add_library(${name} ${files})
-  target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
-  target_compile_definitions(
-    ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-  target_link_libraries(${name} PUBLIC ${OE_TARGET_ENCLAVE_AND_STD} -lgcc)
-  set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-endfunction()
+  # Convenience wrapper to build C++-libraries that can be linked in enclave,
+  # ie. in a CCF application.
+  function(add_enclave_library name)
+    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
+    set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
+    add_library(${name} ${files})
+    target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
+    target_compile_definitions(
+      ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+    )
+    target_link_libraries(${name} PUBLIC ${OE_TARGET_ENCLAVE_AND_STD} -lgcc)
+    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endfunction()
+endif()
 
 function(add_host_library name)
   cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
   set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   add_library(${name} ${files})
   target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
-  target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc openenclave::oehost)
+  target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc ${OE_HOST_LIBRARY})
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()

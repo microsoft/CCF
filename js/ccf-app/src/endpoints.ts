@@ -263,11 +263,11 @@ export type EndpointFn<
 > = (request: Request<A>) => Response<B>;
 
 /**
- * @inheritDoc CCF.rpc.setApplyWrites
+ * @inheritDoc global!CCFRpc.setApplyWrites
  */
 export const setApplyWrites = ccf.rpc.setApplyWrites.bind(ccf.rpc);
 
 /**
- * @inheritDoc CCF.rpc.setClaimsDigest
+ * @inheritDoc global!CCFRpc.setClaimsDigest
  */
 export const setClaimsDigest = ccf.rpc.setClaimsDigest.bind(ccf.rpc);

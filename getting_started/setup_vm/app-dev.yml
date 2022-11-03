@@ -14,11 +14,14 @@
     - import_role:
         name: az_dcap
         tasks_from: install.yml
-      when: platform == "sgx"
     - import_role:
         name: openenclave
         tasks_from: binary_install.yml
       when: platform == "sgx"
+    - import_role:
+        name: openenclave
+        tasks_from: install_host_verify.yml
+      when: platform != "sgx"
     - import_role:
         name: ccf_build
         tasks_from: install.yml

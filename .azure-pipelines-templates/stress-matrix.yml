@@ -4,10 +4,9 @@ jobs:
       target: SGX
       env:
         container: sgx
-        pool: 1es-dcdv3-focal
+        pool: 1es-DC16s_v3-focal
       cmake_args: "-DCOMPILE_TARGET=sgx"
       suffix: "StressTest"
       artifact_name: "StressTest"
       ctest_filter: '-L "vegeta" -C "long_stress"'
-      ctest_timeout: "0" # No timeout
       depends_on: configure
