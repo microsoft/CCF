@@ -8,10 +8,11 @@ on:
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
   ACR_TOKEN_NAME: ci-push-token
+  DOCKER_BUILDKIT: 1 # https://docs.docker.com/develop/develop-images/build_enhancements/
 
 jobs:
   build:
-    name: "Build and Publish SGX CI Containers"
+    name: "Build and Publish CI Containers"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -20,11 +21,17 @@ jobs:
         run: echo "tag=${GITHUB_REF#refs/tags/ccf_ci_image/}" >> $GITHUB_OUTPUT
         id: tref
 
-      - name: Build CCF CI container
-        run: docker build -f docker/ccf_ci . -t $ACR_REGISTRY/ccf/ci/sgx:${{steps.tref.outputs.tag}}
+      - name: Build CCF CI sgx container
+        run: docker build -f docker/ccf_ci . --build-arg="platform=sgx" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-sgx
+
+      - name: Build CCF CI snp container
+        run: docker build -f docker/ccf_ci . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-snp
+
+      - name: Build CCF CI virtual container
+        run: docker build -f docker/ccf_ci . --build-arg="platform=virtual" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-virtual
 
       - name: Log in
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_CI_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Push CI container
-        run: docker push $ACR_REGISTRY/ccf/ci/sgx:${{steps.tref.outputs.tag}}
+        run: docker push $ACR_REGISTRY/ccf/ci --all-tags
