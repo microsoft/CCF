@@ -6,11 +6,14 @@ on:
 
 jobs:
   build_and_publish:
-    name: "Build and publish containers for all platforms"
+    name: "Publish ccf-app package to NPM"
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
 
       - name: Get release number from git tag (release) or latest (branch)
         run: |
@@ -26,5 +29,5 @@ jobs:
         run: |
           set -ex
           cd js/ccf-app
-          echo "//registry.npmjs.org/:_authToken=\${{ secrets.NPM_TOKEN }}" > .npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
           npm publish microsoft-ccf-app*.tgz --access public
