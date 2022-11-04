@@ -58,9 +58,7 @@ def main():
         "-ct",
         "--content_type",
         help="The Content-Type representation header is used\
-
-            to indicate the original media type of the resource.\
-            Default `application-json`",
+            to indicate the original media type of the resource.",
         default="application-json",
         type=str,
     )
