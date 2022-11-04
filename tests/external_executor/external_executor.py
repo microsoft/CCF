@@ -5,6 +5,7 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
+from executors.logging import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 
@@ -288,6 +289,26 @@ def test_streaming(network, args):
         compare_op_results(stub, 30)
         compare_op_results(stub, 1000)
 
+    return network
+
+
+def test_logging_executor(network, credentials, args):
+    primary, _ = network.find_primary()
+
+    with executor_thread(LoggingExecutor(primary, credentials)):
+        with primary.client() as c:
+            log_id = 42
+            log_msg = "Hello world"
+
+            r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
+            assert r.status_code == 200
+
+            r = c.get(f"/app/log/public?id={log_id}")
+            assert r.status_code == 200
+            assert r.body.json()["msg"] == log_msg
+
+    return network
+
 
 def run(args):
     key_priv_pem, _ = infra.crypto.generate_ec_keypair()
@@ -311,6 +332,7 @@ def run(args):
         network = test_kv(network, credentials, args)
         network = test_simple_executor(network, credentials, args)
         network = test_streaming(network, args)
+        network = test_logging_executor(network, credentials, args)
 
 
 if __name__ == "__main__":
