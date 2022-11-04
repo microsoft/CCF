@@ -52,8 +52,9 @@ message RequestDescription
 {
   string method = 1;
   string uri = 2;
-  repeated Header headers = 3;
-  bytes body = 4;
+  string query = 3;
+  repeated Header headers = 4;
+  bytes body = 5;
 }
 message OptionalRequestDescription { RequestDescription optional = 1; }
 
