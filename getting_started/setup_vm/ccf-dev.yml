@@ -1,17 +1,26 @@
 - hosts: localhost
+  vars:
+    platform: "sgx"
   tasks:
     - import_role:
         name: intel
         tasks_from: sgx-psw.yml
+      when: platform == "sgx"
     - import_role:
         name: intel
         tasks_from: sgx-group.yml
+      when: platform == "sgx"
     - import_role:
         name: az_dcap
         tasks_from: install.yml
     - import_role:
         name: openenclave
         tasks_from: binary_install.yml
+      when: platform == "sgx"
+    - import_role:
+        name: openenclave
+        tasks_from: install_host_verify.yml
+      when: platform != "sgx"
     - import_role:
         name: nodejs
         tasks_from: install.yml

@@ -45,6 +45,11 @@ export const wrapKey = ccf.crypto.wrapKey;
 /**
  * @inheritDoc global!CCFCrypto.verifySignature
  */
+export const sign = ccf.crypto.sign;
+
+/**
+ * @inheritDoc global!CCFCrypto.verifySignature
+ */
 export const verifySignature = ccf.crypto.verifySignature;
 
 /**
@@ -90,6 +95,4 @@ export {
   CryptoKeyPair,
   DigestAlgorithm,
   SigningAlgorithm,
-  RsaPkcsParams,
-  EcdsaParams,
 } from "./global";
