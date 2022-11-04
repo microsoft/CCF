@@ -117,6 +117,65 @@ namespace externalexecutor
         .install();
     }
 
+    struct DelayedStreamMsg
+    {
+      std::shared_ptr<ccf::RpcContext> rpc_ctx;
+      DelayedStreamMsg(const std::shared_ptr<ccf::RpcContext>& rpc_ctx_) :
+        rpc_ctx(rpc_ctx_)
+      {}
+    };
+
+    static void send_stream_payload(
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx, bool close_stream)
+    {
+      ccf::KVKeyValue kv;
+      kv.set_key("lala");
+      kv.set_value("my_value");
+
+      const auto message_length = kv.ByteSizeLong();
+      size_t r_size = ccf::grpc::impl::message_frame_length + message_length;
+      std::vector<uint8_t> data;
+      data.resize(r_size);
+      auto r_data = data.data();
+
+      ccf::grpc::impl::write_message_frame(r_data, r_size, message_length);
+
+      if (!kv.SerializeToArray(r_data, r_size))
+      {
+        throw std::logic_error(fmt::format(
+          "Error serialising protobuf response of type {}, size {}",
+          kv.GetTypeName(),
+          message_length));
+      }
+
+      CCF_APP_FAIL("Stream some data: {}", data.size());
+
+      // TODO: There should be an option to close the stream too
+      rpc_ctx->stream(std::move(data), close_stream);
+    }
+
+    static void async_send_stream_data(
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
+    {
+      auto msg = std::make_unique<threading::Tmsg<DelayedStreamMsg>>(
+        [](std::unique_ptr<threading::Tmsg<DelayedStreamMsg>> msg) {
+          static size_t call_count = 0;
+          LOG_FAIL_FMT("Sending asynchronous streaming data: {}", call_count);
+          call_count++;
+          bool should_stop = call_count > 5;
+          send_stream_payload(msg->data.rpc_ctx, should_stop);
+
+          if (!should_stop)
+          {
+            async_send_stream_data(msg->data.rpc_ctx);
+          }
+        },
+        rpc_ctx);
+
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(msg), std::chrono::milliseconds(1000));
+    }
+
     void install_kv_service()
     {
       auto start = [this](
@@ -409,14 +468,6 @@ namespace externalexecutor
         {executor_auth_policy})
         .install();
 
-      struct DelayedStreamMsg
-      {
-        std::shared_ptr<ccf::RpcContext> rpc_ctx;
-        DelayedStreamMsg(const std::shared_ptr<ccf::RpcContext>& rpc_ctx_) :
-          rpc_ctx(rpc_ctx_)
-        {}
-      };
-
       auto stream = [this](
                       ccf::endpoints::EndpointContext& ctx,
                       google::protobuf::Empty&& payload) {
@@ -430,48 +481,11 @@ namespace externalexecutor
         // 3. Create stream object from rpc_ctx, and then
         // rpc_ctx->create_stream() (figure out ownership and lifetime)
 
-        std::vector<uint8_t> data(100, 100);
-        // ctx.rpc_ctx->stream(
-        //   std::move(data)); // TODO: Does not actually stream anything just
-        //                     // yet as we need to send response first
+        LOG_FAIL_FMT("Endpoint synchronous execution");
 
-        auto msg = std::make_unique<threading::Tmsg<DelayedStreamMsg>>(
-          [](std::unique_ptr<threading::Tmsg<DelayedStreamMsg>> msg) {
-            auto& rpc_ctx = msg->data.rpc_ctx;
+        async_send_stream_data(ctx.rpc_ctx);
 
-            ccf::KVKeyValue kv;
-            kv.set_key("lala");
-            kv.set_value("my_value");
-
-            const auto message_length = kv.ByteSizeLong();
-            size_t r_size =
-              ccf::grpc::impl::message_frame_length + message_length;
-            std::vector<uint8_t> data;
-            data.resize(r_size);
-            auto r_data = data.data();
-
-            ccf::grpc::impl::write_message_frame(
-              r_data, r_size, message_length);
-
-            if (!kv.SerializeToArray(r_data, r_size))
-            {
-              throw std::logic_error(fmt::format(
-                "Error serialising protobuf response of type {}, size {}",
-                kv.GetTypeName(),
-                message_length));
-            }
-
-            CCF_APP_FAIL("Stream some data: {}", data.size());
-
-            // TODO: There should be an option to close the stream too
-            rpc_ctx->stream(std::move(data));
-          },
-          ctx.rpc_ctx);
-
-        threading::ThreadMessaging::thread_messaging.add_task_after(
-          std::move(msg), std::chrono::milliseconds(5000));
-
-        ctx.rpc_ctx->set_is_streaming();
+        ctx.rpc_ctx->set_is_streaming(); // TODO: Add to wrapper
 
         return ccf::grpc::make_success();
       };

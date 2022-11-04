@@ -38,7 +38,8 @@ namespace http
   public:
     virtual ~AbstractClientStreamer() = default;
 
-    virtual void stream(std::vector<uint8_t>&& data, int32_t stream_id) = 0;
+    virtual void stream(
+      std::vector<uint8_t>&& data, int32_t stream_id, bool close) = 0;
   };
 
   class HttpRpcContext : public ccf::RpcContextImpl
@@ -302,9 +303,10 @@ namespace http
       return http_response.build_response();
     }
 
-    virtual void stream(std::vector<uint8_t>&& data) override
+    virtual void stream(
+      std::vector<uint8_t>&& data, bool close = false) override
     {
-      client_streamer->stream(std::move(data), stream_id);
+      client_streamer->stream(std::move(data), stream_id, close);
     }
   };
 

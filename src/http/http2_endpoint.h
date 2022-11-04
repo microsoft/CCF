@@ -128,10 +128,16 @@ namespace http
       send_raw(std::move(data));
     }
 
-    void stream(std::vector<uint8_t>&& data, int32_t stream_id) override
+    void stream(
+      std::vector<uint8_t>&& data, int32_t stream_id, bool close) override
     {
       LOG_FAIL_FMT("Streaming data: {}", data.size());
-      server_session.send_data(stream_id, std::move(data));
+      server_session.send_data(stream_id, std::move(data), close);
+      if (close)
+      {
+        // TODO: Add ability to close stream neatly
+        // server_session.close_stream(stream_id);
+      }
     }
 
     void handle_request(

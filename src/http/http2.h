@@ -43,17 +43,20 @@ namespace http2
     LOG_FAIL_FMT(
       "stream_data->next_is_closing: {}", stream_data->next_is_closing);
 
+    LOG_FAIL_FMT("to read: {}", to_read);
+
     // First time, for a unary stream, we return.
     // First time, for a non-unary stream, we defer.
     // Second time, for a non-unary stream, we return. TODO: What about if we
     // send more than once??
 
-    if (response_body.size() > 0)
+    if (to_read > 0)
     {
       // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
       memcpy(buf, response_body.data() + stream_data->current_offset, to_read);
       stream_data->current_offset += to_read;
     }
+
     if (stream_data->current_offset >= response_body.size())
     {
       if (stream_data->next_is_closing)
@@ -98,7 +101,7 @@ namespace http2
     }
     else
     {
-      stream_data->next_is_closing = true;
+      // stream_data->next_is_closing = true;
       return NGHTTP2_ERR_DEFERRED;
     }
   }
@@ -515,7 +518,7 @@ namespace http2
       LOG_FAIL_FMT("No longer unary!");
     }
 
-    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
+    void send_data(StreamId stream_id, std::vector<uint8_t>&& data, bool close)
     {
       LOG_TRACE_FMT("http2::send_data: stream {} - {}", stream_id, data.size());
 
@@ -527,6 +530,7 @@ namespace http2
       }
 
       stream_data->response_body = std::move(data);
+      stream_data->next_is_closing = close;
 
       nghttp2_data_provider prov;
       prov.read_callback = read_callback;
