@@ -71,6 +71,7 @@ namespace kv
      * The passed functor should have the signature
      * `bool(const K& k, const std::optional<V>& v)`.
      * The iteration order is undefined.
+     * A value of nullopt indicates that the key was deleted.
      * Return true to continue iteration, or return false from any invocation to
      * terminate the iteration at that point - the functor will not be invoked
      * again after it returns false.
