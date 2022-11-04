@@ -395,6 +395,44 @@ namespace externalexecutor
         {executor_auth_policy})
         .install();
 
+      auto get_all = [this](
+                       ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                       externalexecutor::protobuf::KVTable&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          std::vector<externalexecutor::protobuf::KVKeyValue>> {
+        // TODO: Rebase
+        if (!active_request.has_value())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called "
+            "after a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_request->tx->ro<Map>(payload.table());
+        std::vector<externalexecutor::protobuf::KVKeyValue> results;
+
+        handle->foreach([&results](const auto& k, const auto& v) {
+          externalexecutor::protobuf::KVKeyValue& result =
+            results.emplace_back();
+          result.set_key(k);
+          result.set_value(v);
+
+          return true;
+        });
+
+        return ccf::grpc::make_success(results);
+      };
+
+      make_read_only_endpoint(
+        "/externalexecutor.protobuf.KV/GetAll",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVTable,
+          std::vector<externalexecutor::protobuf::KVKeyValue>>(get_all),
+        {executor_auth_policy})
+        .install();
+
       auto kv_delete = [this](
                          ccf::endpoints::ReadOnlyEndpointContext& ctx,
                          externalexecutor::protobuf::KVKey&& payload)
@@ -423,20 +461,31 @@ namespace externalexecutor
         {executor_auth_policy})
         .install();
 
-      auto get_all = [this](
-                       ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                       externalexecutor::protobuf::KVTable&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<externalexecutor::protobuf::KVValue> {
-        return ccf::grpc::make_error(
-          GRPC_STATUS_UNIMPLEMENTED, "Unimplemented");
+      auto kv_clear = [this](
+                        ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                        externalexecutor::protobuf::KVTable&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        // TODO: Rebase on parallel executors
+        if (!active_request.has_value())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            "Not managing an active transaction - this should be called "
+            "after a successful call to StartTx and before EndTx");
+        }
+
+        auto handle = active_request->tx->wo<Map>(payload.table());
+        handle->clear();
+
+        return ccf::grpc::make_success();
       };
 
       make_read_only_endpoint(
-        "/externalexecutor.protobuf.KV/GetAll",
+        "/externalexecutor.protobuf.KV/Clear",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVTable,
-          externalexecutor::protobuf::KVValue>(get_all),
+          google::protobuf::Empty>(kv_clear),
         {executor_auth_policy})
         .install();
     }
