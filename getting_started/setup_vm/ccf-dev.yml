@@ -1,4 +1,6 @@
 - hosts: localhost
+  vars:
+    platform: "sgx"
   tasks:
     - import_role:
         name: intel
