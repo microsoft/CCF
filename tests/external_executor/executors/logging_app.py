@@ -41,7 +41,7 @@ class LoggingExecutor:
 
     def do_get(self, kv_stub, table, request, response):
         query_args = urllib.parse.parse_qs(request.query)
-        msg_id = query_args["id"][0]
+        msg_id = int(query_args["id"][0])
         result = kv_stub.Get(
             KV.KVKey(
                 table=table,
