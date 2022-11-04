@@ -4,8 +4,6 @@ on:
   release:
     types: [published]
 
-env:
-
 jobs:
   build_and_publish:
     name: "Build and publish containers for all platforms"
@@ -16,12 +14,12 @@ jobs:
 
       - name: Get release number from git tag (release) or latest (branch)
         run: |
-          echo "${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "version=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Fetch NPM Package from release
         run: |
-          wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.tag}}/microsoft-ccf-app-${{steps.tref.outputs.tag}}.tgz
+          wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.version}}/microsoft-ccf-app-${{steps.tref.outputs.version}}.tgz
 
       - name: Publish NPM Package to https://www.npmjs.com/package/@microsoft/ccf-app
         run: |

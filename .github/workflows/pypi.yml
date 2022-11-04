@@ -14,12 +14,12 @@ jobs:
 
       - name: Get release number from git tag (release) or latest (branch)
         run: |
-          echo "${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "version=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Fetch PyPi Package from release
         run: |
-          wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.tag}}/ccf-${{steps.tref.outputs.tag}}-py3-none-any.whl
+          wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.version}}/ccf-${{steps.tref.outputs.version}}-py3-none-any.whl
 
       - name: Publish PyPi Package to https://pypi.org/project/ccf/
         run: |
