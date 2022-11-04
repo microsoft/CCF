@@ -1,8 +1,9 @@
 name: "Build and Publish NPM package"
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - "manual_3.0.0_rc1_script_pkgs_release"
 
 jobs:
   build_and_publish:
@@ -14,7 +15,7 @@ jobs:
 
       - name: Get release number from git tag (release) or latest (branch)
         run: |
-          echo "version=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "version=3.0.0-rc1" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Fetch NPM Package from release
