@@ -125,6 +125,42 @@ class CCFPolyfill implements CCF {
   };
 
   crypto = {
+    sign(
+      algorithm: SigningAlgorithm,
+      key: string,
+      data: ArrayBuffer
+    ): ArrayBuffer {
+      let padding = undefined;
+      const privKey = jscrypto.createPrivateKey(key);
+      if (privKey.asymmetricKeyType == "rsa") {
+        if (algorithm.name === "RSASSA-PKCS1-v1_5") {
+          padding = jscrypto.constants.RSA_PKCS1_PADDING;
+        } else {
+          throw new Error("incompatible signing algorithm for given key type");
+        }
+      } else if (privKey.asymmetricKeyType == "ec") {
+        if (algorithm.name !== "ECDSA") {
+          throw new Error("incompatible signing algorithm for given key type");
+        }
+      } else if (privKey.asymmetricKeyType == "ed25519") {
+        if (algorithm.name !== "EdDSA") {
+          throw new Error("incompatible signing algorithm for given key type");
+        }
+      } else {
+        throw new Error("unrecognized signing algorithm");
+      }
+      if (algorithm.name === "EdDSA") {
+        return jscrypto.sign(null, new Uint8Array(data), privKey);
+      }
+      const hashAlg = (algorithm.hash as string).replace("-", "").toLowerCase();
+      const signer = jscrypto.createSign(hashAlg);
+      signer.update(new Uint8Array(data));
+      return signer.sign({
+        key: privKey,
+        dsaEncoding: "ieee-p1363",
+        padding: padding,
+      });
+    },
     verifySignature(
       algorithm: SigningAlgorithm,
       key: string,
@@ -143,10 +179,22 @@ class CCFPolyfill implements CCF {
         if (algorithm.name !== "ECDSA") {
           throw new Error("incompatible signing algorithm for given key type");
         }
+      } else if (pubKey.asymmetricKeyType == "ed25519") {
+        if (algorithm.name !== "EdDSA") {
+          throw new Error("incompatible signing algorithm for given key type");
+        }
       } else {
         throw new Error("unrecognized signing algorithm");
       }
-      const hashAlg = algorithm.hash.replace("-", "").toLowerCase();
+      if (algorithm.name === "EdDSA") {
+        return jscrypto.verify(
+          null,
+          new Uint8Array(data),
+          pubKey,
+          new Uint8Array(signature)
+        );
+      }
+      const hashAlg = (algorithm.hash as string).replace("-", "").toLowerCase();
       const verifier = jscrypto.createVerify(hashAlg);
       verifier.update(new Uint8Array(data));
       return verifier.verify(

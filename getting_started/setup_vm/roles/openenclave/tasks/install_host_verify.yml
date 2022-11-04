@@ -1,0 +1,7 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Install Open Enclave Host Verify
+  apt:
+    deb: "{{ oe_host_verify_deb }}"
+  become: true
