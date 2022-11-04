@@ -5,7 +5,7 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
-from executors.logging import LoggingExecutor
+from tests.external_executor.executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 
