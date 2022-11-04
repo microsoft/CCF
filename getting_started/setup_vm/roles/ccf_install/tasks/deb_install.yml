@@ -18,7 +18,7 @@
 
 - name: Copy cchost
   copy:
-    src: "/opt/ccf/bin/cchost"
+    src: "/opt/ccf_{{ platform }}/bin/cchost"
     dest: "/usr/bin/cchost"
     remote_src: true
     mode: a=rx
@@ -35,7 +35,7 @@
 
 - name: Copy JS generic (SGX)
   copy:
-    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.enclave.so.signed"
+    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.enclave.so.signed"
     dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.enclave.so.signed"
     remote_src: true
   become: true
@@ -43,7 +43,7 @@
 
 - name: Copy JS generic (Virtual)
   copy:
-    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.virtual.so"
+    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.virtual.so"
     dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
     remote_src: true
   become: true
@@ -51,7 +51,7 @@
 
 - name: Copy JS generic (SNP)
   copy:
-    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.virtual.so"
+    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.virtual.so"
     dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
     remote_src: true
   become: true
