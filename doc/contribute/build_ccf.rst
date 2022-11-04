@@ -73,7 +73,7 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 Build Older Versions of CCF
 ---------------------------
 
-Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`). To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image (now ``ccfmsrc.azurecr.io/ccf/ci/sgx``). The version tag of the ``cci-ci`` (now ``ccf/ci/sgx``) image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``).
+Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`). To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image (now ``ccfmsrc.azurecr.io/ccf/ci``). The version tag of the ``cci-ci`` (now ``ccf/ci``) image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``).
 
 .. code-block:: bash
 
@@ -81,7 +81,7 @@ Building older versions of CCF may require a different toolchain than the one us
     $ export LOCAL_CCF_CHECKOUT_PATH=/path/to/local/ccf/checkout
     $ cd $LOCAL_CCF_CHECKOUT_PATH
     $ git checkout ccf-1.0.15 # e.g. building CCF 1.0.15
-    $ docker run -ti --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v $LOCAL_CCF_CHECKOUT_PATH:/CCF ccfmsrc.azurecr.io/ccf/ci/sgx:$CCF_CI_IMAGE_TAG bash
+    $ docker run -ti --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v $LOCAL_CCF_CHECKOUT_PATH:/CCF ccfmsrc.azurecr.io/ccf/ci:$CCF_CI_IMAGE_TAG-sgx bash
     # container started, following lines are in container
      $ cd CCF/
      $ mkdir build_docker && cd build_docker
