@@ -41,7 +41,9 @@ namespace ccf
     forwarded_cmd_v2,
     forwarded_response_v2,
 
-    // TODO: Describe
+    // Includes session consistency information:
+    // - cmd contains view in which all session requests must execute
+    // - response contains bool indicating that session should be closed
     forwarded_cmd_v3,
     forwarded_response_v3
   };

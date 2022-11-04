@@ -308,7 +308,6 @@ namespace ccf
 
       // Before attempting to forward, make sure we're in the same View as we
       // previously thought we were.
-      // TODO: Remember that this is non-atomic with checking the primary below
       if (!check_session_consistency(ctx))
       {
         return;
