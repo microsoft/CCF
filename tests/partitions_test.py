@@ -628,7 +628,7 @@ def test_session_consistency(network, args):
                     raise AssertionError(
                         f"Session {client.description} survived unexpectedly"
                     )
-                except ConnectionResetError as e:
+                except ConnectionResetError:
                     LOG.info(f"Session {client.description} was terminated as expected")
 
         def wait_for_new_view(node, original_view, timeout_multiplier):
