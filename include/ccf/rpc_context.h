@@ -81,7 +81,7 @@ namespace ccf
     virtual std::shared_ptr<RpcStream> get_rpc_stream() = 0;
 
     virtual void stream(std::vector<uint8_t>&& data) = 0;
-    virtual void set_response_is_pending() = 0;
+    virtual void set_is_streaming() = 0;
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
     virtual const std::string& get_request_query() const = 0;

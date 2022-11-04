@@ -431,9 +431,9 @@ namespace externalexecutor
         // rpc_ctx->create_stream() (figure out ownership and lifetime)
 
         std::vector<uint8_t> data(100, 100);
-        ctx.rpc_ctx->stream(
-          std::move(data)); // TODO: Does not actually stream anything just
-                            // yet as we need to send response first
+        // ctx.rpc_ctx->stream(
+        //   std::move(data)); // TODO: Does not actually stream anything just
+        //                     // yet as we need to send response first
 
         auto msg = std::make_unique<threading::Tmsg<DelayedStreamMsg>>(
           [](std::unique_ptr<threading::Tmsg<DelayedStreamMsg>> msg) {
@@ -470,6 +470,8 @@ namespace externalexecutor
 
         threading::ThreadMessaging::thread_messaging.add_task_after(
           std::move(msg), std::chrono::milliseconds(5000));
+
+        ctx.rpc_ctx->set_is_streaming();
 
         return ccf::grpc::make_success();
       };

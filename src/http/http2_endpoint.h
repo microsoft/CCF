@@ -187,6 +187,12 @@ namespace http
 
         search.value()->process(rpc_ctx);
 
+        if (rpc_ctx->is_streaming)
+        {
+          // TODO: Add support for streaming before initial response is set!
+          server_session.set_no_unary(stream_id);
+        }
+
         if (rpc_ctx->response_is_pending)
         {
           // If the RPC is pending, hold the connection.

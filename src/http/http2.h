@@ -40,7 +40,8 @@ namespace http2
       std::min(response_body.size() - stream_data->current_offset, length);
     LOG_TRACE_FMT("http2::read_callback: {}", to_read);
 
-    LOG_FAIL_FMT("stream_data->is_last: {}", stream_data->is_last);
+    LOG_FAIL_FMT(
+      "stream_data->next_is_closing: {}", stream_data->next_is_closing);
 
     // First time, for a unary stream, we return.
     // First time, for a non-unary stream, we defer.
@@ -55,7 +56,7 @@ namespace http2
     }
     if (stream_data->current_offset >= response_body.size())
     {
-      if (stream_data->is_last)
+      if (stream_data->next_is_closing)
       {
         LOG_FAIL_FMT("Setting flag eof");
         *data_flags |= NGHTTP2_DATA_FLAG_EOF;
@@ -64,7 +65,7 @@ namespace http2
       response_body.clear();
     }
 
-    if (stream_data->is_last && !stream_data->trailers.empty())
+    if (stream_data->next_is_closing && !stream_data->trailers.empty())
     {
       LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
       std::vector<nghttp2_nv> trlrs;
@@ -83,7 +84,7 @@ namespace http2
       }
       else
       {
-        if (stream_data->is_last)
+        if (stream_data->next_is_closing)
         {
           LOG_FAIL_FMT("Setting flag end stream");
           *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
@@ -91,13 +92,13 @@ namespace http2
       }
     }
 
-    if (stream_data->is_last)
+    if (stream_data->next_is_closing)
     {
       return to_read;
     }
     else
     {
-      stream_data->is_last = true;
+      stream_data->next_is_closing = true;
       return NGHTTP2_ERR_DEFERRED;
     }
   }
@@ -498,6 +499,22 @@ namespace http2
       }
     }
 
+    void set_no_unary(StreamId stream_id)
+    {
+      LOG_TRACE_FMT("http2::set_no_unary: stream {}", stream_id);
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        LOG_FAIL_FMT("stream not found!");
+        return;
+      }
+
+      stream_data->is_unary = false;
+      stream_data->next_is_closing = false;
+      LOG_FAIL_FMT("No longer unary!");
+    }
+
     void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
     {
       LOG_TRACE_FMT("http2::send_data: stream {} - {}", stream_id, data.size());
@@ -509,22 +526,10 @@ namespace http2
         return;
       }
 
-      stream_data->is_unary = false;
-
       stream_data->response_body = std::move(data);
-      LOG_FAIL_FMT("No longer unary!");
 
       nghttp2_data_provider prov;
       prov.read_callback = read_callback;
-
-      static bool first_time = true;
-
-      if (first_time)
-      {
-        first_time = false;
-        stream_data->is_last = false;
-        return;
-      }
 
       int rv = nghttp2_session_resume_data(session, stream_id);
       LOG_FAIL_FMT("resume data: {}", rv);

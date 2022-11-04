@@ -33,7 +33,7 @@ namespace http2
     // Response
     std::vector<uint8_t> response_body;
     bool is_unary = true;
-    bool is_last = true;
+    bool next_is_closing = true;
 
     StreamData(StreamId id_) : id(id_) {}
   };
