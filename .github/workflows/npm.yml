@@ -19,10 +19,12 @@ jobs:
 
       - name: Fetch NPM Package from release
         run: |
+          cd js/ccf-app
           wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.version}}/microsoft-ccf-app-${{steps.tref.outputs.version}}.tgz
 
       - name: Publish NPM Package to https://www.npmjs.com/package/@microsoft/ccf-app
         run: |
           set -ex
+          cd js/ccf-app
           echo "//registry.npmjs.org/:_authToken=\${{ secrets.NPM_TOKEN }}" > .npmrc
           npm publish microsoft-ccf-app*.tgz --access public
