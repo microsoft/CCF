@@ -1,0 +1,43 @@
+- name: Include arrow vars
+  include_vars:
+    file: common.yml
+
+- name: Download arrow
+  get_url:
+    url: " https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-focal.deb"
+    dest: "{{ workspace }}/arrow.deb"
+  become: true
+
+- name: Install arrow
+  apt: deb="{{ workspace }}/arrow.deb"
+  become: true
+
+- name: Update after installing arrow
+  apt:
+    update_cache: yes
+  become: true
+
+- name: Instal libarrow-dev
+  apt:
+    name: libarrow-dev
+    state: present
+  become: true
+
+- name: Instal libparquet-dev
+  apt:
+    name: libparquet-dev
+    state: present
+  become: true
+
+- name: Add stdcxx APT repository
+  apt_repository:
+    repo: "ppa:ubuntu-toolchain-r/test"
+    state: present
+    update_cache: yes
+  become: true
+
+- name: Instal libstdcxx
+  apt:
+    name: libstdc++-11-dev
+    state: present
+  become: true
