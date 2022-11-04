@@ -33,6 +33,7 @@ import os
 import contextlib
 import random
 import time
+from collections import defaultdict
 
 from loguru import logger as LOG
 
@@ -91,8 +92,8 @@ def test_executor_registration(network, cert, args):
         return network
 
 
-@reqs.description("Store and retrieve key via external executor app")
-def test_put_get(network, credentials, args):
+@reqs.description("Test basic KV operations via external executor app")
+def test_kv(network, credentials, args):
     primary, _ = network.find_primary()
 
     LOG.info("Check that endpoint supports HTTP/2")
@@ -170,6 +171,37 @@ def test_put_get(network, credentials, args):
                 r = tx3.Get(KV.KVKeyValue(table=t, key=k))
                 assert r.HasField("optional")
                 assert r.optional.value == v
+
+            writes_by_table = defaultdict(dict)
+            for t, k, v in writes:
+                writes_by_table[t][k] = v
+
+            for t, table_writes in writes_by_table.items():
+                LOG.info(f"Read all in {t}")
+                r = tx3.GetAll(KV.KVTable(table=t))
+                count = 0
+                for result in r:
+                    count += 1
+                    assert result.key in table_writes
+                    assert table_writes[result.key] == result.value
+                assert count == len(table_writes)
+
+            LOG.info("Clear one table")
+            t, cleared_writes = writes_by_table.popitem()
+            tx3.Clear(KV.KVTable(table=t))
+            for k, _ in cleared_writes.items():
+                r = tx3.Has(KV.KVKey(table=t, key=k))
+                assert not r.present
+
+                r = tx3.Get(KV.KVKey(table=t, key=k))
+                assert not r.HasField("optional")
+
+                r = tx3.GetAll(KV.KVTable(table=t))
+                try:
+                    next(r)
+                    raise AssertionError("Expected unreachable")
+                except StopIteration:
+                    pass
 
     return network
 
@@ -275,7 +307,7 @@ def run(args):
             certificate_chain=cert.encode(),
         )
         network = test_executor_registration(network, cert, args)
-        network = test_put_get(network, credentials, args)
+        network = test_kv(network, credentials, args)
         network = test_simple_executor(network, credentials, args)
         network = test_streaming(network, args)
 
