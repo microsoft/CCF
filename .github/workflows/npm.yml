@@ -27,5 +27,5 @@ jobs:
         run: |
           set -ex
           cd js/ccf-app
-          echo "//registry.npmjs.org/:_authToken=\${{ secrets.NPM_TOKEN }}" > .npmrc
+          echo "https://registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
           npm publish microsoft-ccf-app*.tgz --access public
