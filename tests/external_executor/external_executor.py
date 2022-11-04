@@ -5,7 +5,8 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
-from executors.wiki_cacher import executor_thread, WikiCacherExecutor
+from executors.wiki_cacher import WikiCacherExecutor
+from executors.util import executor_thread
 
 # pylint: disable=import-error
 import kv_pb2 as KV
