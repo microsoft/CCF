@@ -33,7 +33,8 @@ namespace kv
       kv::Version v,
       kv::Term term,
       const MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks) = 0;
+      kv::ConsensusHookPtrs& hooks,
+      bool track_deletes_on_missing_keys) = 0;
   };
 
   class CFTExecutionWrapper : public AbstractExecutionWrapper
@@ -78,7 +79,7 @@ namespace kv
       return std::move(commit_evidence_digest);
     }
 
-    ApplyResult apply() override
+    ApplyResult apply(bool track_deletes_on_missing_keys) override
     {
       if (!store->fill_maps(
             data,
@@ -108,7 +109,13 @@ namespace kv
         }
       }
 
-      if (!store->commit_deserialised(changes, version, term, new_maps, hooks))
+      if (!store->commit_deserialised(
+            changes,
+            version,
+            term,
+            new_maps,
+            hooks,
+            track_deletes_on_missing_keys))
       {
         return ApplyResult::FAIL;
       }
