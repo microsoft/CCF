@@ -22,6 +22,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--storage-key",
+    help="The key for the CCF ACI mounted volume",
+    type=str,
+)
+
+parser.add_argument(
     "--deployment-name",
     help="The name of the ACI deployment, used for agent names and cleanup",
     type=str,
@@ -97,6 +103,12 @@ creation = resource_client.deployments.begin_create_or_update(
                                         "resources": {
                                             "requests": {"memoryInGB": 16, "cpu": 4}
                                         },
+                                        "volumeMounts": [
+                                            {
+                                            "name": "ccfacivolume",
+                                            "mountPath": "/aci/vol/"
+                                            }
+                                        ],
                                     },
                                 }
                             ],
@@ -110,6 +122,16 @@ creation = resource_client.deployments.begin_create_or_update(
                                 "type": "Public",
                             },
                             "osType": "Linux",
+                            "volumes": [
+                            {
+                                "name": "ccfacivolume",
+                                "azureFile": {
+                                    "shareName": "ccfacifileshare",
+                                    "storageAccountName": "ccfacistorage",
+                                    "storageAccountKey": args.storage_key,
+                                }
+                            }
+                            ]
                         },
                     } for i in range(args.count)
                 ],
