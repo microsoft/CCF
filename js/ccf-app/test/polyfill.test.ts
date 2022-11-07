@@ -413,27 +413,6 @@ describe("polyfill", function () {
       assert.isFalse(ccf.crypto.isValidX509CertBundle("garbage"));
     });
   });
-  describe("isValidX509CertChain", function (this) {
-    const supported = "X509Certificate" in crypto;
-    it("returns true for valid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pems = generateCertChain(3);
-      const chain = [pems[0], pems[1]].join("\n");
-      const trusted = pems[2];
-      assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-    it("returns false for invalid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pems = generateCertChain(3);
-      const chain = pems[0];
-      const trusted = pems[2];
-      assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-  });
   describe("pemToJwk", function () {
     it("EC", function () {
       // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
@@ -518,6 +497,27 @@ describe("polyfill", function () {
       foo.delete(key_buf);
       assert.isNotTrue(foo.has(key_buf));
       assert.equal(foo.get(key_buf), undefined);
+    });
+  });
+  describe("isValidX509CertChain", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for valid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = [pems[0], pems[1]].join("\n");
+      const trusted = pems[2];
+      assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
+    });
+    it("returns false for invalid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = pems[0];
+      const trusted = pems[2];
+      assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
     });
   });
 });
