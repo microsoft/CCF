@@ -102,7 +102,7 @@ jobs:
         parameters:
           target: SGX
           env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }}"
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
           suffix: "Release"
           artifact_name: "SGX_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
@@ -111,7 +111,7 @@ jobs:
       - template: common.yml
         parameters:
           target: SNPCC
-          env: ${{ parameters.env.SNPCC }}
+          env: ${{ parameters.env.Virtual }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.SNPCC.cmake_args }}"
           suffix: "Release"
           artifact_name: "SNPCC_Release"
@@ -133,7 +133,7 @@ jobs:
         parameters:
           target: SGX
           env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.unsafe.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
           suffix: "Unsafe"
           artifact_name: "SGX_Unsafe"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
