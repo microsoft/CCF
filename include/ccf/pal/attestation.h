@@ -197,6 +197,11 @@ namespace ccf::pal
         throw std::logic_error(
           "Chip certificate (VCEK) did not sign this attestation");
       }
+
+      if (quote.policy.debug == 1)
+      {
+        throw std::logic_error("Debugging should not be enabled");
+      }
     }
     else
     {
