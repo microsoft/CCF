@@ -294,6 +294,19 @@ export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
   qi: string;
 }
 
+export interface JsonWebKeyEdDSAPublic extends JsonWebKey {
+  // MYTODO: comment for params
+  crv: string;
+  x: string;
+}
+
+export interface JsonWebKeyEdDSAPrivate extends JsonWebKeyEdDSAPublic {
+  /**
+   * Private exponent. MYTODO: check if the comment is OK
+   */
+  d: string;
+}
+
 export interface CCFCrypto {
   /**
    * Generate a signature.
@@ -419,6 +432,26 @@ export interface CCFCrypto {
    * @param kid Key identifier (optional)
    */
   rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
+
+  /**
+   * Converts an EdDSA public key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem EdDSA public key as PEM
+   * @param kid Key identifier (optional)
+   * 
+   * MYTODO: any
+   */
+   pubEddsaPemToJwk(pem: string, kid?: string): any;
+
+   /**
+    * Converts an EdDSA private key as PEM to JSON Web Key (JWK) object.
+    *
+    * @param pem EdDSA private key as PEM
+    * @param kid Key identifier (optional)
+    * 
+    * MYTODO: any
+    */
+   eddsaPemToJwk(pem: string, kid?: string): any;
 }
 
 export interface CCFRpc {

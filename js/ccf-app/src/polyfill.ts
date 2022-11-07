@@ -432,6 +432,35 @@ class CCFPolyfill implements CCF {
         kid: kid,
       };
     },
+    pubEddsaPemToJwk(pem: string, kid?: string): any {
+      const key = jscrypto.createPublicKey({
+        key: pem,
+      });
+      const jwk = key.export({
+        format: "jwk",
+      });
+      return {
+        crv: jwk.crv as string,
+        x: jwk.x as string,
+        kty: jwk.kty as string,
+        kid: kid
+      }
+    },
+    eddsaPemToJwk(pem: string, kid?: string): any {
+      const key = jscrypto.createPrivateKey({
+        key: pem,
+      });
+      const jwk = key.export({
+        format: "jwk",
+      });
+      return {
+        crv: jwk.crv as string,
+        x: jwk.x as string,
+        d: jwk.d as string,
+        kty: jwk.kty as string,
+        kid: kid
+      }
+    },
   };
 
   strToBuf(s: string): ArrayBuffer {
