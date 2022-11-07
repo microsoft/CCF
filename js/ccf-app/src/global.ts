@@ -228,7 +228,7 @@ export interface SigningAlgorithm {
 }
 
 /**
- * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).
+ * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc7517).
  */
 export interface JsonWebKey {
   /**
