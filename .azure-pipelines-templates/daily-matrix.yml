@@ -64,4 +64,3 @@ jobs:
       suffix: "Unsafe"
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
-
