@@ -130,8 +130,17 @@ def get_major_version_from_branch_name(branch_name):
     )
 
 
+def get_debian_package_prefix_with_platform(tag_name, platform="sgx"):
+    tag_components = tag_name.split("-")
+    tag_components[0] += f"_{platform}"
+    return "-".join(tag_components)
+
+
 def get_debian_package_url_from_tag_name(tag_name):
-    return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
+    if get_version_from_tag_name(tag_name) >= Version("3.0.0-rc0"):
+        return f'{REMOTE_URL}/releases/download/{tag_name}/{get_debian_package_prefix_with_platform(tag_name).replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
+    else:
+        return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
 
 class GitEnv:
@@ -196,10 +205,11 @@ class Repository:
         return self._filter_released_tags(tags)[0]
 
     def get_tags_for_major_version(self, major_version=None):
+        major_version = 1
         version_re = f"{major_version}\\." if major_version else ""
         tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\\d+]+)(-rc.*|)$"
         tags = sorted(
-            (tag for tag in self.tags if re.match(tag_re, tag)),
+            (tag for tag in self.tags[:-1] if re.match(tag_re, tag)),
             key=get_version_from_tag_name,
             reverse=True,
         )
