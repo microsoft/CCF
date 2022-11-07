@@ -202,6 +202,11 @@ namespace ccf::pal
       {
         throw std::logic_error("Debugging should not be enabled");
       }
+
+      if (quote.policy.migrate_ma == 1)
+      {
+        throw std::logic_error("Migration agents should not be enabled");
+      }
     }
     else
     {
