@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#ifndef HANDLE_ARGUMENTS_H
-#define HANDLE_ARGUMENTS_H
+#pragma once
 
 #include "ccf/ds/logger.h"
 
@@ -24,7 +23,7 @@ public:
     "../tests/perf-system/submitter/cpp_respond.parquet";
   std::string generator_filepath =
     "../tests/perf-system/generator/requests.parquet";
-  bool isPipeline = false;
+  bool pipeline = false;
 
   ArgumentParser(
     const std::string& default_label,
@@ -80,10 +79,7 @@ public:
         generator_filepath,
         "Path to parquet file with the generated requests to be submitted.")
       ->capture_default_str();
-    app
-      .add_flag("--pipeline", isPipeline, "Enable HTTP/1.1 pipelining option.")
+    app.add_flag("--pipeline", pipeline, "Enable HTTP/1.1 pipelining option.")
       ->capture_default_str();
   }
 };
-
-#endif

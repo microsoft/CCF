@@ -753,8 +753,8 @@ endfunction()
 set(SUBMITTER_DIR ${CCF_DIR}/tests/perf-system/submitter)
 
 add_executable(
-  submit ${SUBMITTER_DIR}/submit.cpp ${SUBMITTER_DIR}/handle_arguments.hpp
-         ${SUBMITTER_DIR}/parquet_data.hpp
+  submit ${SUBMITTER_DIR}/submit.cpp ${SUBMITTER_DIR}/handle_arguments.h
+         ${SUBMITTER_DIR}/parquet_data.h
 )
 
 add_library(stdcxxhttp_parser.host "${HTTP_PARSER_SOURCES}")

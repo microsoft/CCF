@@ -7,8 +7,8 @@
 #include "clients/perf/perf_client.h"
 #include "clients/rpc_tls_client.h"
 #include "ds/files.h"
-#include "handle_arguments.hpp"
-#include "parquet_data.hpp"
+#include "handle_arguments.h"
+#include "parquet_data.h"
 
 #include <CLI11/CLI11.hpp>
 #include <arrow/array/array_binary.h>
@@ -24,7 +24,7 @@ crypto::Pem key = {};
 std::string key_id = "Invalid";
 std::shared_ptr<tls::Cert> tls_cert = nullptr;
 
-void readParquetFile(string generator_filepath, ParquetData& data_handler)
+void read_parquet_file(string generator_filepath, ParquetData& data_handler)
 {
   arrow::Status st;
   arrow::MemoryPool* pool = arrow::default_memory_pool();
@@ -70,12 +70,12 @@ void readParquetFile(string generator_filepath, ParquetData& data_handler)
       0)); // ASSIGN there is only one chunk with col->num_chunks();
   for (int row = 0; row < col1Vals->length(); row++)
   {
-    data_handler.IDS.push_back(col1Vals->GetString(row));
-    data_handler.REQUEST.push_back(col2Vals->GetString(row));
+    data_handler.ids.push_back(col1Vals->GetString(row));
+    data_handler.request.push_back(col2Vals->GetString(row));
   }
 }
 
-parquet::StreamWriter initParquetColumns(
+parquet::StreamWriter init_parquet_columns(
   std::string filepath,
   ParquetData& data_handler,
   std::vector<
@@ -144,7 +144,7 @@ std::shared_ptr<RpcTlsClient> create_connection(
   return conn;
 }
 
-void storeParquetResults(ArgumentParser args, ParquetData data_handler)
+void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 {
   LOG_INFO_FMT("Start storing results");
 
@@ -171,18 +171,19 @@ void storeParquetResults(ArgumentParser args, ParquetData data_handler)
         parquet::ConvertedType::UTF8)};
 
   // Write Send Parquet
-  auto os = initParquetColumns(args.send_filepath, data_handler, send_cols);
-  for (size_t i = 0; i < data_handler.SEND_TIME.size(); i++)
+  auto os = init_parquet_columns(args.send_filepath, data_handler, send_cols);
+  for (size_t i = 0; i < data_handler.send_time.size(); i++)
   {
-    os << to_string(i) << data_handler.SEND_TIME[i] << parquet::EndRow;
+    os << to_string(i) << data_handler.send_time[i] << parquet::EndRow;
   }
 
   // Write Response Parquet
-  os = initParquetColumns(args.response_filepath, data_handler, response_cols);
-  for (size_t i = 0; i < data_handler.RESPONSE_TIME.size(); i++)
+  os =
+    init_parquet_columns(args.response_filepath, data_handler, response_cols);
+  for (size_t i = 0; i < data_handler.response_time.size(); i++)
   {
-    os << to_string(i) << data_handler.RESPONSE_TIME[i]
-       << data_handler.RAW_RESPONSE[i] << parquet::EndRow;
+    os << to_string(i) << data_handler.response_time[i]
+       << data_handler.raw_response[i] << parquet::EndRow;
   }
 
   LOG_INFO_FMT("Finished storing results");
@@ -198,7 +199,7 @@ int main(int argc, char** argv)
   ParquetData data_handler;
   std::vector<string> certificates = {args.cert, args.key, args.rootCa};
 
-  readParquetFile(args.generator_filepath, data_handler);
+  read_parquet_file(args.generator_filepath, data_handler);
   std::string server_address = args.server_address;
 
   // Keep only the host and port removing any https:// characters
@@ -211,24 +212,24 @@ int main(int argc, char** argv)
 
   int max_block_write = 1000; // Threshold for maximum pending writes
 
-  auto requests_size = data_handler.IDS.size();
+  auto requests_size = data_handler.ids.size();
 
   std::vector<timeval> start(requests_size);
   std::vector<timeval> end(requests_size);
   std::vector<std::vector<uint8_t>> raw_reqs(requests_size);
 
   // Store responses until they are processed to be written in parquet
-  std::vector<std::vector<uint8_t>> resp_text(data_handler.IDS.size());
+  std::vector<std::vector<uint8_t>> resp_text(data_handler.ids.size());
   // Add raw requests straight as uint8_t inside a vector
   for (size_t req = 0; req < requests_size; req++)
   {
     raw_reqs[req] = std::vector<uint8_t>(
-      data_handler.REQUEST[req].begin(), data_handler.REQUEST[req].end());
+      data_handler.request[req].begin(), data_handler.request[req].end());
   }
 
   LOG_INFO_FMT("Start Request Submission");
 
-  if (!args.isPipeline)
+  if (!args.pipeline)
   {
     // Request by Request
     for (size_t req = 0; req < requests_size; req++)
@@ -271,13 +272,13 @@ int main(int argc, char** argv)
 
   for (size_t req = 0; req < requests_size; req++)
   {
-    data_handler.RAW_RESPONSE.push_back(
+    data_handler.raw_response.push_back(
       std::string(reinterpret_cast<char*>(resp_text[req].data())));
     double send_time = start[req].tv_sec + start[req].tv_usec / 1000000.0;
     double response_time = end[req].tv_sec + end[req].tv_usec / 1000000.0;
-    data_handler.SEND_TIME.push_back(send_time);
-    data_handler.RESPONSE_TIME.push_back(response_time);
+    data_handler.send_time.push_back(send_time);
+    data_handler.response_time.push_back(response_time);
   }
 
-  storeParquetResults(args, data_handler);
+  store_parquet_results(args, data_handler);
 }
