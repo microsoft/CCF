@@ -205,11 +205,10 @@ class Repository:
         return self._filter_released_tags(tags)[0]
 
     def get_tags_for_major_version(self, major_version=None):
-        major_version = 1
         version_re = f"{major_version}\\." if major_version else ""
         tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\\d+]+)(-rc.*|)$"
         tags = sorted(
-            (tag for tag in self.tags[:-1] if re.match(tag_re, tag)),
+            (tag for tag in self.tags if re.match(tag_re, tag)),
             key=get_version_from_tag_name,
             reverse=True,
         )
