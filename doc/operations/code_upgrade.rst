@@ -1,8 +1,6 @@
 Code Upgrade
 ============
 
-.. note:: Refer to :doc:`/operations/code_upgrade_1x` for specific guidelines on how to upgrade a 1.x CCF service to 2.0.
-
 This page describes how operators/members can upgrade a live CCF service to a new version with minimal downtime.
 
 Reasons for running the code upgrade procedure include:
@@ -34,7 +32,7 @@ Procedure
             Node2((Node 2))
         end
 
-1. First, operators/members should register the new code version corresponding to the new enclave measurement using the ``add_node_code`` proposal action (see :ref:`governance/common_member_operations:Updating Code Version`).
+1. First, operators/members should register the new code version corresponding to the new enclave measurement using platform specific proposal actions (see :ref:`governance/common_member_operations:Updating Code Version`).
 
 
 2. The set of new nodes running the enclave registered in the previous step should be added to the service (see :ref:`operations/start_network:Adding a New Node to the Network`) and trusted by members (see :ref:`governance/common_member_operations:Trusting a New Node`). Typically, the same number of nodes than were originally present should be added to the service. In this example, the service is now made of 6 nodes (``f = 2``).
@@ -179,7 +177,7 @@ Procedure
 - Members should be use the ``set_constitution`` proposal action to update the constitution scripts.
 - See :ref:`bundle deployment procedure <build_apps/js_app_bundle:Deployment>` to update the JavaScript/TypeScript application.
 
-6. Finally, once the code upgrade process has been successful, the old code version (i.e. the code version run by nodes 0, 1 and 2) can be removed using the ``remove_node_code`` proposal action.
+6. Finally, once the code upgrade process has been successful, the old code version (i.e. the code version run by nodes 0, 1 and 2) can be removed using the ``remove_node_code`` or ``remove_snp_host_data`` proposal actions.
 
 Notes
 -----

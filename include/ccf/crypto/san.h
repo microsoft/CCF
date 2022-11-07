@@ -27,11 +27,11 @@ namespace crypto
 
   static SubjectAltName san_from_string(const std::string& str)
   {
-    if (nonstd::starts_with(str, IP_ADDRESS_PREFIX))
+    if (str.starts_with(IP_ADDRESS_PREFIX))
     {
       return {str.substr(IP_ADDRESS_PREFIX.size()), true};
     }
-    else if (nonstd::starts_with(str, DNS_NAME_PREFIX))
+    else if (str.starts_with(DNS_NAME_PREFIX))
     {
       return {str.substr(DNS_NAME_PREFIX.size()), false};
     }

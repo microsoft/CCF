@@ -22,7 +22,9 @@ The pre-built container can be obtained from the ``mcr.microsoft.com/ccf/app/run
 
 .. code-block:: bash
 
-   $ docker pull mcr.microsoft.com/ccf/app/run:X.Y.Z-sgx
+    $ export VERSION="3.0.0"
+    $ export PLATFORM="sgx" # One of sgx, snp or virtual
+    $ docker pull mcr.microsoft.com/ccf/app/run:$VERSION-$PLATFORM
 
 The container does not contain any particular CCF enclave application, and may be helpful when deploying CCF nodes via docker, k8s, etc. It is up to the operator(s) to mount the appropriate CCF enclave application and start and manage the CCF node.
 

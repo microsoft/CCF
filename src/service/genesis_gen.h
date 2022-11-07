@@ -6,6 +6,7 @@
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/snp_measurements.h"
 #include "ccf/tx.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
@@ -414,10 +415,45 @@ namespace ccf
     void trust_node_code_id(
       const CodeDigest& node_code_id, const QuoteFormat& platform)
     {
-      auto codeid = tx.rw(tables.node_code_ids);
-      codeid->put(
-        node_code_id,
-        {.status = CodeStatus::ALLOWED_TO_JOIN, .platform = platform});
+      switch (platform)
+      {
+        // For now, record null code id for virtual platform in code id table
+        case QuoteFormat::insecure_virtual:
+        case QuoteFormat::oe_sgx_v1:
+        {
+          tx.rw<CodeIDs>(Tables::NODE_CODE_IDS)
+            ->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
+          break;
+        }
+        case QuoteFormat::amd_sev_snp_v1:
+        {
+          tx.rw<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+            ->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
+          break;
+        }
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Unexpected quote format {} when trusting node code id", platform));
+        }
+      }
+    }
+
+    void trust_node_host_data(
+      const std::optional<HostDataMetadata>& security_policy,
+      const HostData& host_data)
+    {
+      auto host_data_table = tx.rw(tables.host_data);
+      if (security_policy.has_value())
+      {
+        LOG_INFO_FMT("Trusting node with policy {}", security_policy.value());
+        host_data_table->put(host_data, security_policy.value());
+      }
+      else
+      {
+        LOG_INFO_FMT("Trusting node with unset policy");
+        host_data_table->put(host_data, pal::snp::NO_SECURITY_POLICY);
+      }
     }
 
     void init_configuration(const ServiceConfiguration& configuration)

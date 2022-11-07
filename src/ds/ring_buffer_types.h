@@ -10,6 +10,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -204,6 +205,20 @@ namespace ringbuffer
     using S = MessageSerializers<m>;
 
     return S::deserialize(data, size);
+  }
+
+  template <ringbuffer::Message m>
+  inline auto read_message(std::span<const uint8_t>& span)
+  {
+    using S = MessageSerializers<m>;
+
+    const uint8_t* data = span.data();
+    size_t size = span.size();
+    size_t original_size = size;
+
+    auto ret = S::deserialize(data, size);
+    span = span.subspan(original_size - size);
+    return ret;
   }
 
   template <ringbuffer::Message m, typename... Ts>

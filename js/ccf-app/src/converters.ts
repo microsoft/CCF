@@ -32,8 +32,33 @@ export interface DataConverter<T> {
   decode(arr: ArrayBuffer): T;
 }
 
+function checkBoolean(val: any) {
+  if (typeof val !== "boolean") {
+    throw new TypeError(`Value ${val} is not a boolean`);
+  }
+}
+
+function checkNumber(val: any) {
+  if (typeof val !== "number") {
+    throw new TypeError(`Value ${val} is not a number`);
+  }
+}
+
+function checkBigInt(val: any) {
+  if (typeof val !== "bigint") {
+    throw new TypeError(`Value ${val} is not a bigint`);
+  }
+}
+
+function checkString(val: any) {
+  if (typeof val !== "string") {
+    throw new TypeError(`Value ${val} is not a string`);
+  }
+}
+
 class BoolConverter implements DataConverter<boolean> {
   encode(val: boolean): ArrayBuffer {
+    checkBoolean(val);
     const buf = new ArrayBuffer(1);
     new DataView(buf).setUint8(0, val ? 1 : 0);
     return buf;
@@ -44,6 +69,7 @@ class BoolConverter implements DataConverter<boolean> {
 }
 class Int8Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     if (val < -128 || val > 127) {
       throw new RangeError("value is not within int8 range");
     }
@@ -57,6 +83,7 @@ class Int8Converter implements DataConverter<number> {
 }
 class Uint8Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     if (val < 0 || val > 255) {
       throw new RangeError("value is not within uint8 range");
     }
@@ -70,6 +97,7 @@ class Uint8Converter implements DataConverter<number> {
 }
 class Int16Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     if (val < -32768 || val > 32767) {
       throw new RangeError("value is not within int16 range");
     }
@@ -83,6 +111,7 @@ class Int16Converter implements DataConverter<number> {
 }
 class Uint16Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     if (val < 0 || val > 65535) {
       throw new RangeError("value is not within uint16 range");
     }
@@ -96,6 +125,7 @@ class Uint16Converter implements DataConverter<number> {
 }
 class Int32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     if (val < -2147483648 || val > 2147483647) {
       throw new RangeError("value is not within int32 range");
     }
@@ -109,6 +139,7 @@ class Int32Converter implements DataConverter<number> {
 }
 class Uint32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     if (val < 0 || val > 4294967295) {
       throw new RangeError("value is not within uint32 range");
     }
@@ -122,6 +153,7 @@ class Uint32Converter implements DataConverter<number> {
 }
 class Int64Converter implements DataConverter<bigint> {
   encode(val: bigint): ArrayBuffer {
+    checkBigInt(val);
     const buf = new ArrayBuffer(8);
     new DataView(buf).setBigInt64(0, val, true);
     return buf;
@@ -132,6 +164,7 @@ class Int64Converter implements DataConverter<bigint> {
 }
 class Uint64Converter implements DataConverter<bigint> {
   encode(val: bigint): ArrayBuffer {
+    checkBigInt(val);
     const buf = new ArrayBuffer(8);
     new DataView(buf).setBigUint64(0, val, true);
     return buf;
@@ -142,6 +175,7 @@ class Uint64Converter implements DataConverter<bigint> {
 }
 class Float32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     const buf = new ArrayBuffer(4);
     new DataView(buf).setFloat32(0, val, true);
     return buf;
@@ -152,6 +186,7 @@ class Float32Converter implements DataConverter<number> {
 }
 class Float64Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    checkNumber(val);
     const buf = new ArrayBuffer(8);
     new DataView(buf).setFloat64(0, val, true);
     return buf;
@@ -162,6 +197,7 @@ class Float64Converter implements DataConverter<number> {
 }
 class StringConverter implements DataConverter<string> {
   encode(val: string): ArrayBuffer {
+    checkString(val);
     return ccf.strToBuf(val);
   }
   decode(buf: ArrayBuffer): string {

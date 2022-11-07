@@ -27,28 +27,7 @@ Updating Code Version
 
 For new nodes to be able to join the network, the version of the code they run (as specified by ``enclave.file``) should be first trusted by the consortium of members.
 
-If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create an ``add_node_code`` proposal, specifying the new code version.
-
-.. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
-
-    .. code-block:: bash
-
-        $ /opt/openenclave/bin/oesign dump -e enclave_library
-        === Entry point:
-        name=_start
-        address=000000000097fa38
-
-        === SGX Enclave Properties:
-        product_id=1
-        security_version=1
-        debug=1
-        xfrm=0
-        num_heap_pages=50000
-        num_stack_pages=1024
-        num_tcs=8
-        mrenclave=3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9
-
-Once the proposal has been accepted, nodes running the new code are authorised to join the network. Nodes running older versions of the code can then be retired and stopped.
+The specifics of how to manage code updates depends on the :doc:`platform <../operations/platforms/index>` being run.
 
 .. note:: It is important to keep the code compatible with the previous version, since there will be a point in time in which the new code is running on at least one node, while the other version is running on a different node.
 

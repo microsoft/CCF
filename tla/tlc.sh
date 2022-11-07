@@ -3,7 +3,7 @@
 # Licensed under the Apache 2.0 License.
 # Original License below
 # Adapted from: https://github.com/pmer/tla-bin
-exec java -XX:+IgnoreUnrecognizedVMOptions -XX:+UseParallelGC -Xms2G -Xmx2G -cp tla2tools.jar tlc2.TLC "$@" -workers auto -deadlock
+exec java -XX:+IgnoreUnrecognizedVMOptions -XX:+UseParallelGC -Xms2G -Xmx2G -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -workers auto
 
 
 # Original License

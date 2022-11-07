@@ -11,6 +11,8 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/host_data.h"
+#include "ccf/service/tables/snp_measurements.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
 
@@ -156,9 +158,9 @@ namespace ccf
 
       auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
       codes_ids->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
           auto digest = ds::to_hex(cd.data);
-          out.versions.push_back({digest, info.status, info.platform});
+          out.versions.push_back({digest, status});
           return true;
         });
 
@@ -167,6 +169,59 @@ namespace ccf
     make_read_only_endpoint(
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
+      .install();
+
+    auto get_trusted_snp_measurements = [](auto& ctx, nlohmann::json&&) {
+      GetCode::Out out;
+
+      auto measurements =
+        ctx.tx.template ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS);
+      measurements->foreach(
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
+          auto digest = ds::to_hex(cd.data);
+          out.versions.push_back({digest, status});
+          return true;
+        });
+
+      return make_success(out);
+    };
+    make_read_only_endpoint(
+      "/snp/measurements",
+      HTTP_GET,
+      json_read_only_adapter(get_trusted_snp_measurements),
+      no_auth_required)
+      .set_auto_schema<void, GetCode::Out>()
+      .install();
+
+    auto get_host_data = [](auto& ctx, nlohmann::json&&) {
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+      std::string error_string; // Ignored - params are optional
+      const auto key = http::get_query_value_opt<std::string>(
+        parsed_query, "key", error_string);
+
+      GetSnpHostDataMap::Out out;
+
+      auto host_data = ctx.tx.template ro<SnpHostDataMap>(Tables::HOST_DATA);
+      host_data->foreach(
+        [key, &out](
+          const HostData& host_data, const HostDataMetadata& security_policy) {
+          auto host_data_str = host_data.hex_str();
+          if (!key.has_value() || key.value() == host_data_str)
+            out.host_data.push_back({host_data_str, security_policy});
+          return true;
+        });
+
+      return make_success(out);
+    };
+    make_read_only_endpoint(
+      "/snp/host_data",
+      HTTP_GET,
+      json_read_only_adapter(get_host_data),
+      no_auth_required)
+      .set_auto_schema<void, GetSnpHostDataMap::Out>()
+      .add_query_parameter<std::string>(
+        "key", ccf::endpoints::OptionalParameter)
       .install();
 
     auto openapi = [this](auto& ctx, nlohmann::json&&) {

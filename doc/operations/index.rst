@@ -40,13 +40,6 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
-    :fa:`sync-alt` :doc:`code_upgrade_1x`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Specific guidelines to upgrade a service from CCF 1.x to 2.0.
-
-    ---
-
     :fa:`stamp` :doc:`certificates`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -65,6 +58,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Configure a network to deploy a CCF service.
+
+    ---
+
+    :fa:`laptop-code` :doc:`platforms/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Platforms supported by CCF.
 
     ---
 
@@ -95,11 +95,11 @@ This section describes how :term:`Operators` manage the different nodes constitu
     configuration
     ledger_snapshot
     code_upgrade
-    code_upgrade_1x
     certificates
     recovery
     data_persistence
     network
+    platforms/index
     troubleshooting
     resource_usage
     operator_rpc_api

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/service/map.h"
 
 #include <array>
 #include <span>
@@ -74,3 +75,23 @@ struct formatter<crypto::Sha256Hash>
   }
 };
 FMT_END_NAMESPACE
+
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<crypto::Sha256Hash>
+  {
+    static SerialisedEntry to_serialised(const crypto::Sha256Hash& h)
+    {
+      auto hex_str = h.hex_str();
+      return SerialisedEntry(hex_str.begin(), hex_str.end());
+    }
+
+    static crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
+    {
+      auto data_str = std::string{data.begin(), data.end()};
+      crypto::Sha256Hash ret;
+      return ret.from_hex_string(data_str);
+    }
+  };
+}

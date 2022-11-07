@@ -9,14 +9,14 @@
 #include <dlfcn.h>
 #include <filesystem>
 
-#ifdef CCHOST_SUPPORTS_SGX
+#ifdef PLATFORM_SGX
 #  include <ccf_u.h>
 #  include <openenclave/bits/result.h>
 #  include <openenclave/host.h>
 #  include <openenclave/trace.h>
 #endif
 
-#ifdef CCHOST_SUPPORTS_VIRTUAL
+#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
 // Include order matters. virtual_enclave.h uses the OE definitions if
 // available, else creates its own stubs
 #  include "enclave/virtual_enclave.h"
@@ -24,7 +24,7 @@
 
 extern "C"
 {
-#ifdef CCHOST_SUPPORTS_SGX
+#ifdef PLATFORM_SGX
   void nop_oe_logger(
     void* context,
     bool is_enclave,
@@ -44,7 +44,7 @@ namespace host
     char const* expected_suffix,
     host::EnclaveType type)
   {
-    if (!nonstd::ends_with(file, expected_suffix))
+    if (!file.ends_with(expected_suffix))
     {
       // Remove possible suffixes to try and get root of filename, to build
       // suggested filename
@@ -52,7 +52,7 @@ namespace host
       for (const char* suffix :
            {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
       {
-        if (nonstd::ends_with(basename, suffix))
+        if (basename.ends_with(suffix))
         {
           basename = basename.substr(0, basename.size() - strlen(suffix));
         }
@@ -76,10 +76,10 @@ namespace host
   class Enclave
   {
   private:
-#ifdef CCHOST_SUPPORTS_SGX
+#ifdef PLATFORM_SGX
     oe_enclave_t* sgx_handle = nullptr;
 #endif
-#ifdef CCHOST_SUPPORTS_VIRTUAL
+#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
     void* virtual_handle = nullptr;
 #endif
 
@@ -104,7 +104,7 @@ namespace host
         case host::EnclaveType::SGX_RELEASE:
         case host::EnclaveType::SGX_DEBUG:
         {
-#ifdef CCHOST_SUPPORTS_SGX
+#ifdef PLATFORM_SGX
           uint32_t oe_flags = 0;
           if (type == host::EnclaveType::SGX_DEBUG)
           {
@@ -136,19 +136,19 @@ namespace host
 #else
           throw std::logic_error(
             "SGX enclaves are not supported in current build");
-#endif // CCHOST_SUPPORTS_SGX
+#endif // PLATFORM_SGX
           break;
         }
 
         case host::EnclaveType::VIRTUAL:
         {
-#ifdef CCHOST_SUPPORTS_VIRTUAL
+#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
           expect_enclave_file_suffix(path, ".virtual.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
           throw std::logic_error(
             "Virtual enclaves not supported in current build");
-#endif // CCHOST_SUPPORTS_VIRTUAL
+#endif // defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
           break;
         }
 
@@ -208,13 +208,13 @@ namespace host
 
 // Assume that constructor correctly set the appropriate field, and call
 // appropriate function
-#ifdef CCHOST_SUPPORTS_VIRTUAL
+#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
       if (virtual_handle != nullptr)
       {
         err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
       }
 #endif
-#ifdef CCHOST_SUPPORTS_SGX
+#ifdef PLATFORM_SGX
       if (sgx_handle != nullptr)
       {
         err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
@@ -257,13 +257,13 @@ namespace host
       bool ret = true;
       oe_result_t err = OE_FAILURE;
 
-#ifdef CCHOST_SUPPORTS_VIRTUAL
+#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
       if (virtual_handle != nullptr)
       {
         err = virtual_run(virtual_handle, &ret);
       }
 #endif
-#ifdef CCHOST_SUPPORTS_SGX
+#ifdef PLATFORM_SGX
       if (sgx_handle != nullptr)
       {
         err = enclave_run(sgx_handle, &ret);

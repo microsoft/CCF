@@ -4,9 +4,10 @@
 # Original License below
 # Adapted from: https://github.com/pmer/tla-bin
 #
-# Downloads the TLA+ binary image (tla2tools.jar) from the Microsoft Research
-# servers. If the file already exists locally, checks for an update & prints a
+# Downloads the TLA+ binary image (tla2tools.jar).
+# If the file already exists locally, checks for an update & prints a
 # message if one was found.
+# Also downloads the TLA+ community modules (CommunityModules-deps.jar).
 #
 
 download() {
@@ -20,7 +21,7 @@ download() {
 download_curl() {
 	local if_modified
 
-	if [ -e tla2tools.jar ]; then 
+	if [ -e tla2tools.jar ]; then
 		if_modified=(-z tla2tools.jar)
 	fi
 
@@ -37,9 +38,9 @@ print_version() {
 }
 
 main() {
-	echo "Downloading tla2tools.jar..."
+	echo "Downloading tla2tools.jar (nightly release)..."
 	before=$(date -r tla2tools.jar 2>/dev/null)
-	download https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar
+	download https://nightly.tlapl.us/dist/tla2tools.jar
 	after=$(date -r tla2tools.jar 2>/dev/null)
 
 	if [ ! -e tla2tools.jar ]; then
@@ -58,6 +59,9 @@ main() {
 	else
 		echo "No updates"
 	fi
+
+	echo "Downloading CommunityModules-deps.jar..."
+	download https://github.com/tlaplus/CommunityModules/releases/latest/download/CommunityModules-deps.jar
 }
 
 main

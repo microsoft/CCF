@@ -40,6 +40,8 @@ namespace ccf
       caller_cert(caller_cert_),
       interface_id(interface_id_)
     {}
+
+    virtual ~SessionContext() = default;
   };
 
   using PathParams = std::map<std::string, std::string, std::less<>>;
@@ -80,7 +82,7 @@ namespace ccf
     // Get RPC stream to send data to client asynchronously
     virtual std::shared_ptr<RpcStream> get_rpc_stream() = 0;
 
-    virtual void stream(std::vector<uint8_t>&& data, bool close = false) = 0;
+    // virtual void stream(std::vector<uint8_t>&& data, bool close = false) = 0;
     virtual void set_is_streaming() = 0;
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;

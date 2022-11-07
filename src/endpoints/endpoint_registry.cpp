@@ -31,7 +31,8 @@ namespace ccf::endpoints
       // informed schema builders
 
       auto& path_op = ds::openapi::path_operation(
-        ds::openapi::path(document, endpoint->api_uri_path), http_verb.value());
+        ds::openapi::path(document, endpoint->full_uri_path),
+        http_verb.value());
 
       // Path Operation must contain at least one response - if none has been
       // defined, assume this can return 200
@@ -144,7 +145,7 @@ namespace ccf::endpoints
     const AuthnPolicies& ap)
   {
     Endpoint endpoint;
-    if (nonstd::starts_with(method, "/"))
+    if (method.starts_with("/"))
     {
       endpoint.dispatch.uri_path = method;
     }
@@ -154,12 +155,6 @@ namespace ccf::endpoints
     }
     endpoint.full_uri_path =
       fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
-    endpoint.api_uri_path = endpoint.full_uri_path;
-
-    if (method_prefix == "app")
-    {
-      endpoint.api_uri_path = endpoint.dispatch.uri_path;
-    }
 
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
@@ -340,7 +335,7 @@ namespace ccf::endpoints
           parameter["required"] = true;
           parameter["schema"] = {{"type", "string"}};
           ds::openapi::add_path_parameter_schema(
-            document, endpoint->api_uri_path, parameter);
+            document, endpoint->full_uri_path, parameter);
         }
       }
     }

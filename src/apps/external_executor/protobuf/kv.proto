@@ -3,7 +3,7 @@ syntax = "proto3";
 import "google/protobuf/empty.proto";
 import "http.proto";
 
-package ccf;
+package externalexecutor.protobuf;
 
 option optimize_for = LITE_RUNTIME;
 
@@ -80,7 +80,7 @@ message OptionalKVVersion { KVVersion optional = 1; }
 
 message ResponseDescription
 {
-  HttpStatusCode status_code = 1;
+  ccf.protobuf.HttpStatusCode status_code = 1;
   repeated Header headers = 2;
   bytes body = 3;
   // Should be exactly 32 bytes

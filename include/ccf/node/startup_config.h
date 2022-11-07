@@ -8,6 +8,7 @@
 #include "ccf/service/consensus_config.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/service_config.h"
+#include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 
 #include <optional>
@@ -70,6 +71,8 @@ struct StartupConfig : CCFConfig
   nlohmann::json service_data = nullptr;
 
   nlohmann::json node_data = nullptr;
+
+  std::optional<HostDataMetadata> security_policy;
 
   struct Start
   {

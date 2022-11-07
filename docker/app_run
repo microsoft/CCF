@@ -1,33 +1,34 @@
 # Application Runtime image
-# Contains the cchost binary and its runtime dependencies
+# Contains the cchost binary and its runtime dependencies for target platform
 
-FROM ubuntu:20.04
+ARG platform=sgx
 
-ARG extra_vars
+# SGX
+FROM ubuntu:20.04 AS base-sgx
+
+WORKDIR /
+COPY ./docker/sgx_deps_pin.sh /
+RUN ./sgx_deps_pin.sh && rm ./sgx_deps_pin.sh
+
+# SNP
+FROM ubuntu:20.04 AS base-snp
+
+# Virtual
+FROM ubuntu:20.04 AS base-virtual
+
+# Final runtime image
+FROM base-${platform} AS final
+
+ARG platform=sgx
+ARG ansible_vars
 
 RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 
-# Work-around for https://github.com/intel/linux-sgx/issues/395
-RUN mkdir -p /etc/init
-
-ENV UBUNTU=focal
-ENV PSW_VERSION=2.17.100
-RUN if [ -z "$PSW_VERSION" ]; then echo "Please set PSW_VERSION (e.g. 2.11)." >&2; exit 1; fi
-
-RUN apt-get update && apt-get install -y wget gnupg
-
-# Use the APT preference file to pin sgx packages to specific versions
-# Reference https://manpages.debian.org/buster/apt/apt_preferences.5.en.html
-# Download the pref file from https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files/
-# Assuming file name to follow *sgx_<PSW_VERSION>_${UBUNTU}_custom_version.cfg convention
-RUN ["/bin/bash", "-c", "wget -r -l1 --no-parent -nd -A *sgx_$(echo ${PSW_VERSION//./_})_${UBUNTU}_custom_version.cfg https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files/"]
-RUN ["/bin/bash", "-c", "mv *sgx_$(echo ${PSW_VERSION//./_})_${UBUNTU}_custom_version.cfg /etc/apt/preferences.d/intel-sgx.pref"]
-
-COPY getting_started/setup_vm/ /setup_vm/
+COPY getting_started/setup_vm/ /tmp/setup_vm/
 RUN apt update \
     && apt install -y ansible software-properties-common curl bsdmainutils dnsutils \
-    && cd setup_vm \
-    && ansible-playbook app-run.yml $extra_vars \
+    && cd /tmp/setup_vm \
+    && ansible-playbook app-run.yml --extra-vars "$ansible_vars" --extra-vars "platform=${platform}" \
     && rm -rf /tmp/* \
     && apt remove -y ansible software-properties-common curl \
     && apt -y autoremove \

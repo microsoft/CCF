@@ -29,7 +29,7 @@ These dependencies can be conveniently installed using the ``ansible`` playbooks
 Install
 -------
 
-CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases/latest>`_. The documentation you are currently reading describes the `main` branch and behaviour available in the 2.x release candidates.
+CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
 
 The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
@@ -77,10 +77,10 @@ To remove an installation of CCF, run:
 
     $ sudo apt remove ccf
 
-Unsafe packages
+Unsafe Packages
 ---------------
 
-Separate packages with extremely verbose logging are provided for troubleshooting purposes. Their version always end in ``unsafe`` to make them easily distinguishable.
+Separate packages (``ccf_unsafe_<version>_amd64.deb``) with extremely verbose logging are provided for troubleshooting purposes. Their version always end in ``unsafe`` to make them easily distinguishable.
 
 The extent of the logging in these packages mean that they cannot be relied upon to offer confidentiality and integrity guarantees. They should never be used for production purposes.
 

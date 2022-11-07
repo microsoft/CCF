@@ -204,49 +204,119 @@ export type WrapAlgoParams = RsaOaepParams | AesKwpParams | RsaOaepAesKwpParams;
 
 export interface CryptoKeyPair {
   /**
-   * RSA private key in PEM encoding.
+   * Private key in PEM encoding.
    */
   privateKey: string;
 
   /**
-   * RSA public key in PEM encoding.
+   * Public key in PEM encoding.
    */
   publicKey: string;
 }
 
-/**
- * RSASSA-PKCS1-v1_5 signature algorithm parameters.
- */
-export interface RsaPkcsParams {
-  name: "RSASSA-PKCS1-v1_5";
-  hash: DigestAlgorithm;
-}
-
-/**
- * ECDSA signature algorithm parameters.
- *
- * Note: ECDSA signatures are assumed to be encoded according
- * to the Web Crypto API specification, which is the same
- * format used in JSON Web Tokens and more generally known
- * as IEEE P1363 encoding.
- */
-export interface EcdsaParams {
-  name: "ECDSA";
-  hash: DigestAlgorithm;
-}
-
-export type SigningAlgorithm = RsaPkcsParams | EcdsaParams;
+export type AlgorithmName = "RSASSA-PKCS1-v1_5" | "ECDSA" | "EdDSA";
 
 export type DigestAlgorithm = "SHA-256";
 
+export interface SigningAlgorithm {
+  name: AlgorithmName;
+
+  /**
+   * Digest algorithm. It's necessary for "RSASSA-PKCS1-v1_5" and "ECDSA"
+   */
+  hash?: DigestAlgorithm;
+}
+
+/**
+ * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).
+ */
+export interface JsonWebKey {
+  /**
+   * Key type.
+   */
+  kty: string;
+
+  /**
+   * Key ID.
+   */
+  kid?: string;
+}
+
+export interface JsonWebKeyECPublic extends JsonWebKey {
+  /**
+   * Elliptic curve identifier.
+   */
+  crv: string;
+
+  /**
+   * Base64url-encoded x coordinate.
+   */
+  x: string;
+
+  /**
+   * Base64url-encoded y coordinate.
+   */
+  y: string;
+}
+
+export interface JsonWebKeyECPrivate extends JsonWebKeyECPublic {
+  /**
+   * Base64url-encoded d coordinate.
+   */
+  d: string;
+}
+
+export interface JsonWebKeyRSAPublic extends JsonWebKey {
+  /**
+   * Base64url-encoded modulus.
+   */
+  n: string;
+
+  /**
+   * Base64url-encoded exponent.
+   */
+  e: string;
+}
+
+export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
+  /**
+   * Private exponent.
+   */
+  d: string;
+
+  /**
+   * Additional exponents.
+   */
+  p: string;
+  q: string;
+  dp: string;
+  dq: string;
+  qi: string;
+}
+
 export interface CCFCrypto {
+  /**
+   * Generate a signature.
+   *
+   * @param algorithm Signing algorithm and parameters
+   * @param key A PEM-encoded private key
+   * @param plaintext Input data that will be signed
+   * @throws Will throw an error if the key is not compatible with the
+   *  signing algorithm or if an unknown algorithm is used.
+   */
+  sign(
+    algorithm: SigningAlgorithm,
+    key: string,
+    plaintext: ArrayBuffer
+  ): ArrayBuffer;
+
   /**
    * Returns whether digital signature is valid.
    *
    * @param algorithm Signing algorithm and parameters
    * @param key A PEM-encoded public key or X.509 certificate
    * @param signature Signature to verify
-   * @param data Data that was signed
+   * @param plaintext Input data that was signed
    * @throws Will throw an error if the key is not compatible with the
    *  signing algorithm or if an unknown algorithm is used.
    */
@@ -254,8 +324,101 @@ export interface CCFCrypto {
     algorithm: SigningAlgorithm,
     key: string,
     signature: ArrayBuffer,
-    data: ArrayBuffer
+    plaintext: ArrayBuffer
   ): boolean;
+
+  /**
+   * Generate an AES key.
+   *
+   * @param size The length in bits of the key to generate. 128, 192, or 256.
+   */
+  generateAesKey(size: number): ArrayBuffer;
+
+  /**
+   * Generate an RSA key pair.
+   *
+   * @param size The length in bits of the RSA modulus. Minimum: 2048.
+   * @param exponent The public exponent. Default: 65537.
+   */
+  generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
+
+  /**
+   * Generate an ECDSA key pair.
+   *
+   * @param curve The name of the curve, one of "secp256r1", "secp256k1", "secp384r1".
+   */
+  generateEcdsaKeyPair(curve: string): CryptoKeyPair;
+
+  /**
+   * Generate an EdDSA key pair.
+   *
+   * @param curve The name of the curve. Currently only "curve25519" is supported.
+   */
+  generateEddsaKeyPair(curve: string): CryptoKeyPair;
+
+  /**
+   * Wraps a key using a wrapping key.
+   *
+   * Constraints on the `key` and `wrappingKey` parameters depend
+   * on the wrapping algorithm that is used (`wrapAlgo`).
+   */
+  wrapKey(
+    key: ArrayBuffer,
+    wrappingKey: ArrayBuffer,
+    wrapAlgo: WrapAlgoParams
+  ): ArrayBuffer;
+
+  /**
+   * Generate a digest (hash) of the given data.
+   */
+  digest(algorithm: DigestAlgorithm, plaintext: ArrayBuffer): ArrayBuffer;
+
+  /**
+   * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
+   *
+   * A bundle consists of one or more certificates.
+   * Certificates in the bundle do not have to be related to each other.
+   * Validation is only syntactical, properties like validity dates are not evaluated.
+   */
+  isValidX509CertBundle(pem: string): boolean;
+
+  /**
+   * Returns whether a certificate chain is valid given a set of trusted certificates.
+   * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
+   */
+  isValidX509CertChain(chain: string, trusted: string): boolean;
+
+  /**
+   * Converts an elliptic curve public key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem Elliptic curve public key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic;
+
+  /**
+   * Converts an elliptic curve private key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem Elliptic curve private key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate;
+
+  /**
+   * Converts an RSA public key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem RSA public key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic;
+
+  /**
+   * Converts an RSA private key as PEM to JSON Web Key (JWK) object.
+   *
+   * @param pem RSA private key as PEM
+   * @param kid Key identifier (optional)
+   */
+  rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
 }
 
 export interface CCFRpc {
@@ -377,32 +540,26 @@ export interface CCF {
   bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T;
 
   /**
-   * Generate an AES key.
-   *
-   * @param size The length in bits of the key to generate. 128, 192, or 256.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateAesKey
    */
   generateAesKey(size: number): ArrayBuffer;
 
   /**
-   * Generate an RSA key pair.
-   *
-   * @param size The length in bits of the RSA modulus. Minimum: 2048.
-   * @param exponent The public exponent. Default: 65537.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateRsaKeyPair
    */
   generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
 
   /**
-   * Generate an ECDSA key pair.
-   *
-   * @param curve The name of the curve, one of "secp256r1", "secp384r1".
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.generateEcdsaKeyPair
    */
   generateEcdsaKeyPair(curve: string): CryptoKeyPair;
 
   /**
-   * Wraps a key using a wrapping key.
-   *
-   * Constraints on the `key` and `wrappingKey` parameters depend
-   * on the wrapping algorithm that is used (`wrapAlgo`).
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.wrapKey
    */
   wrapKey(
     key: ArrayBuffer,
@@ -411,22 +568,20 @@ export interface CCF {
   ): ArrayBuffer;
 
   /**
-   * Generate a digest (hash) of the given data.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.digest
    */
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
   /**
-   * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
-   *
-   * A bundle consists of one or more certificates.
-   * Certificates in the bundle do not have to be related to each other.
-   * Validation is only syntactical, properties like validity dates are not evaluated.
+   * @deprecated
+   * @see crypto.isValidX509CertBundle
    */
   isValidX509CertBundle(pem: string): boolean;
 
   /**
-   * Returns whether a certificate chain is valid given a set of trusted certificates.
-   * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
+   * @deprecated This method has been moved to ccf.crypto namespace
+   * @see crypto.isValidX509CertChain
    */
   isValidX509CertChain(chain: string, trusted: string): boolean;
 

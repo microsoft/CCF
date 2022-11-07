@@ -75,7 +75,11 @@ namespace ccf
     node_info_network,
     create_txid)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CreateNetworkNodeToNode::In, genesis_info, node_data, service_data)
+    CreateNetworkNodeToNode::In,
+    genesis_info,
+    node_data,
+    service_data,
+    security_policy)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)
@@ -112,11 +116,15 @@ namespace ccf
   DECLARE_JSON_TYPE(VerifyReceipt::Out)
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::Out, valid)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCode::Version)
+  DECLARE_JSON_TYPE(GetCode::Version)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Version, digest, status)
-  DECLARE_JSON_OPTIONAL_FIELDS(GetCode::Version, platform)
   DECLARE_JSON_TYPE(GetCode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
+
+  DECLARE_JSON_TYPE(GetSnpHostDataMap::HostData)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSnpHostDataMap::HostData, raw, metadata)
+  DECLARE_JSON_TYPE(GetSnpHostDataMap::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetSnpHostDataMap::Out, host_data)
 
   DECLARE_JSON_TYPE(GetRecoveryShare::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetRecoveryShare::Out, encrypted_share)

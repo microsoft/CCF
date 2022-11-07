@@ -14,9 +14,12 @@
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
+#include "http/http2_session.h"
 #include "http/http_builder.h"
+#include "http/http_responder.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
+#include "node/rpc/rpc_context_impl.h"
 #include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
@@ -36,11 +39,49 @@ namespace externalexecutor
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
-    // Note: As a temporary solution for testing, this app stores a single Tx,
-    // stolen from a StartTx RPC rather than a real client request
-    std::unique_ptr<kv::CommittableTx> active_tx = nullptr;
+    struct PendingRequest
+    {
+      std::unique_ptr<kv::CommittableTx> tx = nullptr;
+      externalexecutor::protobuf::RequestDescription request_description;
+      std::shared_ptr<http::HTTPResponder> http_responder;
+    };
+    using PendingRequestPtr = std::shared_ptr<PendingRequest>;
 
-    std::queue<ccf::RequestDescription> pending_requests;
+    std::queue<PendingRequestPtr> pending_requests;
+
+    std::shared_ptr<http::AbstractResponderLookup> responder_lookup = nullptr;
+
+    const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
+      GRPC_STATUS_FAILED_PRECONDITION,
+      "Not managing an active transaction - this should be called after a "
+      "successful call to StartTx and before EndTx");
+
+    std::unordered_map<ExecutorId, PendingRequestPtr> active_requests;
+
+    ExecutorId get_caller_executor_id(
+      ccf::endpoints::CommandEndpointContext& ctx)
+    {
+      auto executor_ident = ctx.try_get_caller<ExecutorIdentity>();
+      if (executor_ident == nullptr)
+      {
+        throw std::logic_error(
+          "find_active_request() should only be called for successfully "
+          "Executor-authenticated endpoints");
+      }
+
+      return executor_ident->executor_id;
+    }
+
+    PendingRequestPtr find_active_request(ExecutorId id)
+    {
+      auto it = active_requests.find(id);
+      if (it != active_requests.end())
+      {
+        return it->second;
+      }
+
+      return nullptr;
+    }
 
     void install_registry_service()
     {
@@ -70,8 +111,10 @@ namespace externalexecutor
         .install();
 
       // create an endpoint to register the executor
-      auto register_executor = [this](auto& ctx, ccf::NewExecutor&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::RegistrationResult> {
+      auto register_executor =
+        [this](auto& ctx, externalexecutor::protobuf::NewExecutor&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::RegistrationResult> {
         // verify quote
         ccf::CodeDigest code_digest;
         ccf::QuoteVerificationResult verify_result = verify_executor_quote(
@@ -89,9 +132,10 @@ namespace externalexecutor
         auto pubk_der = crypto::public_key_der_from_cert(cert_der);
 
         ExecutorId executor_id = ccf::compute_node_id_from_pubk_der(pubk_der);
-        std::vector<ccf::NewExecutor::EndpointKey> supported_endpoints(
-          payload.supported_endpoints().begin(),
-          payload.supported_endpoints().end());
+        std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
+          supported_endpoints(
+            payload.supported_endpoints().begin(),
+            payload.supported_endpoints().end());
 
         ExecutorNodeInfo executor_info = {
           executor_x509_cert, payload.attestation(), supported_endpoints};
@@ -101,7 +145,7 @@ namespace externalexecutor
         // Record the certs in the Executor certs map
         executor_certs[executor_id] = executor_x509_cert;
 
-        ccf::RegistrationResult result;
+        externalexecutor::protobuf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");
         result.set_executor_id(executor_id.value());
 
@@ -109,10 +153,11 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "ccf.ExecutorRegistration/RegisterExecutor",
+        "/externalexecutor.protobuf.ExecutorRegistration/RegisterExecutor",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::NewExecutor, ccf::RegistrationResult>(
-          register_executor),
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::NewExecutor,
+          externalexecutor::protobuf::RegistrationResult>(register_executor),
         ccf::no_auth_required)
         .install();
     }
@@ -120,19 +165,29 @@ namespace externalexecutor
     struct DelayedStreamMsg
     {
       std::shared_ptr<ccf::RpcContext> rpc_ctx;
-      DelayedStreamMsg(const std::shared_ptr<ccf::RpcContext>& rpc_ctx_) :
-        rpc_ctx(rpc_ctx_)
+      std::shared_ptr<http::AbstractResponderLookup> responder_lookup;
+
+      DelayedStreamMsg(
+        const std::shared_ptr<ccf::RpcContext>& rpc_ctx_,
+        const std::shared_ptr<http::AbstractResponderLookup>
+          responder_lookup_) :
+        rpc_ctx(rpc_ctx_),
+        responder_lookup(responder_lookup_)
       {}
     };
 
     static void send_stream_payload(
-      const std::shared_ptr<ccf::RpcContext>& rpc_ctx, bool close_stream)
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+      const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup,
+      bool close_stream)
     {
       static size_t count = 0;
-      ccf::KVKeyValue kv;
+      externalexecutor::protobuf::KVKeyValue kv;
       kv.set_key("lala");
       kv.set_value(fmt::format("my_value: {}", std::pow(10, count)));
       count++;
+
+      // TODO: Create wrapper for these
 
       const auto message_length = kv.ByteSizeLong();
       size_t r_size = ccf::grpc::impl::message_frame_length + message_length;
@@ -152,12 +207,35 @@ namespace externalexecutor
 
       CCF_APP_FAIL("Stream some data: {}", data.size());
 
-      // TODO: There should be an option to close the stream too
-      rpc_ctx->stream(std::move(data), close_stream);
+      auto http2_session_context =
+        std::dynamic_pointer_cast<http::HTTP2SessionContext>(
+          rpc_ctx->get_session_context());
+      if (http2_session_context == nullptr)
+      {
+        throw std::logic_error("Unexpected session context type");
+      }
+
+      const auto session_id = http2_session_context->client_session_id;
+      const auto stream_id = http2_session_context->stream_id;
+
+      auto http_responder =
+        responder_lookup->lookup_responder(session_id, stream_id);
+      if (http_responder == nullptr)
+      {
+        throw std::logic_error(fmt::format(
+          "Found no responder for session {}, stream {}",
+          session_id,
+          stream_id));
+      }
+
+      http_responder->stream_data(std::move(data), close_stream);
+
+      // rpc_ctx->stream(std::move(data), close_stream);
     }
 
     static void async_send_stream_data(
-      const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+      const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup)
     {
       auto msg = std::make_unique<threading::Tmsg<DelayedStreamMsg>>(
         [](std::unique_ptr<threading::Tmsg<DelayedStreamMsg>> msg) {
@@ -165,14 +243,17 @@ namespace externalexecutor
           LOG_FAIL_FMT("Sending asynchronous streaming data: {}", call_count);
           call_count++;
           bool should_stop = call_count > 5;
-          send_stream_payload(msg->data.rpc_ctx, should_stop);
+          send_stream_payload(
+            msg->data.rpc_ctx, msg->data.responder_lookup, should_stop);
 
           if (!should_stop)
           {
-            async_send_stream_data(msg->data.rpc_ctx);
+            async_send_stream_data(
+              msg->data.rpc_ctx, msg->data.responder_lookup);
           }
         },
-        rpc_ctx);
+        rpc_ctx,
+        responder_lookup);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(msg), std::chrono::milliseconds(1000));
@@ -180,65 +261,57 @@ namespace externalexecutor
 
     void install_kv_service()
     {
+      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
+      ccf::AuthnPolicies executor_only{executor_auth_policy};
+
       auto start = [this](
-                     ccf::endpoints::EndpointContext& ctx,
+                     ccf::endpoints::CommandEndpointContext& ctx,
                      google::protobuf::Empty&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalRequestDescription> {
-        if (active_tx != nullptr)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalRequestDescription> {
+        const auto executor_id = get_caller_executor_id(ctx);
+        const auto it = active_requests.find(executor_id);
+        if (it != active_requests.end())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_FAILED_PRECONDITION,
             "Already managing an active transaction");
         }
 
-        ccf::EndpointContextImpl* ctx_impl =
-          dynamic_cast<ccf::EndpointContextImpl*>(&ctx);
-        if (ctx_impl == nullptr)
-        {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_INTERNAL, "Unexpected context type");
-        }
-
-        active_tx = std::move(ctx_impl->owned_tx);
-        ctx_impl->owned_tx = nullptr; // < This will be done by move, but adding
-                                      // explicit call here for clarity
-
-        // Note: Temporary hack to make sure the caller doesn't try to commit
-        // this transaction
-        ctx.rpc_ctx->set_apply_writes(false);
-
-        ccf::OptionalRequestDescription opt_rd;
+        externalexecutor::protobuf::OptionalRequestDescription
+          optional_request_description;
 
         if (!pending_requests.empty())
         {
-          auto* rd = opt_rd.mutable_optional();
-          *rd = pending_requests.front();
+          auto* request_description =
+            optional_request_description.mutable_optional();
+          auto pending_request = pending_requests.front();
+          *request_description = pending_request->request_description;
+          active_requests.emplace_hint(it, executor_id, pending_request);
           pending_requests.pop();
         }
 
-        return ccf::grpc::make_success(opt_rd);
+        return ccf::grpc::make_success(optional_request_description);
       };
-
-      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       make_endpoint(
-        "/ccf.KV/StartTx",
+        "/externalexecutor.protobuf.KV/StartTx",
         HTTP_POST,
-        ccf::grpc_adapter<
+        ccf::grpc_command_adapter<
           google::protobuf::Empty,
-          ccf::OptionalRequestDescription>(start),
-        ccf::no_auth_required)
+          externalexecutor::protobuf::OptionalRequestDescription>(start),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto end = [this](
                    ccf::endpoints::EndpointContext& ctx,
-                   ccf::ResponseDescription&& payload)
+                   externalexecutor::protobuf::ResponseDescription&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        if (active_tx == nullptr)
+        const auto executor_id = get_caller_executor_id(ctx);
+        const auto it = active_requests.find(executor_id);
+        if (it == active_requests.end())
         {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
-            "a successful call to StartTx");
+          return out_of_order_error;
         }
 
         // Get claims from payload
@@ -261,30 +334,37 @@ namespace externalexecutor
              ccf::ClaimsDigest::Digest::SIZE}));
         }
 
-        kv::CommitResult result = active_tx->commit(claims);
+        auto& active_request = it->second;
+        kv::CommitResult result = active_request->tx->commit(claims);
         switch (result)
         {
           case kv::CommitResult::SUCCESS:
           {
-            http::Response response((http_status)payload.status_code());
-            response.set_body(payload.body());
+            LOG_TRACE_FMT("Preparing to send final response to user");
+
+            http::HeaderMap headers;
             for (int i = 0; i < payload.headers_size(); ++i)
             {
-              const ccf::Header& header = payload.headers(i);
-              response.set_header(header.field(), header.value());
+              const externalexecutor::protobuf::Header& header =
+                payload.headers(i);
+              headers[header.field()] = header.value();
             }
 
-            auto tx_id = active_tx->get_txid();
+            auto tx_id = active_request->tx->get_txid();
             if (tx_id.has_value())
             {
-              LOG_INFO_FMT("Applied tx at {}", tx_id->str());
-              response.set_header(http::headers::CCF_TX_ID, tx_id->str());
+              LOG_DEBUG_FMT("Applied tx at {}", tx_id->str());
+              headers[http::headers::CCF_TX_ID] = tx_id->str();
             }
 
-            const auto response_v = response.build_response();
-            const std::string response_s(response_v.begin(), response_v.end());
-            LOG_INFO_FMT(
-              "Preparing to send final response to user:\n{}", response_s);
+            http::HeaderMap trailers;
+
+            const std::string& body_s = payload.body();
+            active_request->http_responder->send_response(
+              (http_status)payload.status_code(),
+              std::move(headers),
+              std::move(trailers),
+              {(const uint8_t*)body_s.data(), body_s.size()});
             break;
           }
 
@@ -300,62 +380,67 @@ namespace externalexecutor
             break;
           }
         }
-        active_tx = nullptr;
+
+        active_requests.erase(it);
 
         return ccf::grpc::make_success();
       };
 
       make_endpoint(
-        "/ccf.KV/EndTx",
+        "/externalexecutor.protobuf.KV/EndTx",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::ResponseDescription, google::protobuf::Empty>(
-          end),
-        ccf::no_auth_required)
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::ResponseDescription,
+          google::protobuf::Empty>(end),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto put =
-        [this](ccf::endpoints::EndpointContext& ctx, ccf::KVKeyValue&& payload)
+      auto put = [this](
+                   ccf::endpoints::EndpointContext& ctx,
+                   externalexecutor::protobuf::KVKeyValue&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        if (active_tx == nullptr)
+        auto active_request = find_active_request(get_caller_executor_id(ctx));
+        if (active_request == nullptr)
         {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
-            "a successful call to StartTx and before EndTx");
+          return out_of_order_error;
         }
 
-        auto handle = active_tx->rw<Map>(payload.table());
+        auto handle = active_request->tx->rw<Map>(payload.table());
         handle->put(payload.key(), payload.value());
 
         return ccf::grpc::make_success();
       };
 
       make_endpoint(
-        "/ccf.KV/Put",
+        "/externalexecutor.protobuf.KV/Put",
         HTTP_POST,
-        ccf::grpc_adapter<ccf::KVKeyValue, google::protobuf::Empty>(put),
-        {executor_auth_policy})
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::KVKeyValue,
+          google::protobuf::Empty>(put),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto get = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                   ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVValue> {
-        if (active_tx == nullptr)
+                   externalexecutor::protobuf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalKVValue> {
+        auto active_request = find_active_request(get_caller_executor_id(ctx));
+        if (active_request == nullptr)
         {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
-            "a successful call to StartTx and before EndTx");
+          return out_of_order_error;
         }
 
-        auto handle = active_tx->ro<Map>(payload.table());
+        auto handle = active_request->tx->ro<Map>(payload.table());
         auto result = handle->get(payload.key());
 
-        ccf::OptionalKVValue response;
+        externalexecutor::protobuf::OptionalKVValue response;
         if (result.has_value())
         {
-          ccf::KVValue* response_value = response.mutable_optional();
+          externalexecutor::protobuf::KVValue* response_value =
+            response.mutable_optional();
           response_value->set_value(*result);
         }
 
@@ -363,58 +448,63 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Get",
+        "/externalexecutor.protobuf.KV/Get",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVValue>(get),
-        {executor_auth_policy})
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          externalexecutor::protobuf::OptionalKVValue>(get),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto has = [this](
                    ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                   ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::KVHasResult> {
-        if (active_tx == nullptr)
+                   externalexecutor::protobuf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::KVHasResult> {
+        auto active_request = find_active_request(get_caller_executor_id(ctx));
+        if (active_request == nullptr)
         {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
-            "a successful call to StartTx and before EndTx");
+          return out_of_order_error;
         }
 
-        auto handle = active_tx->ro<Map>(payload.table());
+        auto handle = active_request->tx->ro<Map>(payload.table());
 
-        ccf::KVHasResult result;
+        externalexecutor::protobuf::KVHasResult result;
         result.set_present(handle->has(payload.key()));
 
         return ccf::grpc::make_success(result);
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Has",
+        "/externalexecutor.protobuf.KV/Has",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::KVHasResult>(has),
-        {executor_auth_policy})
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          externalexecutor::protobuf::KVHasResult>(has),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_version = [this](
                            ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                           ccf::KVKey&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::OptionalKVVersion> {
-        if (active_tx == nullptr)
+                           externalexecutor::protobuf::KVKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalKVVersion> {
+        auto active_request = find_active_request(get_caller_executor_id(ctx));
+        if (active_request == nullptr)
         {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
-            "a successful call to StartTx and before EndTx");
+          return out_of_order_error;
         }
 
-        auto handle = active_tx->ro<Map>(payload.table());
+        auto handle = active_request->tx->ro<Map>(payload.table());
         auto version = handle->get_version_of_previous_write(payload.key());
 
-        ccf::OptionalKVVersion response;
+        externalexecutor::protobuf::OptionalKVVersion response;
         if (version.has_value())
         {
-          ccf::KVVersion* response_version = response.mutable_optional();
+          externalexecutor::protobuf::KVVersion* response_version =
+            response.mutable_optional();
           response_version->set_version(*version);
         }
 
@@ -422,52 +512,57 @@ namespace externalexecutor
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/GetVersion",
+        "/externalexecutor.protobuf.KV/GetVersion",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, ccf::OptionalKVVersion>(
-          get_version),
-        {executor_auth_policy})
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          externalexecutor::protobuf::OptionalKVVersion>(get_version),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto kv_delete = [this](
                          ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                         ccf::KVKey&& payload)
+                         externalexecutor::protobuf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        if (active_tx == nullptr)
+        auto active_request = find_active_request(get_caller_executor_id(ctx));
+        if (active_request == nullptr)
         {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION,
-            "Not managing an active transaction - this should be called after "
-            "a successful call to StartTx and before EndTx");
+          return out_of_order_error;
         }
 
-        auto handle = active_tx->wo<Map>(payload.table());
+        auto handle = active_request->tx->wo<Map>(payload.table());
         handle->remove(payload.key());
 
         return ccf::grpc::make_success();
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/Delete",
+        "/externalexecutor.protobuf.KV/Delete",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVKey, google::protobuf::Empty>(
-          kv_delete),
-        {executor_auth_policy})
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVKey,
+          google::protobuf::Empty>(kv_delete),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_all = [this](
                        ccf::endpoints::ReadOnlyEndpointContext& ctx,
-                       ccf::KVTable&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::KVValue> {
+                       externalexecutor::protobuf::KVTable&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<externalexecutor::protobuf::KVValue> {
         return ccf::grpc::make_error(
           GRPC_STATUS_UNIMPLEMENTED, "Unimplemented");
       };
 
       make_read_only_endpoint(
-        "/ccf.KV/GetAll",
+        "/externalexecutor.protobuf.KV/GetAll",
         HTTP_POST,
-        ccf::grpc_read_only_adapter<ccf::KVTable, ccf::KVValue>(get_all),
-        {executor_auth_policy})
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::KVTable,
+          externalexecutor::protobuf::KVValue>(get_all),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto stream = [this](
@@ -484,10 +579,11 @@ namespace externalexecutor
 
         LOG_FAIL_FMT("Endpoint synchronous execution");
 
-        async_send_stream_data(ctx.rpc_ctx);
+        async_send_stream_data(ctx.rpc_ctx, responder_lookup);
 
         // TODO: Fix return value here, which should return success but nothing
-        return ccf::grpc::make_success(ccf::grpc::Stream<ccf::KVValue>{});
+        return ccf::grpc::make_success(
+          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>{});
       };
 
       make_endpoint(
@@ -495,7 +591,7 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_adapter<
           google::protobuf::Empty,
-          ccf::grpc::Stream<ccf::KVValue>>(stream),
+          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>>(stream),
         {ccf::no_auth_required})
         .install();
     }
@@ -503,25 +599,77 @@ namespace externalexecutor
     void queue_request_for_external_execution(
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      ccf::RequestDescription rd;
+      auto pending_request = std::make_shared<PendingRequest>();
+
+      // Take ownership of underlying tx
       {
-        // Construct rd from request
-        rd.set_method(endpoint_ctx.rpc_ctx->get_request_verb().c_str());
-        rd.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
+        ccf::EndpointContextImpl* ctx_impl =
+          dynamic_cast<ccf::EndpointContextImpl*>(&endpoint_ctx);
+        if (ctx_impl == nullptr)
+        {
+          throw std::logic_error("Unexpected context type");
+        }
+
+        pending_request->tx = std::move(ctx_impl->owned_tx);
+      }
+
+      // Construct RequestDescription from EndpointContext
+      {
+        externalexecutor::protobuf::RequestDescription& request_description =
+          pending_request->request_description;
+        request_description.set_method(
+          endpoint_ctx.rpc_ctx->get_request_verb().c_str());
+        request_description.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
         for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
         {
-          ccf::Header* header = rd.add_headers();
+          externalexecutor::protobuf::Header* header =
+            request_description.add_headers();
           header->set_field(k);
           header->set_value(v);
         }
         const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
-        rd.set_body(body.data(), body.size());
+        request_description.set_body(body.data(), body.size());
       }
-      pending_requests.push(rd);
 
-      endpoint_ctx.rpc_ctx->set_response_status(200);
-      endpoint_ctx.rpc_ctx->set_response_body(
-        "Executing your request, but not responding to you about it (yet!)");
+      // Lookup originating session and store handle for responding later
+      {
+        auto http2_session_context =
+          std::dynamic_pointer_cast<http::HTTP2SessionContext>(
+            endpoint_ctx.rpc_ctx->get_session_context());
+        if (http2_session_context == nullptr)
+        {
+          throw std::logic_error("Unexpected session context type");
+        }
+
+        const auto session_id = http2_session_context->client_session_id;
+        const auto stream_id = http2_session_context->stream_id;
+
+        auto http_responder =
+          responder_lookup->lookup_responder(session_id, stream_id);
+        if (http_responder == nullptr)
+        {
+          throw std::logic_error(fmt::format(
+            "Found no responder for session {}, stream {}",
+            session_id,
+            stream_id));
+        }
+
+        pending_request->http_responder = http_responder;
+      }
+
+      // Mark response as pending
+      {
+        auto rpc_ctx_impl =
+          dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
+        if (rpc_ctx_impl == nullptr)
+        {
+          throw std::logic_error("Unexpected type for RpcContext");
+        }
+
+        rpc_ctx_impl->response_is_pending = true;
+      }
+
+      pending_requests.push(pending_request);
     }
 
     struct ExternallyExecutedEndpoint
@@ -532,6 +680,13 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
+      responder_lookup = context.get_subsystem<http::AbstractResponderLookup>();
+      if (responder_lookup == nullptr)
+      {
+        throw std::runtime_error(fmt::format(
+          "App cannot be constructed without ResponderLookup subsystem"));
+      }
+
       install_registry_service();
 
       install_kv_service();

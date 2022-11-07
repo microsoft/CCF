@@ -214,6 +214,54 @@
         }
       }
     },
+    "/generateEddsaKeyPair": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "generateEddsaKeyPair",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "curve": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["curve"],
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Generated key pair",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "privateKey": {
+                        "type": "string"
+                      },
+                      "publicKey": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["privateKey", "publicKey"],
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/wrapKey": {
       "post": {
         "js_module": "endpoints/crypto.js",
@@ -246,6 +294,54 @@
           "responses": {
             "200": {
               "description": "Wrapped key",
+              "content": {
+                "application/octet-stream": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sign": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "sign",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "algorithm": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "hash": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Signature",
               "content": {
                 "application/octet-stream": {}
               }
@@ -651,6 +747,170 @@
           "responses": {
             "400": {
               "description": "Error"
+            }
+          }
+        }
+      }
+    },
+    "/pubPemToJwk": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "pubPemToJwk",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pem": {
+                      "type": "string"
+                    },
+                    "kid": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "JWK object",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pemToJwk": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "pemToJwk",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pem": {
+                      "type": "string"
+                    },
+                    "kid": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "JWK object",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pubRsaPemToJwk": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "pubRsaPemToJwk",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pem": {
+                      "type": "string"
+                    },
+                    "kid": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "JWK object",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rsaPemToJwk": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "rsaPemToJwk",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pem": {
+                      "type": "string"
+                    },
+                    "kid": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "JWK object",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
             }
           }
         }

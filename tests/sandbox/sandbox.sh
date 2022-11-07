@@ -12,6 +12,9 @@ VERSION_FILE="${PATH_HERE}"/../share/VERSION_LONG
 is_package_specified=false
 is_js_bundle_specified=false
 
+PLATFORM_FILE="${PATH_HERE}"/../share/PLATFORM
+enclave_type="virtual"
+
 extra_args=("$@")
 while [ "$1" != "" ]; do
     case $1 in
@@ -50,6 +53,12 @@ if [ -f "${VERSION_FILE}" ]; then
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
     VERSION=$(<"${VERSION_FILE}")
     VERSION=${VERSION#"ccf-"}
+    platform=$(<"${PLATFORM_FILE}")
+    if [ "${platform}" == "sgx" ]; then
+        enclave_type="release"
+    else
+        enclave_type="virtual"
+    fi
     if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
         # Only on install tree, default to installed js logging app
         echo "No package/app specified. Defaulting to installed JS logging app"
@@ -80,7 +89,7 @@ echo "Python environment successfully setup"
 export CURL_CLIENT=ON
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
-    --enclave-type virtual \
+    --enclave-type "${enclave_type}" \
     --initial-member-count 1 \
     --constitution "${PATH_HERE}"/actions.js \
     --constitution "${PATH_HERE}"/validate.js \

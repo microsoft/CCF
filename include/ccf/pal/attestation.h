@@ -4,32 +4,46 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
-#include "ccf/pal/attestation_sev_snp_endorsements.h"
+#include "ccf/pal/attestation_sev_snp.h"
 
+#include <fcntl.h>
 #include <functional>
+#include <unistd.h>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include "ccf/crypto/pem.h"
 #  include "ccf/crypto/verifier.h"
 #  include "crypto/ecdsa.h"
 
-#  include <fcntl.h>
 #  include <sys/ioctl.h>
-#  include <unistd.h>
 #else
 #  include "ccf/pal/attestation_sgx.h"
 #endif
 
 namespace ccf::pal
 {
-  // Caller-supplied callback used to retrieve endorsements as specified by the
-  // config argument. When called back, the quote_info argument will have
+  // Caller-supplied callback used to retrieve endorsements as specified by
+  // the config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
   using RetrieveEndorsementCallback = std::function<void(
     const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#if defined(PLATFORM_VIRTUAL)
+
+  static void generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb,
+    const snp::EndorsementsServers& endorsements_servers = {})
+  {
+    endorsement_cb(
+      {
+        .format = QuoteFormat::insecure_virtual,
+      },
+      {});
+  }
+
+#elif defined(PLATFORM_SNP)
 
   static void generate_quote(
     attestation_report_data& report_data,
@@ -37,16 +51,6 @@ namespace ccf::pal
     const snp::EndorsementsServers& endorsements_servers = {})
   {
     QuoteInfo node_quote_info = {};
-    auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
-
-    // If there is no SEV-SNP device, assume we are using insecure virtual
-    // quotes
-    if (!is_sev_snp)
-    {
-      node_quote_info.format = QuoteFormat::insecure_virtual;
-      endorsement_cb(node_quote_info, {});
-      return;
-    }
 
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
     int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
@@ -93,6 +97,9 @@ namespace ccf::pal
           *quote, endorsements_servers));
     }
   }
+#endif
+
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
   static void verify_quote(
     const QuoteInfo& quote_info,
@@ -144,16 +151,16 @@ namespace ccf::pal
         snp::amd_milan_root_signing_public_key)
       {
         throw std::logic_error(fmt::format(
-          "The root of trust public key for this attestation was not the "
-          "expected one {}",
+          "The root of trust public key for this attestation was not "
+          "the expected one {}",
           root_cert_verifier->public_key_pem().str()));
       }
 
       if (!root_cert_verifier->verify_certificate({&root_certificate}))
       {
         throw std::logic_error(
-          "The root of trust public key for this attestation was not self "
-          "signed as expected");
+          "The root of trust public key for this attestation was not "
+          "self signed as expected");
       }
 
       auto chip_cert_verifier = crypto::make_verifier(chip_certificate);

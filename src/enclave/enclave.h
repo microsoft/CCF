@@ -150,6 +150,8 @@ namespace ccf
 
       context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
 
+      context->install_subsystem(rpcsessions);
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -298,7 +300,7 @@ namespace ccf
                 time_now - last_tick_time);
             if (elapsed_ms.count() > 0)
             {
-              last_tick_time = time_now;
+              last_tick_time += elapsed_ms;
 
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);

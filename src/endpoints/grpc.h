@@ -48,9 +48,9 @@ namespace ccf::grpc
   struct SuccessResponse
   {
     T body;
-    ccf::Status status;
+    ccf::protobuf::Status status;
 
-    SuccessResponse(const T& body_, ccf::Status status_) :
+    SuccessResponse(const T& body_, ccf::protobuf::Status status_) :
       body(body_),
       status(status_)
     {}
@@ -58,8 +58,8 @@ namespace ccf::grpc
 
   struct ErrorResponse
   {
-    ccf::Status status;
-    ErrorResponse(ccf::Status status_) : status(status_) {}
+    ccf::protobuf::Status status;
+    ErrorResponse(ccf::protobuf::Status status_) : status(status_) {}
   };
 
   template <typename T>
@@ -189,6 +189,7 @@ namespace ccf::grpc
     if (success_response != nullptr)
     {
       std::vector<uint8_t> r;
+      bool include_trailers = true;
 
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
@@ -225,6 +226,7 @@ namespace ccf::grpc
       {
         LOG_FAIL_FMT("Streaming wrapper for response!");
         ctx->set_is_streaming();
+        include_trailers = false;
       }
       else
       {
@@ -249,9 +251,13 @@ namespace ccf::grpc
       ctx->set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
 
-      ctx->set_response_trailer("grpc-status", success_response->status.code());
-      ctx->set_response_trailer(
-        "grpc-message", success_response->status.message());
+      if (include_trailers)
+      {
+        ctx->set_response_trailer(
+          "grpc-status", success_response->status.code());
+        ctx->set_response_trailer(
+          "grpc-message", success_response->status.message());
+      }
     }
     else
     {

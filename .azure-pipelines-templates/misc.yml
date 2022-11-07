@@ -1,0 +1,18 @@
+parameters:
+  suite_name_suffix: ""
+
+steps:
+  # Whether tests pass or fail, print out a per-logfile, and total number of I/O operations that
+  # exceeded our opinion of "too long".
+  - script: |
+      sudo apt install ripgrep > /dev/null
+      echo "TOOK TOO LONG "
+      echo "-------------------------------------"
+      rg "Took too long" --count
+      echo "-------------------------------------"
+      echo "TOOK TOO LONG TOTAL"
+      echo "-------------------------------------"
+      rg "Took too long" --count | cut -d : -f 2 | awk '{ sum += $1 } END { print sum }'
+    workingDirectory: build
+    displayName: "Took too long metrics"
+    condition: succeededOrFailed()

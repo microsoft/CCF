@@ -19,6 +19,13 @@ namespace http2
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
+  struct DataSource
+  {
+    std::span<const uint8_t> body = {};
+    bool end_data = true;
+    bool end_stream = true;
+  };
+
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
   enum class StreamResponseState
@@ -30,32 +37,25 @@ namespace http2
 
   struct StreamData
   {
-    StreamId id;
-
     // Request
-    http::HeaderMap headers;
-    std::string url;
-    ccf::RESTVerb verb;
-    std::vector<uint8_t> request_body;
+    http::HeaderMap headers; // Only used for incoming headers
 
     // Response
-    StreamResponseState response_state = StreamResponseState::Closing;
-    http_status status;
-    std::vector<uint8_t> response_body;
+    StreamResponseState response_state =
+      StreamResponseState::Closing; // TODO: Move to response data?
+    std::vector<uint8_t> body;
     size_t current_offset = 0;
-    http::HeaderMap trailers;
-
-    StreamData(StreamId id_) : id(id_) {}
+    http::HeaderMap trailers; // Only used for outgoing trailers
   };
 
-  class AbstractSession
+  class AbstractParser
   {
   public:
-    virtual ~AbstractSession() = default;
-    virtual void send(const uint8_t* data, size_t length) = 0;
-    virtual void handle_request(StreamData* stream_data) = 0;
-    virtual void handle_response(StreamData* stream_data) = 0;
-    virtual void add_stream(const std::shared_ptr<StreamData>& stream_data) = 0;
+    virtual ~AbstractParser() = default;
+    virtual void handle_completed(
+      StreamId stream_id, StreamData* stream_data) = 0;
+    virtual std::shared_ptr<StreamData> create_stream(StreamId stream_id) = 0;
+    virtual void destroy_stream(StreamId stream_id) = 0;
   };
 
   // Functions to create HTTP2 headers
@@ -70,17 +70,18 @@ namespace http2
       NGHTTP2_NV_FLAG_NONE};
   }
 
-  static nghttp2_nv make_nv(const char* key, const char* value)
+  static inline nghttp2_nv make_nv(const char* key, const char* value)
   {
     return make_nv((uint8_t*)key, (uint8_t*)value);
   }
 
-  AbstractSession* get_session(void* user_data)
+  static inline AbstractParser* get_parser(void* user_data)
   {
-    return reinterpret_cast<AbstractSession*>(user_data);
+    return reinterpret_cast<AbstractParser*>(user_data);
   }
 
-  StreamData* get_stream_data(nghttp2_session* session, StreamId stream_id)
+  static inline StreamData* get_stream_data(
+    nghttp2_session* session, StreamId stream_id)
   {
     return reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));

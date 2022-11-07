@@ -3,17 +3,27 @@
 
 function(add_san name)
   if(SAN)
+    # CCF_PROJECT is defined when building CCF itself, but not when this
+    # function is used by downstream applications.
+    if(CCF_PROJECT)
+      set(suppressions_file
+          $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/ubsan.suppressions>$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/bin/ubsan.suppressions>
+      )
+    else()
+      set(suppressions_file ${CCF_DIR}/bin/ubsan.suppressions)
+    endif()
+
     target_compile_options(
       ${name}
       PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
               -fno-sanitize-recover=all -fno-sanitize=function
-              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.suppressions
+              -fsanitize-blacklist=${suppressions_file}
     )
     target_link_libraries(
       ${name}
       PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
               -fno-sanitize-recover=all -fno-sanitize=function
-              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.suppressions
+              -fsanitize-blacklist=${suppressions_file}
     )
   endif()
 endfunction()

@@ -28,6 +28,7 @@ from loguru import logger as LOG  # type: ignore
 
 import infra.commit
 from infra.log_capture import flush_info
+import infra.signing
 
 
 class HttpSig(httpx.Auth):
@@ -87,6 +88,7 @@ DEFAULT_COMMIT_TIMEOUT_SEC = 3
 CONTENT_TYPE_TEXT = "text/plain"
 CONTENT_TYPE_JSON = "application/json"
 CONTENT_TYPE_BINARY = "application/octet-stream"
+CONTENT_TYPE_COSE = "application/cose"
 
 
 @dataclass
@@ -299,13 +301,20 @@ class CurlClient:
     """
 
     def __init__(
-        self, host, port, ca=None, session_auth=None, signing_auth=None, **kwargs
+        self,
+        hostname,
+        ca=None,
+        session_auth=None,
+        signing_auth=None,
+        cose_signing_auth=None,
+        common_headers=None,
+        **kwargs,
     ):
-        self.host = host
-        self.port = port
+        self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
+        self.common_headers = common_headers or {}
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
@@ -323,7 +332,7 @@ class CurlClient:
             else:
                 cmd = ["curl"]
 
-            url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
+            url = f"{self.protocol}://{self.hostname}{request.path}"
 
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
@@ -360,6 +369,9 @@ class CurlClient:
             for k, v in request.headers.items():
                 cmd.extend(["-H", f"{k}: {v}"])
 
+            for k, v in self.common_headers.items():
+                cmd.extend(["-H", f"{k}: {v}"])
+
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
             if self.session_auth:
@@ -394,29 +406,37 @@ class CurlClient:
     def close(self):
         pass
 
+    @staticmethod
+    def extra_headers_count():
+        # curl inserts the following headers in every request
+        #  host: <address>
+        #  user-agent: curl/<version>
+        #  accept: */*
+        return 3
 
-class RequestClient:
+
+class HttpxClient:
     """
-    CCF default client and wrapper around Python Requests, handling HTTP signatures.
+    CCF default client and wrapper around Python httpx, handling HTTP signatures.
     """
 
     _auth_provider = HttpSig
 
     def __init__(
         self,
-        host: str,
-        port: int,
+        hostname: str,
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        cose_signing_auth: Optional[Identity] = None,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
-        self.host = host
-        self.port = port
+        self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
+        self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers
         self.key_id = None
         cert = None
@@ -427,8 +447,9 @@ class RequestClient:
             self.protocol = kwargs.get("protocol")
             kwargs.pop("protocol")
         self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
-        if self.signing_auth:
-            with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
+        sig_auth = signing_auth or cose_signing_auth
+        if sig_auth:
+            with open(sig_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
                     x509.load_pem_x509_certificate(
                         cert_file.read().encode(), default_backend()
@@ -488,10 +509,33 @@ class RequestClient:
             if not "content-type" in request.headers and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
+        if self.cose_signing_auth is not None:
+            key = open(self.cose_signing_auth.key, encoding="utf-8").read()
+            cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
+            phdr = {}
+            if request.path.endswith("gov/ack/update_state_digest"):
+                phdr["ccf.gov.msg.type"] = "state_digest"
+            elif request.path.endswith("gov/ack"):
+                phdr["ccf.gov.msg.type"] = "ack"
+            elif request.path.endswith("gov/proposals"):
+                phdr["ccf.gov.msg.type"] = "proposal"
+            elif request.path.endswith("/ballots"):
+                pid = request.path.split("/")[-2]
+                phdr["ccf.gov.msg.type"] = "ballot"
+                phdr["ccf.gov.msg.proposal_id"] = pid
+            elif request.path.endswith("/withdraw"):
+                pid = request.path.split("/")[-2]
+                phdr["ccf.gov.msg.type"] = "withdrawal"
+                phdr["ccf.gov.msg.proposal_id"] = pid
+            request_body = infra.signing.create_cose_sign1(
+                request_body or b"", key, cert, phdr
+            )
+            extra_headers["content-type"] = CONTENT_TYPE_COSE
+
         try:
             response = self.session.request(
                 request.http_verb,
-                url=f"{self.protocol}://{self.host}:{self.port}{request.path}",
+                url=f"{self.protocol}://{self.hostname}{request.path}",
                 auth=auth,
                 headers=extra_headers,
                 follow_redirects=request.allow_redirects,
@@ -511,6 +555,16 @@ class RequestClient:
 
     def close(self):
         self.session.close()
+
+    @staticmethod
+    def extra_headers_count():
+        # httpx inserts the following headers in every request
+        #  host: <address>
+        #  accept: */*
+        #  accept-encoding: gzip, deflate, br
+        #  connection: keep-alive
+        #  user-agent: python-httpx/<version>
+        return 5
 
 
 class CCFClient:
@@ -535,7 +589,9 @@ class CCFClient:
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    client_impl: Union[CurlClient, RequestClient]
+    default_impl_type: Union[CurlClient, HttpxClient] = (
+        CurlClient if os.getenv("CURL_CLIENT") else HttpxClient
+    )
 
     def __init__(
         self,
@@ -544,6 +600,7 @@ class CCFClient:
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        cose_signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
         curl: bool = False,
@@ -551,21 +608,28 @@ class CCFClient:
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
-        self.hostname = f"{host}:{port}"
+        self.hostname = infra.interfaces.make_address(host, port)
         self.name = f"[{self.hostname}]"
         self.description = description or self.name
         self.is_connected = False
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
+        self.cose = bool(cose_signing_auth)
 
-        if curl or os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(
-                host, port, ca, session_auth, signing_auth, **kwargs
-            )
-        else:
-            self.client_impl = RequestClient(
-                host, port, ca, session_auth, signing_auth, common_headers, **kwargs
-            )
+        impl_type = CCFClient.default_impl_type
+
+        if curl:
+            impl_type = CurlClient
+
+        self.client_impl = impl_type(
+            self.hostname,
+            ca,
+            session_auth,
+            signing_auth,
+            cose_signing_auth,
+            common_headers,
+            **kwargs,
+        )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)

@@ -19,9 +19,20 @@ get_target_property(LIBPROTOBUF_SOURCES libprotobuf SOURCES)
 set(PROTOBUF_TARGETS "protobuf.virtual")
 add_host_library(protobuf.virtual ${LIBPROTOBUF_SOURCES})
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(protobuf.enclave ${LIBPROTOBUF_SOURCES})
   list(APPEND PROTOBUF_TARGETS "protobuf.enclave")
+  install(
+    TARGETS protobuf.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+else()
+  install(
+    TARGETS protobuf.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 foreach(TARGET ${PROTOBUF_TARGETS})
@@ -37,10 +48,5 @@ foreach(TARGET ${PROTOBUF_TARGETS})
       "-Wno-deprecated-enum-enum-conversion" # Remove warnings in
       # generated_message_tctable_impl.h
       "-Wno-invalid-noreturn" # https://github.com/protocolbuffers/protobuf/issues/9817
-  )
-  install(
-    TARGETS ${TARGET}
-    EXPORT ccf
-    DESTINATION lib
   )
 endforeach()

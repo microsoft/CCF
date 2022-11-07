@@ -186,7 +186,7 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
   // Note: Instead of ccf.digest, an equivalent of std::hash should be used.
   const makeHandle = (begin, end, id) => {
     const cacheKey = `${begin}-${end}-${id}`;
-    const digest = ccf.digest("SHA-256", ccf.strToBuf(cacheKey));
+    const digest = ccf.crypto.digest("SHA-256", ccf.strToBuf(cacheKey));
     const handle = new DataView(digest).getUint32(0);
     return handle;
   };
@@ -307,7 +307,10 @@ export function post_public(request) {
   public_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
   update_first_write(id, false);
   if (params.record_claim) {
-    const claims_digest = ccf.digest("SHA-256", ccf.strToBuf(params.msg));
+    const claims_digest = ccf.crypto.digest(
+      "SHA-256",
+      ccf.strToBuf(params.msg)
+    );
     ccf.rpc.setClaimsDigest(claims_digest);
   }
   return { body: true };

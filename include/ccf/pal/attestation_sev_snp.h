@@ -2,27 +2,30 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#  include "attestation_sev_snp_endorsements.h"
+#include "ccf/pal/attestation_sev_snp_endorsements.h"
 
-#  include <array>
-#  include <map>
-#  include <string>
+#include <array>
+#include <map>
+#include <string>
 
 namespace ccf::pal
 {
   // Based on the SEV-SNP ABI Spec document at
   // https://www.amd.com/system/files/TechDocs/56860.pdf
 
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
   static constexpr size_t attestation_report_data_size = 64;
   using attestation_report_data =
     std::array<uint8_t, attestation_report_data_size>;
   static constexpr size_t attestation_measurement_size = 48;
   using attestation_measurement =
     std::array<uint8_t, attestation_measurement_size>;
+#endif
 
   namespace snp
   {
+    static constexpr auto NO_SECURITY_POLICY = "";
+
     // From https://developer.amd.com/sev/
     constexpr auto amd_milan_root_signing_public_key =
       R"(-----BEGIN PUBLIC KEY-----
@@ -42,7 +45,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 )";
 
     // Table 3
-#  pragma pack(push, 1)
+#pragma pack(push, 1)
     struct TcbVersion
     {
       uint8_t boot_loader;
@@ -51,19 +54,19 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t snp;
       uint8_t microcode;
     };
-#  pragma pack(pop)
+#pragma pack(pop)
     static_assert(
       sizeof(TcbVersion) == sizeof(uint64_t),
       "Can't cast TcbVersion to uint64_t");
 
-#  pragma pack(push, 1)
+#pragma pack(push, 1)
     struct Signature
     {
       uint8_t r[72];
       uint8_t s[72];
       uint8_t reserved[512 - 144];
     };
-#  pragma pack(pop)
+#pragma pack(pop)
 
     // Table. 105
     enum class SignatureAlgorithm : uint32_t
@@ -72,7 +75,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       ecdsa_p384_sha384 = 1
     };
 
-#  pragma pack(push, 1)
+#pragma pack(push, 1)
     // Table 21
     struct Attestation
     {
@@ -110,7 +113,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t reserved4[168]; /* 0x1F8 */
       struct Signature signature; /* 0x2A0 */
     };
-#  pragma pack(pop)
+#pragma pack(pop)
 
     // Table 20
     struct AttestationReq
@@ -121,7 +124,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     };
 
     // Table 23
-#  pragma pack(push, 1)
+#pragma pack(push, 1)
     struct AttestationResp
     {
       uint32_t status;
@@ -131,7 +134,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t padding[64];
       // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
     };
-#  pragma pack(pop)
+#pragma pack(pop)
 
     struct GuestRequest
     {
@@ -226,10 +229,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     }
   }
 
-#  define SEV_GUEST_IOC_TYPE 'S'
-#  define SEV_SNP_GUEST_MSG_REPORT \
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::GuestRequest)
+#define SEV_GUEST_IOC_TYPE 'S'
+#define SEV_SNP_GUEST_MSG_REPORT \
+  _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::GuestRequest)
 
 }
-
-#endif

@@ -93,11 +93,33 @@ See :ref:`this page <build_apps/logging:Logging>` for steps to add application-s
 Error Codes
 -----------
 
-StartupSeqnoIsOld
-~~~~~~~~~~~~~~~~~
+``StartupSeqnoIsOld``
+~~~~~~~~~~~~~~~~~~~~~
 
 Returned when a node tries to join a network with too old a snapshot, or no snapshot at all.
 See :ref:`this page <operations/ledger_snapshot:Join or Recover From Snapshot>` for more information.
 
-This can be resolved by trying to join again with a fresh snapshot.
+**Resolution:** This can be resolved by trying to join again with a fresh snapshot.
 The seqno of the snapshot a node started from is available as ``startup_seqno`` in :http:GET:`/node/state`.
+
+Node Startup Issues
+-------------------
+
+``OE_SERVICE_UNAVAILABLE``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: 
+
+    # Complete node logs on startup
+    2022-01-01T12:00:00.000000Z        100 [info ] ../src/host/main.cpp:519             | Initialising enclave: enclave_create_node
+    [init ../../../psw/ae/aesm_service/source/core/ipc/UnixCommunicationSocket.cpp:225] Failed to connect to socket /var/run/aesmd/aesm.socket
+    2022-01-01T12:00:00.000000Z [(H)ERROR] tid(0x7f277c35b740) | SGX AESM service unavailable (oe_result_t=OE_SERVICE_UNAVAILABLE) [/source/openenclave/host/sgx/sgxquote.c:_load_quote_ex_library_once:479]
+    2022-01-01T12:00:00.000000Z [(H)ERROR] tid(0x7f277c35b740) | Failed to load SGX quote-ex library
+    (oe_result_t=OE_SERVICE_UNAVAILABLE) [/source/openenclave/host/sgx/sgxquote.c:oe_sgx_qe_get_target_info:688]
+    2022-01-01T12:00:00.000000Z [(H)ERROR] tid(0x7f277c35b740) | :OE_SERVICE_UNAVAILABLE [/source/openenclave/host/sgx/quote.c:sgx_get_qetarget_info:37]
+
+This may occur on SGX deployments where the ``SGX_AESM_ADDR`` environment variable is set. By default, this variable is automatically set when installing CCF dependencies (specifically, Open Enclave) and indicates that out-of-process attestation quote generation should be used (`using the AESM service <https://github.com/openenclave/openenclave/blob/753e3227b9721851d363f028e37e5431f2311ca3/docs/GettingStartedDocs/Contributors/SGX1FLCGettingStarted.md#determine-call-path-for-sgx-quote-generation-in-attestation-sample>`_).
+
+While CCF supports out-of-process attestation, the AESM service is not installed as part of the CCF dependencies. For local deployments, it is expected that operators use in-process quote generation.
+
+**Resolution:** Unset the ``SGX_AESM_ADDR`` environment variable: ``$ unset SGX_AESM_ADDR``.

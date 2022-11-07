@@ -51,6 +51,16 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/make_randoms": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "make_randoms",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
     }
   }
 }

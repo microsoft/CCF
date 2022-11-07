@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <small_vector/SmallVector.h>
+#include <string_view>
 #include <vector>
 
 namespace ds::hashutils
@@ -109,14 +110,13 @@ namespace ds
   }
 
   template <typename T>
-  static constexpr T fnv_1a(char const* s)
+  static constexpr T fnv_1a(const std::string_view& sv)
   {
     using params = fnv_parameters<T>;
 
     T hash = params::offset_basis;
-    T c = 0;
 
-    while ((c = *s++))
+    for (const auto& c : sv)
     {
       hash ^= c;
       hash *= params::prime;

@@ -358,7 +358,7 @@ class Node:
             addresses = json.load(f)
 
         for interface_name, resolved_address in addresses.items():
-            host, port = infra.interfaces.split_address(resolved_address)
+            host, port = infra.interfaces.split_netloc(resolved_address)
             interface = interfaces[interface_name]
             if self.remote_shim != infra.remote_shim.DockerShim:
                 assert (
@@ -552,6 +552,9 @@ class Node:
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
+    def cose_signing_auth(self, name=None):
+        return {"cose_signing_auth": self.identity(name)}
+
     def get_public_rpc_host(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
@@ -561,6 +564,14 @@ class Node:
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
         return self.host.rpc_interfaces[interface_name].public_port
+
+    def get_public_rpc_address(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
+        interface = self.host.rpc_interfaces[interface_name]
+        return infra.interfaces.make_address(
+            interface.public_host, interface.public_port
+        )
 
     def retrieve_self_signed_cert(self, *args, **kwargs):
         # Retrieve and overwrite node self-signed certificate in common directory
@@ -589,6 +600,7 @@ class Node:
         self,
         identity=None,
         signing_identity=None,
+        cose_signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
         verify_ca=True,
         **kwargs,
@@ -619,9 +631,10 @@ class Node:
             akwargs["http2"] = True
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
+        akwargs.update(self.cose_signing_auth(cose_signing_identity))
         akwargs[
             "description"
-        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
+        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}|{cose_signing_identity or ''}]"
         akwargs.update(kwargs)
 
         if self.curl:

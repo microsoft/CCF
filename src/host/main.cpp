@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/ds/logger.h"
+#include "ccf/pal/attestation.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
@@ -403,6 +404,18 @@ int main(int argc, char** argv)
     startup_config.worker_threads = config.worker_threads;
     startup_config.node_certificate = config.node_certificate;
     startup_config.attestation = config.attestation;
+
+    // Get the nodes security policy via environment variable
+    if (access(ccf::pal::snp::DEVICE, F_OK) == 0)
+    {
+      LOG_INFO_FMT("Warning: AMD SEV-SNP support is currently experimental");
+      auto policy = std::getenv("SECURITY_POLICY");
+      if (policy != nullptr)
+      {
+        std::vector<uint8_t> raw = crypto::raw_from_b64(policy);
+        startup_config.security_policy = std::string(raw.begin(), raw.end());
+      }
+    }
 
     if (config.node_data_json_file.has_value())
     {

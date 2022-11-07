@@ -8,5 +8,8 @@ namespace ccf
   {
   public:
     virtual ~AbstractNodeSubSystem() = default;
+
+    // Must contain a static function with signature:
+    // static char const* get_subsystem_name()
   };
 }

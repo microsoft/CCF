@@ -182,7 +182,7 @@ namespace ccf
             LOG_FAIL_FMT(
               "Request for {} rejected because the interface is unsecured and "
               "no accepted_endpoints have been configured.",
-              endpoint->api_uri_path);
+              endpoint->full_uri_path);
             ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
             return false;
           }

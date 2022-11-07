@@ -239,7 +239,7 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest) override
     {
-      return EnclaveAttestationProvider::verify_quote_against_store(
+      return AttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, code_digest);
     }
 
@@ -282,7 +282,7 @@ namespace ccf
     //
     void launch_node()
     {
-      auto code_id = EnclaveAttestationProvider::get_code_id(quote_info);
+      auto code_id = AttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
         node_code_id = code_id.value();
@@ -290,6 +290,37 @@ namespace ccf
       else
       {
         throw std::logic_error("Failed to extract code id from quote");
+      }
+
+      // Verify that the security policy matches the quoted digest of the policy
+      if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
+      {
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
+        if (!quoted_digest.has_value())
+        {
+          throw std::logic_error("Unable to find security policy");
+        }
+
+        if (!config.security_policy.has_value())
+        {
+          LOG_INFO_FMT(
+            "Security Policy environment variable not set, skipping check "
+            "against digest");
+        }
+        else
+        {
+          auto digest = crypto::Sha256Hash(config.security_policy.value());
+          if (digest != quoted_digest.value())
+          {
+            throw std::logic_error(fmt::format(
+              "Raw security policy {} digested to {} doesn't match digest {} "
+              "provided in attestation",
+              config.security_policy.value(),
+              digest.hex_str(),
+              quoted_digest.value().hex_str()));
+          }
+          LOG_INFO_FMT("Digest matches raw security policy");
+        }
       }
 
       switch (start_type)
@@ -359,7 +390,15 @@ namespace ccf
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info = quote_info_;
               quote_info.endorsements = std::move(endorsements);
-              launch_node();
+              try
+              {
+                launch_node();
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT("{}", e.what());
+                throw;
+              }
               quote_endorsements_client.reset();
             });
 
@@ -713,7 +752,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_request(r);
+      join_client->send_request(std::move(r));
     }
 
     void initiate_join()
@@ -1650,7 +1689,7 @@ namespace ccf
     {
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
-      // all-numeric. So this distinguishes "1.2.3.4" (and IP address) from
+      // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
       // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
       // throw. Attempts to handle IPv6 by also splitting on ':', but this is
       // untested.
@@ -1659,8 +1698,7 @@ namespace ccf
       if (final_component.empty())
       {
         throw std::runtime_error(fmt::format(
-          "{} has a trailing period, is not a valid hostname",
-          final_component));
+          "{} has a trailing period, is not a valid hostname", hostname));
       }
       for (const auto c : final_component)
       {
@@ -1817,6 +1855,7 @@ namespace ccf
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
+      create_params.security_policy = config.security_policy;
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
       create_params.service_data = config.service_data;

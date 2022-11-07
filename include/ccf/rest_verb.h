@@ -2,20 +2,39 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/hash.h"
+
 #include <llhttp/llhttp.h>
 #include <string>
 
-namespace http
-{
-  extern llhttp_method http_method_from_str(const char* s);
-}
-
 namespace ccf
 {
+  static inline llhttp_method http_method_from_str(const std::string_view& s)
+  {
+    const auto hashed_name = ds::fnv_1a<size_t>(s);
+
+#define XX(num, name, string) \
+  case (ds::fnv_1a<size_t>(#string)): \
+  { \
+    return llhttp_method(num); \
+  }
+
+    switch (hashed_name)
+    {
+      HTTP_METHOD_MAP(XX)
+
+      default:
+      {
+        throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
+      }
+    }
+#undef XX
+  }
+
   /*!
     Extension of llhttp_method
     to allow make_*_endpoint() to be a single uniform interface to define
-    handlers for more than HTTP just verbs. Formerly used to allow WebSockets
+    handlers for more than just HTTP verbs. Formerly used to allow WebSockets
     handlers, now removed. Kept for potential future extensions.
 
     This may be removed if instead of exposing a single RpcContext, callbacks
@@ -32,15 +51,7 @@ namespace ccf
     RESTVerb(const llhttp_method& hm) : verb(hm) {}
     RESTVerb(const std::string& s)
     {
-#define HTTP_METHOD_GEN(NUM, NAME, STRING) \
-  if (s == #STRING) \
-  { \
-    verb = static_cast<llhttp_method>(NUM); \
-    return; \
-  }
-      HTTP_METHOD_MAP(HTTP_METHOD_GEN)
-#undef HTTP_METHOD_GEN
-      throw std::logic_error(fmt::format("unknown method {}", s));
+      verb = http_method_from_str(s.c_str());
     }
 
     std::optional<llhttp_method> get_http_method() const
@@ -78,19 +89,6 @@ namespace ccf
     j = s;
   }
 
-  static inline llhttp_method http_method_from_str(const char* s)
-  {
-#define XX(num, name, string) \
-  if (strcmp(s, #string) == 0) \
-  { \
-    return llhttp_method(num); \
-  }
-    HTTP_METHOD_MAP(XX)
-#undef XX
-
-    throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
-  }
-
   inline void from_json(const nlohmann::json& j, RESTVerb& verb)
   {
     if (!j.is_string())
@@ -102,6 +100,6 @@ namespace ccf
     std::string s = j.get<std::string>();
     nonstd::to_upper(s);
 
-    verb = RESTVerb(http_method_from_str(s.c_str()));
+    verb = RESTVerb(s.c_str());
   }
 }

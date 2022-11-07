@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
 #include "ccf/crypto/san.h"
@@ -135,6 +136,9 @@ namespace crypto
     virtual CurveID get_curve_id() const = 0;
 
     virtual PublicKey::Coordinates coordinates() const = 0;
+
+    virtual JsonWebKeyECPrivate private_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 
   using PublicKeyPtr = std::shared_ptr<PublicKey>;

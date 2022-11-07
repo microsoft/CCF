@@ -71,21 +71,26 @@ namespace ccf
     std::map<std::string, std::vector<uint8_t>> new_keys;
     for (auto& jwk : jwks.keys)
     {
-      if (keys->has(jwk.kid) && key_issuer->get(jwk.kid).value() != issuer)
+      if (!jwk.kid.has_value())
       {
-        LOG_FAIL_FMT(
-          "{}: key id {} already added for different issuer",
-          log_prefix,
-          jwk.kid);
+        LOG_FAIL_FMT("No kid for JWT signing key");
         return false;
       }
-      if (jwk.x5c.empty())
+      auto const& kid = jwk.kid.value();
+
+      if (keys->has(kid) && key_issuer->get(kid).value() != issuer)
+      {
+        LOG_FAIL_FMT(
+          "{}: key id {} already added for different issuer", log_prefix, kid);
+        return false;
+      }
+      if (!jwk.x5c.has_value() && jwk.x5c->empty())
       {
         LOG_FAIL_FMT("{}: JWKS is invalid (empty x5c)", log_prefix);
         return false;
       }
 
-      auto& der_base64 = jwk.x5c[0];
+      auto& der_base64 = jwk.x5c.value()[0];
       ccf::Cert der;
       try
       {
@@ -96,7 +101,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "{}: Could not parse x5c of key id {}: {}",
           log_prefix,
-          jwk.kid,
+          kid,
           e.what());
         return false;
       }
@@ -123,7 +128,7 @@ namespace ccf
           "{}: Skipping JWT signing key with kid {} (not OE "
           "attested)",
           log_prefix,
-          jwk.kid);
+          kid);
         continue;
       }
 
@@ -137,7 +142,7 @@ namespace ccf
             LOG_FAIL_FMT(
               "{}: JWKS kid {} is missing the {} SGX claim",
               log_prefix,
-              jwk.kid,
+              kid,
               claim_name);
             return false;
           }
@@ -148,7 +153,7 @@ namespace ccf
             LOG_FAIL_FMT(
               "{}: JWKS kid {} has a mismatching {} SGX claim: {} != {}",
               log_prefix,
-              jwk.kid,
+              kid,
               claim_name,
               expected_claim_val_hex,
               actual_claim_val_hex);
@@ -168,14 +173,13 @@ namespace ccf
           LOG_FAIL_FMT(
             "{}: JWKS kid {} has an invalid X.509 certificate: {}",
             log_prefix,
-            jwk.kid,
+            kid,
             exc.what());
           return false;
         }
       }
-      LOG_INFO_FMT(
-        "{}: Storing JWT signing key with kid {}", log_prefix, jwk.kid);
-      new_keys.emplace(jwk.kid, der);
+      LOG_INFO_FMT("{}: Storing JWT signing key with kid {}", log_prefix, kid);
+      new_keys.emplace(kid, der);
     }
     if (new_keys.empty())
     {

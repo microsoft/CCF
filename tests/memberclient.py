@@ -24,17 +24,18 @@ def test_missing_signature_header(network, args):
         www_auth = "www-authenticate"
         assert www_auth in r.headers, r.headers
         auth_header = r.headers[www_auth]
-        assert auth_header.startswith("Signature"), auth_header
-        elements = {
-            e[0].strip(): e[1]
-            for e in (element.split("=") for element in auth_header.split(","))
-        }
-        assert "headers" in elements, elements
-        required_headers = elements["headers"]
-        assert required_headers.startswith('"'), required_headers
-        assert required_headers.endswith('"'), required_headers
-        assert "(request-target)" in required_headers, required_headers
-        assert "digest" in required_headers, required_headers
+        if auth_header != 'COSE-SIGN1 realm="Signed request access"':
+            assert auth_header.startswith("Signature"), auth_header
+            elements = {
+                e[0].strip(): e[1]
+                for e in (element.split("=") for element in auth_header.split(","))
+            }
+            assert "headers" in elements, elements
+            required_headers = elements["headers"]
+            assert required_headers.startswith('"'), required_headers
+            assert required_headers.endswith('"'), required_headers
+            assert "(request-target)" in required_headers, required_headers
+            assert "digest" in required_headers, required_headers
 
     return network
 

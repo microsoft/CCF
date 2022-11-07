@@ -12,6 +12,7 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
+#include "ccf/indexing/strategy.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
 
@@ -134,6 +135,52 @@ namespace loggingapp
   };
   // SNIPPET_END: custom_auth_policy
 
+  class CommittedRecords : public ccf::indexing::Strategy
+  {
+  private:
+    std::map<size_t, std::string> records;
+    ccf::TxID current_txid = {};
+
+  public:
+    CommittedRecords(const std::string& name) : ccf::indexing::Strategy(name) {}
+
+    void handle_committed_transaction(
+      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
+    {
+      auto tx_diff = store->create_tx_diff();
+      auto m = tx_diff.template diff<RecordsMap>(PRIVATE_RECORDS);
+      m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
+        if (v.has_value())
+        {
+          std::string val = v.value();
+          records[k] = val;
+        }
+        else
+        {
+          records.erase(k);
+        }
+
+        return true;
+      });
+      current_txid = tx_id;
+    }
+
+    std::optional<ccf::SeqNo> next_requested()
+    {
+      return current_txid.seqno + 1;
+    }
+
+    std::optional<std::string> get(size_t id)
+    {
+      auto search = records.find(id);
+      if (search == records.end())
+      {
+        return std::nullopt;
+      }
+      return search->second;
+    }
+  };
+
   // SNIPPET: inherit_frontend
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
@@ -145,6 +192,7 @@ namespace loggingapp
     const nlohmann::json get_public_result_schema;
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
+    std::shared_ptr<CommittedRecords> committed_records = nullptr;
 
     static void update_first_write(
       kv::Tx& tx,
@@ -274,11 +322,14 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      openapi_info.document_version = "1.12.1";
+
+      openapi_info.document_version = "1.15.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
+
+      committed_records = std::make_shared<CommittedRecords>(PRIVATE_RECORDS);
 
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
@@ -418,6 +469,62 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
+
+      // install the committed index and tell the historical fetcher to keep
+      // track of deleted keys too, so that the index can observe the deleted
+      // keys.
+      auto install_committed_index = [this, &context](auto& ctx) {
+        // tracking committed records also wants to track deletes so enable that
+        // in the historical queries too
+        context.get_historical_state().track_deletes_on_missing_keys(true);
+
+        context.get_indexing_strategies().install_strategy(committed_records);
+      };
+
+      make_command_endpoint(
+        "/log/private/install_committed_index",
+        HTTP_POST,
+        install_committed_index,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .install();
+
+      auto get_committed = [this](auto& ctx, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto record = committed_records->get(id);
+
+        if (record.has_value())
+        {
+          return ccf::make_success(LoggingGet::Out{record.value()});
+        }
+
+        return ccf::make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::ResourceNotFound,
+          fmt::format("No such record: {}.", id));
+      };
+
+      make_read_only_endpoint(
+        "/log/private/committed",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get_committed),
+        ccf::no_auth_required)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .install();
 
       auto remove = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
@@ -1649,6 +1756,27 @@ namespace loggingapp
         HTTP_GET,
         get_signed_request_query,
         {ccf::user_signature_auth_policy})
+        .set_auto_schema<void, std::string>()
+        .install();
+
+      auto post_cose_signed_content =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          const auto& caller_identity =
+            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          std::vector<uint8_t> response_body(
+            caller_identity.content.begin(), caller_identity.content.end());
+          ctx.rpc_ctx->set_response_body(response_body);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        };
+
+      make_endpoint(
+        "/log/cose_signed_content",
+        HTTP_POST,
+        post_cose_signed_content,
+        {ccf::member_cose_sign1_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
     }

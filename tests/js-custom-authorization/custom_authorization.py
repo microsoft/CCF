@@ -70,13 +70,6 @@ def test_heap_size_limit(network, args):
 
 
 def run_limits(args):
-    if "v8" in args.package:
-        LOG.warning(
-            f"Skipping run_limits for {args.package} as heap and stack limits are not yet enforced"
-        )
-        # See https://github.com/microsoft/CCF/issues/3324
-        return
-
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -379,6 +372,34 @@ def run_content_types(args):
 
 
 @reqs.description("Test request object API")
+def test_random_api(args):
+    # Test that Math.random() does not repeat values:
+    # - on multiple invocations within a single request
+    # - on multiple requests
+    # - on network restarts
+
+    seen_values = set()
+
+    def assert_fresh(n):
+        assert n not in seen_values, f"{n} has already been returned"
+        seen_values.add(n)
+
+    n_repeats = 3
+    for _ in range(n_repeats):
+        with infra.network.network(
+            args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        ) as network:
+            network.start_and_open(args)
+            primary, _ = network.find_nodes()
+            for _ in range(n_repeats):
+                with primary.client() as c:
+                    r = c.get("/app/make_randoms")
+                    assert r.status_code == 200, r
+                    for _, n in r.body.json().items():
+                        assert_fresh(n)
+
+
+@reqs.description("Test request object API")
 def test_request_object_api(network, args):
     primary, _ = network.find_nodes()
 
@@ -455,7 +476,9 @@ def test_request_object_api(network, args):
     return network
 
 
-def run_request_object(args):
+def run_api(args):
+    test_random_api(args)
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -497,8 +520,8 @@ if __name__ == "__main__":
     )
 
     cr.add(
-        "request_object",
-        run_request_object,
+        "api",
+        run_api,
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
     )

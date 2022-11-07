@@ -33,15 +33,6 @@ namespace http
     return error({status, code, std::move(msg)});
   }
 
-  class AbstractClientStreamer
-  {
-  public:
-    virtual ~AbstractClientStreamer() = default;
-
-    virtual void stream(
-      std::vector<uint8_t>&& data, int32_t stream_id, bool close) = 0;
-  };
-
   class HttpRpcContext : public ccf::RpcContextImpl
   {
   private:
@@ -67,10 +58,6 @@ namespace http
     bool serialised = false;
 
     std::optional<bool> explicit_apply_writes = std::nullopt;
-
-    // TODO: Ugly raw pointer here
-    AbstractClientStreamer* client_streamer = nullptr;
-    int32_t stream_id = 0;
 
     void serialise()
     {
@@ -126,14 +113,6 @@ namespace http
       {
         serialised = true;
       }
-    }
-
-    void set_client_streamer(
-      AbstractClientStreamer* client_streamer_, int32_t stream_id_)
-    {
-      // TODO: Create client streamer object here?
-      client_streamer = client_streamer_;
-      stream_id = stream_id_;
     }
 
     http::HeaderMap get_response_headers() const
@@ -301,12 +280,6 @@ namespace http
 
       http_response.set_body(&response_body);
       return http_response.build_response();
-    }
-
-    virtual void stream(
-      std::vector<uint8_t>&& data, bool close = false) override
-    {
-      client_streamer->stream(std::move(data), stream_id, close);
     }
   };
 
