@@ -154,6 +154,7 @@ namespace kv
 
       std::optional<Version> new_maps_conflict_version = std::nullopt;
 
+      bool track_deletes_on_missing_keys = false;
       auto c = apply_changes(
         all_changes,
         version_resolver == nullptr ?
@@ -164,7 +165,8 @@ namespace kv
         hooks,
         pimpl->created_maps,
         new_maps_conflict_version,
-        track_read_versions);
+        track_read_versions,
+        track_deletes_on_missing_keys);
 
       if (!pimpl->created_maps.empty())
         this->pimpl->store->unlock();
@@ -406,12 +408,16 @@ namespace kv
         throw std::logic_error("Reserved transaction cannot be empty");
 
       std::vector<ConsensusHookPtr> hooks;
+      bool track_read_versions = false;
+      bool track_deletes_on_missing_keys = false;
       auto c = apply_changes(
         all_changes,
         [this](bool) { return std::make_tuple(version, version - 1); },
         hooks,
         pimpl->created_maps,
-        version);
+        version,
+        track_read_versions,
+        track_deletes_on_missing_keys);
       success = c.has_value();
 
       if (!success)

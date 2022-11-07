@@ -59,7 +59,7 @@ jobs:
           cd getting_started/setup_vm
           sudo apt update
           sudo apt install -y ansible software-properties-common bsdmainutils dnsutils
-          sudo ansible-playbook ccf-dev.yml
+          sudo ansible-playbook ccf-dev.yml --extra-vars "platform=virtual"
 
       - run: |
           mkdir build
