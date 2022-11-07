@@ -133,11 +133,6 @@ namespace http
     {
       LOG_FAIL_FMT("Streaming data: {}", data.size());
       server_session.send_data(stream_id, std::move(data), close);
-      if (close)
-      {
-        // TODO: Add ability to close stream neatly
-        // server_session.close_stream(stream_id);
-      }
     }
 
     void handle_request(
