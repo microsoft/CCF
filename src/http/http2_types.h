@@ -19,32 +19,31 @@ namespace http2
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
-  enum class StreamState
+  // Used to keep track of response state between nghttp2 callbacks and to
+  // differentiate unary from streaming responses
+  enum class StreamResponseState
   {
-    Unary = 0,
-    AboutToStream,
-    Streaming,
-    Closing
+    Closing = 0, // Unary or last message in stream
+    AboutToStream, // Initial response (headers) to stream response
+    Streaming // Response streaming messages
   };
 
   struct StreamData
   {
     StreamId id;
+
+    // Request
     http::HeaderMap headers;
-    http::HeaderMap trailers;
     std::string url;
     ccf::RESTVerb verb;
     std::vector<uint8_t> request_body;
-    http_status status;
-    size_t current_offset = 0;
 
     // Response
+    StreamResponseState response_state = StreamResponseState::Closing;
+    http_status status;
     std::vector<uint8_t> response_body;
-
-    StreamState state = StreamState::Closing;
-    // bool is_unary = true;
-    // bool next_is_closing = true;
-    // bool is
+    size_t current_offset = 0;
+    http::HeaderMap trailers;
 
     StreamData(StreamId id_) : id(id_) {}
   };
