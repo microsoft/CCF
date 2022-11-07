@@ -146,6 +146,8 @@ namespace ccf
       historical::ExpiryDuration seconds_until_expiry)
     {}
 
+    void track_deletes_on_missing_keys(bool track) {}
+
     kv::ReadOnlyStorePtr get_store_at(
       historical::RequestHandle handle,
       ccf::SeqNo seqno,

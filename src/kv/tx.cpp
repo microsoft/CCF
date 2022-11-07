@@ -46,7 +46,8 @@ namespace kv
     pimpl->all_handles[map_name].emplace_back(std::move(handle));
   }
 
-  MapChanges BaseTx::get_map_and_change_set_by_name(const std::string& map_name)
+  MapChanges BaseTx::get_map_and_change_set_by_name(
+    const std::string& map_name, bool track_deletes_on_missing_keys)
   {
     if (!pimpl->read_txid.has_value())
     {
@@ -94,7 +95,9 @@ namespace kv
     }
 
     return {
-      abstract_map, untyped_map->create_change_set(pimpl->read_txid->version)};
+      abstract_map,
+      untyped_map->create_change_set(
+        pimpl->read_txid->version, track_deletes_on_missing_keys)};
   }
 
   std::list<AbstractHandle*> BaseTx::get_possible_handles(

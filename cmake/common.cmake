@@ -327,8 +327,9 @@ if(INSTALL_VIRTUAL_LIBRARIES)
 endif()
 
 # CCF kv libs
-set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
-                   ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+set(CCF_KV_SOURCES
+    ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")

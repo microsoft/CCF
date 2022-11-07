@@ -1532,6 +1532,39 @@ def test_post_local_commit_failure(network, args):
         }, r.body.json()
 
 
+@reqs.description(
+    "Check that the committed index gets populated with creates and deletes"
+)
+@reqs.supports_methods("/app/log/private/committed", "/app/log/private")
+def test_committed_index(network, args):
+    remote_node, _ = network.find_primary()
+    with remote_node.client() as c:
+        res = c.post("/app/log/private/install_committed_index")
+        assert res.status_code == http.HTTPStatus.OK
+
+    txid = network.txs.issue(network, number_txs=1, send_public=False)
+
+    _, log_id = network.txs.get_log_id(txid)
+
+    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+    assert r.body.json() == {"msg": f"Private message at idx {log_id} [0]"}
+
+    network.txs.delete(log_id, priv=True)
+
+    r = network.txs.request(log_id, priv=True)
+    assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+    assert r.body.json() == {
+        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
+    }
+
+    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+    assert r.body.json() == {
+        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
+    }
+
+
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
@@ -1599,6 +1632,7 @@ def run(args):
         test_metrics(network, args)
         test_empty_path(network, args)
         test_post_local_commit_failure(network, args)
+        test_committed_index(network, args)
         # BFT does not handle re-keying yet
         if args.consensus == "CFT":
             test_liveness(network, args)
