@@ -84,7 +84,6 @@ public:
       .add_flag("--pipeline", isPipeline, "Enable HTTP/1.1 pipelining option.")
       ->capture_default_str();
   }
-  void argument_assigner(int argc, char** argv);
 };
 
 #endif
