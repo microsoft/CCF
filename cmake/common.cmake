@@ -783,14 +783,10 @@ add_library(stdcxxccfcrypto.host STATIC "${CCFCRYPTO_SRC}")
 target_link_libraries(stdcxxccfcrypto.host PUBLIC crypto)
 target_link_libraries(stdcxxccfcrypto.host PUBLIC ssl)
 
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-  target_link_libraries(
-    submit PRIVATE stdcxxhttp_parser.host stdcxxccfcrypto.host arrow parquet
-  )
+target_link_libraries(
+  submit PRIVATE stdcxxhttp_parser.host stdcxxccfcrypto.host arrow parquet
+)
 
-else()
-  target_link_libraries(
-    submit PRIVATE stdcxxhttp_parser.host stdcxxccfcrypto.host arrow parquet
-                   c++fs
-  )
+if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(submit PRIVATE c++fs)
 endif()
