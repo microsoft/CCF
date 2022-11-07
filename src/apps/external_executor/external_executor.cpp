@@ -488,8 +488,6 @@ namespace externalexecutor
 
         // TODO: Fix return value here, which should return success but nothing
         return ccf::grpc::make_success(ccf::grpc::Stream<ccf::KVValue>{});
-        // return ccf::grpc::make_error(
-        //   GRPC_STATUS_UNIMPLEMENTED, "Unimplemented");
       };
 
       make_endpoint(
