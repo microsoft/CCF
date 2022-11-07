@@ -415,9 +415,8 @@ describe("polyfill", function () {
   });
   describe("pemToJwk", function () {
     it("EC", function () {
-      // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
       const my_kid = "my_kid";
-      const curves = ["secp256r1", "secp384r1"];
+      const curves = ["secp256r1", "secp256k1", "secp384r1"];
       for (const curve of curves) {
         const pair = ccf.generateEcdsaKeyPair(curve);
         {

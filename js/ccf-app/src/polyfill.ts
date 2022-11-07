@@ -18,7 +18,6 @@
 
 import * as jscrypto from "crypto";
 import { TextEncoder, TextDecoder } from "util";
-import * as rs from "jsrsasign";
 
 // Note: It is important that only types are imported here to prevent executing
 // the module at this point (which would query the ccf global before we polyfilled it).
@@ -369,40 +368,69 @@ class CCFPolyfill implements CCF {
       }
     },
     pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic {
-      let jwk = rs.KEYUTIL.getJWK(
-        rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA
-      ) as JsonWebKeyECPublic;
-      if (kid !== undefined) {
-        jwk.kid = kid;
-      }
-      return jwk;
+      const key = jscrypto.createPublicKey({
+        key: pem,
+      });
+      const jwk = key.export({
+        format: "jwk",
+      });
+      return {
+        crv: jwk.crv as string,
+        x: jwk.x as string,
+        y: jwk.y as string,
+        kty: jwk.kty as string,
+        kid: kid,
+      };
     },
     pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate {
-      let jwk = rs.KEYUTIL.getJWK(
-        rs.KEYUTIL.getKey(pem) as rs.KJUR.crypto.ECDSA
-      ) as JsonWebKeyECPrivate;
-      if (kid !== undefined) {
-        jwk.kid = kid;
-      }
-      return jwk;
+      const key = jscrypto.createPrivateKey({
+        key: pem,
+      });
+      const jwk = key.export({
+        format: "jwk",
+      });
+      return {
+        d: jwk.d as string,
+        crv: jwk.crv as string,
+        x: jwk.x as string,
+        y: jwk.y as string,
+        kty: jwk.kty as string,
+        kid: kid,
+      };
     },
     pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic {
-      let jwk = rs.KEYUTIL.getJWK(
-        rs.KEYUTIL.getKey(pem) as rs.RSAKey
-      ) as JsonWebKeyRSAPublic;
-      if (kid !== undefined) {
-        jwk.kid = kid;
-      }
-      return jwk;
+      const key = jscrypto.createPublicKey({
+        key: pem,
+      });
+      const jwk = key.export({
+        format: "jwk",
+      });
+      return {
+        n: jwk.n as string,
+        e: jwk.e as string,
+        kty: jwk.kty as string,
+        kid: kid,
+      };
     },
     rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate {
-      let jwk = rs.KEYUTIL.getJWK(
-        rs.KEYUTIL.getKey(pem) as rs.RSAKey
-      ) as JsonWebKeyRSAPrivate;
-      if (kid !== undefined) {
-        jwk.kid = kid;
-      }
-      return jwk;
+      const key = jscrypto.createPrivateKey({
+        key: pem,
+      });
+      const jwk = key.export({
+        format: "jwk",
+      });
+      return {
+        d: jwk.d as string,
+        p: jwk.p as string,
+        q: jwk.d as string,
+        dp: jwk.dp as string,
+        dq: jwk.dq as string,
+        qi: jwk.qi as string,
+        n: jwk.n as string,
+        e: jwk.e as string,
+        kty: jwk.kty as string,
+        kid: kid,
+      };
     },
   };
 
