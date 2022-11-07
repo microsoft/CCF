@@ -256,9 +256,14 @@ class Repository:
     def install_release(self, tag):
         stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        install_path = os.path.abspath(
-            os.path.join(install_directory, INSTALL_DIRECTORY_SUB_PATH)
-        )
+        if get_version_from_tag_name(tag) >= Version("3.0.0-rc1"):
+            install_path = os.path.abspath(
+                os.path.join(install_directory, f"{INSTALL_DIRECTORY_SUB_PATH}_sgx")
+            )
+        else:
+            install_path = os.path.abspath(
+                os.path.join(install_directory, INSTALL_DIRECTORY_SUB_PATH)
+            )
         debian_package_url = get_debian_package_url_from_tag_name(tag)
         installed_file_path = os.path.join(install_path, INSTALL_SUCCESS_FILE)
 
