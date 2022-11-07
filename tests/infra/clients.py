@@ -28,7 +28,7 @@ from loguru import logger as LOG  # type: ignore
 
 import infra.commit
 from infra.log_capture import flush_info
-import infra.signing
+import ccf.cose
 
 
 class HttpSig(httpx.Auth):
@@ -527,7 +527,7 @@ class HttpxClient:
                 pid = request.path.split("/")[-2]
                 phdr["ccf.gov.msg.type"] = "withdrawal"
                 phdr["ccf.gov.msg.proposal_id"] = pid
-            request_body = infra.signing.create_cose_sign1(
+            request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
             extra_headers["content-type"] = CONTENT_TYPE_COSE

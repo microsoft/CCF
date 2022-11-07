@@ -124,10 +124,21 @@ def create_cose_sign1(
     return msg.encode()
 
 
+DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
+
+Note that this tool writes binary COSE Sign1 to standard output.
+
+This is done intentionally to faciliate passing the output directly to curl,
+without having to create and read a temporary file on disk. For example:
+
+ccf_cose_sign1 --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
+"""
+
+
 def _parser():
     parser = argparse.ArgumentParser(
-        description="Create and sign a COSE Sign1 message for CCF governance",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=DESCRIPTION,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
         "--content", help="Path to content file", type=str, required=True
