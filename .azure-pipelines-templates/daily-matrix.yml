@@ -65,11 +65,3 @@ jobs:
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
 
-  - template: common.yml
-    parameters:
-      target: SGXIceLake
-      env: "${{ parameters.env.SGXIceLake }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
-      suffix: "Release"
-      artifact_name: "SGX_IceLake_Release"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
