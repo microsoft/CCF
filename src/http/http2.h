@@ -40,26 +40,28 @@ namespace http2
       std::min(response_body.size() - stream_data->current_offset, length);
     LOG_TRACE_FMT("http2::read_callback: {}", to_read);
 
-    LOG_FAIL_FMT(
-      "stream_data->next_is_closing: {}", stream_data->next_is_closing);
+    LOG_FAIL_FMT("stream_data->state: {}", (int)stream_data->state);
 
     LOG_FAIL_FMT("to read: {}", to_read);
 
-    // First time, for a unary stream, we return.
-    // First time, for a non-unary stream, we defer.
-    // Second time, for a non-unary stream, we return. TODO: What about if we
-    // send more than once??
+    if (to_read == 0 && stream_data->state == StreamState::Streaming)
+    {
+      // Note: avoid infinite loop when this function is called when server is
+      // streaming (TODO: why?)
+      return NGHTTP2_ERR_DEFERRED;
+    }
 
     if (to_read > 0)
     {
       // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
+      LOG_FAIL_FMT("Copy {} bytes", to_read);
       memcpy(buf, response_body.data() + stream_data->current_offset, to_read);
       stream_data->current_offset += to_read;
     }
 
     if (stream_data->current_offset >= response_body.size())
     {
-      if (stream_data->next_is_closing)
+      if (stream_data->state == StreamState::Closing)
       {
         LOG_FAIL_FMT("Setting flag eof");
         *data_flags |= NGHTTP2_DATA_FLAG_EOF;
@@ -68,7 +70,9 @@ namespace http2
       response_body.clear();
     }
 
-    if (stream_data->next_is_closing && !stream_data->trailers.empty())
+    if (
+      stream_data->state == StreamState::Closing &&
+      !stream_data->trailers.empty())
     {
       LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
       std::vector<nghttp2_nv> trlrs;
@@ -87,7 +91,7 @@ namespace http2
       }
       else
       {
-        if (stream_data->next_is_closing)
+        if (stream_data->state == StreamState::Closing)
         {
           LOG_FAIL_FMT("Setting flag end stream");
           *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
@@ -95,15 +99,15 @@ namespace http2
       }
     }
 
-    if (stream_data->next_is_closing)
+    if (stream_data->state == StreamState::AboutToStream)
     {
-      return to_read;
-    }
-    else
-    {
-      // stream_data->next_is_closing = true;
+      LOG_FAIL_FMT("Deferring data");
+      stream_data->state = StreamState::Streaming;
       return NGHTTP2_ERR_DEFERRED;
     }
+
+    LOG_FAIL_FMT("Copied {} bytes", to_read);
+    return to_read;
   }
 
   static ssize_t read_callback_client(
@@ -513,8 +517,7 @@ namespace http2
         return;
       }
 
-      stream_data->is_unary = false;
-      stream_data->next_is_closing = false;
+      stream_data->state = StreamState::AboutToStream;
       LOG_FAIL_FMT("No longer unary!");
     }
 
@@ -530,11 +533,19 @@ namespace http2
       }
 
       stream_data->response_body = std::move(data);
-      stream_data->next_is_closing = close;
+      if (close)
+      {
+        stream_data->state = StreamState::Closing;
+      }
 
-      nghttp2_data_provider prov;
-      prov.read_callback = read_callback;
+      // nghttp2_data_provider prov;
+      // prov.read_callback = read_callback;
 
+      // TODO: Look at test_nghttp2_session_defer_data in nghttp2 repo for
+      // unit test. It seems that it is the right way to do this.
+
+      // if (stream_data->state == StreamState::Streaming)
+      // {
       int rv = nghttp2_session_resume_data(session, stream_id);
       LOG_FAIL_FMT("resume data: {}", rv);
       if (rv < 0)
@@ -542,6 +553,7 @@ namespace http2
         throw std::logic_error(fmt::format(
           "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
       }
+      // }
 
       auto rc = nghttp2_session_send(session);
       if (rc < 0)

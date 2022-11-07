@@ -19,6 +19,14 @@ namespace http2
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
+  enum class StreamState
+  {
+    Unary = 0,
+    AboutToStream,
+    Streaming,
+    Closing
+  };
+
   struct StreamData
   {
     StreamId id;
@@ -32,8 +40,11 @@ namespace http2
 
     // Response
     std::vector<uint8_t> response_body;
-    bool is_unary = true;
-    bool next_is_closing = true;
+
+    StreamState state = StreamState::Closing;
+    // bool is_unary = true;
+    // bool next_is_closing = true;
+    // bool is
 
     StreamData(StreamId id_) : id(id_) {}
   };

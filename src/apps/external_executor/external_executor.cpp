@@ -128,9 +128,11 @@ namespace externalexecutor
     static void send_stream_payload(
       const std::shared_ptr<ccf::RpcContext>& rpc_ctx, bool close_stream)
     {
+      static size_t count = 0;
       ccf::KVKeyValue kv;
       kv.set_key("lala");
-      kv.set_value("my_value");
+      kv.set_value(fmt::format("my_value: {}", std::pow(10, count)));
+      count++;
 
       const auto message_length = kv.ByteSizeLong();
       size_t r_size = ccf::grpc::impl::message_frame_length + message_length;
