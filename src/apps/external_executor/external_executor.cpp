@@ -474,12 +474,11 @@ namespace externalexecutor
                       ccf::endpoints::EndpointContext& ctx,
                       google::protobuf::Empty&& payload) {
         // Dummy streaming endpoint
-        ccf::KVValue kv;
 
         // TODO:
         // 1. Create gRPC server stream wrapper that sets stream as non-unary
-        // 2. Add ability to close stream from rpc_ctx->stream(data, close=true)
-        // or rpc_ctx->stream_close();
+        // 2. [DONE] Add ability to close stream from rpc_ctx->stream(data,
+        // close=true) or rpc_ctx->stream_close();
         // 3. Create stream object from rpc_ctx, and then
         // rpc_ctx->create_stream() (figure out ownership and lifetime)
 
@@ -487,16 +486,18 @@ namespace externalexecutor
 
         async_send_stream_data(ctx.rpc_ctx);
 
-        ctx.rpc_ctx->set_is_streaming(); // TODO: Add to wrapper
-
-        return ccf::grpc::make_success();
+        // TODO: Fix return value here, which should return success but nothing
+        return ccf::grpc::make_success(ccf::grpc::Stream<ccf::KVValue>{});
+        // return ccf::grpc::make_error(
+        //   GRPC_STATUS_UNIMPLEMENTED, "Unimplemented");
       };
 
       make_endpoint(
         "/ccf.KV/Stream",
         HTTP_POST,
-        ccf::grpc_adapter<google::protobuf::Empty, google::protobuf::Empty>(
-          stream),
+        ccf::grpc_adapter<
+          google::protobuf::Empty,
+          ccf::grpc::Stream<ccf::KVValue>>(stream),
         {ccf::no_auth_required})
         .install();
     }

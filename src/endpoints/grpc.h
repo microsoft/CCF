@@ -93,6 +93,18 @@ namespace ccf::grpc
     return ErrorResponse(make_grpc_status(code, msg, details));
   }
 
+  template <typename T>
+  struct Stream
+  {};
+
+  template <typename T>
+  struct is_grpc_stream : std::false_type
+  {};
+
+  template <typename T>
+  struct is_grpc_stream<Stream<T>> : public std::true_type
+  {};
+
   template <typename In>
   In get_grpc_payload(const std::shared_ptr<ccf::RpcContext>& ctx)
   {
@@ -208,6 +220,11 @@ namespace ccf::grpc
           r_data += message_length;
           r_size += message_length;
         }
+      }
+      else if constexpr (is_grpc_stream<Out>::value)
+      {
+        LOG_FAIL_FMT("Streaming wrapper for response!");
+        ctx->set_is_streaming();
       }
       else
       {
