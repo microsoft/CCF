@@ -206,8 +206,9 @@ namespace externalexecutor
           stream_id));
       }
 
+      std::vector<externalexecutor::protobuf::KVKeyValue> kvs = {kv, kv, kv};
       http_responder->stream_data(
-        ccf::grpc::make_grpc_message(kv), close_stream);
+        ccf::grpc::make_grpc_messages(kvs), close_stream);
     }
 
     static void async_send_stream_data(

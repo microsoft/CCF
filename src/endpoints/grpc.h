@@ -57,7 +57,7 @@ namespace ccf::grpc
     if (!proto_data.SerializeToArray(r_data, r_size))
     {
       throw std::logic_error(fmt::format(
-        "Error serialising grpc message of type {}, size {}",
+        "Error serialising protobuf object of type {}, size {}",
         proto_data.GetTypeName(),
         data_length));
     }
@@ -67,21 +67,34 @@ namespace ccf::grpc
   template <typename T>
   std::vector<uint8_t> make_grpc_messages(const std::vector<T>& proto_data)
   {
-    const auto data_length = proto_data.ByteSizeLong();
-    size_t r_size = ccf::grpc::impl::message_frame_length + data_length;
-    std::vector<uint8_t> msg(r_size);
-    auto r_data = msg.data();
+    size_t r_size = std::accumulate(
+      proto_data.begin(),
+      proto_data.end(),
+      0,
+      [](size_t current, const T& data) {
+        return current + impl::message_frame_length + data.ByteSizeLong();
+      });
+    std::vector<uint8_t> msgs(r_size);
+    auto r_data = msgs.data();
 
-    ccf::grpc::impl::write_message_frame(r_data, r_size, data_length);
-
-    if (!proto_data.SerializeToArray(r_data, r_size))
+    for (const T& d : proto_data)
     {
-      throw std::logic_error(fmt::format(
-        "Error serialising grpc message of type {}, size {}",
-        proto_data.GetTypeName(),
-        data_length));
+      const auto data_length = d.ByteSizeLong();
+      impl::write_message_frame(r_data, r_size, data_length);
+
+      if (!d.SerializeToArray(r_data, r_size))
+      {
+        throw std::logic_error(fmt::format(
+          "Error serialising protobuf object of type {}, size {}",
+          d.GetTypeName(),
+          data_length));
+      }
+
+      r_data += data_length;
+      r_size += data_length;
     }
-    return msg;
+
+    return msgs;
   }
 
   template <typename T>
@@ -232,34 +245,7 @@ namespace ccf::grpc
 
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
-        using Message = typename Out::value_type;
-        const Out& messages = success_response->body;
-        size_t r_size = std::accumulate(
-          messages.begin(),
-          messages.end(),
-          0,
-          [](size_t current, const Message& msg) {
-            return current + impl::message_frame_length + msg.ByteSizeLong();
-          });
-        r.resize(r_size);
-        auto r_data = r.data();
-
-        for (const Message& msg : messages)
-        {
-          const auto message_length = msg.ByteSizeLong();
-          impl::write_message_frame(r_data, r_size, message_length);
-
-          if (!msg.SerializeToArray(r_data, r_size))
-          {
-            throw std::logic_error(fmt::format(
-              "Error serialising protobuf response of type {}, size {}",
-              msg.GetTypeName(),
-              message_length));
-          }
-
-          r_data += message_length;
-          r_size += message_length;
-        }
+        r = make_grpc_messages(success_response->body);
       }
       else if constexpr (is_grpc_stream<Out>::value)
       {
@@ -268,22 +254,7 @@ namespace ccf::grpc
       }
       else
       {
-        // r = make_grpc_message(success_response->body);
-        const Out& resp = success_response->body;
-        const auto message_length = resp.ByteSizeLong();
-        size_t r_size = impl::message_frame_length + message_length;
-        r.resize(r_size);
-        auto r_data = r.data();
-
-        impl::write_message_frame(r_data, r_size, message_length);
-
-        if (!resp.SerializeToArray(r_data, r_size))
-        {
-          throw std::logic_error(fmt::format(
-            "Error serialising protobuf response of type {}, size {}",
-            resp.GetTypeName(),
-            message_length));
-        }
+        r = make_grpc_message(success_response->body);
       }
 
       ctx->set_response_body(r);
