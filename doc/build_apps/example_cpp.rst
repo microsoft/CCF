@@ -106,7 +106,7 @@ If a handler makes no writes to the KV, it may be installed as read-only:
     :end-before: SNIPPET_END: install_get
     :dedent:
 
-This offers some additional type safety (accidental `put`\s or `remove`\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
+This offers some additional type safety (accidental ``put``\s or ``remove``\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
 
 API Schema
 ~~~~~~~~~~
