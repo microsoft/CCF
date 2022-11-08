@@ -10,6 +10,7 @@
 \* Author of these modifications:
 \*      Fritz Alder <fritz.alder@acm.org>
 \*      Heidi Howard <heidi.howard@microsoft.com>
+\*      Markus Alexander Kuppe <makuppe@microsoft.com>
 \* Partially based on
 \* - https://github.com/ongardie/raft.tla/blob/master/raft.tla
 \*   (base spec, modified)
@@ -80,7 +81,8 @@ ASSUME Servers \subseteq AllServers
 ----
 \* Global variables
 
-\* Keep track of current number of reconfigurations to limit it through the MC
+\* Keep track of current number of reconfigurations to limit it through the MC.
+\* TLC: Finite state space.
 VARIABLE reconfigurationCount
 \* Each server keeps track of the pending configurations
 VARIABLE configurations
@@ -94,7 +96,8 @@ reconfigurationVars == <<reconfigurationCount, configurations>>
 VARIABLE messages
 
 \* CCF: Keep track of each append entries message sent from each server to each other server
-\* and cap it to a maximum
+\* and cap it to a maximum to constraint the state-space for model-checking.
+\* TLC: Finite state space.
 VARIABLE messagesSent
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
@@ -119,7 +122,8 @@ VARIABLE votedFor
 
 serverVars == <<currentTerm, state, votedFor>>
 
-\* The set of requests that can go into the log
+\* The set of requests that can go into the log. 
+\* TLC: Finite state space.
 VARIABLE clientRequests
 
 \* A Sequence of log entries. The index into this sequence is the index of the
@@ -130,20 +134,21 @@ VARIABLE log
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
 
-\* The index that gets committed
+\* The log and index denoting the operations that have been committed. Instead
+\* of copying the committed prefix of the current leader's log, remember the
+\* node and the index (up to which the operations have been committed) into its log.
+\* This variable is a history variable in TLA+ jargon. It does not exist in an implementation.
 VARIABLE committedLog
 
-\* Have conflicting log entries been committed?
-VARIABLE committedLogConflict
-
-logVars == <<log, commitIndex, clientRequests, committedLog, committedLogConflict>>
+logVars == <<log, commitIndex, clientRequests, committedLog>>
 
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
 VARIABLE votesGranted
 
 \* State space limitation: Restrict each node to send a limited amount
-\* of requests to other nodes
+\* of requests to other nodes.
+\* TLC: Finite state space.
 VARIABLE votesRequested
 
 candidateVars == <<votesGranted, votesRequested>>
@@ -338,8 +343,7 @@ InitLogVars ==
     /\ log          = [i \in Servers |-> << >>]
     /\ commitIndex  = [i \in Servers |-> 0]
     /\ clientRequests = 1
-    /\ committedLog = << >>
-    /\ committedLogConflict = FALSE
+    /\ committedLog = [ node |-> NodeOne, index |-> 0]
 
 Init ==
     /\ InitReconfigurationVars
@@ -458,7 +462,7 @@ BecomeLeader(i) ==
         \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
         /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_conf_index)]
     /\ UNCHANGED <<reconfigurationCount, messageVars, currentTerm, votedFor, votesRequested, candidateVars,
-        commitIndex, clientRequests, committedLog, committedLogConflict>>
+        commitIndex, clientRequests, committedLog>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -474,7 +478,7 @@ ClientRequest(i) ==
            \* Make sure that each request is unique, reduce state space to be explored
            /\ clientRequests' = clientRequests + 1
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex, committedLog, committedLogConflict>>
+                   leaderVars, commitIndex, committedLog>>
 
 \*  SNIPPET_START: signing
 \* CCF extension: Signed commits
@@ -498,7 +502,7 @@ SignCommittableMessages(i) ==
             newLog == Append(log[i], entry)
             IN log' = [log EXCEPT ![i] = newLog]
         /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog, committedLogConflict>>
+                    leaderVars, commitIndex, committedLog>>
 \* SNIPPET_END: signing
 
 \*  SNIPPET_START: reconfig
@@ -529,7 +533,7 @@ ChangeConfiguration(i, newConfiguration) ==
            /\ log' = [log EXCEPT ![i] = newLog]
            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog, committedLogConflict>>
+                    leaderVars, commitIndex, committedLog>>
 \* SNIPPET_END: reconfig
 
 
@@ -567,12 +571,7 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
-        /\ IF new_index <= Len(committedLog) THEN
-            /\ committedLogConflict' = \E j \in 1..new_index : committedLog[j] /= new_log[j]
-            /\ UNCHANGED committedLog
-           ELSE
-            /\ committedLogConflict' = \E j \in 1..Len(committedLog) : committedLog[j] /= new_log[j]
-            /\ committedLog' = new_log
+        /\ committedLog' = IF new_index > committedLog.index THEN [ node |-> i, index |-> new_index ] ELSE committedLog
         \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
         /\ \/ /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
@@ -686,9 +685,10 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ Len(log[i]) >= index
           /\ log[i][index].term = m.mentries[1].term
     \* In normal Raft, this could make our commitIndex decrease (for
-    \* example if we process an old, duplicated request)
+    \* example if we process an old, duplicated request).
     \* In CCF however, messages are encrypted and integrity protected
-    \*  which also prevents message replays and duplications.
+    \* which also prevents message replays and duplications.
+    \* Note, though, that [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars is not a theorem of the specification.
     /\ commitIndex' = [commitIndex EXCEPT ![i] = m.mcommitIndex]
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
@@ -697,7 +697,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog, committedLogConflict>>
+    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.mentries /= << >>
@@ -714,7 +714,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
                 |-> [n \in 1..min(Len(messagesSent[i][j]) - 1, index - 1)
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
-    /\ UNCHANGED <<reconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog, committedLogConflict>>
+    /\ UNCHANGED <<reconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
@@ -760,7 +760,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog, committedLogConflict>>
+    /\ UNCHANGED <<reconfigurationCount, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -851,7 +851,7 @@ UpdateCommitIndex(i,j,m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = [configurations EXCEPT ![i] = new_config]
     /\ UNCHANGED <<reconfigurationCount, messages, messagesSent, commitsNotified, currentTerm,
-                   votedFor, candidateVars, leaderVars, log, clientRequests, committedLog, committedLogConflict >>
+                   votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
 
 \* Receive a message.
 Receive ==
@@ -907,8 +907,7 @@ Spec == Init /\ [][Next]_vars
 
 \* Committed log entries should not conflict
 LogInv ==
-    /\ \lnot committedLogConflict
-    /\ \A i \in Servers : IsPrefix(Committed(i),committedLog)
+    /\ \A i \in Servers : IsPrefix(Committed(i),SubSeq(log[committedLog.node],1,committedLog.index))
 
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
@@ -946,7 +945,8 @@ ElectionSafetyInv ==
             IN FoldSeq(FilterAndMax, 0, log[i]) >= FoldSeq(FilterAndMax, 0, log[j])
 
 ----
-\* Every (index, term) pair determines a log prefix
+\* Every (index, term) pair determines a log prefix.
+\* From page 8 of the Raft paper: "If two logs contain an entry with the same index and term, then the logs are identical in all preceding entries."
 LogMatchingInv ==
     \A i, j \in Servers : i /= j =>
         \A n \in 1..min(Len(log[i]), Len(log[j])) :
@@ -1064,8 +1064,7 @@ LogVarsTypeInv ==
         /\ LogTypeOK(log[i])
         /\ commitIndex[i] \in Nat
     /\ clientRequests \in Nat \ {0}
-    /\ LogTypeOK(committedLog)
-    /\ committedLogConflict \in BOOLEAN
+    /\ committedLog \in [ node: Servers, index: Nat ]
 
 \* Invariant to check the type safety of all variables
 TypeInv ==
