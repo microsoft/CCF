@@ -10,7 +10,7 @@ Patching a release, ie. issuing a ``N.0.x+1`` version when the current version i
     1. Apply commits to ``release/N.0.x``, and/or cherry-pick them from ``main``
     2. Tag head of ``release/N.x`` as ``ccf-N.0.x+1``
 
-.. tip:: Alternatively, pull requests merged to ``main`` with the ``auto-backport`` and ``N.x-todo`` GitHub label(s) will be automatically backported to the corresponding LTS branch(es). See Labelling LTS PRs section for more details. 
+.. tip:: Alternatively, pull requests merged to ``main`` with the ``auto-backport`` and ``N.x-todo`` GitHub label(s) will be automatically backported to the corresponding LTS branch(es). See `Labelling LTS PRs`_ section for more details. 
 
 Create an LTS release
 ---------------------
