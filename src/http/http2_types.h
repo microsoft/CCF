@@ -35,36 +35,45 @@ namespace http2
     Streaming // Response streaming messages
   };
 
+  class DataSource
+  {
+    // Utility class to consume data from underlying data vector in chunks from
+    // nghttp2_data_source_read_callback
+  private:
+    std::vector<uint8_t> data;
+
+    std::span<const uint8_t> span;
+
+  public:
+    DataSource() = default;
+
+    DataSource(std::vector<uint8_t>&& data_) :
+      data(std::move(data_)),
+      span(data)
+    {}
+
+    std::span<const uint8_t>& ro_data()
+    {
+      return span;
+    }
+  };
+
   struct StreamData
   {
-    // Request
-    http::HeaderMap headers; // Only used for incoming headers
-    std::vector<uint8_t> request_body;
-
-    // Response
-    StreamResponseState response_state = StreamResponseState::Closing;
-    http::HeaderMap trailers; // Only used for outgoing trailers
-
-    struct ResponseBody
+    struct Incoming
     {
+      http::HeaderMap headers;
       std::vector<uint8_t> body;
-
-      // Use span to elegantly keep track of next data to send in body
-      std::span<const uint8_t> read_only_span;
-
-      ResponseBody() = default;
-
-      ResponseBody(std::vector<uint8_t>&& data) :
-        body(std::move(data)),
-        read_only_span(body)
-      {}
-
-      std::span<const uint8_t>& ro_data()
-      {
-        return read_only_span;
-      }
     };
-    ResponseBody response_body;
+    Incoming incoming;
+
+    struct Outgoing
+    {
+      StreamResponseState state = StreamResponseState::Closing;
+      http::HeaderMap trailers;
+      DataSource body;
+    };
+    Outgoing outgoing;
   };
 
   class AbstractParser

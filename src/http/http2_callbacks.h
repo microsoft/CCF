@@ -17,13 +17,13 @@ namespace http2
     void* user_data)
   {
     auto* stream_data = get_stream_data(session, stream_id);
-    auto& body = stream_data->response_body.ro_data();
+    auto& body = stream_data->outgoing.body.ro_data();
 
     size_t to_read = std::min(body.size(), length);
 
     if (
       to_read == 0 &&
-      stream_data->response_state == StreamResponseState::Streaming)
+      stream_data->outgoing.state == StreamResponseState::Streaming)
     {
       // Early out: when streaming, avoid calling this callback
       // repeatedly when there no data to read
@@ -38,27 +38,28 @@ namespace http2
       body = body.subspan(to_read);
     }
 
-    if (stream_data->response_state == StreamResponseState::AboutToStream)
+    if (stream_data->outgoing.state == StreamResponseState::AboutToStream)
     {
-      stream_data->response_state = StreamResponseState::Streaming;
+      stream_data->outgoing.state = StreamResponseState::Streaming;
       return NGHTTP2_ERR_DEFERRED;
     }
 
     if (
       body.empty() &&
-      stream_data->response_state == StreamResponseState::Closing)
+      stream_data->outgoing.state == StreamResponseState::Closing)
     {
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
 
     if (
-      stream_data->response_state == StreamResponseState::Closing &&
-      !stream_data->trailers.empty())
+      stream_data->outgoing.state == StreamResponseState::Closing &&
+      !stream_data->outgoing.trailers.empty())
     {
-      LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
+      LOG_TRACE_FMT(
+        "Submitting {} trailers", stream_data->outgoing.trailers.size());
       std::vector<nghttp2_nv> trlrs;
-      trlrs.reserve(stream_data->trailers.size());
-      for (auto& [k, v] : stream_data->trailers)
+      trlrs.reserve(stream_data->outgoing.trailers.size());
+      for (auto& [k, v] : stream_data->outgoing.trailers)
       {
         trlrs.emplace_back(make_nv(k.data(), v.data()));
       }
@@ -151,7 +152,7 @@ namespace http2
     LOG_TRACE_FMT("http2::on_header_callback: {}:{}", k, v);
 
     auto* stream_data = get_stream_data(session, frame->hd.stream_id);
-    stream_data->headers.emplace(k, v);
+    stream_data->incoming.headers.emplace(k, v);
 
     return 0;
   }
@@ -167,8 +168,8 @@ namespace http2
     LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
 
     auto* stream_data = get_stream_data(session, stream_id);
-    stream_data->request_body.insert(
-      stream_data->request_body.end(), data, data + len);
+    stream_data->incoming.body.insert(
+      stream_data->incoming.body.end(), data, data + len);
 
     return 0;
   }
