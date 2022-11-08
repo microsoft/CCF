@@ -45,6 +45,46 @@ namespace ccf::grpc
   }
 
   template <typename T>
+  std::vector<uint8_t> make_grpc_message(T proto_data)
+  {
+    const auto data_length = proto_data.ByteSizeLong();
+    size_t r_size = ccf::grpc::impl::message_frame_length + data_length;
+    std::vector<uint8_t> msg(r_size);
+    auto r_data = msg.data();
+
+    ccf::grpc::impl::write_message_frame(r_data, r_size, data_length);
+
+    if (!proto_data.SerializeToArray(r_data, r_size))
+    {
+      throw std::logic_error(fmt::format(
+        "Error serialising grpc message of type {}, size {}",
+        proto_data.GetTypeName(),
+        data_length));
+    }
+    return msg;
+  }
+
+  template <typename T>
+  std::vector<uint8_t> make_grpc_messages(const std::vector<T>& proto_data)
+  {
+    const auto data_length = proto_data.ByteSizeLong();
+    size_t r_size = ccf::grpc::impl::message_frame_length + data_length;
+    std::vector<uint8_t> msg(r_size);
+    auto r_data = msg.data();
+
+    ccf::grpc::impl::write_message_frame(r_data, r_size, data_length);
+
+    if (!proto_data.SerializeToArray(r_data, r_size))
+    {
+      throw std::logic_error(fmt::format(
+        "Error serialising grpc message of type {}, size {}",
+        proto_data.GetTypeName(),
+        data_length));
+    }
+    return msg;
+  }
+
+  template <typename T>
   struct SuccessResponse
   {
     T body;
@@ -228,6 +268,7 @@ namespace ccf::grpc
       }
       else
       {
+        // r = make_grpc_message(success_response->body);
         const Out& resp = success_response->body;
         const auto message_length = resp.ByteSizeLong();
         size_t r_size = impl::message_frame_length + message_length;

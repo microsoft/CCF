@@ -181,31 +181,9 @@ namespace externalexecutor
       const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup,
       bool close_stream)
     {
-      static size_t count = 0;
       externalexecutor::protobuf::KVKeyValue kv;
       kv.set_key("lala");
-      kv.set_value(fmt::format("my_value: {}", std::pow(10, count)));
-      count++;
-
-      // TODO: Create wrapper for these
-
-      const auto message_length = kv.ByteSizeLong();
-      size_t r_size = ccf::grpc::impl::message_frame_length + message_length;
-      std::vector<uint8_t> data;
-      data.resize(r_size);
-      auto r_data = data.data();
-
-      ccf::grpc::impl::write_message_frame(r_data, r_size, message_length);
-
-      if (!kv.SerializeToArray(r_data, r_size))
-      {
-        throw std::logic_error(fmt::format(
-          "Error serialising protobuf response of type {}, size {}",
-          kv.GetTypeName(),
-          message_length));
-      }
-
-      CCF_APP_FAIL("Stream some data: {}", data.size());
+      kv.set_value(fmt::format("my_value: {}", close_stream));
 
       auto http2_session_context =
         std::dynamic_pointer_cast<http::HTTP2SessionContext>(
@@ -228,9 +206,8 @@ namespace externalexecutor
           stream_id));
       }
 
-      http_responder->stream_data(std::move(data), close_stream);
-
-      // rpc_ctx->stream(std::move(data), close_stream);
+      http_responder->stream_data(
+        ccf::grpc::make_grpc_message(kv), close_stream);
     }
 
     static void async_send_stream_data(

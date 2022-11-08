@@ -430,7 +430,7 @@ def run(args):
         #     ), "Target node does not support HTTP/2"
 
         # network = test_executor_registration(network, args)
-        # network = test_put_get(network, args)
+        network = test_put_get(network, args)
         # network = test_simple_executor(network, args)
         # network = test_parallel_executors(network, args)
         # network = test_streaming(network, args)
