@@ -19,18 +19,18 @@ namespace http2
     auto* stream_data = get_stream_data(session, stream_id);
     auto& body = stream_data->body_s;
 
-    // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
     size_t to_read = std::min(body.size(), length);
-    LOG_TRACE_FMT("http2::read_body_callback: Reading {} bytes", to_read);
 
     if (
       to_read == 0 &&
       stream_data->response_state == StreamResponseState::Streaming)
     {
-      // Note: When streaming, avoid calling this callback repeatedly when there
-      // is no data to read
+      // Early out: when streaming, avoid calling this callback
+      // repeatedly when there no data to read
       return NGHTTP2_ERR_DEFERRED;
     }
+
+    LOG_TRACE_FMT("http2::read_body_callback: Reading {} bytes", to_read);
 
     if (to_read > 0)
     {
@@ -49,11 +49,34 @@ namespace http2
       body.empty() &&
       stream_data->response_state == StreamResponseState::Closing)
     {
+      LOG_FAIL_FMT("Setting NGHTTP2_DATA_FLAG_EOF flag");
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
 
-    if (stream_data->response_state != StreamResponseState::Closing)
+    LOG_FAIL_FMT("Trailers: {}", stream_data->trailers.size());
+    LOG_FAIL_FMT("State: {}", stream_data->response_state);
+
+    if (
+      stream_data->response_state == StreamResponseState::Closing &&
+      !stream_data->trailers.empty())
     {
+      LOG_TRACE_FMT("Submitting {} trailers", stream_data->trailers.size());
+      std::vector<nghttp2_nv> trlrs;
+      trlrs.reserve(stream_data->trailers.size());
+      for (auto& [k, v] : stream_data->trailers)
+      {
+        trlrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      int rv =
+        nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
+      if (rv != 0)
+      {
+        throw std::logic_error(
+          fmt::format("nghttp2_submit_trailer error: {}", rv));
+      }
+
+      LOG_FAIL_FMT("Setting NGHTTP2_DATA_FLAG_NO_END_STREAM flag");
       *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
     }
 

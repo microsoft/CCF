@@ -404,7 +404,6 @@ def test_async_streaming(network, args):
             LOG.error(r.value)
             success = r.key == b"lala"
 
-        time.sleep(3)
         assert success, f"Error!: {r.key}"
 
         LOG.success("Done")

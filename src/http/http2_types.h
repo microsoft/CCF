@@ -43,8 +43,7 @@ namespace http2
     // Response
     StreamResponseState response_state = StreamResponseState::Closing;
     std::vector<uint8_t> body;
-    std::span<const uint8_t> body_s; // TODO: Rename
-    // size_t current_offset = 0;
+    std::span<const uint8_t> body_s; // TODO: Add function to set these two
     http::HeaderMap trailers; // Only used for outgoing trailers
   };
 

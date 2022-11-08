@@ -204,12 +204,13 @@ namespace http2
       }
 
       auto* stream_data = get_stream_data(session, stream_id);
-      stream_data->body = body;
-      stream_data->body_s = body;
-      if (!trailers.empty())
-      {
-        stream_data->response_state = StreamResponseState::Closing;
-      }
+      stream_data->body = std::move(body);
+      stream_data->body_s = stream_data->body;
+      stream_data->trailers = std::move(trailers);
+      // if (!trailers.empty())
+      // {
+      //   stream_data->has_trailers = true;
+      // }
 
       nghttp2_data_provider prov;
       prov.read_callback = read_body_callback;
@@ -222,29 +223,7 @@ namespace http2
           fmt::format("nghttp2_submit_response error: {}", rv));
       }
 
-      send_all_submitted();
-
-      if (!trailers.empty())
-      {
-        LOG_TRACE_FMT("Submitting {} trailers", trailers.size());
-        std::vector<nghttp2_nv> trlrs;
-        trlrs.reserve(trailers.size());
-        for (auto& [k, v] : trailers)
-        {
-          trlrs.emplace_back(make_nv(k.data(), v.data()));
-        }
-
-        int rv = nghttp2_submit_trailer(
-          session, stream_id, trlrs.data(), trlrs.size());
-
-        if (rv != 0)
-        {
-          throw std::logic_error(
-            fmt::format("nghttp2_submit_trailer error: {}", rv));
-        }
-
-        send_all_submitted();
-      }
+      send_all_submitted(); // TODO: Is this call necessary?
     }
 
     void set_no_unary(StreamId stream_id)

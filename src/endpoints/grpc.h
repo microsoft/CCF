@@ -189,7 +189,6 @@ namespace ccf::grpc
     if (success_response != nullptr)
     {
       std::vector<uint8_t> r;
-      bool include_trailers = true;
 
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
@@ -226,7 +225,6 @@ namespace ccf::grpc
       {
         LOG_FAIL_FMT("Streaming wrapper for response!");
         ctx->set_is_streaming();
-        include_trailers = false;
       }
       else
       {
@@ -251,13 +249,9 @@ namespace ccf::grpc
       ctx->set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
 
-      if (include_trailers)
-      {
-        ctx->set_response_trailer(
-          "grpc-status", success_response->status.code());
-        ctx->set_response_trailer(
-          "grpc-message", success_response->status.message());
-      }
+      ctx->set_response_trailer("grpc-status", success_response->status.code());
+      ctx->set_response_trailer(
+        "grpc-message", success_response->status.message());
     }
     else
     {
