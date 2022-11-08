@@ -168,7 +168,7 @@ namespace http2
       http_status status,
       const http::HeaderMap& headers,
       http::HeaderMap&& trailers,
-      const std::vector<uint8_t>&& body)
+      std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
         "http2::respond: stream {} - {} headers - {} trailers - {} bytes "
@@ -204,13 +204,8 @@ namespace http2
       }
 
       auto* stream_data = get_stream_data(session, stream_id);
-      stream_data->body = std::move(body);
-      stream_data->body_s = stream_data->body;
+      stream_data->response_body = StreamData::ResponseBody(std::move(body));
       stream_data->trailers = std::move(trailers);
-      // if (!trailers.empty())
-      // {
-      //   stream_data->has_trailers = true;
-      // }
 
       nghttp2_data_provider prov;
       prov.read_callback = read_body_callback;
@@ -223,20 +218,15 @@ namespace http2
           fmt::format("nghttp2_submit_response error: {}", rv));
       }
 
-      send_all_submitted(); // TODO: Is this call necessary?
+      send_all_submitted();
     }
 
     void set_no_unary(StreamId stream_id)
     {
+      // TODO: Can this be removed altogether?
       LOG_TRACE_FMT("http2::set_no_unary: stream {}", stream_id);
 
       auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
-      {
-        LOG_FAIL_FMT("stream not found!");
-        return;
-      }
-
       stream_data->response_state = StreamResponseState::AboutToStream;
     }
 
@@ -251,8 +241,7 @@ namespace http2
 
       auto* stream_data = get_stream_data(session, stream_id);
 
-      stream_data->body = std::move(data);
-      stream_data->body_s = stream_data->body;
+      stream_data->response_body = StreamData::ResponseBody(std::move(data));
       if (close)
       {
         stream_data->response_state = StreamResponseState::Closing;
@@ -303,7 +292,7 @@ namespace http2
         method,
         url,
         std::move(stream_data->headers),
-        std::move(stream_data->body),
+        std::move(stream_data->request_body),
         stream_id);
     }
   };
@@ -349,7 +338,7 @@ namespace http2
       }
 
       auto stream_data = create_stream(stream_id);
-      stream_data->body = std::move(body);
+      stream_data->response_body = std::move(body);
 
       send_all_submitted();
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
@@ -377,7 +366,9 @@ namespace http2
       }
 
       proc.handle_response(
-        status, std::move(stream_data->headers), std::move(stream_data->body));
+        status,
+        std::move(stream_data->headers),
+        std::move(stream_data->request_body));
     }
   };
 }

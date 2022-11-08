@@ -39,12 +39,32 @@ namespace http2
   {
     // Request
     http::HeaderMap headers; // Only used for incoming headers
+    std::vector<uint8_t> request_body;
 
     // Response
     StreamResponseState response_state = StreamResponseState::Closing;
-    std::vector<uint8_t> body;
-    std::span<const uint8_t> body_s; // TODO: Add function to set these two
     http::HeaderMap trailers; // Only used for outgoing trailers
+
+    struct ResponseBody
+    {
+      std::vector<uint8_t> body;
+
+      // Use span to elegantly keep track of next data to send in body
+      std::span<const uint8_t> read_only_span;
+
+      ResponseBody() = default;
+
+      ResponseBody(std::vector<uint8_t>&& data) :
+        body(std::move(data)),
+        read_only_span(body)
+      {}
+
+      std::span<const uint8_t>& ro_data()
+      {
+        return read_only_span;
+      }
+    };
+    ResponseBody response_body;
   };
 
   class AbstractParser

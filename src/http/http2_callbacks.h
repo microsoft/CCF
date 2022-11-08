@@ -17,7 +17,7 @@ namespace http2
     void* user_data)
   {
     auto* stream_data = get_stream_data(session, stream_id);
-    auto& body = stream_data->body_s;
+    auto& body = stream_data->response_body.ro_data();
 
     size_t to_read = std::min(body.size(), length);
 
@@ -40,7 +40,6 @@ namespace http2
 
     if (stream_data->response_state == StreamResponseState::AboutToStream)
     {
-      LOG_FAIL_FMT("Deferring data");
       stream_data->response_state = StreamResponseState::Streaming;
       return NGHTTP2_ERR_DEFERRED;
     }
@@ -49,12 +48,8 @@ namespace http2
       body.empty() &&
       stream_data->response_state == StreamResponseState::Closing)
     {
-      LOG_FAIL_FMT("Setting NGHTTP2_DATA_FLAG_EOF flag");
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
-
-    LOG_FAIL_FMT("Trailers: {}", stream_data->trailers.size());
-    LOG_FAIL_FMT("State: {}", stream_data->response_state);
 
     if (
       stream_data->response_state == StreamResponseState::Closing &&
@@ -76,11 +71,9 @@ namespace http2
           fmt::format("nghttp2_submit_trailer error: {}", rv));
       }
 
-      LOG_FAIL_FMT("Setting NGHTTP2_DATA_FLAG_NO_END_STREAM flag");
       *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
     }
 
-    LOG_FAIL_FMT("Copied {} bytes", to_read);
     return to_read;
   }
 
@@ -174,7 +167,8 @@ namespace http2
     LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
 
     auto* stream_data = get_stream_data(session, stream_id);
-    stream_data->body.insert(stream_data->body.end(), data, data + len);
+    stream_data->request_body.insert(
+      stream_data->request_body.end(), data, data + len);
 
     return 0;
   }
