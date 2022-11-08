@@ -136,9 +136,9 @@ def get_debian_package_prefix_with_platform(tag_name, platform="sgx"):
     return "-".join(tag_components)
 
 
-def get_debian_package_url_from_tag_name(tag_name):
+def get_debian_package_url_from_tag_name(tag_name, platform="sgx"):
     if get_version_from_tag_name(tag_name) >= Version("3.0.0-rc0"):
-        return f'{REMOTE_URL}/releases/download/{tag_name}/{get_debian_package_prefix_with_platform(tag_name).replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
+        return f'{REMOTE_URL}/releases/download/{tag_name}/{get_debian_package_prefix_with_platform(tag_name, platform).replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
     else:
         return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
@@ -253,18 +253,20 @@ class Repository:
             major_version += 1
         return releases
 
-    def install_release(self, tag):
+    def install_release(self, tag, platform="sgx"):
         stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
         if get_version_from_tag_name(tag) >= Version("3.0.0-rc1"):
             install_path = os.path.abspath(
-                os.path.join(install_directory, f"{INSTALL_DIRECTORY_SUB_PATH}_sgx")
+                os.path.join(
+                    install_directory, f"{INSTALL_DIRECTORY_SUB_PATH}_{platform}"
+                )
             )
         else:
             install_path = os.path.abspath(
                 os.path.join(install_directory, INSTALL_DIRECTORY_SUB_PATH)
             )
-        debian_package_url = get_debian_package_url_from_tag_name(tag)
+        debian_package_url = get_debian_package_url_from_tag_name(tag, platform)
         installed_file_path = os.path.join(install_path, INSTALL_SUCCESS_FILE)
 
         # Skip downloading release if it already exists
@@ -362,15 +364,19 @@ class Repository:
             LOG.debug(f"{branch} is development branch")
             return None
 
-    def install_latest_lts_for_branch(self, branch, this_release_branch_only):
+    def install_latest_lts_for_branch(
+        self, branch, this_release_branch_only, platform="sgx"
+    ):
         latest_tag = self.get_latest_released_tag_for_branch(
             branch, this_release_branch_only
         )
-        return self.install_release(latest_tag) if latest_tag else (None, None)
+        return (
+            self.install_release(latest_tag, platform) if latest_tag else (None, None)
+        )
 
-    def install_next_lts_for_branch(self, branch):
+    def install_next_lts_for_branch(self, branch, platform="sgx"):
         next_tag = self.get_first_tag_for_next_release_branch(branch)
-        return self.install_release(next_tag) if next_tag else (None, None)
+        return self.install_release(next_tag, platform) if next_tag else (None, None)
 
 
 if __name__ == "__main__":
