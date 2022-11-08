@@ -564,7 +564,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "/ccf.KV/Stream",
+        "/externalexecutor.protobuf.KV/Stream",
         HTTP_POST,
         ccf::grpc_adapter<
           google::protobuf::Empty,
