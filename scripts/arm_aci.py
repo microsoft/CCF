@@ -25,13 +25,13 @@ STARTUP_COMMANDS = {
     ],
     "static-agent": lambda args, i: [
         "apt-get install wget",
-        "wget https://gist.github.com/DomAyre/98d3a229870f4947fc99a2aa7ed995b47/raw",
+        "wget https://gist.github.com/DomAyre/98d3a229870f4947fc99a2aa7ed995b4/raw -O setup_agent.sh",
         "chmod 777 setup_agent.sh",
         f"AGENT_NAME={args.deployment_name}-{i} PAT={args.aci_pat} ./setup_agent",
     ],
     "dev": lambda args, i: [
         "apt-get install wget",
-        "wget https://gist.github.com/DomAyre/ea2c07a9cb790bf17da05d4ca1674c8c/raw",
+        "wget https://gist.github.com/DomAyre/ea2c07a9cb790bf17da05d4ca1674c8c/raw -O setup_dev.sh",
         "chmod 777 setup_dev.sh",
         f"SSHUSER={args.deployment_name}-{i} GITHUBID={args.aci_github_id} ./setup_dev",
     ],
