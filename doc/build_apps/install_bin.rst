@@ -88,3 +88,13 @@ From Source
 -----------
 
 To build and install CCF from source, please see :doc:`/contribute/build_ccf`.
+
+In Azure
+--------
+
+You can install CCF on an Azure Virtual Machine by editing the ``install_ccf_on_azure_vm.sh`` and defining your own DNS name.
+
+.. code-block:: bash
+
+    cd <ccf_path>/getting_started/azure_vm/
+    ./install_ccf_on_azure_vm.sh
