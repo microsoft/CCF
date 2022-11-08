@@ -9,7 +9,7 @@ from azure.mgmt.resource.resources.models import (
     DeploymentProperties,
     DeploymentMode,
 )
-from scripts.arm_aci import (
+from arm_aci import (
     check_aci_deployment,
     make_aci_deployment,
     remove_aci_deployment,
