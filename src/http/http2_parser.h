@@ -322,14 +322,14 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      LOG_INFO_FMT(
-        "Trying submit_request with user_data set to {}", (size_t)&body);
+      auto stream_data = std::make_shared<StreamData>();
+      stream_data->outgoing.body = DataSource(std::move(body));
 
       nghttp2_data_provider prov;
       prov.read_callback = read_body_callback;
 
       auto stream_id = nghttp2_submit_request(
-        session, nullptr, hdrs.data(), hdrs.size(), &prov, nullptr);
+        session, nullptr, hdrs.data(), hdrs.size(), &prov, stream_data.get());
       if (stream_id < 0)
       {
         LOG_FAIL_FMT(
@@ -337,8 +337,7 @@ namespace http2
         return;
       }
 
-      auto stream_data = create_stream(stream_id);
-      stream_data->outgoing.body = std::move(body);
+      store_stream(stream_id, stream_data);
 
       send_all_submitted();
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
