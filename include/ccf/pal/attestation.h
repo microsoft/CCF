@@ -200,7 +200,7 @@ namespace ccf::pal
 
       if (quote.policy.debug == 1)
       {
-        throw std::logic_error("Debugging should not be enabled");
+        throw std::logic_error("SNP attestation report guest policy debugging should not be enabled");
       }
 
       if (quote.policy.migrate_ma == 1)
