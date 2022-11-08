@@ -168,7 +168,7 @@ namespace http2
       http_status status,
       const http::HeaderMap& headers,
       http::HeaderMap&& trailers,
-      std::span<const uint8_t> body)
+      const std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
         "http2::respond: stream {} - {} headers - {} trailers - {} bytes "
@@ -203,15 +203,15 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      DataSource ds;
-      ds.body = body;
+      auto* stream_data = get_stream_data(session, stream_id);
+      stream_data->body = body;
+      stream_data->body_s = body;
       if (!trailers.empty())
       {
-        ds.end_stream = false;
+        stream_data->response_state = StreamResponseState::Closing;
       }
 
       nghttp2_data_provider prov;
-      prov.source.ptr = &ds;
       prov.read_callback = read_body_from_span_callback;
 
       int rv = nghttp2_submit_response(
@@ -345,7 +345,7 @@ namespace http2
       llhttp_method method,
       const std::string& route,
       const http::HeaderMap& headers,
-      std::span<const uint8_t> body)
+      std::vector<uint8_t>&& body)
     {
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
@@ -358,15 +358,11 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      DataSource ds;
-      ds.body = body;
-
-      nghttp2_data_provider prov;
-      prov.source.ptr = &ds;
-      prov.read_callback = read_body_from_span_callback;
-
       LOG_INFO_FMT(
         "Trying submit_request with user_data set to {}", (size_t)&body);
+
+      nghttp2_data_provider prov;
+      prov.read_callback = read_body_from_span_callback;
 
       auto stream_id = nghttp2_submit_request(
         session, nullptr, hdrs.data(), hdrs.size(), &prov, nullptr);
@@ -377,7 +373,8 @@ namespace http2
         return;
       }
 
-      create_stream(stream_id);
+      auto stream_data = create_stream(stream_id);
+      stream_data->body = std::move(body);
 
       send_all_submitted();
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);

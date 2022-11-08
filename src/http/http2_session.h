@@ -98,10 +98,14 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) override
+      std::vector<uint8_t>&& body) override
     {
       server_parser.respond(
-        stream_id, status_code, std::move(headers), std::move(trailers), body);
+        stream_id,
+        status_code,
+        std::move(headers),
+        std::move(trailers),
+        std::move(body));
     }
 
     void set_no_unary() override
@@ -219,7 +223,7 @@ namespace http
           HTTP_STATUS_BAD_REQUEST,
           std::move(headers),
           {},
-          {(const uint8_t*)body.data(), body.size()});
+          {body.begin(), body.end()});
 
         tls_io->close();
       }
@@ -319,11 +323,14 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) override
+      std::vector<uint8_t>&& body) override
     {
       get_stream_responder(http::DEFAULT_STREAM_ID)
         ->send_response(
-          status_code, std::move(headers), std::move(trailers), body);
+          status_code,
+          std::move(headers),
+          std::move(trailers),
+          std::move(body));
     }
 
     void stream_data(std::vector<uint8_t>&& data, bool close) override
@@ -385,11 +392,16 @@ namespace http
 
     void send_request(http::Request&& request) override
     {
+      // Note: Avoid extra copy
+      std::vector<uint8_t> request_body = {
+        request.get_content_data(),
+        request.get_content_data() + request.get_content_length()};
+
       client_parser.send_structured_request(
         request.get_method(),
         request.get_path(),
         request.get_headers(),
-        {request.get_content_data(), request.get_content_length()});
+        std::move(request_body));
     }
 
     void handle_response(

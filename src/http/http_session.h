@@ -162,7 +162,10 @@ namespace http
         response_body.insert(response_body.end(), data.begin(), data.end());
 
         send_response(
-          HTTP_STATUS_BAD_REQUEST, std::move(headers), {}, response_body);
+          HTTP_STATUS_BAD_REQUEST,
+          std::move(headers),
+          {},
+          std::move(response_body));
 
         tls_io->close();
       }
@@ -259,7 +262,7 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) override
+      std::vector<uint8_t>&& body) override
     {
       if (!trailers.empty())
       {

@@ -19,12 +19,12 @@ namespace http2
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
-  struct DataSource
-  {
-    std::span<const uint8_t> body = {};
-    bool end_data = true;
-    bool end_stream = true;
-  };
+  // struct DataSource
+  // {
+  //   std::span<const uint8_t> body = {};
+  //   bool end_data = true;
+  //   bool end_stream = true;
+  // };
 
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
@@ -41,10 +41,10 @@ namespace http2
     http::HeaderMap headers; // Only used for incoming headers
 
     // Response
-    StreamResponseState response_state =
-      StreamResponseState::Closing; // TODO: Move to response data?
+    StreamResponseState response_state = StreamResponseState::Closing;
     std::vector<uint8_t> body;
-    size_t current_offset = 0;
+    std::span<const uint8_t> body_s; // TODO: Rename
+    // size_t current_offset = 0;
     http::HeaderMap trailers; // Only used for outgoing trailers
   };
 

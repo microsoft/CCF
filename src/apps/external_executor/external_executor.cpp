@@ -364,7 +364,7 @@ namespace externalexecutor
               (http_status)payload.status_code(),
               std::move(headers),
               std::move(trailers),
-              {(const uint8_t*)body_s.data(), body_s.size()});
+              {body_s.begin(), body_s.end()});
             break;
           }
 

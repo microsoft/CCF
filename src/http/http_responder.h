@@ -18,7 +18,7 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) = 0;
+      std::vector<uint8_t>&& body) = 0;
 
     virtual void stream_data(
       std::vector<uint8_t>&& data, bool close = false) = 0;
@@ -36,11 +36,7 @@ namespace http
       headers[http::headers::CONTENT_TYPE] =
         http::headervalues::contenttype::JSON;
 
-      send_response(
-        error.status,
-        std::move(headers),
-        {},
-        {(const uint8_t*)s.data(), s.size()});
+      send_response(error.status, std::move(headers), {}, {s.begin(), s.end()});
     }
   };
 

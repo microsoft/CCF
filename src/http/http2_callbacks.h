@@ -16,21 +16,14 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    if (source->ptr == nullptr)
-    {
-      LOG_FAIL_FMT("nghttp2 read_callback with null source pointer");
-      return nghttp2_error::NGHTTP2_ERR_CALLBACK_FAILURE;
-    }
-
-    auto ds = static_cast<DataSource*>(source->ptr);
-
-    // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-    size_t to_read = std::min(ds->body.size(), length);
-    LOG_TRACE_FMT(
-      "http2::read_body_from_span_callback: Reading {} bytes", to_read);
-
     // TODO: Can we move `response_state` into `DataSource`?
     auto* stream_data = get_stream_data(session, stream_id);
+    auto& body = stream_data->body_s;
+
+    // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
+    size_t to_read = std::min(body.size(), length);
+    LOG_TRACE_FMT(
+      "http2::read_body_from_span_callback: Reading {} bytes", to_read);
 
     if (
       to_read == 0 &&
@@ -43,8 +36,8 @@ namespace http2
 
     if (to_read > 0)
     {
-      memcpy(buf, ds->body.data(), to_read);
-      ds->body = ds->body.subspan(to_read);
+      memcpy(buf, body.data(), to_read);
+      body = body.subspan(to_read);
     }
 
     if (stream_data->response_state == StreamResponseState::AboutToStream)
@@ -54,12 +47,14 @@ namespace http2
       return NGHTTP2_ERR_DEFERRED;
     }
 
-    if (ds->body.empty() && ds->end_data)
+    if (
+      body.empty() &&
+      stream_data->response_state == StreamResponseState::Closing)
     {
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
 
-    if (!ds->end_stream)
+    if (stream_data->response_state != StreamResponseState::Closing)
     {
       *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
     }
