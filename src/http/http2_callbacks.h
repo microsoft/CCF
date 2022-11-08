@@ -7,7 +7,7 @@
 
 namespace http2
 {
-  static ssize_t read_body_from_span_callback(
+  static ssize_t read_body_callback(
     nghttp2_session* session,
     StreamId stream_id,
     uint8_t* buf,
@@ -16,14 +16,12 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    // TODO: Can we move `response_state` into `DataSource`?
     auto* stream_data = get_stream_data(session, stream_id);
     auto& body = stream_data->body_s;
 
     // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
     size_t to_read = std::min(body.size(), length);
-    LOG_TRACE_FMT(
-      "http2::read_body_from_span_callback: Reading {} bytes", to_read);
+    LOG_TRACE_FMT("http2::read_body_callback: Reading {} bytes", to_read);
 
     if (
       to_read == 0 &&

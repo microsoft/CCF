@@ -212,7 +212,7 @@ namespace http2
       }
 
       nghttp2_data_provider prov;
-      prov.read_callback = read_body_from_span_callback;
+      prov.read_callback = read_body_callback;
 
       int rv = nghttp2_submit_response(
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
@@ -270,18 +270,14 @@ namespace http2
         data.size(),
         close);
 
-      // auto* stream_data = get_stream_data(session, stream_id);
-      // if (stream_data == nullptr)
-      // {
-      //   LOG_FAIL_FMT("stream not found!");
-      //   return;
-      // }
+      auto* stream_data = get_stream_data(session, stream_id);
 
-      // stream_data->response_body = std::move(data);
-      // if (close)
-      // {
-      //   stream_data->response_state = StreamResponseState::Closing;
-      // }
+      stream_data->body = std::move(data);
+      stream_data->body_s = stream_data->body;
+      if (close)
+      {
+        stream_data->response_state = StreamResponseState::Closing;
+      }
 
       int rv = nghttp2_session_resume_data(session, stream_id);
       if (rv < 0)
@@ -362,7 +358,7 @@ namespace http2
         "Trying submit_request with user_data set to {}", (size_t)&body);
 
       nghttp2_data_provider prov;
-      prov.read_callback = read_body_from_span_callback;
+      prov.read_callback = read_body_callback;
 
       auto stream_id = nghttp2_submit_request(
         session, nullptr, hdrs.data(), hdrs.size(), &prov, nullptr);
