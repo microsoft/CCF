@@ -1,7 +1,10 @@
-# Change these
+#!/bin/bash
+
+# !!! Update these before running this script !!!
 resourceGroup=rg_ccfdemo
 vm_name=ccfdemo
 vm_dns=ccfdemo-vm-sample
+# !!!
 
 # These are defaults
 location=westeurope
