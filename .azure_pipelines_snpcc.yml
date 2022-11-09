@@ -17,7 +17,7 @@ trigger:
       - "release/2.x"
 
 schedules:
-  - cron: "0 /3 * * Mon-Fri"
+  - cron: "0 9-18/3 * * Mon-Fri"
     displayName: Regular build
     branches:
       include:
