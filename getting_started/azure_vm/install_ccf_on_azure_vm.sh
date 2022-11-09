@@ -4,7 +4,8 @@
 resourceGroup=rg_ccf_demo
 vm_name=ccfdemo
 location=westeurope
-vm_size=Standard_DC16s_v3
+# This is the smallest VM, you may wish to change this.
+vm_size=Standard_DC1s_v2
 vnetName=ccf
 subnetName=nodes
 vnetAddressPrefix=10.0.0.0/16
