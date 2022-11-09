@@ -10,7 +10,6 @@ pr:
 trigger: none
 
 jobs:
-
   - template: .azure-pipelines-templates/configure.yml
 
   - template: common.yml
