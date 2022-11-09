@@ -76,12 +76,27 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     };
 
 #pragma pack(push, 1)
+    // Table 8
+    struct GuestPolicy
+    {
+      uint8_t abi_minor;
+      uint8_t abi_major;
+      uint8_t smt : 1;
+      uint8_t reserved : 1;
+      uint8_t migrate_ma : 1;
+      uint8_t debug : 1;
+      uint8_t single_socket : 1;
+      uint64_t reserved2 : 43;
+    };
+#pragma pack(pop)
+
+#pragma pack(push, 1)
     // Table 21
     struct Attestation
     {
       uint32_t version; /* 0x000 */
       uint32_t guest_svn; /* 0x004 */
-      uint64_t policy; /* 0x008 */
+      struct GuestPolicy policy; /* 0x008 */
       uint8_t family_id[16]; /* 0x010 */
       uint8_t image_id[16]; /* 0x020 */
       uint32_t vmpl; /* 0x030 */
