@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 
 # !!! These are defaults and you can change these if you wish !!!
 resourceGroup=rg_ccf_demo
