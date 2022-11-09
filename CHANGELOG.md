@@ -1837,3 +1837,4 @@ Initial pre-release
 [3.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev6
 [3.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev7
 [3.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc0
+[3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
