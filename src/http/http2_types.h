@@ -82,7 +82,7 @@ namespace http2
     virtual ~AbstractParser() = default;
     virtual void handle_completed(
       StreamId stream_id, StreamData* stream_data) = 0;
-    virtual std::shared_ptr<StreamData> create_stream(StreamId stream_id) = 0;
+    virtual std::shared_ptr<StreamData> get_stream(StreamId stream_id) = 0;
     virtual void destroy_stream(StreamId stream_id) = 0;
   };
 

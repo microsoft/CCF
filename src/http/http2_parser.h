@@ -86,11 +86,33 @@ namespace http2
       handle_outgoing_data = std::move(cb);
     }
 
-    std::shared_ptr<StreamData> create_stream(StreamId stream_id) override
+    void store_stream(
+      StreamId stream_id, const std::shared_ptr<StreamData>& stream_data)
     {
-      auto stream_data = std::make_shared<StreamData>();
-      store_stream(stream_id, stream_data);
-      return stream_data;
+      auto it = streams.find(stream_id);
+      if (it != streams.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot store new stream {} as it already exists", stream_id));
+      }
+
+      streams.insert(it, {stream_id, stream_data});
+      LOG_TRACE_FMT("Successfully stored stream {}", stream_id);
+    }
+
+    std::shared_ptr<StreamData> get_stream(StreamId stream_id) override
+    {
+      auto it = streams.find(stream_id);
+      if (it == streams.end())
+      {
+        // Create new stream if it does not already exist
+        auto stream_data = std::make_shared<StreamData>();
+        store_stream(stream_id, stream_data);
+        LOG_TRACE_FMT("Created new stream {}", stream_id);
+        return stream_data;
+      }
+      LOG_TRACE_FMT("Using existing stream {}", stream_id);
+      return it->second;
     }
 
     void destroy_stream(StreamId stream_id) override
@@ -104,22 +126,6 @@ namespace http2
       else
       {
         LOG_FAIL_FMT("Cannot destroy unknown stream {}", stream_id);
-      }
-    }
-
-    void store_stream(
-      StreamId stream_id, const std::shared_ptr<StreamData>& stream_data)
-    {
-      auto it = streams.find(stream_id);
-      if (it == streams.end())
-      {
-        streams.insert(it, {stream_id, stream_data});
-        LOG_TRACE_FMT("Successfully stored stream {}", stream_id);
-      }
-      else
-      {
-        it->second = stream_data;
-        LOG_FAIL_FMT("Overwriting stored stream {}!!", stream_id);
       }
     }
 

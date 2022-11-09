@@ -123,7 +123,7 @@ namespace http2
     LOG_TRACE_FMT("http2::on_begin_headers_callback");
 
     auto* p = get_parser(user_data);
-    auto stream_data = p->create_stream(frame->hd.stream_id);
+    auto stream_data = p->get_stream(frame->hd.stream_id);
     auto rc = nghttp2_session_set_stream_user_data(
       session, frame->hd.stream_id, stream_data.get());
     if (rc != 0)
