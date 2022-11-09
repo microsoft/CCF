@@ -79,6 +79,14 @@ namespace ccf::historical
     virtual void set_default_expiry_duration(
       ExpiryDuration seconds_until_expiry) = 0;
 
+    /** EXPERIMENTAL: Set the tracking of deletes on missing keys for historical
+     * queries.
+     *
+     * This is experimental but setting this to true ensures that the `tx_diff`
+     * available in index handlers can observe deleted values.
+     */
+    virtual void track_deletes_on_missing_keys(bool track) = 0;
+
     /** Retrieve a Store containing the state written at the given seqno.
      *
      * See @c get_store_range for a description of the caching behaviour. This

@@ -4,6 +4,7 @@
 
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
+#include "ccf/kv/map_diff.h"
 #include "ccf/kv/map_handle.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
 #include "ccf/kv/serialisers/json_serialiser.h"
@@ -34,6 +35,7 @@ namespace kv
     using WriteOnlyHandle =
       kv::WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
     using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
+    using Diff = kv::MapDiff<K, V, KSerialiser, VSerialiser>;
 
     using Write = std::map<K, std::optional<V>>;
     using CommitHook = CommitHook<Write>;
