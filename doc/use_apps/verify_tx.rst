@@ -94,7 +94,7 @@ Note that receipts over signature transactions are a special case, for example:
      'cert': '<PEM string>'}
 
 The proof is empty, and the ``leaf`` field is set to the value being signed, which is the root of the Merkle Tree covering all transactions until the signature.
-This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is _not_
+This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is `not`
 the digest of the signature transaction itself.
 
 From version 2.0, CCF also includes endorsement certificates for previous service identities, by the current service identity, in `service_endorsements`. Thus, after at least one recovery, the endorsement check now takes the form of a certificate chain verification instead of a single endorsement check.
