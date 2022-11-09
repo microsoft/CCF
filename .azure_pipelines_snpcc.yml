@@ -7,15 +7,35 @@ pr:
       - .azure_pipelines_snpcc.yml
       - .snpcc_canary
 
-trigger: none
+trigger:
+  branches:
+    include:
+      - main
+      - "release/*"
+    exclude:
+      - "release/1.x"
+      - "release/2.x"
+
+schedules:
+  - cron: "0 9-18/3 * * Mon-Fri"
+    displayName: Regular build
+    branches:
+      include:
+        - main
+        - "release/*"
+      exclude:
+        - "release/1.x"
+        - "release/2.x"
+    always: true
 
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
-  - template: common.yml
+  - template: .azure-pipelines-templates/common.yml
     parameters:
       target: SNPCC
-      pool: sev-snp-pool
+      env:
+        pool: sev-snp-pool
       cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
