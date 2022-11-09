@@ -115,22 +115,25 @@ def test_executor_registration(network, args):
     # access to the KV service on the target node, but no other nodes
     for node in (
         primary,
-        # backup,
+        backup,
     ):
         for credentials in (
             anonymous_credentials,
-            # executor_credentials,
+            executor_credentials,
         ):
             with grpc.secure_channel(
                 target=node.get_public_rpc_address(),
                 credentials=credentials,
             ) as channel:
                 should_pass = node == primary and credentials == executor_credentials
+                LOG.warning(f"node={node}, credentials={credentials}, should_pass={should_pass}")
                 try:
                     rd = Service.KVStub(channel).StartTx(Empty())
+                    LOG.warning("StartTx call succeeded")
                     assert should_pass, "Expected StartTx to fail"
                     assert not rd.HasField("optional")
                 except grpc.RpcError as e:
+                    LOG.warning(f"StartTx call produced error: {e}")
                     # NB: This failure will have printed errors like:
                     #   Error parsing metadata: error=invalid value key=content-type value=application/json
                     # These are harmless and expected, and I haven't found a way to swallow them
