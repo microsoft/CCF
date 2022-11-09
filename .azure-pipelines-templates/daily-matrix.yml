@@ -6,8 +6,6 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-DC16s_v3-focal
-    SNPCC:
-      pool: sev-snp-pool
 
   build:
     common:
@@ -16,8 +14,6 @@ parameters:
       cmake_args: "-DCOMPILE_TARGET=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGET=sgx"
-    SNPCC:
-      cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     unsafe:
@@ -71,14 +67,4 @@ jobs:
       suffix: "Unsafe"
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
-      depends_on: configure
-
-  - template: common.yml
-    parameters:
-      target: SNPCC
-      env: "${{ parameters.env.SNPCC }}"
-      cmake_args: "${{ parameters.build.SNPCC.cmake_args }}"
-      suffix: "Debug"
-      artifact_name: "SNPCC_Debug"
-      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
       depends_on: configure
