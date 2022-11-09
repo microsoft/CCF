@@ -572,6 +572,40 @@ namespace externalexecutor
           ccf::grpc::Stream<externalexecutor::protobuf::KVValue>>(stream),
         {ccf::no_auth_required})
         .install();
+
+      auto stream_inside = [this](
+                             ccf::endpoints::EndpointContext& ctx,
+                             google::protobuf::Empty&& payload) {
+        // Dummy streaming endpoint
+
+        // TODO:
+        // 1. Create gRPC server stream wrapper that sets stream as non-unary
+        // 2. [DONE] Add ability to close stream from rpc_ctx->stream(data,
+        // close=true) or rpc_ctx->stream_close();
+        // 3. Create stream object from rpc_ctx, and then
+        // rpc_ctx->create_stream() (figure out ownership and lifetime)
+
+        LOG_FAIL_FMT("Endpoint synchronous execution");
+
+        for (int i = 0; i < 5; i++)
+        {
+          send_stream_payload(ctx.rpc_ctx, responder_lookup, i == 4);
+        }
+
+        // TODO: Fix return value here, which should return success but nothing
+        return ccf::grpc::make_success(
+          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>{});
+      };
+
+      make_endpoint(
+        "/externalexecutor.protobuf.KV/StreamInside",
+        HTTP_POST,
+        ccf::grpc_adapter<
+          google::protobuf::Empty,
+          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>>(
+          stream_inside),
+        {ccf::no_auth_required})
+        .install();
     }
 
     void queue_request_for_external_execution(

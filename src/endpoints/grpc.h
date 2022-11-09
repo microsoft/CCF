@@ -178,6 +178,11 @@ namespace ccf::grpc
           http::headervalues::contenttype::GRPC));
     }
 
+    // Note: set here rather than in set_grpc_response as set_grpc_response may
+    // be called _after_ some data has been streamed back to the client
+    ctx->set_response_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+
     if constexpr (nonstd::is_std_vector<In>::value)
     {
       using Message = typename In::value_type;
@@ -257,9 +262,10 @@ namespace ccf::grpc
         r = make_grpc_message(success_response->body);
       }
 
+      // TODO: We need to set these when streaming data too
       ctx->set_response_body(r);
-      ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+      // ctx->set_response_header(
+      //   http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
 
       ctx->set_response_trailer("grpc-status", success_response->status.code());
       ctx->set_response_trailer(

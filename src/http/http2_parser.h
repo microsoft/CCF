@@ -97,7 +97,6 @@ namespace http2
       }
 
       streams.insert(it, {stream_id, stream_data});
-      LOG_TRACE_FMT("Successfully stored stream {}", stream_id);
     }
 
     std::shared_ptr<StreamData> get_stream(StreamId stream_id) override
@@ -214,7 +213,12 @@ namespace http2
       stream_data->outgoing.trailers = std::move(trailers);
 
       nghttp2_data_provider prov;
-      prov.read_callback = read_body_callback;
+      prov.read_callback = read_outgoing_callback;
+      // TODO: Ugly: we should have a nicer API for set_no_unary
+      if (stream_data->outgoing.state != StreamResponseState::AboutToStream)
+      {
+        stream_data->outgoing.state = StreamResponseState::Closing;
+      }
 
       int rv = nghttp2_submit_response(
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
@@ -246,6 +250,12 @@ namespace http2
         close);
 
       auto* stream_data = get_stream_data(session, stream_id);
+
+      // TODO: If response was never sent, send response, but without any
+      // trailers!
+      if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
+      {
+      }
 
       stream_data->outgoing.body = DataSource(std::move(data));
       if (close)
@@ -332,7 +342,9 @@ namespace http2
       stream_data->outgoing.body = DataSource(std::move(body));
 
       nghttp2_data_provider prov;
-      prov.read_callback = read_body_callback;
+      prov.read_callback = read_outgoing_callback;
+
+      stream_data->outgoing.state = StreamResponseState::Closing;
 
       auto stream_id = nghttp2_submit_request(
         session, nullptr, hdrs.data(), hdrs.size(), &prov, stream_data.get());

@@ -30,7 +30,8 @@ namespace http2
   // differentiate unary from streaming responses
   enum class StreamResponseState
   {
-    Closing = 0, // Unary or last message in stream
+    Uninitialised = 0, // State still unset
+    Closing, // Unary or last message in stream
     AboutToStream, // Initial response (headers) to stream response
     Streaming // Response streaming messages
   };
@@ -69,7 +70,7 @@ namespace http2
 
     struct Outgoing
     {
-      StreamResponseState state = StreamResponseState::Closing;
+      StreamResponseState state = StreamResponseState::Uninitialised;
       http::HeaderMap trailers;
       DataSource body;
     };

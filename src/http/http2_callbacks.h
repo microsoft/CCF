@@ -7,7 +7,7 @@
 
 namespace http2
 {
-  static ssize_t read_body_callback(
+  static ssize_t read_outgoing_callback(
     nghttp2_session* session,
     StreamId stream_id,
     uint8_t* buf,
@@ -17,6 +17,13 @@ namespace http2
     void* user_data)
   {
     auto* stream_data = get_stream_data(session, stream_id);
+    if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
+    {
+      LOG_FAIL_FMT(
+        "http2::read_outgoing_callback error: unexpected state {}",
+        stream_data->outgoing.state);
+      return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
     auto& body = stream_data->outgoing.body.ro_data();
 
     size_t to_read = std::min(body.size(), length);
@@ -30,7 +37,9 @@ namespace http2
       return NGHTTP2_ERR_DEFERRED;
     }
 
-    LOG_TRACE_FMT("http2::read_body_callback: Reading {} bytes", to_read);
+    LOG_FAIL_FMT("State: {}", stream_data->outgoing.state);
+
+    LOG_TRACE_FMT("http2::read_outgoing_callback: Reading {} bytes", to_read);
 
     if (to_read > 0)
     {
@@ -51,6 +60,8 @@ namespace http2
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
 
+    // TODO: Can trailers be submitted from a different place, ideally from
+    // http2_parser.h
     if (
       stream_data->outgoing.state == StreamResponseState::Closing &&
       !stream_data->outgoing.trailers.empty())
