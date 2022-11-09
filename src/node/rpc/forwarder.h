@@ -207,7 +207,7 @@ namespace ccf
 
       if constexpr (std::is_same_v<TFwdHdr, ForwardedCommandHeader_v3>)
       {
-        ccf::View view = r.first.active_view;;
+        ccf::View view = r.first.active_view;
         session->active_view = view;
       }
 
