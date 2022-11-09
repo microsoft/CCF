@@ -1,7 +1,7 @@
 {
   "name": "Sample Development Environment for CCF",
   "context": "..",
-  "image": "ccfmsrc.azurecr.io/ccf/ci:oe-0.18.2-virtual",
+  "image": "ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-virtual",
   "runArgs": [],
   "extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }
