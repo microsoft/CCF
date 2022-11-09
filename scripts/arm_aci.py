@@ -33,7 +33,14 @@ STARTUP_COMMANDS = {
         "apt-get install wget",
         "wget https://gist.github.com/DomAyre/ea2c07a9cb790bf17da05d4ca1674c8c/raw -O setup_dev.sh",
         "chmod 777 setup_dev.sh",
-        f"SSHUSER={args.deployment_name}-{i} GITHUBID={args.aci_github_id} ./setup_dev.sh",
+        " ".join([
+            f"SSHUSER={args.deployment_name}-{i}",
+            f"GITHUBID={args.aci_github_id}",
+            f"GITHUBNAME={args.aci_github_name}",
+            f"GITHUBEMAIL={args.aci_github_email}",
+            f"SSHKEYS={args.aci_ssh_keys}",
+            "./setup_dev.sh"
+        ]),
     ],
 }
 
@@ -63,6 +70,24 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     parser.add_argument(
         "--aci-github-id",
         help="The Github ID who owns a CCF clone to checkout",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--aci-github-name",
+        help="The name to commit with",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--aci-github-email",
+        help="The email to commit with",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--aci-ssh-keys",
+        help="The ssh keys to add to the dev box",
         type=str,
     )
 
