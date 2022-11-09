@@ -8,16 +8,8 @@ You must run this from a bash terminal that you have already logged in to Azure 
 
 ## Create a Virtual Machine
 
-Edit the `./infra/azure.sh` script and set the following variables to be unique to you (it is important to change the DNS name):
+Run the following script :
 
 ```bash
-resourceGroup=rg_ccf
-vm_name=ccf
-vm_dns=ccf-vm-sample
-```
-
-Then run the script:
-
-```bash
-./install_ccf_on_azure_vm.sh
+./getting_started/azure_vm/install_ccf_on_azure_vm.sh
 ```
