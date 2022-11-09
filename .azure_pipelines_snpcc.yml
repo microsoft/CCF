@@ -7,12 +7,31 @@ pr:
       - .azure_pipelines_snpcc.yml
       - .snpcc_canary
 
-trigger: none
+trigger:
+  branches:
+    include:
+      - main
+      - "release/*"
+    exclude:
+      - "release/1.x"
+      - "release/2.x"
+
+schedules:
+  - cron: "0 /3 * * Mon-Fri"
+    displayName: Regular build
+    branches:
+      include:
+        - main
+        - "release/*"
+      exclude:
+        - "release/1.x"
+        - "release/2.x"
+    always: true
 
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
-  - template: common.yml
+  - template: .azure-pipelines-templates/common.yml
     parameters:
       target: SNPCC
       pool: sev-snp-pool
