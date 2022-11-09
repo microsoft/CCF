@@ -45,6 +45,9 @@ mc_spec == Spec
 \* via the Symmetry option in cfg file.
 Symmetry == Permutations(Servers_mc)
 
+\* Include all variables in the view, which is similar to defining no view.
+View == vars
+
 ----
 
 \* Returns true if server i has committed value v, false otherwise
