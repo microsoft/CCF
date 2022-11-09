@@ -92,7 +92,7 @@ To build and install CCF from source, please see :doc:`/contribute/build_ccf`.
 In Azure
 --------
 
-You can install CCF on an Azure Virtual Machine by editing the ``install_ccf_on_azure_vm.sh`` and defining your own DNS name.
+CCF can be installed on an Azure Virtual Machine by setting the resource group, VM and DNS names in the :ccf_repo:`getting_started/azure_vm/install_ccf_on_azure_vm.sh` script and running it.
 
 .. code-block:: bash
 
