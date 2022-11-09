@@ -15,6 +15,7 @@ jobs:
       - checkout: self
         clean: true
         fetchDepth: 10000
+        noTags: false
 
       - ${{ if parameters.fetch_quictls }}:
           - template: fetch_quictls.yml
