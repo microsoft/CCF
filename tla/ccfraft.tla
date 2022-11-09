@@ -550,7 +550,10 @@ AdvanceCommitIndex(i) ==
     /\ state[i] = Leader
     /\ LET
         \* We want to get the smallest such index forward that is a signature
-        new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]), HasTypeSignature)
+        \* This index must be from the current term, 
+        \* as explained by Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf
+        new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
+            LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
         new_log ==
             IF new_index > 1 THEN
                [ j \in 1..new_index |-> log[i][j] ]
