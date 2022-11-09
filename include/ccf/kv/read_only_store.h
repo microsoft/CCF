@@ -16,6 +16,7 @@ namespace kv
 
     virtual ccf::TxID get_txid() = 0;
     virtual kv::ReadOnlyTx create_read_only_tx() = 0;
+    virtual kv::TxDiff create_tx_diff() = 0;
   };
 
   using ReadOnlyStorePtr = std::shared_ptr<ReadOnlyStore>;
