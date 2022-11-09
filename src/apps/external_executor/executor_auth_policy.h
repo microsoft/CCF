@@ -37,6 +37,7 @@ public:
       return executor_identity;
     }
     error_reason = "Could not find matching Executor certificate";
+    LOG_FAIL_FMT("Caller failed ExecutorAuthPolicy!");
     return nullptr;
   }
 

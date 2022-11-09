@@ -254,6 +254,10 @@ namespace ccf
       status = closing;
       if (threading::get_current_thread_id() != execution_thread)
       {
+        LOG_INFO_FMT(
+          "Sending close message to other thread ({} != {})",
+          threading::get_current_thread_id(),
+          execution_thread);
         auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
         msg->data.self = this->shared_from_this();
 
@@ -263,6 +267,9 @@ namespace ccf
       else
       {
         // Close inline immediately
+        LOG_INFO_FMT(
+          "Closing inline on thread {}",
+          execution_thread);
         close_thread();
       }
     }
