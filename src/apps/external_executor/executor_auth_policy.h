@@ -7,7 +7,7 @@
 
 struct ExecutorIdentity : public ccf::AuthnIdentity
 {
-  ExecutorId executorId;
+  ExecutorId executor_id;
 };
 
 class ExecutorAuthPolicy : public ccf::AuthnPolicy
@@ -33,7 +33,7 @@ public:
     if (executor_certs_map.find(executor_id) != executor_certs_map.end())
     {
       auto executor_identity = std::make_unique<ExecutorIdentity>();
-      executor_identity->executorId = executor_id;
+      executor_identity->executor_id = executor_id;
       return executor_identity;
     }
     error_reason = "Could not find matching Executor certificate";

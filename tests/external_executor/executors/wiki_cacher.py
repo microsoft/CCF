@@ -59,10 +59,18 @@ class WikiCacherExecutor:
 
     CACHE_TABLE = "wiki_descriptions"
 
-    def __init__(self, ccf_node, credentials, base_url="https://api.wikimedia.org"):
+    def __init__(
+        self, ccf_node, credentials, base_url="https://api.wikimedia.org", label=None
+    ):
         self.ccf_node = ccf_node
         self.credentials = credentials
         self.base_url = base_url
+        if label is not None:
+            self.prefix = f"[{label}] "
+        else:
+            self.prefix = ""
+
+        self.handled_requests_count = 0
 
     def _api_base(self):
         return "/".join(
@@ -77,33 +85,33 @@ class WikiCacherExecutor:
 
     def _get_description(self, title):
         url = "/".join((self._api_base(), "page", title, "description"))
-        LOG.debug(f"Requesting {url}")
+        LOG.debug(f"{self.prefix}Requesting {url}")
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             return r.json()["description"]
-        LOG.error(r)
+        LOG.error(f"{self.prefix}{r}")
 
     def _execute_update_cache(self, kv_stub, request, response):
         prefix = "/update_cache/"
         title = request.uri[len(prefix) :]
         description = self._get_description(title)
         if description == None:
-            response.status_code = HTTP.HttpStatusCode.NOT_FOUND
+            response.status_code = HTTP.HttpStatusCode.BAD_GATEWAY
             response.body = f"Error when fetching article with title '{title}'".encode(
                 "utf-8"
             )
-
-        kv_stub.Put(
-            KV.KVKeyValue(
-                table=self.CACHE_TABLE,
-                key=title.encode("utf-8"),
-                value=description.encode("utf-8"),
+        else:
+            kv_stub.Put(
+                KV.KVKeyValue(
+                    table=self.CACHE_TABLE,
+                    key=title.encode("utf-8"),
+                    value=description.encode("utf-8"),
+                )
             )
-        )
-        response.status_code = HTTP.HttpStatusCode.OK
-        response.body = f"Successfully updated cache with description of '{title}':\n\n{description}".encode(
-            "utf-8"
-        )
+            response.status_code = HTTP.HttpStatusCode.OK
+            response.body = f"Successfully updated cache with description of '{title}':\n\n{description}".encode(
+                "utf-8"
+            )
 
     def _execute_get_description(self, kv_stub, request, response):
         prefix = "/article_description/"
@@ -114,15 +122,15 @@ class WikiCacherExecutor:
 
         if not result.HasField("optional"):
             response.status_code = HTTP.HttpStatusCode.NOT_FOUND
-            response.body = f"No description for '{title}' in cache"
-
-        response.status_code = HTTP.HttpStatusCode.OK
-        response.body = result.optional.value
+            response.body = f"No description for '{title}' in cache".encode("utf-8")
+        else:
+            response.status_code = HTTP.HttpStatusCode.OK
+            response.body = result.optional.value
 
     def run_loop(self, terminate_event):
-        LOG.info("Beginning executor loop")
+        LOG.info(f"{self.prefix}Beginning executor loop")
 
-        target_uri = f"{self.ccf_node.get_public_rpc_host()}:{self.ccf_node.get_public_rpc_port()}"
+        target_uri = self.ccf_node.get_public_rpc_address()
         with grpc.secure_channel(
             target=target_uri,
             credentials=self.credentials,
@@ -132,9 +140,11 @@ class WikiCacherExecutor:
             while not (terminate_event.is_set()):
                 request_description_opt = stub.StartTx(Empty())
                 if not request_description_opt.HasField("optional"):
-                    LOG.trace("No request pending")
+                    LOG.trace(f"{self.prefix}No request pending")
                     time.sleep(0.1)
                     continue
+
+                self.handled_requests_count += 1
 
                 request = request_description_opt.optional
                 response = KV.ResponseDescription(
@@ -144,17 +154,21 @@ class WikiCacherExecutor:
                 if request.method == "POST" and request.uri.startswith(
                     "/update_cache/"
                 ):
-                    LOG.info(f"Updating article in cache: {request.uri}")
+                    LOG.info(f"{self.prefix}Updating article in cache: {request.uri}")
                     self._execute_update_cache(stub, request, response)
 
                 elif request.method == "GET" and request.uri.startswith(
                     "/article_description/"
                 ):
-                    LOG.info(f"Retrieving description from cache: {request.uri}")
+                    LOG.info(
+                        f"{self.prefix}Retrieving description from cache: {request.uri}"
+                    )
                     self._execute_get_description(stub, request, response)
 
                 else:
-                    LOG.error(f"Unhandled request: {request.method} {request.uri}")
+                    LOG.error(
+                        f"{self.prefix}Unhandled request: {request.method} {request.uri}"
+                    )
                     response.status_code = HTTP.HttpStatusCode.NOT_FOUND
                     response.body = (
                         f"No resource found at {request.method} {request.uri}".encode(
@@ -164,4 +178,4 @@ class WikiCacherExecutor:
 
                 stub.EndTx(response)
 
-        LOG.info("Ended executor loop")
+        LOG.info(f"{self.prefix}Ended executor loop")
