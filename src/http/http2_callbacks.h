@@ -32,6 +32,7 @@ namespace http2
       to_read == 0 &&
       stream_data->outgoing.state == StreamResponseState::Streaming)
     {
+      LOG_FAIL_FMT("Deferring data");
       // Early out: when streaming, avoid calling this callback
       // repeatedly when there no data to read
       return NGHTTP2_ERR_DEFERRED;
@@ -49,6 +50,7 @@ namespace http2
 
     if (stream_data->outgoing.state == StreamResponseState::AboutToStream)
     {
+      LOG_FAIL_FMT("Deferring data");
       stream_data->outgoing.state = StreamResponseState::Streaming;
       return NGHTTP2_ERR_DEFERRED;
     }
@@ -57,6 +59,7 @@ namespace http2
       body.empty() &&
       stream_data->outgoing.state == StreamResponseState::Closing)
     {
+      LOG_FAIL_FMT("NGHTTP2_DATA_FLAG_EOF");
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
 
@@ -86,6 +89,7 @@ namespace http2
       *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
     }
 
+    LOG_FAIL_FMT("Submitting {} bytes", to_read);
     return to_read;
   }
 

@@ -255,6 +255,37 @@ namespace http2
       // trailers!
       if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
       {
+        LOG_FAIL_FMT("Sending response header before streaming data");
+        stream_data->outgoing.state = StreamResponseState::AboutToStream;
+
+        std::vector<nghttp2_nv> hdrs;
+        auto status_str = std::to_string(200);
+        hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
+        std::string body_size = std::to_string(0);
+        hdrs.emplace_back(
+          make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
+
+        // TODO: gRPC only! Remove and pass to send_data() instead
+        hdrs.emplace_back(make_nv(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC));
+
+        nghttp2_data_provider prov;
+        prov.read_callback = read_outgoing_callback;
+
+        // gRPC only!
+        http::HeaderMap trailers;
+        trailers["grpc-status"] = "0";
+        trailers["grpc-message"] = "";
+        stream_data->outgoing.trailers = std::move(trailers);
+
+        int rv = nghttp2_submit_response(
+          session, stream_id, hdrs.data(), hdrs.size(), &prov);
+        if (rv != 0)
+        {
+          throw std::logic_error(
+            fmt::format("nghttp2_submit_response error: {}", rv));
+        }
+        send_all_submitted();
       }
 
       stream_data->outgoing.body = DataSource(std::move(data));
