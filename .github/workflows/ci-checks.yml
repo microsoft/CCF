@@ -9,7 +9,7 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    container: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-virtual
+    container: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-virtual
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
