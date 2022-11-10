@@ -22,13 +22,13 @@ schedules:
 
 resources:
   containers:
-    - container: nosgx
-      image: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-0
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache
+    - container: virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-virtual
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     - container: sgx
-      image: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-0
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
+      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-sgx
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
 
 jobs:
   - template: .azure-pipelines-templates/daily-matrix.yml

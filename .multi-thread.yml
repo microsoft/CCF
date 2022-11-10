@@ -15,14 +15,14 @@ pr:
 
 resources:
   containers:
-    - container: sgx
-      image: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-0
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
+    - container: virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-virtual
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
   - template: .azure-pipelines-templates/common.yml
     parameters:
-      target: SGX
+      target: Virtual
       env:
         container: sgx
         pool: 1es-DC16s_v3-focal
