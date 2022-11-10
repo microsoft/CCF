@@ -206,6 +206,7 @@ extern "C"
       ccf::host_time_us =
         static_cast<decltype(ccf::host_time_us)>(time_location);
 
+      oe_lfence();
     }
 
     if (!oe_is_outside_enclave(ccf_config, ccf_config_size))
