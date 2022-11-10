@@ -5,8 +5,8 @@ import analyzer
 
 analysis = analyzer.Analyze()
 
-df_sends = analysis.get_df_from_parquet_file("../submitter/cpp_send.parquet")
-df_responses = analysis.get_df_from_parquet_file("../submitter/cpp_respond.parquet")
+df_sends = analyzer.get_df_from_parquet_file("../submitter/cpp_send.parquet")
+df_responses = analyzer.get_df_from_parquet_file("../submitter/cpp_respond.parquet")
 
 successful_percent = analysis.iter_for_success_and_latency(df_sends, df_responses)
 

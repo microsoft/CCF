@@ -192,9 +192,6 @@ class Analyze:
         plt.xlabel("time(ms)")
         plt.savefig("throughput_across_time.png")
 
-    def get_df_from_parquet_file(self, input_file: str):
-        return pd.read_parquet(input_file, engine="fastparquet")
-
     def plot_latency_distribution(self, ms_separator: float, highest_vals=15):
         """
         Starting from minimum latency with ms_separator
@@ -259,13 +256,17 @@ class Analyze:
         plt.savefig("latency_distribution.png")
 
 
+def get_df_from_parquet_file(input_file: str):
+    return pd.read_parquet(input_file, engine="fastparquet")
+
+
 def default_analysis(send_file, response_file):
     """
     Produce the analysis results
     """
     analysis = Analyze()
-    df_sends = analysis.get_df_from_parquet_file(send_file)
-    df_responses = analysis.get_df_from_parquet_file(response_file)
+    df_sends = get_df_from_parquet_file(send_file)
+    df_responses = get_df_from_parquet_file(response_file)
 
     successful_percent = analysis.iter_for_success_and_latency(df_sends, df_responses)
 
