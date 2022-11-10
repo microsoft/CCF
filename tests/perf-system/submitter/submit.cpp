@@ -210,8 +210,6 @@ int main(int argc, char** argv)
     server_address = server_address.substr(exists_index + separator.length());
   }
 
-  int max_block_write = 1000; // Threshold for maximum pending writes
-
   auto requests_size = data_handler.ids.size();
 
   std::vector<timeval> start(requests_size);
@@ -229,13 +227,13 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Start Request Submission");
 
-  if (!args.pipeline)
+  if (args.max_inflight_requests == 0)
   {
-    // Request by Request
+    // Request by Request under one connection
+    auto connection = create_connection(certificates, server_address);
     for (size_t req = 0; req < requests_size; req++)
     {
       gettimeofday(&start[req], NULL);
-      auto connection = create_connection(certificates, server_address);
       connection->write(raw_reqs[req]);
       resp_text[req] = connection->read_raw_response();
       gettimeofday(&end[req], NULL);
@@ -247,15 +245,36 @@ int main(int argc, char** argv)
     int read_reqs = 0; // use this to block writes
     auto connection = create_connection(certificates, server_address);
 
-    for (size_t req = 0; req < requests_size; req++)
+    if (args.max_inflight_requests < 0)
     {
-      gettimeofday(&start[req], NULL);
-      connection->write(raw_reqs[req]);
-      if (connection->bytes_available() or req - read_reqs > max_block_write)
+      // Unlimited outstanding orders
+      for (size_t req = 0; req < requests_size; req++)
       {
-        resp_text[read_reqs] = connection->read_raw_response();
-        gettimeofday(&end[read_reqs], NULL);
-        read_reqs++;
+        gettimeofday(&start[req], NULL);
+        connection->write(raw_reqs[req]);
+        if (connection->bytes_available())
+        {
+          resp_text[read_reqs] = connection->read_raw_response();
+          gettimeofday(&end[read_reqs], NULL);
+          read_reqs++;
+        }
+      }
+    }
+    else
+    {
+      // Capped outstanding orders
+      for (size_t req = 0; req < requests_size; req++)
+      {
+        gettimeofday(&start[req], NULL);
+        connection->write(raw_reqs[req]);
+        if (
+          connection->bytes_available() or
+          req - read_reqs >= args.max_inflight_requests)
+        {
+          resp_text[read_reqs] = connection->read_raw_response();
+          gettimeofday(&end[read_reqs], NULL);
+          read_reqs++;
+        }
       }
     }
 

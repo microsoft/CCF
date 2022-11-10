@@ -21,7 +21,7 @@ public:
   std::string send_filepath;
   std::string response_filepath;
   std::string generator_filepath;
-  bool pipeline = false;
+  int max_inflight_requests;
 
   ArgumentParser(
     const std::string& default_label,
@@ -71,7 +71,15 @@ public:
       "--generator-filepath",
       generator_filepath,
       "Path to parquet file with the generated requests to be submitted.");
-    app.add_flag("--pipeline", pipeline, "Enable HTTP/1.1 pipelining option.")
-      ->capture_default_str();
+    app.add_option(
+      "--max-inflight-requests",
+      max_inflight_requests,
+      "Specifies the number of outstanding requests sent to the server while "
+      "waiting for response. When this options is set to 0 there will be no "
+      "pipelining. Any other value will enable pipelining. A positive value "
+      "will specify a window of outstanding requests on the server while "
+      "waiting for a response. -1 or a negative value will set the window of "
+      "outstanding requests to maximum i.e. submit requests without waiting "
+      "for a response");
   }
 };
