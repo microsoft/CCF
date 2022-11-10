@@ -109,4 +109,4 @@ git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint
 
 echo "$CHECK_DELIMITER"
 echo "-- Python types"
-git ls-files python/ | grep -e '\.py$' | xargs mypy
+git ls-files python/ | grep -e '\.py$' | xargs mypy --implicit-optional
