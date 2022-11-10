@@ -92,7 +92,7 @@ To build and install CCF from source, please see :doc:`/contribute/build_ccf`.
 In Azure
 --------
 
-CCF can be installed on an Azure Virtual Machine by running a single script; :ccf_repo:`getting_started/azure_vm/install_ccf_on_azure_vm.sh`.
+CCF can be installed on an Azure Virtual Machine by running a single script;
 
 .. code-block:: bash
 
