@@ -18,11 +18,9 @@ public:
   std::string key;
   std::string rootCa;
   std::string server_address = "127.0.0.1:8000";
-  std::string send_filepath = "../tests/perf-system/submitter/cpp_send.parquet";
-  std::string response_filepath =
-    "../tests/perf-system/submitter/cpp_respond.parquet";
-  std::string generator_filepath =
-    "../tests/perf-system/generator/requests.parquet";
+  std::string send_filepath;
+  std::string response_filepath;
+  std::string generator_filepath;
   bool pipeline = false;
 
   ArgumentParser(
@@ -60,25 +58,19 @@ public:
         server_address,
         "Specify the address to submit requests.")
       ->capture_default_str();
-    app
-      .add_option(
-        "--send-filepath",
-        send_filepath,
-        "Path to parquet file to store the submitted requests.")
-      ->capture_default_str();
-    app
-      .add_option(
-        "--response-filepath",
-        response_filepath,
-        "Path to parquet file to store the responses from the submitted "
-        "requests.")
-      ->capture_default_str();
-    app
-      .add_option(
-        "--generator-filepath",
-        generator_filepath,
-        "Path to parquet file with the generated requests to be submitted.")
-      ->capture_default_str();
+    app.add_option(
+      "--send-filepath",
+      send_filepath,
+      "Path to parquet file to store the submitted requests.");
+    app.add_option(
+      "--response-filepath",
+      response_filepath,
+      "Path to parquet file to store the responses from the submitted "
+      "requests.");
+    app.add_option(
+      "--generator-filepath",
+      generator_filepath,
+      "Path to parquet file with the generated requests to be submitted.");
     app.add_flag("--pipeline", pipeline, "Enable HTTP/1.1 pipelining option.")
       ->capture_default_str();
   }
