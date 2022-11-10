@@ -90,9 +90,9 @@ export const rsaPemToJwk = ccf.crypto.rsaPemToJwk;
 /**
  * @inheritDoc global!CCFCrypto.pubEddsaPemToJwk
  */
- export const pubEddsaPemToJwk = ccf.crypto.pubEddsaPemToJwk;
+export const pubEddsaPemToJwk = ccf.crypto.pubEddsaPemToJwk;
 
- /**
+/**
  * @inheritDoc global!CCFCrypto.eddsaPemToJwk
  */
 export const eddsaPemToJwk = ccf.crypto.eddsaPemToJwk;

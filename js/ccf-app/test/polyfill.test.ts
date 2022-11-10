@@ -467,7 +467,7 @@ describe("polyfill", function () {
     });
     it("EdDSA", function () {
       const my_kid = "my_kid";
-      const pair = ccf.crypto.generateEddsaKeyPair('curve25519');
+      const pair = ccf.crypto.generateEddsaKeyPair("curve25519");
       {
         const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey);
         assert.equal(jwk.kty, "OKP");

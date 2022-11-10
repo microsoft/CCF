@@ -443,8 +443,8 @@ class CCFPolyfill implements CCF {
         crv: jwk.crv as string,
         x: jwk.x as string,
         kty: jwk.kty as string,
-        kid: kid
-      }
+        kid: kid,
+      };
     },
     eddsaPemToJwk(pem: string, kid?: string): any {
       const key = jscrypto.createPrivateKey({
@@ -458,8 +458,8 @@ class CCFPolyfill implements CCF {
         x: jwk.x as string,
         d: jwk.d as string,
         kty: jwk.kty as string,
-        kid: kid
-      }
+        kid: kid,
+      };
     },
   };
 

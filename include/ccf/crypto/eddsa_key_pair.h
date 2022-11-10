@@ -5,6 +5,7 @@
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/eddsa_public_key.h"
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
@@ -47,6 +48,11 @@ namespace crypto
       return verify(
         contents.data(), contents.size(), signature.data(), signature.size());
     }
+
+    virtual CurveID get_curve_id() const = 0;
+
+    virtual JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
+      const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 
   using EdDSAPublicKeyPtr = std::shared_ptr<EdDSAPublicKey>;

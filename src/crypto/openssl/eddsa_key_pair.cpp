@@ -71,4 +71,22 @@ namespace crypto
       contents, contents_size, signature, signature_size);
   }
 
+  CurveID EdDSAKeyPair_OpenSSL::get_curve_id() const
+  {
+    return EdDSAPublicKey_OpenSSL::get_curve_id();
+  }
+
+  JsonWebKeyEdDSAPrivate EdDSAKeyPair_OpenSSL::private_key_jwk_eddsa(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyEdDSAPrivate jwk = {
+      EdDSAPublicKey_OpenSSL::public_key_jwk_eddsa(kid)};
+
+    std::vector<uint8_t> raw_priv(EVP_PKEY_size(key));
+    size_t raw_priv_len = raw_priv.size();
+    EVP_PKEY_get_raw_private_key(key, raw_priv.data(), &raw_priv_len);
+    raw_priv.resize(raw_priv_len);
+    jwk.d = b64url_from_raw(raw_priv, false);
+    return jwk;
+  }
 }

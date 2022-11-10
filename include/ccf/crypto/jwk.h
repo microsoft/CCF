@@ -13,10 +13,14 @@ namespace crypto
   enum class JsonWebKeyType
   {
     EC = 0,
-    RSA = 1
+    RSA = 1,
+    OKP = 2
   };
   DECLARE_JSON_ENUM(
-    JsonWebKeyType, {{JsonWebKeyType::EC, "EC"}, {JsonWebKeyType::RSA, "RSA"}});
+    JsonWebKeyType,
+    {{JsonWebKeyType::EC, "EC"},
+     {JsonWebKeyType::RSA, "RSA"},
+     {JsonWebKeyType::OKP, "OKP"}});
 
   struct JsonWebKey
   {
@@ -61,6 +65,24 @@ namespace crypto
     }
   }
 
+  enum class JsonWebKeyEdDSACurve
+  {
+    ED25519 = 0
+  };
+  DECLARE_JSON_ENUM(
+    JsonWebKeyEdDSACurve, {{JsonWebKeyEdDSACurve::ED25519, "Ed25519"}});
+
+  static JsonWebKeyEdDSACurve curve_id_to_jwk_eddsa_curve(CurveID curve_id)
+  {
+    switch (curve_id)
+    {
+      case CurveID::CURVE25519:
+        return JsonWebKeyEdDSACurve::ED25519;
+      default:
+        throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
+    }
+  }
+
   struct JsonWebKeyECPublic : JsonWebKey
   {
     JsonWebKeyECCurve crv;
@@ -96,4 +118,19 @@ namespace crypto
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPrivate, JsonWebKeyRSAPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPrivate, d, p, q, dp, dq, qi);
+
+  struct JsonWebKeyEdDSAPublic : JsonWebKey
+  {
+    JsonWebKeyEdDSACurve crv;
+    std::string x; // base64url
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPublic, JsonWebKey);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPublic, crv, x);
+
+  struct JsonWebKeyEdDSAPrivate : JsonWebKeyEdDSAPublic
+  {
+    std::string d; // base64url
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPrivate, JsonWebKeyEdDSAPublic);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPrivate, d);
 }
