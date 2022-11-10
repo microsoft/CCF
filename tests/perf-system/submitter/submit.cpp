@@ -37,7 +37,8 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   st = parquet::arrow::OpenFile(input, pool, &arrow_reader);
   if (!st.ok())
   {
-    LOG_INFO_FMT("Couldn't found generator file");
+    LOG_INFO_FMT("Couldn't find generator file");
+
   }
   else
   {
