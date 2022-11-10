@@ -42,7 +42,11 @@ class Analyze:
         req_resp = df_responses.iloc[req_id]["rawResponse"].split("\n")
         status_list = req_resp[0].split(" ")
         # if we get a full statues and says ok increase the successful
-        if len(status_list) > 1 and status_list[1][:3] == "200":
+        if (
+            len(status_list) > 1
+            and status_list[1][:3] >= "200"
+            and status_list[1][:3] < "300"
+        ):
             return 1
         return 0
 
