@@ -16,8 +16,5 @@
       }
     }
   },
-  "postCreateCommand": [
-    "bash -i .devcontainer/tlaplus/install.sh",
-    "(cd tla/ && bash -i download_or_update_tla.sh)"
-  ]
+  "postCreateCommand": "(cd tla/ && bash -i install_deps.sh)"
 }
