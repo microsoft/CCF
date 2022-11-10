@@ -21,11 +21,11 @@ download() {
 download_curl() {
 	local if_modified
 
-	IFS='/' read -ra PATHPARTS <<< $1
+	IFS='/' read -ra PATHPARTS <<< $"1"
 	JARNAME=${PATHPARTS[-1]}
 
-	if [ -e $JARNAME ]; then
-		if_modified=(-z $JARNAME)
+	if [ -e $"JARNAME" ]; then
+		if_modified=(-z $"JARNAME")
 	fi
 
 	curl -f -Ss -L -R -O "${if_modified[@]}" "$1"
