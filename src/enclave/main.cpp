@@ -121,11 +121,11 @@ extern "C"
       !ccf::pal::is_outside_enclave(
         ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
     {
-      // Note: We cannot log an error from here as enclave logger uses
-      // ringbuffer which is not trusted at this point
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
+    // Note: because logger uses ringbuffer, logger can only be initialised once
+    // ringbuffer memory has been verified
     auto new_logger = std::make_unique<ccf::RingbufferLogger>(
       writer_factory->create_writer_to_outside());
     auto ringbuffer_logger = new_logger.get();
