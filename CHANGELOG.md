@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [3.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc3
 
+### Changed
+
+- Upgraded OpenEnclave to 0.18.4.
+
 ### Fixed
 
 - Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
@@ -1850,3 +1854,4 @@ Initial pre-release
 [3.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev6
 [3.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev7
 [3.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc0
+[3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
