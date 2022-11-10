@@ -140,13 +140,13 @@ extern "C"
 
     // Check that ringbuffer memory ranges are entirely outside of the enclave
     if (
-      !ccf::pal::is_outside_enclave(
+      !oe_is_outside_enclave(
         ec.from_enclave_buffer_start, ec.from_enclave_buffer_size) ||
-      !ccf::pal::is_outside_enclave(
+      !oe_is_outside_enclave(
         ec.to_enclave_buffer_start, ec.to_enclave_buffer_size) ||
-      !ccf::pal::is_outside_enclave(
+      !oe_is_outside_enclave(
         ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)) ||
-      !ccf::pal::is_outside_enclave(
+      !oe_is_outside_enclave(
         ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
     {
       return CreateNodeStatus::MemoryNotOutsideEnclave;
