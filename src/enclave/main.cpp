@@ -110,11 +110,19 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
-    if (!ccf::pal::is_outside_enclave(
-          ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
+    // Check that ringbuffer memory ranges are entirely outside of the enclave
+    if (
+      !ccf::pal::is_outside_enclave(
+        ec.from_enclave_buffer_start, ec.from_enclave_buffer_size) ||
+      !ccf::pal::is_outside_enclave(
+        ec.to_enclave_buffer_start, ec.to_enclave_buffer_size) ||
+      !ccf::pal::is_outside_enclave(
+        ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)) ||
+      !ccf::pal::is_outside_enclave(
+        ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
     {
-      // We cannot log an error from here as enclave logger uses ring buffer
-      // which is not trusted at this point
+      // Note: We cannot log an error from here as enclave logger uses
+      // ringbuffer which is not trusted at this point
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
@@ -171,28 +179,6 @@ extern "C"
 
       ccf::host_time_us =
         static_cast<decltype(ccf::host_time_us)>(time_location);
-
-      // Check that ringbuffer memory ranges are entirely outside of the enclave
-      if (!ccf::pal::is_outside_enclave(
-            ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer start");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!ccf::pal::is_outside_enclave(
-            ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer offset");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!ccf::pal::is_outside_enclave(
-            ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer offset");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
 
       ccf::pal::speculation_barrier();
     }
