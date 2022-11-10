@@ -18,6 +18,6 @@
   },
   "postCreateCommand": [
     "bash -i .devcontainer/tlaplus/install.sh",
-    "bash -i tla/download_or_update_tla.sh"
+    "(cd tla/ && bash -i download_or_update_tla.sh)"
   ]
 }
