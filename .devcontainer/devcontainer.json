@@ -1,7 +1,17 @@
 {
-  "name": "Sample Development Environment for CCF",
-  "context": "..",
+  "name": "CCF Development Environment",
   "image": "ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-virtual",
   "runArgs": [],
-  "extensions": ["ms-vscode.cpptools", "ms-python.python"]
+  "extensions": [
+    "ms-vscode.cpptools",
+    "ms-python.python",
+    "esbenp.prettier-vscode"
+  ],
+  "settings": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": true
+    }
+  }
 }
