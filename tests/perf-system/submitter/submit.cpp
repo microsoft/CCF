@@ -193,7 +193,7 @@ int main(int argc, char** argv)
 {
   logger::config::default_init();
   CLI::App cli_app{"Perf Tool"};
-  ArgumentParser args("Perf Tool", argv[0], cli_app);
+  ArgumentParser args("Perf Tool", cli_app);
   CLI11_PARSE(cli_app, argc, argv);
 
   ParquetData data_handler;

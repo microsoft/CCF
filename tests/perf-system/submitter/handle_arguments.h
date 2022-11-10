@@ -23,12 +23,8 @@ public:
   std::string generator_filepath;
   int max_inflight_requests;
 
-  ArgumentParser(
-    const std::string& default_label,
-    const std::string& default_pid_file,
-    CLI::App& app) :
-    label(default_label),
-    pid_file(fmt::format("{}.pid", default_pid_file))
+  ArgumentParser(const std::string& default_label, CLI::App& app) :
+    label(default_label)
   {
     app
       .add_option(
