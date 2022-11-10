@@ -176,15 +176,13 @@ namespace externalexecutor
       {}
     };
 
-    static void send_stream_payload(
+    template <typename T>
+    static void send_stream_payload_t(
       const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
       const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup,
-      bool close_stream)
+      bool close_stream,
+      T t)
     {
-      externalexecutor::protobuf::KVKeyValue kv;
-      kv.set_key("lala");
-      kv.set_value(fmt::format("my_value: {}", close_stream));
-
       auto http2_session_context =
         std::dynamic_pointer_cast<http::HTTP2SessionContext>(
           rpc_ctx->get_session_context());
@@ -206,9 +204,21 @@ namespace externalexecutor
           stream_id));
       }
 
-      std::vector<externalexecutor::protobuf::KVKeyValue> kvs = {kv, kv, kv};
       http_responder->stream_data(
-        ccf::grpc::make_grpc_messages(kvs), close_stream);
+        ccf::grpc::make_grpc_message(t), close_stream);
+    }
+
+    static void send_stream_payload(
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+      const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup,
+      bool close_stream)
+    {
+      externalexecutor::protobuf::KVKeyValue kv;
+      kv.set_key("lala");
+      kv.set_value(fmt::format("my_value: {}", close_stream));
+      // std::vector<externalexecutor::protobuf::KVKeyValue> kvs = {kv, kv, kv};
+
+      send_stream_payload_t(rpc_ctx, responder_lookup, close_stream, kv);
     }
 
     static void async_send_stream_data(
@@ -234,7 +244,7 @@ namespace externalexecutor
         responder_lookup);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg), std::chrono::milliseconds(1000));
+        std::move(msg), std::chrono::milliseconds(500));
     }
 
     void install_kv_service()
@@ -706,12 +716,12 @@ namespace externalexecutor
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
                               std::vector<temp::OpIn>&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<std::vector<temp::OpOut>> {
-        std::vector<temp::OpOut> results;
+        -> ccf::grpc::GrpcAdapterResponse<ccf::grpc::Stream<temp::OpOut>> {
+        // std::vector<temp::OpOut> results;
 
         for (temp::OpIn& op : payload)
         {
-          temp::OpOut& result = results.emplace_back();
+          temp::OpOut result;
           switch (op.op_case())
           {
             case (temp::OpIn::OpCase::kEcho):
@@ -720,6 +730,8 @@ namespace externalexecutor
               auto* echo_op = op.mutable_echo();
               auto* echoed = result.mutable_echoed();
               echoed->set_allocated_body(echo_op->release_body());
+              send_stream_payload_t(
+                ctx.rpc_ctx, responder_lookup, false, result);
               break;
             }
 
@@ -731,6 +743,8 @@ namespace externalexecutor
               std::reverse(s->begin(), s->end());
               auto* reversed = result.mutable_reversed();
               reversed->set_allocated_body(s);
+              send_stream_payload_t(
+                ctx.rpc_ctx, responder_lookup, false, result);
               break;
             }
 
@@ -744,6 +758,8 @@ namespace externalexecutor
                 truncate_op->end() - truncate_op->start());
               auto* truncated = result.mutable_truncated();
               truncated->set_allocated_body(s);
+              send_stream_payload_t(
+                ctx.rpc_ctx, responder_lookup, false, result);
               break;
             }
 
@@ -757,7 +773,7 @@ namespace externalexecutor
           }
         }
 
-        return ccf::grpc::make_success(results);
+        return ccf::grpc::make_success(ccf::grpc::Stream<temp::OpOut>{});
       };
 
       make_command_endpoint(
@@ -765,7 +781,7 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_command_adapter<
           std::vector<temp::OpIn>,
-          std::vector<temp::OpOut>>(run_string_ops),
+          ccf::grpc::Stream<temp::OpOut>>(run_string_ops),
         ccf::no_auth_required)
         .install();
     }
