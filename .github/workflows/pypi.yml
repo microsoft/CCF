@@ -1,0 +1,35 @@
+name: "Build and Publish PyPi package"
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build_and_publish:
+    name: "Publish ccf package to PyPi"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get release number from git tag (release) or latest (branch)
+        run: |
+          echo "version=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+        id: tref
+
+      - name: Fetch PyPi Package from release
+        run: |
+          cd python
+          VERSION=${{steps.tref.outputs.version}}
+          PYPY_VERSION=${VERSION//-}
+          wget https://github.com/microsoft/CCF/releases/download/ccf-${VERSION}/ccf-${PYPY_VERSION}-py3-none-any.whl
+
+      - name: Publish PyPi Package to https://pypi.org/project/ccf/
+        run: |
+          set -ex
+          cd python
+          python3.8 -m venv env
+          source ./env/bin/activate
+          pip install -r requirements.txt
+          pip install twine
+          twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} *.whl

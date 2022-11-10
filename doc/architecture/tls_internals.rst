@@ -41,7 +41,7 @@ However, when creating the TLS 'Context', the 'TLSSession' had to register some 
 
 Those callbacks are implemented in 'TLSSession' because they need access to the ``pending_read`` buffers to read from and the 'ring buffer' to write to.  But the TLS context ('SSL' and 'SSL_CTX' objects) need to encrypt/decrypt data, and they can only do that from 'BIO's in OpenSSL, so the callback has a mix of ring buffer and BIO handling that tricks both sides to take the appropriate steps at the right time in this complex dance.
 
-In the 'read' case, the message has arrived into the ``pending_read`` buffer via a (previously triggered) ring buffer callback, and that data is written to TLS's 'read' BIO (via ``BIO_write_ex``) _before_ TLS itself reads it.  That data is still encrypted, so when the TLS reads it with ``SSL_read_ex``, it tries to decrypt and on success, returns a plain text buffer. On error, it emits the error or a 'WANTS_READ' status, so the endpoint can try to extract more information from the ``pending_read`` buffer again.
+In the 'read' case, the message has arrived into the ``pending_read`` buffer via a (previously triggered) ring buffer callback, and that data is written to TLS's 'read' BIO (via ``BIO_write_ex``) `before` TLS itself reads it.  That data is still encrypted, so when the TLS reads it with ``SSL_read_ex``, it tries to decrypt and on success, returns a plain text buffer. On error, it emits the error or a 'WANTS_READ' status, so the endpoint can try to extract more information from the ``pending_read`` buffer again.
 
 Upon success, the read BIO is flushed and new data can be read again. The plain text result is returned all the way back to ``HTTPSession::recv_()`` that then sends it to the application to process.
 
@@ -50,7 +50,7 @@ Sending Messages
 
 When the application finishes, it returns a plain text response. That message is sent back to the client via the ``send()`` call. This in turn calls ``TLSSession::send_raw()`` that via a series of asynchronous dispatches ends up filling the ``pending_write`` buffer and calling ``write_some()`` which itself calls ``tls::Context::write()``.
 
-This is the same process as for reads: a callback in 'TLSSession' was registered for the 'write' BIO, with access to the ``pending_write`` and the ring buffer. But in this case, the callback is only executed _after_ the TLS layer has encrypted the data and written to the 'write' BIO.
+This is the same process as for reads: a callback in 'TLSSession' was registered for the 'write' BIO, with access to the ``pending_write`` and the ring buffer. But in this case, the callback is only executed `after` the TLS layer has encrypted the data and written to the 'write' BIO.
 
 Now, we take that (encrypted) data, flush the BIO ourselves (to avoid clogging the pipes with the next message) and send it through the ring buffer with the ``RINGBUFFER_TRY_WRITE_MESSAGE(tls_outbound,...)`` macro.
 
@@ -74,7 +74,7 @@ So, for now, the only way to have QUIC support is in 'virtual' mode, retaining O
 MbedTLS vs OpenSSL
 ~~~~~~~~~~~~~~~~~~
 
-As stated above, the current OpenSSL implementation is _emulating_ the previous MbedTLS one, so some oddities are observed.
+As stated above, the current OpenSSL implementation is `emulating` the previous MbedTLS one, so some oddities are observed.
 
 First, MbedTLS returns errors as negative values and amount of data handled as positive values. OpenSSL concurs on positive values but returns 0 (or -1 in previous versions) for all errors, using ``SSL_get_error`` to then classify which error and what to do. The error values are also positive.
 
@@ -84,7 +84,7 @@ Second, MbedTLS keeps all its context (configuration, connection info, read and 
 
 OpenSSL callbacks, however, are very different from MbedTLS ones. They are called twice for each action, one before the actual action and another after.
 
-To simulate this we had to implement a read callback _before_ the BIO read (so we could fill it up with the contents of the ring buffer) and the write callback _after_ the BIO write (so we could pick up its contents and send it into the ring buffer).
+To simulate this we had to implement a read callback `before` the BIO read (so we could fill it up with the contents of the ring buffer) and the write callback `after` the BIO write (so we could pick up its contents and send it into the ring buffer).
 
 There is a complex dance of return values in OpenSSL's callbacks. If any returns errors the action is canceled immediately. On reads, because the BIO was empty, the initial return value is an error, so we must make sure that, if there is anything in the ``pending_read`` buffer, we have to change the status to the amount of bytes read, so it can continue.
 

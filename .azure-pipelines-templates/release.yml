@@ -38,22 +38,3 @@ jobs:
           releaseNotesFile: $(Build.BinariesDirectory)/rel-notes.md
           addChangeLog: false
         displayName: "GitHub Release"
-
-      - script: |
-          set -ex
-          python3.8 -m venv env
-          source ./env/bin/activate
-          pip install -r requirements.txt
-          pip install twine
-          twine upload -u __token__ -p $(pypi_token) $(Build.ArtifactStagingDirectory)/**/*.whl
-        workingDirectory: python
-        displayName: PyPi https://pypi.org/project/ccf/
-
-      - script: |
-          set -ex
-          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
-          npm publish $(Build.ArtifactStagingDirectory)/**/microsoft-ccf-app*.tgz --access public
-        env:
-          NPM_TOKEN: $(npm_token)
-        workingDirectory: js/ccf-app
-        displayName: NPM https://www.npmjs.com/package/@microsoft/ccf-app

@@ -384,6 +384,55 @@ describe("polyfill", function () {
         )
       );
     });
+    it("performs EdDSA validation correctly", function () {
+      const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519", {
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      const data = ccf.strToBuf("foo");
+      const signature = crypto.sign(
+        null,
+        new Uint8Array(data),
+        crypto.createPrivateKey(privateKey)
+      );
+      assert.isTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "EdDSA",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+      assert.isNotTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "EdDSA",
+          },
+          publicKey,
+          signature,
+          ccf.strToBuf("bar")
+        )
+      );
+      assert.throws(() =>
+        ccf.crypto.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+    });
   });
   describe("digest", function () {
     it("generates a valid SHA-256 hash", function () {

@@ -106,7 +106,7 @@ If a handler makes no writes to the KV, it may be installed as read-only:
     :end-before: SNIPPET_END: install_get
     :dedent:
 
-This offers some additional type safety (accidental `put`\s or `remove`\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
+This offers some additional type safety (accidental ``put``\s or ``remove``\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
 
 API Schema
 ~~~~~~~~~~
@@ -183,7 +183,7 @@ Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
 This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v3`.
-Most endpoints operate over the _current_ state of the KV, but these historical queries operate over _old_ state, specifically over the writes made by a previous transaction.
+Most endpoints operate over the `current` state of the KV, but these historical queries operate over `old` state, specifically over the writes made by a previous transaction.
 The adapter handles extracting the target :term:`Transaction ID` from the user's request, and interacting with the :ref:`Historical Queries API <build_apps/api:Historical Queries>` to asynchronously fetch this entry from the ledger.
 The deserialised and verified transaction is then presented to the handler code below, which performs reads and constructs a response like any other handler.
 
@@ -214,8 +214,7 @@ Since the indexing system and all the strategies it manages exist entirely withi
 
 An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
 This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory useage.
-This sample strategy is 
-In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the _interesting_ transactions; those which write to the target key:
+In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the `interesting` transactions; those which write to the target key:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

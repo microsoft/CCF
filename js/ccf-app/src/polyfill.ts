@@ -178,8 +178,20 @@ class CCFPolyfill implements CCF {
         if (algorithm.name !== "ECDSA") {
           throw new Error("incompatible signing algorithm for given key type");
         }
+      } else if (pubKey.asymmetricKeyType == "ed25519") {
+        if (algorithm.name !== "EdDSA") {
+          throw new Error("incompatible signing algorithm for given key type");
+        }
       } else {
         throw new Error("unrecognized signing algorithm");
+      }
+      if (algorithm.name === "EdDSA") {
+        return jscrypto.verify(
+          null,
+          new Uint8Array(data),
+          pubKey,
+          new Uint8Array(signature)
+        );
       }
       const hashAlg = (algorithm.hash as string).replace("-", "").toLowerCase();
       const verifier = jscrypto.createVerify(hashAlg);

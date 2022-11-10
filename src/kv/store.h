@@ -115,13 +115,17 @@ namespace kv
       Version v,
       Term term,
       const MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks) override
+      kv::ConsensusHookPtrs& hooks,
+      bool track_deletes_on_missing_keys) override
     {
       auto c = apply_changes(
         changes,
         [v](bool) { return std::make_tuple(v, v - 1); },
         hooks,
-        new_maps);
+        new_maps,
+        std::nullopt,
+        false,
+        track_deletes_on_missing_keys);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -507,11 +511,15 @@ namespace kv
       // Each map is committed at a different version, independently of the
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
+      bool track_deletes_on_missing_keys = false;
       auto r = apply_changes(
         changes,
         [](bool) { return std::make_tuple(NoVersion, NoVersion); },
         hooks,
-        new_maps);
+        new_maps,
+        std::nullopt,
+        false,
+        track_deletes_on_missing_keys);
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -1257,6 +1265,11 @@ namespace kv
     ReadOnlyTx create_read_only_tx() override
     {
       return ReadOnlyTx(this);
+    }
+
+    TxDiff create_tx_diff() override
+    {
+      return TxDiff(this);
     }
 
     CommittableTx create_tx()

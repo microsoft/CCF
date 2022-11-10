@@ -382,7 +382,7 @@ namespace aft
         return std::move(commit_evidence_digest);
       }
 
-      kv::ApplyResult apply() override
+      kv::ApplyResult apply(bool track_deletes_on_missing_keys) override
       {
         return result;
       }
