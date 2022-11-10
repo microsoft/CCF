@@ -110,6 +110,14 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
+    if (!ccf::pal::is_outside_enclave(
+          ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
+    {
+      // We cannot log an error from here as enclave logger uses ring buffer
+      // which is not trusted at this point
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
     auto new_logger = std::make_unique<ccf::RingbufferLogger>(
       writer_factory->create_writer_to_outside());
     auto ringbuffer_logger = new_logger.get();
@@ -169,13 +177,6 @@ extern "C"
             ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
       {
         LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer start");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!ccf::pal::is_outside_enclave(
-            ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer start");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
