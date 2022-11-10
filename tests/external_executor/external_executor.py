@@ -346,7 +346,7 @@ def test_streaming(network, args):
     def generate_ops(n):
         for _ in range(n):
             s = f"I'm random string {n}: {random.random()}"
-            yield random.choice((echo_op, reverse_op))(s)  # TODO: Revert
+            yield random.choice((echo_op, echo_op))(s)  # TODO: Revert
             # yield random.choice((echo_op, reverse_op))(s)
 
     def compare_op_results(stub, n_ops):
@@ -380,7 +380,7 @@ def test_streaming(network, args):
 
         # compare_op_results(stub, 0) # TODO: Revert
         # compare_op_results(stub, 1)
-        compare_op_results(stub, 30)
+        compare_op_results(stub, 2)
         # compare_op_results(stub, 1000)
 
     return network

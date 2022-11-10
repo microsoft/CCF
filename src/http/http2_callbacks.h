@@ -16,6 +16,8 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
+    LOG_FAIL_FMT("http2::read_outgoing_callback");
+
     auto* stream_data = get_stream_data(session, stream_id);
     if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
     {
@@ -48,6 +50,7 @@ namespace http2
       body = body.subspan(to_read);
     }
 
+    // TODO: Probably merge with other DEFERRED call
     if (stream_data->outgoing.state == StreamResponseState::AboutToStream)
     {
       LOG_FAIL_FMT("Deferring data");

@@ -220,10 +220,14 @@ namespace http2
         stream_data->outgoing.state = StreamResponseState::Closing;
       }
 
+      LOG_FAIL_FMT(
+        "State before submitting response: {}", stream_data->outgoing.state);
+
       int rv = nghttp2_submit_response(
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
       if (rv != 0)
       {
+        LOG_FAIL_FMT("Error here!");
         throw std::logic_error(
           fmt::format("nghttp2_submit_response error: {}", rv));
       }
@@ -237,7 +241,10 @@ namespace http2
       LOG_TRACE_FMT("http2::set_no_unary: stream {}", stream_id);
 
       auto* stream_data = get_stream_data(session, stream_id);
-      stream_data->outgoing.state = StreamResponseState::AboutToStream;
+      if (stream_data->outgoing.state != StreamResponseState::Streaming)
+      {
+        stream_data->outgoing.state = StreamResponseState::AboutToStream;
+      }
     }
 
     void send_data(
