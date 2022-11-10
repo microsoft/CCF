@@ -62,18 +62,23 @@ namespace crypto
    * Create a new public / private EdDSA key pair on specified curve and
    * implementation
    *
-   * @param curve_id Elliptic curve to use
+   * @param curve_id Elliptic curve to use. Currently only CURVE25519 is
+   * supported.
    * @return Key pair
    */
   EdDSAKeyPairPtr make_eddsa_key_pair(CurveID curve_id);
 
   /**
-   * Create a public / private RSA key pair from existing private key data
+   * Create a public / private EdDSA key pair from existing private key data
+   *
+   * Currently only Curve25519 is supported.
    */
   EdDSAKeyPairPtr make_eddsa_key_pair(const Pem& pem);
 
   /**
-   * Create a public / private RSA key pair from existing private key data
+   * Create a public / private EdDSA key pair from existing private key data
+   *
+   * Currently only Curve25519 is supported.
    */
   EdDSAPublicKeyPtr make_eddsa_public_key(const Pem& pem);
 }

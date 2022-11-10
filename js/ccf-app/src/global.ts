@@ -441,6 +441,7 @@ export interface CCFCrypto {
 
   /**
    * Converts an EdDSA public key as PEM to JSON Web Key (JWK) object.
+   * Currently only Curve25519 is supported.
    *
    * @param pem EdDSA public key as PEM
    * @param kid Key identifier (optional)
@@ -449,6 +450,7 @@ export interface CCFCrypto {
 
   /**
    * Converts an EdDSA private key as PEM to JSON Web Key (JWK) object.
+   * Currently only Curve25519 is supported.
    *
    * @param pem EdDSA private key as PEM
    * @param kid Key identifier (optional)
