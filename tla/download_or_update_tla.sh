@@ -21,14 +21,17 @@ download() {
 download_curl() {
 	local if_modified
 
-	if [ -e tla2tools.jar ]; then
-		if_modified=(-z tla2tools.jar)
+	IFS='/' read -ra PATHPARTS <<< $1
+	JARNAME=${PATHPARTS[-1]}
+
+	if [ -e $JARNAME ]; then
+		if_modified=(-z $JARNAME)
 	fi
 
 	curl -f -Ss -L -R -O "${if_modified[@]}" "$1"
 
 	if [ $? -ne 0 ]; then
-		echo "Couldn't download tla2tools.jar"
+		echo "Couldn't download $JARNAME"
 		exit 1
 	fi
 }
