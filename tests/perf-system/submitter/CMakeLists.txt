@@ -38,3 +38,4 @@ target_link_libraries(
 if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(submit PRIVATE c++fs)
 endif()
+install(TARGETS submit DESTINATION bin)
