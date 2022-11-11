@@ -17,3 +17,7 @@ intel_dcap_packages:
   - "libsgx-dcap-ql"
   - "libsgx-urts"
   - "libsgx-quote-ex"
+  # Note: libsgx-dcap-ql-dev used to be automatically pulled by the
+  # open-enclave deb package until 0.18.4. This is only necessary
+  # to run <= 2.x CCF nodes that are built against OE <= 0.18.2.
+  - "libsgx-dcap-ql-dev"

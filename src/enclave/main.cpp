@@ -138,6 +138,22 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
+    // Check that ringbuffer memory ranges are entirely outside of the enclave
+    if (
+      !oe_is_outside_enclave(
+        ec.from_enclave_buffer_start, ec.from_enclave_buffer_size) ||
+      !oe_is_outside_enclave(
+        ec.to_enclave_buffer_start, ec.to_enclave_buffer_size) ||
+      !oe_is_outside_enclave(
+        ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)) ||
+      !oe_is_outside_enclave(
+        ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
+    {
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
+    // Note: because logger uses ringbuffer, logger can only be initialised once
+    // ringbuffer memory has been verified
     auto new_logger = std::make_unique<ccf::RingbufferLogger>(
       writer_factory->create_writer_to_outside());
     auto ringbuffer_logger = new_logger.get();
@@ -189,35 +205,6 @@ extern "C"
 
       ccf::host_time_us =
         static_cast<decltype(ccf::host_time_us)>(time_location);
-
-      // Check that ringbuffer memory ranges are entirely outside of the enclave
-      if (!oe_is_outside_enclave(
-            ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer start");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!oe_is_outside_enclave(
-            ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer start");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!oe_is_outside_enclave(
-            ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer offset");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!oe_is_outside_enclave(
-            ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer offset");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
 
       oe_lfence();
     }
