@@ -165,6 +165,30 @@ namespace http2
   private:
     http::RequestProcessor& proc;
 
+    void submit_trailers(StreamId stream_id, http::HeaderMap&& trailers)
+    {
+      if (trailers.empty())
+      {
+        return;
+      }
+
+      LOG_TRACE_FMT("Submitting {} trailers", trailers.size());
+      std::vector<nghttp2_nv> trlrs;
+      trlrs.reserve(trailers.size());
+      for (auto& [k, v] : trailers)
+      {
+        trlrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      int rv =
+        nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
+      if (rv != 0)
+      {
+        throw std::logic_error(
+          fmt::format("nghttp2_submit_trailer error: {}", rv));
+      }
+    }
+
   public:
     ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
 
@@ -210,7 +234,7 @@ namespace http2
 
       auto* stream_data = get_stream_data(session, stream_id);
       stream_data->outgoing.body = DataSource(std::move(body));
-      stream_data->outgoing.trailers = std::move(trailers);
+      stream_data->outgoing.has_trailers = !trailers.empty();
 
       nghttp2_data_provider prov;
       prov.read_callback = read_outgoing_callback;
@@ -233,6 +257,13 @@ namespace http2
       }
 
       send_all_submitted();
+
+      if (stream_data->outgoing.state == StreamResponseState::Closing)
+      {
+        submit_trailers(stream_id, std::move(trailers));
+
+        send_all_submitted();
+      }
     }
 
     void set_no_unary(StreamId stream_id)
@@ -279,12 +310,9 @@ namespace http2
         nghttp2_data_provider prov;
         prov.read_callback = read_outgoing_callback;
 
-        // gRPC only!
-        http::HeaderMap trailers;
-        trailers["grpc-status"] = "0";
-        trailers["grpc-message"] = "";
-        stream_data->outgoing.trailers = std::move(trailers);
+        stream_data->outgoing.has_trailers = true;
 
+        // TODO: Can probably replace with nghttp2_submit_headers()
         int rv = nghttp2_submit_response(
           session, stream_id, hdrs.data(), hdrs.size(), &prov);
         if (rv != 0)
@@ -299,6 +327,7 @@ namespace http2
       if (close)
       {
         stream_data->outgoing.state = StreamResponseState::Closing;
+        stream_data->outgoing.has_trailers = true; // TODO: gRPC only
       }
 
       int rv = nghttp2_session_resume_data(session, stream_id);
@@ -309,6 +338,17 @@ namespace http2
       }
 
       send_all_submitted();
+
+      if (close)
+      {
+        // gRPC only!
+        http::HeaderMap trailers;
+        trailers["grpc-status"] = "0";
+        trailers["grpc-message"] = "";
+
+        submit_trailers(stream_id, std::move(trailers));
+        send_all_submitted();
+      }
     }
 
     virtual void handle_completed(

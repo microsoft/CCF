@@ -26,8 +26,15 @@ namespace http2
         stream_data->outgoing.state);
       return NGHTTP2_ERR_CALLBACK_FAILURE;
     }
-    auto& body = stream_data->outgoing.body.ro_data();
 
+    if (stream_data->outgoing.state == StreamResponseState::AboutToStream)
+    {
+      LOG_FAIL_FMT("Deferring data");
+      stream_data->outgoing.state = StreamResponseState::Streaming;
+      return NGHTTP2_ERR_DEFERRED;
+    }
+
+    auto& body = stream_data->outgoing.body.ro_data();
     size_t to_read = std::min(body.size(), length);
 
     if (
@@ -50,14 +57,6 @@ namespace http2
       body = body.subspan(to_read);
     }
 
-    // TODO: Probably merge with other DEFERRED call
-    if (stream_data->outgoing.state == StreamResponseState::AboutToStream)
-    {
-      LOG_FAIL_FMT("Deferring data");
-      stream_data->outgoing.state = StreamResponseState::Streaming;
-      return NGHTTP2_ERR_DEFERRED;
-    }
-
     if (
       body.empty() &&
       stream_data->outgoing.state == StreamResponseState::Closing)
@@ -66,29 +65,11 @@ namespace http2
       *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     }
 
-    // TODO: Can trailers be submitted from a different place, ideally from
-    // http2_parser.h
     if (
       stream_data->outgoing.state == StreamResponseState::Closing &&
-      !stream_data->outgoing.trailers.empty())
+      stream_data->outgoing.has_trailers)
     {
-      LOG_TRACE_FMT(
-        "Submitting {} trailers", stream_data->outgoing.trailers.size());
-      std::vector<nghttp2_nv> trlrs;
-      trlrs.reserve(stream_data->outgoing.trailers.size());
-      for (auto& [k, v] : stream_data->outgoing.trailers)
-      {
-        trlrs.emplace_back(make_nv(k.data(), v.data()));
-      }
-
-      int rv =
-        nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
-      if (rv != 0)
-      {
-        throw std::logic_error(
-          fmt::format("nghttp2_submit_trailer error: {}", rv));
-      }
-
+      LOG_FAIL_FMT("NGHTTP2_DATA_FLAG_NO_END_STREAM");
       *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
     }
 

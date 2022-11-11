@@ -71,7 +71,7 @@ namespace http2
     struct Outgoing
     {
       StreamResponseState state = StreamResponseState::Uninitialised;
-      http::HeaderMap trailers;
+      bool has_trailers = false;
       DataSource body;
     };
     Outgoing outgoing;
