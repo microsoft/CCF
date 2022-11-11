@@ -228,7 +228,7 @@ export interface SigningAlgorithm {
 }
 
 /**
- * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc751).
+ * Interfaces for JSON Web Key objects, as per [RFC7517](https://www.rfc-editor.org/rfc/rfc7517).
  */
 export interface JsonWebKey {
   /**
@@ -292,6 +292,25 @@ export interface JsonWebKeyRSAPrivate extends JsonWebKeyRSAPublic {
   dp: string;
   dq: string;
   qi: string;
+}
+
+export interface JsonWebKeyEdDSAPublic extends JsonWebKey {
+  /**
+   * Elliptic curve identifier.
+   */
+  crv: string;
+
+  /**
+   * Base64url-encoded public key.
+   */
+  x: string;
+}
+
+export interface JsonWebKeyEdDSAPrivate extends JsonWebKeyEdDSAPublic {
+  /**
+   * Base64url-encoded private key.
+   */
+  d: string;
 }
 
 export interface CCFCrypto {
@@ -419,6 +438,24 @@ export interface CCFCrypto {
    * @param kid Key identifier (optional)
    */
   rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate;
+
+  /**
+   * Converts an EdDSA public key as PEM to JSON Web Key (JWK) object.
+   * Currently only Curve25519 is supported.
+   *
+   * @param pem EdDSA public key as PEM
+   * @param kid Key identifier (optional)
+   */
+  pubEddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPrivate;
+
+  /**
+   * Converts an EdDSA private key as PEM to JSON Web Key (JWK) object.
+   * Currently only Curve25519 is supported.
+   *
+   * @param pem EdDSA private key as PEM
+   * @param kid Key identifier (optional)
+   */
+  eddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPrivate;
 }
 
 export interface CCFRpc {

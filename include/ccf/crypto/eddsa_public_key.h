@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
 
 #include <cstdint>
@@ -46,5 +47,10 @@ namespace crypto
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size) = 0;
+
+    virtual CurveID get_curve_id() const = 0;
+
+    virtual JsonWebKeyEdDSAPublic public_key_jwk_eddsa(
+      const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 }
