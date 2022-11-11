@@ -16,5 +16,5 @@
       }
     }
   },
-  "postCreateCommand": "(cd tla/ && bash -i install_deps.sh)"
+  "postCreateCommand": "(cd tla/ && python install_deps.py)"
 }
