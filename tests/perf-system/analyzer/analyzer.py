@@ -162,7 +162,8 @@ class Analyze:
         It splits the dataset in buckets of time_block seconds difference
         and will plot the throughput for each bucket
         """
-        # sort the latencies as it make sense to get the throughput
+        # sort the latencies as it makes sense to get the throughput
+
         # by time unit ignoring the ids
         sorted_latencies = sorted(df_responses["receiveTime"].tolist())
         block_indexes = [0]
