@@ -571,6 +571,7 @@ describe("polyfill", function () {
       assert.equal(foo.get(key_buf), undefined);
     });
   });
+  // This test case should be the last until https://github.com/nodejs/node/pull/45377 is addressed.
   describe("isValidX509CertChain", function (this) {
     const supported = "X509Certificate" in crypto;
     it("returns true for valid cert chains", function () {
