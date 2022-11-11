@@ -79,7 +79,7 @@ namespace crypto
       case CurveID::CURVE25519:
         return JsonWebKeyEdDSACurve::ED25519;
       default:
-        throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
+        throw std::logic_error(fmt::format("Unknown EdDSA curve {}", curve_id));
     }
   }
 
