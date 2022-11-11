@@ -241,6 +241,22 @@ export function rsaPemToJwk(
   return { body: res };
 }
 
+export function pubEddsaPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubEddsaPemToJwk(req.pem, req.kid);
+  return { body: res };
+}
+
+export function eddsaPemToJwk(
+  request: ccfapp.Request<pemToJWKRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.eddsaPemToJwk(req.pem, req.kid);
+  return { body: res };
+}
+
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
 }
