@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt  # type: ignore
 from typing import List
 import sys
 from loguru import logger as LOG
-
+import re
 
 SEC_MS = 1000
 
@@ -42,11 +42,7 @@ class Analyze:
         req_resp = df_responses.iloc[req_id]["rawResponse"].split("\n")
         status_list = req_resp[0].split(" ")
         # if we get a full statues and says ok increase the successful
-        if (
-            len(status_list) > 1
-            and status_list[1][:3] >= "200"
-            and status_list[1][:3] < "300"
-        ):
+        if len(status_list) > 1 and re.search("^2[0-9][0-9]$", status_list[1]):
             return 1
         return 0
 
