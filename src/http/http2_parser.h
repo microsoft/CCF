@@ -185,8 +185,43 @@ namespace http2
         nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
       if (rv != 0)
       {
-        throw std::logic_error(
-          fmt::format("nghttp2_submit_trailer error: {}", rv));
+        throw std::logic_error(fmt::format(
+          "nghttp2_submit_trailer error: {}", nghttp2_strerror(rv)));
+      }
+    }
+
+    void submit_response(
+      StreamId stream_id,
+      http_status status,
+      const http::HeaderMap& base_headers,
+      const http::HeaderMap& extra_headers = {})
+    {
+      std::vector<nghttp2_nv> hdrs = {};
+
+      auto status_str = fmt::format(
+        "{}", static_cast<std::underlying_type<http_status>::type>(status));
+      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
+
+      for (auto& [k, v] : base_headers)
+      {
+        hdrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      for (auto& [k, v] : extra_headers)
+      {
+        hdrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      nghttp2_data_provider prov;
+      prov.read_callback = read_outgoing_callback;
+
+      int rv = nghttp2_submit_response(
+        session, stream_id, hdrs.data(), hdrs.size(), &prov);
+      LOG_FAIL_FMT("Response: {}", rv);
+      if (rv != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
       }
     }
 
@@ -208,42 +243,11 @@ namespace http2
         trailers.size(),
         body.size());
 
-      std::vector<nghttp2_nv> hdrs;
-      auto status_str = fmt::format(
-        "{}", static_cast<std::underlying_type<http_status>::type>(status));
-      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
-      std::string body_size = std::to_string(body.size());
-      hdrs.emplace_back(
-        make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
-
-      using HeaderKeysIt = nonstd::KeyIterator<http::HeaderMap::iterator>;
-      const auto trailer_header_val = fmt::format(
-        "{}",
-        fmt::join(
-          HeaderKeysIt(trailers.begin()), HeaderKeysIt(trailers.end()), ","));
-
-      if (!trailer_header_val.empty())
-      {
-        hdrs.emplace_back(
-          make_nv(http::headers::TRAILER, trailer_header_val.c_str()));
-      }
-
-      for (auto& [k, v] : headers)
-      {
-        hdrs.emplace_back(make_nv(k.data(), v.data()));
-      }
-
       auto* stream_data = get_stream_data(session, stream_id);
-      stream_data->outgoing.body = DataSource(std::move(body));
-      stream_data->outgoing.has_trailers = !trailers.empty();
-
-      nghttp2_data_provider prov;
-      prov.read_callback = read_outgoing_callback;
-
-      bool submit_response =
+      bool should_submit_response =
         stream_data->outgoing.state != StreamResponseState::Streaming;
 
-      LOG_FAIL_FMT("Submit response: {}", submit_response);
+      LOG_FAIL_FMT("Submit response: {}", should_submit_response);
 
       // TODO: Ugly: we should have a nicer API for set_no_unary
       if (stream_data->outgoing.state != StreamResponseState::AboutToStream)
@@ -251,27 +255,30 @@ namespace http2
         stream_data->outgoing.state = StreamResponseState::Closing;
       }
 
-      if (submit_response)
+      if (should_submit_response)
       {
         LOG_FAIL_FMT(
           "State before submitting response: {}", stream_data->outgoing.state);
 
-        int rv = nghttp2_submit_response(
-          session, stream_id, hdrs.data(), hdrs.size(), &prov);
-        if (rv != 0)
+        http::HeaderMap extra_headers = {};
+        extra_headers[http::headers::CONTENT_LENGTH] =
+          std::to_string(body.size());
+        auto thv = make_trailer_header_value(trailers);
+        if (thv.has_value())
         {
-          LOG_FAIL_FMT("Error here!");
-          throw std::logic_error(
-            fmt::format("nghttp2_submit_response error: {}", rv));
+          extra_headers[http::headers::TRAILER] = thv.value();
         }
 
+        stream_data->outgoing.body = DataSource(std::move(body));
+        stream_data->outgoing.has_trailers = !trailers.empty();
+
+        submit_response(stream_id, status, headers, extra_headers);
         send_all_submitted();
       }
 
       if (stream_data->outgoing.state == StreamResponseState::Closing)
       {
         submit_trailers(stream_id, std::move(trailers));
-
         send_all_submitted();
       }
     }
@@ -299,36 +306,17 @@ namespace http2
 
       auto* stream_data = get_stream_data(session, stream_id);
 
-      // TODO: This could probably be replaced by nghttp2_submit_headers!
       if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
       {
         LOG_FAIL_FMT("Sending response header before streaming data");
         stream_data->outgoing.state = StreamResponseState::AboutToStream;
 
-        std::vector<nghttp2_nv> hdrs;
-        auto status_str = std::to_string(200);
-        hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
-        std::string body_size = std::to_string(0);
-        hdrs.emplace_back(
-          make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
-
-        // TODO: gRPC only! Remove and pass to send_data() instead
-        hdrs.emplace_back(make_nv(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC));
-
-        nghttp2_data_provider prov;
-        prov.read_callback = read_outgoing_callback;
+        http::HeaderMap headers;
+        headers[http::headers::CONTENT_TYPE] =
+          http::headervalues::contenttype::GRPC;
 
         stream_data->outgoing.has_trailers = true;
-
-        // TODO: Can probably replace with nghttp2_submit_headers()
-        int rv = nghttp2_submit_response(
-          session, stream_id, hdrs.data(), hdrs.size(), &prov);
-        if (rv != 0)
-        {
-          throw std::logic_error(
-            fmt::format("nghttp2_submit_response error: {}", rv));
-        }
+        submit_response(stream_id, HTTP_STATUS_OK, headers);
         send_all_submitted();
       }
 

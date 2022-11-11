@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/http_header_map.h"
 #include "ccf/http_status.h"
 #include "ccf/rest_verb.h"
@@ -10,6 +11,7 @@
 #include <list>
 #include <memory>
 #include <nghttp2/nghttp2.h>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -100,6 +102,23 @@ namespace http2
   static inline AbstractParser* get_parser(void* user_data)
   {
     return reinterpret_cast<AbstractParser*>(user_data);
+  }
+
+  static inline std::optional<std::string> make_trailer_header_value(
+    const http::HeaderMap& trailers)
+  {
+    if (trailers.empty())
+    {
+      return std::nullopt;
+    }
+
+    using HeaderKeysIt = nonstd::KeyIterator<http::HeaderMap::const_iterator>;
+    const auto trailer_header_val = fmt::format(
+      "{}",
+      fmt::join(
+        HeaderKeysIt(trailers.begin()), HeaderKeysIt(trailers.end()), ","));
+
+    return trailer_header_val;
   }
 
   static inline StreamData* get_stream_data(
