@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Upgraded OpenEnclave to 0.18.4.
 
+### Added
+
+- Added new `ccf.crypto.eddsaPemToJwk`, `ccf.crypto.pubEddsaPemToJwk` to JavaScript/TypesScript API to convert EdDSA keys from PEM to JWK (#4524).
+
 ### Changed
 
 ## [3.0.0-rc1]
