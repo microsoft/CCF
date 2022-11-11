@@ -1,8 +1,8 @@
-Get Started: Application Development using CCF
-==============================================
+Quick Start
+===========
 
-Overview
-========
+Application Development using CCF Overview
+-------------------------------------------
 
 What is CCF: The `Confidential Consortium Framework
 (CCF) <https://ccf.dev/>`__ is an open-source framework for building a
