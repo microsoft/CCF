@@ -1019,32 +1019,27 @@ class Ledger:
 
         public_tables: Dict[str, Dict] = {}
         latest_seqno = 0
-        for chunk in self:
-            for tx in chunk:
-                # If a transaction cannot be read (e.g. because it was only partially written to disk
-                # before a crash), return public state so far. This is consistent with CCF's behaviour
-                # which discards the incomplete transaction on recovery.
-                try:
+        # If a transaction cannot be read (e.g. because it was only partially written to disk
+        # before a crash), return public state so far. This is consistent with CCF's behaviour
+        # which discards the incomplete transaction on recovery.
+        try:
+            for chunk in self:
+                for tx in chunk:
                     public_domain = tx.get_public_domain()
-                except Exception:
-                    print(
-                        f"Error reading ledger entry. Latest read seqno: {latest_seqno}"
-                    )
-                    return public_tables, latest_seqno
-
-                latest_seqno = public_domain.get_seqno()
-                for table_name, records in public_domain.get_tables().items():
-                    if table_name in public_tables:
-                        public_tables[table_name].update(records)
-                        # Remove deleted keys
-                        public_tables[table_name] = {
-                            k: v
-                            for k, v in public_tables[table_name].items()
-                            if v is not None
-                        }
-                    else:
-                        public_tables[table_name] = records
-
+                    latest_seqno = public_domain.get_seqno()
+                    for table_name, records in public_domain.get_tables().items():
+                        if table_name in public_tables:
+                            public_tables[table_name].update(records)
+                            # Remove deleted keys
+                            public_tables[table_name] = {
+                                k: v
+                                for k, v in public_tables[table_name].items()
+                                if v is not None
+                            }
+                        else:
+                            public_tables[table_name] = records
+        except Exception:
+            print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
         return public_tables, latest_seqno
 
     def validator(self):

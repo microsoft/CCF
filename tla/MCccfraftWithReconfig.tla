@@ -45,4 +45,7 @@ mc_spec == Spec
 \* via the Symmetry option in cfg file.
 Symmetry == Permutations(Servers_mc)
 
+\* Exclude messagesSent variable s.t. two states are considered equal if they only differ in the number of messages sent.
+View == << reconfigurationVars, <<messages, commitsNotified>>, serverVars, candidateVars, leaderVars, logVars >>
+
 ===================================

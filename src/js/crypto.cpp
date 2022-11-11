@@ -359,6 +359,16 @@ namespace ccf::js
         auto kp = crypto::make_rsa_key_pair(*pem_str);
         jwk = kp->private_key_jwk_rsa(kid);
       }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPublic>)
+      {
+        auto pubk = crypto::make_eddsa_public_key(*pem_str);
+        jwk = pubk->public_key_jwk_eddsa(kid);
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPrivate>)
+      {
+        auto kp = crypto::make_eddsa_key_pair(*pem_str);
+        jwk = kp->private_key_jwk_eddsa(kid);
+      }
       else
       {
         static_assert(nonstd::dependent_false_v<T>, "Unknown type");
