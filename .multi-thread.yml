@@ -22,7 +22,7 @@ resources:
 jobs:
   - template: .azure-pipelines-templates/common.yml
     parameters:
-      target: NoSGX
+      target: SGX
       env:
         container: sgx
         pool: 1es-DC16s_v3-focal
