@@ -161,28 +161,30 @@ class Analyze:
         # sort the latencies as it makes sense to get the throughput
 
         # by time unit ignoring the ids
-        sorted_latencies = sorted(df_responses["receiveTime"].tolist())
+        sorted_receive_times = sorted(df_responses["receiveTime"].tolist())
         block_indexes = [0]
-        for i, lat in enumerate(sorted_latencies):
-            if lat > sorted_latencies[block_indexes[-1]] + time_block:
+        time_block_comparator = sorted_receive_times[0]
+        for i, lat in enumerate(sorted_receive_times):
+            if lat > time_block_comparator + time_block:
                 block_indexes.append(i)
+                time_block_comparator += time_block
         req_per_block = []
         block_latency = []
         if len(block_indexes) > 1:
             for i in range(len(block_indexes) - 1):
                 req_per_block.append(block_indexes[i + 1] - block_indexes[i])
+                # Assuming there are no 2 consecutive timestamps with difference > time_block
                 block_latency.append(time_block * SEC_MS * (i + 1))
-            req_per_block.append(len(sorted_latencies) - 1 - block_indexes[-1])
+            req_per_block.append(len(sorted_receive_times) - block_indexes[-1])
             block_latency.append(
                 block_latency[-1]
-                + int(
-                    (sorted_latencies[-1] - sorted_latencies[block_indexes[-1]])
-                    * SEC_MS
-                )
+                + int((sorted_receive_times[-1] - time_block_comparator) * SEC_MS)
             )
         throughput_per_block = [
             x / time_block for x in req_per_block
         ]  # x/time_block comes from rule of three
+        print(req_per_block)
+        print(block_latency)
         plt.figure()
         plt.plot(block_latency, throughput_per_block)
         plt.ylabel("Throughput(req/s)")
