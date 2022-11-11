@@ -37,5 +37,8 @@ jobs:
       - name: Push App Run SGX container
         run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
 
-      - name: Push App Dev SGX latest container
+      - name: Push JS App Run SGX container
+        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
+
+      - name: Push App Dev SGX devcontainer
         run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
