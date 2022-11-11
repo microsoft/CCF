@@ -128,6 +128,10 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 
 - Upgraded OpenEnclave to 0.18.4.
 
+### Added
+
+- Added new `ccf.crypto.eddsaPemToJwk`, `ccf.crypto.pubEddsaPemToJwk` to JavaScript/TypesScript API to convert EdDSA keys from PEM to JWK (#4524).
+
 ### Changed
 
 - `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
