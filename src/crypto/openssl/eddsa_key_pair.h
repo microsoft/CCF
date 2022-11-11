@@ -26,5 +26,10 @@ namespace crypto
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size) override;
+
+    virtual CurveID get_curve_id() const override;
+
+    virtual JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
+      const std::optional<std::string>& kid = std::nullopt) const override;
   };
 }
