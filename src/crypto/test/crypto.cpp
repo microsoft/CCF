@@ -826,4 +826,26 @@ TEST_CASE("PEM to JWK")
       REQUIRE(jwk.kid.value() == kid);
     }
   }
+
+  INFO("EdDSA");
+  {
+    auto kp = make_eddsa_key_pair(CurveID::CURVE25519);
+    auto pubk = make_eddsa_public_key(kp->public_key_pem());
+
+    INFO("Public");
+    {
+      auto jwk = pubk->public_key_jwk_eddsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = pubk->public_key_jwk_eddsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+
+    INFO("Private");
+    {
+      auto jwk = kp->private_key_jwk_eddsa();
+      REQUIRE_FALSE(jwk.kid.has_value());
+      jwk = kp->private_key_jwk_eddsa(kid);
+      REQUIRE(jwk.kid.value() == kid);
+    }
+  }
 }
