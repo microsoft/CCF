@@ -19,13 +19,6 @@ namespace http2
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
-  // struct DataSource
-  // {
-  //   std::span<const uint8_t> body = {};
-  //   bool end_data = true;
-  //   bool end_stream = true;
-  // };
-
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
   enum class StreamResponseState

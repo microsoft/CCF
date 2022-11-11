@@ -299,8 +299,7 @@ namespace http2
 
       auto* stream_data = get_stream_data(session, stream_id);
 
-      // TODO: If response was never sent, send response, but without any
-      // trailers!
+      // TODO: This could probably be replaced by nghttp2_submit_headers!
       if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
       {
         LOG_FAIL_FMT("Sending response header before streaming data");

@@ -358,10 +358,7 @@ def test_streaming(network, args):
             expected_results.append(expected_result)
 
         for actual_result in stub.RunOps(op for op in ops):
-            LOG.error(actual_result)
-            assert (
-                len(expected_results) > 0
-            ), "More responses than requests"  # TODO: No longer true with streaming
+            assert len(expected_results) > 0, "More responses than requests"
             expected_result = expected_results.pop(0)
             if expected_result is None:
                 assert not actual_result.HasField("result"), actual_result
@@ -380,7 +377,7 @@ def test_streaming(network, args):
     ) as channel:
         stub = StringOpsService.TestStub(channel)
 
-        # compare_op_results(stub, 0)  # TODO: Fix
+        # compare_op_results(stub, 0)  # TODO: Fix: Add support for data streamed
         compare_op_results(stub, 1)
         compare_op_results(stub, 30)
         compare_op_results(stub, 1000)
