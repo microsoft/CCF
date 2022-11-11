@@ -10,6 +10,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - run: python tla/install_deps.py
-      - run: (cd tla && tlc.sh MCccfraft.tla)
+      - run: python ./tla/install_deps.py
+      - run: (cd ./tla && tlc.sh MCccfraft.tla)
 
