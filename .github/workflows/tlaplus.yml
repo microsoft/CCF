@@ -1,0 +1,15 @@
+name: "TLA+ Spec Testing"
+
+on: [push, pull_request]
+
+jobs:
+
+  model-checker:
+    name: Run TLC Model Checker Against CCF Raft Spec
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: python tla/install_deps.py
+      - run: (cd tla && tlc.sh MCccfraft.tla)
+
