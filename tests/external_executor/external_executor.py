@@ -346,7 +346,7 @@ def test_streaming(network, args):
     def generate_ops(n):
         for _ in range(n):
             s = f"I'm random string {n}: {random.random()}"
-            yield random.choice((echo_op, echo_op))(s)  # TODO: Revert
+            yield random.choice((echo_op, reverse_op, truncate_op))(s)  # TODO: Revert
             # yield random.choice((echo_op, reverse_op))(s)
 
     def compare_op_results(stub, n_ops):
@@ -359,18 +359,20 @@ def test_streaming(network, args):
 
         for actual_result in stub.RunOps(op for op in ops):
             LOG.error(actual_result)
-            # assert len(expected_results) > 0, "More responses than requests" TODO: No longer true with streaming
-            # expected_result = expected_results.pop(0)
-            # if expected_result is None:
-            #     assert not actual_result.HasField("result"), actual_result
-            # else:
-            #     field_name, expected = expected_result
-            #     actual = getattr(actual_result, field_name).body
-            #     assert (
-            #         actual == expected
-            #     ), f"Wrong {field_name} op: {actual} != {expected}"
+            assert (
+                len(expected_results) > 0
+            ), "More responses than requests"  # TODO: No longer true with streaming
+            expected_result = expected_results.pop(0)
+            if expected_result is None:
+                assert not actual_result.HasField("result"), actual_result
+            else:
+                field_name, expected = expected_result
+                actual = getattr(actual_result, field_name).body
+                assert (
+                    actual == expected
+                ), f"Wrong {field_name} op: {actual} != {expected}"
 
-        # assert len(expected_results) == 0, "Fewer responses than requests"
+        assert len(expected_results) == 0, "Fewer responses than requests"
 
     with grpc.secure_channel(
         target=primary.get_public_rpc_address(),
@@ -378,10 +380,10 @@ def test_streaming(network, args):
     ) as channel:
         stub = StringOpsService.TestStub(channel)
 
-        # compare_op_results(stub, 0) # TODO: Revert
-        # compare_op_results(stub, 1)
-        compare_op_results(stub, 2)
-        # compare_op_results(stub, 1000)
+        # compare_op_results(stub, 0)  # TODO: Fix
+        compare_op_results(stub, 1)
+        compare_op_results(stub, 30)
+        compare_op_results(stub, 1000)
 
     return network
 
@@ -421,6 +423,8 @@ def test_async_streaming(network, args):
 
         LOG.success("Done")
 
+    return network
+
 
 def run(args):
     with infra.network.network(
@@ -442,12 +446,12 @@ def run(args):
         #         == "HTTP2"
         #     ), "Target node does not support HTTP/2"
 
-        network = test_executor_registration(network, args)
-        network = test_put_get(network, args)
-        # network = test_simple_executor(network, args)
-        # network = test_parallel_executors(network, args)
-        # network = test_streaming(network, args)
-        network = test_async_streaming(network, args)
+        # test_executor_registration(network, args)
+        # test_put_get(network, args)
+        # test_simple_executor(network, args)
+        # test_parallel_executors(network, args)
+        test_async_streaming(network, args)
+        test_streaming(network, args)
 
 
 if __name__ == "__main__":
@@ -455,7 +459,7 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)  # TODO: f=1
 
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http

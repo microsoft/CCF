@@ -177,6 +177,7 @@ namespace http2
       trlrs.reserve(trailers.size());
       for (auto& [k, v] : trailers)
       {
+        LOG_FAIL_FMT("t: {}", k.data());
         trlrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
@@ -238,25 +239,34 @@ namespace http2
 
       nghttp2_data_provider prov;
       prov.read_callback = read_outgoing_callback;
+
+      bool submit_response =
+        stream_data->outgoing.state != StreamResponseState::Streaming;
+
+      LOG_FAIL_FMT("Submit response: {}", submit_response);
+
       // TODO: Ugly: we should have a nicer API for set_no_unary
       if (stream_data->outgoing.state != StreamResponseState::AboutToStream)
       {
         stream_data->outgoing.state = StreamResponseState::Closing;
       }
 
-      LOG_FAIL_FMT(
-        "State before submitting response: {}", stream_data->outgoing.state);
-
-      int rv = nghttp2_submit_response(
-        session, stream_id, hdrs.data(), hdrs.size(), &prov);
-      if (rv != 0)
+      if (submit_response)
       {
-        LOG_FAIL_FMT("Error here!");
-        throw std::logic_error(
-          fmt::format("nghttp2_submit_response error: {}", rv));
-      }
+        LOG_FAIL_FMT(
+          "State before submitting response: {}", stream_data->outgoing.state);
 
-      send_all_submitted();
+        int rv = nghttp2_submit_response(
+          session, stream_id, hdrs.data(), hdrs.size(), &prov);
+        if (rv != 0)
+        {
+          LOG_FAIL_FMT("Error here!");
+          throw std::logic_error(
+            fmt::format("nghttp2_submit_response error: {}", rv));
+        }
+
+        send_all_submitted();
+      }
 
       if (stream_data->outgoing.state == StreamResponseState::Closing)
       {
