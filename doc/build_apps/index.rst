@@ -11,6 +11,13 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
 .. panels::
 
+    :fa:`rocket` :doc:`get_started`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Get Started: Application Development using CCF.
+
+    ---
+
     :fa:`download` :doc:`install_bin`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -88,13 +95,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     CCF release cadence and compatibility commitments.
-    
-    ---
-
-    :fa:`rocket` :doc:`get_started`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Get Started: Application Development using CCF.
 
 
 .. toctree::
