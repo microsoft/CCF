@@ -106,7 +106,7 @@ class Analyze:
         ms_time_spent_sum = self.total_time_in_sec(df_sends, df_responses) * SEC_MS
         latency_output_table = PrettyTable()
         latency_output_table.field_names = [
-            "Latency (ms)",
+            "Latency (50th) (ms)",
             "Average Latency (ms)",
             "Latency 80th (ms)",
             "Latency 90th (ms)",
