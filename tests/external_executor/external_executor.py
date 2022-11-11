@@ -403,7 +403,7 @@ def test_async_streaming(network, args):
         for r in stub.Stream(Empty()):
             LOG.error(r.key)
             LOG.error(r.value)
-            success = r.key == b"lala"
+            success = r.key == b"my_key"
 
         assert success, f"Error!: {r.key}"
 
@@ -414,7 +414,7 @@ def test_async_streaming(network, args):
         for r in stub.StreamInside(Empty()):
             LOG.error(r.key)
             LOG.error(r.value)
-            success = r.key == b"lala"
+            success = r.key == b"my_key"
 
         assert success, f"Error!: {r.key}"
 

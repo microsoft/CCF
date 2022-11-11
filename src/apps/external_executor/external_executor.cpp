@@ -162,86 +162,47 @@ namespace externalexecutor
         .install();
     }
 
-    struct DelayedStreamMsg
+    struct AsyncMsg
     {
-      std::shared_ptr<ccf::RpcContext> rpc_ctx;
-      std::shared_ptr<http::AbstractResponderLookup> responder_lookup;
+      ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue> stream;
 
-      DelayedStreamMsg(
-        const std::shared_ptr<ccf::RpcContext>& rpc_ctx_,
-        const std::shared_ptr<http::AbstractResponderLookup>
-          responder_lookup_) :
-        rpc_ctx(rpc_ctx_),
-        responder_lookup(responder_lookup_)
+      AsyncMsg(
+        const ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&
+          stream_) :
+        stream(stream_)
       {}
     };
 
-    template <typename T>
-    static void send_stream_payload_t(
-      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup,
-      bool close_stream,
-      T t)
-    {
-      auto http2_session_context =
-        std::dynamic_pointer_cast<http::HTTP2SessionContext>(
-          rpc_ctx->get_session_context());
-      if (http2_session_context == nullptr)
-      {
-        throw std::logic_error("Unexpected session context type");
-      }
-
-      const auto session_id = http2_session_context->client_session_id;
-      const auto stream_id = http2_session_context->stream_id;
-
-      auto http_responder =
-        responder_lookup->lookup_responder(session_id, stream_id);
-      if (http_responder == nullptr)
-      {
-        throw std::logic_error(fmt::format(
-          "Found no responder for session {}, stream {}",
-          session_id,
-          stream_id));
-      }
-
-      http_responder->stream_data(
-        ccf::grpc::make_grpc_message(t), close_stream);
-    }
-
     static void send_stream_payload(
-      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup,
+      const ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&
+        stream,
       bool close_stream)
     {
       externalexecutor::protobuf::KVKeyValue kv;
-      kv.set_key("lala");
+      kv.set_key("my_key");
       kv.set_value(fmt::format("my_value: {}", close_stream));
-      // std::vector<externalexecutor::protobuf::KVKeyValue> kvs = {kv, kv, kv};
 
-      send_stream_payload_t(rpc_ctx, responder_lookup, close_stream, kv);
+      stream->stream_msg(kv, close_stream);
     }
 
     static void async_send_stream_data(
-      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup)
+      const ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&
+        stream)
     {
-      auto msg = std::make_unique<threading::Tmsg<DelayedStreamMsg>>(
-        [](std::unique_ptr<threading::Tmsg<DelayedStreamMsg>> msg) {
+      auto msg = std::make_unique<threading::Tmsg<AsyncMsg>>(
+        [](std::unique_ptr<threading::Tmsg<AsyncMsg>> msg) {
           static size_t call_count = 0;
           LOG_FAIL_FMT("Sending asynchronous streaming data: {}", call_count);
           call_count++;
           bool should_stop = call_count > 5;
-          send_stream_payload(
-            msg->data.rpc_ctx, msg->data.responder_lookup, should_stop);
+          send_stream_payload(msg->data.stream, should_stop);
 
           if (!should_stop)
           {
-            async_send_stream_data(
-              msg->data.rpc_ctx, msg->data.responder_lookup);
+            async_send_stream_data(msg->data.stream);
           }
         },
-        rpc_ctx,
-        responder_lookup);
+        stream);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(msg), std::chrono::milliseconds(500));
@@ -567,11 +528,15 @@ namespace externalexecutor
 
         LOG_FAIL_FMT("Endpoint synchronous execution");
 
-        async_send_stream_data(ctx.rpc_ctx, responder_lookup);
+        auto stream =
+          ccf::grpc::make_stream<externalexecutor::protobuf::KVKeyValue>(
+            ctx.rpc_ctx, responder_lookup);
+        async_send_stream_data(stream);
 
-        // TODO: Fix return value here, which should return success but nothing
+        // TODO: Fix return value here, which should return either another
+        // object or nothing
         return ccf::grpc::make_success(
-          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>{});
+          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>{});
       };
 
       make_endpoint(
@@ -579,32 +544,33 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_adapter<
           google::protobuf::Empty,
-          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>>(stream),
+          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>>(stream),
         {ccf::no_auth_required})
         .install();
 
       auto stream_inside = [this](
                              ccf::endpoints::EndpointContext& ctx,
                              google::protobuf::Empty&& payload) {
-        // Dummy streaming endpoint
-
         // TODO:
-        // 1. Create gRPC server stream wrapper that sets stream as non-unary
-        // 2. [DONE] Add ability to close stream from rpc_ctx->stream(data,
-        // close=true) or rpc_ctx->stream_close();
-        // 3. Create stream object from rpc_ctx, and then
-        // rpc_ctx->create_stream() (figure out ownership and lifetime)
+        // 1. Figure out stream ownership and lifetime
+        // 2. Create detachable stream
 
-        LOG_FAIL_FMT("Endpoint synchronous execution");
+        auto stream =
+          ccf::grpc::make_stream<externalexecutor::protobuf::KVKeyValue>(
+            ctx.rpc_ctx, responder_lookup);
 
         for (int i = 0; i < 5; i++)
         {
-          send_stream_payload(ctx.rpc_ctx, responder_lookup, i == 4);
+          bool close_stream = i == 4;
+          externalexecutor::protobuf::KVKeyValue kv = {};
+          kv.set_key("my_key");
+          kv.set_value(fmt::format("my_value: {}", close_stream));
+          stream->stream_msg(kv, close_stream);
         }
 
         // TODO: Fix return value here, which should return success but nothing
         return ccf::grpc::make_success(
-          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>{});
+          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>{});
       };
 
       make_endpoint(
@@ -612,7 +578,7 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_adapter<
           google::protobuf::Empty,
-          ccf::grpc::Stream<externalexecutor::protobuf::KVValue>>(
+          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>>(
           stream_inside),
         {ccf::no_auth_required})
         .install();
@@ -717,7 +683,8 @@ namespace externalexecutor
                               ccf::endpoints::CommandEndpointContext& ctx,
                               std::vector<temp::OpIn>&& payload)
         -> ccf::grpc::GrpcAdapterResponse<ccf::grpc::Stream<temp::OpOut>> {
-        // std::vector<temp::OpOut> results;
+        auto stream =
+          ccf::grpc::make_stream<temp::OpOut>(ctx.rpc_ctx, responder_lookup);
 
         for (temp::OpIn& op : payload)
         {
@@ -730,8 +697,6 @@ namespace externalexecutor
               auto* echo_op = op.mutable_echo();
               auto* echoed = result.mutable_echoed();
               echoed->set_allocated_body(echo_op->release_body());
-              send_stream_payload_t(
-                ctx.rpc_ctx, responder_lookup, false, result);
               break;
             }
 
@@ -743,8 +708,6 @@ namespace externalexecutor
               std::reverse(s->begin(), s->end());
               auto* reversed = result.mutable_reversed();
               reversed->set_allocated_body(s);
-              send_stream_payload_t(
-                ctx.rpc_ctx, responder_lookup, false, result);
               break;
             }
 
@@ -758,8 +721,6 @@ namespace externalexecutor
                 truncate_op->end() - truncate_op->start());
               auto* truncated = result.mutable_truncated();
               truncated->set_allocated_body(s);
-              send_stream_payload_t(
-                ctx.rpc_ctx, responder_lookup, false, result);
               break;
             }
 
@@ -771,6 +732,8 @@ namespace externalexecutor
               break;
             }
           }
+
+          stream->stream_msg(result);
         }
 
         return ccf::grpc::make_success(ccf::grpc::Stream<temp::OpOut>{});

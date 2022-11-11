@@ -3,8 +3,9 @@
 #pragma once
 
 #include "ccf/odata_error.h"
-#include "ds/serialized.h"
+#include "grpc_message.h"
 #include "grpc_status.h"
+#include "grpc_stream.h"
 #include "node/rpc/rpc_exception.h"
 
 #include <arpa/inet.h>
@@ -14,89 +15,6 @@
 
 namespace ccf::grpc
 {
-  namespace impl
-  {
-    using CompressedFlag = uint8_t;
-    using MessageLength = uint32_t;
-
-    static constexpr size_t message_frame_length =
-      sizeof(CompressedFlag) + sizeof(MessageLength);
-
-    MessageLength read_message_frame(const uint8_t*& data, size_t& size)
-    {
-      auto compressed_flag = serialized::read<CompressedFlag>(data, size);
-      if (compressed_flag >= 1)
-      {
-        throw std::logic_error(fmt::format(
-          "gRPC compressed flag has unexpected value {} - currently only "
-          "support "
-          "unencoded gRPC payloads",
-          compressed_flag));
-      }
-      return ntohl(serialized::read<MessageLength>(data, size));
-    }
-
-    void write_message_frame(uint8_t*& data, size_t& size, size_t message_size)
-    {
-      CompressedFlag compressed_flag = 0;
-      serialized::write(data, size, compressed_flag);
-      serialized::write(data, size, htonl(message_size));
-    }
-  }
-
-  template <typename T>
-  std::vector<uint8_t> make_grpc_message(T proto_data)
-  {
-    const auto data_length = proto_data.ByteSizeLong();
-    size_t r_size = ccf::grpc::impl::message_frame_length + data_length;
-    std::vector<uint8_t> msg(r_size);
-    auto r_data = msg.data();
-
-    ccf::grpc::impl::write_message_frame(r_data, r_size, data_length);
-
-    if (!proto_data.SerializeToArray(r_data, r_size))
-    {
-      throw std::logic_error(fmt::format(
-        "Error serialising protobuf object of type {}, size {}",
-        proto_data.GetTypeName(),
-        data_length));
-    }
-    return msg;
-  }
-
-  template <typename T>
-  std::vector<uint8_t> make_grpc_messages(const std::vector<T>& proto_data)
-  {
-    size_t r_size = std::accumulate(
-      proto_data.begin(),
-      proto_data.end(),
-      0,
-      [](size_t current, const T& data) {
-        return current + impl::message_frame_length + data.ByteSizeLong();
-      });
-    std::vector<uint8_t> msgs(r_size);
-    auto r_data = msgs.data();
-
-    for (const T& d : proto_data)
-    {
-      const auto data_length = d.ByteSizeLong();
-      impl::write_message_frame(r_data, r_size, data_length);
-
-      if (!d.SerializeToArray(r_data, r_size))
-      {
-        throw std::logic_error(fmt::format(
-          "Error serialising protobuf object of type {}, size {}",
-          d.GetTypeName(),
-          data_length));
-      }
-
-      r_data += data_length;
-      r_size += data_length;
-    }
-
-    return msgs;
-  }
-
   template <typename T>
   struct SuccessResponse
   {
@@ -146,18 +64,6 @@ namespace ccf::grpc
     return ErrorResponse(make_grpc_status(code, msg, details));
   }
 
-  template <typename T>
-  struct Stream
-  {};
-
-  template <typename T>
-  struct is_grpc_stream : std::false_type
-  {};
-
-  template <typename T>
-  struct is_grpc_stream<Stream<T>> : public std::true_type
-  {};
-
   template <typename In>
   In get_grpc_payload(const std::shared_ptr<ccf::RpcContext>& ctx)
   {
@@ -178,8 +84,8 @@ namespace ccf::grpc
           http::headervalues::contenttype::GRPC));
     }
 
-    // Note: set here rather than in set_grpc_response as set_grpc_response may
-    // be called _after_ some data has been streamed back to the client
+    // Set response header here rather than in set_grpc_response as data stream
+    // may be sent to client before endpoint returns
     ctx->set_response_header(
       http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
 
@@ -262,10 +168,7 @@ namespace ccf::grpc
         r = make_grpc_message(success_response->body);
       }
 
-      // TODO: We need to set these when streaming data too
       ctx->set_response_body(r);
-      // ctx->set_response_header(
-      //   http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
 
       ctx->set_response_trailer("grpc-status", success_response->status.code());
       ctx->set_response_trailer(
