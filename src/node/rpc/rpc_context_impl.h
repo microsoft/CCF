@@ -36,11 +36,6 @@ namespace ccf
       return user_data.get();
     }
 
-    std::shared_ptr<RpcStream> get_rpc_stream() override
-    {
-      return std::make_shared<RpcStream>();
-    }
-
     ccf::ClaimsDigest claims = ccf::empty_claims();
     void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {

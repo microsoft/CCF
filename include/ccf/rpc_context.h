@@ -46,17 +46,6 @@ namespace ccf
 
   using PathParams = std::map<std::string, std::string, std::less<>>;
 
-  class RpcStream
-  {
-  public:
-    virtual ~RpcStream() = default;
-
-    void send(const std::vector<uint8_t>& data)
-    {
-      // client_streamer->
-    }
-  };
-
   /// Describes the currently executing RPC.
   class RpcContext
   {
@@ -78,9 +67,6 @@ namespace ccf
     virtual void set_user_data(std::shared_ptr<void> data) = 0;
     // Get the user data that was previously set.
     virtual void* get_user_data() const = 0;
-
-    // Get RPC stream to send data to client asynchronously
-    virtual std::shared_ptr<RpcStream> get_rpc_stream() = 0;
 
     // virtual void stream(std::vector<uint8_t>&& data, bool close = false) = 0;
     virtual void set_is_streaming() = 0;
