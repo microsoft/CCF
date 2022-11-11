@@ -280,7 +280,7 @@ def default_analysis(send_file, response_file):
     )
     print(analysis.latencies_table(df_sends, df_responses))
 
-    x = ["-"] * 20
+    x = "-" * 20
     LOG.info(f'{"".join(x)} Start plotting  {"".join(x)}')
 
     analysis.plot_latency_by_id(df_sends)
