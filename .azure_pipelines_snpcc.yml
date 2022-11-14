@@ -40,7 +40,7 @@ jobs:
         env:
           CCFSNPCIAPPID: $(ccfSnpCiAppId)
           CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
-          CCFSNPCITENANT: $(ccfSnpCiTenant)
+          CCFSNPCITENANT: "dksfbksdjbf"
       - script: pip install azure-mgmt-resource azure-identity
       - script: ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ""
       - script: python3.8 scripts/deploy_snp_aci.py --subscription-id $env:CCFAZURESUBSCRIPTIONID --deployment-name $(Build.BuildNumber)
