@@ -3,6 +3,7 @@
 import infra.network
 from ccf.ledger import NodeStatus
 import http
+import random
 import suite.test_requirements as reqs
 
 
@@ -209,23 +210,12 @@ def test_large_messages(network, args):
                         get_main_interface_errors()[metrics_name] == before_errors_count
                     )
 
-    # TLS libraries usually have 16K internal buffers, so we start at
-    # 1K and move up to 1M and make sure they can cope with it.
-    # Starting below 16K also helps identify problems (by seeing some
-    # pass but not others, and finding where does it fail).
-    msg_sizes = [2**n for n in range(10, 20)]
-    msg_sizes.extend(
-        [
-            args.max_http_body_size // 2,
-            args.max_http_body_size - 1,
-            args.max_http_body_size,
-            args.max_http_body_size + 1,
-            args.max_http_body_size * 2,
-            args.max_http_body_size * 200,
-        ]
-    )
+    def get_sizes(n):
+        ns = [n // 2, n - 10, n - 1, n, n + 1, n + 10, n * 2, n * 20]
+        random.shuffle(ns)
+        return ns
 
-    for s in msg_sizes:
+    for s in get_sizes(args.max_http_body_size):
         long_msg = "X" * s
         LOG.info(f"Verifying cap on max body size, sending a {s} byte body")
         run_large_message_test(
@@ -238,13 +228,7 @@ def test_large_messages(network, args):
             headers={"content-type": "application/json"},
         )
 
-    header_sizes = [
-        args.max_http_header_size - 1,
-        args.max_http_header_size,
-        args.max_http_header_size + 1,
-    ]
-
-    for s in header_sizes:
+    for s in get_sizes(args.max_http_header_size):
         long_header = "X" * s
         LOG.info(f"Verifying cap on max header value, sending a {s} byte header value")
         run_large_message_test(
@@ -266,19 +250,11 @@ def test_large_messages(network, args):
             headers={long_header: "some header value"},
         )
 
-    header_counts = [
-        args.max_http_headers_count - 10,
-        args.max_http_headers_count - 1,
-        args.max_http_headers_count,
-        args.max_http_headers_count + 1,
-        args.max_http_headers_count + 10,
-    ]
-
     # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
     extra_headers_count = (
         infra.clients.CCFClient.default_impl_type.extra_headers_count()
     )
-    for s in header_counts:
+    for s in get_sizes(args.max_http_headers_count):
         LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
         headers = {f"header-{h}": str(h) for h in range(s - extra_headers_count)}
         run_large_message_test(
