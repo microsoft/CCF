@@ -67,6 +67,7 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     dependsOn: SNPCC_Debug
+    condition: always()
     steps:
       - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
       - script: env && az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
