@@ -227,7 +227,7 @@ def test_large_messages(network, args):
 
     for s in msg_sizes:
         long_msg = "X" * s
-        LOG.info("Verifying cap on max body size")
+        LOG.info(f"Verifying cap on max body size, sending a {s} byte body")
         run_large_message_test(
             args.max_http_body_size,
             http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
@@ -246,7 +246,7 @@ def test_large_messages(network, args):
 
     for s in header_sizes:
         long_header = "X" * s
-        LOG.info("Verifying cap on max header value")
+        LOG.info(f"Verifying cap on max header value, sending a {s} byte header value")
         run_large_message_test(
             args.max_http_header_size,
             http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
@@ -256,7 +256,7 @@ def test_large_messages(network, args):
             headers={"some-header": long_header},
         )
 
-        LOG.info("Verifying on cap on max header key")
+        LOG.info(f"Verifying on cap on max header key, sending a {s} byte header key")
         run_large_message_test(
             args.max_http_header_size,
             http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
@@ -267,22 +267,26 @@ def test_large_messages(network, args):
         )
 
     header_counts = [
+        args.max_http_headers_count - 10,
         args.max_http_headers_count - 1,
         args.max_http_headers_count,
         args.max_http_headers_count + 1,
+        args.max_http_headers_count + 10,
     ]
 
+    # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
+    extra_headers_count = (
+        infra.clients.CCFClient.default_impl_type.extra_headers_count()
+    )
     for s in header_counts:
-        LOG.info("Verifying on cap on max headers count")
+        LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
         headers = {f"header-{h}": str(h) for h in range(s)}
-        # Note: infra adds 2 extra headers (content type and length)
-        extra_headers_count = 2
         run_large_message_test(
-            args.max_http_headers_count - extra_headers_count,
+            args.max_http_headers_count,
             http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
             "RequestHeaderTooLarge",
             "request_header_too_large",
-            len(headers),
+            len(headers) + extra_headers_count,
             headers=headers,
         )
 
