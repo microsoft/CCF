@@ -1,6 +1,7 @@
 jobs:
   - job: configure
     displayName: "Configure CI"
+    dependsOn: ${{ parameters.depends_on }}
     pool:
       vmImage: "ubuntu-20.04"
     steps:
