@@ -35,11 +35,29 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - script echo $CCFSNPCIAPPID
+        env:
+          CCFSNPCIAPPID: $(ccfSnpCiAppId)
+      - script echo $CCFSNPCISERVICEPRINCIPALPASSWORD
+        env:
+          CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
+      - script echo $CCFSNPCITENANT
+        env:
+          CCFSNPCITENANT: $(ccfSnpCiTenant)
+      - script echo $CCFAZURESUBSCRIPTIONID
+        env:
+          CCFAZURESUBSCRIPTIONID: $(ccfAzureSubscriptionId)
       - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      - script: az login --service-principal -u $ccfSnpCiAppId -p $ccfSnpCiServicePrincipalPassword --tenant $ccfSnpCiTenant
+      - script: az login --service-principal -u $CCFSNPCIAPPID -p $CCFSNPCISERVICEPRINCIPALPASSWORD --tenant $CCFSNPCITENANT
+        env:
+          CCFSNPCIAPPID: $(ccfSnpCiAppId)
+          CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
+          CCFSNPCITENANT: $(ccfSnpCiTenant)
       - script: pip install azure-mgmt-resource azure-identity
       - script: ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ""
-      - script: python3.8 scripts/deploy_snp_aci.py --subscription-id $ccfAzureSubscriptionId --deployment-name $(Build.BuildNumber)
+      - script: python3.8 scripts/deploy_snp_aci.py --subscription-id $CCFAZURESUBSCRIPTIONID --deployment-name $(Build.BuildNumber)
+        env:
+          CCFAZURESUBSCRIPTIONID: $(ccfAzureSubscriptionId)
 
   - template: .azure-pipelines-templates/configure.yml
     parameters:
