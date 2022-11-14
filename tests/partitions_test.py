@@ -758,7 +758,9 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
-    args.snapshot_tx_interval = 20 # Increase snapshot frequency for faster reconfigurations
+    args.snapshot_tx_interval = (
+        20  # Increase snapshot frequency for faster reconfigurations
+    )
 
     run(args)
     run_2tx_reconfig_tests(args)

@@ -78,8 +78,7 @@ namespace ccf
       NoMoreSessionsImpl(Ts&&... ts) : Base(std::forward<Ts>(ts)...)
       {}
 
-      void handle_incoming_data_thread(
-        std::vector<uint8_t>&& data) override
+      void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
       {
         Base::tls_io->recv_buffered(data.data(), data.size());
 

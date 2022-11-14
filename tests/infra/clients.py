@@ -304,11 +304,13 @@ class CCFConnectionException(Exception):
     a connection with a target CCF node.
     """
 
+
 class CCFIOException(Exception):
     """
     Exception raised if a :py:class:`infra.clients.CCFClient` instance experiences a fatal error when
     trying to read or write from an existing connection with a target CCF node.
     """
+
 
 def get_curve(ca_file):
     # Auto detect EC curve to use based on server CA

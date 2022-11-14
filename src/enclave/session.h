@@ -59,7 +59,6 @@ namespace ccf
       msg->data.self->handle_incoming_data_thread(std::move(msg->data.data));
     }
 
-    virtual void handle_incoming_data_thread(
-      std::vector<uint8_t>&& data) = 0;
+    virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
   };
 }
