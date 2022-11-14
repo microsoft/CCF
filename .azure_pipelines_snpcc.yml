@@ -30,37 +30,37 @@ schedules:
 
 jobs:
 
-  - job: deploy_aci
-    displayName: "Deploy ACI"
-    pool:
-      vmImage: ubuntu-20.04
-    steps:
-      - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      - script: env && az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
-        env:
-          CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
-          CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-          CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
-      - script: pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
-      - script: ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
-      - script: python3.8 scripts/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
-        env:
-          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+  # - job: deploy_aci
+  #   displayName: "Deploy ACI"
+  #   pool:
+  #     vmImage: ubuntu-20.04
+  #   steps:
+  #     - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  #     - script: env && az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
+  #       env:
+  #         CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
+  #         CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+  #         CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
+  #     - script: pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
+  #     - script: ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
+  #     - script: python3.8 scripts/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
+  #       env:
+  #         CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
-  - template: .azure-pipelines-templates/configure.yml
-    parameters:
-      depends_on: deploy_aci
+  # - template: .azure-pipelines-templates/configure.yml
+  #   parameters:
+  #     depends_on: deploy_aci
 
-  - template: .azure-pipelines-templates/common.yml
-    parameters:
-      target: SNPCC
-      env:
-        pool: sev-snp-pool
-      cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
-      suffix: "Debug"
-      artifact_name: "SNPCC_Debug"
-      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
-      depends_on: configure
+  # - template: .azure-pipelines-templates/common.yml
+  #   parameters:
+  #     target: SNPCC
+  #     env:
+  #       pool: sev-snp-pool
+  #     cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
+  #     suffix: "Debug"
+  #     artifact_name: "SNPCC_Debug"
+  #     ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
+  #     depends_on: configure
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
