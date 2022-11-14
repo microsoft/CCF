@@ -35,16 +35,16 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
-      - script echo $CCFSNPCIAPPID
+      - script: echo $CCFSNPCIAPPID
         env:
           CCFSNPCIAPPID: $(ccfSnpCiAppId)
-      - script echo $CCFSNPCISERVICEPRINCIPALPASSWORD
+      - script: echo $CCFSNPCISERVICEPRINCIPALPASSWORD
         env:
           CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
-      - script echo $CCFSNPCITENANT
+      - script: echo $CCFSNPCITENANT
         env:
           CCFSNPCITENANT: $(ccfSnpCiTenant)
-      - script echo $CCFAZURESUBSCRIPTIONID
+      - script: echo $CCFAZURESUBSCRIPTIONID
         env:
           CCFAZURESUBSCRIPTIONID: $(ccfAzureSubscriptionId)
       # - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
