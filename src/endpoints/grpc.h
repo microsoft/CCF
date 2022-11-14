@@ -36,15 +36,18 @@ namespace ccf::grpc
   template <typename T>
   using GrpcAdapterResponse = std::variant<ErrorResponse, SuccessResponse<T>>;
 
+  using EmptyResponse = google::protobuf::Empty;
+  using GrpcAdapterEmptyResponse = GrpcAdapterResponse<EmptyResponse>;
+
   template <typename T>
   GrpcAdapterResponse<T> make_success(const T& t)
   {
     return SuccessResponse(t, make_grpc_status_ok());
   }
 
-  GrpcAdapterResponse<google::protobuf::Empty> make_success()
+  GrpcAdapterEmptyResponse make_success()
   {
-    return SuccessResponse(google::protobuf::Empty{}, make_grpc_status_ok());
+    return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
   }
 
   ErrorResponse make_error(
@@ -158,11 +161,6 @@ namespace ccf::grpc
       {
         r = make_grpc_messages(success_response->body);
       }
-      else if constexpr (is_grpc_stream<Out>::value)
-      {
-        LOG_FAIL_FMT("Streaming wrapper for response!");
-        ctx->set_is_streaming();
-      }
       else
       {
         r = make_grpc_message(success_response->body);
@@ -223,6 +221,38 @@ namespace ccf
   {
     return [f](endpoints::CommandEndpointContext& ctx) {
       grpc::set_grpc_response<Out>(
+        f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
+    };
+  }
+
+  //
+  // Streaming
+  //
+
+  // TODO: To provide wrappers than construct the stream on behalf of the
+  // endpoint, the http responder needs to be stored on the HTTP2Context instead
+  // of being a node subsystem (fair bit of work!)
+
+  template <typename In, typename Out>
+  endpoints::EndpointFunction grpc_stream_adapter(
+    const GrpcEndpoint<In, grpc::EmptyResponse>& f)
+  {
+    return [f](endpoints::EndpointContext& ctx) {
+      LOG_FAIL_FMT("Streaming wrapper for response!");
+      ctx.rpc_ctx->set_is_streaming();
+      grpc::set_grpc_response<grpc::EmptyResponse>(
+        f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
+    };
+  }
+
+  template <typename In, typename Out>
+  endpoints::CommandEndpointFunction grpc_command_stream_adapter(
+    const GrpcCommandEndpoint<In, grpc::EmptyResponse>& f)
+  {
+    return [f](endpoints::CommandEndpointContext& ctx) {
+      LOG_FAIL_FMT("Streaming wrapper for response!");
+      ctx.rpc_ctx->set_is_streaming();
+      grpc::set_grpc_response<grpc::EmptyResponse>(
         f(ctx, grpc::get_grpc_payload<In>(ctx.rpc_ctx)), ctx.rpc_ctx);
     };
   }

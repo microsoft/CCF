@@ -527,14 +527,13 @@ namespace externalexecutor
 
         // TODO: Fix return value here, which should return either another
         // object or nothing
-        return ccf::grpc::make_success(
-          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>{});
+        return ccf::grpc::make_success();
       };
 
       make_endpoint(
         "/externalexecutor.protobuf.KV/Stream",
         HTTP_POST,
-        ccf::grpc_adapter<
+        ccf::grpc_stream_adapter<
           google::protobuf::Empty,
           ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
           stream),
@@ -626,6 +625,7 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
+      // TODO: Make this available to all frontends?
       responder_lookup = context.get_subsystem<http::AbstractResponderLookup>();
       if (responder_lookup == nullptr)
       {
@@ -639,8 +639,7 @@ namespace externalexecutor
 
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
-                              std::vector<temp::OpIn>&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<ccf::grpc::Stream<temp::OpOut>> {
+                              std::vector<temp::OpIn>&& payload) {
         auto stream =
           ccf::grpc::make_stream<temp::OpOut>(ctx.rpc_ctx, responder_lookup);
 
@@ -694,13 +693,13 @@ namespace externalexecutor
           stream->stream_msg(result);
         }
 
-        return ccf::grpc::make_success(ccf::grpc::Stream<temp::OpOut>{});
+        return ccf::grpc::make_success();
       };
 
       make_command_endpoint(
         "/temp.Test/RunOps",
         HTTP_POST,
-        ccf::grpc_command_adapter<
+        ccf::grpc_command_stream_adapter<
           std::vector<temp::OpIn>,
           ccf::grpc::Stream<temp::OpOut>>(run_string_ops),
         ccf::no_auth_required)
