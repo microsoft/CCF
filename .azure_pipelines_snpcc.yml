@@ -31,7 +31,7 @@ schedules:
 jobs:
 
   - job: deploy_aci
-    display_name: "Deploy ACI"
+    displayName: "Deploy ACI"
     pool:
       vmImage: ubuntu-20.04
     steps:
