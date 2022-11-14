@@ -540,41 +540,6 @@ namespace externalexecutor
           stream),
         {ccf::no_auth_required})
         .install();
-
-      auto stream_inside = [this](
-                             ccf::endpoints::EndpointContext& ctx,
-                             google::protobuf::Empty&& payload) {
-        // TODO:
-        // 1. Figure out stream ownership and lifetime
-        // 2. Create detachable stream
-
-        auto stream =
-          ccf::grpc::make_stream<externalexecutor::protobuf::KVKeyValue>(
-            ctx.rpc_ctx, responder_lookup);
-
-        for (int i = 0; i < 5; i++)
-        {
-          bool close_stream = i == 4;
-          externalexecutor::protobuf::KVKeyValue kv = {};
-          kv.set_key("my_key");
-          kv.set_value(fmt::format("my_value: {}", close_stream));
-          stream->stream_msg(kv); // TODO: Fix close_stream);
-        }
-
-        // TODO: Fix return value here, which should return success but nothing
-        return ccf::grpc::make_success(
-          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>{});
-      };
-
-      make_endpoint(
-        "/externalexecutor.protobuf.KV/StreamInside",
-        HTTP_POST,
-        ccf::grpc_adapter<
-          google::protobuf::Empty,
-          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>>(
-          stream_inside),
-        {ccf::no_auth_required})
-        .install();
     }
 
     void queue_request_for_external_execution(

@@ -409,19 +409,6 @@ def test_async_streaming(network, args):
 
         assert success, f"Error!: {r.key}"
 
-        LOG.success(
-            "Now streaming from inside endpoint (i.e. before response is sent back)"
-        )
-        # success = False
-        # for r in stub.StreamInside(Empty()):
-        #     LOG.error(r.key)
-        #     LOG.error(r.value)
-        #     success = r.key == b"my_key"
-
-        # assert success, f"Error!: {r.key}"
-
-        # LOG.success("Done")
-
     return network
 
 
