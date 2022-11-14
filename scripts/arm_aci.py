@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import os
 from argparse import ArgumentParser, Namespace
 
 from azure.identity import DefaultAzureCredential
@@ -12,7 +13,7 @@ from azure.mgmt.resource.resources.models import (
 )
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
-HOST_PUB_KEY = open("~/.ssh/id_rsa.pub", "r").read().replace("\n", "")
+HOST_PUB_KEY = open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", "")
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
         "apt-get update",
