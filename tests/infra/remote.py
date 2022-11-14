@@ -660,7 +660,7 @@ class CCFRemote(object):
 
         # Constitution
         constitution = [
-            os.path.join(self.common_dir, os.path.basename(f)) for f in constitution
+            os.path.basename(f) for f in constitution
         ]
 
         # ACME
@@ -762,6 +762,22 @@ class CCFRemote(object):
         if major_version is None or major_version > 1:
             # use the relative path to the config file so that it works on remotes too
             cmd = [bin_path, "--config", os.path.basename(config_file)]
+
+            if start_type == StartType.start:
+                members_info = kwargs.get("members_info")
+                if not members_info:
+                    raise ValueError("no members info for start node")
+                for mi in members_info:
+                    data_files += [os.path.join(self.common_dir,mi["certificate_file"])]
+                    if mi["encryption_public_key_file"]:
+                       data_files += [os.path.join(self.common_dir,mi["encryption_public_key_file"])]
+                    if mi["data_json_file"]:
+                       data_files += [os.path.join(self.common_dir,mi["data_json_file"])]
+
+                for c in constitution:
+                    data_files += [os.path.join(self.common_dir, c)]
+
+
             if start_type == StartType.join:
                 data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
