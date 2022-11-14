@@ -35,15 +35,35 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - script: echo $(ccfSnpCiAppId)
+      - script: echo $ccfSnpCiAppId
+      - script: echo $(CCFSNPCIAPPID)
+        env:
+          CCFSNPCIAPPID: $(ccfSnpCiAppId)
       - script: echo $CCFSNPCIAPPID
         env:
           CCFSNPCIAPPID: $(ccfSnpCiAppId)
+      - script: echo $(ccfSnpCiServicePrincipalPassword)
+      - script: echo $ccfSnpCiServicePrincipalPassword
+      - script: echo $(CCFSNPCISERVICEPRINCIPALPASSWORD)
+        env:
+          CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
       - script: echo $CCFSNPCISERVICEPRINCIPALPASSWORD
         env:
           CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
+      - script: echo $(ccfSnpCiTenant)
+      - script: echo $ccfSnpCiTenant
+      - script: echo $(CCFSNPCITENANT)
+        env:
+          CCFSNPCITENANT: $(ccfSnpCiTenant)
       - script: echo $CCFSNPCITENANT
         env:
           CCFSNPCITENANT: $(ccfSnpCiTenant)
+      - script: echo $(ccfAzureSubscriptionId)
+      - script: echo $ccfAzureSubscriptionId
+      - script: echo $(CCFAZURESUBSCRIPTIONID)
+        env:
+          CCFAZURESUBSCRIPTIONID: $(ccfAzureSubscriptionId)
       - script: echo $CCFAZURESUBSCRIPTIONID
         env:
           CCFAZURESUBSCRIPTIONID: $(ccfAzureSubscriptionId)
