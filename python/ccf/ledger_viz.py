@@ -6,6 +6,7 @@ import argparse
 import os
 from stringcolor import cs  # type: ignore
 import json
+from typing import Optional
 
 
 class Liner:
@@ -18,7 +19,7 @@ class Liner:
         self._line = ""
         self._len = 0
 
-    def append(self, s: str, colour: str, background_colour: str = None):
+    def append(self, s: str, colour: str, background_colour: Optional[str] = None):
         self._line += cs(s, colour, background_colour)
         self._len += len(s)
         if self._len >= self.MAX_LENGTH:

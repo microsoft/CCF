@@ -94,6 +94,29 @@ def generate_and_verify_jwk(client):
         assert body["kty"] == "RSA"
         assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
 
+    # EdDSA
+    priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair()
+
+    # Private
+    ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export(as_dict=True)
+    r = client.post(
+        "/app/eddsaPemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
+    )
+    body = r.body.json()
+    assert r.status_code == http.HTTPStatus.OK
+    assert body["kty"] == "OKP"
+    assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+
+    # Public
+    ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+    r = client.post(
+        "/app/pubEddsaPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
+    )
+    body = r.body.json()
+    assert r.status_code == http.HTTPStatus.OK
+    assert body["kty"] == "OKP"
+    assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+
 
 @reqs.description("Test module import")
 def test_module_import(network, args):
