@@ -18,32 +18,32 @@
 import { ccf } from "./global.js";
 
 /**
- * @inheritDoc global!CCF.generateAesKey
+ * @inheritDoc global!CCFCrypto.generateAesKey
  */
 export const generateAesKey = ccf.crypto.generateAesKey;
 
 /**
- * @inheritDoc global!CCF.generateRsaKeyPair
+ * @inheritDoc global!CCFCrypto.generateRsaKeyPair
  */
 export const generateRsaKeyPair = ccf.crypto.generateRsaKeyPair;
 
 /**
- * @inheritDoc global!CCF.generateEcdsaKeyPair
+ * @inheritDoc global!CCFCrypto.generateEcdsaKeyPair
  */
 export const generateEcdsaKeyPair = ccf.crypto.generateEcdsaKeyPair;
 
 /**
- * @inheritDoc global!CCF.generateEcdsaKeyPair
+ * @inheritDoc global!CCFCrypto.generateEcdsaKeyPair
  */
 export const generateEddsaKeyPair = ccf.crypto.generateEddsaKeyPair;
 
 /**
- * @inheritDoc global!CCF.wrapKey
+ * @inheritDoc global!CCFCrypto.wrapKey
  */
 export const wrapKey = ccf.crypto.wrapKey;
 
 /**
- * @inheritDoc global!CCFCrypto.verifySignature
+ * @inheritDoc global!CCFCrypto.sign
  */
 export const sign = ccf.crypto.sign;
 
