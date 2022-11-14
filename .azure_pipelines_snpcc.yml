@@ -36,7 +36,7 @@ jobs:
       vmImage: ubuntu-20.04
     steps:
       - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      - script: az login --service-principal -u $(CCFSNPCIAPPID) -p $(CCFSNPCISERVICEPRINCIPALPASSWORD) --tenant $(CCFSNPCITENANT)
+      - script: env && az login --service-principal -u $(CCFSNPCIAPPID) -p $(CCFSNPCISERVICEPRINCIPALPASSWORD) --tenant $(CCFSNPCITENANT)
         env:
           CCFSNPCIAPPID: $(ccfSnpCiAppId)
           CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
