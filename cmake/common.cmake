@@ -293,16 +293,12 @@ install(TARGETS cchost DESTINATION bin)
 add_executable(
   scenario_perf_client ${CCF_DIR}/src/clients/perf/scenario_perf_client.cpp
 )
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-  target_link_libraries(
-    scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 ccfcrypto.host
-  )
-else()
-  target_link_libraries(
-    scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 ccfcrypto.host c++fs
-  )
+target_link_libraries(
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               ccfcrypto.host
+)
+if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(scenario_perf_client PRIVATE c++fs)
 endif()
 install(TARGETS scenario_perf_client DESTINATION bin)
 
