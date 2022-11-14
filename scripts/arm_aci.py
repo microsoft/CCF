@@ -13,7 +13,11 @@ from azure.mgmt.resource.resources.models import (
 )
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
-HOST_PUB_KEY = open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", "")
+try:
+    HOST_PUB_KEY = open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", "")
+except Exception as e:
+    ...
+
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
         "apt-get update",
