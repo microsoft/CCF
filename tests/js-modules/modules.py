@@ -662,7 +662,7 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() == False, r.body
 
-        curves = [ec.SECP256R1, ec.SECP256K1]
+        curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
         for curve in curves:
             key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
             algorithm = {"name": "ECDSA", "hash": "SHA-256"}
