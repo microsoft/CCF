@@ -29,7 +29,7 @@ parser.add_argument(
 parser.add_argument(
     "deployment_type",
     help="The type of Azure deployment to deploy",
-    type=lambda in_str: str(in_str).replace(".", ""),
+    type=str,
     choices=[
         "aci",
     ],
@@ -58,7 +58,7 @@ parser.add_argument(
 parser.add_argument(
     "--deployment-name",
     help="The name of the Azure deployment, used for agent names and cleanup",
-    type=str,
+    type=lambda in_str: str(in_str).replace(".", ""),
 )
 
 args, unknown_args = parser.parse_known_args()
