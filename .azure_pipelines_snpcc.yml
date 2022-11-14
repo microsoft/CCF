@@ -44,7 +44,7 @@ jobs:
           CCF_TEST_UNSECRET: $(TEST_UNSECRET)
       - script: pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
       - script: sudo ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ""
-      - script: python3.8 scripts/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name $(Build.BuildNumber)
+      - script: sudo python3.8 scripts/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name $(Build.BuildNumber)
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
