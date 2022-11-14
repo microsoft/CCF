@@ -294,6 +294,25 @@ def unpack_seqno_or_view(data):
     return value
 
 
+def cose_protected_headers(request_path):
+    phdr = {}
+    if request_path.endswith("gov/ack/update_state_digest"):
+        phdr["ccf.gov.msg.type"] = "state_digest"
+    elif request_path.endswith("gov/ack"):
+        phdr["ccf.gov.msg.type"] = "ack"
+    elif request_path.endswith("gov/proposals"):
+        phdr["ccf.gov.msg.type"] = "proposal"
+    elif request_path.endswith("/ballots"):
+        pid = request_path.split("/")[-2]
+        phdr["ccf.gov.msg.type"] = "ballot"
+        phdr["ccf.gov.msg.proposal_id"] = pid
+    elif request_path.endswith("/withdraw"):
+        pid = request_path.split("/")[-2]
+        phdr["ccf.gov.msg.type"] = "withdrawal"
+        phdr["ccf.gov.msg.proposal_id"] = pid
+    return phdr
+
+
 class CurlClient:
     """
     This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs.
@@ -314,6 +333,10 @@ class CurlClient:
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
+        self.cose_signing_auth = cose_signing_auth
+        if os.getenv("CURL_CLIENT_USE_COSE"):
+            self.cose_signing_auth = self.signing_auth
+            self.signing_auth = None
         self.common_headers = common_headers or {}
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
@@ -327,22 +350,11 @@ class CurlClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
         with tempfile.NamedTemporaryFile() as nf:
-            if self.signing_auth:
-                cmd = ["scurl.sh"]
-            else:
-                cmd = ["curl"]
-
-            url = f"{self.protocol}://{self.hostname}{request.path}"
-
-            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
-
-            if request.allow_redirects:
-                cmd.append("-L")
-
+            content_path = None
             if request.body is not None:
                 if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
-                    cmd.extend(["--data-binary", request.body])
+                    content_path = request.body
                     if request.body.lower().endswith(".json"):
                         content_type = CONTENT_TYPE_JSON
                     else:
@@ -361,9 +373,39 @@ class CurlClient:
                     LOG.debug(f"Writing request body: {truncate(msg_bytes)}")
                     nf.write(msg_bytes)
                     nf.flush()
-                    cmd.extend(["--data-binary", f"@{nf.name}"])
+                    content_path = f"@{nf.name}"
                 if not "content-type" in request.headers and len(request.body) > 0:
                     request.headers["content-type"] = content_type
+
+            if self.signing_auth:
+                cmd = ["scurl.sh"]
+            else:
+                cmd = ["curl"]
+            if self.cose_signing_auth:
+                pre_cmd = ["ccf_cose_sign1"]
+                phdr = cose_protected_headers(request.path)
+                pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
+                if "ccf.gov.msg.proposal_id" in phdr:
+                    pre_cmd.extend(
+                        ["--ccf-gov-msg-proposal_id", phdr["ccf.gov.msg.proposal_id"]]
+                    )
+                pre_cmd.extend(["--signing-key", self.cose_signing_auth.key])
+                pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
+                pre_cmd.extend(["--content", content_path.strip("@")])
+                request.headers["content-type"] = CONTENT_TYPE_COSE
+
+            url = f"{self.protocol}://{self.hostname}{request.path}"
+
+            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
+
+            if request.allow_redirects:
+                cmd.append("-L")
+
+            if request.body is not None:
+                if self.cose_signing_auth:
+                    cmd.extend(["--data-binary", "@-"])
+                else:
+                    cmd.extend(["--data-binary", content_path])
 
             # Set requested headers first - so they take precedence over defaults
             for k, v in request.headers.items():
@@ -387,8 +429,17 @@ class CurlClient:
             cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
 
-            LOG.debug(f"Running: {cmd_s}")
-            rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
+            if self.cose_signing_auth:
+                pre_cmd_s = " ".join(pre_cmd)
+                LOG.debug(f"Running: {pre_cmd_s} | {cmd_s}")
+                pre_sub = subprocess.Popen(pre_cmd, stdout=subprocess.PIPE)
+                rc = subprocess.run(
+                    cmd, capture_output=True, check=False, env=env, stdin=pre_sub.stdout
+                )
+                pre_sub.wait()
+            else:
+                LOG.debug(f"Running: {cmd_s}")
+                rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
 
             if rc.returncode != 0:
                 if rc.returncode in [
@@ -512,21 +563,7 @@ class HttpxClient:
         if self.cose_signing_auth is not None:
             key = open(self.cose_signing_auth.key, encoding="utf-8").read()
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
-            phdr = {}
-            if request.path.endswith("gov/ack/update_state_digest"):
-                phdr["ccf.gov.msg.type"] = "state_digest"
-            elif request.path.endswith("gov/ack"):
-                phdr["ccf.gov.msg.type"] = "ack"
-            elif request.path.endswith("gov/proposals"):
-                phdr["ccf.gov.msg.type"] = "proposal"
-            elif request.path.endswith("/ballots"):
-                pid = request.path.split("/")[-2]
-                phdr["ccf.gov.msg.type"] = "ballot"
-                phdr["ccf.gov.msg.proposal_id"] = pid
-            elif request.path.endswith("/withdraw"):
-                pid = request.path.split("/")[-2]
-                phdr["ccf.gov.msg.type"] = "withdrawal"
-                phdr["ccf.gov.msg.proposal_id"] = pid
+            phdr = cose_protected_headers(request.path)
             request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
