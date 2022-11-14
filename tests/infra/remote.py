@@ -760,7 +760,8 @@ class CCFRemote(object):
         bin_path = os.path.join(".", os.path.basename(self.BIN))
 
         if major_version is None or major_version > 1:
-            cmd = [bin_path, "--config", config_file]
+            # use the relative path to the config file so that it works on remotes too
+            cmd = [bin_path, "--config", os.path.basename(config_file)]
             if start_type == StartType.join:
                 data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
