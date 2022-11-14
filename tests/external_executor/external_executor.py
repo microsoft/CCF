@@ -346,8 +346,7 @@ def test_streaming(network, args):
     def generate_ops(n):
         for _ in range(n):
             s = f"I'm random string {n}: {random.random()}"
-            yield random.choice((echo_op, reverse_op, truncate_op))(s)  # TODO: Revert
-            # yield random.choice((echo_op, reverse_op))(s)
+            yield random.choice((echo_op, reverse_op, truncate_op, empty_op))(s)
 
     def compare_op_results(stub, n_ops):
         LOG.info(f"Sending streaming request containing {n_ops} operations")
