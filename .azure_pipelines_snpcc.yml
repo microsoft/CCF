@@ -37,6 +37,8 @@ jobs:
     steps:
       - script: echo $(ccfSnpCiAppId)
       - script: echo $ccfSnpCiAppId
+      - script: echo ${{ccfSnpCiAppId}}
+      - script: echo ${ccfSnpCiAppId}
       - script: echo $(CCFSNPCIAPPID)
         env:
           CCFSNPCIAPPID: $(ccfSnpCiAppId)
