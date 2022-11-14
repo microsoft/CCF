@@ -10,48 +10,62 @@
 namespace ccf::grpc
 {
   template <typename T>
-  class Stream
+  class BaseStream
   {
   private:
     std::shared_ptr<http::HTTPResponder> http_responder;
 
   public:
-    Stream() =
-      default; // TODO: Remove once streaming endpoints can return nothing
+    BaseStream() = default;
 
-    // Stream(const Stream&) = delete;
-    // Stream(Stream&&) = delete;
-
-    Stream(const std::shared_ptr<http::HTTPResponder>& http_responder_) :
+    BaseStream(const std::shared_ptr<http::HTTPResponder>& http_responder_) :
       http_responder(http_responder_)
     {}
 
-    void stream_msg(const T& data, bool close_stream = false)
+    void stream_msg(const T& data, bool close_stream)
     {
       http_responder->stream_data(make_grpc_message(data), close_stream);
     }
   };
 
   template <typename T>
-  class DetachedStream
+  class Stream : public BaseStream<T>
   {
   private:
-    std::shared_ptr<http::HTTPResponder> http_responder;
+    BaseStream<T> stream;
 
-    // TODO: Add close callback!
+  public:
+    Stream() =
+      default; // TODO: Remove once streaming endpoints can return nothing
+
+    // TODO : Uncomment once streaming endpoints can return nothing
+    // Stream(const Stream&) = delete;
+    // Stream(Stream&&) = delete;
+
+    Stream(const BaseStream<T>& s) : stream(s) {}
+
+    void stream_msg(const T& data)
+    {
+      stream.stream_msg(data, false);
+    }
+  };
+
+  template <typename T>
+  class DetachedStream : public BaseStream<T>
+  {
+  private:
+    BaseStream<T> stream;
+    // TODO: Add close callback?
 
   public:
     DetachedStream() =
       default; // TODO: Remove once streaming endpoints can return nothing
 
-    DetachedStream(
-      const std::shared_ptr<http::HTTPResponder>& http_responder_) :
-      http_responder(http_responder_)
-    {}
+    DetachedStream(const BaseStream<T>& s) : stream(s) {}
 
     void stream_msg(const T& data, bool close_stream = false)
     {
-      http_responder->stream_data(make_grpc_message(data), close_stream);
+      stream.stream_msg(data, close_stream);
     }
   };
 
