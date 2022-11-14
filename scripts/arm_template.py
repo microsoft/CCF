@@ -29,7 +29,7 @@ parser.add_argument(
 parser.add_argument(
     "deployment_type",
     help="The type of Azure deployment to deploy",
-    type=str,
+    type=lambda in_str: str(in_str).replace(".", ""),
     choices=[
         "aci",
     ],
