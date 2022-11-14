@@ -1050,3 +1050,6 @@ install(FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
               ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
         DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
+
+# Perf tool executable
+include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
