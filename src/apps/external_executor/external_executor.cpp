@@ -164,30 +164,18 @@ namespace externalexecutor
 
     struct AsyncMsg
     {
-      ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue> stream;
+      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>
+        stream;
 
-      AsyncMsg(
-        const ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&
-          stream_) :
+      AsyncMsg(const ccf::grpc::DetachedStreamPtr<
+               externalexecutor::protobuf::KVKeyValue>& stream_) :
         stream(stream_)
       {}
     };
 
-    static void send_stream_payload(
-      const ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&
-        stream,
-      bool close_stream)
-    {
-      externalexecutor::protobuf::KVKeyValue kv;
-      kv.set_key("my_key");
-      kv.set_value(fmt::format("my_value: {}", close_stream));
-
-      stream->stream_msg(kv, close_stream);
-    }
-
     static void async_send_stream_data(
-      const ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&
-        stream)
+      const ccf::grpc::DetachedStreamPtr<
+        externalexecutor::protobuf::KVKeyValue>& stream)
     {
       auto msg = std::make_unique<threading::Tmsg<AsyncMsg>>(
         [](std::unique_ptr<threading::Tmsg<AsyncMsg>> msg) {
@@ -195,7 +183,20 @@ namespace externalexecutor
           LOG_FAIL_FMT("Sending asynchronous streaming data: {}", call_count);
           call_count++;
           bool should_stop = call_count > 5;
-          send_stream_payload(msg->data.stream, should_stop);
+
+          externalexecutor::protobuf::KVKeyValue kv;
+          kv.set_key("my_key");
+          kv.set_value(fmt::format("my_value: {}", should_stop));
+
+          try
+          {
+            msg->data.stream->stream_msg(kv, should_stop);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT("Stream closed under our feet: {}", e.what());
+            return;
+          }
 
           if (!should_stop)
           {
@@ -519,24 +520,15 @@ namespace externalexecutor
                       google::protobuf::Empty&& payload) {
         // Dummy streaming endpoint
 
-        // TODO:
-        // 1. Create gRPC server stream wrapper that sets stream as non-unary
-        // 2. [DONE] Add ability to close stream from rpc_ctx->stream(data,
-        // close=true) or rpc_ctx->stream_close();
-        // 3. Create stream object from rpc_ctx, and then
-        // rpc_ctx->create_stream() (figure out ownership and lifetime)
-
-        LOG_FAIL_FMT("Endpoint synchronous execution");
-
-        auto stream =
-          ccf::grpc::make_stream<externalexecutor::protobuf::KVKeyValue>(
-            ctx.rpc_ctx, responder_lookup);
+        auto stream = ccf::grpc::make_detached_stream<
+          externalexecutor::protobuf::KVKeyValue>(
+          ctx.rpc_ctx, responder_lookup);
         async_send_stream_data(stream);
 
         // TODO: Fix return value here, which should return either another
         // object or nothing
         return ccf::grpc::make_success(
-          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>{});
+          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>{});
       };
 
       make_endpoint(
@@ -544,7 +536,8 @@ namespace externalexecutor
         HTTP_POST,
         ccf::grpc_adapter<
           google::protobuf::Empty,
-          ccf::grpc::Stream<externalexecutor::protobuf::KVKeyValue>>(stream),
+          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
+          stream),
         {ccf::no_auth_required})
         .install();
 
@@ -565,7 +558,7 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKeyValue kv = {};
           kv.set_key("my_key");
           kv.set_value(fmt::format("my_value: {}", close_stream));
-          stream->stream_msg(kv, close_stream);
+          stream->stream_msg(kv); // TODO: Fix close_stream);
         }
 
         // TODO: Fix return value here, which should return success but nothing

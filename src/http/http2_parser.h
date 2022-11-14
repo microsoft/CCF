@@ -304,7 +304,14 @@ namespace http2
         data.size(),
         close);
 
+      LOG_FAIL_FMT("Session: {}", fmt::ptr(session));
+
       auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
 
       if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
       {
