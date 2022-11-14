@@ -91,7 +91,7 @@ namespace ccf::historical
     std::shared_ptr<ccf::NodeEncryptor> historical_encryptor;
 
     // whether to keep all the writes so that we can build a diff later
-    bool track_deletes_on_missing_keys_v;
+    bool track_deletes_on_missing_keys_v = false;
 
     enum class RequestStage
     {

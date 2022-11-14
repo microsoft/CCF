@@ -104,7 +104,10 @@ def register_new_executor(node, network, message=None):
     return executor_credentials
 
 
-@reqs.description("Register an external executor")
+@reqs.description(
+    "Register an external executor (Disabled on SNP due to UNKNOWN RPC failures)"
+)
+@reqs.not_snp()
 def test_executor_registration(network, args):
     primary, backup = network.find_primary_and_any_backup()
 

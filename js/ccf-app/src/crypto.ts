@@ -87,6 +87,16 @@ export const pubRsaPemToJwk = ccf.crypto.pubRsaPemToJwk;
  */
 export const rsaPemToJwk = ccf.crypto.rsaPemToJwk;
 
+/**
+ * @inheritDoc global!CCFCrypto.pubEddsaPemToJwk
+ */
+export const pubEddsaPemToJwk = ccf.crypto.pubEddsaPemToJwk;
+
+/**
+ * @inheritDoc global!CCFCrypto.eddsaPemToJwk
+ */
+export const eddsaPemToJwk = ccf.crypto.eddsaPemToJwk;
+
 export {
   WrapAlgoParams,
   AesKwpParams,
