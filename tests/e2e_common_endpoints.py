@@ -188,7 +188,7 @@ def test_large_messages(network, args):
                     *args,
                     **kwargs,
                 )
-            except infra.clients.CCFConnectionException:
+            except infra.clients.CCFIOException:
                 # In some cases, the client ends up writing to the now-closed socket first
                 # before reading the server error, resulting in a connection error
                 assert length > threshold
