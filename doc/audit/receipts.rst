@@ -55,5 +55,5 @@ This may occur if the consortium approves a catastrophic recovery from a truncat
 
 This user can either:
 
-1. Query the new service for receipts at the same :term:`Transaction ID` values.  If those transactions come back as `INVALID`, because they were truncated, the signature over the old receipts is proof of truncation. If they come back as `COMMITTED` with a different root, the existence of two signatures over different roots at the same TxID is proof that a fork happened.
+1. Query the new service for receipts at the same :term:`Transaction ID` values.  If those transactions come back as ``INVALID``, because they were truncated, the signature over the old receipts is proof of truncation. If they come back as ``COMMITTED`` with a different root, the existence of two signatures over different roots at the same TxID is proof that a fork happened.
 2. Scan the ledger, for example using the :doc:`/audit/python_library`, and find the transactions for which they have receipts. The `write_set_digest` in the receipts should match the digest of the serialised :term:`Write Set` in the ledger on disk. If it does not, the signature over the receipt is proof of a fork. See :ref:`audit/receipts:Check for transaction inclusion` for an example.

@@ -32,5 +32,10 @@ namespace crypto
       size_t sig_size) override;
 
     static int get_openssl_group_id(CurveID gid);
+
+    virtual CurveID get_curve_id() const override;
+
+    virtual JsonWebKeyEdDSAPublic public_key_jwk_eddsa(
+      const std::optional<std::string>& kid = std::nullopt) const override;
   };
 }
