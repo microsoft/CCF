@@ -145,6 +145,7 @@ class SSHRemote(CmdMixin):
         workspace,
         common_dir,
         env=None,
+        pid_file=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -175,7 +176,7 @@ class SSHRemote(CmdMixin):
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
         self.suspension_proc = None
-        self.pid_file = f"{os.path.basename(self.cmd[0])}.pid"
+        self.pid_file = pid_file
         self._pid = None
 
     def _rc(self, cmd):
@@ -412,6 +413,7 @@ class LocalRemote(CmdMixin):
         workspace,
         common_dir,
         env=None,
+        pid_file=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -599,6 +601,7 @@ class CCFRemote(object):
         service_cert_file="service_cert.pem",
         service_data_json_file=None,
         snp_endorsements_servers=None,
+        node_pid_file="node.pid",
         **kwargs,
     ):
         """
@@ -733,6 +736,7 @@ class CCFRemote(object):
                 service_data_json_file=service_data_json_file,
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
+                node_pid_file=node_pid_file,
                 **kwargs,
             )
 
@@ -950,6 +954,7 @@ class CCFRemote(object):
             workspace,
             common_dir,
             env,
+            pid_file=node_pid_file,
         )
 
     def setup(self):
