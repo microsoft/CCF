@@ -307,8 +307,9 @@ def test_all_members(network, args):
             )
             assert response_details["member_data"] == member.member_data
             if member.is_recovery_member:
+                enc_pub_key_file = os.path.join(primary.common_dir, member.member_info["encryption_public_key_file"])
                 recovery_enc_key = open(
-                    member.member_info["encryption_public_key_file"], encoding="utf-8"
+                    enc_pub_key_file, encoding="utf-8"
                 ).read()
                 assert response_details["public_encryption_key"] == recovery_enc_key
             else:
