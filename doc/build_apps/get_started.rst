@@ -27,7 +27,7 @@ that focus on multi-party compute and data.
    -  `CCF application
       samples <https://github.com/microsoft/ccf-app-samples>`__
 
-Supported Programing Languages
+Supported Programming Languages
 ------------------------------
 
 Applications can be written in
