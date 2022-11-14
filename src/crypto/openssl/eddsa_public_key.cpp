@@ -65,4 +65,32 @@ namespace crypto
     }
     return NID_undef;
   }
+
+  CurveID EdDSAPublicKey_OpenSSL::get_curve_id() const
+  {
+    int nid = EVP_PKEY_id(key);
+    switch (nid)
+    {
+      case NID_ED25519:
+        return CurveID::CURVE25519;
+      default:
+        throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+    }
+    return CurveID::NONE;
+  }
+
+  JsonWebKeyEdDSAPublic EdDSAPublicKey_OpenSSL::public_key_jwk_eddsa(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyEdDSAPublic jwk;
+    std::vector<uint8_t> raw_pub(EVP_PKEY_size(key));
+    size_t raw_pub_len = raw_pub.size();
+    EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len);
+    raw_pub.resize(raw_pub_len);
+    jwk.x = b64url_from_raw(raw_pub, false);
+    jwk.crv = curve_id_to_jwk_eddsa_curve(get_curve_id());
+    jwk.kid = kid;
+    jwk.kty = JsonWebKeyType::OKP;
+    return jwk;
+  }
 }
