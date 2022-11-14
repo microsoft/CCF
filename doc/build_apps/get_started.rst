@@ -35,7 +35,7 @@ Applications can be written in
 -  TypeScript
 -  JavaScript
 -  C++
--  More languages support upcoming in 2023
+-  More language support upcoming in 2023
 
 Development environment
 -----------------------
