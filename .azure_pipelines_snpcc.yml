@@ -36,16 +36,10 @@ jobs:
       vmImage: ubuntu-20.04
     steps:
       - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      - script: az login --service-principal -u $CCFSNPCIAPPID -p $CCFSNPCISERVICEPRINCIPALPASSWORD --tenant $CCFSNPCITENANT
-        env:
-          CCFSNPCIAPPID: $(ccfSnpCiAppId)
-          CCFSNPCISERVICEPRINCIPALPASSWORD: $(ccfSnpCiServicePrincipalPassword)
-          CCFSNPCITENANT: $(ccfSnpCiTenant)
+      - script: az login --service-principal -u $(ccfSnpCiAppId) -p $(ccfSnpCiServicePrincipalPassword) --tenant $(ccfSnpCiTenant)
       - script: pip install azure-mgmt-resource azure-identity
       - script: ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ""
-      - script: python3.8 scripts/deploy_snp_aci.py --subscription-id $CCFAZURESUBSCRIPTIONID --deployment-name $(Build.BuildNumber)
-        env:
-          CCFAZURESUBSCRIPTIONID: $(ccfAzureSubscriptionId)
+      - script: python3.8 scripts/deploy_snp_aci.py --subscription-id \"$(ccfAzureSubscriptionId)\" --deployment-name $(Build.BuildNumber)
 
   - template: .azure-pipelines-templates/configure.yml
     parameters:
