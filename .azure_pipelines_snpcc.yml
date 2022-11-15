@@ -47,8 +47,8 @@ jobs:
           CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
       - script: |
-        IP=`cat deploy_out.txt`
-        ssh root@$IP
+          IP=`cat deploy_out.txt`
+          ssh root@$IP
 
   - job: test_ssh
     displayName: "Test SSH connection"
