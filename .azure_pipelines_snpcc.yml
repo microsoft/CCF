@@ -76,7 +76,7 @@ jobs:
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: SNPCC_Debug
+    dependsOn: test_ssh
     condition: always()
     steps:
       - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
