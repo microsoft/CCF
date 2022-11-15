@@ -898,15 +898,23 @@ class CCFRemote(object):
                     )
                 for mi in members_info:
                     member_info_cmd = f'--member-info={mi["certificate_file"]}'
-                    data_files.append(mi["certificate_file"])
+                    data_files.append(
+                        os.path.join(self.common_dir, mi["certificate_file"])
+                    )
                     if mi["encryption_public_key_file"] is not None:
                         member_info_cmd += f',{mi["encryption_public_key_file"]}'
-                        data_files.append(mi["encryption_public_key_file"])
+                        data_files.append(
+                            os.path.join(
+                                self.common_dir, mi["encryption_public_key_file"]
+                            )
+                        )
                     elif mi["data_json_file"] is not None:
                         member_info_cmd += ","
                     if mi["data_json_file"] is not None:
                         member_info_cmd += f',{mi["data_json_file"]}'
-                        data_files.append(mi["data_json_file"])
+                        data_files.append(
+                            os.path.join(self.common_dir, mi["data_json_file"])
+                        )
                     cmd += [member_info_cmd]
 
                 # Added in 1.x
