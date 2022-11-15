@@ -49,7 +49,7 @@ jobs:
       - script: ssh root@$IP
 
   - job: test-ssh
-    displayNmae: "Test SSH connection"
+    displayName: "Test SSH connection"
     pool:
       vmImage: ubuntu-20.04
     steps:
