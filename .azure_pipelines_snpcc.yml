@@ -40,6 +40,8 @@ jobs:
           pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
           ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
           python3.8 scripts/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) > deploy_out.txt
+          echo "Key"
+          cat ~/.ssh/id_rsa.pub
           cat deploy_out.txt
           IP=`cat deploy_out.txt`
           ssh root@$IP 'echo connected from step in same job'
@@ -51,6 +53,8 @@ jobs:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
         name: deploy
       - script: |
+          echo "Key"
+          cat ~/.ssh/id_rsa.pub
           echo "Variable"
           echo $(deploy.aciIp)
           echo "File"
@@ -66,6 +70,8 @@ jobs:
     condition: always()
     steps:
       - script: |
+          echo "Key"
+          cat ~/.ssh/id_rsa.pub
           echo "Variable"
           echo $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
           echo "File"
