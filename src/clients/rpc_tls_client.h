@@ -233,6 +233,18 @@ namespace client
       return std::move(last_response.value());
     }
 
+    std::vector<uint8_t> read_raw_response()
+    {
+      std::vector<uint8_t> next;
+      last_response = std::nullopt;
+      while (!last_response.has_value())
+      {
+        next = read_all();
+        parser.execute(next.data(), next.size());
+      }
+      return next;
+    }
+
     std::optional<Response> read_response_non_blocking()
     {
       if (bytes_available())

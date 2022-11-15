@@ -28,7 +28,7 @@ To download and then run TLC, simply execute:
 .. code-block:: bash
 
     $ cd tla
-    $ ./download_or_update_tla.sh
+    $ python install_deps.py
     $ ./tlc.sh MCccfraft.tla
 
 You can also check the specification including reconfiguration as follows:
