@@ -52,6 +52,7 @@ jobs:
     displayName: "Test SSH connection"
     pool:
       vmImage: ubuntu-20.04
+    dependsOn: deploy_aci
     steps:
       - script: cat deploy_out.txt
       - script: IP=`cat deploy_out.txt`
