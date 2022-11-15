@@ -104,6 +104,7 @@ class LoggingTxs:
         msg=None,
         user=None,
         url_suffix=None,
+        private_url=None,
     ):
         self.network = network
         remote_node, _ = network.find_primary(log_capture=log_capture)
@@ -138,6 +139,7 @@ class LoggingTxs:
                     if self.scope is not None:
                         args["scope"] = self.scope
                     url = "/app/log/private"
+                    url = private_url if private_url else url
                     if url_suffix:
                         url += "/" + url_suffix
                     if self.scope is not None:
