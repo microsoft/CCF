@@ -1,7 +1,7 @@
 Piccolo
 ========
 
-CCF has its own performance testing tool (Piccolo) under the ``CCF/tests/perf-system`` 
+CCF has its own performance testing tool (Piccolo) under the :ccf_repo:`tests/perf-system` 
 directory, to measure the performance of CCF and its applications. The aim of 
 this tool is to generate loads of requests, submit them to CCF as fast as possible, 
 producing metrics about the system's efficiency. It consists of three distinct 
