@@ -48,7 +48,7 @@ jobs:
       - script: IP=`cat deploy_out.txt`
       - script: ssh root@$IP
 
-  - job: test-ssh
+  - job: test_ssh
     displayName: "Test SSH connection"
     pool:
       vmImage: ubuntu-20.04
