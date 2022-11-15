@@ -76,15 +76,6 @@ CCF Documentation
 
     CCF-related research papers and technical reports.
 
-    ---
-
-    :fa:`dragon` :doc:`performance/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Get started with the CCF performance testing tool.
-
-
-
 .. toctree::
     :maxdepth: 1
     :hidden:
@@ -98,4 +89,3 @@ CCF Documentation
     contribute/index.rst
     architecture/index.rst
     research/index.rst
-    performance/index.rst
