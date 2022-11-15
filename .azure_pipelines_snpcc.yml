@@ -34,19 +34,21 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
-      - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      - script: az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
+      - script: |
+        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
+        pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
+        ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
+        python3.8 scripts/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) > deploy_out.txt
+        cat deploy_out.txt
         env:
           CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
           CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
-      - script: pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
-      - script: ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
-      - script: python3.8 scripts/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) > deploy_out.txt
-        env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
-      - script: IP=`cat deploy_out.txt`
-      - script: ssh root@$IP
+      - script: |
+        IP=`cat deploy_out.txt`
+        ssh root@$IP
 
   - job: test_ssh
     displayName: "Test SSH connection"
@@ -80,13 +82,13 @@ jobs:
     dependsOn: test_ssh
     condition: always()
     steps:
-      - script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      - script: az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
+      - script: |
+        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
+        pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
+        python3.8 scripts/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
         env:
           CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
           CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
-      - script: pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
-      - script: python3.8 scripts/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
-        env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
