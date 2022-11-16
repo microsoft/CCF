@@ -1359,7 +1359,9 @@ TEST_CASE("StateCache concurrent access")
     query_random_range_states(20, 23, handle, error_printer);
   }
 
-  srand(time(NULL));
+  const auto seed = time(NULL);
+  INFO("Using seed: ", seed);
+  srand(seed);
 
   const auto num_threads = 30;
   std::vector<std::thread> random_queries;

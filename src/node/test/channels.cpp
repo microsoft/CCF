@@ -750,12 +750,12 @@ TEST_CASE("Full NodeToNode test")
     crypto::CurveID::SECP384R1,
     crypto::CurveID::SECP384R1,
     crypto::CurveID::SECP384R1};
-  // One node on a different curve
+  // One backup on a different curve
   constexpr auto mixed_0 = CurveChoices{
     crypto::CurveID::SECP256R1,
     crypto::CurveID::SECP256R1,
     crypto::CurveID::SECP384R1};
-  // Both nodes on a different curve
+  // Both backups on a different curve
   constexpr auto mixed_1 = CurveChoices{
     crypto::CurveID::SECP384R1,
     crypto::CurveID::SECP256R1,
@@ -792,7 +792,9 @@ TEST_CASE("Full NodeToNode test")
     n2n2.initialize(ni2, service_cert, channel2_kp, channel2_cert);
     n2n2.set_message_limit(message_limit);
 
-    srand(0); // keep it deterministic
+    const auto seed = time(NULL);
+    INFO("Using seed: ", seed);
+    srand(seed);
 
     INFO("Send/receive a number of messages");
     {
