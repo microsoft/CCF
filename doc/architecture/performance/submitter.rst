@@ -13,7 +13,7 @@ Run submitter
 --------------
 
 To run the submitter it first needs to be built in a ``build`` directory. The submitter 
-is compiled using the root CMakeLists.txt in the :ccf_repo:`/` directory. If the CCF project is 
+is compiled using the CMakeLists.txt in the root directory. If the CCF project is 
 already built in your directory it can be compiled and run using the following commands:
 
 .. code-block:: bash
