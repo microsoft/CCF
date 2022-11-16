@@ -17,6 +17,9 @@ try:
 except Exception as e:
     ...
 
+def make_passwd(password):
+    return (password + "\n" + password).encode("unicode_escape")
+
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
         "apt-get update",
@@ -24,7 +27,7 @@ STARTUP_COMMANDS = {
         "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         "echo \"agent ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers",
-        f"echo -e \"{args.aci_dynamic_agent_password}\n{args.aci_dynamic_agent_password}\" | passwd agent",
+        f'echo -e \"{make_passwd(args.aci_dynamic_agent_password)}\" | passwd agent',
         "service ssh restart",
         # "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
         # "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
