@@ -163,7 +163,7 @@ namespace host
     CreateNodeStatus create_node(
       const EnclaveConfig& enclave_config,
       const StartupConfig& ccf_config,
-      const std::vector<uint8_t>& startup_snapshot,
+      std::vector<uint8_t>&& startup_snapshot,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       StartType start_type,
@@ -202,7 +202,7 @@ namespace host
 
 #define CREATE_NODE_ARGS \
   &status, (void*)&enclave_config, config, config_aligned_size, \
-    (char*)startup_snapshot.data(), startup_snapshot.size(), node_cert.data(), \
+    startup_snapshot.data(), startup_snapshot.size(), node_cert.data(), \
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, \

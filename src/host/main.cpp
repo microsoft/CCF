@@ -537,7 +537,6 @@ int main(int argc, char** argv)
       if (latest_committed_snapshot.has_value())
       {
         auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
-        // TODO: Pass this to ecall instead
         startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
 
         LOG_INFO_FMT(
@@ -582,7 +581,7 @@ int main(int argc, char** argv)
     auto create_status = enclave.create_node(
       enclave_config,
       startup_config,
-      startup_snapshot,
+      std::move(startup_snapshot),
       node_cert,
       service_cert,
       config.command.type,

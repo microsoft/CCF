@@ -13,7 +13,7 @@ enclave {
             [user_check] void* enclave_config,
             [user_check] char* ccf_config,
             size_t ccf_config_size,
-            [user_check] char* startup_snapshot,
+            [user_check] uint8_t* startup_snapshot,
             size_t startup_snapshot_size,
             [out, count=node_cert_size] uint8_t* node_cert,
             size_t node_cert_size,
