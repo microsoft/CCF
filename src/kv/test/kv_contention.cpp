@@ -58,7 +58,10 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   };
   ThreadArgs args[thread_count] = {};
 
-  srand(42);
+  const auto seed = time(NULL);
+  DOCTEST_INFO("Using seed: ", seed);
+  srand(seed);
+
   constexpr size_t map_count = 8;
   for (size_t i = 0u; i < map_count; ++i)
   {
