@@ -78,4 +78,4 @@ with ``total_time_in_sec()`` to get throughput, or you could
 customize your own metrics table with ``customize_table()`` 
 providing the lists for the field names and the values. For 
 more information about the provided functions, you can see the 
-library code on the :ccf_repo:`tests/perf-system/analysis/analyzer.py`.
+library code on the :ccf_repo:`tests/perf-system/analyze/analyzer.py`.
