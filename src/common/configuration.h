@@ -98,7 +98,6 @@ DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);
 DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig,
-  startup_snapshot,
   startup_host_time,
   snapshot_tx_interval,
   initial_service_certificate_validity_days,
