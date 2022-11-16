@@ -11,7 +11,7 @@ enclave {
 
         public CreateNodeStatus enclave_create_node(
             [user_check] void* enclave_config,
-            [user_check] char* ccf_config,
+            [user_check] uint8_t* ccf_config,
             size_t ccf_config_size,
             [user_check] uint8_t* startup_snapshot,
             size_t startup_snapshot_size,

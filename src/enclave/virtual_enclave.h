@@ -82,7 +82,7 @@ extern "C"
     void* virtual_enclave_handle,
     CreateNodeStatus* status,
     void* enclave_config,
-    char* ccf_config,
+    uint8_t* ccf_config,
     size_t ccf_config_size,
     uint8_t* startup_snapshot,
     size_t startup_snapshot_size,
@@ -101,7 +101,7 @@ extern "C"
   {
     using create_node_func_t = CreateNodeStatus (*)(
       void*,
-      char*,
+      uint8_t*,
       size_t,
       uint8_t*,
       size_t,

@@ -58,7 +58,7 @@ extern "C"
 
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
-    char* ccf_config,
+    uint8_t* ccf_config,
     size_t ccf_config_size,
     uint8_t* startup_snapshot_data,
     size_t startup_snapshot_size,

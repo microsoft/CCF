@@ -68,9 +68,16 @@ namespace host
     }
   }
 
-  inline static size_t get_aligned_size(size_t size)
+  static std::pair<uint8_t*, size_t> allocate_8_aligned(size_t size)
   {
-    return (size + 7) & ~(7ull);
+    const auto aligned_size = (size + 7) & ~(7ull);
+    auto data = static_cast<uint8_t*>(std::aligned_alloc(8u, aligned_size));
+    if (data == nullptr)
+    {
+      throw std::runtime_error(fmt::format(
+        "Unable to allocate {} bytes for aligned data", aligned_size));
+    }
+    return std::make_pair(data, aligned_size);
   }
 
   /**
@@ -186,49 +193,30 @@ namespace host
       // Pad config and startup snapshot with NULLs to a multiple of 8, in an
       // 8-byte aligned allocation
       auto config_s = nlohmann::json(ccf_config).dump();
-      const auto config_aligned_size = get_aligned_size(config_s.size());
+      auto [config, config_aligned_size] = allocate_8_aligned(config_s.size());
       LOG_DEBUG_FMT(
         "Padding config of size {} to {} bytes",
         config_s.size(),
         config_aligned_size);
-      auto config =
-        static_cast<char*>(std::aligned_alloc(8u, config_aligned_size));
-      if (config == nullptr)
-      {
-        throw std::runtime_error(fmt::format(
-          "Unable to allocate {} bytes for aligned config",
-          config_aligned_size));
-      }
-
       auto copy_end = std::copy(config_s.begin(), config_s.end(), config);
       std::fill(copy_end, config + config_aligned_size, 0);
 
-      // TODO: Align startup snapshot
-      const auto startup_snapshot_aligned_size =
-        get_aligned_size(startup_snapshot.size());
+      auto [snapshot, snapshot_aligned_size] =
+        allocate_8_aligned(startup_snapshot.size());
       LOG_DEBUG_FMT(
         "Padding startup snapshot of size {} to {} bytes",
         startup_snapshot.size(),
-        startup_snapshot_aligned_size);
-      auto snapshot = static_cast<uint8_t*>(
-        std::aligned_alloc(8u, startup_snapshot_aligned_size));
-
-      if (snapshot == nullptr)
-      {
-        throw std::runtime_error(fmt::format(
-          "Unable to allocate {} bytes for aligned snapshot",
-          startup_snapshot_aligned_size));
-      }
+        snapshot_aligned_size);
 
       auto snapshot_copy_end =
         std::copy(startup_snapshot.begin(), startup_snapshot.end(), snapshot);
-      std::fill(snapshot_copy_end, snapshot + startup_snapshot_aligned_size, 0);
+      std::fill(snapshot_copy_end, snapshot + snapshot_aligned_size, 0);
 
 #define CREATE_NODE_ARGS \
   &status, (void*)&enclave_config, config, config_aligned_size, snapshot, \
-    startup_snapshot_aligned_size, node_cert.data(), node_cert.size(), \
-    &node_cert_len, service_cert.data(), service_cert.size(), \
-    &service_cert_len, enclave_version_buf.data(), enclave_version_buf.size(), \
+    snapshot_aligned_size, node_cert.data(), node_cert.size(), &node_cert_len, \
+    service_cert.data(), service_cert.size(), &service_cert_len, \
+    enclave_version_buf.data(), enclave_version_buf.size(), \
     &enclave_version_len, start_type, num_worker_thread, time_location
 
       oe_result_t err = OE_FAILURE;
@@ -249,6 +237,7 @@ namespace host
 #endif
 
       std::free(config);
+      std::free(snapshot);
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {
