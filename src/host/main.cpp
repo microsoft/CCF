@@ -194,7 +194,8 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
-  host::Enclave enclave(config.enclave.file, config.enclave.type);
+  host::Enclave enclave(
+    config.enclave.file, config.enclave.type, config.enclave.platform);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;

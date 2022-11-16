@@ -602,6 +602,7 @@ class CCFRemote(object):
         service_data_json_file=None,
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
+        enclave_platform="SGX",
         **kwargs,
     ):
         """
@@ -714,6 +715,7 @@ class CCFRemote(object):
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type.title(),
+                enclave_platform=enclave_platform,
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,

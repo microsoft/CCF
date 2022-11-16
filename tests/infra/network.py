@@ -100,6 +100,7 @@ class Network:
     SHARE_SCRIPT = "submit_recovery_share.sh"
     node_args_to_forward = [
         "enclave_type",
+        "enclave_platform",
         "host_log_level",
         "sig_tx_interval",
         "sig_ms_interval",
@@ -331,6 +332,8 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
+
+        LOG.error(forwarded_args)
 
         for i, node in enumerate(self.nodes):
             try:

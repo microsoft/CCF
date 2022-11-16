@@ -111,7 +111,14 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--enclave-type",
         help="Enclave type",
         default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_TYPE", "release")),
-        choices=("release", "debug", "virtual"),
+        choices=("release", "debug"),
+    )
+    parser.add_argument(
+        "-t",
+        "--enclave-platform",
+        help="Enclave platform (Trusted Execution Environment)",
+        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", "SGX")),
+        choices=("SGX", "SNP", "Virtual"),
     )
     parser.add_argument(
         "--host-log-level",

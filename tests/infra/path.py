@@ -20,16 +20,24 @@ def mk_new(name, contents):
         mk(name, contents)
 
 
-def build_lib_path(lib_name, enclave_type=None, library_dir="."):
-    if enclave_type == "virtual":
+def build_lib_path(
+    lib_name, enclave_type=None, enclave_platform="SGX", library_dir="."
+):
+    if enclave_platform == "Virtual":
         ext = ".virtual.so"
         mode = "Virtual mode"
-    elif enclave_type == "debug":
-        ext = ".enclave.so.debuggable"
-        mode = "Debuggable enclave"
-    elif enclave_type == "release":
-        ext = ".enclave.so.signed"
-        mode = "Real enclave"
+    elif enclave_platform == "SGX":
+        if enclave_type == "debug":
+            ext = ".enclave.so.debuggable"
+            mode = "Debuggable SGX enclave"
+        elif enclave_type == "release":
+            ext = ".enclave.so.signed"
+            mode = "Release SGX enclave"
+        else:
+            raise ValueError(f"Invalid enclave_type {enclave_type} for SGX enclave")
+    elif enclave_platform == "SNP":
+        ext = ".snp.so"
+        mode = "SNP enclave"
     else:
         raise ValueError(f"Invalid enclave_type passed {enclave_type}")
     if os.path.isfile(lib_name):

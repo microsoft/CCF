@@ -60,7 +60,9 @@ def test_quote(network, args):
                 os.path.join(args.oe_binary, "oesign"),
                 "dump",
                 "-e",
-                infra.path.build_lib_path(args.package, args.enclave_type),
+                infra.path.build_lib_path(
+                    args.package, args.enclave_type, args.enclave_platform
+                ),
             ],
             capture_output=True,
             check=True,

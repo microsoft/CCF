@@ -18,6 +18,15 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(sss.snp STATIC ${SSS_SRC})
+  add_san(sss.snp)
+  set_property(TARGET sss.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS sss.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(sss.host STATIC ${SSS_SRC})

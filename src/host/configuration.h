@@ -13,15 +13,24 @@ namespace host
 {
   enum class EnclaveType
   {
-    SGX_RELEASE,
-    SGX_DEBUG,
-    VIRTUAL,
+    RELEASE,
+    DEBUG
   };
   DECLARE_JSON_ENUM(
     EnclaveType,
-    {{EnclaveType::SGX_RELEASE, "Release"},
-     {EnclaveType::SGX_DEBUG, "Debug"},
-     {EnclaveType::VIRTUAL, "Virtual"}});
+    {{EnclaveType::RELEASE, "Release"}, {EnclaveType::DEBUG, "Debug"}});
+
+  enum class EnclavePlatform
+  {
+    SGX,
+    SNP,
+    VIRTUAL,
+  };
+  DECLARE_JSON_ENUM(
+    EnclavePlatform,
+    {{EnclavePlatform::SGX, "SGX"},
+     {EnclavePlatform::SNP, "SNP"},
+     {EnclavePlatform::VIRTUAL, "Virtual"}});
 
   enum class LogFormat
   {
@@ -51,6 +60,7 @@ namespace host
     {
       std::string file;
       EnclaveType type;
+      EnclavePlatform platform;
     };
     Enclave enclave = {};
 
@@ -151,7 +161,7 @@ namespace host
   };
 
   DECLARE_JSON_TYPE(CCHostConfig::Enclave);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file, platform);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);

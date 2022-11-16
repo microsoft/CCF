@@ -88,10 +88,11 @@ namespace host
      * Create an uninitialized enclave hosting the given library.
      *
      * @param path Path to signed enclave library file
-     * @param type Type of enclave to load, influencing what flags should be
-     * passed to OE, or whether to dlload a virtual enclave
+     * @param type Type of enclave to load
+     * @param platform Trusted Execution Platform of enclave, influencing what
+     * flags should be passed to OE, or whether to dlload a virtual enclave
      */
-    Enclave(const std::string& path, EnclaveType type)
+    Enclave(const std::string& path, EnclaveType type, EnclavePlatform platform)
     {
       if (!std::filesystem::exists(path))
       {
@@ -99,14 +100,13 @@ namespace host
           fmt::format("No enclave file found at {}", path));
       }
 
-      switch (type)
+      switch (platform)
       {
-        case host::EnclaveType::SGX_RELEASE:
-        case host::EnclaveType::SGX_DEBUG:
+        case host::EnclavePlatform::SGX:
         {
 #ifdef PLATFORM_SGX
           uint32_t oe_flags = 0;
-          if (type == host::EnclaveType::SGX_DEBUG)
+          if (type == host::EnclaveType::DEBUG)
           {
             expect_enclave_file_suffix(path, ".enclave.so.debuggable", type);
             oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
@@ -135,19 +135,31 @@ namespace host
           }
 #else
           throw std::logic_error(
-            "SGX enclaves are not supported in current build");
+            "Only SGX enclaves are supported in current build");
 #endif // PLATFORM_SGX
           break;
         }
 
-        case host::EnclaveType::VIRTUAL:
+        case host::EnclavePlatform::SNP:
         {
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+#if defined(PLATFORM_SNP)
+          expect_enclave_file_suffix(path, ".snp.so", type);
+          virtual_handle = load_virtual_enclave(path.c_str());
+#else
+          throw std::logic_error(
+            "Only SNP enclaves are supported in current build");
+#endif // defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+          break;
+        }
+
+        case host::EnclavePlatform::VIRTUAL:
+        {
+#if defined(PLATFORM_VIRTUAL)
           expect_enclave_file_suffix(path, ".virtual.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
           throw std::logic_error(
-            "Virtual enclaves not supported in current build");
+            "Only Virtual enclaves are supported in current build");
 #endif // defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
           break;
         }

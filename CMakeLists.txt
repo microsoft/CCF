@@ -123,10 +123,8 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   target_link_libraries(
     ccf.enclave PUBLIC quickjs.enclave http_parser.enclave sss.enclave
-                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave
+                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave nghttp2.enclave
   )
-
-  target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
 
   add_lvi_mitigations(ccf.enclave)
 
@@ -141,19 +139,19 @@ if(COMPILE_TARGET STREQUAL "sgx")
   # Same as virtual for the time being but will diverge soon
 elseif(COMPILE_TARGET STREQUAL "snp")
 
-  # virtual version
-  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
+  # SNO version
+  add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
-    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+    ccf.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
                        _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
 
-  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
-  add_warning_checks(ccf.virtual)
+  target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
+  add_warning_checks(ccf.snp)
 
   target_include_directories(
-    ccf.virtual SYSTEM
+    ccf.snp SYSTEM
     PUBLIC
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
       $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
@@ -164,32 +162,31 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   )
 
   target_link_libraries(
-    ccf.virtual
+    ccf.snp
     PUBLIC ${LINK_LIBCXX}
            -lgcc
-           http_parser.host
-           quickjs.host
-           sss.host
-           ccf_endpoints.host
-           ccfcrypto.host
-           ccf_kv.host
+           http_parser.snp
+           quickjs.snp
+           sss.snp
+           ccf_endpoints.snp
+           ccfcrypto.snp
+           ccf_kv.snp
+           nghttp2.snp
            ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
-  target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
+  set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-  set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-  add_san(ccf.virtual)
+  add_san(ccf.snp)
 
   install(
-    TARGETS ccf.virtual
+    TARGETS ccf.snp
     EXPORT ccf
     DESTINATION lib
   )
 
-  add_dependencies(ccf ccf.virtual)
+  add_dependencies(ccf ccf.snp)
 
 elseif(COMPILE_TARGET STREQUAL "virtual")
 
@@ -225,11 +222,10 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
+           nghttp2.host
            ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
-
-  target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 

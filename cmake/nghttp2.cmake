@@ -47,6 +47,23 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(nghttp2.snp STATIC ${NGHTTP2_SRCS})
+  target_include_directories(
+    nghttp2.snp PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>
+                        $<INSTALL_INTERFACE:include/3rdparty/nghttp2>
+  )
+  target_compile_definitions(
+    nghttp2.snp PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1
+  )
+  add_san(nghttp2.snp)
+  set_property(TARGET nghttp2.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  
+  install(
+    TARGETS nghttp2.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(nghttp2.host STATIC ${NGHTTP2_SRCS})
