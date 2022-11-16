@@ -479,8 +479,8 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   logger::config::default_init();
   logger::config::level() = logger::TRACE;
 
-  // const auto seed = 1668601152;
-  const auto seed = time(NULL);
+  const auto seed = 1668601152;
+  // const auto seed = time(NULL);
   DOCTEST_INFO("Using seed: ", seed);
   srand(seed);
 
@@ -588,14 +588,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   }
 
   auto create_term_on = [&](bool primary_is_a, size_t num_entries) {
-    if (primary_is_a)
-    {
-      LOG_FAIL_FMT("Trying to start new term on A");
-    }
-    else
-    {
-      LOG_FAIL_FMT("Trying to start new term on B");
-    }
     const auto& primary_id = primary_is_a ? node_idA : node_idB;
     auto& primary = primary_is_a ? rA : rB;
     auto& channels_primary = primary_is_a ? channelsA : channelsB;
@@ -692,7 +684,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   for (size_t i = 0; i < num_terms; ++i)
   {
     // Always produce at least one entry in the new term
-    create_term_on(i % 2 == 0, 1);
+    create_term_on(rand() % 2 == 0, rand() % 6 + 1);
   }
 
   // Ensure at least one term on each
@@ -838,8 +830,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     dump_node(rB);
     LOG_FAIL_FMT("C:");
     dump_node(rC);
-
-    DOCTEST_REQUIRE(false);
 
     // Dispatch messages until coherence, bounded by expected max iterations
     auto iterations = 0;
