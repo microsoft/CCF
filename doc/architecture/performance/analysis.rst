@@ -21,7 +21,8 @@ directory the following command:
 Run Analyzer
 ------------
 
-The command line tool in :ccf_repo:`tests/perf-system/analysis/analyze_packages.py` 
+The command line tool in :ccf_repo:`tests/perf-system/analyze/analyze_packages.py` 
+
 provide a default analysis that returns some throughput and latency metrics. 
 For more targeted analysis you can create your own scripts, such as 
 :ccf_repo:`tests/perf-system/analysis/throughput_analysis.py`.
