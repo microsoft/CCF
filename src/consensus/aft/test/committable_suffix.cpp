@@ -479,7 +479,8 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   logger::config::default_init();
   logger::config::level() = logger::TRACE;
 
-  const auto seed = 1668601152;
+  // const auto seed = 1668601152;
+  const auto seed = time(NULL);
   DOCTEST_INFO("Using seed: ", seed);
   srand(seed);
 
@@ -587,6 +588,14 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   }
 
   auto create_term_on = [&](bool primary_is_a, size_t num_entries) {
+    if (primary_is_a)
+    {
+      LOG_FAIL_FMT("Trying to start new term on A");
+    }
+    else
+    {
+      LOG_FAIL_FMT("Trying to start new term on B");
+    }
     const auto& primary_id = primary_is_a ? node_idA : node_idB;
     auto& primary = primary_is_a ? rA : rB;
     auto& channels_primary = primary_is_a ? channelsA : channelsB;
@@ -607,22 +616,40 @@ DOCTEST_TEST_CASE("Multi-term divergence")
 
     DOCTEST_REQUIRE(rC.get_view() >= primary.get_view());
 
-    // Node C times out and starts election
-    rC.periodic(election_timeout);
-    const auto c_term = rC.get_view();
+    if (rC.get_view() > primary.get_view())
+    {
+      // Trigger a message from the intended primary, so C will respond with its
+      // current term
+      if (primary.is_primary())
+      {
+        // If we were already primary, then request_timeout will produce an
+        // AppendEntries
+        primary.periodic(request_timeout);
+      }
+      else
+      {
+        // If we weren't, wait election_timeout and send a RequestVote
+        primary.periodic(election_timeout);
+      }
 
-    // Intended primary sees this and votes against, but advances to this term
-    keep_messages_for(primary_id, channelsC->messages);
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK<aft::RequestVoteResponse>(
-        nodes, primary_id, [](const aft::RequestVoteResponse& rvr) {
-          DOCTEST_REQUIRE(rvr.vote_granted == false);
-        }));
-    DOCTEST_REQUIRE(primary.get_view() == c_term);
+      // Send just this message, to node C
+      keep_messages_for(node_idC, channels_primary->messages);
+      DOCTEST_REQUIRE(1 == dispatch_all(nodes, primary_id));
 
-    // Intended primary times out and starts election
+      // Send the NACKy response, containing C's current view
+      keep_messages_for(primary_id, channelsC->messages);
+      DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
+
+      DOCTEST_REQUIRE(rC.get_view() == primary.get_view());
+    }
+    else
+    {
+      // Else this was already the primary, in the same term as C. Wait
+      // election_timeout to step down
+      primary.periodic(election_timeout);
+      channels_primary->messages.clear();
+    }
+
     primary.periodic(election_timeout);
 
     // RequestVote is only sent to Node C
@@ -665,7 +692,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   for (size_t i = 0; i < num_terms; ++i)
   {
     // Always produce at least one entry in the new term
-    create_term_on(rand() % 2 == 0, rand() % 6 + 1);
+    create_term_on(i % 2 == 0, 1);
   }
 
   // Ensure at least one term on each
@@ -751,6 +778,15 @@ DOCTEST_TEST_CASE("Multi-term divergence")
 
     DOCTEST_INFO("Bring other node in-sync");
     auto get_max_iterations = [&]() {
+      if (rA.is_primary())
+      {
+        LOG_FAIL_FMT("Node A is primary");
+      }
+      else
+      {
+        LOG_FAIL_FMT("Node B is primary");
+      }
+
       // A safe upper-bound is derived from the number of entries in the
       // primary's log. If we were probing linearly backwards to find the
       // matching index, then we would need O(n) probes followed by (in the
@@ -763,10 +799,13 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       size_t term_length;
       {
         std::vector<aft::Index> term_history =
-          rPrimary.get_view_history(rPrimary.get_last_idx());
+          rPrimary.get_view_history(log_length);
         term_length = std::unique(term_history.begin(), term_history.end()) -
           term_history.begin();
       }
+
+      LOG_FAIL_FMT(
+        "log_length = {}, term_length = {}", log_length, term_length);
 
       // Safe baseline
       // return 2 * log_length;
@@ -800,6 +839,8 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     LOG_FAIL_FMT("C:");
     dump_node(rC);
 
+    DOCTEST_REQUIRE(false);
+
     // Dispatch messages until coherence, bounded by expected max iterations
     auto iterations = 0;
     const auto max_iterations = get_max_iterations();
@@ -808,6 +849,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
 
     for (; iterations < max_iterations; ++iterations)
     {
+      LOG_FAIL_FMT("Roundtrip iteration: {}", iterations);
       // Large entries and lots of NACKs means we may generate many messages.
       // This is related to the inefficient Raft catch-up logic. Essentially
       // each heartbeat we start a new catch-up process, and that may take many
