@@ -52,8 +52,8 @@
 /*
  * Public function, see t_cose_make_test_pub_key.h
  */
-enum t_cose_err_t make_ecdsa_key_pair(int32_t            cose_algorithm_id,
-                                      struct t_cose_key *key_pair)
+enum t_cose_err_t make_key_pair(int32_t            cose_algorithm_id,
+                                struct t_cose_key *key_pair)
 {
     psa_key_type_t        key_type;
     psa_status_t          crypto_result;
@@ -64,9 +64,12 @@ enum t_cose_err_t make_ecdsa_key_pair(int32_t            cose_algorithm_id,
     psa_key_attributes_t key_attributes;
 
 
-    static const uint8_t private_key_256[] = {PRIVATE_KEY_prime256v1};
-    static const uint8_t private_key_384[] = {PRIVATE_KEY_secp384r1};
-    static const uint8_t private_key_521[] = {PRIVATE_KEY_secp521r1};
+    static const uint8_t private_key_256[]     = {PRIVATE_KEY_prime256v1};
+    static const uint8_t private_key_384[]     = {PRIVATE_KEY_secp384r1};
+    static const uint8_t private_key_521[]     = {PRIVATE_KEY_secp521r1};
+    static const uint8_t private_key_rsa2048[] = {
+#include "t_cose_rsa_test_key.h"
+    };
 
     /* There is not a 1:1 mapping from COSE algorithm to key type, but
      * there is usually an obvious curve for an algorithm. That
@@ -93,6 +96,27 @@ enum t_cose_err_t make_ecdsa_key_pair(int32_t            cose_algorithm_id,
         private_key_len = sizeof(private_key_521);
         key_type        = PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1);
         key_alg         = PSA_ALG_ECDSA(PSA_ALG_SHA_512);
+        break;
+
+    case COSE_ALGORITHM_PS256:
+        private_key     = private_key_rsa2048;
+        private_key_len = sizeof(private_key_rsa2048);
+        key_type        = PSA_KEY_TYPE_RSA_KEY_PAIR;
+        key_alg         = PSA_ALG_RSA_PSS(PSA_ALG_SHA_256);
+        break;
+
+    case COSE_ALGORITHM_PS384:
+        private_key     = private_key_rsa2048;
+        private_key_len = sizeof(private_key_rsa2048);
+        key_type        = PSA_KEY_TYPE_RSA_KEY_PAIR;
+        key_alg         = PSA_ALG_RSA_PSS(PSA_ALG_SHA_384);
+        break;
+
+    case COSE_ALGORITHM_PS512:
+        private_key     = private_key_rsa2048;
+        private_key_len = sizeof(private_key_rsa2048);
+        key_type        = PSA_KEY_TYPE_RSA_KEY_PAIR;
+        key_alg         = PSA_ALG_RSA_PSS(PSA_ALG_SHA_512);
         break;
 
     default:
@@ -162,7 +186,7 @@ enum t_cose_err_t make_ecdsa_key_pair(int32_t            cose_algorithm_id,
 /*
  * Public function, see t_cose_make_test_pub_key.h
  */
-void free_ecdsa_key_pair(struct t_cose_key key_pair)
+void free_key_pair(struct t_cose_key key_pair)
 {
    psa_destroy_key((mbedtls_svc_key_id_t)key_pair.k.key_handle);
 }
@@ -171,7 +195,7 @@ void free_ecdsa_key_pair(struct t_cose_key key_pair)
 /*
  * Public function, see t_cose_make_test_pub_key.h
  */
-int check_for_key_pair_leaks()
+int check_for_key_pair_leaks(void)
 {
     /* The key allocation counters are private data structures, but
      * they are the only way to do the valuable test for key
