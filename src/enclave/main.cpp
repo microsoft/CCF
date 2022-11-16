@@ -291,8 +291,6 @@ extern "C"
     {
       std::vector<uint8_t> startup_snapshot(
         startup_snapshot_data, startup_snapshot_data + startup_snapshot_size);
-      LOG_FAIL_FMT(
-        "Snapshot size: {}", startup_snapshot.size()); // TODO: Remove
       status = enclave->create_new_node(
         start_type,
         std::move(cc),
