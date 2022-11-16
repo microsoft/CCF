@@ -27,6 +27,7 @@ STARTUP_COMMANDS = {
         "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         "echo \"agent ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers",
+        f"echo \"{make_passwd(args.aci_dynamic_agent_password)}\"",
         f'echo -e \"{make_passwd(args.aci_dynamic_agent_password)}\" | passwd agent',
         "service ssh restart",
         # "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
