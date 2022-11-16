@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-rc2]
+
+[3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
+
+### Changed
+
+- Open Enclave version in Ansible playbook is updated to 0.18.4 version (#4501)
+
+### Fixed
+
+- Forwarding logic is modified to accept and forward requests without the `app` prefix (#4534)
+- Moved `is_outside_enclave` check early so that enclave logger can safely log to ring buffer (#4514)
+
 ## [3.0.0-rc1]
 
 [3.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc1
