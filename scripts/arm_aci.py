@@ -21,8 +21,8 @@ STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
         "apt-get update",
         "apt-get install -y openssh-server",
-        "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config",
-        "sed -i 's/PubkeyAuthentication yes/PubkeyAuthentication no/g' /etc/ssh/sshd_config",
+        "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
+        "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "service ssh restart",
         "mkdir /root/.ssh",
         f"echo {HOST_PUB_KEY} >> /root/.ssh/authorized_keys",
