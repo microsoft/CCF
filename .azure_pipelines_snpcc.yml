@@ -46,6 +46,8 @@ jobs:
           IP=`cat ~/deploy_out.txt`
           ssh root@$IP -o "StrictHostKeyChecking no" 'echo connected from step in same job'
           echo "##vso[task.setvariable variable=aciIp;isOutput=true]$IP"
+          KEY=`cat ~/.ssh/id_rsa.pub`
+          echo "##vso[task.setvariable variable=sshKey;isOutput=true]$KEY"
         env:
           CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
           CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
@@ -70,10 +72,10 @@ jobs:
     condition: always()
     variables:
       ACI_IP: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+      SSH_KEY: $[ dependencies.deploy_aci.outputs['deploy.sshKey'] ]
     steps:
       - script: |
-          echo "Variable"
-          echo $ACI_IP
+          echo $SSH_KEY > ~/.ssh/id_rsa.pub
           ssh root@$ACI_IP -o "StrictHostKeyChecking no" 'echo connected from step in next job'
 
   # - template: .azure-pipelines-templates/configure.yml
