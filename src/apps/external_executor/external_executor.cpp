@@ -515,18 +515,16 @@ namespace externalexecutor
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
+      // TODO: Meeting here
       auto stream = [this](
                       ccf::endpoints::EndpointContext& ctx,
-                      google::protobuf::Empty&& payload) {
-        // Dummy streaming endpoint
-
+                      // TODO: Pass responder_lookup as argument here
+                      google::protobuf::Empty&& payload, ) {
         auto stream = ccf::grpc::make_detached_stream<
           externalexecutor::protobuf::KVKeyValue>(
           ctx.rpc_ctx, responder_lookup);
         async_send_stream_data(stream);
 
-        // TODO: Fix return value here, which should return either another
-        // object or nothing
         return ccf::grpc::make_success();
       };
 
@@ -539,6 +537,43 @@ namespace externalexecutor
           stream),
         {ccf::no_auth_required})
         .install();
+
+      /**
+       * Meeting notes:
+       *
+       *  - Not external APIs (only for us), including all of gRPC
+       *    - Separate namespace, research, hazmat but not experimental (for
+       other APIs too, e.g. get_globally_committed) vs. internal (used by us,
+       and we'll probably keep forever)
+       *
+       *
+       *  - Classic vs. detached stream
+       *    - Detached can be closed, copied over and has close_callback
+       *
+       *  - Auth:
+       *
+       *  - Wrappers:
+       *    - auto server_stream = [this](
+                      ccf::endpoints::EndpointContext& ctx,
+                      google::protobuf::Empty&& payload,
+                      ccf::grpc::OutStream<KVKeyValue>&& out_stream)
+
+            - auto client_stream = [this](
+                      ccf::endpoints::EndpointContext& ctx,
+                      ccf::grpc::InStream<KVKeyValue>&& in_stream,
+                      google::protobuf::Empty&& payload) {
+                        auto msg = is_stream->read();
+
+                        // TODO: Do we get a new kv::Tx for each incoming
+       message? probably not with this programming model
+                      }
+
+            - auto bidi_stream = [this](
+                      ccf::endpoints::EndpointContext& ctx,
+                      ccf::grpc::InStream<KVKeyValue>&& in_stream,
+                      ccf::grpc::OutStream<KVKeyValue>&& out_stream)
+       *
+       */
     }
 
     void queue_request_for_external_execution(
@@ -637,6 +672,7 @@ namespace externalexecutor
 
       install_kv_service();
 
+      // TODO: Meeting here
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
                               std::vector<temp::OpIn>&& payload) {
