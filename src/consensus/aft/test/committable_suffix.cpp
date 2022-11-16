@@ -476,9 +476,10 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 // losing any committed state.
 DOCTEST_TEST_CASE("Multi-term divergence")
 {
-  logger::config::level() = logger::INFO;
+  logger::config::default_init();
+  logger::config::level() = logger::TRACE;
 
-  const auto seed = time(NULL);
+  const auto seed = 1668601152;
   DOCTEST_INFO("Using seed: ", seed);
   srand(seed);
 
@@ -774,6 +775,30 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       // matching index, followed by O(N) to catch up from there.
       return term_length + log_length;
     };
+
+    auto dump_node = [](auto& raft_node) {
+      const auto last_idx = raft_node.get_last_idx();
+      LOG_FAIL_FMT("  last_idx: {}", last_idx);
+      std::vector<aft::Index> view_history =
+        raft_node.get_view_history(last_idx);
+      LOG_FAIL_FMT("  view_history: {}", fmt::join(view_history, ", "));
+      std::vector<std::string> tx_ids;
+      for (auto idx = 1; idx <= raft_node.get_last_idx(); ++idx)
+      {
+        auto view = raft_node.get_view(idx);
+        tx_ids.push_back(fmt::format("{}.{}", view, idx));
+      }
+      LOG_FAIL_FMT("  Tx IDs: {}", fmt::join(tx_ids, ", "));
+    };
+
+    LOG_FAIL_FMT(
+      "Before bringing everyone up-to-date, here's the ledger on each node");
+    LOG_FAIL_FMT("A:");
+    dump_node(rA);
+    LOG_FAIL_FMT("B:");
+    dump_node(rB);
+    LOG_FAIL_FMT("C:");
+    dump_node(rC);
 
     // Dispatch messages until coherence, bounded by expected max iterations
     auto iterations = 0;
