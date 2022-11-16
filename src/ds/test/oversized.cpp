@@ -168,7 +168,9 @@ TEST_CASE("Reconstruction" * doctest::test_suite("oversized"))
     streams.push_back({descending, 2, 0});
     streams.push_back({descending, 3, 0});
 
-    srand(0x42);
+    const auto seed = time(NULL);
+    INFO("Using seed: ", seed);
+    srand(seed);
 
     while (!streams.empty())
     {
