@@ -32,7 +32,8 @@ Command-Line Tool
 #################
 
 For the default analysis of the command line tool you need to run the 
-following command from the :ccf_repo:`tests/perf-system/analysis/` 
+following command from the :ccf_repo:`tests/perf-system/analyze/` 
+
 directory:
 
 .. code-block:: bash
