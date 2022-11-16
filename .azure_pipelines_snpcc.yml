@@ -78,6 +78,7 @@ jobs:
       SSH_PKEY: $[ dependencies.deploy_aci.outputs['deploy.sshPKey'] ]
     steps:
       - script: |
+          mkdir ~/.ssh/
           echo $SSH_KEY > ~/.ssh/id_rsa.pub
           echo $SSH_PKEY > ~/.ssh/id_rsa
           ssh root@$ACI_IP -o "StrictHostKeyChecking no" 'echo connected from step in next job'
