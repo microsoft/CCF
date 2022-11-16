@@ -1,7 +1,7 @@
 {
   "enclave": {
-    "file": "libjs_generic.enclave.so.signed",
-    "type": "Release"
+    "file": "/datadrive/git/CCF/build/samples/apps/logging/liblogging.enclave.so.debuggable",
+    "type": "Debug"
   },
   "network": {
     "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
@@ -14,12 +14,6 @@
       }
     }
   },
-  "node_certificate": {
-    "subject_name": "CN=CCF Node",
-    "subject_alt_names": ["iPAddress:127.0.0.1", "dNSName:ccf.dummy.com"],
-    "curve_id": "Secp384R1",
-    "initial_validity_days": 1
-  },
   "command": {
     "type": "Join",
     "service_certificate_file": "service_cert.pem",
@@ -28,44 +22,8 @@
       "target_rpc_address": "127.0.0.1:8080"
     }
   },
-  "ledger": {
-    "directory": "ledger",
-    "read_only_directories": [],
-    "chunk_size": "5MB"
-  },
   "snapshots": {
     "directory": "snapshots",
     "tx_count": 10000
-  },
-  "logging": {
-    "host_level": "Info",
-    "format": "Text"
-  },
-  "consensus": {
-    "type": "CFT",
-    "message_timeout": "100ms",
-    "election_timeout": "4000ms"
-  },
-  "ledger_signatures": {
-    "tx_count": 5000,
-    "delay": "1s"
-  },
-  "jwt": {
-    "key_refresh_interval": "30min"
-  },
-  "output_files": {
-    "node_certificate_file": "node.pem",
-    "pid_file": "node.pid",
-    "node_to_node_address_file": "node.node_address",
-    "rpc_addresses_file": "node.rpc_addresses"
-  },
-  "tick_interval": "1ms",
-  "slow_io_logging_threshold": "10000us",
-  "client_connection_timeout": "2000ms",
-  "worker_threads": 0,
-  "memory": {
-    "circuit_size": "4MB",
-    "max_msg_size": "16MB",
-    "max_fragment_size": "64KB"
   }
 }
