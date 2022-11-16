@@ -24,6 +24,43 @@
  * primarily the to-be-signed bytes hashing.
  */
 
+/*
+ * Public function. See t_cose_util.h
+ */
+bool signature_algorithm_id_is_supported(int32_t cose_algorithm_id)
+{
+    return (cose_algorithm_id == COSE_ALGORITHM_ES256)
+#ifndef T_COSE_DISABLE_ES384
+           || (cose_algorithm_id == COSE_ALGORITHM_ES384)
+#endif
+#ifndef T_COSE_DISABLE_ES512
+           || (cose_algorithm_id == COSE_ALGORITHM_ES512)
+#endif
+#ifndef T_COSE_DISABLE_PS256
+           || (cose_algorithm_id == COSE_ALGORITHM_PS256)
+#endif
+#ifndef T_COSE_DISABLE_PS384
+           || (cose_algorithm_id == COSE_ALGORITHM_PS384)
+#endif
+#ifndef T_COSE_DISABLE_PS512
+           || (cose_algorithm_id == COSE_ALGORITHM_PS512)
+#endif
+#ifndef T_COSE_DISABLE_EDDSA
+           || (cose_algorithm_id == COSE_ALGORITHM_EDDSA)
+#endif
+           ;
+}
+
+/*
+ * Public function.
+ *
+ * This is declared in t_cose_common.h, but there is no t_cose_common.c,
+ * so this little function is put here.*/
+bool
+t_cose_is_algorithm_supported(int32_t cose_algorithm_id)
+{
+    return t_cose_crypto_is_algorithm_supported(cose_algorithm_id);
+}
 
 /*
  * Public function. See t_cose_util.h
@@ -45,11 +82,47 @@ int32_t hash_alg_id_from_sig_alg_id(int32_t cose_algorithm_id)
 #ifndef T_COSE_DISABLE_ES512
            cose_algorithm_id == COSE_ALGORITHM_ES512 ? COSE_ALGORITHM_SHA_512 :
 #endif
+#ifndef T_COSE_DISABLE_PS256
+           cose_algorithm_id == COSE_ALGORITHM_PS256 ? COSE_ALGORITHM_SHA_256 :
+#endif
+#ifndef T_COSE_DISABLE_PS384
+           cose_algorithm_id == COSE_ALGORITHM_PS384 ? COSE_ALGORITHM_SHA_384 :
+#endif
+#ifndef T_COSE_DISABLE_PS512
+           cose_algorithm_id == COSE_ALGORITHM_PS512 ? COSE_ALGORITHM_SHA_512 :
+#endif
                                                        T_COSE_INVALID_ALGORITHM_ID;
 }
 
+/*
+ * Public function. See t_cose_util.h
+ */
+enum t_cose_err_t
+create_tbs(struct q_useful_buf_c  protected_parameters,
+           struct q_useful_buf_c  aad,
+           struct q_useful_buf_c  payload,
+           struct q_useful_buf    buffer_for_tbs,
+           struct q_useful_buf_c *tbs)
+{
+    QCBOREncodeContext  cbor_context;
+    QCBOREncode_Init(&cbor_context, buffer_for_tbs);
 
+    QCBOREncode_OpenArray(&cbor_context);
+    QCBOREncode_AddSZString(&cbor_context, COSE_SIG_CONTEXT_STRING_SIGNATURE1);
+    QCBOREncode_AddBytes(&cbor_context, protected_parameters);
+    QCBOREncode_AddBytes(&cbor_context, aad);
+    QCBOREncode_AddBytes(&cbor_context, payload);
+    QCBOREncode_CloseArray(&cbor_context);
 
+    QCBORError cbor_err = QCBOREncode_Finish(&cbor_context, tbs);
+    if (cbor_err == QCBOR_ERR_BUFFER_TOO_SMALL) {
+        return T_COSE_ERR_TOO_SMALL;
+    } else if (cbor_err != QCBOR_SUCCESS) {
+        return T_COSE_ERR_CBOR_FORMATTING;
+    } else {
+        return T_COSE_SUCCESS;
+    }
+}
 
 /**
  * \brief Hash an encoded bstr without actually encoding it in memory
@@ -126,6 +199,11 @@ enum t_cose_err_t create_tbs_hash(int32_t                cose_algorithm_id,
 
     /* Start the hashing */
     hash_alg_id = hash_alg_id_from_sig_alg_id(cose_algorithm_id);
+    if (hash_alg_id == T_COSE_INVALID_ALGORITHM_ID) {
+        return_value = T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
+        goto Done;
+    }
+
     /* Don't check hash_alg_id for failure. t_cose_crypto_hash_start()
      * will handle error properly. It was also checked earlier.
      */
@@ -206,4 +284,5 @@ struct q_useful_buf_c get_short_circuit_kid(void)
 
     return short_circuit_kid;
 }
+
 #endif
