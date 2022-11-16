@@ -26,7 +26,7 @@ STARTUP_COMMANDS = {
         "service ssh restart",
         "mkdir /root/.ssh",
         f"echo {HOST_PUB_KEY} >> /root/.ssh/authorized_keys",
-        f"echo {args.aci_dynamic_agent_password} | passwd root"
+        f"echo \"{args.aci_dynamic_agent_password}\n{args.aci_dynamic_agent_password}\" | passwd root"
     ],
     "static-agent": lambda args, i: [
         "apt-get install wget",
