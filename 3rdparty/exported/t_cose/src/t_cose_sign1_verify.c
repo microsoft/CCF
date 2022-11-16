@@ -1,7 +1,7 @@
 /*
  *  t_cose_sign1_verify.c
  *
- * Copyright 2019-2021, Laurence Lundblade
+ * Copyright 2019-2022, Laurence Lundblade
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -19,6 +19,7 @@
 #include "t_cose_crypto.h"
 #include "t_cose_util.h"
 #include "t_cose_parameters.h"
+#include "t_cose_short_circuit.h"
 
 
 
@@ -27,50 +28,6 @@
  *
  * \brief \c COSE_Sign1 verification implementation.
  */
-
-
-
-#ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
-/**
- * \brief Verify a short-circuit signature
- *
- * \param[in] hash_to_verify  Pointer and length of hash to verify.
- * \param[in] signature       Pointer and length of signature.
- *
- * \return This returns one of the error codes defined by \ref
- *         t_cose_err_t.
- *
- * See t_cose_sign1_sign_init() for description of the short-circuit
- * signature.
- */
-static inline enum t_cose_err_t
-t_cose_crypto_short_circuit_verify(struct q_useful_buf_c hash_to_verify,
-                                   struct q_useful_buf_c signature)
-{
-    /* Aproximate stack usage
-     *                                             64-bit      32-bit
-     *   local vars                                    24          12
-     *   TOTAL                                         24          12
-     */
-    struct q_useful_buf_c hash_from_sig;
-    enum t_cose_err_t     return_value;
-
-    hash_from_sig = q_useful_buf_head(signature, hash_to_verify.len);
-    if(q_useful_buf_c_is_null(hash_from_sig)) {
-        return_value = T_COSE_ERR_SIG_VERIFY;
-        goto Done;
-    }
-
-    if(q_useful_buf_compare(hash_from_sig, hash_to_verify)) {
-        return_value = T_COSE_ERR_SIG_VERIFY;
-    } else {
-        return_value = T_COSE_SUCCESS;
-    }
-
-Done:
-    return return_value;
-}
-#endif /* T_COSE_DISABLE_SHORT_CIRCUIT_SIGN */
 
 
 /**
@@ -187,6 +144,213 @@ qcbor_decode_error_to_t_cose_error(QCBORError qcbor_error)
 }
 
 
+#ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
+/**
+ * \brief Verify the short-circuit signature of a COSE_Sign1 message.
+ *
+ * \param[in] me                   The t_cose signature verification context.
+ * \param[in] parameters           The previously decoded parameters from the message.
+ * \param[in] protected_parameters Full, CBOR encoded, protected parameters.
+ * \param[in] aad                  The Additional Authenticated Data or \c NULL_Q_USEFUL_BUF_C.
+ * \param[in] payload              Pointer and length of the message's payload.
+ * \param[in] signature            Pointer and length of the message's signature.
+ *
+ * \return This returns one of the error codes defined by \ref t_cose_err_t.
+ *
+ * This function always succeeds if the \ref T_COSE_OPT_DECODE_ONLY
+ * flag is set.
+ *
+ * No actual cryptographic algorithm is used, and a successful
+ * verification does not provide any security guarantees. To avoid
+ * accidental bypass of signature verification, the \ref T_COSE_OPT_ALLOW_SHORT_CIRCUIT
+ * flag must be set in the verification context.
+ */
+static inline enum t_cose_err_t
+sign1_verify_short_circuit(struct t_cose_sign1_verify_ctx *me,
+                           const struct t_cose_parameters *parameters,
+                           struct q_useful_buf_c           signature,
+                           struct q_useful_buf_c           protected_parameters,
+                           struct q_useful_buf_c           aad,
+                           struct q_useful_buf_c           payload)
+{
+    enum t_cose_err_t          return_value;
+    Q_USEFUL_BUF_MAKE_STACK_UB(buffer_for_tbs_hash, T_COSE_CRYPTO_MAX_HASH_SIZE);
+    struct q_useful_buf_c      tbs_hash;
+
+    if(me->option_flags & T_COSE_OPT_DECODE_ONLY) {
+        return_value = T_COSE_SUCCESS;
+        goto Done;
+    }
+
+    if(!(me->option_flags & T_COSE_OPT_ALLOW_SHORT_CIRCUIT)) {
+        return_value = T_COSE_ERR_SHORT_CIRCUIT_SIG;
+        goto Done;
+    }
+
+    /* -- Compute the TBS hash -- */
+    return_value = create_tbs_hash(parameters->cose_algorithm_id,
+                                   protected_parameters,
+                                   aad,
+                                   payload,
+                                   buffer_for_tbs_hash,
+                                   &tbs_hash);
+    if(return_value) {
+        goto Done;
+    }
+
+    return_value = t_cose_crypto_short_circuit_verify(tbs_hash, signature);
+
+Done:
+    return return_value;
+}
+#endif /* T_COSE_DISABLE_SHORT_CIRCUIT_SIGN */
+
+
+#ifndef T_COSE_DISABLE_EDDSA
+/**
+ * \brief Verify the EDDSA signature from a COSE_Sign1 message.
+ *
+ * \param[in] me                   The t_cose signature verification context.
+ * \param[in] parameters           The previously decoded parameters from the message.
+ * \param[in] protected_parameters Full, CBOR encoded, protected parameters.
+ * \param[in] aad                  The Additional Authenticated Data or \c NULL_Q_USEFUL_BUF_C.
+ * \param[in] payload              Pointer and length of the message's payload.
+ * \param[in] signature            Pointer and length of the message's signature.
+ *
+ * \return This returns one of the error codes defined by \ref t_cose_err_t.
+ *
+ * Unlike other algorithms, EDDSA verification requires two passes over
+ * the to-be-signed data, and therefore cannot be performed incrementally.
+ * This function serializes the to-be-signed bytes and uses the crypto
+ * adapter to verify the signature. An auxiliary buffer, used to store
+ * the to-be-signed bytes, must have previously been configured by
+ * calling the \ref t_cose_sign1_verify_set_auxiliary_buffer function.
+ *
+ * Signature verification is skipped if the \ref T_COSE_OPT_DECODE_ONLY
+ * flag is set. This mode can however be used to determine the
+ * necessary size for the auxiliary buffer.
+ */
+static enum t_cose_err_t
+sign1_verify_eddsa(struct t_cose_sign1_verify_ctx *me,
+                   const struct t_cose_parameters *parameters,
+                   struct q_useful_buf_c           signature,
+                   struct q_useful_buf_c           protected_parameters,
+                   struct q_useful_buf_c           aad,
+                   struct q_useful_buf_c           payload)
+{
+    enum t_cose_err_t            return_value;
+    struct q_useful_buf_c        tbs;
+
+    /* We need to serialize the Sig_structure (rather than hashing it
+     * incrementally) before signing. We do this before checking for
+     * the DECODE_ONLY option, as this allows the caller to discover
+     * the necessary buffer size (create_tbs supports a NULL
+     * auxiliary_buffer, and we record the size the structure would
+     * have occupied).
+     */
+    return_value = create_tbs(protected_parameters,
+                              aad,
+                              payload,
+                              me->auxiliary_buffer,
+                             &tbs);
+    if (return_value == T_COSE_ERR_TOO_SMALL) {
+        /* Be a bit more specific about which buffer is too small */
+        return_value = T_COSE_ERR_AUXILIARY_BUFFER_SIZE;
+    }
+    if (return_value) {
+        goto Done;
+    }
+
+    /* Record how much buffer we actually used / would have used,
+     * allowing the caller to allocate an appropriately sized buffer.
+     * This is particularly useful in DECODE_ONLY mode.
+     */
+    me->auxiliary_buffer_size = tbs.len;
+
+    if(me->option_flags & T_COSE_OPT_DECODE_ONLY) {
+        return_value = T_COSE_SUCCESS;
+        goto Done;
+    }
+
+    if (me->auxiliary_buffer.ptr == NULL) {
+        return_value = T_COSE_ERR_NEED_AUXILIARY_BUFFER;
+        goto Done;
+    }
+
+    return_value = t_cose_crypto_verify_eddsa(me->verification_key,
+                                              parameters->kid,
+                                              tbs,
+                                              signature);
+
+Done:
+    return return_value;
+}
+#endif /* T_COSE_DISABLE_EDDSA */
+
+
+/**
+ * \brief Verify the signature from a COSE_Sign1 message, following
+ * the general process which work for most algorithms.
+ *
+ * \param[in] me                   The t_cose signature verification context.
+ * \param[in] parameters           The previously decoded parameters from the message.
+ * \param[in] protected_parameters Full, CBOR encoded, protected parameters.
+ * \param[in] aad                  The Additional Authenticated Data or \c NULL_Q_USEFUL_BUF_C.
+ * \param[in] payload              Pointer and length of the message's payload.
+ * \param[in] signature            Pointer and length of the message's signature.
+ *
+ * \return This returns one of the error codes defined by \ref t_cose_err_t.
+ *
+ * This function always succeeds if the \ref T_COSE_OPT_DECODE_ONLY
+ * flag is set.
+ *
+ * Short-circuit signing or EDDSA signatures, which require a special
+ * procedure, are not supported. See \ref sign1_sign_short_circuit and
+ * \ref sign1_sign_eddsa.
+ */
+static enum t_cose_err_t
+sign1_verify_default(struct t_cose_sign1_verify_ctx *me,
+                     const struct t_cose_parameters *parameters,
+                     struct q_useful_buf_c           signature,
+                     struct q_useful_buf_c           protected_parameters,
+                     struct q_useful_buf_c           aad,
+                     struct q_useful_buf_c           payload)
+{
+    enum t_cose_err_t          return_value;
+    Q_USEFUL_BUF_MAKE_STACK_UB(buffer_for_tbs_hash, T_COSE_CRYPTO_MAX_HASH_SIZE);
+    struct q_useful_buf_c      tbs_hash;
+
+    if(me->option_flags & T_COSE_OPT_DECODE_ONLY) {
+        return_value = T_COSE_SUCCESS;
+        goto Done;
+    }
+
+    /* -- Compute the TBS hash -- */
+    return_value = create_tbs_hash(parameters->cose_algorithm_id,
+                                   protected_parameters,
+                                   aad,
+                                   payload,
+                                   buffer_for_tbs_hash,
+                                   &tbs_hash);
+    if(return_value) {
+        goto Done;
+    }
+
+    /* -- Call crypto adapter to verify the signature -- */
+    return_value = t_cose_crypto_verify(parameters->cose_algorithm_id,
+                                        me->verification_key,
+                                        parameters->kid,
+                                        tbs_hash,
+                                        signature);
+
+Done:
+    return return_value;
+}
+
+
+/*
+ * Semi-private function. See t_cose_sign1_verify.h
+ */
 enum t_cose_err_t
 t_cose_sign1_verify_internal(struct t_cose_sign1_verify_ctx *me,
                              struct q_useful_buf_c           cose_sign1,
@@ -211,12 +375,11 @@ t_cose_sign1_verify_internal(struct t_cose_sign1_verify_ctx *me,
     QCBORDecodeContext            decode_context;
     struct q_useful_buf_c         protected_parameters;
     enum t_cose_err_t             return_value;
-    Q_USEFUL_BUF_MAKE_STACK_UB(   buffer_for_tbs_hash, T_COSE_CRYPTO_MAX_HASH_SIZE);
-    struct q_useful_buf_c         tbs_hash;
     struct q_useful_buf_c         signature;
     struct t_cose_label_list      critical_parameter_labels;
     struct t_cose_label_list      unknown_parameter_labels;
     struct t_cose_parameters      parameters;
+    struct q_useful_buf_c         signed_payload;
     QCBORError                    qcbor_error;
 #ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
     struct q_useful_buf_c         short_circuit_kid;
@@ -265,6 +428,7 @@ t_cose_sign1_verify_internal(struct t_cose_sign1_verify_ctx *me,
 
     /* --- The payload --- */
     if(is_dc) {
+        signed_payload = *payload;
         QCBORItem tmp;
         QCBORDecode_GetNext(&decode_context, &tmp);
         if (tmp.uDataType != QCBOR_TYPE_NULL) {
@@ -272,10 +436,10 @@ t_cose_sign1_verify_internal(struct t_cose_sign1_verify_ctx *me,
             goto Done;
         }
         /* In detached content mode, the payload should be set by
-         * function caller, so there is no need to set tye payload.
+         * function caller, so there is no need to set the payload.
          */
     } else {
-        QCBORDecode_GetByteString(&decode_context, payload);
+        QCBORDecode_GetByteString(&decode_context, &signed_payload);
     }
 
     /* --- The signature --- */
@@ -308,54 +472,34 @@ t_cose_sign1_verify_internal(struct t_cose_sign1_verify_ctx *me,
         goto Done;
     }
 
-
-    /* -- Skip signature verification if requested --*/
-    if(me->option_flags & T_COSE_OPT_DECODE_ONLY) {
-        return_value = T_COSE_SUCCESS;
-        goto Done;
-    }
-
-
-    /* -- Compute the TBS bytes -- */
-    return_value = create_tbs_hash(parameters.cose_algorithm_id,
-                                   protected_parameters,
-                                   aad,
-                                   *payload,
-                                   buffer_for_tbs_hash,
-                                   &tbs_hash);
-    if(return_value) {
-        goto Done;
-    }
-
-
-    /* -- Check for short-circuit signature and verify if it exists -- */
 #ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
     short_circuit_kid = get_short_circuit_kid();
     if(!q_useful_buf_compare(parameters.kid, short_circuit_kid)) {
-        if(!(me->option_flags & T_COSE_OPT_ALLOW_SHORT_CIRCUIT)) {
-            return_value = T_COSE_ERR_SHORT_CIRCUIT_SIG;
-            goto Done;
-        }
-
-        return_value = t_cose_crypto_short_circuit_verify(tbs_hash, signature);
+        return_value = sign1_verify_short_circuit(me, &parameters, signature, protected_parameters, aad, signed_payload);
         goto Done;
     }
 #endif /* T_COSE_DISABLE_SHORT_CIRCUIT_SIGN */
 
+#ifndef T_COSE_DISABLE_EDDSA
+    if (parameters.cose_algorithm_id == COSE_ALGORITHM_EDDSA) {
+        return_value = sign1_verify_eddsa(me, &parameters, signature, protected_parameters, aad, signed_payload);
+        goto Done;
+    }
+#endif
 
-    /* -- Verify the signature (if it wasn't short-circuit) -- */
-    return_value = t_cose_crypto_verify(parameters.cose_algorithm_id,
-                                        me->verification_key,
-                                        parameters.kid,
-                                        tbs_hash,
-                                        signature);
+    return_value = sign1_verify_default(me, &parameters, signature, protected_parameters, aad, signed_payload);
 
 Done:
-    if(returned_parameters != NULL) {
-        *returned_parameters = parameters;
+    if (return_value == T_COSE_SUCCESS)
+    {
+        if(returned_parameters != NULL) {
+            *returned_parameters = parameters;
+        }
+        if(!is_dc && payload != NULL) {
+            *payload = signed_payload;
+        }
     }
 
     return return_value;
-
 }
 

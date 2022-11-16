@@ -13,7 +13,12 @@
 #include "t_cose_standard_constants.h"
 #include "t_cose_crypto.h"
 #include "t_cose_util.h"
+#include "t_cose_short_circuit.h"
 
+#ifndef QCBOR_1_1
+// The OpenBytes API we use was only added in 1.1.
+#error t_cose requires QCBOR 1.1 or greater
+#endif
 
 /**
  * \file t_cose_sign1_sign.c
@@ -43,90 +48,17 @@
 #error COSE algorithm identifier definitions are in error
 #endif
 
+#if T_COSE_ALGORITHM_PS256 != COSE_ALGORITHM_PS256
+#error COSE algorithm identifier definitions are in error
+#endif
 
-#ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
-static inline enum t_cose_err_t
-short_circuit_sig_size(int32_t            cose_algorithm_id,
-                       size_t            *sig_size)
-{
-    *sig_size = cose_algorithm_id == COSE_ALGORITHM_ES256 ? T_COSE_EC_P256_SIG_SIZE :
-                cose_algorithm_id == COSE_ALGORITHM_ES384 ? T_COSE_EC_P384_SIG_SIZE :
-                cose_algorithm_id == COSE_ALGORITHM_ES512 ? T_COSE_EC_P512_SIG_SIZE :
-                0;
+#if T_COSE_ALGORITHM_PS384 != COSE_ALGORITHM_PS384
+#error COSE algorithm identifier definitions are in error
+#endif
 
-    return sig_size == 0 ? T_COSE_ERR_UNSUPPORTED_SIGNING_ALG : T_COSE_SUCCESS;
-}
-
-
-
-
-/**
- * \brief Create a short-circuit signature
- *
- * \param[in] cose_algorithm_id Algorithm ID. This is used only to make
- *                              the short-circuit signature the same size
- *                              as the real signature would be for the
- *                              particular algorithm.
- * \param[in] hash_to_sign      The bytes to sign. Typically, a hash of
- *                              a payload.
- * \param[in] signature_buffer  Pointer and length of buffer into which
- *                              the resulting signature is put.
- * \param[in] signature         Pointer and length of the signature
- *                              returned.
- *
- * \return This returns one of the error codes defined by \ref t_cose_err_t.
- *
- * This creates the short-circuit signature that is a concatenation of
- * hashes up to the expected size of the signature. This is a test
- * mode only has it has no security value. This is retained in
- * commercial production code as a useful test or demo that can run
- * even if key material is not set up or accessible.
- */
-static inline enum t_cose_err_t
-short_circuit_sign(int32_t               cose_algorithm_id,
-                   struct q_useful_buf_c hash_to_sign,
-                   struct q_useful_buf   signature_buffer,
-                   struct q_useful_buf_c *signature)
-{
-    /* approximate stack use on 32-bit machine: local use: 16 bytes
-     */
-    enum t_cose_err_t return_value;
-    size_t            array_indx;
-    size_t            amount_to_copy;
-    size_t            sig_size;
-
-    return_value = short_circuit_sig_size(cose_algorithm_id, &sig_size);
-
-    /* Check the signature length against buffer size */
-    if(return_value != T_COSE_SUCCESS) {
-        goto Done;
-    }
-
-    if(sig_size > signature_buffer.len) {
-        /* Buffer too small for this signature type */
-        return_value = T_COSE_ERR_SIG_BUFFER_SIZE;
-        goto Done;
-    }
-
-    /* Loop concatening copies of the hash to fill out to signature size */
-    for(array_indx = 0; array_indx < sig_size; array_indx += hash_to_sign.len) {
-        amount_to_copy = sig_size - array_indx;
-        if(amount_to_copy > hash_to_sign.len) {
-            amount_to_copy = hash_to_sign.len;
-        }
-        memcpy((uint8_t *)signature_buffer.ptr + array_indx,
-               hash_to_sign.ptr,
-               amount_to_copy);
-    }
-    signature->ptr = signature_buffer.ptr;
-    signature->len = sig_size;
-    return_value   = T_COSE_SUCCESS;
-
-Done:
-    return return_value;
-}
-#endif /* T_COSE_DISABLE_SHORT_CIRCUIT_SIGN */
-
+#if T_COSE_ALGORITHM_PS512 != COSE_ALGORITHM_PS512
+#error COSE algorithm identifier definitions are in error
+#endif
 
 /**
  * \brief  Makes the protected header parameters for COSE.
@@ -243,13 +175,8 @@ t_cose_sign1_encode_parameters_internal(struct t_cose_sign1_sign_ctx *me,
 {
     enum t_cose_err_t      return_value;
     struct q_useful_buf_c  kid;
-    int32_t                hash_alg_id;
 
-    /* Check the cose_algorithm_id now by getting the hash alg as an
-     * early error check even though it is not used until later.
-     */
-    hash_alg_id = hash_alg_id_from_sig_alg_id(me->cose_algorithm_id);
-    if(hash_alg_id == T_COSE_INVALID_ALGORITHM_ID) {
+    if (!signature_algorithm_id_is_supported(me->cose_algorithm_id)) {
         return T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
     }
 
@@ -300,6 +227,218 @@ Done:
     return return_value;
 }
 
+#ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
+/**
+ * \brief Compute the short-circuit signature for a COSE_Sign1 message.
+ *
+ * \param[in] me                    The t_cose signing context.
+ * \param[in] aad                   The Additional Authenticated Data or \c NULL_Q_USEFUL_BUF_C.
+ * \param[in] payload               Pointer and length of payload to sign.
+ * \param[in] buffer_for_signature  Pointer and length of buffer to output to.
+ * \param[out] signature            Pointer and length of the resulting signature.
+ *
+ * \returns An error of type \ref t_cose_err_t.
+ *
+ * This function does not actually perform any kind of cryptographic
+ * signature, and should only be used as a test mode.
+ *
+ * If \c buffer_for_signature contains a \c NULL pointer, this function
+ * will compute the necessary size, and set \c signature accordingly.
+ */
+static inline enum t_cose_err_t
+sign1_sign_short_circuit(struct t_cose_sign1_sign_ctx *me,
+                         struct q_useful_buf_c         aad,
+                         struct q_useful_buf_c         payload,
+                         struct q_useful_buf           buffer_for_signature,
+                         struct q_useful_buf_c         *signature)
+{
+    enum t_cose_err_t            return_value;
+
+    Q_USEFUL_BUF_MAKE_STACK_UB(  buffer_for_tbs_hash, T_COSE_CRYPTO_MAX_HASH_SIZE);
+    struct q_useful_buf_c        tbs_hash;
+
+    /* Create the hash of the to-be-signed bytes. Inputs to the
+     * hash are the protected parameters, the payload that is
+     * getting signed, the cose signature alg from which the hash
+     * alg is determined. The cose_algorithm_id was checked in
+     * t_cose_sign1_init() so it doesn't need to be checked here.
+     */
+    return_value = create_tbs_hash(me->cose_algorithm_id,
+                                   me->protected_parameters,
+                                   aad,
+                                   payload,
+                                   buffer_for_tbs_hash,
+                                   &tbs_hash);
+    if (return_value) {
+        goto Done;
+    }
+
+    if (buffer_for_signature.ptr == NULL) {
+        /* Output size calculation. Only need signature size. */
+        signature->ptr = NULL;
+        return_value = short_circuit_sig_size(me->cose_algorithm_id, &signature->len);
+    } else {
+        /* Perform the a short circuit signing */
+        return_value = short_circuit_sign(me->cose_algorithm_id,
+                                          tbs_hash,
+                                          buffer_for_signature,
+                                          signature);
+    }
+
+Done:
+    return return_value;
+}
+#endif /* T_COSE_DISABLE_SHORT_CIRCUIT_SIGN */
+
+#ifndef T_COSE_DISABLE_EDDSA
+/**
+ * \brief Compute an EDDSA signature for a COSE_Sign1 message.
+ *
+ * \param[in] me                    The t_cose signing context.
+ * \param[in] aad                   The Additional Authenticated Data or \c NULL_Q_USEFUL_BUF_C.
+ * \param[in] payload               Pointer and length of payload to sign.
+ * \param[in] buffer_for_signature  Pointer and length of buffer to output to.
+ * \param[out] signature            Pointer and length of the resulting signature.
+ *
+ * \returns An error of type \ref t_cose_err_t.
+ *
+ * Unlike other algorithms, EDDSA signing requires two passes over the
+ * to-be-signed data, and therefore cannot be performed incrementally.
+ * This function serializes the to-be-signed bytes and uses the crypto
+ * adapter to compute the signature over them. An auxiliary buffer,
+ * used to store the to-be-signed bytes, must have previously been
+ * configured by calling the \ref t_cose_sign1_sign_set_auxiliary_buffer
+ * function.
+ *
+ * If \c buffer_for_signature contains a \c NULL pointer, this function
+ * will compute the necessary size, and update \c signature accordingly.
+ */
+static inline enum t_cose_err_t
+sign1_sign_eddsa(struct t_cose_sign1_sign_ctx *me,
+                 struct q_useful_buf_c         aad,
+                 struct q_useful_buf_c         payload,
+                 struct q_useful_buf           buffer_for_signature,
+                 struct q_useful_buf_c        *signature)
+{
+    enum t_cose_err_t            return_value;
+    struct q_useful_buf_c        tbs;
+
+    /* Serialize the TBS data into the auxiliary buffer.
+     * If auxiliary_buffer.ptr is NULL this will succeed, computing
+     * the necessary size.
+     */
+    return_value = create_tbs(me->protected_parameters,
+                              aad,
+                              payload,
+                              me->auxiliary_buffer,
+                             &tbs);
+    if (return_value == T_COSE_ERR_TOO_SMALL) {
+        /* Be a bit more specific about which buffer is too small */
+        return_value = T_COSE_ERR_AUXILIARY_BUFFER_SIZE;
+    }
+    if (return_value) {
+        goto Done;
+    }
+
+    /* Record how much buffer we actually used / would have used,
+     * allowing the caller to allocate an appropriately sized buffer.
+     * This is particularly useful when buffer_for_signature.ptr is
+     * NULL and no signing is actually taking place yet.
+     */
+    me->auxiliary_buffer_size = tbs.len;
+
+    if (buffer_for_signature.ptr == NULL) {
+        /* Output size calculation. Only need signature size. */
+        signature->ptr = NULL;
+        return_value  = t_cose_crypto_sig_size(me->cose_algorithm_id,
+                                               me->signing_key,
+                                              &signature->len);
+    } else if (me->auxiliary_buffer.ptr == NULL) {
+        /* Without a real auxiliary buffer, we have nothing to sign. */
+        return_value = T_COSE_ERR_NEED_AUXILIARY_BUFFER;
+    } else {
+        /* Perform the public key signing over the TBS bytes we just
+         * serialized.
+         */
+        return_value = t_cose_crypto_sign_eddsa(me->signing_key,
+                                                tbs,
+                                                buffer_for_signature,
+                                                signature);
+    }
+
+Done:
+    return return_value;
+}
+#endif /* T_COSE_DISABLE_EDDSA */
+
+/**
+ * \brief Compute a signature for a COSE_Sign1 message, following the
+ * general procedure which works for most algorithms.
+ *
+ * \param[in] me                    The t_cose signing context.
+ * \param[in] aad                   The Additional Authenticated Data or \c NULL_Q_USEFUL_BUF_C.
+ * \param[in] payload               Pointer and length of payload to sign.
+ * \param[in] buffer_for_signature  Pointer and length of buffer to output to.
+ * \param[out] signature            Pointer and length of the resulting signature.
+ *
+ * \returns An error of type \ref t_cose_err_t.
+ *
+ * The message's to-be-signed bytes are hashed incrementally using the
+ * chosen algorithm's digest function, and the result is signed by the
+ * crypto adapter.
+ *
+ * This function does not support short-circuit signing or EDDSA
+ * signatures, which require a special procedure. See
+ * \ref sign1_sign_short_circuit and \ref sign1_sign_eddsa.
+ *
+ * If \c buffer_for_signature contains a \c NULL pointer, this function
+ * will compute the necessary size, and update \c signature accordingly.
+ */
+static inline enum t_cose_err_t
+sign1_sign_default(struct t_cose_sign1_sign_ctx *me,
+                   struct q_useful_buf_c         aad,
+                   struct q_useful_buf_c         payload,
+                   struct q_useful_buf           buffer_for_signature,
+                   struct q_useful_buf_c        *signature)
+{
+    enum t_cose_err_t            return_value;
+    Q_USEFUL_BUF_MAKE_STACK_UB(  buffer_for_tbs_hash, T_COSE_CRYPTO_MAX_HASH_SIZE);
+    struct q_useful_buf_c        tbs_hash;
+
+    /* Create the hash of the to-be-signed bytes. Inputs to the
+     * hash are the protected parameters, the payload that is
+     * getting signed, the cose signature alg from which the hash
+     * alg is determined. The cose_algorithm_id was checked in
+     * t_cose_sign1_init() so it doesn't need to be checked here.
+     */
+    return_value = create_tbs_hash(me->cose_algorithm_id,
+                                   me->protected_parameters,
+                                   aad,
+                                   payload,
+                                   buffer_for_tbs_hash,
+                                   &tbs_hash);
+    if (return_value) {
+        goto Done;
+    }
+
+    if (buffer_for_signature.ptr == NULL) {
+        /* Output size calculation. Only need signature size. */
+        signature->ptr = NULL;
+        return_value  = t_cose_crypto_sig_size(me->cose_algorithm_id,
+                                               me->signing_key,
+                                              &signature->len);
+    } else {
+        /* Perform the public key signing */
+        return_value = t_cose_crypto_sign(me->cose_algorithm_id,
+                                          me->signing_key,
+                                          tbs_hash,
+                                          buffer_for_signature,
+                                          signature);
+    }
+
+Done:
+    return return_value;
+}
 
 /*
  * Semi-private function. See t_cose_sign1_sign.h
@@ -312,16 +451,11 @@ t_cose_sign1_encode_signature_aad_internal(struct t_cose_sign1_sign_ctx *me,
 {
     enum t_cose_err_t            return_value;
     QCBORError                   cbor_err;
-    /* pointer and length of the completed tbs hash */
-    struct q_useful_buf_c        tbs_hash;
     /* Pointer and length of the completed signature */
     struct q_useful_buf_c        signature;
-    /* Buffer for the actual signature */
-    Q_USEFUL_BUF_MAKE_STACK_UB(  buffer_for_signature, T_COSE_MAX_SIG_SIZE);
-    /* Buffer for the tbs hash. */
-    Q_USEFUL_BUF_MAKE_STACK_UB(  buffer_for_tbs_hash, T_COSE_CRYPTO_MAX_HASH_SIZE);
+    /* Pointer and length of the buffer for the signature */
+    struct q_useful_buf          buffer_for_signature;
     struct q_useful_buf_c        signed_payload;
-
 
     if(q_useful_buf_c_is_null(detached_payload)) {
         QCBOREncode_CloseBstrWrap2(cbor_encode_ctx, false, &signed_payload);
@@ -343,72 +477,47 @@ t_cose_sign1_encode_signature_aad_internal(struct t_cose_sign1_sign_ctx *me,
         goto Done;
     }
 
-    /* Create the hash of the to-be-signed bytes. Inputs to the
-     * hash are the protected parameters, the payload that is
-     * getting signed, the cose signature alg from which the hash
-     * alg is determined. The cose_algorithm_id was checked in
-     * t_cose_sign1_init() so it doesn't need to be checked here.
+    /* The signature gets written directly into the output buffer.
+     * The matching QCBOREncode_CloseBytes call further down still needs do a
+     * memmove to make space for the CBOR header, but at least we avoid the need
+     * to allocate an extra buffer.
      */
-    return_value = create_tbs_hash(me->cose_algorithm_id,
-                                   me->protected_parameters,
-                                   aad,
-                                   signed_payload,
-                                   buffer_for_tbs_hash,
-                                   &tbs_hash);
-    if(return_value) {
-        goto Done;
-    }
+    QCBOREncode_OpenBytes(cbor_encode_ctx, &buffer_for_signature);
 
-
-    /* Compute the signature using public key crypto. The key and
-     * algorithm ID are passed in to know how and what to sign
-     * with. The hash of the TBS bytes is what is signed. A buffer
-     * in which to place the signature is passed in and the
-     * signature is returned.
-     *
-     * That or just compute the length of the signature if this
-     * is only an output length computation.
+    /* Sign the message using the appropriate procedure, depending on
+     * the flags and algorithm.
      */
-    if(!(me->option_flags & T_COSE_OPT_SHORT_CIRCUIT_SIG)) {
-        if (QCBOREncode_IsBufferNULL(cbor_encode_ctx)) {
-            /* Output size calculation. Only need signature size. */
-            signature.ptr = NULL;
-            return_value  = t_cose_crypto_sig_size(me->cose_algorithm_id,
-                                                   me->signing_key,
-                                                  &signature.len);
-        } else {
-            /* Perform the public key signing */
-             return_value = t_cose_crypto_sign(me->cose_algorithm_id,
-                                               me->signing_key,
-                                               tbs_hash,
-                                               buffer_for_signature,
-                                              &signature);
-        }
-
 #ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
-    } else {
-        if (QCBOREncode_IsBufferNULL(cbor_encode_ctx)) {
-            /* Output size calculation. Only need signature size. */
-            signature.ptr = NULL;
-            return_value = short_circuit_sig_size(me->cose_algorithm_id,
-                                                  &signature.len);
-        } else {
-            /* Perform the a short circuit signing */
-            return_value = short_circuit_sign(me->cose_algorithm_id,
-                                              tbs_hash,
-                                              buffer_for_signature,
-                                              &signature);
-        }
-#endif /* T_COSE_DISABLE_SHORT_CIRCUIT_SIGN */
+    if (me->option_flags & T_COSE_OPT_SHORT_CIRCUIT_SIG) {
+        return_value = sign1_sign_short_circuit(me,
+                                                aad,
+                                                signed_payload,
+                                                buffer_for_signature,
+                                               &signature);
+    } else
+#endif
+#ifndef T_COSE_DISABLE_EDDSA
+    if (me->cose_algorithm_id == COSE_ALGORITHM_EDDSA) {
+        return_value = sign1_sign_eddsa(me,
+                                        aad,
+                                        signed_payload,
+                                        buffer_for_signature,
+                                       &signature);
+    } else
+#endif
+    {
+        return_value = sign1_sign_default(me,
+                aad,
+                signed_payload,
+                buffer_for_signature,
+                &signature);
     }
 
-    if(return_value != T_COSE_SUCCESS) {
+    if (return_value)
         goto Done;
-    }
-
 
     /* Add signature to CBOR and close out the array */
-    QCBOREncode_AddBytes(cbor_encode_ctx, signature);
+    QCBOREncode_CloseBytes(cbor_encode_ctx, signature.len);
     QCBOREncode_CloseArray(cbor_encode_ctx);
 
     /* The layer above this must check for and handle CBOR encoding
@@ -479,6 +588,15 @@ t_cose_sign1_sign_aad_internal(struct t_cose_sign1_sign_ctx *me,
                                                               payload,
                                                               &encode_context);
     if(return_value) {
+        goto Done;
+    }
+
+    QCBORError cbor_err = QCBOREncode_GetErrorState(&encode_context);
+    if(cbor_err == QCBOR_ERR_BUFFER_TOO_SMALL) {
+        return_value = T_COSE_ERR_TOO_SMALL;
+        goto Done;
+    } else if(cbor_err != QCBOR_SUCCESS) {
+        return_value = T_COSE_ERR_CBOR_FORMATTING;
         goto Done;
     }
 

@@ -83,8 +83,6 @@ extern "C" {
  *    - If not ECDSA add another function like t_cose_algorithm_is_ecdsa()
  * - Support for a new COSE_ALGORITHM_XXX signature algorithm is added
  *    - See \ref T_COSE_CRYPTO_MAX_HASH_SIZE for additional hashes
- * - Support larger key sizes (and thus signature sizes)
- *    - See \ref T_COSE_MAX_SIG_SIZE
  * - Support another hash implementation that is not a service
  *    - See struct \ref t_cose_crypto_hash
  *
@@ -118,19 +116,32 @@ extern "C" {
  * 8.1. It is the concatenation of r and s, each of which is the key
  * size in bits rounded up to the nearest byte.  That is twice the key
  * size in bytes.
+ *
+ * RSA signatures are typically much larger than this, but do not need
+ * to be stored on the stack, since the COSE format is the same as the
+ * one OpenSSL understands natively. The stack variable therefore does
+ * not need to be made large enough to fit these signatures.
  */
 #ifndef T_COSE_DISABLE_ES512
-    #define T_COSE_MAX_SIG_SIZE T_COSE_EC_P512_SIG_SIZE
+    #define T_COSE_MAX_ECDSA_SIG_SIZE T_COSE_EC_P512_SIG_SIZE
 #else
     #ifndef T_COSE_DISABLE_ES384
-        #define T_COSE_MAX_SIG_SIZE T_COSE_EC_P384_SIG_SIZE
+        #define T_COSE_MAX_ECDSA_SIG_SIZE T_COSE_EC_P384_SIG_SIZE
     #else
-        #define T_COSE_MAX_SIG_SIZE T_COSE_EC_P256_SIG_SIZE
+        #define T_COSE_MAX_ECDSA_SIG_SIZE T_COSE_EC_P256_SIG_SIZE
     #endif
 #endif
 
 
 
+/*
+ * Says where a particular algorithm is supported or not.
+ * Most useful for test code that wants to know if a
+ * test should be attempted or not.
+ *
+ * See t_cose_is_algorithm_supported()
+ */
+bool t_cose_crypto_is_algorithm_supported(int32_t cose_algorithm_id);
 
 /**
  * \brief Returns the size of a signature given the key and algorithm.
@@ -206,10 +217,6 @@ t_cose_crypto_sig_size(int32_t            cose_algorithm_id,
  * for details on how \c q_useful_buf and \c q_useful_buf_c are used
  * to return the signature.
  *
- * To find out the size of the signature buffer needed, call this with
- * \c signature_buffer->ptr \c NULL and \c signature_buffer->len a
- * very large number like \c UINT32_MAX. The size will be returned in
- * \c signature->len.
  */
 enum t_cose_err_t
 t_cose_crypto_sign(int32_t                cose_algorithm_id,
@@ -233,7 +240,7 @@ t_cose_crypto_sign(int32_t                cose_algorithm_id,
  *                              hasn't been registered.
  * \param[in] verification_key  The verification key to use.
  * \param[in] kid               The COSE kid (key ID) or \c NULL_Q_USEFUL_BUF_C.
- * \param[in] hash_to_verify    The data or hash that is to be verified.
+ * \param[in] hash_to_verify    The hash of the data that is to be verified.
  * \param[in] signature         The COSE-format signature.
  *
  * This verifies that the \c signature passed in was over the \c
@@ -276,8 +283,107 @@ t_cose_crypto_verify(int32_t               cose_algorithm_id,
                      struct q_useful_buf_c hash_to_verify,
                      struct q_useful_buf_c signature);
 
+#ifndef T_COSE_DISABLE_EDDSA
 
+/**
+ * \brief Perform public key signing for EdDSA.
+ *
+ * The EdDSA signing algorithm (or more precisely its PureEdDSA
+ * variant, used in COSE) requires two passes over the input data.
+ * This requires the whole to-be-signed structure to be held in
+ * memory and given as an argument to this function, rather than
+ * an incrementally computed hash.
+ *
+ * \param[in] signing_key       Indicates or contains key to sign with.
+ * \param[in] tbs               The bytes to sign.
+ * \param[in] signature_buffer  Pointer and length of buffer into which
+ *                              the resulting signature is put.
+ * \param[in] signature         Pointer and length of the signature
+ *                              returned.
+ *
+ * \retval T_COSE_SUCCESS
+ *         Successfully created the signature.
+ * \retval T_COSE_ERR_SIG_BUFFER_SIZE
+ *         The \c signature_buffer too small.
+ * \retval T_COSE_ERR_UNSUPPORTED_SIGNING_ALG
+ *         EdDSA signatures are not supported.
+ * \retval T_COSE_ERR_UNKNOWN_KEY
+ *         The key identified by \c key_select was not found.
+ * \retval T_COSE_ERR_WRONG_TYPE_OF_KEY
+ *         The key was found, but it was the wrong type.
+ * \retval T_COSE_ERR_INVALID_ARGUMENT
+ *         Some (unspecified) argument was not valid.
+ * \retval T_COSE_ERR_INSUFFICIENT_MEMORY
+ *         Insufficient heap memory.
+ * \retval T_COSE_ERR_FAIL
+ *         General unspecific failure.
+ * \retval T_COSE_ERR_TAMPERING_DETECTED
+ *         Equivalent to \c PSA_ERROR_CORRUPTION_DETECTED.
+ *
+ * This is called to do public key signing. The implementation will
+ * vary from one platform / OS to another but should conform to the
+ * description here.
+ *
+ * The contents of signing_key is usually the type that holds
+ * a key for the cryptographic library.
+ *
+ * See the note in the Detailed Description (the \\file comment block)
+ * for details on how \c q_useful_buf and \c q_useful_buf_c are used
+ * to return the signature.
+ *
+ */
+enum t_cose_err_t
+t_cose_crypto_sign_eddsa(struct t_cose_key      signing_key,
+                         struct q_useful_buf_c  tbs,
+                         struct q_useful_buf    signature_buffer,
+                         struct q_useful_buf_c *signature);
 
+/**
+ * \brief Perform public key signature verification for EdDSA.
+ *
+ * The EdDSA signing algorithm (or more precisely its PureEdDSA
+ * variant, used in COSE) requires two passes over the input data.
+ * This requires the whole to-be-signed structure to be held in
+ * memory and given as an argument to this function, rather than
+ * an incrementally computed hash.
+ *
+ * \param[in] verification_key  The verification key to use.
+ * \param[in] kid               The COSE kid (key ID) or \c NULL_Q_USEFUL_BUF_C.
+ * \param[in] tbs               The data to be verified.
+ * \param[in] signature         The COSE-format signature.
+ *
+ * The key selected must be of the correct type for EdDSA
+ * signatures.
+ *
+ * \retval T_COSE_SUCCESS
+ *         The signature is valid
+ * \retval T_COSE_ERR_SIG_VERIFY
+ *         Signature verification failed. For example, the
+ *         cryptographic operations completed successfully but hash
+ *         wasn't as expected.
+ * \retval T_COSE_ERR_UNKNOWN_KEY
+ *         The key identified by \c key_select or a \c kid was
+ *         not found.
+ * \retval T_COSE_ERR_WRONG_TYPE_OF_KEY
+ *         The key was found, but it was the wrong type
+ *         for the operation.
+ * \retval T_COSE_ERR_UNSUPPORTED_SIGNING_ALG
+ *         EdDSA signatures are not supported.
+ * \retval T_COSE_ERR_INVALID_ARGUMENT
+ *         Some (unspecified) argument was not valid.
+ * \retval T_COSE_ERR_INSUFFICIENT_MEMORY
+ *         Out of heap memory.
+ * \retval T_COSE_ERR_FAIL
+ *         General unspecific failure.
+ * \retval T_COSE_ERR_TAMPERING_DETECTED
+ *         Equivalent to \c PSA_ERROR_CORRUPTION_DETECTED.
+ */
+enum t_cose_err_t
+t_cose_crypto_verify_eddsa(struct t_cose_key     verification_key,
+                           struct q_useful_buf_c kid,
+                           struct q_useful_buf_c tbs,
+                           struct q_useful_buf_c signature);
+#endif /* T_COSE_DISABLE_EDDSA */
 
 #ifdef T_COSE_USE_PSA_CRYPTO
 #include "psa/crypto.h"
@@ -386,10 +492,10 @@ struct t_cose_crypto_hash {
  * The maximum needed to hold a hash. It is smaller and less stack is needed
  * if the larger hashes are disabled.
  */
-#ifndef T_COSE_DISABLE_ES512
+#if !defined(T_COSE_DISABLE_ES512) || !defined(T_COSE_DISABLE_PS512)
     #define T_COSE_CRYPTO_MAX_HASH_SIZE T_COSE_CRYPTO_SHA512_SIZE
 #else
-    #ifndef T_COSE_DISABLE_ES384
+    #if !defined(T_COSE_DISABLE_ES384) || !defined(T_COSE_DISABLE_PS384)
         #define T_COSE_CRYPTO_MAX_HASH_SIZE T_COSE_CRYPTO_SHA384_SIZE
     #else
         #define T_COSE_CRYPTO_MAX_HASH_SIZE T_COSE_CRYPTO_SHA256_SIZE
@@ -505,11 +611,25 @@ t_cose_crypto_hash_finish(struct t_cose_crypto_hash *hash_ctx,
  * integer COSE algorithm ID uses the ECDSA signing algorithm
  * or not.
  *
- * (As other types of signing algorithms are added, RSA for example,
- * a similar function can be added for them.)
  */
 static bool
 t_cose_algorithm_is_ecdsa(int32_t cose_algorithm_id);
+
+/**
+ * \brief Indicate whether a COSE algorithm is RSASSA-PSS or not.
+ *
+ * \param[in] cose_algorithm_id    The algorithm ID to check.
+ *
+ * \returns This returns \c true if the algorithm is RSASSA-PSS
+ * and \c false if not.
+ *
+ * This is a convenience function to check whether a given
+ * integer COSE algorithm ID uses the RSASSA-PSS signing algorithm
+ * or not.
+ *
+ */
+static bool
+t_cose_algorithm_is_rsassa_pss(int32_t cose_algorithm_id);
 
 
 
@@ -558,10 +678,30 @@ t_cose_algorithm_is_ecdsa(int32_t cose_algorithm_id)
 #ifndef T_COSE_DISABLE_ES512
         COSE_ALGORITHM_ES512,
 #endif
-        0}; /* 0 is a reserved COSE alg ID ans will never be used */
+        0}; /* 0 is a reserved COSE alg ID and will never be used */
 
     return t_cose_check_list(cose_algorithm_id, ecdsa_list);
 }
+
+static inline bool
+t_cose_algorithm_is_rsassa_pss(int32_t cose_algorithm_id)
+{
+    /* The simple list of COSE alg IDs that use RSASSA-PSS */
+    static const int32_t rsa_list[] = {
+#ifndef T_COSE_DISABLE_PS256
+        COSE_ALGORITHM_PS256,
+#endif
+#ifndef T_COSE_DISABLE_PS384
+        COSE_ALGORITHM_PS384,
+#endif
+#ifndef T_COSE_DISABLE_PS512
+        COSE_ALGORITHM_PS512,
+#endif
+        0}; /* 0 is a reserved COSE alg ID and will never be used */
+
+    return t_cose_check_list(cose_algorithm_id, rsa_list);
+}
+
 
 #ifdef __cplusplus
 }
