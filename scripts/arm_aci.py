@@ -23,7 +23,7 @@ STARTUP_COMMANDS = {
         "apt-get install -y openssh-server",
         "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config",
         "useradd -m agent && echo \"agent ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers"
-        f"echo \"{args.aci_dynamic_agent_password}\n{args.aci_dynamic_agent_password}\" | passwd agent"
+        # f"echo \"{args.aci_dynamic_agent_password}\n{args.aci_dynamic_agent_password}\" | passwd agent"
         "service ssh restart",
         # "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
         # "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
