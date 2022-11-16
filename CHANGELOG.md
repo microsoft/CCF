@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.0-dev0]
+
+[4.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev0
+
+### Changed
+
+- `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
+
 ## [3.0.0-rc2]
 
 ### Dependencies
