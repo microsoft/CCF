@@ -117,8 +117,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "-t",
         "--enclave-platform",
         help="Enclave platform (Trusted Execution Environment)",
-        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", "SGX")),
-        choices=("SGX", "SNP", "Virtual"),
+        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", "sgx")),
+        choices=("sgx", "snp", "virtual"),
     )
     parser.add_argument(
         "--host-log-level",

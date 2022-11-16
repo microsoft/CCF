@@ -158,16 +158,13 @@ if(COMPILE_TARGET STREQUAL "sgx")
   # not get installed to minimise installation size
   set(INSTALL_VIRTUAL_LIBRARIES OFF)
 
-  set(DEFAULT_ENCLAVE_PLATFORM "SGX")
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(DEFAULT_ENCLAVE_TYPE debug)
   endif()
 elseif(COMPILE_TARGET STREQUAL "snp")
   set(INSTALL_VIRTUAL_LIBRARIES OFF)
-  set(DEFAULT_ENCLAVE_PLATFORM "SNP")
 else()
   set(INSTALL_VIRTUAL_LIBRARIES ON)
-  set(DEFAULT_ENCLAVE_PLATFORM "Virtual")
 endif()
 
 set(HTTP_PARSER_SOURCES
@@ -666,14 +663,12 @@ function(add_e2e_test)
       )
     endif()
 
-    if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT
-                 "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
-      )
-    endif()
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT
+                "DEFAULT_ENCLAVE_PLATFORM=${COMPILE_TARGET}"
+    )
   endif()
 endfunction()
 

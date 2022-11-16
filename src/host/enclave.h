@@ -50,7 +50,7 @@ namespace host
       // suggested filename
       auto basename = file;
       for (const char* suffix :
-           {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
+           {".signed", ".debuggable", ".so", ".enclave", ".virtual", ".snp"})
       {
         if (basename.ends_with(suffix))
         {

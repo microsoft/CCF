@@ -261,7 +261,7 @@ class Node:
         label,
         common_dir,
         members_info=None,
-        enclave_platform="SGX",
+        enclave_platform="sgx",
         **kwargs,
     ):
         """

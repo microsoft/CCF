@@ -602,7 +602,7 @@ class CCFRemote(object):
         service_data_json_file=None,
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
-        enclave_platform="SGX",
+        enclave_platform="sgx",
         **kwargs,
     ):
         """
@@ -715,7 +715,9 @@ class CCFRemote(object):
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type.title(),
-                enclave_platform=enclave_platform,
+                enclave_platform=enclave_platform.title()
+                if enclave_platform == "virtual"
+                else enclave_platform.upper(),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
