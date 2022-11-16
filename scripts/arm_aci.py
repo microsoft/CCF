@@ -27,12 +27,6 @@ STARTUP_COMMANDS = {
         "echo \"agent ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers",
         f'echo "agent:{args.aci_dynamic_agent_password}" | chpasswd',
         "service ssh restart",
-        # "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-        # "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
-        # "service ssh restart",
-        # "mkdir /root/.ssh",
-        # f"echo {HOST_PUB_KEY} >> /root/.ssh/authorized_keys",
-        # f"echo \"{args.aci_dynamic_agent_password}\n{args.aci_dynamic_agent_password}\" | passwd root"
     ],
     "static-agent": lambda args, i: [
         "apt-get install wget",
