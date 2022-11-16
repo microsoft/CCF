@@ -81,7 +81,7 @@ jobs:
           mkdir ~/.ssh/
           echo $SSH_KEY > ~/.ssh/id_rsa.pub
           echo $SSH_PKEY > ~/.ssh/id_rsa
-          chmod -R 600 ~/.ssh/
+          sudo chmod -R 600 ~/.ssh/
           ssh root@$ACI_IP -o "StrictHostKeyChecking no" 'echo connected from step in next job'
 
   # - template: .azure-pipelines-templates/configure.yml
