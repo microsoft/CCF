@@ -516,8 +516,8 @@ t_cose_sign1_test_message_output_signature(struct t_cose_sign1_sign_ctx *me,
     struct q_useful_buf_c        tbs_hash;
     /* Pointer and length of the completed signature */
     struct q_useful_buf_c        signature;
-    /* Buffer for the actual signature */
-    Q_USEFUL_BUF_MAKE_STACK_UB(  buffer_for_signature, T_COSE_MAX_SIG_SIZE);
+    /* Pointer and length of the buffer for the signature */
+    struct q_useful_buf          buffer_for_signature;
     /* Buffer for the tbs hash. */
     Q_USEFUL_BUF_MAKE_STACK_UB(  buffer_for_tbs_hash, T_COSE_CRYPTO_MAX_HASH_SIZE);
     struct q_useful_buf_c        signed_payload;
@@ -554,6 +554,13 @@ t_cose_sign1_test_message_output_signature(struct t_cose_sign1_sign_ctx *me,
         goto Done;
     }
 
+    /* The signature gets written directly into the output buffer.
+     * The matching QCBOREncode_CloseBytes call further down still needs do a
+     * memmove to make space for the CBOR header, but at least we avoid the need
+     * to allocate an extra buffer.
+     */
+    QCBOREncode_OpenBytes(cbor_encode_ctx, &buffer_for_signature);
+
     /* Compute the signature using public key crypto. The key selector
      * and algorithm ID are passed in to know how and what to sign
      * with. The hash of the TBS bytes are what is signed. A buffer in
@@ -585,7 +592,7 @@ t_cose_sign1_test_message_output_signature(struct t_cose_sign1_sign_ctx *me,
     }
 
     /* Add signature to CBOR and close out the array */
-    QCBOREncode_AddBytes(cbor_encode_ctx, signature);
+    QCBOREncode_CloseBytes(cbor_encode_ctx, signature.len);
 
     if(test_mess_options & T_COSE_TEST_INDEFINITE_MAPS_ARRAYS) {
         QCBOREncode_CloseArrayIndefiniteLength(cbor_encode_ctx);

@@ -46,6 +46,23 @@
 int hash_test_mode = 0;
 #endif
 
+/*
+ * See documentation in t_cose_crypto.h
+ *
+ * This will typically not be referenced and thus not linked,
+ * for deployed code. This is mainly used for test.
+ */
+bool
+t_cose_crypto_is_algorithm_supported(int32_t cose_algorithm_id)
+{
+    static const int32_t supported_algs[] = {
+        COSE_ALGORITHM_SHA_256,
+        0 /* List terminator */
+    };
+
+    return t_cose_check_list(cose_algorithm_id, supported_algs);
+}
+
 
 /*
  * See documentation in t_cose_crypto.h
@@ -57,7 +74,7 @@ enum t_cose_err_t t_cose_crypto_sig_size(int32_t           cose_algorithm_id,
     (void)cose_algorithm_id;
     (void)signing_key;
 
-    *sig_size = T_COSE_MAX_SIG_SIZE;
+    *sig_size = T_COSE_MAX_ECDSA_SIG_SIZE;
 
     return T_COSE_SUCCESS;
 }
@@ -104,7 +121,7 @@ t_cose_crypto_verify(int32_t                cose_algorithm_id,
 /*
  * Public function, see t_cose_make_test_pub_key.h
  */
-int check_for_key_pair_leaks()
+int check_for_key_pair_leaks(void)
 {
     /* No check for leaks with this stubbed out crypto. With this test
      crypto there is no file with code to make keys so there is no place
@@ -168,3 +185,41 @@ t_cose_crypto_hash_finish(struct t_cose_crypto_hash *hash_ctx,
 
     return 0;
 }
+
+
+#ifndef T_COSE_DISABLE_EDDSA
+
+/*
+ * See documentation in t_cose_crypto.h
+ */
+enum t_cose_err_t
+t_cose_crypto_sign_eddsa(struct t_cose_key      signing_key,
+                         struct q_useful_buf_c  tbs,
+                         struct q_useful_buf    signature_buffer,
+                         struct q_useful_buf_c *signature)
+{
+    (void)signing_key;
+    (void)tbs;
+    (void)signature_buffer;
+    (void)signature;
+    return T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
+}
+
+
+/*
+ * See documentation in t_cose_crypto.h
+ */
+enum t_cose_err_t
+t_cose_crypto_verify_eddsa(struct t_cose_key     verification_key,
+                           struct q_useful_buf_c kid,
+                           struct q_useful_buf_c tbs,
+                           struct q_useful_buf_c signature)
+{
+    (void)verification_key;
+    (void)kid;
+    (void)tbs;
+    (void)signature;
+    return T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
+}
+
+#endif /* T_COSE_DISABLE_EDDSA */
