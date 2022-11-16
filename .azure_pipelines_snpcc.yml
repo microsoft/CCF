@@ -68,12 +68,14 @@ jobs:
       vmImage: ubuntu-20.04
     dependsOn: deploy_aci
     condition: always()
+    variables:
+      ACI_IP: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
     steps:
       - script: |
           echo "Key"
           cat ~/.ssh/id_rsa.pub
           echo "Variable"
-          echo $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+          echo $ACI_IP
           echo "File"
           cat deploy_out.txt
           IP=`cat deploy_out.txt`
