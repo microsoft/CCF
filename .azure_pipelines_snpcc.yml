@@ -72,14 +72,9 @@ jobs:
       ACI_IP: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
     steps:
       - script: |
-          echo "Key"
-          cat ~/.ssh/id_rsa.pub
           echo "Variable"
           echo $ACI_IP
-          echo "File"
-          cat deploy_out.txt
-          IP=`cat deploy_out.txt`
-          ssh root@$IP -o "StrictHostKeyChecking no" 'echo connected from step in next job'
+          ssh root@$ACI_IP -o "StrictHostKeyChecking no" 'echo connected from step in next job'
 
   # - template: .azure-pipelines-templates/configure.yml
   #   parameters:
