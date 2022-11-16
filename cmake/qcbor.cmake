@@ -26,11 +26,11 @@ elseif(COMPILE_TARGET STREQUAL "snp")
 
   target_include_directories(
     qcbor.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR>
-                      $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
+                     $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
   )
   set_property(TARGET qcbor.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   add_san(qcbor.snp)
-  
+
   install(
     TARGETS qcbor.snp
     EXPORT ccf

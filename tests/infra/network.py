@@ -333,8 +333,6 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
 
-        LOG.error(forwarded_args)
-
         for i, node in enumerate(self.nodes):
             try:
                 if i == 0:

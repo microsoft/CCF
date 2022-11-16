@@ -95,7 +95,11 @@ endfunction()
 function(add_ccf_app name)
 
   cmake_parse_arguments(
-    PARSE_ARGV 1 PARSED_ARGS "" ""
+    PARSE_ARGV
+    1
+    PARSED_ARGS
+    ""
+    ""
     "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;LINK_LIBS_SNP;DEPS;INSTALL_LIBS"
   )
   add_custom_target(${name} ALL)

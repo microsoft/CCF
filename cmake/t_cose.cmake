@@ -39,18 +39,18 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   add_library(t_cose.snp STATIC ${T_COSE_SRCS})
   target_compile_definitions(t_cose.snp PRIVATE ${T_COSE_DEFS})
   target_compile_options(t_cose.snp INTERFACE ${T_COSE_OPTS_INTERFACE})
-  
+
   target_include_directories(t_cose.snp PRIVATE "${T_COSE_SRC}")
-  
+
   target_include_directories(
     t_cose.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose>
-                       $<INSTALL_INTERFACE:include/3rdparty/t_cose>
+                      $<INSTALL_INTERFACE:include/3rdparty/t_cose>
   )
-  
+
   target_link_libraries(t_cose.snp PUBLIC qcbor.snp crypto)
   set_property(TARGET t_cose.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   add_san(t_cose.snp)
-  
+
   install(
     TARGETS t_cose.snp
     EXPORT ccf

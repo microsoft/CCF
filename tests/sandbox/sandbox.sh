@@ -90,6 +90,7 @@ export CURL_CLIENT=ON
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
     --enclave-type "${enclave_type}" \
+    --enclave-platform "${platform}" \
     --initial-member-count 1 \
     --constitution "${PATH_HERE}"/actions.js \
     --constitution "${PATH_HERE}"/validate.js \

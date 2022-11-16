@@ -324,7 +324,6 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   )
 endif()
 
-
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 if(INSTALL_VIRTUAL_LIBRARIES)
@@ -445,11 +444,9 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   target_compile_options(js_openenclave.snp PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_openenclave.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+                              _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
-  set_property(
-    TARGET js_openenclave.snp PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
+  set_property(TARGET js_openenclave.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   install(
     TARGETS js_openenclave.snp
     EXPORT ccf
@@ -497,11 +494,9 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   target_compile_options(js_generic_base.snp PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_generic_base.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+                               _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
-  set_property(
-    TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
+  set_property(TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   install(
     TARGETS js_generic_base.snp
     EXPORT ccf
@@ -535,9 +530,8 @@ add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual 
-  LINK_LIBS_SNP js_generic_base.snp js_openenclave.snp 
-  INSTALL_LIBS ON
+  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual
+  LINK_LIBS_SNP js_generic_base.snp js_openenclave.snp INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
@@ -676,7 +670,8 @@ function(add_e2e_test)
       set_property(
         TEST ${PARSED_ARGS_NAME}
         APPEND
-        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
+        PROPERTY ENVIRONMENT
+                 "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
       )
     endif()
   endif()
@@ -752,7 +747,8 @@ function(add_perf_test)
     set_property(
       TEST ${TEST_NAME}
       APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
+      PROPERTY ENVIRONMENT
+               "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
     )
   endif()
   set_property(

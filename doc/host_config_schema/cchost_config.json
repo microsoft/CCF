@@ -22,7 +22,7 @@
           "enum": ["Release", "Debug"],
           "default": "Release",
           "description": "Type of enclave application (only if platform is SGX)"
-        }        
+        }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
       "required": ["file"],

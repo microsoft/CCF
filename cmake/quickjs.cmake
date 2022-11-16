@@ -57,7 +57,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   set_property(TARGET quickjs.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(
     quickjs.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
-                        $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+                       $<INSTALL_INTERFACE:include/3rdparty/quickjs>
   )
 
   install(

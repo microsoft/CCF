@@ -122,8 +122,14 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 
   target_link_libraries(
-    ccf.enclave PUBLIC quickjs.enclave http_parser.enclave sss.enclave
-                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave nghttp2.enclave
+    ccf.enclave
+    PUBLIC quickjs.enclave
+           http_parser.enclave
+           sss.enclave
+           ccf_endpoints.enclave
+           ccfcrypto.enclave
+           ccf_kv.enclave
+           nghttp2.enclave
   )
 
   add_lvi_mitigations(ccf.enclave)
@@ -139,12 +145,12 @@ if(COMPILE_TARGET STREQUAL "sgx")
   # Same as virtual for the time being but will diverge soon
 elseif(COMPILE_TARGET STREQUAL "snp")
 
-  # SNO version
+  # SNP version
   add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
     ccf.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
 
   target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
