@@ -37,3 +37,4 @@ ledger_[0-9]*
 snapshot_[0-9]*
 doc/operations/generated_config.rst
 *.parquet
+tests/perf-system/analyzer/*.png
