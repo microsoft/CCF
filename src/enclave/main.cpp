@@ -60,7 +60,7 @@ extern "C"
     void* enclave_config,
     char* ccf_config,
     size_t ccf_config_size,
-    uint8_t* startup_snapshot,
+    uint8_t* startup_snapshot_data,
     size_t startup_snapshot_size,
     uint8_t* node_cert,
     size_t node_cert_size,
@@ -196,6 +196,19 @@ extern "C"
       return CreateNodeStatus::UnalignedArguments;
     }
 
+    if (!ccf::pal::is_outside_enclave(
+          startup_snapshot_data, startup_snapshot_size))
+    {
+      LOG_FAIL_FMT("Memory outside enclave: startup snapshot");
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
+    if (!is_aligned(startup_snapshot_data, 8, startup_snapshot_size))
+    {
+      LOG_FAIL_FMT("Read source memory not aligned: startup snapshot");
+      return CreateNodeStatus::UnalignedArguments;
+    }
+
     ccf::pal::speculation_barrier();
 
     StartupConfig cc =
@@ -276,13 +289,14 @@ extern "C"
 
     try
     {
-      std::vector<uint8_t> startup_snapshot_(
-        startup_snapshot, startup_snapshot + startup_snapshot_size);
-      LOG_FAIL_FMT("Snapshot size: {}", startup_snapshot_.size());
+      std::vector<uint8_t> startup_snapshot(
+        startup_snapshot_data, startup_snapshot_data + startup_snapshot_size);
+      LOG_FAIL_FMT(
+        "Snapshot size: {}", startup_snapshot.size()); // TODO: Remove
       status = enclave->create_new_node(
         start_type,
         std::move(cc),
-        std::move(startup_snapshot_),
+        std::move(startup_snapshot),
         node_cert,
         node_cert_size,
         node_cert_len,

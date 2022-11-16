@@ -68,6 +68,11 @@ namespace host
     }
   }
 
+  inline static size_t get_aligned_size(size_t size)
+  {
+    return (size + 7) & ~(7ull);
+  }
+
   /**
    * Wraps an oe_enclave and associated ECalls. New ECalls should be added as
    * methods which construct an appropriate EGeneric-derived param type and pass
@@ -178,10 +183,10 @@ namespace host
       size_t service_cert_len = 0;
       size_t enclave_version_len = 0;
 
-      // Pad config with NULLs to a multiple of 8, in an 8-byte aligned
-      // allocation
+      // Pad config and startup snapshot with NULLs to a multiple of 8, in an
+      // 8-byte aligned allocation
       auto config_s = nlohmann::json(ccf_config).dump();
-      const auto config_aligned_size = (config_s.size() + 7) & ~(7ull);
+      const auto config_aligned_size = get_aligned_size(config_s.size());
       LOG_DEBUG_FMT(
         "Padding config of size {} to {} bytes",
         config_s.size(),
@@ -199,14 +204,32 @@ namespace host
       std::fill(copy_end, config + config_aligned_size, 0);
 
       // TODO: Align startup snapshot
+      const auto startup_snapshot_aligned_size =
+        get_aligned_size(startup_snapshot.size());
+      LOG_DEBUG_FMT(
+        "Padding startup snapshot of size {} to {} bytes",
+        startup_snapshot.size(),
+        startup_snapshot_aligned_size);
+      auto snapshot = static_cast<uint8_t*>(
+        std::aligned_alloc(8u, startup_snapshot_aligned_size));
+
+      if (snapshot == nullptr)
+      {
+        throw std::runtime_error(fmt::format(
+          "Unable to allocate {} bytes for aligned snapshot",
+          startup_snapshot_aligned_size));
+      }
+
+      auto snapshot_copy_end =
+        std::copy(startup_snapshot.begin(), startup_snapshot.end(), snapshot);
+      std::fill(snapshot_copy_end, snapshot + startup_snapshot_aligned_size, 0);
 
 #define CREATE_NODE_ARGS \
-  &status, (void*)&enclave_config, config, config_aligned_size, \
-    startup_snapshot.data(), startup_snapshot.size(), node_cert.data(), \
-    node_cert.size(), &node_cert_len, service_cert.data(), \
-    service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
-    enclave_version_buf.size(), &enclave_version_len, start_type, \
-    num_worker_thread, time_location
+  &status, (void*)&enclave_config, config, config_aligned_size, snapshot, \
+    startup_snapshot_aligned_size, node_cert.data(), node_cert.size(), \
+    &node_cert_len, service_cert.data(), service_cert.size(), \
+    &service_cert_len, enclave_version_buf.data(), enclave_version_buf.size(), \
+    &enclave_version_len, start_type, num_worker_thread, time_location
 
       oe_result_t err = OE_FAILURE;
 
