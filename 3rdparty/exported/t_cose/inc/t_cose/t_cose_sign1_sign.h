@@ -77,6 +77,21 @@ struct t_cose_sign1_sign_ctx {
     uint32_t              content_type_uint;
     const char *          content_type_tstr;
 #endif
+
+#ifndef T_COSE_DISABLE_EDDSA
+    /**
+     * A auxiliary buffer provided by the caller, used to serialize
+     * the Sig_Structure. This is only needed when using EdDSA, as
+     * otherwise the Sig_Structure is hashed incrementally.
+     */
+    struct q_useful_buf  auxiliary_buffer;
+
+    /* The size of the serialized Sig_Structure used in the last
+     * signing operation. This can be used by the user to determine
+     * a suitable auxiliary buffer size.
+     */
+    size_t               auxiliary_buffer_size;
+#endif
 };
 
 
@@ -170,6 +185,53 @@ static void
 t_cose_sign1_set_signing_key(struct t_cose_sign1_sign_ctx *context,
                              struct t_cose_key             signing_key,
                              struct q_useful_buf_c         kid);
+
+/**
+ * \brief Configure an auxiliary buffer used to serialize the Sig_Structure.
+ *
+ * \param[in] context           The t_cose signing context.
+ * \param[in] auxiliary_buffer  The buffer used to serialize the Sig_Structure.
+ *
+ * Some signature algorithms (namely EdDSA), require two passes over
+ * their input. In order to achieve this, the library needs to serialize
+ * a temporary to-be-signed structure into an auxiliary buffer. This function
+ * allows the user to configure such a buffer.
+ *
+ * The buffer must be big enough to accomodate the Sig_Structure type,
+ * which is roughly the sum of sizes of the encoded protected parameters, aad
+ * and payload, along with a few dozen bytes of overhead.
+ *
+ * To compute the exact size needed, an auxiliary buffer with a NULL
+ * pointer and a large size, such as \c UINT32_MAX, can be used. No
+ * actual signing will take place, but the auxiliary buffer will be shrunk
+ * to the to expected size.
+ *
+ */
+static void
+t_cose_sign1_sign_set_auxiliary_buffer(struct t_cose_sign1_sign_ctx *context,
+                                       struct q_useful_buf           auxiliary_buffer);
+
+/**
+ * \brief Get the required auxiliary buffer size for the most recent
+ * signing operation.
+ *
+ * \param[in] context           The t_cose signing context.
+ *
+ * \return The number of bytes of auxiliary buffer used by the most
+ *         recent signing operation.
+ *
+ * This function can be called after \ref t_cose_sign1_sign (or
+ * equivalent) was called. If a NULL output buffer was passed to the
+ * signing function (to operate in size calculation mode), this returns
+ * the number of bytes that would have been used by the signing
+ * operation. This allows the caller to allocate an appropriately sized
+ * buffer before performing the actual verification.
+ *
+ * This function returns if the signature algorithm used does not need
+ * an auxiliary buffer.
+ */
+static size_t
+t_cose_sign1_sign_auxiliary_buffer_size(struct t_cose_sign1_sign_ctx *context);
 
 
 
@@ -426,12 +488,18 @@ t_cose_sign1_sign_init(struct t_cose_sign1_sign_ctx *me,
 {
     memset(me, 0, sizeof(*me));
 #ifndef T_COSE_DISABLE_CONTENT_TYPE
-    /* Only member for which 0 is not the empty state */
     me->content_type_uint = T_COSE_EMPTY_UINT_CONTENT_TYPE;
 #endif
 
     me->cose_algorithm_id = cose_algorithm_id;
     me->option_flags      = option_flags;
+
+#ifndef T_COSE_DISABLE_EDDSA
+    /* Start with large (but NULL) auxiliary buffer. If EdDSA is used,
+     * the Sig_Structure data will be serialized here.
+     */
+    me->auxiliary_buffer.len = SIZE_MAX;
+#endif
 }
 
 
@@ -442,6 +510,30 @@ t_cose_sign1_set_signing_key(struct t_cose_sign1_sign_ctx *me,
 {
     me->kid         = kid;
     me->signing_key = signing_key;
+}
+
+static inline void
+t_cose_sign1_sign_set_auxiliary_buffer(struct t_cose_sign1_sign_ctx *me,
+                                       struct q_useful_buf           auxiliary_buffer)
+{
+#ifndef T_COSE_DISABLE_EDDSA
+    me->auxiliary_buffer = auxiliary_buffer;
+#else
+    (void)me;
+    (void)auxiliary_buffer;
+#endif
+}
+
+static inline size_t
+t_cose_sign1_sign_auxiliary_buffer_size(struct t_cose_sign1_sign_ctx *me)
+{
+#ifndef T_COSE_DISABLE_EDDSA
+    return me->auxiliary_buffer_size;
+#else
+    /* If EdDSA is disabled we don't ever need an auxiliary buffer. */
+    (void)me;
+    return 0;
+#endif
 }
 
 

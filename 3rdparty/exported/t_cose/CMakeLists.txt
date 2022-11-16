@@ -66,6 +66,7 @@ set(T_COSE_SRC_COMMON
     src/t_cose_parameters.c
     src/t_cose_sign1_verify.c
     src/t_cose_util.c
+    src/t_cose_short_circuit.c
 )
 
 find_package(QCBOR REQUIRED)

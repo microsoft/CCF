@@ -681,7 +681,9 @@ TEST_CASE(
   // SparseReader
   * doctest::skip(ccf::pal::require_alignment_for_untrusted_reads()))
 {
-  srand(time(NULL));
+  const auto seed = time(NULL);
+  INFO("Using seed: ", seed);
+  srand(seed);
 
   // Pass a randomly constructed list of messages of mixed size, some extremely
   // large

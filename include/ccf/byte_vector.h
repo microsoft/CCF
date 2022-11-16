@@ -40,18 +40,20 @@ struct formatter<ccf::ByteVector>
   template <typename FormatContext>
   auto format(const ccf::ByteVector& e, FormatContext& ctx) const
   {
-    if (std::find(e.begin(), e.end(), '\0') != e.end())
-    {
-      return format_to(
-        ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
-    }
-    else
+    // This is the same as std::isprint, but independent of the current locale.
+    auto printable = [](uint8_t b) { return b >= 0x20 && b <= 0x7e; };
+    if (std::all_of(e.begin(), e.end(), printable))
     {
       return format_to(
         ctx.out(),
         "<uint8[{}]: ascii={}>",
         e.size(),
         std::string(e.begin(), e.end()));
+    }
+    else
+    {
+      return format_to(
+        ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
     }
   }
 };
