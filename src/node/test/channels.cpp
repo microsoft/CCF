@@ -750,12 +750,12 @@ TEST_CASE("Full NodeToNode test")
     crypto::CurveID::SECP384R1,
     crypto::CurveID::SECP384R1,
     crypto::CurveID::SECP384R1};
-  // One node on a different curve
+  // One backup on a different curve
   constexpr auto mixed_0 = CurveChoices{
     crypto::CurveID::SECP256R1,
     crypto::CurveID::SECP256R1,
     crypto::CurveID::SECP384R1};
-  // Both nodes on a different curve
+  // Both backups on a different curve
   constexpr auto mixed_1 = CurveChoices{
     crypto::CurveID::SECP384R1,
     crypto::CurveID::SECP256R1,
