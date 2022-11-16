@@ -36,6 +36,22 @@ extern "C" {
  */
 #define T_COSE_INVALID_ALGORITHM_ID COSE_ALGORITHM_RESERVED
 
+/**
+ * \brief Check whether a signature algorithm is valid and supported
+ * by the library.
+ *
+ * \param[in] cose_algorithm_id  A COSE signature algorithm identifier.
+ *
+ * \return \c true if the algorithm is supported.
+ *
+ * What algorithms are supported can change as more algorithms are
+ * added to the library, and depend on the build configuration. Even
+ * if a signature algorithm is supported by the t_cose library and
+ * this function returns true, using an algorithm can fail for other
+ * reasons, for example if the crypto adapter does not support it.
+ *
+ */
+bool signature_algorithm_id_is_supported(int32_t cose_algorithm_id);
 
 /**
  * \brief Return hash algorithm ID from a signature algorithm ID
@@ -43,7 +59,8 @@ extern "C" {
  * \param[in] cose_algorithm_id  A COSE signature algorithm identifier.
  *
  * \return \c T_COSE_INVALID_ALGORITHM_ID when the signature algorithm ID
-              is not known.
+              is not known, or if the signature algorithm does not have
+              an associated hash algorithm (eg. EDDSA).
  *
  * This works off of algorithm identifiers defined in the
  * [IANA COSE Registry](https://www.iana.org/assignments/cose/cose.xhtml).
@@ -89,12 +106,16 @@ int32_t hash_alg_id_from_sig_alg_id(int32_t cose_algorithm_id);
  * \retval T_COSE_ERR_HASH_GENERAL_FAIL
  *         In case of some general hash failure.
  *
- * The input to the public key signature algorithm in COSE is the hash
- * of a CBOR encoded structure containing the protected parameters
- * algorithm ID and a few other things. This formats that structure
- * and computes the hash of it. These are known as the to-be-signed or
- * "TBS" bytes. The exact specification is in [RFC 8152 section
+ * The input to the public key signature algorithm in COSE is a CBOR
+ * encoded structure containing the protected parameters algorithm ID
+ * and a few other things. These are known as the to-be-signed or "TBS"
+ * bytes. The exact specification is in [RFC 8152 section
  * 4.4](https://tools.ietf.org/html/rfc8152#section-4.4).
+ *
+ * Most algorithms use a hash of these bytes, which this function
+ * computes incrementally. If the entire TBS structure is needed
+ * (for signing with EdDSA for example), the \ref create_tbs function
+ * can be used instead.
  *
  * \c aad can be \ref NULL_Q_USEFUL_BUF_C if not present.
  */
@@ -105,6 +126,37 @@ enum t_cose_err_t create_tbs_hash(int32_t                     cose_algorithm_id,
                                   struct q_useful_buf         buffer_for_hash,
                                   struct q_useful_buf_c      *hash);
 
+/**
+ * Serialize the to-be-signed (TBS) bytes for COSE.
+ *
+ * \param[in] protected_parameters  Full, CBOR encoded, protected parameters.
+ * \param[in] aad                   Additional Authenitcated Data to be
+ *                                  included in TBS.
+ * \param[in] payload               The CBOR-encoded payload.
+ * \param[in] buffer_for_tbs        Pointer and length of buffer into which
+ *                                  the resulting TBS bytes is put.
+ * \param[out] tbs                  Pointer and length of the
+ *                                  resulting TBS bytes.
+ *
+ * \return This returns one of the error codes defined by \ref t_cose_err_t.
+ * \retval T_COSE_ERR_TOO_SMALL
+ *         The output buffer is too small.
+ * \retval T_COSE_ERR_CBOR_FORMATTING
+ *         Something went wrong formatting the CBOR.
+ *
+ * The input to the public key signature algorithm in COSE is a CBOR
+ * encoded structure containing the protected parameters algorithm ID
+ * and a few other things. These are known as the to-be-signed or "TBS"
+ * bytes. The exact specification is in [RFC 8152 section
+ * 4.4](https://tools.ietf.org/html/rfc8152#section-4.4).
+ *
+ * \c aad can be \ref NULL_Q_USEFUL_BUF_C if not present.
+ */
+enum t_cose_err_t create_tbs(struct q_useful_buf_c  protected_parameters,
+                             struct q_useful_buf_c  aad,
+                             struct q_useful_buf_c  payload,
+                             struct q_useful_buf    buffer_for_tbs,
+                             struct q_useful_buf_c *tbs);
 
 
 

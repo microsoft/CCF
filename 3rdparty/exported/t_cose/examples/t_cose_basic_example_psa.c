@@ -216,7 +216,7 @@ static void print_useful_buf(const char *string_label, struct q_useful_buf_c buf
  * is simpler to use. In the code below constructed_payload_buffer is
  * the extra buffer that two-step signing avoids.
  */
-int32_t one_step_sign_example()
+int32_t one_step_sign_example(void)
 {
 
     struct t_cose_sign1_sign_ctx   sign_ctx;
@@ -401,7 +401,7 @@ Done:
  * constructed directly into the output buffer, uses less memory,
  * but is more complicated to use.
  */
-int two_step_sign_example()
+int two_step_sign_example(void)
 {
     struct t_cose_sign1_sign_ctx   sign_ctx;
     enum t_cose_err_t              return_value;
