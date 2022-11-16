@@ -792,7 +792,9 @@ TEST_CASE("Full NodeToNode test")
     n2n2.initialize(ni2, service_cert, channel2_kp, channel2_cert);
     n2n2.set_message_limit(message_limit);
 
-    srand(0); // keep it deterministic
+    const auto seed = time(NULL);
+    INFO("Using seed: ", seed);
+    srand(seed);
 
     INFO("Send/receive a number of messages");
     {
