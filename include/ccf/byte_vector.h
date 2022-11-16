@@ -40,7 +40,8 @@ struct formatter<ccf::ByteVector>
   template <typename FormatContext>
   auto format(const ccf::ByteVector& e, FormatContext& ctx) const
   {
-    if (std::find(e.begin(), e.end(), '\0') != e.end())
+    auto non_printable = [](uint8_t b) { return b < 0x20 || b > 0x7e; };
+    if (std::find_if(e.begin(), e.end(), non_printable) != e.end())
     {
       return format_to(
         ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
