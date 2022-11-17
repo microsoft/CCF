@@ -23,6 +23,7 @@ jobs:
       - template: cmake.yml
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
+          target: "${{ parameters.target }}"
 
       - template: ninja.yml
         parameters:
