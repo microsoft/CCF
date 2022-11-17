@@ -4,267 +4,93 @@ Quick Start
 Application Development using CCF Overview
 -------------------------------------------
 
-What is CCF: The `Confidential Consortium Framework
-(CCF) <https://ccf.dev/>`__ is an open-source framework for building a
-new category of secure, highly available, and performant applications
-that focus on multi-party compute and data.
-
--  Read the `CCF
-   overview <https://microsoft.github.io/CCF/main/overview/index.html>`__
-   and get familiar with `CCF’s core
-   concepts <https://microsoft.github.io/CCF/main/overview/what_is_ccf.html>`__
-   and `Azure confidential
-   computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
--  `Build new CCF
-   applications <https://microsoft.github.io/CCF/main/build_apps/index.html>`__
-   in TypeScript/JavaScript or C++
--  CCF `Modules API
-   reference <https://microsoft.github.io/CCF/main/js/ccf-app/modules.html>`__
--  CCF application get started repos
-
-   -  `CCF application
-      template <https://github.com/microsoft/ccf-app-template>`__
-   -  `CCF application
-      samples <https://github.com/microsoft/ccf-app-samples>`__
-
-Supported Programming Languages
-------------------------------
-
-Applications can be written in
-
--  TypeScript
--  JavaScript
--  C++
--  More language support upcoming in 2023
+-  :ref:`What is Confidential Consortium Framework (CCF) <overview/what_is_ccf:What is CCF?>`
+-  Read the :doc:`CCF overview </overview/index>` and get familiar with :ref:`overview/what_is_ccf:Core Concepts` and `Azure confidential computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
+-  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript or C++
+-  CCF `Modules API reference <https://microsoft.github.io/CCF/main/js/ccf-app/modules.html>`__
+-  CCF application get started repos `CCF application template <https://github.com/microsoft/ccf-app-template>`__ and  `CCF application samples <https://github.com/microsoft/ccf-app-samples>`__
 
 Development environment
 -----------------------
 
 -  VS Code Dev Container |Open in VSCode|
 -  Github codespace: |Github codespace|
--  Linux Machine (`Creating a Virtual Machine in Azure to run
-   CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__)
-
+-  Virtual Machine (`Creating a Virtual Machine in Azure to run CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__)
 
 (JavaScript/Typescript) Applications
 ------------------------------------
 
-CCF apps can also be written in JavaScript or Typescript, To test a ccf
-application you need go through the following steps:
+CCF apps can be written in JavaScript or Typescript, To test a JS/TS CCF application you need go through the following steps:
 
--  Start a CCF Network with at least one node
--  Initialize the CCF network with at least one (active member - user),
-   this can be done through `Network Governance
-   Proposals <https://microsoft.github.io/CCF/main/governance/proposals.html>`__.
--  Create an application `deployment
-   proposal <https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html>`__
--  Submit the app deployment proposal to the network and all members
-   accept it through voting. This is a part of `Network
-   Governance <https://microsoft.github.io/CCF/main/governance/proposals.html>`__.
--  Open the CCF network for users
--  Start to test your application endpoints
+-  :doc:`Start a CCF Network with at least one node </operations/start_network>`
+-  Initialize the CCF network with at least one (active member - user) :ref:`governance/open_network:Opening a Network`,
+   this can be done through :ref:`Proposals <governance/proposals:Summary>`.
+-  Create an application :ref:`deployment proposal <build_apps/js_app_bundle:Deployment>`
+-  Submit the app deployment proposal to the network and all members accept it through voting. This is a part of :ref:`Network Governance <governance/proposals:Submitting a New Proposal>`.
+-  :doc:`Open the CCF network for users </governance/open_network>`
+-  Start testing of your application endpoints
 
 Build Application
 ~~~~~~~~~~~~~~~~~
 
-The application building prerequisites [`CCF <#ccf-install>`__, NodeJS
-and NPM] must be installed,all will be preinstalled if you are using
-devcontainer environment, otherwise you need to install them manually .
+The application building prerequisites [:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org>`__ and `NPM <https://www.npmjs.com>`__] must be installed,all will be preinstalled if you are using devcontainer environment, otherwise you need to install them manually.
 
-In the checkout of
-`ccf-app-samples <https://github.com/microsoft/ccf-app-samples>`__
-repository:
-
-.. code:: bash
-
-   # carried out on the dev-container start up
-   cd banking-app && npm install
-
-   # build and generate the application bundle and deployment proposal
-   make build
-
-   # a dist folder is created with app bundle and deployment proposal.
+Please follow `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#run-js-app>`__
 
 Testing your Application
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-There are several approaches to test your application
+There are several approaches to run and test your application
 
--  `Sandbox.sh <#testing-using-sandboxsh>`__
+Run app: Using Sandbox.sh
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   -  Build an initialized CCF network and automatically deploy your app
-      on top of it
-   -  Support both ccf network types [virtual - enclave (TEE hardware)]
-   -  No governance steps required
+-  Running the sandbox.sh script automatically starts a CCF network and deploys your application on it. The app is up and ready to receive calls and the initial governance steps are done for you
+-  Support both ccf network types [virtual - enclave (TEE hardware)]
+-  No initial governance steps required
+-  How is it working?
 
--  `Docker container <#testing-using-docker-containers>`__
+   -  :doc:`/build_apps/run_app`
+   -  `CCF Application template repository <https://github.com/microsoft/ccf-app-template#run-js-app>`__
 
-   -  Support both ccf network types [virtual - enclave (TEE hardware)]
-   -  Governance steps required to deploy your app, initialize, and
-      start the network
+Run app: Using Docker
+^^^^^^^^^^^^^^^^^^^^^
 
--  `Azure Virtual Machine
-   (Linux) <#testing-using-azure-virtual-machine>`__
+-  Build and run one of these docker files [“ccf_app_js.virtual” or “ccf_app_js.enclave”] to start a CCF network with one node and one member.
+-  Support both ccf network types [virtual - enclave (TEE hardware)]
+-  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
+-  How is it working?
 
-   -  Support both ccf network types [virtual - enclave (TEE hardware)]
-   -  Governance steps required to deploy your app, initialize, and
-      start the network
+   -  Start a CCF network using docker files. please follow `ccf-app-template <https://github.com/microsoft/ccf-app-template#docker>`__
+   -  The network is started with one node and one member, you need to
+      execute the initial governance steps to initialize the network, `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 
--  `Azure Managed CCF <#testing-using-azure-managed-ccf>`__
+Run app: Using CChost
+^^^^^^^^^^^^^^^^^^^^^
 
-   -  Support only a ccf network in enclave mode (TEE hardware)
-   -  No governance steps required to start up your network, but you
-      need to use governance to propose your application
+-  The application can be tested using CChost and :doc:`CCF config file </operations/configuration>`,
+   To Start a test CCF network on a Linux environment, it requires :doc:`CCF to be intalled </build_apps/install_bin>`
+   or you can create a ready CCF VM using `Creating a Virtual Machine in Azure to run CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__
+-  Support both ccf network types [virtual - enclave (TEE hardware)]
+-  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
+-  How is it working?
 
-Testing: Using Sandbox.sh
-~~~~~~~~~~~~~~~~~~~~~~~~~
+   -  Start a CCF network using cchost and :doc:`CCF node config file </operations/configuration>`. please follow `ccf-app-template <https://github.com/microsoft/ccf-app-template#bare-vm>`__
+   -  The network is started with one node and one member, you need to execute the initial governance steps to initialize the network, `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 
-By running sandbox.sh script, it is automatically starts a CCF network
-and deploys your application on it. The app is up and ready to receive
-calls and all the governance work is done for you.
+Run app: Using Managed CCF
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Start in a CCF Network in Enclave mode
+-  To test you application using Managed CCF, you can create `Azure Managed CCF <https://techcommunity.microsoft.com/t5/azure-confidential-computing/microsoft-introduces-preview-of-azure-managed-confidential/ba-p/3648986>`__ serivce on your subscription, the service will create a ready CCF network
+-  Support only a ccf network in enclave mode (TEE hardware)
+-  No initial governance steps required to start up your network, but you need to use governance to propose your application
+-  How is it working?
 
-.. code:: bash
-
-   /opt/ccf/bin/sandbox.sh --js-app-bundle ./banking-app/dist/  --enclave-type release -p /opt/ccf/lib/libjs.enclave.so.signed
-   ...
-   [12:00:00.000] Press Ctrl+C to shutdown the network
-   # It is then possible to interact with the service
-
-Start in a CCF Network in Virtual mode (the default mode for testing)
-
-.. code:: bash
-
-   /opt/ccf/bin/sandbox.sh --js-app-bundle ./banking-app/dist/
-   ...
-   [12:00:00.000] Press Ctrl+C to shutdown the network
-   # It is then possible to interact with the service
-
-Testing: Using docker containers
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Build and run one of these docker files [“ccf_app_js.virtual” or
-“ccf_app_js.enclave”] to start a CCF network with one node and one
-member. After that, you need to execute governance steps to deploy the
-application and open the network for users to begin access the app
-endpoints. All the governance steps need to be done manually using
-`proposal submit and vote
-process <https://microsoft.github.io/CCF/main/governance/proposals.html>`__.
-
-Build and run docker container to start a CCF network
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Start in a CCF Network in Enclave mode, via docker container based on
-config file “./config/cchost_config_enclave_js.json”
-
-.. code:: bash
-
-    docker build -t ccf-app-samples:js-enclave -f docker/ccf_app_js.enclave .
-    docker run -d --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx ccf-app-samples:js-enclave
-    ...
-    # CCF Network initialization needed before the interaction with the service
-
-Start in a CCF Network in Virtual mode, based on virtual config file:
-“./config/cchost_config_virtual_js.json”:
-
-.. code:: bash
-
-    docker build -t ccf-app-samples:js-virtual -f docker/ccf_app_js.virtual .
-    docker run -d ccf-app-samples:js-virtual
-    ...
-    # CCF Network initialization needed before the interaction with the service
-
-Now, a network is started with one node and one member, you need to
-execute the following governance steps to initialize the network, `check
-Network governance section <#network-governance>`__
-
--  Activate the network existing member (to start a network governance)
--  Build the application and `create a deployment
-   proposal <#build-application>`__
--  Deploy the application proposal, `using governance
-   calls <#network-governance>`__
--  Optionally Create and submit `an add users
-   proposal <#new-user-proposal>`__
--  Open the network for users (`using
-   proposal <#open-network-proposal>`__)
-
-CCF Node Configuration file
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To start or join new node you need some configs, The configuration for
-each CCF node must be contained in a single JSON configuration file like
-[cchost_config_enclave_js.json - cchost_config_virtual_js.json], `CCF
-node config file
-documentation <https://microsoft.github.io/CCF/main/operations/configuration.html>`__
-
-Testing: Using Azure Virtual Machine
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-To Start a test CCF network on a VM, it requires `CCF to be
-intalled <https://microsoft.github.io/CCF/main/build_apps/install_bin.html>`__.
-
-To create a ready CCF VM please check `Creating a Virtual Machine in
-Azure to run
-CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__
-
-Start the CCF network using the cchost in enclave mode
-
-.. code:: bash
-
-    /opt/ccf/bin/cchost --config ./config/cchost_config_enclave_js.json
-    ...
-    # CCF Network initialization needed before the interaction with the service
-
-Or virtual mode
-
-.. code:: bash
-
-   /opt/ccf/bin/cchost --config ./config/cchost_config_virtual_js.json
-   ...
-    # CCF Network initialization needed before the interaction with the service
-
-Now, a network is started with one node and one member, you need to
-execute the following governance steps to initialize the network, `check
-Network governance section <#network-governance>`__
-
--  Activate the network existing member (to start a network governance)
--  Build the application and `create a deployment
-   proposal <#build-application>`__
--  Deploy the application proposal, `using governance
-   calls <#network-governance>`__
--  Create and submit `an add users proposal <#new-user-proposal>`__
--  Open the network for users (`using
-   proposal <#open-network-proposal>`__)
-
-.. _ccf-node-configuration-file-1:
-
-CCF Node Configuration file
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To start or join new node you need some configs, The configuration for
-each CCF node must be contained in a single JSON configuration file like
-[cchost_config_enclave_js.json - cchost_config_virtual_js.json], `CCF
-node config file
-documentation <https://microsoft.github.io/CCF/main/operations/configuration.html>`__
-
-Testing: Using `Azure Managed CCF <https://techcommunity.microsoft.com/t5/azure-confidential-computing/microsoft-introduces-preview-of-azure-managed-confidential/ba-p/3648986>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-To test you application using Managed CCF, you can create Azure Managed
-CCF serivce on your subscription, the service will create a ready CCF
-network
-
--  First, create the network’s initial member certificate, please check
-   `Certificates
-   generation <https://microsoft.github.io/CCF/release/3.x/governance/adding_member.html>`__
--  Create a new Azure Managed CCF serivce (the initial member
-   certificate required as input)
--  Build the application and `create a deployment
-   proposal <#build-application>`__
--  Deploy the application proposal, `using governance
-   calls <#network-governance>`__
--  Create and submit `an add users proposal <#new-user-proposal>`__
+   -  First, create the network’s initial member certificate, please check :doc:`Certificates generation </governance/adding_member>`
+   -  Create a new Azure Managed CCF serivce (the initial member certificate required as input)
+   -  Build the application and create a :ref:`build_apps/js_app_bundle:Deployment` proposal
+   -  Deploy the application proposal, :ref:`governance/proposals:Submitting a New Proposal`
+   -  Create and submit proposal for :ref:`governance/open_network:Adding Users` 
 
 Testing: Application Endpoints
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -272,233 +98,75 @@ Testing: Application Endpoints
 To check samples on how to test your application endpoints, please check
 these repositories.
 
--  `Banking
-   Application <https://github.com/microsoft/ccf-app-samples/tree/main/banking-app>`__
--  `Template
-   Application <https://github.com/microsoft/ccf-app-template>`__
+-  `CCF-app-template repo <https://github.com/microsoft/ccf-app-template#--javascript>`__
+-  `Banking Application sample <https://github.com/microsoft/ccf-app-samples/tree/main/banking-app#how-to-run-the-tests>`__
 
 C++ Applications
 ----------------
 
-CCF apps can also be written in C++. This offers better performance than
-JavaScript apps but requires a compilation step and a restart of the CCF
-node for deployment. please check
-`ccf-app-template <https://github.com/microsoft/ccf-app-template>`__
-repository.
+CCF apps can also be written in C++. This offers better performance than JavaScript apps but requires a compilation step and a restart of the CCF node for deployment. please check `ccf-app-template <https://github.com/microsoft/ccf-app-template>`__ repository.
 
 The C++ sample app is located in the ```cpp/`` <cpp/>`__ directory.
 
 Build C++ app
 ~~~~~~~~~~~~~
 
-In the checkout of
-`ccf-app-template <https://github.com/microsoft/ccf-app-template>`__
-repository:
+Please check `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#build-c-app>`__
 
-.. code:: bash
-
-    cd cpp/
-    mkdir build && cd build
-    CC="/opt/oe_lvi/clang-10" CXX="/opt/oe_lvi/clang++-10" cmake -GNinja ..
-    ninja
-    ls
-
-   #libccf_app.enclave.so.signed # SGX-enabled application
-   #libccf_app.virtual.so # Virtual application (i.e. insecure!)
-
-Run C++ app: Using Sandbox.sh
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code:: bash
-
-   $ /opt/ccf/bin/sandbox.sh -p ./libccf_app.virtual.so
-   [12:00:00.000] Press Ctrl+C to shutdown the network
-
-Or, for an SGX-enabled application (unavailable in development
-container):
-``$ /opt/ccf/bin/sandbox.sh -p ./libccf_app.enclave.so.signed -e release``
-
-Run C++ app: Using Docker
+Run app: Using Sandbox.sh
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-It is possible to build a runtime image of the C++ application via
-docker:
+Please check `run ccf-app-template using sandbox.sh <https://github.com/microsoft/ccf-app-template#run-c-app>`__
 
-.. code:: bash
+Run app: Using Docker
+~~~~~~~~~~~~~~~~~~~~~
 
-   $ docker build -t ccf-app-template:cpp-enclave -f docker/ccf_app_cpp.enclave .
-   $ docker run --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx ccf-app-template:cpp-enclave
-
-   # Or, for the non-SGX (a.k.a. virtual) variant:
-
-   $ docker build -t ccf-app-template:cpp-virtual -f docker/ccf_app_cpp.virtual .
-   $ docker run ccf-app-template:virtual
-   ...
-   2022-01-01T12:00:00.000000Z -0.000 0   [info ] ../src/node/node_state.h:1790        | Network TLS connections now accepted
-   ...
-   # CCF Network initialization needed before the interaction with the service
-
+Please check `run ccf-app-template using docker <https://github.com/microsoft/ccf-app-template#docker-1>`__
 
 Network Governance
 ------------------
 
-a Consortium of trusted Members `governs the CCF
-network <https://microsoft.github.io/CCF/main/governance/index.html>`__.
-members can submit proposals to CCF and these proposals are accepted
-based on the rules defined in the
-`Constitution <https://microsoft.github.io/CCF/main/governance/constitution.html>`__.
-Governance changes are submitted to a `network as
-Proposals <https://microsoft.github.io/CCF/main/governance/proposals.html>`__,
-and put to a vote from members.
+a Consortium of trusted Members :doc:`governs the CCF network </governance/index>`. members can submit proposals to CCF and these proposals are accepted based on the rules defined in the :ref:`Constitution <governance/constitution:Constitution>`. Governance changes are submitted to a :ref:`network as Proposals <governance/proposals:Summary>`, and put to a vote from members.
 
-Submit a proposal
+-  :ref:`Submitting a New Proposal <governance/proposals:Submitting a New Proposal>`
+-  :ref:`Members can then vote to accept or reject the proposal <governance/proposals:Summary>`
 
-.. code:: bash
+.. note:: The initial member's certificate and private key, must be generated before starting a CCF network, please check :doc:`/governance/adding_member` .
 
-   proposal0_out=$(/opt/ccf/bin/scurl.sh "https://ccf_service_url/gov/proposals" --cacert service_cert.pem --signing-key member0_privk.pem --signing-cert member0_cert.pem --data-binary @proposal.json -H "content-type: application/json")
-   proposal0_id=$( jq -r  '.proposal_id' <<< "${proposal0_out}" )
+Activating network members
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Members vote to accept or reject the proposal
+By default the CCF network needs at least one member to be started, after the network is started this member must be activated. 
 
-.. code:: bash
+- :ref:`New member proposal sample <governance/proposals:Submitting a New Proposal>`
+- :ref:`Activating a New Member <governance/adding_member:Activating a New Member>`
 
-   /opt/ccf/bin/scurl.sh "https://ccf_service_url/gov/proposals/$proposal0_id/ballots" --cacert service_cert.pem --signing-key member0_privk.pem --signing-cert member0_cert.pem --data-binary @vote_accept.json -H "content-type: application/json" | jq
-   /opt/ccf/bin/scurl.sh "https://ccf_service_url/gov/proposals/$proposal0_id/ballots" --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @vote_accept.json -H "content-type: application/json" | jq
+Adding network users
+~~~~~~~~~~~~~~~~~~~~
 
-::
+Users directly interact with the application running in CCF. Their public identities should be voted in by members before they are allowed to issue requests
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to Users. First, the identities of trusted users should be generated,
+see :ref:`Generating Member Keys and Certificates <governance/adding_member:Generating Member Keys and Certificates>` and :ref:`Adding Users docs <governance/open_network:Adding Users>`
 
-   Note: The initial member's certificate and private key, must be generated before starting a CCF network, please check [Certificates generation](https://microsoft.github.io/CCF/release/3.x/governance/adding_member.html).
+:ref:`New user proposal sample <governance/open_network:Adding Users>`
 
-Network Governance: Activating network members
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Application deployment
+~~~~~~~~~~~~~~~~~~~~~~
 
-By default the CCF network needs at least one member to be started,
-after the network is started this member must be activated. `Adding or
-activating
-members <https://microsoft.github.io/CCF/main/governance/adding_member.html>`__
+The native format for JavaScript applications in CCF is a :ref:`JavaScript application bundle <build_apps/js_app_bundle:JavaScript Application Bundle>`, or short app bundle. A bundle can be wrapped directly into a governance proposal for deployment.
 
-Activate member
-^^^^^^^^^^^^^^^
+:ref:`Application deployment proposal sample <build_apps/js_app_bundle:Deployment>`
 
-.. code:: bash
+Open network for users
+~~~~~~~~~~~~~~~~~~~~~~
 
-   curl "https://ccf_service_url/gov/ack/update_state_digest" -X POST --cacert service_cert.pem --key member0_privk.pem --cert member0_cert.pem --silent | jq > request.json
-   cat request.json
-   /opt/ccf/bin/scurl.sh "https://ccf_service_url/gov/ack"  --cacert service_cert.pem --signing-key member0_privk.pem --signing-cert member0_cert.pem --header "Content-Type: application/json" --data-binary @request.json
+Once users are added to the network, members should create a :ref:`proposal to open the network <governance/open_network:Opening a Network>`, Other members are then able to vote for the proposal using the returned proposal id.
 
-New member proposal
-^^^^^^^^^^^^^^^^^^^
+Once the proposal has received enough votes under the rules of the Constitution (ie. ballots which evaluate to true), the network is opened to users. It is only then that users are able to execute transactions on the deployed application.
 
-.. code:: json
-
-   {
-     "actions": [
-       {
-         "name": "set_member",
-         "args": {
-           "cert": "member_cert",
-           "encryption_pub_key": <member_encryption_pub_key>
-         }
-       }
-     ]
-   }
-
-Network Governance: Adding users
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Users directly interact with the application running in CCF. Their
-public identities should be voted in by members before they are allowed
-to issue requests
-
-Once a CCF network is successfully started and an acceptable number of
-nodes have joined, members should vote to open the network to Users.
-First, the identities of trusted users should be generated,see
-`Generating Member Keys and
-Certificates <https://microsoft.github.io/CCF/main/governance/adding_member.html#generating-member-keys-and-certificates>`__
-and `Adding Users
-docs <https://microsoft.github.io/CCF/main/governance/open_network.html>`__
-
-New user proposal
-^^^^^^^^^^^^^^^^^
-
-.. code:: json
-
-   {
-     "actions": [
-       {
-         "name": "set_user",
-         "args": {
-           "cert": <user_cert>
-         }
-       }
-     ]
-   }
-
-Network Governance: Application deployment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The native format for JavaScript applications in CCF is a `JavaScript
-application
-bundle <https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html>`__,
-or short app bundle. A bundle can be wrapped directly into a governance
-proposal for deployment.
-
-Application deployment proposal
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code:: json
-
-   {
-     "actions": [
-       {
-         "name": "set_js_app",
-         "args": {
-           "bundle": {
-             "metadata": { "endpoints": {<endpoints>} },
-             "modules": [<modules>]
-           }
-         }
-       }
-     ]
-   }
-
-Network Governance: Open network for users
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Once users are added to the network, members should create a `proposal
-to open the
-network <https://microsoft.github.io/CCF/main/governance/open_network.html>`__,
-Other members are then able to vote for the proposal using the returned
-proposal id.
-
-Once the proposal has received enough votes under the rules of the
-Constitution (ie. ballots which evaluate to true), the network is opened
-to users. It is only then that users are able to execute transactions on
-the deployed application.
-
-Open network proposal
-^^^^^^^^^^^^^^^^^^^^^
-
-.. code:: json
-
-   {
-     "actions": [
-       {
-         "name": "transition_service_to_open",
-         "args": {
-           "next_service_identity": <service_cert>
-         }
-       }
-     ]
-   }
-
-Dependencies Installation
--------------------------------------
-
--  `CCF Setup <https://microsoft.github.io/CCF/main/build_apps/install_bin.html>`__
--  `NodeJS & NPM <https://nodejs.org/en/download/package-manager/>`__
+:ref:`Open network proposal sample <governance/open_network:Opening the Network>`
 
 .. |Open in VSCode| image:: https://img.shields.io/static/v1?label=Open+in&message=VSCode&logo=visualstudiocode&color=007ACC&logoColor=007ACC&labelColor=2C2C32
-   :target: https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/ccf-app-samples
+   :target: https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/ccf-app-template
 .. |Github codespace| image:: https://img.shields.io/static/v1?label=Open+in&message=GitHub+codespace&logo=github&color=2F363D&logoColor=white&labelColor=2C2C32
    :target: https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=496290904&machine=basicLinux32gb&devcontainer_path=.devcontainer.json&location=WestEurope
