@@ -20,8 +20,8 @@ from infra.runner import ConcurrentRunner
 import governance_history
 import tempfile
 import infra.interfaces
-import signing
 import infra.log_capture
+import ccf.cose
 
 from loguru import logger as LOG
 
@@ -601,7 +601,7 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 def test_cose_auth(network, args):
     primary, _ = network.find_primary()
     identity = network.identity("member0")
-    signed_statement = signing.create_cose_sign1(
+    signed_statement = ccf.cose.create_cose_sign1(
         b"body",
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -617,7 +617,7 @@ def test_cose_auth(network, args):
         assert r.body.text() == "body", r.body.text
 
     identity = network.identity("user0")
-    signed_statement = signing.create_cose_sign1(
+    signed_statement = ccf.cose.create_cose_sign1(
         b"body",
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -637,7 +637,7 @@ def test_cose_auth(network, args):
 def test_cose_ack(network, args):
     primary, _ = network.find_primary()
     identity = network.identity("member0")
-    signed_statement = signing.create_cose_sign1(
+    signed_statement = ccf.cose.create_cose_sign1(
         b"",
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -651,7 +651,7 @@ def test_cose_ack(network, args):
         )
         assert r.status_code == 200
 
-    signed_state_digest = signing.create_cose_sign1(
+    signed_state_digest = ccf.cose.create_cose_sign1(
         r.body.data(),
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -687,7 +687,7 @@ def test_cose_proposal(network, args):
     proposal_template = template_env.get_template("set_user_proposal.json.jinja")
     proposal_body = proposal_template.render(cert=os.path.basename(new_user.cert_path))
 
-    signed_statement = signing.create_cose_sign1(
+    signed_statement = ccf.cose.create_cose_sign1(
         proposal_body.encode(),
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -707,7 +707,7 @@ def test_cose_proposal(network, args):
 
     ballot_yes = vote("return true")
 
-    signed_ballot0 = signing.create_cose_sign1(
+    signed_ballot0 = ccf.cose.create_cose_sign1(
         json.dumps(ballot_yes).encode(),
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -722,7 +722,7 @@ def test_cose_proposal(network, args):
         )
         assert r.status_code == 200
 
-    signed_ballot1 = signing.create_cose_sign1(
+    signed_ballot1 = ccf.cose.create_cose_sign1(
         json.dumps(ballot_yes).encode(),
         open(other_identity.key, encoding="utf-8").read(),
         open(other_identity.cert, encoding="utf-8").read(),
@@ -759,7 +759,7 @@ def test_cose_withdrawal(network, args):
     proposal_template = template_env.get_template("set_user_proposal.json.jinja")
     proposal_body = proposal_template.render(cert=os.path.basename(new_user.cert_path))
 
-    signed_statement = signing.create_cose_sign1(
+    signed_statement = ccf.cose.create_cose_sign1(
         proposal_body.encode(),
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -774,7 +774,7 @@ def test_cose_withdrawal(network, args):
         assert r.status_code == 200
     proposal_id = r.body.json()["proposal_id"]
 
-    signed_withdrawal = signing.create_cose_sign1(
+    signed_withdrawal = ccf.cose.create_cose_sign1(
         b"",
         open(identity.key, encoding="utf-8").read(),
         open(identity.cert, encoding="utf-8").read(),
@@ -896,6 +896,15 @@ if __name__ == "__main__":
         governance_history.run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session=False,
+    )
+
+    cr.add(
+        "cose_history",
+        governance_history.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session="COSE",
     )
 
     cr.run(2)

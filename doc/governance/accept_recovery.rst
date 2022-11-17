@@ -25,6 +25,39 @@ A member proposes to recover the network and other members can vote on the propo
         ]
     }
 
+.. code-block:: bash
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --signing-key member1_privk.pem --signing-cert member1_cert.pem --content transition_service_to_open.json | \
+      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 0,
+        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "state": "Open"
+    }
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member1_privk.pem --signing-cert member1_cert.pem --content vote_accept.json | \
+      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 1,
+        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "state": "Open"
+    }
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_accept.json | \
+      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 2,
+        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "state": "Accepted"
+    }
+
+Or alternatively, with the old signature method:
+
+.. code-block:: bash
+
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
         "ballot_count": 0,

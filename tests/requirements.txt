@@ -18,4 +18,4 @@ locust
 pyOpenSSL
 grpcio-tools == 1.44.0 # Pin to a working version for SNP platform
 JWCrypto
-cose
+pycose
