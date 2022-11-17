@@ -60,6 +60,8 @@ jobs:
   - template: .azure-pipelines-templates/common.yml
     parameters:
       target: SNPCC
+      env:
+        pool: sev-snp-pool
       cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
