@@ -86,11 +86,13 @@ namespace ccf
       const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
 
     /** Get the history of the raft view changes.
-     * 
-     * Returns the history of view changes since the given view, which defaults to the start of time.
-     * 
-     * A view change is characterised by the first sequence number in the new view.
-    */
+     *
+     * Returns the history of view changes since the given view, which defaults
+     * to the start of time.
+     *
+     * A view change is characterised by the first sequence number in the new
+     * view.
+     */
     ApiResult get_view_history_v1(
       std::vector<ccf::TxID>& history, ccf::View since = 1);
 
