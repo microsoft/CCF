@@ -7,8 +7,7 @@ steps:
   - ${{ if eq(parameters.target, 'SGX') }}:
       - script: |
           set -ex
-          SGX_GROUP_ID=$(grep sgx_prv /tmp/host_group | cut -d ':' -f 3)
-          sudo groupadd -g $SGX_GROUP_ID sgx_prv
+          sudo groupadd -fg $(/usr/bin/stat -Lc '%g' /dev/sgx/provision) sgx_prv
           sudo usermod -a -G sgx_prv $(whoami)
         displayName: SGX Group
         condition: succeededOrFailed()
