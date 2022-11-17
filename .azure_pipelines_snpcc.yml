@@ -67,7 +67,7 @@ jobs:
       artifact_name: "SNPCC_Debug"
       ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
       depends_on: configure
-      ssh_target: "test"
+      ssh_target: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
