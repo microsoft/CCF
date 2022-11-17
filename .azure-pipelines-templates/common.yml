@@ -7,9 +7,12 @@ jobs:
 
     ${{ insert }}: ${{ parameters.env }}
 
+    variables:
+      - SSH_TARGET: ${{ parameters.ssh_target }}
+
     steps:
       - script: |
-          echo "SSH Target specified, logging into ${{ parameters.ssh_target }}..."
+          echo "SSH Target specified, logging into $SSH_TARGET..."
 
       # - script: |
       #     sudo rm -rf build
