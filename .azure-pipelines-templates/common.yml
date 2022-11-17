@@ -8,7 +8,7 @@ jobs:
     ${{ insert }}: ${{ parameters.env }}
 
     variables:
-      - SSH_TARGET: ${{ parameters.ssh_target }}
+      SSH_TARGET: ${{ parameters.ssh_target }}
 
     steps:
       - script: |
