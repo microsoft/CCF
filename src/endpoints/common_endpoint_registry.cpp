@@ -79,7 +79,7 @@ namespace ccf
           fmt::format("Error code: {}", ccf::api_result_to_str(result)));
       }
 
-      std::vector<std::pair<ccf::View, ccf::SeqNo>> history;
+      std::vector<ccf::TxID> history;
       result = get_view_history_v1(history);
       if (result != ccf::ApiResult::OK) {
         return make_error(
@@ -88,11 +88,11 @@ namespace ccf
           fmt::format("Error code: {}", ccf::api_result_to_str(result)));
       }
 
-        GetCommit::Out out;
-        out.transaction_id.view = view;
-        out.transaction_id.seqno = seqno;
-        out.view_history = history;
-        return make_success(out);
+      GetCommit::Out out;
+      out.transaction_id.view = view;
+      out.transaction_id.seqno = seqno;
+      out.view_history = history;
+      return make_success(out);
     };
     make_command_endpoint(
       "/commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)

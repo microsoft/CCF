@@ -18,7 +18,7 @@ namespace ccf
     context(context_)
   {}
 
-  ApiResult BaseEndpointRegistry::get_view_history_v1(std::vector<std::pair<ccf::View,ccf::SeqNo>>& history) {
+  ApiResult BaseEndpointRegistry::get_view_history_v1(std::vector<ccf::TxID>& history) {
     try
     {
       // ensure we make a proper full vec
@@ -31,7 +31,7 @@ namespace ccf
             const auto view = i + 1;
             const auto first_seqno = view_history[i];
             LOG_INFO_FMT("adding {}.{}", view, first_seqno);
-            history.push_back(std::make_pair(view, first_seqno));
+            history.push_back({ view, first_seqno });
         }
       }
 
