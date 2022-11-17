@@ -231,6 +231,7 @@ def run_code_upgrade_from(
 
             new_code_id = infra.utils.get_code_id(
                 args.enclave_type,
+                args.enclave_platform,
                 args.oe_binary,
                 args.package,
                 library_dir=to_library_dir,
@@ -284,6 +285,7 @@ def run_code_upgrade_from(
 
             old_code_id = infra.utils.get_code_id(
                 args.enclave_type,
+                args.enclave_platform,
                 args.oe_binary,
                 args.package,
                 library_dir=from_library_dir,

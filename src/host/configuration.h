@@ -14,11 +14,14 @@ namespace host
   enum class EnclaveType
   {
     RELEASE,
-    DEBUG
+    DEBUG,
+    VIRTUAL // Deprecated (use EnclavePlatform instead)
   };
   DECLARE_JSON_ENUM(
     EnclaveType,
-    {{EnclaveType::RELEASE, "Release"}, {EnclaveType::DEBUG, "Debug"}});
+    {{EnclaveType::RELEASE, "Release"},
+     {EnclaveType::DEBUG, "Debug"},
+     {EnclaveType::VIRTUAL, "Virtual"}});
 
   enum class EnclavePlatform
   {
@@ -160,8 +163,9 @@ namespace host
     Command command = {};
   };
 
-  DECLARE_JSON_TYPE(CCHostConfig::Enclave);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file, platform);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Enclave);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Enclave, platform);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);

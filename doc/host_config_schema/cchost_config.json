@@ -19,9 +19,9 @@
         },
         "type": {
           "type": "string",
-          "enum": ["Release", "Debug"],
+          "enum": ["Release", "Debug", "Virtual"],
           "default": "Release",
-          "description": "Type of enclave application (only if platform is SGX)"
+          "description": "Type of enclave application (only if platform is SGX). \"Virtual\" is deprecated (use platform field instead)"
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
