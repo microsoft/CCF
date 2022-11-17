@@ -31,7 +31,7 @@ jobs:
       vmImage: ubuntu-20.04
     steps:
       - script: |
-          ACI_PASS=`echo $RANDOM | md5sum | head -c 20`
+          ACI_PASS=`echo $RANDOM | md5sum | head -c 30`
           echo "##vso[task.setvariable variable=aciPass;isOutput=true]$ACI_PASS"
           echo "Installing Azure CLI..."
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
@@ -67,9 +67,7 @@ jobs:
       artifact_name: "SNPCC_Debug"
       ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
       depends_on: configure
-      ssh_target: ACI_IP
-    variables:
-      ACI_IP: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+      ssh_target: test
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
