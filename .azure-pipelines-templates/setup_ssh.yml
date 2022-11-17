@@ -2,7 +2,9 @@ steps:
   - script: |
       echo -e "\nSSH Target specified, creating and setting SSH key for this executor..."
       sudo apt-get install sshpass
-      ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
+      if [ ! -f ~/.ssh/id_rsa ]
+        ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""
+      fi
       sshpass -p ${{ parameters.ssh_password }} ssh-copy-id agent@${{ parameters.ssh_target }} -o "StrictHostKeyChecking no"
       echo -e "\n Executor key successfully installed"
     displayName: "Setup SSH Connection"
