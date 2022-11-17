@@ -23,7 +23,7 @@ def mk_new(name, contents):
 def build_lib_path(
     lib_name, enclave_type=None, enclave_platform="sgx", library_dir="."
 ):
-    if enclave_platform == "virtual":
+    if enclave_platform == "virtual" or enclave_type == "virtual":
         ext = ".virtual.so"
         mode = "Virtual mode"
     elif enclave_platform == "sgx":

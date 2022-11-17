@@ -617,6 +617,11 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"
 
+    # For compatibility with <= 2.x versions as enclave platform
+    # was introduced in 3.x
+    if args.enclave_platform == "virtual":
+        args.enclave_type = "virtual"
+
     repo = infra.github.Repository()
     local_branch = infra.github.GitEnv.local_branch()
 
