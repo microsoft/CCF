@@ -60,9 +60,6 @@ struct CCFConfig
 
 struct StartupConfig : CCFConfig
 {
-  // Only if joining or recovering
-  std::vector<uint8_t> startup_snapshot = {};
-
   std::string startup_host_time;
   size_t snapshot_tx_interval = 10'000;
 
