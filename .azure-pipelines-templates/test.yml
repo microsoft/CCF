@@ -6,7 +6,7 @@ parameters:
 
 steps:
   - script: |
-      ssh agent@${{ parameters.ssh_target }} '
+      ssh agent@${{ parameters.ssh_target }} ' <<'EOF'
     displayName: "Setup testing over SSH"
 
   - script: |
@@ -22,6 +22,7 @@ steps:
 
   - script: |
       '
+      EOF
     displayName: "Conclude testing over SSH"
 
   # # Only run privileged tests in container environment

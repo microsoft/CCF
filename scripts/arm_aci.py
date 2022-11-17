@@ -39,7 +39,7 @@ STARTUP_COMMANDS = {
         "wget https://gist.github.com/DomAyre/ea2c07a9cb790bf17da05d4ca1674c8c/raw -O setup_dev.sh",
         "chmod 777 setup_dev.sh",
         " ".join([
-            f"MSUSER=\"{args.aci_ms_user}-{i}\"",
+            f"MSUSER=\"{args.aci_ms_user}\"",
             f"GITHUBUSER=\"{args.aci_github_user}\"",
             f"GITHUBNAME=\"{args.aci_github_name}\"",
             f"SSHKEYS=\"{args.aci_ssh_keys}\"",
