@@ -19,6 +19,7 @@
 namespace ccf
 {
   static constexpr auto tx_id_param_key = "transaction_id";
+  static constexpr auto view_history_param_key = "view_history";
 
   namespace
   {
@@ -68,20 +69,12 @@ namespace ccf
   {
     BaseEndpointRegistry::init_handlers();
 
-    auto get_commit = [this](auto&, nlohmann::json&&) {
+    auto get_commit = [this](auto& ctx, nlohmann::json&&) {
       ccf::View view;
       ccf::SeqNo seqno;
       auto result = get_last_committed_txid_v1(view, seqno);
-      if (result != ccf::ApiResult::OK) {
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
-      }
-
-      std::vector<ccf::TxID> history;
-      result = get_view_history_v1(history);
-      if (result != ccf::ApiResult::OK) {
+      if (result != ccf::ApiResult::OK)
+      {
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
@@ -91,7 +84,35 @@ namespace ccf
       GetCommit::Out out;
       out.transaction_id.view = view;
       out.transaction_id.seqno = seqno;
-      out.view_history = history;
+
+      // Parse arguments from query
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+
+      std::string error_reason;
+      std::string include_view_history;
+      http::get_query_value(
+        parsed_query,
+        view_history_param_key,
+        include_view_history,
+        error_reason);
+      // continue even if there is an error as the view_history param is
+      // optional
+
+      if (include_view_history == "true")
+      {
+        std::vector<ccf::TxID> history;
+        result = get_view_history_v1(history);
+        if (result != ccf::ApiResult::OK)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
+        out.view_history = history;
+      }
+
       return make_success(out);
     };
     make_command_endpoint(
