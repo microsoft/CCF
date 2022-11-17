@@ -22,10 +22,6 @@ schedules:
     branches:
       include:
         - main
-        - "release/*"
-      exclude:
-        - "release/1.x"
-        - "release/2.x"
     always: true
 
 jobs:

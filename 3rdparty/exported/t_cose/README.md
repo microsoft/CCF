@@ -97,8 +97,9 @@ To build run:
 #### OpenSSL Crypto -- Makefile.ossl
 
 This OpenSSL integration supports SHA-256, SHA-384 and SHA-512 with
-ECDSA to support the COSE algorithms ES256, ES384 and ES512. It is a
-full and tested integration with OpenSSL crypto.
+ECDSA, EdDSA, or RSAPSS to support the COSE algorithms ES256, ES384 and
+ES512, PS256, PS384 and PS512. It is a full and tested integration
+with OpenSSL crypto.
 
 If OpenSSL is installed in /usr/local or as a standar library, you can
 probably just run make:
@@ -139,8 +140,9 @@ test coverage, but the code should handle them all correctly.
 As of March 2022, t_cose works with the PSA 1.0 Crypto API as
 implemented by Mbed TLS 2.x and 3.x.
 
-This integration supports SHA-256, SHA-384 and SHA-512 with ECDSA to
-support the COSE algorithms ES256, ES384 and ES512. 
+This integration supports SHA-256, SHA-384 and SHA-512 with
+ECDSA, EdDSA or RSAPSS to support the COSE algorithms ES256, ES384 and
+ES512, PS256, PS384 and PS512.
 
 If Mbed TLS is installed in /usr/local, you can probably just run
 make:
@@ -273,10 +275,6 @@ In addition to the above memory usage, the crypto library will use
 some stack and/or heap memory. This will vary quite a bit by crypto
 library. Some may use malloc. Some may not.
 
-So far no support for RSA is available, but since the keys and
-signatures are much bigger, implementing it will increase stack and
-memory usage substantially.
-
 The OpenSSL library does use malloc, even with ECDSA. Another
 implementation of ECDSA might not use malloc, as the keys are small
 enough.
@@ -299,14 +297,13 @@ just have different names.
   been assigned by IANA.
 * No way to add custom headers when creating signed messages or
   process them during verification.
-* Only ECDSA is supported so far (facilities are available to add
-  others).
 * Does not handle CBOR indefinite length strings (indefinite length
   maps and arrays are handled).
 * Counter signatures are not supported.
 
 ## Credit
 
+* Paul Liétar for RSA PSS (PS256..PS512) and EdDSA
 * Maik Riechert for cmake, CI and other.
 * Ken Takayama for the bulk of the detached content implementation.
 * Tamas Ban for lots code review comments, design ideas and porting to ARM PSA.
