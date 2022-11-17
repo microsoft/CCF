@@ -18,6 +18,32 @@ namespace ccf
     context(context_)
   {}
 
+  ApiResult BaseEndpointRegistry::get_view_history_v1(std::vector<std::pair<ccf::View,ccf::SeqNo>>& history) {
+    try
+    {
+      // ensure we make a proper full vec
+      history.clear();
+      if (consensus != nullptr)
+      {
+        const auto view_history = consensus->get_view_history(20);
+        LOG_INFO_FMT("view_history: {} {}", view_history[0], view_history[1]);
+        for (uint64_t i = 0; i < view_history.size(); i++){
+            const auto view = i + 1;
+            const auto first_seqno = view_history[i];
+            LOG_INFO_FMT("adding {}.{}", view, first_seqno);
+            history.push_back(std::make_pair(view, first_seqno));
+        }
+      }
+
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
   ApiResult BaseEndpointRegistry::get_status_for_txid_v1(
     ccf::View view, ccf::SeqNo seqno, ccf::TxStatus& tx_status)
   {

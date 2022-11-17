@@ -82,7 +82,7 @@ namespace ccf
     security_policy)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id, view_history)
 
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, transaction_id, status)
