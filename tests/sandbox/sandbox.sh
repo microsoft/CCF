@@ -7,6 +7,7 @@ set -e
 VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
+CONSTITUTION_PATH="${PATH_HERE}"
 VERSION_FILE="${PATH_HERE}"/../share/VERSION_LONG
 
 is_package_specified=false
@@ -15,24 +16,34 @@ is_js_bundle_specified=false
 PLATFORM_FILE="${PATH_HERE}"/../share/PLATFORM
 enclave_type="virtual"
 
-extra_args=("$@")
+extra_args=()
 while [ "$1" != "" ]; do
     case $1 in
         -p|--package)
             is_package_specified=true
+            extra_args+=($1 $2)
             shift
             ;;
         -p=*|--package=*)
             is_package_specified=true
+            extra_args+=($1)
             ;;
         --js-app-bundle)
             is_js_bundle_specified=true
+            extra_args+=($1 $2)
             shift
             ;;
         --js-app-bundle=*)
             is_js_bundle_specified=true
+            extra_args+=($1)
+            ;;
+        -c|--constitution-path)
+            CONSTITUTION_PATH=$2
+            # We don't copy this argument to extra_args
+            shift
             ;;
         *)
+            extra_args+=($1)
             ;;
     esac
     shift
@@ -92,10 +103,10 @@ exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
     --enclave-type "${enclave_type}" \
     --initial-member-count 1 \
-    --constitution "${PATH_HERE}"/actions.js \
-    --constitution "${PATH_HERE}"/validate.js \
-    --constitution "${PATH_HERE}"/resolve.js \
-    --constitution "${PATH_HERE}"/apply.js \
+    --constitution "${CONSTITUTION_PATH}"/actions.js \
+    --constitution "${CONSTITUTION_PATH}"/validate.js \
+    --constitution "${CONSTITUTION_PATH}"/resolve.js \
+    --constitution "${CONSTITUTION_PATH}"/apply.js \
     --ledger-chunk-bytes 5000000 \
     --snapshot-tx-interval 10000 \
     --initial-node-cert-validity-days 90 \
