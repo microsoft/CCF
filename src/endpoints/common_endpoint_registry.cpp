@@ -20,6 +20,7 @@ namespace ccf
 {
   static constexpr auto tx_id_param_key = "transaction_id";
   static constexpr auto view_history_param_key = "view_history";
+  static constexpr auto view_history_since_param_key = "view_history_since";
 
   namespace
   {
@@ -90,16 +91,13 @@ namespace ccf
         http::parse_query(ctx.rpc_ctx->get_request_query());
 
       std::string error_reason;
-      std::string include_view_history;
+      std::string view_history;
       http::get_query_value(
-        parsed_query,
-        view_history_param_key,
-        include_view_history,
-        error_reason);
+        parsed_query, view_history_param_key, view_history, error_reason);
       // continue even if there is an error as the view_history param is
       // optional
 
-      if (include_view_history == "true")
+      if (view_history == "true")
       {
         std::vector<ccf::TxID> history;
         result = get_view_history_v1(history);
@@ -112,12 +110,40 @@ namespace ccf
         }
         out.view_history = history;
       }
+      else
+      {
+        std::string error_reason;
+        ccf::View view_history_since;
+        http::get_query_value(
+          parsed_query,
+          view_history_since_param_key,
+          view_history_since,
+          error_reason);
+        // continue even if there is an error as the view_history param is
+        // optional
+
+        if (error_reason == "")
+        {
+          std::vector<ccf::TxID> history;
+          result = get_view_history_v1(history, view_history_since);
+          if (result != ccf::ApiResult::OK)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+          }
+          out.view_history = history;
+        }
+      }
 
       return make_success(out);
     };
     make_command_endpoint(
       "/commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
       .set_auto_schema<GetCommit>()
+      .add_query_parameter<bool>(view_history_param_key)
+      .add_query_parameter<ccf::View>(view_history_since_param_key)
       .install();
 
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {

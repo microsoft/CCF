@@ -18,20 +18,21 @@ namespace ccf
     context(context_)
   {}
 
-  ApiResult BaseEndpointRegistry::get_view_history_v1(std::vector<ccf::TxID>& history) {
+  ApiResult BaseEndpointRegistry::get_view_history_v1(
+    std::vector<ccf::TxID>& history, ccf::View since)
+  {
     try
     {
       // ensure we make a proper full vec
       history.clear();
       if (consensus != nullptr)
       {
-        const auto view_history = consensus->get_view_history(20);
-        LOG_INFO_FMT("view_history: {} {}", view_history[0], view_history[1]);
-        for (uint64_t i = 0; i < view_history.size(); i++){
-            const auto view = i + 1;
-            const auto first_seqno = view_history[i];
-            LOG_INFO_FMT("adding {}.{}", view, first_seqno);
-            history.push_back({ view, first_seqno });
+        const auto view_history = consensus->get_view_history_since(since);
+        for (uint64_t i = 0; i < view_history.size(); i++)
+        {
+          const auto view = i + 1;
+          const auto first_seqno = view_history[i];
+          history.push_back({view, first_seqno});
         }
       }
 
