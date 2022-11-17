@@ -22,14 +22,13 @@ jobs:
           hostname
 
       - script: |
-          ssh agent@${{ parameters.ssh_target }} ' <<'EOF'
+          ssh agent@${{ parameters.ssh_target }} <<'EOF'
         displayName: "Setup testing over SSH"
 
       - script: |
           hostname
 
       - script: |
-          '
           EOF
         displayName: "Conclude testing over SSH"
 
