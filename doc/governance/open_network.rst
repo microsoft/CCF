@@ -184,7 +184,7 @@ Once users are added to the opening network, members should create a proposal to
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --signing-key member0_privk.pem --signing-cert member0_cert.pem --content transition_service_to_open.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --signing-key member0_privk.pem --signing-cert member0_cert.pem --content transition_service_to_open.json | \
       curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 0,
