@@ -15,6 +15,7 @@ enclave {
             size_t ccf_config_size,
             [user_check] uint8_t* startup_snapshot,
             size_t startup_snapshot_size,
+            size_t aligned_startup_snapshot_size,
             [out, count=node_cert_size] uint8_t* node_cert,
             size_t node_cert_size,
             [out] size_t* node_cert_len,

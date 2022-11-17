@@ -90,6 +90,7 @@ extern "C"
     size_t ccf_config_size,
     uint8_t* startup_snapshot_data,
     size_t startup_snapshot_size,
+    size_t aligned_startup_snapshot_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -228,7 +229,7 @@ extern "C"
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
-    if (!is_aligned(startup_snapshot_data, 8, startup_snapshot_size))
+    if (!is_aligned(startup_snapshot_data, 8, aligned_startup_snapshot_size))
     {
       LOG_FAIL_FMT("Read source memory not aligned: startup snapshot");
       return CreateNodeStatus::UnalignedArguments;

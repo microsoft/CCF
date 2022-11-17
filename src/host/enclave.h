@@ -214,10 +214,11 @@ namespace host
 
 #define CREATE_NODE_ARGS \
   &status, (void*)&enclave_config, config, config_aligned_size, snapshot, \
-    snapshot_aligned_size, node_cert.data(), node_cert.size(), &node_cert_len, \
-    service_cert.data(), service_cert.size(), &service_cert_len, \
-    enclave_version_buf.data(), enclave_version_buf.size(), \
-    &enclave_version_len, start_type, num_worker_thread, time_location
+    startup_snapshot.size(), snapshot_aligned_size, node_cert.data(), \
+    node_cert.size(), &node_cert_len, service_cert.data(), \
+    service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
+    enclave_version_buf.size(), &enclave_version_len, start_type, \
+    num_worker_thread, time_location
 
       oe_result_t err = OE_FAILURE;
 
