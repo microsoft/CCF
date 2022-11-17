@@ -9,10 +9,7 @@ jobs:
 
     steps:
       - script: |
-          echo "SSH Target specified, logging in..."
-          # apt-get install sshpass
-          # sshpass -p ${{ parameters.ssh_password }} ssh agent@${{ parameters.ssh_target }} -o "StrictHostKeyChecking no"
-        condition: ${{ parameters.ssh_target }}
+          echo "SSH Target specified, logging into ${{ parameters.ssh_target }}..."
 
       # - script: |
       #     sudo rm -rf build
