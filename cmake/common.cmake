@@ -666,8 +666,7 @@ function(add_e2e_test)
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
-      PROPERTY ENVIRONMENT
-                "DEFAULT_ENCLAVE_PLATFORM=${COMPILE_TARGET}"
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${COMPILE_TARGET}"
     )
   endif()
 endfunction()
