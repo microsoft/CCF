@@ -19,45 +19,60 @@ jobs:
               ssh_password: $SSH_PASSWORD
 
       - script: |
-          sudo rm -rf build
-        displayName: "Cleanup"
+          hostname
 
-      - checkout: self
-        clean: true
-        fetchDepth: 0
-        fetchTags: true
+      - script: |
+          ssh agent@${{ parameters.ssh_target }} ' <<'EOF'
+        displayName: "Setup testing over SSH"
 
-      - ${{ if parameters.fetch_quictls }}:
-          - template: fetch_quictls.yml
-            parameters:
-              target: ${{ parameters.target }}
-              quictls_mode: ${{ parameters.fetch_quictls }}
+      - script: |
+          hostname
 
-      - template: platform.yml
-        parameters:
-          target: "${{ parameters.target }}"
+      - script: |
+          '
+          EOF
+        displayName: "Conclude testing over SSH"
 
-      - template: cmake.yml
-        parameters:
-          cmake_args: "${{ parameters.cmake_args }}"
+      # - script: |
+      #     sudo rm -rf build
+      #   displayName: "Cleanup"
 
-      - template: ninja.yml
-        parameters:
-          cmake_args: "${{ parameters.cmake_args }}"
+      # - checkout: self
+      #   clean: true
+      #   fetchDepth: 0
+      #   fetchTags: true
 
-      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
-          - script: |
-              scp -r build agent@$SSH_TARGET:/home/agent/build
-            displayName: "Copy build to SSH Target"
+      # - ${{ if parameters.fetch_quictls }}:
+      #     - template: fetch_quictls.yml
+      #       parameters:
+      #         target: ${{ parameters.target }}
+      #         quictls_mode: ${{ parameters.fetch_quictls }}
 
-      - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
-          - template: test.yml
-            parameters:
-              suffix: ${{ parameters.suffix }}
-              ctest_filter: ${{ parameters.ctest_filter }}
-              suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
-              ctest_timeout: ${{ parameters.ctest_timeout }}
-              ssh_target: $SSH_TARGET
+      # - template: platform.yml
+      #   parameters:
+      #     target: "${{ parameters.target }}"
+
+      # - template: cmake.yml
+      #   parameters:
+      #     cmake_args: "${{ parameters.cmake_args }}"
+
+      # - template: ninja.yml
+      #   parameters:
+      #     cmake_args: "${{ parameters.cmake_args }}"
+
+      # - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
+      #     - script: |
+      #         scp -r build agent@$SSH_TARGET:/home/agent/build
+      #       displayName: "Copy build to SSH Target"
+
+      # - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
+      #     - template: test.yml
+      #       parameters:
+      #         suffix: ${{ parameters.suffix }}
+      #         ctest_filter: ${{ parameters.ctest_filter }}
+      #         suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
+      #         ctest_timeout: ${{ parameters.ctest_timeout }}
+      #         ssh_target: $SSH_TARGET
 
       # - template: misc.yml
       #   parameters:
