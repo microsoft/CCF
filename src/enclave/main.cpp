@@ -235,6 +235,14 @@ extern "C"
       return CreateNodeStatus::UnalignedArguments;
     }
 
+    if (startup_snapshot_size > aligned_startup_snapshot_size)
+    {
+      LOG_FAIL_FMT(
+        "Memory outside enclave: startup snapshot size is not less than or "
+        "equal to aligned startup size");
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
     oe_lfence();
 
     StartupConfig cc =
