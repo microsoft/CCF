@@ -47,17 +47,17 @@ jobs:
 
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
           - script: |
-              scp -r build agent@$SSH_TARGET:/home/agent/ccf_build
-              ssh agent@$SSH_TARGET 'ls -la /home/agent/'
+              scp -r build agent@$SSH_TARGET:/home/agent/build
             displayName: "Copy build to SSH Target"
 
-      # - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
-      #     - template: test.yml
-      #       parameters:
-      #         suffix: ${{ parameters.suffix }}
-      #         ctest_filter: ${{ parameters.ctest_filter }}
-      #         suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
-      #         ctest_timeout: ${{ parameters.ctest_timeout }}
+      - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
+          - template: test.yml
+            parameters:
+              suffix: ${{ parameters.suffix }}
+              ctest_filter: ${{ parameters.ctest_filter }}
+              suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
+              ctest_timeout: ${{ parameters.ctest_timeout }}
+              ssh_target: $SSH_TARGET
 
       # - template: misc.yml
       #   parameters:
