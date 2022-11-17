@@ -13,7 +13,7 @@ jobs:
     steps:
       - script: |
           echo "SSH Target specified, logging into $SSH_TARGET..."
-      - condition: not(eq(variables['SSH_TARGET'], ''))
+        condition: not(eq(variables['SSH_TARGET'], ''))
 
       # - script: |
       #     sudo rm -rf build
