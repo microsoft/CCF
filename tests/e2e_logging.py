@@ -1588,6 +1588,53 @@ def test_committed_index(network, args):
     }
 
 
+@reqs.description("Test the commit endpoints view_history feature")
+def test_commit_view_history(network, args):
+    remote_node, _ = network.find_primary()
+    with remote_node.client() as c:
+        # the original endpoint should still work
+        res = c.get("/app/commit")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" not in res.body.json()
+        txid = res.body.json()["transaction_id"]
+
+        # non-true view_history should still work
+        res = c.get("/app/commit?view_history=nottrue")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" not in res.body.json()
+
+        # true view_history should list all history
+        res = c.get("/app/commit?view_history=true")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" in res.body.json()
+        assert type(res.body.json()["view_history"]) == list
+        view_history = res.body.json()["view_history"]
+
+        # view_history should override the view_history_since
+        res = c.get("/app/commit?view_history=true&view_history_since=2")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id":txid, "view_history": view_history}
+
+        # ask for since the current view
+        res = c.get("/app/commit?view_history_since=2")
+        assert res.status_code == http.HTTPStatus.OK
+        view_history_2 = [v for v in view_history if int(v.split(".")[0]) > 2]
+        if view_history_2:
+            assert res.body.json() == {"transaction_id":txid, "view_history": view_history_2}
+        else:
+            assert "view_history" not in res.body.json()
+
+        # ask for an invalid view
+        res = c.get("/app/commit?view_history_since=0")
+        assert res.status_code == http.HTTPStatus.BAD_REQUEST
+        assert res.body.json() == {"error": {"code": "InvalidQueryParameterValue", "message": "Error code: InvalidArgs"}}
+
+        # ask for something that doesn't exist yet
+        res = c.get("/app/commit?view_history_since=100")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id":txid}
+
+
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
@@ -1657,6 +1704,7 @@ def run(args):
         test_empty_path(network, args)
         test_post_local_commit_failure(network, args)
         test_committed_index(network, args)
+        test_commit_view_history(network, args)
         # BFT does not handle re-keying yet
         if args.consensus == "CFT":
             test_liveness(network, args)
