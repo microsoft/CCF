@@ -126,7 +126,14 @@ namespace ccf
         {
           std::vector<ccf::TxID> history;
           result = get_view_history_v1(history, view_history_since);
-          if (result != ccf::ApiResult::OK)
+          if (result == ccf::ApiResult::InvalidArgs)
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+          }
+          else if (result != ccf::ApiResult::OK)
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -134,6 +141,10 @@ namespace ccf
               fmt::format("Error code: {}", ccf::api_result_to_str(result)));
           }
           out.view_history = history;
+        }
+        else
+        {
+          CCF_APP_FAIL("Failed to get view history since: {}", error_reason);
         }
       }
 

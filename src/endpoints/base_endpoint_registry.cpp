@@ -27,10 +27,14 @@ namespace ccf
       history.clear();
       if (consensus != nullptr)
       {
+        if (since < 1) {
+          // views start at 1
+          return ApiResult::InvalidArgs;
+        }
         const auto view_history = consensus->get_view_history_since(since);
         for (uint64_t i = 0; i < view_history.size(); i++)
         {
-          const auto view = i + 1;
+          const auto view = i + since;
           const auto first_seqno = view_history[i];
           history.push_back({view, first_seqno});
         }
