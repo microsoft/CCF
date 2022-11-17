@@ -34,7 +34,7 @@ resources:
 
     - container: sgx
       image: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-sgx
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro -v /etc/group:/tmp/host_group
 
 variables:
   ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
