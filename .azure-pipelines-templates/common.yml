@@ -22,7 +22,7 @@ jobs:
           hostname
 
       - script: |
-          ssh agent@${{ parameters.ssh_target }} '
+          ssh agent@$SSH_TARGET '
           hostname
           echo test
           '
