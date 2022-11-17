@@ -69,6 +69,8 @@ jobs:
       depends_on:
         - configure
         - deploy_aci
+      ssh_target: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+      ssh_password: $[ dependencies.deploy_aci.outputs['deploy.aciPass'] ]
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
