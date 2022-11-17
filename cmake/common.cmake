@@ -695,6 +695,7 @@ function(add_perf_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
+  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
   if("sgx" STREQUAL COMPILE_TARGET)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
     set(ENCLAVE_TYPE "release")
@@ -721,7 +722,7 @@ function(add_perf_test)
       ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
       ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
       ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
-      -e ${ENCLAVE_TYPE} ${NODES}
+      -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
   )
 
   # Make python test client framework importable

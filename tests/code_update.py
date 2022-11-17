@@ -219,7 +219,7 @@ def test_add_node_with_bad_host_data(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
-    if args.enclave_platform == "virtual":
+    if args.enclave_platform != "sgx":
         LOG.warning("Skipping test_add_node_with_bad_code with non-sgx enclave")
         return network
 
