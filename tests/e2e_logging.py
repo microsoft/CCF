@@ -1613,26 +1613,34 @@ def test_commit_view_history(network, args):
         # view_history should override the view_history_since
         res = c.get("/app/commit?view_history=true&view_history_since=2")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id":txid, "view_history": view_history}
+        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
 
         # ask for since the current view
         res = c.get("/app/commit?view_history_since=2")
         assert res.status_code == http.HTTPStatus.OK
         view_history_2 = [v for v in view_history if int(v.split(".")[0]) > 2]
         if view_history_2:
-            assert res.body.json() == {"transaction_id":txid, "view_history": view_history_2}
+            assert res.body.json() == {
+                "transaction_id": txid,
+                "view_history": view_history_2,
+            }
         else:
             assert "view_history" not in res.body.json()
 
         # ask for an invalid view
         res = c.get("/app/commit?view_history_since=0")
         assert res.status_code == http.HTTPStatus.BAD_REQUEST
-        assert res.body.json() == {"error": {"code": "InvalidQueryParameterValue", "message": "Error code: InvalidArgs"}}
+        assert res.body.json() == {
+            "error": {
+                "code": "InvalidQueryParameterValue",
+                "message": "Error code: InvalidArgs",
+            }
+        }
 
         # ask for something that doesn't exist yet
         res = c.get("/app/commit?view_history_since=100")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id":txid}
+        assert res.body.json() == {"transaction_id": txid}
 
 
 def run_udp_tests(args):
