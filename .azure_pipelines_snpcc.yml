@@ -63,26 +63,27 @@ jobs:
           apt-get install sshpass
           sshpass -p $ACI_PASS ssh agent@$ACI_IP -o "StrictHostKeyChecking no" 'echo connected from step in next job'
 
-  # - template: .azure-pipelines-templates/configure.yml
-  #   parameters:
-  #     depends_on: deploy_aci
+  - template: .azure-pipelines-templates/configure.yml
+    parameters:
+      depends_on: deploy_aci
 
-  # - template: .azure-pipelines-templates/common.yml
-  #   parameters:
-  #     target: SNPCC
-  #     env:
-  #       pool: sev-snp-pool
-  #     cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
-  #     suffix: "Debug"
-  #     artifact_name: "SNPCC_Debug"
-  #     ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
-  #     depends_on: configure
+  - template: .azure-pipelines-templates/common.yml
+    parameters:
+      target: SNPCC
+      env:
+        pool: sev-snp-pool
+      cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
+      suffix: "Debug"
+      artifact_name: "SNPCC_Debug"
+      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
+      depends_on: configure
+      ssh_target: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: test_ssh
+    dependsOn: SNPCC_Debug
     condition: always()
     steps:
       - script: |
