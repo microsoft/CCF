@@ -12,17 +12,14 @@ jobs:
       SSH_PASSWORD: ${{ parameters.ssh_password }}
 
     steps:
-      - script: |
-          echo "SSH Target specified, logging in..."
-          sudo apt-get install sshpass
-          hostname
-          sshpass -p $SSH_PASSWORD ssh agent@$SSH_TARGET -o "StrictHostKeyChecking no"
-          hostname
-        condition: and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], '')))
+      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
+          - template: setup_ssh.yml
+            parameters:
+              ssh_target: $SSH_TARGET
+              ssh_password: $SSH_PASSWORD
 
       - script: |
-          hostname
-        condition: and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], '')))
+          ssh agent@$SSH_TARGET 'echo connected from setup'
 
       # - script: |
       #     sudo rm -rf build
