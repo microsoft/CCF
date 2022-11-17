@@ -6,6 +6,11 @@ parameters:
 
 steps:
   - script: |
+      ssh agent@${{ parameters.ssh_target }} '
+    displayName: "Setup testing over SSH"
+    condition: not(eq(${{ parameters.ssh_target }}, ''))
+
+  - script: |
       set -ex
       ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
       export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
@@ -15,6 +20,11 @@ steps:
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
     displayName: CTest
     workingDirectory: build
+
+  - script: |
+      '
+    displayName: "Conclude testing over SSH"
+    condition: not(eq(${{ parameters.ssh_target }}, ''))
 
   # # Only run privileged tests in container environment
   # - ${{ if ne(parameters.suffix, 'Perf') }}:
