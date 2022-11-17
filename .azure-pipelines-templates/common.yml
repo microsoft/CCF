@@ -15,6 +15,9 @@ jobs:
           echo "SSH Target specified, logging into $SSH_TARGET..."
         condition: not(eq(variables['SSH_TARGET'], ''))
 
+      - script: |
+          echo "No target specified, continuing as normal"
+
       # - script: |
       #     sudo rm -rf build
       #   displayName: "Cleanup"
