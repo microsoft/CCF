@@ -85,7 +85,8 @@ namespace ccf
     BaseEndpointRegistry(
       const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
 
-    ApiResult get_view_history_v1(std::vector<ccf::TxID>& history, ccf::View since = 1);
+    ApiResult get_view_history_v1(
+      std::vector<ccf::TxID>& history, ccf::View since = 1);
 
     /** Get the status of a transaction by ID, provided as a view+seqno pair.
      *

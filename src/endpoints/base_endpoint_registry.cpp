@@ -27,7 +27,8 @@ namespace ccf
       history.clear();
       if (consensus != nullptr)
       {
-        if (since < 1) {
+        if (since < 1)
+        {
           // views start at 1
           return ApiResult::InvalidArgs;
         }
