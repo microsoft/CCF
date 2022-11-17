@@ -11,9 +11,9 @@ jobs:
       SSH_TARGET: ${{ parameters.ssh_target }}
 
     steps:
-      - ${{ if not(eq(variables['SSH_TARGET'], '')) }}
-        - script: |
-            echo "SSH Target specified, logging into $SSH_TARGET..."
+      - script: |
+          echo "SSH Target specified, logging into $SSH_TARGET..."
+      - condition: not(eq(variables['SSH_TARGET'], ''))
 
       # - script: |
       #     sudo rm -rf build
