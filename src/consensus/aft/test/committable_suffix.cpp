@@ -478,7 +478,9 @@ DOCTEST_TEST_CASE("Multi-term divergence")
 {
   logger::config::level() = logger::INFO;
 
-  srand(time(NULL));
+  const auto seed = time(NULL);
+  DOCTEST_INFO("Using seed: ", seed);
+  srand(seed);
 
   // Single configuration has all nodes, fully connected
   aft::Configuration::Nodes initial_config;

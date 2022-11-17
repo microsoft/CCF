@@ -8,26 +8,37 @@ H_INCLUDES=$(wildcard include/ccf/**/*.h)
 .PHONY: build-virtual
 build-virtual:
 	mkdir -p $(BUILD)
-	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGETS=virtual -DCMAKE_INSTALL_PREFIX=$(abspath $(INSTALL_PREFIX)) -DVERBOSE_LOGGING=OFF -DUNSAFE_VERSION=OFF ..
+	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_INSTALL_PREFIX=$(abspath $(INSTALL_PREFIX))_virtual -DVERBOSE_LOGGING=OFF -DUNSAFE_VERSION=OFF ..
 	cd $(BUILD) && ninja
 
 .PHONY: build-virtual-verbose
 build-virtual-verbose:
 	mkdir -p $(BUILD)
-	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGETS=virtual -DCMAKE_INSTALL_PREFIX=$(abspath $(INSTALL_PREFIX)) -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON ..
+	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_INSTALL_PREFIX=$(abspath $(INSTALL_PREFIX))_virtual -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON ..
 	cd $(BUILD) && ninja
 
 .PHONY: build-virtual-global
 build-virtual-global:
 	mkdir -p $(BUILD)
-	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGETS=virtual -DCMAKE_INSTALL_PREFIX=$(GLOBAL_INSTALL_PREFIX) -DVERBOSE_LOGGING=OFF -DUNSAFE_VERSION=OFF ..
+	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_INSTALL_PREFIX=$(GLOBAL_INSTALL_PREFIX)_virtual -DVERBOSE_LOGGING=OFF -DUNSAFE_VERSION=OFF ..
 	cd $(BUILD) && ninja
 
+.PHONY: build-sgx-global
+build-sgx-global:
+	mkdir -p $(BUILD)
+	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGET=sgx -DCMAKE_INSTALL_PREFIX=$(GLOBAL_INSTALL_PREFIX)_sgx -DVERBOSE_LOGGING=OFF -DUNSAFE_VERSION=OFF ..
+	cd $(BUILD) && ninja
+
+.PHONY: build-snp-global
+build-snp-global:
+	mkdir -p $(BUILD)
+	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_INSTALL_PREFIX=$(GLOBAL_INSTALL_PREFIX)_snp -DVERBOSE_LOGGING=OFF -DUNSAFE_VERSION=OFF ..
+	cd $(BUILD) && ninja
 
 .PHONY: build-virtual-global-verbose
 build-virtual-global-verbose:
 	mkdir -p $(BUILD)
-	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGETS=virtual -DCMAKE_INSTALL_PREFIX=$(GLOBAL_INSTALL_PREFIX) -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON ..
+	cd $(BUILD) && cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_INSTALL_PREFIX=$(GLOBAL_INSTALL_PREFIX)_virtual -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON ..
 	cd $(BUILD) && ninja
 
 .PHONY: install-virtual
@@ -36,6 +47,10 @@ install-virtual: build-virtual
 
 .PHONY: install-virtual-global
 install-virtual-global: build-virtual-global
+	cd $(BUILD) && sudo ninja install
+
+.PHONY: install-sgx-global
+install-sgx-global: build-sgx-global
 	cd $(BUILD) && sudo ninja install
 
 .PHONY: install-virtual-global-verbose

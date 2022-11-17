@@ -10,7 +10,7 @@ import contextlib
 import resource
 import psutil
 from infra.log_capture import flush_info
-from infra.clients import CCFConnectionException
+from infra.clients import CCFConnectionException, CCFIOException
 import random
 import http
 import functools
@@ -146,7 +146,7 @@ def run(args):
                             raise ValueError(
                                 f"Unexpected response status code: {r.status_code}"
                             )
-                    except (CCFConnectionException, RuntimeError) as e:
+                    except (CCFConnectionException, CCFIOException, RuntimeError) as e:
                         flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}/{target}: {e}")
                         clients.pop(-1)

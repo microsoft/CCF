@@ -691,7 +691,10 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
   run_sparse_index_test(8, 6);
   run_sparse_index_test(500, 10);
 
-  srand(time(NULL));
+  const auto seed = time(NULL);
+  INFO("Using seed: ", seed);
+  srand(seed);
+
   for (auto i = 0; i < 20; ++i)
   {
     const auto bucket_size = (rand() % 100) + 5;

@@ -187,14 +187,30 @@ struct t_cose_parameters {
 
 
 /**
- * Context for signature verification.  It is about 56 bytes on a
- * 64-bit machine and 42 bytes on a 32-bit machine.
+ * Context for signature verification.  It is about 80 bytes on a
+ * 64-bit machine and 54 bytes on a 32-bit machine, or less if
+ * certain features are disabled.
  */
 struct t_cose_sign1_verify_ctx {
     /* Private data structure */
     struct t_cose_key     verification_key;
     uint32_t              option_flags;
     uint64_t              auTags[T_COSE_MAX_TAGS_TO_RETURN];
+
+#ifndef T_COSE_DISABLE_EDDSA
+    /**
+     * A auxiliary buffer provided by the caller, used to serialize
+     * the Sig_Structure. This is only needed when using EdDSA, as
+     * otherwise the Sig_Structure is hashed incrementally.
+     */
+    struct q_useful_buf  auxiliary_buffer;
+
+    /* The size of the serialized Sig_Structure used in the last
+     * verification. This can be used by the user to determine a
+     * suitable auxiliary buffer size.
+     */
+    size_t               auxiliary_buffer_size;
+#endif
 };
 
 
@@ -263,6 +279,54 @@ static void
 t_cose_sign1_set_verification_key(struct t_cose_sign1_verify_ctx *context,
                                   struct t_cose_key               verification_key);
 
+
+/**
+ * \brief Configure a buffer used to serialize the Sig_Structure.
+ *
+ * \param[in,out] context       The t_cose signature verification context.
+ * \param[in] auxiliary_buffer  The auxiliary buffer to be used.
+ *
+ * Some signature algorithms (namely EdDSA), require two passes over
+ * their input. In order to achieve this, the library needs to serialize
+ * a temporary to-be-signed structure into an auxiliary buffer. This function
+ * allows the user to configure such a buffer.
+ *
+ * The buffer must be big enough to accomodate the Sig_Structure type,
+ * which is roughly the sum of sizes of the encoded protected parameters,
+ * aad and payload, along with a few dozen bytes of overhead.
+ *
+ * To compute the exact size needed, initialize the context with
+ * the \ref T_COSE_OPT_DECODE_ONLY option, and call the
+ * \ref t_cose_sign1_verify (or similar). After the message decoding,
+ * the necessary auxiliary buffer size is available by calling
+ * \ref t_cose_sign1_verify_auxiliary_buffer_size.
+ *
+ */
+static void
+t_cose_sign1_verify_set_auxiliary_buffer(struct t_cose_sign1_verify_ctx *context,
+                                         struct q_useful_buf             auxiliary_buffer);
+
+/**
+ * \brief Get the required auxiliary buffer size for the most recent
+ * verification operation.
+ *
+ * \param[in,out] context       The t_cose signature verification context.
+ *
+ * \return The number of bytes of auxiliary buffer used by the most
+ *         recent verification operation.
+ *
+ * This function can be called after \ref t_cose_sign1_verify (or
+ * equivalent) was called. If the context was initialized with the
+ * DECODE_ONLY flag, it returns the number of bytes that would have
+ * been used by the signing operation. This allows the caller to
+ * allocate an appropriately sized buffer before performing the
+ * actual verification.
+ *
+ * This function returns zero if the signature algorithm used does not
+ * need an auxiliary buffer.
+ */
+static size_t
+t_cose_sign1_verify_auxiliary_buffer_size(struct t_cose_sign1_verify_ctx *context);
 
 /**
  * \brief Verify a \c COSE_Sign1.
@@ -419,8 +483,15 @@ static inline void
 t_cose_sign1_verify_init(struct t_cose_sign1_verify_ctx *me,
                          uint32_t                        option_flags)
 {
+    memset(me, 0, sizeof(*me));
     me->option_flags = option_flags;
-    me->verification_key = T_COSE_NULL_KEY;
+
+#ifndef T_COSE_DISABLE_EDDSA
+    /* Start with large (but NULL) auxiliary buffer. If EdDSA is used,
+     * the Sig_Structure data will be serialized here.
+     */
+    me->auxiliary_buffer.len = SIZE_MAX;
+#endif
 }
 
 
@@ -429,6 +500,30 @@ t_cose_sign1_set_verification_key(struct t_cose_sign1_verify_ctx *me,
                                   struct t_cose_key               verification_key)
 {
     me->verification_key = verification_key;
+}
+
+static inline void
+t_cose_sign1_verify_set_auxiliary_buffer(struct t_cose_sign1_verify_ctx *me,
+                                         struct q_useful_buf             auxiliary_buffer)
+{
+#ifndef T_COSE_DISABLE_EDDSA
+    me->auxiliary_buffer = auxiliary_buffer;
+#else
+    (void)me;
+    (void)auxiliary_buffer;
+#endif
+}
+
+static inline size_t
+t_cose_sign1_verify_auxiliary_buffer_size(struct t_cose_sign1_verify_ctx *me)
+{
+#ifndef T_COSE_DISABLE_EDDSA
+    return me->auxiliary_buffer_size;
+#else
+    /* If EdDSA is disabled we don't ever need an auxiliary buffer. */
+    (void)me;
+    return 0;
+#endif
 }
 
 
