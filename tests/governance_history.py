@@ -17,6 +17,7 @@ import suite.test_requirements as reqs
 import ccf.read_ledger
 import infra.logging_app as app
 import governance
+import infra.signing
 
 
 def check_operations(ledger, operations):
@@ -60,6 +61,38 @@ def check_operations(ledger, operations):
 
                         if op in operations:
                             operations.remove(op)
+
+            if "public:ccf.gov.cose_history" in tables:
+                cose_history_table = tables["public:ccf.gov.cose_history"]
+                for member_id, cose_sign1 in cose_history_table.items():
+                    assert member_id in members
+                    cert = members[member_id]
+
+                    msg = infra.signing.verify_cose_sign1(
+                        base64.b64decode(cose_sign1), cert.decode()
+                    )
+                    assert "ccf.gov.msg.type" in msg.phdr
+                    msg_type = msg.phdr["ccf.gov.msg.type"]
+                    if msg_type == "ballot":
+                        op = (
+                            msg.phdr["ccf.gov.msg.proposal_id"],
+                            member_id.decode(),
+                            "vote",
+                        )
+                    elif msg_type == "withdrawal":
+                        op = (
+                            msg.phdr["ccf.gov.msg.proposal_id"],
+                            member_id.decode(),
+                            "withdraw",
+                        )
+                    elif msg_type == "proposal":
+                        (proposal_id,) = tables["public:ccf.gov.proposals"].keys()
+                        op = (proposal_id.decode(), member_id.decode(), "propose")
+                    else:
+                        assert False, msg
+
+                    if op in operations:
+                        operations.remove(op)
 
     assert operations == set(), operations
 
@@ -156,6 +189,8 @@ def run(args):
     ) as network:
         network.start_and_open(args)
         primary, _ = network.find_primary()
+
+        network.consortium.set_authenticate_session(args.authenticate_session)
 
         ledger_directories = primary.remote.ledger_paths()
         LOG.info("Add new member proposal (implicit vote)")
