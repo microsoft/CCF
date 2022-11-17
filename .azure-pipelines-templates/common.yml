@@ -22,15 +22,11 @@ jobs:
           hostname
 
       - script: |
-          ssh agent@${{ parameters.ssh_target }} <<'EOF'
-        displayName: "Setup testing over SSH"
-
-      - script: |
+          ssh agent@${{ parameters.ssh_target }} '
           hostname
-
-      - script: |
-          EOF
-        displayName: "Conclude testing over SSH"
+          echo test
+          '
+        displayName: "Test multiline ssh "
 
       # - script: |
       #     sudo rm -rf build
