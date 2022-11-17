@@ -141,6 +141,7 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
+    std::vector<uint8_t> startup_snapshot;
 
     struct NodeStateMsg
     {
@@ -243,7 +244,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       startup_snapshot_info = initialise_from_snapshot(
         snapshot_store,
-        std::move(config.startup_snapshot),
+        std::move(startup_snapshot),
         hooks,
         &view_history,
         true,
@@ -331,12 +332,16 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
+    NodeCreateInfo create(
+      StartType start_type,
+      StartupConfig&& config_,
+      std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<ccf::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
 
       config = std::move(config_);
+      startup_snapshot = std::move(startup_snapshot_);
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
@@ -408,7 +413,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
+          if (startup_snapshot.empty() || initialise_startup_snapshot())
           {
             // Note: 2.x snapshots are self-verified so the ledger verification
             // of its evidence can be skipped entirely
@@ -437,7 +442,7 @@ namespace ccf
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
 
-          bool from_snapshot = !config.startup_snapshot.empty();
+          bool from_snapshot = !startup_snapshot.empty();
           setup_recovery_hook();
 
           if (from_snapshot)

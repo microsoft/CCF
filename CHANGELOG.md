@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.10]
+
+[2.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.10
+
+### Fixed
+
+- Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
+
 ## [2.0.9]
 
 ### Dependencies

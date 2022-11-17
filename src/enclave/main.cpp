@@ -86,8 +86,11 @@ extern "C"
 
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
-    char* ccf_config,
+    uint8_t* ccf_config,
     size_t ccf_config_size,
+    uint8_t* startup_snapshot_data,
+    size_t startup_snapshot_size,
+    size_t aligned_startup_snapshot_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -164,7 +167,6 @@ extern "C"
     enclave_sanity_checks();
 
     {
-      // Report enclave version to host
       auto ccf_version_string = std::string(ccf::ccf_version);
       if (ccf_version_string.size() > enclave_version_size)
       {
@@ -219,6 +221,26 @@ extern "C"
     {
       LOG_FAIL_FMT("Read source memory not aligned: ccf_config");
       return CreateNodeStatus::UnalignedArguments;
+    }
+
+    if (!oe_is_outside_enclave(startup_snapshot_data, startup_snapshot_size))
+    {
+      LOG_FAIL_FMT("Memory outside enclave: startup snapshot");
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
+    if (!is_aligned(startup_snapshot_data, 8, aligned_startup_snapshot_size))
+    {
+      LOG_FAIL_FMT("Read source memory not aligned: startup snapshot");
+      return CreateNodeStatus::UnalignedArguments;
+    }
+
+    if (startup_snapshot_size > aligned_startup_snapshot_size)
+    {
+      LOG_FAIL_FMT(
+        "Memory outside enclave: startup snapshot size is not less than or "
+        "equal to aligned startup size");
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     oe_lfence();
@@ -300,9 +322,12 @@ extern "C"
 
     try
     {
+      std::vector<uint8_t> startup_snapshot(
+        startup_snapshot_data, startup_snapshot_data + startup_snapshot_size);
       status = enclave->create_new_node(
         start_type,
         std::move(cc),
+        std::move(startup_snapshot),
         node_cert,
         node_cert_size,
         node_cert_len,
