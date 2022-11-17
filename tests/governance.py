@@ -894,6 +894,15 @@ if __name__ == "__main__":
         governance_history.run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session=False,
+    )
+
+    cr.add(
+        "cose_history",
+        governance_history.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session="COSE",
     )
 
     cr.run(2)
