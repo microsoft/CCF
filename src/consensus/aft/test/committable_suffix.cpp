@@ -468,16 +468,23 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   }
 }
 
+struct WorstCase
+{};
+struct RandomCase
+{};
+
 // This tests the case where 2 nodes have multiple terms of disagreement. This
 // involves a 3-node network, where the 3rd node is purely there to trigger
 // elections and allow the other 2 to advance terms, but they never communicate
 // with each other and are unable to advance commit. Eventually their connection
 // is healed, and one of them efficiently brings the other back in line, without
 // losing any committed state.
-DOCTEST_TEST_CASE("Multi-term divergence")
+DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
 {
+  constexpr bool is_worst_case = std::is_same_v<T, WorstCase>;
+
   logger::config::default_init();
-  logger::config::level() = logger::TRACE;
+  logger::config::level() = logger::FAIL;
 
   const auto seed = 1668601152;
   // const auto seed = time(NULL);
@@ -500,13 +507,12 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     rC.add_configuration(0, initial_config);
   }
 
+  // These are only used in the RandomCase
   std::vector<uint8_t> persisted_entry;
   aft::Index persisted_idx;
 
   {
-    DOCTEST_INFO(
-      "Node A is the initial primary, and produces some entries that are "
-      "committed and universally known to be committed");
+    DOCTEST_INFO("Node A is the initial primary");
     rA.periodic(election_timeout);
 
     // Initial election
@@ -521,70 +527,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
-
-    auto entry = make_ledger_entry(1, 1);
-    rA.replicate(kv::BatchVector{{1, entry, true, hooks}}, 1);
-    entry = make_ledger_entry(1, 2);
-    rA.replicate(kv::BatchVector{{2, entry, true, hooks}}, 1);
-    DOCTEST_REQUIRE(rA.get_last_idx() == 2);
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
-    // Size limit was reached, so periodic is not needed
-    // rA.periodic(request_timeout);
-
-    // Dispatch AppendEntries
-    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA));
-    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idB));
-    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idC));
-
-    // All nodes have this
-    DOCTEST_REQUIRE(rA.get_last_idx() == 2);
-    DOCTEST_REQUIRE(rB.get_last_idx() == 2);
-    DOCTEST_REQUIRE(rC.get_last_idx() == 2);
-
-    // And primary knows it is committed
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
-
-    // After a periodic heartbeat
-    rA.periodic(request_timeout);
-    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
-
-    // All nodes know that this is committed
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
-
-    // Node A produces 2 additional entries that A and B have, and 2 additional
-    // entries that only A has
-    entry = make_ledger_entry(1, 3);
-    rA.replicate(kv::BatchVector{{3, entry, true, hooks}}, 1);
-
-    entry = make_ledger_entry(1, 4);
-    rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
-    keep_messages_for(node_idB, channelsA->messages);
-    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
-
-    entry = make_ledger_entry(1, 5);
-    rA.replicate(kv::BatchVector{{5, entry, true, hooks}}, 1);
-
-    entry = make_ledger_entry(1, 6);
-    rA.replicate(kv::BatchVector{{6, entry, true, hooks}}, 1);
-    channelsA->messages.clear();
-    channelsB->messages.clear();
-
-    DOCTEST_REQUIRE(rA.get_last_idx() == 6);
-    DOCTEST_REQUIRE(rB.get_last_idx() == 4);
-    DOCTEST_REQUIRE(rC.get_last_idx() == 2);
-
-    // Commit did not advance, though 4 is present on f+1 nodes and will be
-    // persisted from here
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
-
-    persisted_idx = 4;
-    persisted_entry = rB.ledger->ledger[persisted_idx - 1];
   }
 
   auto create_term_on = [&](bool primary_is_a, size_t num_entries) {
@@ -671,50 +613,131 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     channels_primary->messages.clear();
   };
 
-  // For several terms, we randomly choose a primary and have them create an
-  // additional suffix term. This produces unique logs on each node, like the
-  // following:
-  //
-  // Index:   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
-  // ------------------------------------------------------------------
-  // TermA:   1   1   1   1   3   3   3   3   3   9  13  15  15  15  15
-  // TermB:   1   1   1   5   5   5   7   7   7   7  11  17  17  17  17
-  // TermC:   1   1
-  const auto num_terms = 16;
-  for (size_t i = 0; i < num_terms; ++i)
+  const auto num_terms = rand() % 30 + 5;
+  if constexpr (is_worst_case)
   {
-    // Always produce at least one entry in the new term
-    create_term_on(rand() % 2 == 0, rand() % 6 + 1);
+    DOCTEST_INFO("Hard-coded worst-case");
+    // Worst-case is tiny, perfectly interleaved terms
+    for (size_t i = 0; i < num_terms; ++i)
+    {
+      create_term_on(i % 2 == 0, 1);
+    }
   }
-
-  // Ensure at least one term on each
-  create_term_on(true, 3);
-  create_term_on(false, 3);
-
-  // Nodes A and B now have long, distinct, multi-term non-committed suffixes.
-  // Node C has not advanced its log at all
-  DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
-  DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
-  DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
-
-  DOCTEST_REQUIRE(rA.get_last_idx() > 4);
-  DOCTEST_REQUIRE(rB.get_last_idx() > 3);
-  DOCTEST_REQUIRE(rC.get_last_idx() == 2);
-
-  DOCTEST_REQUIRE(rA.get_view() != rB.get_view());
-  DOCTEST_REQUIRE(
-    rA.get_view_history(rA.get_last_idx()) !=
-    rB.get_view_history(rB.get_last_idx()));
-
+  else
   {
-    // Small sanity check - its not as simple as one is a prefix of the other
-    const auto common_last_idx = std::min(rA.get_last_idx(), rB.get_last_idx());
-    const auto history_on_A = rA.get_view_history(common_last_idx);
-    const auto history_on_B = rB.get_view_history(common_last_idx);
-    DOCTEST_REQUIRE(history_on_A != history_on_B);
+    DOCTEST_INFO("Randomized case");
+    DOCTEST_INFO(
+      "Primary produces some entries that are committed and universally known "
+      "to be committed");
 
-    // In fact they diverge almost immediately
-    DOCTEST_REQUIRE(history_on_A[1] != history_on_B[1]);
+    auto entry = make_ledger_entry(1, 1);
+    rA.replicate(kv::BatchVector{{1, entry, true, hooks}}, 1);
+    entry = make_ledger_entry(1, 2);
+    rA.replicate(kv::BatchVector{{2, entry, true, hooks}}, 1);
+    DOCTEST_REQUIRE(rA.get_last_idx() == 2);
+    DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
+    // Size limit was reached, so periodic is not needed
+    // rA.periodic(request_timeout);
+
+    // Dispatch AppendEntries
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA));
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idB));
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idC));
+
+    // All nodes have this
+    DOCTEST_REQUIRE(rA.get_last_idx() == 2);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 2);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 2);
+
+    // And primary knows it is committed
+    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
+
+    // After a periodic heartbeat
+    rA.periodic(request_timeout);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
+
+    // All nodes know that this is committed
+    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
+
+    // Node A produces 2 additional entries that A and B have, and 2 additional
+    // entries that are only present on A
+    entry = make_ledger_entry(1, 3);
+    rA.replicate(kv::BatchVector{{3, entry, true, hooks}}, 1);
+
+    entry = make_ledger_entry(1, 4);
+    rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
+    keep_messages_for(node_idB, channelsA->messages);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
+
+    entry = make_ledger_entry(1, 5);
+    rA.replicate(kv::BatchVector{{5, entry, true, hooks}}, 1);
+
+    entry = make_ledger_entry(1, 6);
+    rA.replicate(kv::BatchVector{{6, entry, true, hooks}}, 1);
+    channelsA->messages.clear();
+    channelsB->messages.clear();
+
+    DOCTEST_REQUIRE(rA.get_last_idx() == 6);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 4);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 2);
+
+    // Commit did not advance, though 4 is present on f+1 nodes and will be
+    // persisted from here
+    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
+
+    persisted_idx = 4;
+    persisted_entry = rB.ledger->ledger[persisted_idx - 1];
+
+    // For several terms, we randomly choose a primary and have them create an
+    // additional suffix term. This produces unique logs on each node, like the
+    // following:
+    //
+    // Index:   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+    // ------------------------------------------------------------------
+    // TermA:   1   1   1   1   3   3   3   3   3   6   8   9   9   9   9
+    // TermB:   1   1   1   4   4   4   5   5   5   5   7  10  10  10  10
+    // TermC:   1   1
+    for (size_t i = 0; i < num_terms; ++i)
+    {
+      // Always produce at least one entry in the new term
+      create_term_on(rand() % 2 == 0, rand() % 6 + 1);
+    }
+
+    // Ensure at least one term on each
+    create_term_on(true, 1);
+    create_term_on(false, 1);
+
+    // Nodes A and B now have long, distinct, multi-term non-committed suffixes.
+    // Node C has not advanced its log at all
+    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
+
+    DOCTEST_REQUIRE(rA.get_last_idx() > 4);
+    DOCTEST_REQUIRE(rB.get_last_idx() > 3);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 2);
+
+    DOCTEST_REQUIRE(rA.get_view() != rB.get_view());
+    DOCTEST_REQUIRE(
+      rA.get_view_history(rA.get_last_idx()) !=
+      rB.get_view_history(rB.get_last_idx()));
+    {
+      // Small sanity check - its not as simple as one is a prefix of the other
+      const auto common_last_idx =
+        std::min(rA.get_last_idx(), rB.get_last_idx());
+      const auto history_on_A = rA.get_view_history(common_last_idx);
+      const auto history_on_B = rB.get_view_history(common_last_idx);
+      DOCTEST_REQUIRE(history_on_A != history_on_B);
+
+      // In fact they diverge almost immediately
+      DOCTEST_REQUIRE(history_on_A[1] != history_on_B[1]);
+    }
   }
 
   {
@@ -744,6 +767,40 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     dispatch_all(nodes, node_idB);
     dispatch_all(nodes, node_idC);
 
+    auto dump_node = [](auto& raft_node) {
+      const auto last_idx = raft_node.get_last_idx();
+      LOG_FAIL_FMT("  last_idx: {}", last_idx);
+      std::vector<aft::Index> view_history =
+        raft_node.get_view_history(last_idx);
+      LOG_FAIL_FMT("  view_history: {}", fmt::join(view_history, ", "));
+      std::vector<std::vector<std::string>> tx_ids;
+      ccf::View last_view = 0;
+      for (auto idx = 1; idx <= raft_node.get_last_idx(); ++idx)
+      {
+        auto view = raft_node.get_view(idx);
+        if (view != last_view)
+        {
+          tx_ids.push_back({});
+          last_view = view;
+        }
+        tx_ids.back().push_back(fmt::format("{}.{}", view, idx));
+      }
+      LOG_FAIL_FMT("  Tx IDs:");
+      for (const auto& term : tx_ids)
+      {
+        LOG_FAIL_FMT("    {}", fmt::join(term, ", "));
+      }
+    };
+
+    LOG_FAIL_FMT(
+      "Before bringing everyone up-to-date, here's the ledger on each node");
+    LOG_FAIL_FMT("A:");
+    dump_node(rA);
+    LOG_FAIL_FMT("B:");
+    dump_node(rB);
+    LOG_FAIL_FMT("C:");
+    dump_node(rC);
+
     auto& rPrimary = rA.is_primary() ? rA : rB;
     const auto id_primary = rA.is_primary() ? node_idA : node_idB;
     auto& channelsPrimary = rA.is_primary() ? channelsA : channelsB;
@@ -768,139 +825,188 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       channelsPrimary->messages.clear();
     }
 
-    DOCTEST_INFO("Bring other node in-sync");
-    auto get_max_iterations = [&]() {
-      if (rA.is_primary())
-      {
-        LOG_FAIL_FMT("Node A is primary");
-      }
-      else
-      {
-        LOG_FAIL_FMT("Node B is primary");
-      }
-
-      // A safe upper-bound is derived from the number of entries in the
-      // primary's log. If we were probing linearly backwards to find the
-      // matching index, then we would need O(n) probes followed by (in the
-      // worst case, which we simulate by dropping most AEs) O(n) AEs from that
-      // index to get them caught up again.
-      size_t log_length = rPrimary.get_last_idx();
-
-      // Instead, we should be bounded in the worst case by
-      // the number of terms in the primary's log.
-      size_t term_length;
-      {
-        std::vector<aft::Index> term_history =
-          rPrimary.get_view_history(log_length);
-        term_length = std::unique(term_history.begin(), term_history.end()) -
-          term_history.begin();
-      }
-
-      LOG_FAIL_FMT(
-        "log_length = {}, term_length = {}", log_length, term_length);
-
-      // Safe baseline
-      // return 2 * log_length;
-
-      // For T terms and N entries in log, we need O(T) attempts to find the
-      // matching index, followed by O(N) to catch up from there.
-      return term_length + log_length;
-    };
-
-    auto dump_node = [](auto& raft_node) {
-      const auto last_idx = raft_node.get_last_idx();
-      LOG_FAIL_FMT("  last_idx: {}", last_idx);
-      std::vector<aft::Index> view_history =
-        raft_node.get_view_history(last_idx);
-      LOG_FAIL_FMT("  view_history: {}", fmt::join(view_history, ", "));
-      std::vector<std::string> tx_ids;
-      for (auto idx = 1; idx <= raft_node.get_last_idx(); ++idx)
-      {
-        auto view = raft_node.get_view(idx);
-        tx_ids.push_back(fmt::format("{}.{}", view, idx));
-      }
-      LOG_FAIL_FMT("  Tx IDs: {}", fmt::join(tx_ids, ", "));
-    };
-
-    LOG_FAIL_FMT(
-      "Before bringing everyone up-to-date, here's the ledger on each node");
-    LOG_FAIL_FMT("A:");
-    dump_node(rA);
-    LOG_FAIL_FMT("B:");
-    dump_node(rB);
-    LOG_FAIL_FMT("C:");
-    dump_node(rC);
-
-    // Dispatch messages until coherence, bounded by expected max iterations
-    auto iterations = 0;
-    const auto max_iterations = get_max_iterations();
-
-    const auto id_other = rA.is_primary() ? node_idB : node_idA;
-
-    for (; iterations < max_iterations; ++iterations)
+    // NB: If we were probing linearly backwards to find the matching index,
+    // then we would need O(n) probe+response roundtrips followed by (in the
+    // worst case, which we simulate by dropping most AEs) O(n) AEs from that
+    // index to get them caught up again.
+    // Instead, thanks to smarter backtracking calculations, we should be
+    // bounded in the worst case by the number of terms in the primary's log.
+    size_t log_length = rPrimary.get_last_idx();
+    size_t term_length;
     {
-      LOG_FAIL_FMT("Roundtrip iteration: {}", iterations);
-      // Large entries and lots of NACKs means we may generate many messages.
-      // This is related to the inefficient Raft catch-up logic. Essentially
-      // each heartbeat we start a new catch-up process, and that may take many
-      // roundtrips to discover the matching index. As a simplification, we keep
-      // the single message we believe is most useful, which is the
-      // AppendEntries that starts from the earliest.
-      rPrimary.periodic(request_timeout);
-      keep_earliest_append_entries_for_each_target(channelsPrimary->messages);
-
-      // Assert that the advertised indices never step before the persisted
-      // index which was present on f+1 nodes.
-      dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
-        nodes, id_primary, [&](const auto& ae) {
-          DOCTEST_REQUIRE(ae.prev_idx >= persisted_idx);
-        });
-      dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
-        nodes, id_other, [&](const auto& aer) {
-          DOCTEST_REQUIRE(aer.last_log_idx >= persisted_idx);
-        });
-
-      // Break early if we've already caught up
-      if (
-        rA.get_last_idx() == rB.get_last_idx() &&
-        rA.get_last_idx() == rA.get_committed_seqno() &&
-        rA.get_committed_seqno() == rB.get_committed_seqno())
-      {
-        break;
-      }
+      std::vector<aft::Index> term_history =
+        rPrimary.get_view_history(log_length);
+      term_length = std::unique(term_history.begin(), term_history.end()) -
+        term_history.begin();
     }
 
-    std::cout << fmt::format(
-                   "Attempted {}/{} roundtrips", iterations, max_iterations)
-              << std::endl;
+    DOCTEST_INFO("Bring other node in-sync");
+    const auto id_other = rA.is_primary() ? node_idB : node_idA;
 
     {
-      DOCTEST_INFO("The final state is synced on all nodes");
+      // Do (up-to) term_length + 1 round-trips, to discover _where_ the
+      // histories diverge
+      auto discovery_round_trips_completed = 0;
+      while (true)
+      {
+        rPrimary.periodic(request_timeout);
+        keep_earliest_append_entries_for_each_target(channelsPrimary->messages);
 
-      DOCTEST_REQUIRE(rA.get_last_idx() > 3);
-      DOCTEST_REQUIRE(rA.get_last_idx() == rB.get_last_idx());
-      DOCTEST_REQUIRE(rB.get_last_idx() == rC.get_last_idx());
+        // Assert that the advertised indices never step before the persisted
+        // index which was present on f+1 nodes.
+        dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
+          nodes, id_primary, [&](const auto& ae) {
+            DOCTEST_REQUIRE(ae.prev_idx >= persisted_idx);
+          });
+        bool accepted = false;
+        dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+          nodes, id_other, [&](const auto& aer) {
+            DOCTEST_REQUIRE(aer.last_log_idx >= persisted_idx);
+            accepted = aer.success == aft::AppendEntriesResponseType::OK;
+          });
 
-      DOCTEST_REQUIRE(rA.get_committed_seqno() > 3);
-      DOCTEST_REQUIRE(rA.get_committed_seqno() == rB.get_committed_seqno());
-      DOCTEST_REQUIRE(rB.get_committed_seqno() == rC.get_committed_seqno());
+        ++discovery_round_trips_completed;
 
-      const auto term_history_on_A = rA.get_view_history(rA.get_last_idx());
-      const auto term_history_on_B = rB.get_view_history(rB.get_last_idx());
-      const auto term_history_on_C = rC.get_view_history(rC.get_last_idx());
-      DOCTEST_REQUIRE(term_history_on_A == term_history_on_B);
-      DOCTEST_REQUIRE(term_history_on_B == term_history_on_C);
+        if (accepted)
+        {
+          LOG_FAIL_FMT(
+            "Found agreement point after {} roundtrips",
+            discovery_round_trips_completed);
+          break;
+        }
 
-      const auto ledger_on_A = rA.ledger->ledger;
-      const auto ledger_on_B = rB.ledger->ledger;
-      const auto ledger_on_C = rC.ledger->ledger;
-      DOCTEST_REQUIRE(ledger_on_A == ledger_on_B);
-      DOCTEST_REQUIRE(ledger_on_B == ledger_on_C);
+        DOCTEST_REQUIRE(discovery_round_trips_completed <= term_length);
+      }
 
-      // And finally, that thing we said was persisted earlier (but wasn't known
-      // to be committed), is still present on all nodes
-      DOCTEST_REQUIRE(ledger_on_A.size() > persisted_idx);
-      DOCTEST_REQUIRE(ledger_on_A[persisted_idx - 1] == persisted_entry);
+      if constexpr (is_worst_case)
+      {
+        // Confirm that the intended worst-case really _is_ the worst-case
+        DOCTEST_REQUIRE(discovery_round_trips_completed == term_length + 1);
+      }
+
+      std::cout
+        << fmt::format(
+             "Discovered agreement point after {} round-trips, with {} terms",
+             discovery_round_trips_completed,
+             term_length)
+        << std::endl;
+    }
+
+    {
+      // Now we need (up-to) log_length * 2 - 1 roundtrips to actually catch up.
+      // This can be thought of as log_length - 1 "sync attempts", where each
+      // sync attempt only advances the trailing node's log by a single entry.
+      // Each sync attempt requires 2 roundtrips, because:
+      // - The primary the primary believes it has delivered all, so the backups
+      // should be up-to-date
+      // - We need a roundtrip (where the primary attempts a heartbeat, which
+      // gets a NACK because the follower remains behind), to convince the
+      // primary to try again
+      // - Then the primary tries sending AEs for _every_ subsequent entry
+      // - We simulate a bad connection/bad batching by only delivering the
+      // first, so the follower advances by a single entry
+      // - Repeat
+      auto catchup_sync_attempts_completed = 0;
+
+      // The awkward "- 1" is because the final discovery round-trip already
+      // completed is actually the first successful "catch the follower up"
+      // message as well - they've ACK'd the first entry and appended it already
+      const auto max_catchup_attempts = log_length - 1;
+
+      while (true)
+      {
+        // Periodic on primary sends heartbeats, keep only the first
+        rPrimary.periodic(request_timeout);
+        keep_earliest_append_entries_for_each_target(channelsPrimary->messages);
+
+        // Deliver this heartbeat AE, and its NACK response
+        dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
+          nodes, id_primary, [&](const auto& ae) {
+            DOCTEST_REQUIRE(ae.prev_idx == rPrimary.get_last_idx());
+          });
+        dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+          nodes, id_other, [&](const auto& aer) {
+            DOCTEST_REQUIRE(
+              aer.success == aft::AppendEntriesResponseType::FAIL);
+          });
+
+        // Periodic on primary produces AEs, keep on the first
+        rPrimary.periodic(request_timeout);
+        keep_earliest_append_entries_for_each_target(channelsPrimary->messages);
+
+        // Deliver this AE, and its response. Assert that the advertised indices
+        // never step before the persisted index which was present on f+1 nodes.
+        dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
+          nodes, id_primary, [&](const auto& ae) {
+            DOCTEST_REQUIRE(ae.prev_idx >= persisted_idx);
+          });
+        dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+          nodes, id_other, [&](const auto& aer) {
+            DOCTEST_REQUIRE(aer.last_log_idx >= persisted_idx);
+            DOCTEST_REQUIRE(aer.success == aft::AppendEntriesResponseType::OK);
+          });
+
+        ++catchup_sync_attempts_completed;
+
+        // Break early if we've already caught up
+        if (
+          rA.get_last_idx() == rB.get_last_idx() &&
+          rA.get_last_idx() == rA.get_committed_seqno() &&
+          rA.get_committed_seqno() == rB.get_committed_seqno())
+        {
+          break;
+        }
+
+        DOCTEST_REQUIRE(catchup_sync_attempts_completed < max_catchup_attempts);
+      }
+
+      if constexpr (is_worst_case)
+      {
+        // Confirm that the intended worst-case really _is_ the worst-case
+        DOCTEST_REQUIRE(
+          catchup_sync_attempts_completed == max_catchup_attempts);
+      }
+
+      std::cout << fmt::format(
+                     "Brought node in-sync {} attempts, with {} entries in log",
+                     catchup_sync_attempts_completed,
+                     log_length)
+                << std::endl;
+
+      {
+        DOCTEST_INFO("The final state is synced on all nodes");
+
+        DOCTEST_REQUIRE(rA.get_last_idx() == rB.get_last_idx());
+        DOCTEST_REQUIRE(rB.get_last_idx() == rC.get_last_idx());
+
+        DOCTEST_REQUIRE(rA.get_committed_seqno() == rB.get_committed_seqno());
+        DOCTEST_REQUIRE(rB.get_committed_seqno() == rC.get_committed_seqno());
+
+        const auto term_history_on_A = rA.get_view_history(rA.get_last_idx());
+        const auto term_history_on_B = rB.get_view_history(rB.get_last_idx());
+        const auto term_history_on_C = rC.get_view_history(rC.get_last_idx());
+        DOCTEST_REQUIRE(term_history_on_A == term_history_on_B);
+        DOCTEST_REQUIRE(term_history_on_B == term_history_on_C);
+
+        const auto ledger_on_A = rA.ledger->ledger;
+        const auto ledger_on_B = rB.ledger->ledger;
+        const auto ledger_on_C = rC.ledger->ledger;
+        DOCTEST_REQUIRE(ledger_on_A == ledger_on_B);
+        DOCTEST_REQUIRE(ledger_on_B == ledger_on_C);
+
+        if constexpr (!is_worst_case)
+        {
+          // In the random case, assert that the pre-constrcted shared prefix is
+          // still here
+          DOCTEST_REQUIRE(rA.get_last_idx() > 3);
+          DOCTEST_REQUIRE(rA.get_committed_seqno() > 3);
+
+          // And finally, that thing we said was persisted earlier (but wasn't
+          // known to be committed), is still present on all nodes
+          DOCTEST_REQUIRE(ledger_on_A.size() > persisted_idx);
+          DOCTEST_REQUIRE(ledger_on_A[persisted_idx - 1] == persisted_entry);
+        }
+      }
     }
   }
 }
