@@ -15,7 +15,7 @@ jobs:
       - script: |
           echo "SSH Target specified, logging in..."
           sudo apt-get install sshpass
-          sudo sshpass -p $SSH_PASSWORD ssh agent@$SSH_TARGET -o "StrictHostKeyChecking no" 'Connected from common.yml'
+          sshpass -p $SSH_PASSWORD ssh agent@$SSH_TARGET -o "StrictHostKeyChecking no" 'echo Connected from common.yml'
         condition: and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], '')))
 
       # - script: |
