@@ -42,8 +42,9 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   target_include_directories(t_cose.snp PRIVATE "${T_COSE_SRC}")
 
   target_include_directories(
-    t_cose.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose>
-                      $<INSTALL_INTERFACE:include/3rdparty/t_cose>
+    t_cose.snp
+    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose/inc>
+           $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
   )
 
   target_link_libraries(t_cose.snp PUBLIC qcbor.snp crypto)
