@@ -106,12 +106,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="append",
         default=[],
     )
+    # "virtual" is deprecated (use enclave-platform)
     parser.add_argument(
         "-e",
         "--enclave-type",
         help="Enclave type",
         default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_TYPE", "release")),
-        choices=("release", "debug"),
+        choices=("release", "debug", "virtual"),
     )
     parser.add_argument(
         "-t",

@@ -344,7 +344,10 @@ def test_proposal_invalidation(network, args):
 
     LOG.info("Add temporary code ID")
     temp_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.enclave_platform, args.oe_binary, get_replacement_package(args)
+        args.enclave_type,
+        args.enclave_platform,
+        args.oe_binary,
+        get_replacement_package(args),
     )
     network.consortium.add_new_code(primary, temp_code_id)
 
