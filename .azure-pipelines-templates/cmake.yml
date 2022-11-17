@@ -1,15 +1,22 @@
 parameters:
   cmake_args: ""
+  target: ""
 
 steps:
   - script: |
       set -ex
       tests/sgxinfo.sh
       cat /proc/cpuinfo | grep flags | uniq
-      sudo groupadd -fg $(/usr/bin/stat -Lc '%g' /dev/sgx/provision) sgx_prv
-      sudo usermod -a -G sgx_prv $(whoami)
     displayName: Platform Info
     condition: succeededOrFailed()
+
+  - ${{ if eq(parameters.target, 'SGX') }}:
+      - script: |
+          set -ex
+          sudo groupadd -fg $(/usr/bin/stat -Lc '%g' /dev/sgx/provision) sgx_prv
+          sudo usermod -a -G sgx_prv $(whoami)
+        displayName: SGX Group
+        condition: succeededOrFailed()
 
   - script: |
       set -ex
