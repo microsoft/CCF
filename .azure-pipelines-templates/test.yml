@@ -8,7 +8,6 @@ steps:
   - script: |
       ssh agent@${{ parameters.ssh_target }} '
     displayName: "Setup testing over SSH"
-    condition: not(eq(${{ parameters.ssh_target }}, ''))
 
   - script: |
       set -ex
@@ -24,7 +23,6 @@ steps:
   - script: |
       '
     displayName: "Conclude testing over SSH"
-    condition: not(eq(${{ parameters.ssh_target }}, ''))
 
   # # Only run privileged tests in container environment
   # - ${{ if ne(parameters.suffix, 'Perf') }}:
