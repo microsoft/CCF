@@ -40,16 +40,6 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 
-def platform_from_enclave_type(enclave_type):
-    if enclave_type == "virtual":
-        if IS_SNP:
-            return "snp"
-        else:
-            return "virtual"
-    else:
-        return "sgx"
-
-
 def issue_activity_on_live_service(network, args):
     log_capture = []
     network.txs.issue(
@@ -241,6 +231,7 @@ def run_code_upgrade_from(
 
             new_code_id = infra.utils.get_code_id(
                 args.enclave_type,
+                args.enclave_platform,
                 args.oe_binary,
                 args.package,
                 library_dir=to_library_dir,
@@ -294,6 +285,7 @@ def run_code_upgrade_from(
 
             old_code_id = infra.utils.get_code_id(
                 args.enclave_type,
+                args.enclave_platform,
                 args.oe_binary,
                 args.package,
                 library_dir=from_library_dir,
@@ -412,7 +404,7 @@ def run_live_compatibility_with_latest(
         lts_version, lts_install_path = repo.install_latest_lts_for_branch(
             os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
             this_release_branch_only,
-            platform=platform_from_enclave_type(args.enclave_type),
+            platform=args.enclave_platform,
         )
     else:
         lts_version = infra.github.get_version_from_install(lts_install_path)
@@ -468,7 +460,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
                 version, install_path = repo.install_release(
-                    lts_release, platform_from_enclave_type(args.enclave_type)
+                    lts_release,
+                    platform=args.enclave_platform,
                 )
                 lts_versions.append(version)
                 set_js_args(args, install_path)
@@ -623,6 +616,11 @@ if __name__ == "__main__":
 
     # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"
+
+    # For compatibility with <= 2.x versions as enclave platform
+    # was introduced in 3.x
+    if args.enclave_platform == "virtual":
+        args.enclave_type = "virtual"
 
     repo = infra.github.Repository()
     local_branch = infra.github.GitEnv.local_branch()
