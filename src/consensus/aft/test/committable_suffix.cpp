@@ -783,8 +783,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       while (rC.get_last_idx() < rPrimary.get_last_idx())
       {
         // Avoid infinite loop
-        // TODO: Why the over-estimation here?
-        DOCTEST_REQUIRE(attempts++ < 10 * rPrimary.get_last_idx());
+        DOCTEST_REQUIRE(attempts++ < rPrimary.get_last_idx());
         rPrimary.periodic(request_timeout);
         dispatch_all(nodes, id_primary);
         dispatch_all(nodes, node_idC);
