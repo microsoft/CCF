@@ -1,17 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from ccf.tx_id import TxID
-from infra.network import PrimaryNotFound
+import copy
+import http
 import math
+
+import infra.checker
+import infra.e2e_args
 import infra.network
 import infra.proc
-import infra.e2e_args
-import infra.checker
-import suite.test_requirements as reqs
-from infra.runner import ConcurrentRunner
-import copy
 import infra.service_load
-
+import suite.test_requirements as reqs
+from ccf.tx_id import TxID
+from infra.network import PrimaryNotFound
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
@@ -55,6 +56,65 @@ def test_kill_primary_no_reqs(network, args):
 @reqs.can_kill_n_nodes(1)
 def test_kill_primary(network, args):
     return test_kill_primary_no_reqs(network, args)
+
+@reqs.description("Test the commit endpoints view_history feature")
+def test_commit_view_history(network, args):
+    remote_node, _ = network.find_primary()
+    with remote_node.client() as c:
+        # the original endpoint should still work
+        res = c.get("/app/commit")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" not in res.body.json()
+        txid = res.body.json()["transaction_id"]
+
+        # non-true view_history should still work
+        res = c.get("/app/commit?view_history=nottrue")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" not in res.body.json()
+
+        # true view_history should list all history
+        res = c.get("/app/commit?view_history=true")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" in res.body.json()
+        assert type(res.body.json()["view_history"]) == list
+        view_history = res.body.json()["view_history"]
+
+        res = c.get("/node/network")
+        assert res.status_code == http.HTTPStatus.OK
+        current_view = res.json()["current_view"]
+
+        # view_history should override the view_history_since
+        res = c.get(f"/app/commit?view_history=true&view_history_since={current_view}")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
+
+        # ask for since the current view
+        res = c.get(f"/app/commit?view_history_since={current_view}")
+        assert res.status_code == http.HTTPStatus.OK
+        view_history_since_current = [v for v in view_history if int(v.split(".")[0]) > current_view]
+        if view_history_since_current:
+            assert res.body.json() == {
+                "transaction_id": txid,
+                "view_history": view_history_since_current,
+            }
+        else:
+            assert "view_history" not in res.body.json()
+
+        # ask for an invalid view
+        res = c.get("/app/commit?view_history_since=0")
+        assert res.status_code == http.HTTPStatus.BAD_REQUEST
+        assert res.body.json() == {
+            "error": {
+                "code": "InvalidQueryParameterValue",
+                "message": "Error code: InvalidArgs",
+            }
+        }
+
+        # ask for something that doesn't exist yet
+        res = c.get("/app/commit?view_history_since=100")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id": txid}
+
 
 
 def run(args):
@@ -105,6 +165,7 @@ def run(args):
 
                 try:
                     test_kill_primary_no_reqs(network, args)
+                    test_commit_view_history(network, args)
                 except PrimaryNotFound:
                     if node_to_stop < nodes_to_stop - 1:
                         raise
