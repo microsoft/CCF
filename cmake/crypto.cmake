@@ -35,6 +35,22 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(ccfcrypto.snp ${CCFCRYPTO_SRC})
+  add_san(ccfcrypto.snp)
+  target_compile_options(ccfcrypto.snp PUBLIC ${COMPILE_LIBCXX})
+  target_link_options(ccfcrypto.snp PUBLIC ${LINK_LIBCXX})
+  target_link_libraries(ccfcrypto.snp PUBLIC qcbor.snp)
+  target_link_libraries(ccfcrypto.snp PUBLIC t_cose.snp)
+  target_link_libraries(ccfcrypto.snp PUBLIC crypto)
+  target_link_libraries(ccfcrypto.snp PUBLIC ssl)
+  set_property(TARGET ccfcrypto.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+  install(
+    TARGETS ccfcrypto.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})

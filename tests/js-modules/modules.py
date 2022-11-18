@@ -775,7 +775,7 @@ def test_npm_app(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
-        if args.enclave_type not in ("release", "debug"):
+        if args.enclave_platform != "sgx":
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, non-sgx node")
         else:
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
