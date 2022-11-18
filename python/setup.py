@@ -48,5 +48,6 @@ setup(
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),
         path.join(UTILITIES_PATH, "verify_quote.sh"),
     ],
+    entry_points={"console_scripts": ["ccf_cose_sign1 = ccf.cose:sign_cli"]},
     include_package_data=True,
 )

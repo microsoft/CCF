@@ -12,10 +12,10 @@
 /**
  * \file t_cose_psa_crypto.c
  *
- * \brief Crypto Adaptation for t_cose to use ARM's PSA ECDSA and hashes.
+ * \brief Crypto Adaptation for t_cose to use ARM's PSA.
  *
  * This connects up the abstract interface in t_cose_crypto.h to the
- * implementations of ECDSA signing and hashing in ARM's Mbed TLS  crypto
+ * implementations of signing and hashing in ARM's Mbed TLS crypto
  * library that implements the Arm PSA 1.0 crypto API.
  *
  * This adapter layer doesn't bloat the implementation as everything
@@ -42,6 +42,43 @@
 /* Avoid compiler warning due to unused argument */
 #define ARG_UNUSED(arg) (void)(arg)
 
+/*
+ * See documentation in t_cose_crypto.h
+ *
+ * This will typically not be referenced and thus not linked,
+ * for deployed code. This is mainly used for test.
+ */
+bool t_cose_crypto_is_algorithm_supported(int32_t cose_algorithm_id)
+{
+    /* Notably, this list does not include EDDSA, regardless of how
+     * t_cose is configured, since PSA doesn't support it.
+     */
+    static const int32_t supported_algs[] = {
+        COSE_ALGORITHM_SHA_256,
+        COSE_ALGORITHM_SHA_384,
+        COSE_ALGORITHM_SHA_512,
+        COSE_ALGORITHM_ES256,
+#ifndef T_COSE_DISABLE_ES384
+        COSE_ALGORITHM_ES384,
+#endif
+#ifndef T_COSE_DISABLE_ES512
+        COSE_ALGORITHM_ES512,
+#endif
+#ifndef T_COSE_DISABLE_PS256
+        COSE_ALGORITHM_PS256,
+#endif
+#ifndef T_COSE_DISABLE_PS384
+        COSE_ALGORITHM_PS384,
+#endif
+#ifndef T_COSE_DISABLE_PS512
+        COSE_ALGORITHM_PS512,
+#endif
+        0 /* List terminator */
+    };
+
+    return t_cose_check_list(cose_algorithm_id, supported_algs);
+}
+
 
 /**
  * \brief Map a COSE signing algorithm ID to a PSA signing algorithm ID
@@ -61,9 +98,18 @@ static psa_algorithm_t cose_alg_id_to_psa_alg_id(int32_t cose_alg_id)
 #ifndef T_COSE_DISABLE_ES512
            cose_alg_id == COSE_ALGORITHM_ES512 ? PSA_ALG_ECDSA(PSA_ALG_SHA_512) :
 #endif
+#ifndef T_COSE_DISABLE_PS256
+           cose_alg_id == COSE_ALGORITHM_PS256 ? PSA_ALG_RSA_PSS(PSA_ALG_SHA_256) :
+#endif
+#ifndef T_COSE_DISABLE_PS384
+           cose_alg_id == COSE_ALGORITHM_PS384 ? PSA_ALG_RSA_PSS(PSA_ALG_SHA_384) :
+#endif
+#ifndef T_COSE_DISABLE_PS512
+           cose_alg_id == COSE_ALGORITHM_PS512 ? PSA_ALG_RSA_PSS(PSA_ALG_SHA_512) :
+#endif
                                                  0;
     /* psa/crypto_values.h doesn't seem to define a "no alg" value,
-     * but zero seems OK for that use in the ECDSA context. */
+     * but zero seems OK for that use in the signing context. */
 }
 
 
@@ -107,18 +153,7 @@ t_cose_crypto_verify(int32_t               cose_algorithm_id,
 
     /* Convert to PSA algorithm ID scheme */
     psa_alg_id = cose_alg_id_to_psa_alg_id(cose_algorithm_id);
-
-    /* This implementation supports ECDSA and only ECDSA. The
-     * interface allows it to support other, but none are implemented.
-     * This implementation works for different keys lengths and
-     * curves. That is the curve and key length as associated with the
-     * signing_key passed in, not the cose_algorithm_id This check
-     * looks for ECDSA signing as indicated by COSE and rejects what
-     * is not. (Perhaps this check can be removed to save object code
-     * if it is the case that psa_verify_hash() does the right
-     * checks).
-     */
-    if(!PSA_ALG_IS_ECDSA(psa_alg_id)) {
+    if(!PSA_ALG_IS_ECDSA(psa_alg_id) && !PSA_ALG_IS_RSA_PSS(psa_alg_id)) {
         return_value = T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
         goto Done;
     }
@@ -156,18 +191,7 @@ t_cose_crypto_sign(int32_t                cose_algorithm_id,
     size_t                signature_len;
 
     psa_alg_id = cose_alg_id_to_psa_alg_id(cose_algorithm_id);
-
-    /* This implementation supports ECDSA and only ECDSA. The
-     * interface allows it to support other, but none are implemented.
-     * This implementation works for different keys lengths and
-     * curves. That is the curve and key length as associated with the
-     * signing_key passed in, not the cose_algorithm_id This check
-     * looks for ECDSA signing as indicated by COSE and rejects what
-     * is not. (Perhaps this check can be removed to save object code
-     * if it is the case that psa_verify_hash() does the right
-     * checks).
-     */
-    if(!PSA_ALG_IS_ECDSA(psa_alg_id)) {
+    if(!PSA_ALG_IS_ECDSA(psa_alg_id) && !PSA_ALG_IS_RSA_PSS(psa_alg_id)) {
         return_value = T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
         goto Done;
     }
@@ -207,21 +231,15 @@ enum t_cose_err_t t_cose_crypto_sig_size(int32_t           cose_algorithm_id,
                                          size_t           *sig_size)
 {
     enum t_cose_err_t     return_value;
+    psa_algorithm_t       psa_alg_id;
     mbedtls_svc_key_id_t  signing_key_psa;
-    size_t                key_len_bits;
-    size_t                key_len_bytes;
     psa_key_attributes_t  key_attributes;
+    psa_key_type_t        key_type;
+    size_t                key_len_bits;
     psa_status_t          status;
 
-    /* If desperate to save code, this can return the constant
-     * T_COSE_MAX_SIG_SIZE instead of doing an exact calculation.  The
-     * buffer size calculation will return too large of a value and
-     * waste a little heap / stack, but everything will still work
-     * (except the tests that test for exact values will fail). This
-     * will save 100 bytes or so of object code.
-     */
-
-    if(!t_cose_algorithm_is_ecdsa(cose_algorithm_id)) {
+    psa_alg_id = cose_alg_id_to_psa_alg_id(cose_algorithm_id);
+    if(!PSA_ALG_IS_ECDSA(psa_alg_id) && !PSA_ALG_IS_RSA_PSS(psa_alg_id)) {
         return_value = T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
         goto Done;
     }
@@ -229,22 +247,17 @@ enum t_cose_err_t t_cose_crypto_sig_size(int32_t           cose_algorithm_id,
     signing_key_psa = (mbedtls_svc_key_id_t)signing_key.k.key_handle;
     key_attributes = psa_key_attributes_init();
     status = psa_get_key_attributes(signing_key_psa, &key_attributes);
-    key_len_bits = psa_get_key_bits(&key_attributes);
-
-
     return_value = psa_status_to_t_cose_error_signing(status);
-    if(return_value == T_COSE_SUCCESS) {
-        /* Calculation of size per RFC 8152 section 8.1 -- round up to
-         * number of bytes. */
-        key_len_bytes = key_len_bits / 8;
-        if(key_len_bits % 8) {
-            key_len_bytes++;
-        }
-        /* Double because signature is made of up r and s values */
-        *sig_size = key_len_bytes * 2;
+    if(return_value) {
+        goto Done;
     }
 
+    key_type = psa_get_key_type(&key_attributes);
+    key_len_bits = psa_get_key_bits(&key_attributes);
+    *sig_size = (size_t)PSA_SIGN_OUTPUT_SIZE(key_type, (int)key_len_bits, psa_alg_id);
+
     return_value = T_COSE_SUCCESS;
+
 Done:
     return return_value;
 }
@@ -264,10 +277,10 @@ static inline psa_algorithm_t
 cose_hash_alg_id_to_psa(int32_t cose_hash_alg_id)
 {
     return cose_hash_alg_id == COSE_ALGORITHM_SHA_256 ? PSA_ALG_SHA_256 :
-#ifndef T_COSE_DISABLE_ES384
+#if !defined(T_COSE_DISABLE_ES384) || !defined(T_COSE_DISABLE_PS384)
            cose_hash_alg_id == COSE_ALGORITHM_SHA_384 ? PSA_ALG_SHA_384 :
 #endif
-#ifndef T_COSE_DISABLE_ES512
+#if !defined(T_COSE_DISABLE_ES512) || !defined(T_COSE_DISABLE_PS512)
            cose_hash_alg_id == COSE_ALGORITHM_SHA_512 ? PSA_ALG_SHA_512 :
 #endif
                                                         UINT16_MAX;
@@ -367,3 +380,44 @@ t_cose_crypto_hash_finish(struct t_cose_crypto_hash *hash_ctx,
 Done:
     return psa_status_to_t_cose_error_hash(hash_ctx->status);
 }
+
+#ifndef T_COSE_DISABLE_EDDSA
+
+/*
+ * See documentation in t_cose_crypto.h
+ */
+enum t_cose_err_t
+t_cose_crypto_sign_eddsa(struct t_cose_key      signing_key,
+                         struct q_useful_buf_c  tbs,
+                         struct q_useful_buf    signature_buffer,
+                         struct q_useful_buf_c *signature)
+{
+    (void)signing_key;
+    (void)tbs;
+    (void)signature_buffer;
+    (void)signature;
+
+    /* MbedTLS does not support EdDSA */
+    return T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
+}
+
+
+/*
+ * See documentation in t_cose_crypto.h
+ */
+enum t_cose_err_t
+t_cose_crypto_verify_eddsa(struct t_cose_key     verification_key,
+                           struct q_useful_buf_c kid,
+                           struct q_useful_buf_c tbs,
+                           struct q_useful_buf_c signature)
+{
+    (void)verification_key;
+    (void)kid;
+    (void)tbs;
+    (void)signature;
+
+    /* MbedTLS does not support EdDSA */
+    return T_COSE_ERR_UNSUPPORTED_SIGNING_ALG;
+}
+
+#endif /* T_COSE_DISABLE_EDDSA */

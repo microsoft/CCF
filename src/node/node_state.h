@@ -90,6 +90,7 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
+    std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
 
@@ -203,7 +204,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       startup_snapshot_info = initialise_from_snapshot(
         snapshot_store,
-        std::move(config.startup_snapshot),
+        std::move(startup_snapshot),
         hooks,
         &view_history,
         true,
@@ -333,7 +334,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (!config.startup_snapshot.empty())
+          if (!startup_snapshot.empty())
           {
             initialise_startup_snapshot();
           }
@@ -345,7 +346,7 @@ namespace ccf
         case StartType::Recover:
         {
           setup_recovery_hook();
-          if (!config.startup_snapshot.empty())
+          if (!startup_snapshot.empty())
           {
             initialise_startup_snapshot(true);
             snapshotter->set_last_snapshot_idx(last_recovered_idx);
@@ -417,13 +418,17 @@ namespace ccf
         config.attestation.snp_endorsements_servers);
     }
 
-    NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)
+    NodeCreateInfo create(
+      StartType start_type_,
+      StartupConfig&& config_,
+      std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
       config = std::move(config_);
+      startup_snapshot = std::move(startup_snapshot_);
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();

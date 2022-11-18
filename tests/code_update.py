@@ -28,7 +28,7 @@ SNP_ACI_MEASUREMENT = "ede826880a4e1a41898a96810efb09f2070513abb355e89652564cd18
 
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
-    if args.enclave_type == "virtual":
+    if args.enclave_platform == "virtual":
         LOG.warning("Skipping quote test with virtual enclave")
         return network
     elif IS_SNP:
@@ -219,7 +219,7 @@ def test_add_node_with_bad_host_data(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
-    if args.enclave_type not in ("release", "debug"):
+    if args.enclave_platform != "sgx":
         LOG.warning("Skipping test_add_node_with_bad_code with non-sgx enclave")
         return network
 
@@ -230,7 +230,7 @@ def test_add_node_with_bad_code(network, args):
     )
 
     new_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.oe_binary, replacement_package
+        args.enclave_type, args.enclave_platform, args.oe_binary, replacement_package
     )
 
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
@@ -264,13 +264,13 @@ def test_update_all_nodes(network, args):
     primary, _ = network.find_nodes()
 
     first_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.oe_binary, args.package
+        args.enclave_type, args.enclave_platform, args.oe_binary, args.package
     )
     new_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.oe_binary, replacement_package
+        args.enclave_type, args.enclave_platform, args.oe_binary, replacement_package
     )
 
-    if args.enclave_type == "virtual":
+    if args.enclave_platform == "virtual":
         # Pretend this was already present
         network.consortium.add_new_code(primary, first_code_id)
 
@@ -283,7 +283,7 @@ def test_update_all_nodes(network, args):
             {"digest": first_code_id, "status": "AllowedToJoin"},
             {"digest": new_code_id, "status": "AllowedToJoin"},
         ]
-        if args.enclave_type == "virtual":
+        if args.enclave_platform == "virtual":
             expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
 
         versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
@@ -298,7 +298,7 @@ def test_update_all_nodes(network, args):
             {"digest": first_code_id, "status": "AllowedToJoin"},
             {"digest": new_code_id, "status": "AllowedToJoin"},
         ]
-        if args.enclave_type == "virtual":
+        if args.enclave_platform == "virtual":
             expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
 
         expected.sort(key=lambda x: x["digest"])
@@ -344,7 +344,10 @@ def test_proposal_invalidation(network, args):
 
     LOG.info("Add temporary code ID")
     temp_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.oe_binary, get_replacement_package(args)
+        args.enclave_type,
+        args.enclave_platform,
+        args.oe_binary,
+        get_replacement_package(args),
     )
     network.consortium.add_new_code(primary, temp_code_id)
 

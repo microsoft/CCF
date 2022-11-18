@@ -194,7 +194,8 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
-  host::Enclave enclave(config.enclave.file, config.enclave.type);
+  host::Enclave enclave(
+    config.enclave.file, config.enclave.type, config.enclave.platform);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
@@ -526,6 +527,8 @@ int main(int argc, char** argv)
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
 
+    std::vector<uint8_t> startup_snapshot = {};
+
     if (
       config.command.type == StartType::Join ||
       config.command.type == StartType::Recover)
@@ -535,13 +538,12 @@ int main(int argc, char** argv)
       if (latest_committed_snapshot.has_value())
       {
         auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
-        startup_config.startup_snapshot =
-          files::slurp(snapshot_dir / snapshot_file);
+        startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
 
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {})",
           snapshot_dir / snapshot_file,
-          startup_config.startup_snapshot.size());
+          startup_snapshot.size());
       }
       else
       {
@@ -580,6 +582,7 @@ int main(int argc, char** argv)
     auto create_status = enclave.create_node(
       enclave_config,
       startup_config,
+      std::move(startup_snapshot),
       node_cert,
       service_cert,
       config.command.type,
