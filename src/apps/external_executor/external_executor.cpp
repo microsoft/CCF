@@ -45,8 +45,6 @@ namespace externalexecutor
     };
     using PendingRequestPtr = std::shared_ptr<PendingRequest>;
 
-    std::queue<PendingRequestPtr> pending_requests;
-
     using ExecutorPendingRequests = std::queue<PendingRequestPtr>;
 
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
@@ -58,7 +56,31 @@ namespace externalexecutor
     std::unordered_map<ExecutorId, ExecutorPendingRequests>
       pending_executor_requests;
 
-    using ExecutorIdList = std::unordered_set<ExecutorId>;
+    struct ExecutorIdList
+    {
+      std::list<ExecutorId> executor_ids;
+
+      void insert(ExecutorId id)
+      {
+        executor_ids.push_back(id);
+      }
+
+      ExecutorId get_executor_id()
+      {
+        // return the first ExecutorID and then move it back to the end of the
+        // list
+        ExecutorId front = executor_ids.front();
+        executor_ids.pop_front();
+        executor_ids.push_back(front);
+        return front;
+      }
+
+      int size()
+      {
+        return executor_ids.size();
+      }
+    };
+
     std::unordered_map<std::string, ExecutorIdList> supported_uris;
 
     ExecutorId get_caller_executor_id(
@@ -697,8 +719,8 @@ namespace externalexecutor
       {
         throw std::logic_error("Only registered endpoints are supported");
       }
-      auto executor_id = supported_uris[method + uri].begin();
-      return *executor_id;
+      auto executor_id = supported_uris[method + uri].get_executor_id();
+      return executor_id;
     }
 
     void execute_endpoint(
