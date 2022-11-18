@@ -33,7 +33,7 @@ CCF apps can be written in JavaScript or Typescript, To test a JS/TS CCF applica
 Build Application
 ~~~~~~~~~~~~~~~~~
 
-The application building prerequisites [:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org>`__ and `NPM <https://www.npmjs.com>`__] must be installed,all will be preinstalled if you are using devcontainer environment, otherwise you need to install them manually.
+The application building prerequisites [:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org>`__ and `NPM <https://www.npmjs.com>`__] must be installed, all will be preinstalled if you are using devcontainer environment, otherwise you need to install them manually.
 
 Please follow `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#run-js-app>`__
 
@@ -81,7 +81,7 @@ Run app: Using CChost
 Run app: Using Managed CCF
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  To test you application using Managed CCF, you can create `Azure Managed CCF <https://techcommunity.microsoft.com/t5/azure-confidential-computing/microsoft-introduces-preview-of-azure-managed-confidential/ba-p/3648986>`__ serivce on your subscription, the service will create a ready CCF network
+-  To test your application using Managed CCF, you can create `Azure Managed CCF <https://techcommunity.microsoft.com/t5/azure-confidential-computing/microsoft-introduces-preview-of-azure-managed-confidential/ba-p/3648986>`__ service on your subscription, the service will create a ready CCF network
 -  Support only a ccf network in enclave mode (TEE hardware)
 -  No initial governance steps required to start up your network, but you need to use governance to propose your application
 -  How is it working?
@@ -126,7 +126,7 @@ Please check `run ccf-app-template using docker <https://github.com/microsoft/cc
 Network Governance
 ------------------
 
-a Consortium of trusted Members :doc:`governs the CCF network </governance/index>`. members can submit proposals to CCF and these proposals are accepted based on the rules defined in the :ref:`Constitution <governance/constitution:Constitution>`. Governance changes are submitted to a :ref:`network as Proposals <governance/proposals:Summary>`, and put to a vote from members.
+A Consortium of trusted Members :doc:`governs the CCF network </governance/index>`. Members can submit proposals to CCF and these proposals are accepted based on the rules defined in the :ref:`Constitution <governance/constitution:Constitution>`. Governance changes are submitted to a :ref:`network as Proposals <governance/proposals:Summary>`, and put to a vote from members.
 
 -  :ref:`Submitting a New Proposal <governance/proposals:Submitting a New Proposal>`
 -  :ref:`Members can then vote to accept or reject the proposal <governance/proposals:Summary>`
@@ -144,7 +144,7 @@ By default the CCF network needs at least one member to be started, after the ne
 Adding network users
 ~~~~~~~~~~~~~~~~~~~~
 
-Users directly interact with the application running in CCF. Their public identities should be voted in by members before they are allowed to issue requests
+Users directly interact with the application running in CCF. Their public identities should be voted in by members before they are allowed to issue requests. 
 Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to Users. First, the identities of trusted users should be generated,
 see :ref:`Generating Member Keys and Certificates <governance/adding_member:Generating Member Keys and Certificates>` and :ref:`Adding Users docs <governance/open_network:Adding Users>`
 
