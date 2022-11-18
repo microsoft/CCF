@@ -40,14 +40,18 @@ setup(
     python_requires=">=3.8",
     install_requires=requirements,
     scripts=[
-        path.join(PACKAGE_NAME, "read_ledger.py"),
-        path.join(PACKAGE_NAME, "ledger_viz.py"),
-        path.join(PACKAGE_NAME, "split_ledger.py"),
         path.join(UTILITIES_PATH, "keygenerator.sh"),
         path.join(UTILITIES_PATH, "scurl.sh"),
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),
         path.join(UTILITIES_PATH, "verify_quote.sh"),
     ],
-    entry_points={"console_scripts": ["ccf_cose_sign1 = ccf.cose:sign_cli"]},
+    entry_points={
+        "console_scripts": [
+            "ccf_cose_sign1 = ccf.cose:sign_cli",
+            "read_ledger.py = ccf.read_ledger:main",
+            "ledger_viz.py = ccf.ledger_viz:main",
+            "split_ledger.py = ccf.split_ledger:main",
+        ]
+    },
     include_package_data=True,
 )

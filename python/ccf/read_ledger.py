@@ -186,8 +186,7 @@ def run(
         return not has_error
 
 
-if __name__ == "__main__":
-
+def main():
     LOG.remove()
     LOG.add(
         sys.stdout,
@@ -244,3 +243,7 @@ if __name__ == "__main__":
         args.digests_only,
     ):
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
