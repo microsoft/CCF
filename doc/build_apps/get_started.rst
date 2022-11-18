@@ -56,7 +56,7 @@ Run app: Using Sandbox.sh
 Run app: Using Docker
 ^^^^^^^^^^^^^^^^^^^^^
 
--  Build and run one of these docker files [“ccf_app_js.virtual” or “ccf_app_js.enclave”] to start a CCF network with one node and one member.
+-  A CCF network can be started using Docker containers; please check `docker files samples <https://github.com/microsoft/ccf-app-template/tree/main/docker>`
 -  Support both ccf network types [virtual - enclave (TEE hardware)]
 -  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 -  How is it working?
@@ -65,8 +65,8 @@ Run app: Using Docker
    -  The network is started with one node and one member, you need to
       execute the initial governance steps to initialize the network, `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 
-Run app: Using CChost
-^^^^^^^^^^^^^^^^^^^^^
+Run app: Using CChost on a VM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 -  The application can be tested using `cchost` and :doc:`CCF config file </operations/configuration>`,
    To Start a test CCF network on a Linux environment, it requires :doc:`CCF to be intalled </build_apps/install_bin>`
@@ -112,13 +112,13 @@ Build C++ app
 
 Please check `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#build-c-app>`__
 
-Run app: Using Sandbox.sh
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Run C++ app: Using Sandbox.sh
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Please check `run ccf-app-template using sandbox.sh <https://github.com/microsoft/ccf-app-template#run-c-app>`__
 
-Run app: Using Docker
-~~~~~~~~~~~~~~~~~~~~~
+Run C++ app: Using Docker
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Please check `run ccf-app-template using docker <https://github.com/microsoft/ccf-app-template#docker-1>`__
 
@@ -168,4 +168,4 @@ Once the proposal has received enough votes under the rules of the Constitution 
 .. |Open in VSCode| image:: https://img.shields.io/static/v1?label=Open+in&message=VSCode&logo=visualstudiocode&color=007ACC&logoColor=007ACC&labelColor=2C2C32
    :target: https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/ccf-app-template
 .. |Github codespace| image:: https://img.shields.io/static/v1?label=Open+in&message=GitHub+codespace&logo=github&color=2F363D&logoColor=white&labelColor=2C2C32
-   :target: https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=496290904&machine=basicLinux32gb&devcontainer_path=.devcontainer.json&location=WestEurope
+   :target: https://github.com/codespaces/new?machine=basicLinux32gb&repo=496290904&ref=main&devcontainer_path=.devcontainer%2Fdevcontainer.json&location=WestEurope
