@@ -51,6 +51,39 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         ]
     }
 
+.. code-block:: bash
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --signing-key member1_privk.pem --signing-cert member1_cert.pem --content trigger_ledger_rekey.json | \
+      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 0,
+        "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Open"
+    }
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id 2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_accept_1.json | \
+      curl https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 1,
+        "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Open"
+    }
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id 2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e --signing-key member3_privk.pem --signing-cert member3_cert.pem --content vote_accept_1.json | \
+      curl https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 2,
+        "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Accepted"
+    }
+
+Or alternatively, with the old signature method:
+
+.. code-block:: bash
+
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @trigger_ledger_rekey.json -H "content-type: application/json"
     {
         "ballot_count": 0,
@@ -100,6 +133,39 @@ The number of member shares required to restore the private ledger (``recovery_t
         ]
     }
 
+.. code-block:: bash
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --signing-key member1_privk.pem --signing-cert member1_cert.pem --content set_recovery_threshold.json | \
+      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 0,
+        "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Open"
+    }
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8 --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_accept_1.json | \
+      curl https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 1,
+        "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Open"
+    }
+
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8 --signing-key member3_privk.pem --signing-cert member3_cert.pem --content vote_accept_1.json | \
+      curl https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 2,
+        "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Accepted"
+    }
+
+Or alternatively, with the old signature method:
+
+.. code-block:: bash
+
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @set_recovery_threshold.json -H "content-type: application/json"
     {
         "ballot_count": 0,
@@ -114,7 +180,6 @@ The number of member shares required to restore the private ledger (``recovery_t
         "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
         "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
         "state": "Open"
-    }
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/ballots --cacert service_cert.pem --signing-key member3_privk.pem --signing-cert member3_cert.pem --data-binary @vote_accept_1.json -H "content-type: application/json"

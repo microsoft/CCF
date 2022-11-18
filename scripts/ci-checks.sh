@@ -17,10 +17,16 @@ pushd "$ROOT_DIR" > /dev/null
 
 # GitHub actions workflow commands: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions
 function group(){
-    echo "::group::$1"
+    # Only do this in GitHub actions, where CI is defined according to
+    # https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables
+    if [[ ${CI} ]]; then
+      echo "::group::$1"
+    fi
 }
 function endgroup() {
-    echo "::endgroup::"
+    if [[ ${CI} ]]; then
+      echo "::endgroup::"
+    fi
 }
 
 
