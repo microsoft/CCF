@@ -6,12 +6,14 @@ import os
 import subprocess
 
 
-def get_code_id(enclave_type, oe_binary_dir, package, library_dir="."):
-    lib_path = infra.path.build_lib_path(package, enclave_type, library_dir)
+def get_code_id(
+    enclave_type, enclave_platform, oe_binary_dir, package, library_dir="."
+):
+    lib_path = infra.path.build_lib_path(
+        package, enclave_type, enclave_platform, library_dir
+    )
 
-    if enclave_type == "virtual":
-        return hashlib.sha384(lib_path.encode()).hexdigest()
-    else:
+    if enclave_platform == "sgx":
         res = subprocess.run(
             [os.path.join(oe_binary_dir, "oesign"), "dump", "-e", lib_path],
             capture_output=True,
@@ -24,3 +26,6 @@ def get_code_id(enclave_type, oe_binary_dir, package, library_dir="."):
         ]
 
         return lines[0].split("=")[1]
+    else:
+        # Virtual and SNP
+        return hashlib.sha384(lib_path.encode()).hexdigest()

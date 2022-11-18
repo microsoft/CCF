@@ -505,7 +505,7 @@ def test_issue_fake_join(network, args):
         r = c.post("/node/join", body=req)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
-        if args.enclave_type not in ("release", "debug"):
+        if args.enclave_platform != "sgx":
             assert r.body.json()["error"]["message"] == "Quote could not be verified"
         else:
             assert (
@@ -520,7 +520,7 @@ def test_issue_fake_join(network, args):
             "endorsements": own_quote["endorsements"],
         }
         r = c.post("/node/join", body=req)
-        if args.enclave_type != "snp":
+        if args.enclave_platform != "snp":
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
             # https://github.com/microsoft/CCF/issues/4072
             assert (
@@ -539,7 +539,7 @@ def test_issue_fake_join(network, args):
             "endorsements": "",
         }
         r = c.post("/node/join", body=req)
-        if args.enclave_type == "virtual" and not IS_SNP:
+        if args.enclave_platform == "virtual":
             assert r.status_code == http.HTTPStatus.OK
             assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
         else:
