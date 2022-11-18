@@ -153,8 +153,8 @@ namespace ccf
     make_command_endpoint(
       "/commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
       .set_auto_schema<GetCommit>()
-      .add_query_parameter<bool>(view_history_param_key)
-      .add_query_parameter<ccf::View>(view_history_since_param_key)
+      .add_query_parameter<bool>(view_history_param_key, endpoints::OptionalParameter)
+      .add_query_parameter<ccf::View>(view_history_since_param_key, endpoints::OptionalParameter)
       .install();
 
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
