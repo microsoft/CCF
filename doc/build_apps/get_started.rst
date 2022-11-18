@@ -56,7 +56,7 @@ Run app: Using Sandbox.sh
 Run app: Using Docker
 ^^^^^^^^^^^^^^^^^^^^^
 
--  A CCF network can be started using Docker containers; please check `docker files samples <https://github.com/microsoft/ccf-app-template/tree/main/docker>`
+-  A CCF network can be started using Docker containers; please check the `docker file samples <https://github.com/microsoft/ccf-app-template/tree/main/docker>`__
 -  Support both ccf network types [virtual - enclave (TEE hardware)]
 -  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 -  How is it working?
