@@ -81,7 +81,7 @@ def test_commit_view_history(network, args):
 
         res = c.get("/node/network")
         assert res.status_code == http.HTTPStatus.OK
-        current_view = res.json()["current_view"]
+        current_view = res.body.json()["current_view"]
 
         # view_history should override the view_history_since
         res = c.get(f"/app/commit?view_history=true&view_history_since={current_view}")
