@@ -122,15 +122,11 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 
   target_link_libraries(
-    ccf.enclave
-    PUBLIC quickjs.enclave
-           http_parser.enclave
-           sss.enclave
-           ccf_endpoints.enclave
-           ccfcrypto.enclave
-           ccf_kv.enclave
-           nghttp2.enclave
+    ccf.enclave PUBLIC quickjs.enclave http_parser.enclave sss.enclave
+                       ccf_endpoints.enclave ccfcrypto.enclave ccf_kv.enclave
   )
+
+  target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
 
   add_lvi_mitigations(ccf.enclave)
 
@@ -145,19 +141,19 @@ if(COMPILE_TARGET STREQUAL "sgx")
   # Same as virtual for the time being but will diverge soon
 elseif(COMPILE_TARGET STREQUAL "snp")
 
-  # SNP version
-  add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
+  # virtual version
+  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
-    ccf.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                       _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
 
-  target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
-  add_warning_checks(ccf.snp)
+  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
+  add_warning_checks(ccf.virtual)
 
   target_include_directories(
-    ccf.snp SYSTEM
+    ccf.virtual SYSTEM
     PUBLIC
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
       $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
@@ -168,31 +164,32 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   )
 
   target_link_libraries(
-    ccf.snp
+    ccf.virtual
     PUBLIC ${LINK_LIBCXX}
            -lgcc
-           http_parser.snp
-           quickjs.snp
-           sss.snp
-           ccf_endpoints.snp
-           ccfcrypto.snp
-           ccf_kv.snp
-           nghttp2.snp
+           http_parser.host
+           quickjs.host
+           sss.host
+           ccf_endpoints.host
+           ccfcrypto.host
+           ccf_kv.host
            ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
-  set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
 
-  add_san(ccf.snp)
+  set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+  add_san(ccf.virtual)
 
   install(
-    TARGETS ccf.snp
+    TARGETS ccf.virtual
     EXPORT ccf
     DESTINATION lib
   )
 
-  add_dependencies(ccf ccf.snp)
+  add_dependencies(ccf ccf.virtual)
 
 elseif(COMPILE_TARGET STREQUAL "virtual")
 
@@ -228,10 +225,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           nghttp2.host
            ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
+
+  target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -944,7 +942,31 @@ if(BUILD_TESTS)
       --repetitions
       10000
       --msg-ser-fmt
-      msgpack
+      text
+  )
+
+  add_perf_test(
+    NAME pi_ls
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
+    CONSENSUS cft
+    CLIENT_BIN ./submit
+    ADDITIONAL_ARGS
+      -p
+      "samples/apps/logging/liblogging"
+      -m
+      1000
+      --cert 
+      "user1_cert.pem"
+      --key 
+      "user1_privk.pem"
+      --cacert 
+      "service_cert.pem"
+      --generator-filepath 
+      "../../pi_ls_virtual_cft.parquet"
+      -s 
+      "./pi_ls_virtual_cft_send.parquet"
+      -r 
+      "./pi_ls_virtual_cft_response.parquet"
   )
 
   add_perf_test(
