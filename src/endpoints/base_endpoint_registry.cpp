@@ -23,8 +23,6 @@ namespace ccf
   {
     try
     {
-      // ensure we make a proper full vec
-      history.clear();
       if (consensus != nullptr)
       {
         if (since < 1)
