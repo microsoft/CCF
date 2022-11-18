@@ -99,15 +99,15 @@ def test_commit_view_history(network, args):
             }
         }
 
-        # 1 should also be invalid, for now (https://github.com/microsoft/CCF/pull/4580#discussion_r1026317169)
+        # views start at 1, at least internally
         res = c.get("/app/commit?view_history_since=1")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"error":{}}
+        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
 
-        # can get them from the start though (view 2)
+        # in reality they start at 2
         res = c.get("/app/commit?view_history_since=2")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
+        assert res.body.json() == {"transaction_id": txid, "view_history": view_history[1:]}
 
         # getting from the current one should give just that
         res = c.get(f"/app/commit?view_history_since={current_view}")
