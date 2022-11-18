@@ -7,7 +7,7 @@ Application Development using CCF Overview
 -  :ref:`What is Confidential Consortium Framework (CCF) <overview/what_is_ccf:What is CCF?>`
 -  Read the :doc:`CCF overview </overview/index>` and get familiar with :ref:`overview/what_is_ccf:Core Concepts` and `Azure confidential computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
 -  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript or C++
--  CCF `Modules API reference <https://microsoft.github.io/CCF/main/js/ccf-app/modules.html>`__
+-  CCF `JavaScript module API reference <https://microsoft.github.io/CCF/main/js/ccf-app/modules.html>`__
 -  CCF application get started repos `CCF application template <https://github.com/microsoft/ccf-app-template>`__ and  `CCF application samples <https://github.com/microsoft/ccf-app-samples>`__
 
 Development environment
@@ -20,10 +20,10 @@ Development environment
 (JavaScript/Typescript) Applications
 ------------------------------------
 
-CCF apps can be written in JavaScript or Typescript, To test a JS/TS CCF application you need go through the following steps:
+CCF apps can be written in JavaScript/Typescript. To test a JS/TS CCF application you need go through the following steps:
 
 -  :doc:`Start a CCF Network with at least one node </operations/start_network>`
--  Initialize the CCF network with at least one (active member - user) :ref:`governance/open_network:Opening a Network`,
+-  Initialise the CCF network with at least one active member and one user :ref:`governance/open_network:Opening a Network`,
    this can be done through :ref:`Proposals <governance/proposals:Summary>`.
 -  Create an application :ref:`deployment proposal <build_apps/js_app_bundle:Deployment>`
 -  Submit the app deployment proposal to the network and all members accept it through voting. This is a part of :ref:`Network Governance <governance/proposals:Submitting a New Proposal>`.
@@ -33,7 +33,7 @@ CCF apps can be written in JavaScript or Typescript, To test a JS/TS CCF applica
 Build Application
 ~~~~~~~~~~~~~~~~~
 
-The application building prerequisites [:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org>`__ and `NPM <https://www.npmjs.com>`__] must be installed, all will be preinstalled if you are using devcontainer environment, otherwise you need to install them manually.
+The application building prerequisites [:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org>`__ and `NPM <https://www.npmjs.com>`__] must be installed, all will be preinstalled if you are using the devcontainer environment, otherwise you need to install them manually.
 
 Please follow `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#run-js-app>`__
 
@@ -45,7 +45,7 @@ There are several approaches to run and test your application
 Run app: Using Sandbox.sh
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  Running the sandbox.sh script automatically starts a CCF network and deploys your application on it. The app is up and ready to receive calls and the initial governance steps are done for you
+-  Running the `sandbox.sh` script automatically starts a CCF network and deploys your application on it. The app is up and ready to receive calls and the initial governance steps are done for you
 -  Support both ccf network types [virtual - enclave (TEE hardware)]
 -  No initial governance steps required
 -  How is it working?
@@ -68,7 +68,7 @@ Run app: Using Docker
 Run app: Using CChost
 ^^^^^^^^^^^^^^^^^^^^^
 
--  The application can be tested using CChost and :doc:`CCF config file </operations/configuration>`,
+-  The application can be tested using `cchost` and :doc:`CCF config file </operations/configuration>`,
    To Start a test CCF network on a Linux environment, it requires :doc:`CCF to be intalled </build_apps/install_bin>`
    or you can create a ready CCF VM using `Creating a Virtual Machine in Azure to run CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__
 -  Support both ccf network types [virtual - enclave (TEE hardware)]
@@ -95,8 +95,7 @@ Run app: Using Managed CCF
 Testing: Application Endpoints
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To check samples on how to test your application endpoints, please check
-these repositories.
+To check samples on how to test your application endpoints, please check these repositories:
 
 -  `CCF-app-template repo <https://github.com/microsoft/ccf-app-template#--javascript>`__
 -  `Banking Application sample <https://github.com/microsoft/ccf-app-samples/tree/main/banking-app#how-to-run-the-tests>`__
