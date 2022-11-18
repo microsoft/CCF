@@ -309,9 +309,6 @@ def test_parallel_executors(network, args):
         "England",
         "Scotland",
         "France",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
         "Red",
         "Green",
         "Blue",
@@ -334,17 +331,22 @@ def test_parallel_executors(network, args):
                     raise ValueError(f"Unexpected response: {r}")
 
     executors = []
+    index = 0
 
-    supported_endpoints = []
-    for topic in topics:
-        supported_endpoints.append(("POST", "/update_cache/" + topic))
-        supported_endpoints.append(("GET", "/article_description/" + topic))
+    def supported_endpoints():
+        nonlocal index
+        endpoints = []
+        endpoints.append(("POST", "/update_cache/" + topics[index]))
+        endpoints.append(("GET", "/article_description/" + topics[index]))
+
+        index += 1
+        return endpoints
 
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
 
             credentials = register_new_executor(
-                primary, network, supported_endpoints=supported_endpoints
+                primary, network, supported_endpoints=supported_endpoints()
             )
 
             executor = WikiCacherExecutor(primary, credentials, label=f"Executor {i}")
@@ -494,7 +496,7 @@ def run(args):
         network = test_executor_registration(network, args)
         network = test_kv(network, args)
         network = test_simple_executor(network, args)
-        # network = test_parallel_executors(network, args)
+        network = test_parallel_executors(network, args)
         network = test_streaming(network, args)
         network = test_logging_executor(network, args)
 
