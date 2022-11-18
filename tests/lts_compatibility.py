@@ -623,7 +623,7 @@ if __name__ == "__main__":
         args.enclave_type = "virtual"
 
     repo = infra.github.Repository()
-    local_branch = infra.github.GitEnv.local_branch()
+    local_branch = "ccf-latest-3.x"  # infra.github.GitEnv.local_branch()
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
