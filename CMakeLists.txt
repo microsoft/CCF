@@ -146,11 +146,11 @@ if(COMPILE_TARGET STREQUAL "sgx")
 elseif(COMPILE_TARGET STREQUAL "snp")
 
   # SNP version
-  add_library(ccf.sn STATIC ${CCF_IMPL_SOURCE})
+  add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
     ccf.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
 
   target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
