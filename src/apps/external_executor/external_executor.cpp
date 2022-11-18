@@ -34,7 +34,6 @@ namespace externalexecutor
   using Map = kv::RawCopySerialisedMap<std::string, std::string>;
 
   using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
-  std::map<ExecutorId, ExecutorNodeInfo> ExecutorIDs;
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
@@ -48,12 +47,19 @@ namespace externalexecutor
 
     std::queue<PendingRequestPtr> pending_requests;
 
+    using ExecutorPendingRequests = std::queue<PendingRequestPtr>;
+
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
       GRPC_STATUS_FAILED_PRECONDITION,
       "Not managing an active transaction - this should be called after a "
       "successful call to StartTx and before EndTx");
 
     std::unordered_map<ExecutorId, PendingRequestPtr> active_requests;
+    std::unordered_map<ExecutorId, ExecutorPendingRequests>
+      pending_executor_requests;
+
+    using ExecutorIdList = std::unordered_set<ExecutorId>;
+    std::unordered_map<std::string, ExecutorIdList> supported_uris;
 
     ExecutorId get_caller_executor_id(
       ccf::endpoints::CommandEndpointContext& ctx)
@@ -134,6 +140,13 @@ namespace externalexecutor
             payload.supported_endpoints().begin(),
             payload.supported_endpoints().end());
 
+        for (int i = 0; i < payload.supported_endpoints_size(); ++i)
+        {
+          std::string method = supported_endpoints[i].method();
+          std::string uri = supported_endpoints[i].uri();
+          supported_uris[method + uri].insert(executor_id);
+        }
+
         ExecutorNodeInfo executor_info = {
           executor_x509_cert, payload.attestation(), supported_endpoints};
 
@@ -181,14 +194,20 @@ namespace externalexecutor
         externalexecutor::protobuf::OptionalRequestDescription
           optional_request_description;
 
-        if (!pending_requests.empty())
+        auto& executor_queue = pending_executor_requests[executor_id];
+        if (!executor_queue.empty())
         {
           auto* request_description =
             optional_request_description.mutable_optional();
-          auto pending_request = pending_requests.front();
+          auto pending_request = executor_queue.front();
+          executor_queue.pop();
+          LOG_TRACE_FMT(
+            "Processing executor id:{}, uri: {}, method: {}",
+            executor_id.value(),
+            pending_request->request_description.uri(),
+            pending_request->request_description.method());
           *request_description = pending_request->request_description;
           active_requests.emplace_hint(it, executor_id, pending_request);
-          pending_requests.pop();
         }
 
         return ccf::grpc::make_success(optional_request_description);
@@ -514,7 +533,7 @@ namespace externalexecutor
     }
 
     void queue_request_for_external_execution(
-      ccf::endpoints::EndpointContext& endpoint_ctx)
+      ccf::endpoints::EndpointContext& endpoint_ctx, ExecutorId executor_id)
     {
       auto pending_request = std::make_shared<PendingRequest>();
 
@@ -573,8 +592,7 @@ namespace externalexecutor
 
         rpc_ctx_impl->response_is_pending = true;
       }
-
-      pending_requests.push(pending_request);
+      pending_executor_requests[executor_id].push(pending_request);
     }
 
     struct ExternallyExecutedEndpoint
@@ -669,6 +687,20 @@ namespace externalexecutor
       return std::make_shared<ExternallyExecutedEndpoint>();
     }
 
+    ExecutorId validate_supported_endpoints(
+      ccf::endpoints::EndpointContext& endpoint_ctx)
+    {
+      std::string method = endpoint_ctx.rpc_ctx->get_request_verb().c_str();
+      std::string uri = endpoint_ctx.rpc_ctx->get_request_path();
+
+      if (supported_uris.find(method + uri) == supported_uris.end())
+      {
+        throw std::logic_error("Only registered endpoints are supported");
+      }
+      auto executor_id = supported_uris[method + uri].begin();
+      return *executor_id;
+    }
+
     void execute_endpoint(
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::EndpointContext& endpoint_ctx) override
@@ -676,7 +708,8 @@ namespace externalexecutor
       auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        queue_request_for_external_execution(endpoint_ctx);
+        ExecutorId executor_id = validate_supported_endpoints(endpoint_ctx);
+        queue_request_for_external_execution(endpoint_ctx, executor_id);
         return;
       }
 
