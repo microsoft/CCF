@@ -49,7 +49,7 @@ def test_consensus_status(network, args):
 @reqs.description("Test quotes")
 @reqs.supports_methods("/app/quotes/self", "/app/quotes")
 def test_quote(network, args):
-    if args.enclave_type == "virtual":
+    if args.enclave_platform == "virtual":
         LOG.warning("Quote test can only run in real enclaves, skipping")
         return network
 
@@ -60,7 +60,9 @@ def test_quote(network, args):
                 os.path.join(args.oe_binary, "oesign"),
                 "dump",
                 "-e",
-                infra.path.build_lib_path(args.package, args.enclave_type),
+                infra.path.build_lib_path(
+                    args.package, args.enclave_type, args.enclave_platform
+                ),
             ],
             capture_output=True,
             check=True,

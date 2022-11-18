@@ -556,7 +556,7 @@ def run_auto(args):
         network.start_and_open(args)
         test_jwt_endpoint(network, args)
         test_jwt_without_key_policy(network, args)
-        if args.enclave_type in ("release", "debug"):
+        if args.enclave_platform == "sgx":
             test_jwt_with_sgx_key_policy(network, args)
             test_jwt_with_sgx_key_filter(network, args)
         test_jwt_key_auto_refresh(network, args)

@@ -186,8 +186,7 @@ def run(
         return not has_error
 
 
-if __name__ == "__main__":
-
+def main():
     LOG.remove()
     LOG.add(
         sys.stdout,

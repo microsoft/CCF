@@ -1,6 +1,7 @@
 {
   "enclave": {
     "file": "libjs_generic.enclave.so.signed",
+    "platform": "SGX",
     "type": "Release"
   },
   "network": {
