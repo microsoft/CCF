@@ -28,7 +28,7 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          echo "tag=ccf-3.0.0-rc2" >> $GITHUB_OUTPUT
+          echo "tag=3.0.0-rc2" >> $GITHUB_OUTPUT
         id: tref
 
       # Build containers
