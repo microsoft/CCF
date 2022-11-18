@@ -112,11 +112,13 @@ namespace aft
 
     std::vector<kv::Version> get_history_since(uint64_t view)
     {
-      if (view >= views.size())
+      constexpr auto initial_view = 2;
+      auto adjusted_view = view - initial_view;
+      if (adjusted_view >= views.size())
       {
         return {};
       }
-      return {views.begin() + view - 1, views.end()};
+      return {views.begin() + adjusted_view, views.end()};
     }
 
     void rollback(kv::Version idx)
