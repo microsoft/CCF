@@ -12,7 +12,7 @@ env:
 
 jobs:
   build_and_publish:
-    name: "Build and publish containers for all platforms"
+    name: "Build and publish containers"
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,5 +32,5 @@ jobs:
         id: tref
 
       # Build containers
-      - name: Build container
+      - name: Build ${{ matrix.type }} container for ${{ matrix.platform }} ${{ matrix.run_js && ', (JavaScript)' || '' }}
         run: docker build -f docker/app_${{ matrix.type }} . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}" -t $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
