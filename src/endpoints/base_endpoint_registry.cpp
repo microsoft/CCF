@@ -25,9 +25,9 @@ namespace ccf
     {
       if (consensus != nullptr)
       {
-        if (since < 1)
+        if (since < 2)
         {
-          // views start at 2 so 1 is the start of time
+          // views start at 2
           return ApiResult::InvalidArgs;
         }
         auto latest_view = consensus->get_view();
