@@ -27,6 +27,14 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(protobuf.snp ${LIBPROTOBUF_SOURCES})
+  list(APPEND PROTOBUF_TARGETS "protobuf.snp")
+  install(
+    TARGETS protobuf.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 else()
   install(
     TARGETS protobuf.virtual
