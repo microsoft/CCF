@@ -30,6 +30,12 @@ namespace ccf
           // views start at 2 so 1 is the start of time
           return ApiResult::InvalidArgs;
         }
+        auto latest_view = consensus->get_view();
+        if (since > latest_view)
+        {
+          // asking for something in the future
+          return ApiResult::NotFound;
+        }
         const auto view_history = consensus->get_view_history_since(since);
         for (ccf::View i = 0; i < view_history.size(); i++)
         {
