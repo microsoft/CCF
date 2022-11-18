@@ -66,7 +66,6 @@ def test_commit_view_history(network, args):
         res = c.get("/app/commit")
         assert res.status_code == http.HTTPStatus.OK
         assert "view_history" not in res.body.json()
-        txid = res.body.json()["transaction_id"]
 
         # non-true view_history should still work
         res = c.get("/app/commit?view_history=nottrue")
@@ -102,17 +101,17 @@ def test_commit_view_history(network, args):
         # views start at 1, at least internally
         res = c.get("/app/commit?view_history_since=1")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
+        assert res.body.json()["view_history"] == view_history
 
         # in reality they start at 2
         res = c.get("/app/commit?view_history_since=2")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid, "view_history": view_history[1:]}
+        assert res.body.json()["view_history"] == view_history[1:]
 
         # getting from the current one should give just that
         res = c.get(f"/app/commit?view_history_since={current_view}")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid, "view_history": [view_history[-1]]}
+        assert res.body.json()["view_history"] == [view_history[-1]]
 
         # getting from the future doesn't work
         res = c.get(f"/app/commit?view_history_since={current_view + 1}")
@@ -127,7 +126,8 @@ def test_commit_view_history(network, args):
         # view_history should override the view_history_since
         res = c.get(f"/app/commit?view_history=true&view_history_since={current_view}")
         assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
+        assert res.body.json()["view_history"] == view_history
+
 
 def run(args):
     with infra.service_load.load() as load:
