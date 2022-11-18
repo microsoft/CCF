@@ -21,6 +21,21 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(qcbor.snp STATIC ${QCBOR_SRCS})
+
+  target_include_directories(
+    qcbor.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR>
+                     $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
+  )
+  set_property(TARGET qcbor.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  add_san(qcbor.snp)
+
+  install(
+    TARGETS qcbor.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(qcbor.host STATIC ${QCBOR_SRCS})
