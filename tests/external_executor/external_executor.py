@@ -432,16 +432,22 @@ def test_async_streaming(network, args):
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        stub = Service.KVStub(channel)
-        LOG.info("Calling stream")
-        success = False
+        kv = Service.KVStub(channel)
 
-        for r in stub.Stream(Empty()):
-            LOG.error(r.key)
-            LOG.error(r.value)
-            success = r.key == b"my_key"
+        my_key = b"my_key"
+        LOG.info(f"Waiting for updates on key {my_key}...")
+        for kvs in kv.Sub(KV.KVKey(key=my_key)):
+            LOG.error(kvs)
+        # stub = Service.KVStub(channel)
+        # LOG.info("Calling stream")
+        # success = False
 
-        assert success, f"Error!: {r.key}"
+        # for r in stub.Stream(Empty()):
+        #     LOG.error(r.key)
+        #     LOG.error(r.value)
+        #     success = r.key == b"my_key"
+
+        # assert success, f"Error!: {r.key}"
 
     return network
 

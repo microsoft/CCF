@@ -20,12 +20,33 @@
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/rpc/rpc_context_impl.h"
+#include "protobuf/src/google/protobuf/util/message_differencer.h"
 #include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <queue>
 #include <string>
+
+namespace std
+{
+  template <>
+  struct std::hash<externalexecutor::protobuf::KVKey>
+  {
+    size_t operator()(
+      externalexecutor::protobuf::KVKey const& kv) const noexcept
+    {
+      return std::hash<std::string>{}(kv.SerializeAsString());
+    }
+  };
+}
+
+static bool operator==(
+  const externalexecutor::protobuf::KVKey& a,
+  const externalexecutor::protobuf::KVKey& b)
+{
+  return a.SerializeAsString() == b.SerializeAsString();
+}
 
 namespace externalexecutor
 {
@@ -209,6 +230,19 @@ namespace externalexecutor
         std::move(msg), std::chrono::milliseconds(500));
     }
 
+    // Only used for streaming demo
+
+    // TODO: Protect with mutex
+    // TODO: Make map
+    std::pair<
+      externalexecutor::protobuf::KVKey,
+      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>>
+      subscribed_key;
+    // std::map<
+    //   externalexecutor::protobuf::KVKey,
+    //   ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>>
+    //   subscribed_keys;
+
     void install_kv_service()
     {
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
@@ -358,6 +392,30 @@ namespace externalexecutor
 
         auto handle = active_request->tx->rw<Map>(payload.table());
         handle->put(payload.key(), payload.value());
+
+        // Push updates to subscribed clients
+        {
+          externalexecutor::protobuf::KVKey key;
+          key.set_table(payload.table());
+          key.set_key(payload.key());
+          if (subscribed_key.first == key)
+          {
+            // // auto s = subscribed_keys.find(key);
+            // if (s != subscribed_keys.end())
+            // {
+            try
+            {
+              subscribed_key.second->stream_msg(payload);
+            }
+            catch (const std::exception& e)
+            {
+              // Manual cleanup of closed streams. We should have a close
+              // callback for detached streams to cleanup resources when
+              // required instead
+              // subscribed_keys.erase(key);
+            }
+          }
+        }
 
         return ccf::grpc::make_success();
       };
@@ -557,6 +615,27 @@ namespace externalexecutor
           google::protobuf::Empty>(kv_clear),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto sub = [this](
+                   ccf::endpoints::EndpointContext& ctx,
+                   externalexecutor::protobuf::KVKey&& payload) {
+        auto stream = ccf::grpc::make_detached_stream<
+          externalexecutor::protobuf::KVKeyValue>(
+          ctx.rpc_ctx, responder_lookup);
+        subscribed_key = std::make_pair(payload, std::move(stream));
+
+        return ccf::grpc::make_success();
+      };
+
+      make_endpoint(
+        "/externalexecutor.protobuf.KV/Stream",
+        HTTP_POST,
+        ccf::grpc_stream_adapter<
+          externalexecutor::protobuf::KVKey,
+          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
+          sub),
+        {ccf::no_auth_required})
         .install();
 
       // TODO: Meeting here
