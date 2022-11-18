@@ -4,8 +4,9 @@
 
 #include "ccf/odata_error.h"
 #include "ds/serialized.h"
-#include "grpc_status.h"
+#include "message.h"
 #include "node/rpc/rpc_exception.h"
+#include "status.h"
 
 #include <arpa/inet.h>
 #include <google/protobuf/empty.pb.h>
@@ -14,36 +15,6 @@
 
 namespace ccf::grpc
 {
-  namespace impl
-  {
-    using CompressedFlag = uint8_t;
-    using MessageLength = uint32_t;
-
-    static constexpr size_t message_frame_length =
-      sizeof(CompressedFlag) + sizeof(MessageLength);
-
-    MessageLength read_message_frame(const uint8_t*& data, size_t& size)
-    {
-      auto compressed_flag = serialized::read<CompressedFlag>(data, size);
-      if (compressed_flag >= 1)
-      {
-        throw std::logic_error(fmt::format(
-          "gRPC compressed flag has unexpected value {} - currently only "
-          "support "
-          "unencoded gRPC payloads",
-          compressed_flag));
-      }
-      return ntohl(serialized::read<MessageLength>(data, size));
-    }
-
-    void write_message_frame(uint8_t*& data, size_t& size, size_t message_size)
-    {
-      CompressedFlag compressed_flag = 0;
-      serialized::write(data, size, compressed_flag);
-      serialized::write(data, size, htonl(message_size));
-    }
-  }
-
   template <typename T>
   struct SuccessResponse
   {
@@ -180,52 +151,11 @@ namespace ccf::grpc
 
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
-        using Message = typename Out::value_type;
-        const Out& messages = success_response->body;
-        size_t r_size = std::accumulate(
-          messages.begin(),
-          messages.end(),
-          0,
-          [](size_t current, const Message& msg) {
-            return current + impl::message_frame_length + msg.ByteSizeLong();
-          });
-        r.resize(r_size);
-        auto r_data = r.data();
-
-        for (const Message& msg : messages)
-        {
-          const auto message_length = msg.ByteSizeLong();
-          impl::write_message_frame(r_data, r_size, message_length);
-
-          if (!msg.SerializeToArray(r_data, r_size))
-          {
-            throw std::logic_error(fmt::format(
-              "Error serialising protobuf response of type {}, size {}",
-              msg.GetTypeName(),
-              message_length));
-          }
-
-          r_data += message_length;
-          r_size += message_length;
-        }
+        r = make_grpc_messages(success_response->body);
       }
       else
       {
-        const Out& resp = success_response->body;
-        const auto message_length = resp.ByteSizeLong();
-        size_t r_size = impl::message_frame_length + message_length;
-        r.resize(r_size);
-        auto r_data = r.data();
-
-        impl::write_message_frame(r_data, r_size, message_length);
-
-        if (!resp.SerializeToArray(r_data, r_size))
-        {
-          throw std::logic_error(fmt::format(
-            "Error serialising protobuf response of type {}, size {}",
-            resp.GetTypeName(),
-            message_length));
-        }
+        r = make_grpc_message(success_response->body);
       }
 
       ctx->set_response_body(r);

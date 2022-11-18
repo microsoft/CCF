@@ -11,6 +11,7 @@ with section("parse"):
                 "INCLUDE_DIRS": "*",
                 "LINK_LIBS_ENCLAVE": "*",
                 "LINK_LIBS_VIRTUAL": "*",
+                "LINK_LIBS_SNP": "*",
             },
         },
         "add_client_exe": {

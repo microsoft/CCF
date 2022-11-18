@@ -7,9 +7,9 @@ set -e
 echo "Generate version.py if it doesn't already exist"
 if [ ! -f "python/version.py" ]
     then
-        mkdir tmp_build
+        mkdir -p tmp_build
         cd tmp_build
-        cmake -L -GNinja ..
+        cmake -L -GNinja -DCOMPILE_TARGET=virtual ..
         cd ..
         rm -rf tmp_build
 fi

@@ -100,6 +100,7 @@ class Network:
     SHARE_SCRIPT = "submit_recovery_share.sh"
     node_args_to_forward = [
         "enclave_type",
+        "enclave_platform",
         "host_log_level",
         "sig_tx_interval",
         "sig_ms_interval",

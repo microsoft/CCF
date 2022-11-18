@@ -92,6 +92,13 @@ Architecture
 
     Internal implementation of QUIC communication (in progress).
 
+    ---
+
+    :fa:`dragon` :doc:`performance/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Get started with the CCF performance testing tool.
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -109,3 +116,4 @@ Architecture
     tls_internals
     tcp_internals
     quic_internals
+    performance/index.rst

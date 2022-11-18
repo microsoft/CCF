@@ -258,6 +258,7 @@ class Node:
         label,
         common_dir,
         members_info=None,
+        enclave_platform="sgx",
         **kwargs,
     ):
         """
@@ -268,7 +269,7 @@ class Node:
         prompt the user to do so manually.
         """
         lib_path = infra.path.build_lib_path(
-            lib_name, enclave_type, library_dir=self.library_dir
+            lib_name, enclave_type, enclave_platform, library_dir=self.library_dir
         )
         self.common_dir = common_dir
         members_info = members_info or []
@@ -294,6 +295,7 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
+            enclave_platform=enclave_platform,
             **kwargs,
         )
         self.remote.setup()
