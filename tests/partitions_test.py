@@ -472,7 +472,7 @@ def test_forwarding_timeout(network, args):
 
             network.wait_for_new_primary(primary, nodes=backups)
 
-            # This may need a new client after https://github.com/microsoft/CCF/issues/3952
+        with backup.client("user0") as c:
             r = c.get(f"/app/log/private?id={key}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json()["msg"] == val_a, r
