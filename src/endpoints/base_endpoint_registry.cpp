@@ -27,11 +27,11 @@ namespace ccf
       {
         if (since < 1)
         {
-          // views start at 1
+          // views start at 2 so 1 is the start of time
           return ApiResult::InvalidArgs;
         }
         const auto view_history = consensus->get_view_history_since(since);
-        for (uint64_t i = 0; i < view_history.size(); i++)
+        for (ccf::View i = 0; i < view_history.size(); i++)
         {
           const auto view = i + since;
           const auto first_seqno = view_history[i];

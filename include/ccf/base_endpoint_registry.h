@@ -85,7 +85,7 @@ namespace ccf
     BaseEndpointRegistry(
       const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
 
-    /** Get the history of the raft view changes.
+    /** Get the history of the consensus view changes.
      *
      * Returns the history of view changes since the given view, which defaults
      * to the start of time.
