@@ -57,6 +57,7 @@ def test_kill_primary_no_reqs(network, args):
 def test_kill_primary(network, args):
     return test_kill_primary_no_reqs(network, args)
 
+
 @reqs.description("Test the commit endpoints view_history feature")
 def test_commit_view_history(network, args):
     remote_node, _ = network.find_primary()
@@ -69,8 +70,13 @@ def test_commit_view_history(network, args):
 
         # non-true view_history should still work
         res = c.get("/app/commit?view_history=nottrue")
-        assert res.status_code == http.HTTPStatus.OK
-        assert "view_history" not in res.body.json()
+        assert res.status_code == http.HTTPStatus.BAD_REQUEST
+        assert res.body.json() == {
+            "error": {
+                "code": "InvalidQueryParameterValue",
+                "message": "Invalid value for view_history, must be one of [true, false] when present",
+            }
+        }
 
         # true view_history should list all history
         res = c.get("/app/commit?view_history=true")
@@ -83,6 +89,11 @@ def test_commit_view_history(network, args):
         assert res.status_code == http.HTTPStatus.OK
         current_view = res.body.json()["current_view"]
 
+        # 1 should be the first valid view to ask from
+        res = c.get("/app/commit?view_history_since=1")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
+
         # view_history should override the view_history_since
         res = c.get(f"/app/commit?view_history=true&view_history_since={current_view}")
         assert res.status_code == http.HTTPStatus.OK
@@ -91,7 +102,9 @@ def test_commit_view_history(network, args):
         # ask for since the current view
         res = c.get(f"/app/commit?view_history_since={current_view}")
         assert res.status_code == http.HTTPStatus.OK
-        view_history_since_current = [v for v in view_history if int(v.split(".")[0]) > current_view]
+        view_history_since_current = [
+            v for v in view_history if int(v.split(".")[0]) > current_view
+        ]
         if view_history_since_current:
             assert res.body.json() == {
                 "transaction_id": txid,
@@ -106,15 +119,19 @@ def test_commit_view_history(network, args):
         assert res.body.json() == {
             "error": {
                 "code": "InvalidQueryParameterValue",
-                "message": "Error code: InvalidArgs",
+                "message": "Invalid value for view_history_since, must be in range [1, current_term]",
             }
         }
 
         # ask for something that doesn't exist yet
         res = c.get("/app/commit?view_history_since=100")
-        assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid}
-
+        assert res.status_code == http.HTTPStatus.NOT_FOUND
+        assert res.body.json() == {
+            "error": {
+                "code": "InvalidQueryParameterValue",
+                "message": "Invalid value for view_history_since, must be in range [1, current_term]",
+            }
+        }
 
 
 def run(args):

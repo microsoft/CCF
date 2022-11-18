@@ -1588,7 +1588,6 @@ def test_committed_index(network, args):
     }
 
 
-
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
