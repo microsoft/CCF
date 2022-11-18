@@ -89,30 +89,6 @@ def test_commit_view_history(network, args):
         assert res.status_code == http.HTTPStatus.OK
         current_view = res.body.json()["current_view"]
 
-        # 1 should be the first valid view to ask from
-        res = c.get("/app/commit?view_history_since=1")
-        assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
-
-        # view_history should override the view_history_since
-        res = c.get(f"/app/commit?view_history=true&view_history_since={current_view}")
-        assert res.status_code == http.HTTPStatus.OK
-        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
-
-        # ask for since the current view
-        res = c.get(f"/app/commit?view_history_since={current_view}")
-        assert res.status_code == http.HTTPStatus.OK
-        view_history_since_current = [
-            v for v in view_history if int(v.split(".")[0]) > current_view
-        ]
-        if view_history_since_current:
-            assert res.body.json() == {
-                "transaction_id": txid,
-                "view_history": view_history_since_current,
-            }
-        else:
-            assert "view_history" not in res.body.json()
-
         # ask for an invalid view
         res = c.get("/app/commit?view_history_since=0")
         assert res.status_code == http.HTTPStatus.BAD_REQUEST
@@ -123,8 +99,23 @@ def test_commit_view_history(network, args):
             }
         }
 
-        # ask for something that doesn't exist yet
-        res = c.get("/app/commit?view_history_since=100")
+        # 1 should also be invalid, for now (https://github.com/microsoft/CCF/pull/4580#discussion_r1026317169)
+        res = c.get("/app/commit?view_history_since=1")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"error":{}}
+
+        # can get them from the start though (view 2)
+        res = c.get("/app/commit?view_history_since=2")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
+
+        # getting from the current one should give just that
+        res = c.get(f"/app/commit?view_history_since={current_view}")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id": txid, "view_history": [view_history[-1]]}
+
+        # getting from the future doesn't work
+        res = c.get(f"/app/commit?view_history_since={current_view + 1}")
         assert res.status_code == http.HTTPStatus.NOT_FOUND
         assert res.body.json() == {
             "error": {
@@ -133,6 +124,10 @@ def test_commit_view_history(network, args):
             }
         }
 
+        # view_history should override the view_history_since
+        res = c.get(f"/app/commit?view_history=true&view_history_since={current_view}")
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.body.json() == {"transaction_id": txid, "view_history": view_history}
 
 def run(args):
     with infra.service_load.load() as load:
