@@ -161,9 +161,10 @@ if(COMPILE_TARGET STREQUAL "sgx")
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(DEFAULT_ENCLAVE_TYPE debug)
   endif()
+elseif(COMPILE_TARGET STREQUAL "snp")
+  set(INSTALL_VIRTUAL_LIBRARIES OFF)
 else()
   set(INSTALL_VIRTUAL_LIBRARIES ON)
-  set(DEFAULT_ENCLAVE_TYPE virtual)
 endif()
 
 set(HTTP_PARSER_SOURCES
@@ -310,6 +311,14 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
+  set_property(TARGET http_parser.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS http_parser.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
@@ -336,7 +345,17 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
+  add_san(ccf_kv.snp)
+  add_warning_checks(ccf_kv.snp)
+  install(
+    TARGETS ccf_kv.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
+
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
@@ -356,6 +375,17 @@ if(COMPILE_TARGET STREQUAL "sgx")
   add_warning_checks(ccf_endpoints.enclave)
   install(
     TARGETS ccf_endpoints.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
+  target_link_libraries(ccf_endpoints.snp PUBLIC qcbor.snp)
+  target_link_libraries(ccf_endpoints.snp PUBLIC t_cose.snp)
+  add_san(ccf_endpoints.snp)
+  add_warning_checks(ccf_endpoints.snp)
+  install(
+    TARGETS ccf_endpoints.snp
     EXPORT ccf
     DESTINATION lib
   )
@@ -405,19 +435,17 @@ if(COMPILE_TARGET STREQUAL "sgx")
     DESTINATION lib
   )
 elseif(COMPILE_TARGET STREQUAL "snp")
-  add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
-  add_san(js_openenclave.virtual)
-  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
+  add_library(js_openenclave.snp STATIC ${CCF_DIR}/src/js/openenclave.cpp)
+  add_san(js_openenclave.snp)
+  target_link_libraries(js_openenclave.snp PUBLIC ccf.snp)
+  target_compile_options(js_openenclave.snp PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
-    js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+    js_openenclave.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                              _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
-  set_property(
-    TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
+  set_property(TARGET js_openenclave.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   install(
-    TARGETS js_openenclave.virtual
+    TARGETS js_openenclave.snp
     EXPORT ccf
     DESTINATION lib
   )
@@ -454,22 +482,20 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 elseif(COMPILE_TARGET STREQUAL "snp")
   add_library(
-    js_generic_base.virtual STATIC
+    js_generic_base.snp STATIC
     ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
-  add_san(js_generic_base.virtual)
-  add_warning_checks(js_generic_base.virtual)
-  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
+  add_san(js_generic_base.snp)
+  add_warning_checks(js_generic_base.snp)
+  target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
+  target_compile_options(js_generic_base.snp PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
-    js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+    js_generic_base.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                               _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
-  set_property(
-    TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
+  set_property(TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   install(
-    TARGETS js_generic_base.virtual
+    TARGETS js_generic_base.snp
     EXPORT ccf
     DESTINATION lib
   )
@@ -501,8 +527,8 @@ add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual INSTALL_LIBS
-                    ON
+  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual
+  LINK_LIBS_SNP js_generic_base.snp js_openenclave.snp INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
@@ -636,6 +662,12 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${COMPILE_TARGET}"
+    )
   endif()
 endfunction()
 
@@ -663,6 +695,7 @@ function(add_perf_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
+  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
   if("sgx" STREQUAL COMPILE_TARGET)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
     set(ENCLAVE_TYPE "release")
@@ -689,7 +722,7 @@ function(add_perf_test)
       ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
       ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
       ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
-      -e ${ENCLAVE_TYPE} ${NODES}
+      -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
   )
 
   # Make python test client framework importable
@@ -703,6 +736,14 @@ function(add_perf_test)
       TEST ${TEST_NAME}
       APPEND
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+    )
+  endif()
+  if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
+    set_property(
+      TEST ${TEST_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT
+               "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
     )
   endif()
   set_property(
