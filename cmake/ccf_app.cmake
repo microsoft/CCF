@@ -95,8 +95,12 @@ endfunction()
 function(add_ccf_app name)
 
   cmake_parse_arguments(
-    PARSE_ARGV 1 PARSED_ARGS "" ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS;INSTALL_LIBS"
+    PARSE_ARGV
+    1
+    PARSED_ARGS
+    ""
+    ""
+    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;LINK_LIBS_SNP;DEPS;INSTALL_LIBS"
   )
   add_custom_target(${name} ALL)
 
@@ -126,42 +130,42 @@ function(add_ccf_app name)
     endif()
 
   elseif(COMPILE_TARGET STREQUAL "snp")
-    # Build a virtual enclave, loaded as a shared library without OE
-    set(virt_name ${name}.virtual)
+    # Build an SNP enclave, loaded as a shared library without OE
+    set(snp_name ${name}.snp)
 
-    add_library(${virt_name} SHARED ${PARSED_ARGS_SRCS})
+    add_library(${snp_name} SHARED ${PARSED_ARGS_SRCS})
 
-    target_compile_definitions(${virt_name} PUBLIC PLATFORM_SNP)
+    target_compile_definitions(${snp_name} PUBLIC PLATFORM_SNP)
 
     target_include_directories(
-      ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+      ${snp_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
-    add_warning_checks(${virt_name})
+    add_warning_checks(${snp_name})
 
     target_link_libraries(
-      ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
+      ${snp_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_SNP} ccf.snp
     )
 
     if(NOT SAN)
-      target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
+      target_link_options(${snp_name} PRIVATE LINKER:--no-undefined)
     endif()
 
     target_link_options(
-      ${virt_name} PRIVATE
+      ${snp_name} PRIVATE
       LINKER:--undefined=enclave_create_node,--undefined=enclave_run
     )
 
-    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    set_property(TARGET ${snp_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-    add_san(${virt_name})
+    add_san(${snp_name})
 
-    add_dependencies(${name} ${virt_name})
+    add_dependencies(${name} ${snp_name})
     if(PARSED_ARGS_DEPS)
-      add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
+      add_dependencies(${snp_name} ${PARSED_ARGS_DEPS})
     endif()
 
     if(${PARSED_ARGS_INSTALL_LIBS})
-      install(TARGETS ${virt_name} DESTINATION lib)
+      install(TARGETS ${snp_name} DESTINATION lib)
     endif()
 
   elseif(COMPILE_TARGET STREQUAL "virtual")
