@@ -461,7 +461,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
             if lts_release:
                 version, install_path = repo.install_release(
                     lts_release,
-                    args.platform,
+                    platform=args.enclave_platform,
                 )
                 lts_versions.append(version)
                 set_js_args(args, install_path)
