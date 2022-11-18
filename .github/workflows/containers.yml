@@ -1,8 +1,9 @@
 name: "Build and Publish Release Containers to MCR"
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - 'make_container_building_concurrent'
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
@@ -27,16 +28,9 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "tag=ccf-3.0.0-rc2" >> $GITHUB_OUTPUT
         id: tref
 
       # Build containers
       - name: Build container
         run: docker build -f docker/app_${{ matrix.type }} . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}" -t $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
-
-      - name: Log in
-        run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
-
-      # Publish containers
-      - name: Push App container
-        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
