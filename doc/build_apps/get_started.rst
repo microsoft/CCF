@@ -166,6 +166,6 @@ Once the proposal has received enough votes under the rules of the Constitution 
 :ref:`Open network proposal sample <governance/open_network:Opening the Network>`
 
 .. |Open in VSCode| image:: https://img.shields.io/static/v1?label=Open+in&message=VSCode&logo=visualstudiocode&color=007ACC&logoColor=007ACC&labelColor=2C2C32
-   :target: https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/ccf-app-template
+   :target: https://github.com/microsoft/ccf-app-template#quickstart
 .. |Github codespace| image:: https://img.shields.io/static/v1?label=Open+in&message=GitHub+codespace&logo=github&color=2F363D&logoColor=white&labelColor=2C2C32
-   :target: https://github.com/codespaces/new?machine=basicLinux32gb&repo=496290904&ref=main&devcontainer_path=.devcontainer%2Fdevcontainer.json&location=WestEurope
+   :target: https://github.com/microsoft/ccf-app-template#quickstart
