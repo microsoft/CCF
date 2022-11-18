@@ -462,10 +462,11 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         authenticate_session=network.consortium.authenticate_session,
     )
 
+    cert_file = os.path.join(node.common_dir, operator.member_info["certificate_file"])
     set_operator, _ = network.consortium.make_proposal(
         "set_member",
         cert=open(
-            operator.member_info["certificate_file"],
+            cert_file,
             encoding="utf-8",
         ).read(),
         member_data={"is_operator": True},

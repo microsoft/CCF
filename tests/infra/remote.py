@@ -145,6 +145,7 @@ class SSHRemote(CmdMixin):
         workspace,
         common_dir,
         env=None,
+        pid_file=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -175,7 +176,7 @@ class SSHRemote(CmdMixin):
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
         self.suspension_proc = None
-        self.pid_file = f"{os.path.basename(self.cmd[0])}.pid"
+        self.pid_file = pid_file
         self._pid = None
 
     def _rc(self, cmd):
@@ -412,6 +413,7 @@ class LocalRemote(CmdMixin):
         workspace,
         common_dir,
         env=None,
+        pid_file=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -599,6 +601,7 @@ class CCFRemote(object):
         service_cert_file="service_cert.pem",
         service_data_json_file=None,
         snp_endorsements_servers=None,
+        node_pid_file="node.pid",
         **kwargs,
     ):
         """
@@ -659,9 +662,7 @@ class CCFRemote(object):
         )
 
         # Constitution
-        constitution = [
-            os.path.join(self.common_dir, os.path.basename(f)) for f in constitution
-        ]
+        constitution = [os.path.basename(f) for f in constitution]
 
         # ACME
         if "acme" in kwargs and host.acme_challenge_server_interface:
@@ -733,6 +734,7 @@ class CCFRemote(object):
                 service_data_json_file=service_data_json_file,
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
+                node_pid_file=node_pid_file,
                 **kwargs,
             )
 
@@ -760,7 +762,31 @@ class CCFRemote(object):
         bin_path = os.path.join(".", os.path.basename(self.BIN))
 
         if major_version is None or major_version > 1:
-            cmd = [bin_path, "--config", config_file]
+            # use the relative path to the config file so that it works on remotes too
+            cmd = [bin_path, "--config", os.path.basename(config_file)]
+
+            if start_type == StartType.start:
+                members_info = kwargs.get("members_info")
+                if not members_info:
+                    raise ValueError("no members info for start node")
+                for mi in members_info:
+                    data_files += [
+                        os.path.join(self.common_dir, mi["certificate_file"])
+                    ]
+                    if mi["encryption_public_key_file"]:
+                        data_files += [
+                            os.path.join(
+                                self.common_dir, mi["encryption_public_key_file"]
+                            )
+                        ]
+                    if mi["data_json_file"]:
+                        data_files += [
+                            os.path.join(self.common_dir, mi["data_json_file"])
+                        ]
+
+                for c in constitution:
+                    data_files += [os.path.join(self.common_dir, c)]
+
             if start_type == StartType.join:
                 data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
@@ -872,15 +898,23 @@ class CCFRemote(object):
                     )
                 for mi in members_info:
                     member_info_cmd = f'--member-info={mi["certificate_file"]}'
-                    data_files.append(mi["certificate_file"])
+                    data_files.append(
+                        os.path.join(self.common_dir, mi["certificate_file"])
+                    )
                     if mi["encryption_public_key_file"] is not None:
                         member_info_cmd += f',{mi["encryption_public_key_file"]}'
-                        data_files.append(mi["encryption_public_key_file"])
+                        data_files.append(
+                            os.path.join(
+                                self.common_dir, mi["encryption_public_key_file"]
+                            )
+                        )
                     elif mi["data_json_file"] is not None:
                         member_info_cmd += ","
                     if mi["data_json_file"] is not None:
                         member_info_cmd += f',{mi["data_json_file"]}'
-                        data_files.append(mi["data_json_file"])
+                        data_files.append(
+                            os.path.join(self.common_dir, mi["data_json_file"])
+                        )
                     cmd += [member_info_cmd]
 
                 # Added in 1.x
@@ -933,6 +967,7 @@ class CCFRemote(object):
             workspace,
             common_dir,
             env,
+            pid_file=node_pid_file,
         )
 
     def setup(self):

@@ -709,7 +709,9 @@ public:
 TEST_CASE(
   "multi-threaded indexing - bucketed" * doctest::test_suite("indexing"))
 {
-  srand(time(NULL));
+  const auto seed = time(NULL);
+  INFO("Using seed: ", seed);
+  srand(seed);
 
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;

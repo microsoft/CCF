@@ -23,11 +23,14 @@ service KV
   // Read a single key
   rpc Get(KVKey) returns (OptionalKVValue) {}
 
-  // Test a single key
+  // Read existence of a single key
   rpc Has(KVKey) returns (KVHasResult) {}
 
   // Read version of a single key
   rpc GetVersion(KVKey) returns (OptionalKVVersion) {}
+
+  // Read all key-value pairs in a table
+  rpc GetAll(KVTable) returns (stream KVKeyValue) {}
 
   // Write a single key-value pair
   rpc Put(KVKeyValue) returns (google.protobuf.Empty) {}
@@ -35,7 +38,8 @@ service KV
   // Remove a single key-value pair
   rpc Delete(KVKey) returns (google.protobuf.Empty) {}
 
-  rpc GetAll(KVTable) returns (stream KVKeyValue) {}
+  // Remove all key-value pairs in a table
+  rpc Clear(KVTable) returns (google.protobuf.Empty) {}
 
   rpc Stream(google.protobuf.Empty) returns (stream KVKeyValue) {}
 
@@ -52,8 +56,9 @@ message RequestDescription
 {
   string method = 1;
   string uri = 2;
-  repeated Header headers = 3;
-  bytes body = 4;
+  string query = 3;
+  repeated Header headers = 4;
+  bytes body = 5;
 }
 message OptionalRequestDescription { RequestDescription optional = 1; }
 

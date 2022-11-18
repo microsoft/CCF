@@ -7,7 +7,7 @@
 #include "ccf/service/code_digest.h"
 #include "ccf/service/map.h"
 #include "ccf/service/tables/code_id.h"
-#include "endpoints/grpc_status.h"
+#include "endpoints/grpc/status.h"
 #include "executor_registration.pb.h"
 
 struct ExecutorNodeInfo

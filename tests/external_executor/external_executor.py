@@ -5,7 +5,9 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
-from executors.wiki_cacher import executor_thread, WikiCacherExecutor
+from executors.logging_app import LoggingExecutor
+from executors.wiki_cacher import WikiCacherExecutor
+from executors.util import executor_thread
 
 # pylint: disable=import-error
 import kv_pb2 as KV
@@ -35,6 +37,7 @@ import http
 import random
 import threading
 import time
+from collections import defaultdict
 
 from loguru import logger as LOG
 
@@ -144,8 +147,8 @@ def test_executor_registration(network, args):
     return network
 
 
-@reqs.description("Store and retrieve key via external executor app")
-def test_put_get(network, args):
+@reqs.description("Test basic KV operations via external executor app")
+def test_kv(network, args):
     primary, _ = network.find_primary()
 
     executor_a = register_new_executor(primary, network)
@@ -220,6 +223,37 @@ def test_put_get(network, args):
                 r = tx3.Get(KV.KVKeyValue(table=t, key=k))
                 assert r.HasField("optional")
                 assert r.optional.value == v
+
+            writes_by_table = defaultdict(dict)
+            for t, k, v in writes:
+                writes_by_table[t][k] = v
+
+            for t, table_writes in writes_by_table.items():
+                LOG.info(f"Read all in {t}")
+                r = tx3.GetAll(KV.KVTable(table=t))
+                count = 0
+                for result in r:
+                    count += 1
+                    assert result.key in table_writes
+                    assert table_writes[result.key] == result.value
+                assert count == len(table_writes)
+
+            LOG.info("Clear one table")
+            t, cleared_writes = writes_by_table.popitem()
+            tx3.Clear(KV.KVTable(table=t))
+            for k, _ in cleared_writes.items():
+                r = tx3.Has(KV.KVKey(table=t, key=k))
+                assert not r.present
+
+                r = tx3.Get(KV.KVKey(table=t, key=k))
+                assert not r.HasField("optional")
+
+                r = tx3.GetAll(KV.KVTable(table=t))
+                try:
+                    next(r)
+                    raise AssertionError("Expected unreachable")
+                except StopIteration:
+                    pass
 
     return network
 
@@ -412,6 +446,26 @@ def test_async_streaming(network, args):
     return network
 
 
+def test_logging_executor(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = register_new_executor(primary, network)
+
+    with executor_thread(LoggingExecutor(primary, credentials)):
+        with primary.client() as c:
+            log_id = 42
+            log_msg = "Hello world"
+
+            r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
+            assert r.status_code == 200
+
+            r = c.get(f"/app/log/public?id={log_id}")
+            assert r.status_code == 200
+            assert r.body.json()["msg"] == log_msg
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -438,6 +492,7 @@ def run(args):
         # test_parallel_executors(network, args)
         test_async_streaming(network, args)
         test_streaming(network, args)
+        network = test_logging_executor(network, args)
 
 
 if __name__ == "__main__":

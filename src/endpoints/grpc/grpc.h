@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ccf/odata_error.h"
-#include "grpc_message.h"
-#include "grpc_status.h"
-#include "grpc_stream.h"
+#include "message.h"
 #include "node/rpc/rpc_exception.h"
+#include "status.h"
+#include "stream.h"
 
 #include <arpa/inet.h>
 #include <google/protobuf/empty.pb.h>
