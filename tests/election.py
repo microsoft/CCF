@@ -47,7 +47,9 @@ def test_kill_primary_no_reqs(network, args):
         assert type(res.body.json()["view_history"]) == list
         new_view_history = res.body.json()["view_history"]
         # Check that the view history has been updated with a new term for the new primary
-        assert old_view_history == new_view_history[:len(old_view_history)]
+        # new view history should be longer than old view history but may be more than one ahead due to multiple rounds occurring.
+        assert len(new_view_history) > len(old_view_history)
+        assert old_view_history == new_view_history[: len(old_view_history)]
 
     # Verify that the TxID reported just after an election is valid
     # Note that the first TxID read after an election may be of a signature
