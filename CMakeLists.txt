@@ -964,11 +964,11 @@ if(BUILD_TESTS)
       --cacert
       "service_cert.pem"
       --generator-filepath
-      "../../pi_ls_virtual_cft.parquet"
+      "../../piccolo_logging_100ktxs.parquet"
       -s
-      "./pi_ls_virtual_cft_send.parquet"
+      "./piccolo_logging_100ktxs_send.parquet"
       -r
-      "./pi_ls_virtual_cft_response.parquet"
+      "./piccolo_logging_100ktxs_response.parquet"
   )
 
   add_perf_test(

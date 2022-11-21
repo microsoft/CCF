@@ -88,12 +88,10 @@ def run(get_command, args):
     args.sig_ms_interval = 1000  # Set to cchost default value
     args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
-    LOG.info("Starting nodes on {}".format(hosts))
+    logging_filename = "piccolo_logging_100ktxs"
 
-    label_for_filename = args.label
-    if label_for_filename.endswith("^"):
-        label_for_filename = label_for_filename[:-1]
-    if label_for_filename + ".parquet" not in os.listdir("./"):
+    if logging_filename + ".parquet" not in os.listdir("./"):
+        LOG.info("Starting parquet requests generation")
         msgs = generator.Messages()
         for i in range(100000):
             msgs.append(
@@ -106,7 +104,11 @@ def run(get_command, args):
                 + str(i)
                 + '"}',
             )
-        msgs.to_parquet_file("./pi_ls_virtual_cft.parquet")
+        msgs.to_parquet_file("./" + logging_filename + ".parquet")
+    else:
+        LOG.info("Requests parquet file existed")
+
+    LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -186,13 +188,11 @@ def run(get_command, args):
                         analysis = analyzer.Analyze()
 
                         df_sends = analyzer.get_df_from_parquet_file(
-                            "./workspace/client_0/"
-                            + label_for_filename
-                            + "_send.parquet"
+                            "./workspace/client_0/" + logging_filename + "_send.parquet"
                         )
                         df_responses = analyzer.get_df_from_parquet_file(
                             "./workspace/client_0/"
-                            + label_for_filename
+                            + logging_filename
                             + "_response.parquet"
                         )
                         time_spent = analysis.total_time_in_sec(df_sends, df_responses)
