@@ -110,6 +110,16 @@ namespace aft
       return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
     }
 
+    // view should be non-zero as views start at one in here
+    std::vector<kv::Version> get_history_since(uint64_t view)
+    {
+      if (view > views.size())
+      {
+        return {};
+      }
+      return {views.begin() + view - 1, views.end()};
+    }
+
     void rollback(kv::Version idx)
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
