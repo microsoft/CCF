@@ -28,6 +28,14 @@ jobs:
           '
         displayName: "Test multiline ssh "
 
+      - template: run_on_target.yml
+        parameters:
+          ssh_target: $SSH_TARGET
+          rename_me: |
+            hostname
+            echo test
+        displayName: "Test template multiline ssh "
+
       # - script: |
       #     sudo rm -rf build
       #   displayName: "Cleanup"
