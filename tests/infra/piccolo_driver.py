@@ -88,7 +88,7 @@ def run(get_command, args):
 
     logging_filename = "piccolo_logging_100ktxs"
 
-    if logging_filename + ".parquet" not in os.listdir("./"):
+    if os.path.exists("{logging_filename}.parquet"):
         LOG.info("Starting parquet requests generation")
         msgs = generator.Messages()
         for i in range(100000):
