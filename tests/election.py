@@ -24,8 +24,30 @@ from loguru import logger as LOG
 @reqs.description("Stop current primary and wait for a new one to be elected")
 def test_kill_primary_no_reqs(network, args):
     old_primary, _ = network.find_primary_and_any_backup()
+
+    with old_primary.client() as c:
+        # Get the current view history
+        LOG.info("getting inital view history")
+        res = c.get("/app/commit?view_history=true")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" in res.body.json()
+        assert type(res.body.json()["view_history"]) == list
+        old_view_history = res.body.json()["view_history"]
+
     old_primary.stop()
+
     new_primary, _ = network.wait_for_new_primary(old_primary)
+
+    with new_primary.client() as c:
+        # Get the current view history
+        LOG.info("getting updated view history")
+        res = c.get("/app/commit?view_history=true")
+        assert res.status_code == http.HTTPStatus.OK
+        assert "view_history" in res.body.json()
+        assert type(res.body.json()["view_history"]) == list
+        new_view_history = res.body.json()["view_history"]
+        # Check that the view history has been updated with a new term for the new primary
+        assert old_view_history == new_view_history[:len(old_view_history)]
 
     # Verify that the TxID reported just after an election is valid
     # Note that the first TxID read after an election may be of a signature
@@ -62,12 +84,12 @@ def test_kill_primary(network, args):
 def test_commit_view_history(network, args):
     remote_node, _ = network.find_primary()
     with remote_node.client() as c:
-        # the original endpoint should still work
+        # Endpoint works with no query parameter
         res = c.get("/app/commit")
         assert res.status_code == http.HTTPStatus.OK
         assert "view_history" not in res.body.json()
 
-        # non-true view_history should still work
+        # Invalid query parameter
         res = c.get("/app/commit?view_history=nottrue")
         assert res.status_code == http.HTTPStatus.BAD_REQUEST
         assert res.body.json() == {
