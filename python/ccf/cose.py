@@ -141,7 +141,10 @@ def _parser():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
-        "--content", help="Path to content file", type=str, required=True
+        "--content",
+        help="Path to content file, or '-' for stdin",
+        type=str,
+        required=True,
     )
     parser.add_argument(
         "--signing-key",
