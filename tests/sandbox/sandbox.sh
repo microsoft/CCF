@@ -13,6 +13,7 @@ is_package_specified=false
 is_js_bundle_specified=false
 
 PLATFORM_FILE="${PATH_HERE}"/../share/PLATFORM
+platform="virtual"
 enclave_type="virtual"
 
 extra_args=("$@")
