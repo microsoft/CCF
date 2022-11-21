@@ -2,18 +2,19 @@ steps:
   - ${{ if not(eq(variables['SSH_TARGET'], '')) }}:
       - script: |
           env > ssh_env
-          scp ssh_env agent@@${{ parameters.ssh_target }}:~/.ssh/environment
+          scp ssh_env agent@${{ parameters.ssh_target }}:~/.ssh/environment
           ssh agent@${{ parameters.ssh_target }} '
-          cd ${{ parameters.workingDirectory }}
-          ${{ parameters.script }}
+          cd ${{ parameters.working_directory }}
+          ${{ parameters.commands }}
           '
-        displayName: ${{ parameters.displayName }}
-        condition: ${{ parameters.condition }}
+        displayName: ${{ parameters.display_name }}
+        env: ${{ parameters.ssh_env }}
+        condition: ${{ parameters.ssh_condition }}
 
   - ${{ if eq(variables['SSH_TARGET'], '') }}:
       - script: |
-          ${{ parameters.script }}
-        displayName: ${{ parameters.displayName }}
-        workingDirectory: ${{ parameters.workingDirectory }}
-        env: ${{ parameters.env }}
-        condition: ${{ parameters.condition }}
+          ${{ parameters.commands }}
+        displayName: ${{ parameters.display_name }}
+        workingDirectory: ${{ parameters.working_directory }}
+        env: ${{ parameters.ssh_env }}
+        condition: ${{ parameters.ssh_condition }}

@@ -8,16 +8,16 @@ steps:
   - template: run_on_target.yml
     parameters:
       ssh_target: ${{ parameters.ssh_target }}
-      script: |
+      commands: |
         set -ex
         ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
         export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
         ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-      env:
+      ssh_env:
         METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
         CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-      displayName: CTest
-      workingDirectory: build
+      display_name: CTest
+      working_directory: build
 
   # # Only run privileged tests in container environment
   # - ${{ if ne(parameters.suffix, 'Perf') }}:
