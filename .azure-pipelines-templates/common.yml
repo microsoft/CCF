@@ -34,7 +34,7 @@ jobs:
           rename_me: |
             hostname
             echo test
-        displayName: "Test template multiline ssh "
+          display_name: "Test template multiline ssh "
 
       # - script: |
       #     sudo rm -rf build
