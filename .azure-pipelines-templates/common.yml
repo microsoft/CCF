@@ -18,68 +18,68 @@ jobs:
               ssh_target: $SSH_TARGET
               ssh_password: $SSH_PASSWORD
 
-      # - script: |
-      #     sudo rm -rf build
-      #   displayName: "Cleanup"
+      - script: |
+          sudo rm -rf build
+        displayName: "Cleanup"
 
-      # - checkout: self
-      #   clean: true
-      #   fetchDepth: 0
-      #   fetchTags: true
+      - checkout: self
+        clean: true
+        fetchDepth: 0
+        fetchTags: true
 
-      # - ${{ if parameters.fetch_quictls }}:
-      #     - template: fetch_quictls.yml
-      #       parameters:
-      #         target: ${{ parameters.target }}
-      #         quictls_mode: ${{ parameters.fetch_quictls }}
+      - ${{ if parameters.fetch_quictls }}:
+          - template: fetch_quictls.yml
+            parameters:
+              target: ${{ parameters.target }}
+              quictls_mode: ${{ parameters.fetch_quictls }}
 
-      # - template: platform.yml
-      #   parameters:
-      #     target: "${{ parameters.target }}"
+      - template: platform.yml
+        parameters:
+          target: "${{ parameters.target }}"
 
-      # - template: cmake.yml
-      #   parameters:
-      #     cmake_args: "${{ parameters.cmake_args }}"
+      - template: cmake.yml
+        parameters:
+          cmake_args: "${{ parameters.cmake_args }}"
 
-      # - template: ninja.yml
-      #   parameters:
-      #     cmake_args: "${{ parameters.cmake_args }}"
+      - template: ninja.yml
+        parameters:
+          cmake_args: "${{ parameters.cmake_args }}"
 
-      # - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
-      #     - script: |
-      #         scp -r build agent@$SSH_TARGET:/home/agent/build
-      #       displayName: "Copy build to SSH Target"
+      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
+          - script: |
+              scp -r build agent@$SSH_TARGET:/home/agent/build
+            displayName: "Copy build to SSH Target"
 
-      # - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
-      #     - template: test.yml
-      #       parameters:
-      #         suffix: ${{ parameters.suffix }}
-      #         ctest_filter: ${{ parameters.ctest_filter }}
-      #         suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
-      #         ctest_timeout: ${{ parameters.ctest_timeout }}
-      #         ssh_target: $SSH_TARGET
+      - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
+          - template: test.yml
+            parameters:
+              suffix: ${{ parameters.suffix }}
+              ctest_filter: ${{ parameters.ctest_filter }}
+              suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
+              ctest_timeout: ${{ parameters.ctest_timeout }}
+              ssh_target: $SSH_TARGET
 
-      # - template: misc.yml
-      #   parameters:
-      #     suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
+      - template: misc.yml
+        parameters:
+          suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
 
-      # - ${{ if eq(parameters.suffix, 'Instrumented') }}:
-      #     - template: scan_build.yml
+      - ${{ if eq(parameters.suffix, 'Instrumented') }}:
+          - template: scan_build.yml
 
-      # - ${{ if eq(parameters.suffix, 'Perf') }}:
-      #     - template: push_perf_data.yml
+      - ${{ if eq(parameters.suffix, 'Perf') }}:
+          - template: push_perf_data.yml
 
-      # - ${{ if eq(parameters.suffix, 'Release') }}:
-      #     - template: install_deb.yml
-      #       parameters:
-      #         target: "${{ parameters.target }}"
+      - ${{ if eq(parameters.suffix, 'Release') }}:
+          - template: install_deb.yml
+            parameters:
+              target: "${{ parameters.target }}"
 
-      # - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
-      #     - template: cg.yml
-      #     - template: publish_tls_report.yml
-      #     - template: publish_compatibility_report.yml
-      #     - template: install_others.yml
-      #     - template: publish_sbom.yml
+      - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
+          - template: cg.yml
+          - template: publish_tls_report.yml
+          - template: publish_compatibility_report.yml
+          - template: install_others.yml
+          - template: publish_sbom.yml
 
-      # - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
-      #     - template: install_deb.yml
+      - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
+          - template: install_deb.yml

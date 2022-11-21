@@ -7,6 +7,7 @@ parameters:
 steps:
   - template: run_on_target.yml
     parameters:
+      ssh_target: ${{ parameters.ssh_target }}
       commands: |
         set -ex
         ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
