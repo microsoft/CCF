@@ -5,6 +5,7 @@ steps:
           env > ssh_env
           scp ssh_env agent@${{ parameters.ssh_target }}:~/.ssh/environment
           ssh agent@${{ parameters.ssh_target }} '
+          cd ${{ parameters.working_directory }}
           ${{ parameters.commands }}
           '
         displayName: ${{ parameters.display_name }}
