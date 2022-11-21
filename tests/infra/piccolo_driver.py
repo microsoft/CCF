@@ -55,7 +55,7 @@ def my_configure_remote_client(args, client_id, client_host, node, command_args)
         remote_impl = infra.remote.SSHRemote
     try:
         remote_client = infra.remote_client.CCFRemoteClient(
-            "client_" + str(client_id),
+            f"client_{client_id}",
             client_host,
             args.client,
             node.get_public_rpc_host(),
