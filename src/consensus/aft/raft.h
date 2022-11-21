@@ -454,13 +454,6 @@ namespace aft
       return state->view_history.get_history_since(idx);
     }
 
-    void initialise_view_history(
-      const std::vector<Index>& view_history) override
-    {
-      // This should only be called when the spin lock is held.
-      return state->view_history.initialise(view_history);
-    }
-
   private:
     uint32_t get_bft_offset(const Configuration::Nodes& conf) const
     {
@@ -1079,7 +1072,7 @@ namespace aft
         {
           max_idx = index_at_end_of_term;
         }
-        return std::min(start + entries_batch_size, max_idx);
+        return std::min(start + entries_batch_size - 1, max_idx);
       };
 
       Index end_idx;

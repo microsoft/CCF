@@ -197,6 +197,39 @@ namespace ccf
       return true;
     }
 
+    bool check_session_consistency(std::shared_ptr<ccf::RpcContextImpl> ctx)
+    {
+      if (consensus != nullptr)
+      {
+        auto current_view = consensus->get_view();
+        auto session_ctx = ctx->get_session_context();
+        if (!session_ctx->active_view.has_value())
+        {
+          // First request on this session - assign the active term
+          session_ctx->active_view = current_view;
+        }
+        else if (current_view != session_ctx->active_view.value())
+        {
+          auto msg = fmt::format(
+            "Potential loss of session consistency on session {}. Started "
+            "in view {}, now in view {}. Closing session.",
+            session_ctx->client_session_id,
+            session_ctx->active_view.value(),
+            current_view);
+          LOG_INFO_FMT("{}", msg);
+
+          ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::SessionConsistencyLost,
+            std::move(msg));
+          ctx->terminate_session = true;
+          return false;
+        }
+      }
+
+      return true;
+    }
+
     std::unique_ptr<AuthnIdentity> get_authenticated_identity(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::CommittableTx& tx,
@@ -270,6 +303,13 @@ namespace ccf
           ccf::errors::RequestAlreadyForwarded,
           "RPC was already forwarded.");
         update_metrics(ctx);
+        return;
+      }
+
+      // Before attempting to forward, make sure we're in the same View as we
+      // previously thought we were.
+      if (!check_session_consistency(ctx))
+      {
         return;
       }
 
@@ -408,6 +448,13 @@ namespace ccf
           }
 
           endpoints.execute_endpoint(endpoint, args);
+
+          // If we've seen a View change, abandon this transaction as
+          // inconsistent
+          if (!check_session_consistency(ctx))
+          {
+            return;
+          }
 
           if (!ctx->should_apply_writes())
           {
