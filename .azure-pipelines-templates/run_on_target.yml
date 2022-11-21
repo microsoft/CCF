@@ -5,8 +5,6 @@ steps:
           env > ssh_env
           scp ssh_env agent@${{ parameters.ssh_target }}:~/.ssh/environment
           ssh agent@${{ parameters.ssh_target }} '
-          hostname
-          echo test
           ${{ parameters.commands }}
           '
         displayName: ${{ parameters.display_name }}
