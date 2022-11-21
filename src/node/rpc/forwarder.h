@@ -264,7 +264,7 @@ namespace ccf
         return std::nullopt;
       }
 
-      ForwardedResponseResult ret;
+      ForwardedResponseResult ret = {};
       if constexpr (std::is_same_v<TFwdHdr, ForwardedResponseHeader_v3>)
       {
         ret.should_terminate_session = r.first.terminate_session;
