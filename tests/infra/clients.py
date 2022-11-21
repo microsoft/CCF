@@ -395,13 +395,11 @@ class CurlClient:
             if request.allow_redirects:
                 cmd.append("-L")
 
-            extra_headers = {}
+            headers = {}
             if self.common_headers is not None:
-                extra_headers.update(self.common_headers)
+                headers.update(self.common_headers)
 
-            extra_headers.update(request.headers)
-
-            ## TODO: Factor out into a produce headers function?
+            headers.update(request.headers)
 
             content_path = None
 
@@ -428,13 +426,14 @@ class CurlClient:
                     nf.write(msg_bytes)
                     nf.flush()
                     content_path = f"@{nf.name}"
-                if not "content-type" in request.headers and len(request.body) > 0:
-                    extra_headers["content-type"] = content_type
+                if not "content-type" in headers and len(request.body) > 0:
+                    headers["content-type"] = content_type
 
             if self.signing_auth:
                 cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
+
             if self.cose_signing_auth:
                 pre_cmd = ["ccf_cose_sign1"]
                 phdr = cose_protected_headers(request.path)
@@ -446,7 +445,7 @@ class CurlClient:
                 pre_cmd.extend(["--signing-key", self.cose_signing_auth.key])
                 pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
                 pre_cmd.extend(["--content", content_path.strip("@")])
-                request.headers["content-type"] = CONTENT_TYPE_COSE
+                headers["content-type"] = CONTENT_TYPE_COSE
 
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
@@ -462,10 +461,7 @@ class CurlClient:
                     cmd.extend(["--data-binary", content_path])
 
             # Set requested headers first - so they take precedence over defaults
-            for k, v in extra_headers.items():
-                cmd.extend(["-H", f"{k}: {v}"])
-
-            for k, v in self.common_headers.items():
+            for k, v in headers.items():
                 cmd.extend(["-H", f"{k}: {v}"])
 
             if self.ca:
