@@ -14,9 +14,9 @@ import kv_pb2 as KV
 
 import kv_pb2_grpc as Service
 
-import stringops_pb2 as StringOps
+import misc_pb2 as Misc
 
-import stringops_pb2_grpc as StringOpsService
+import misc_pb2_grpc as MiscService
 
 import executor_registration_pb2 as ExecutorRegistration
 
@@ -354,11 +354,11 @@ def test_streaming(network, args):
     )
 
     def echo_op(s):
-        return (StringOps.OpIn(echo=StringOps.EchoOp(body=s)), ("echoed", s))
+        return (Misc.OpIn(echo=Misc.EchoOp(body=s)), ("echoed", s))
 
     def reverse_op(s):
         return (
-            StringOps.OpIn(reverse=StringOps.ReverseOp(body=s)),
+            Misc.OpIn(reverse=Misc.ReverseOp(body=s)),
             ("reversed", s[::-1]),
         )
 
@@ -366,13 +366,13 @@ def test_streaming(network, args):
         start = random.randint(0, len(s))
         end = random.randint(start, len(s))
         return (
-            StringOps.OpIn(truncate=StringOps.TruncateOp(body=s, start=start, end=end)),
+            Misc.OpIn(truncate=Misc.TruncateOp(body=s, start=start, end=end)),
             ("truncated", s[start:end]),
         )
 
     def empty_op(s):
         # oneof may always be null - generate some like this to make sure they're handled "correctly"
-        return (StringOps.OpIn(), None)
+        return (Misc.OpIn(), None)
 
     def generate_ops(n):
         for _ in range(n):
@@ -405,7 +405,7 @@ def test_streaming(network, args):
         target=primary.get_public_rpc_address(),
         credentials=credentials,
     ) as channel:
-        stub = StringOpsService.TestStub(channel)
+        stub = MiscService.TestStub(channel)
 
         # compare_op_results(stub, 0)  # TODO: Fix: Add support for data streamed
         compare_op_results(stub, 1)
@@ -426,7 +426,7 @@ def test_async_streaming(network, args):
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        kv = StringOpsService.TestStub(channel)
+        kv = MiscService.TestStub(channel)
 
         my_table = "public:my_table"
         my_key = b"my_key"
@@ -443,7 +443,7 @@ def test_async_streaming(network, args):
                 target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
                 credentials=credentials,
             ) as channel:
-                kv = StringOpsService.TestStub(channel)
+                kv = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for updates on key {key}...")
                 for kv in kv.Sub(key):  # Blocking
                     LOG.error(kv)  # TODO: Remove

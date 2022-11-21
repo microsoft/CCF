@@ -18,10 +18,10 @@
 #include "http/http_builder.h"
 #include "http/http_responder.h"
 #include "kv.pb.h"
+#include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "protobuf/src/google/protobuf/util/message_differencer.h"
-#include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
