@@ -30,6 +30,10 @@ resources:
       image: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-virtual
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
+    - container: sgx
+      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-sgx
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
+
 jobs:
   - job: deploy_aci
     displayName: "Deploy ACI"
@@ -67,8 +71,8 @@ jobs:
     parameters:
       target: SNPCC
       env:
-        container: virtual
-        pool: 1es-dv4-focal
+        container: sgx
+        pool: 1es-DC16s_v3-focal
       cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
