@@ -43,7 +43,7 @@ jobs:
           echo "##vso[task.setvariable variable=aciIp;isOutput=true]`cat ~/aci_ips`"
           echo -e "\nDone"
           echo -e "\nTesting SSH connection..."
-          apt-get install sshpass
+          sudo apt-get install sshpass
           sshpass -p $ACI_PASS ssh agent@$ACI_IP -o "StrictHostKeyChecking no"
           echo -e "\nSuccess"
         env:
