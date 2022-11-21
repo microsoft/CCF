@@ -1,5 +1,5 @@
 steps:
-  - ${{ if not(eq(variables['SSH_TARGET'], '')) }}:
+  - ${{ if not(eq(${{ parameters.ssh_target }}, '')) }}:
       - script: |
           env > ssh_env
           scp ssh_env agent@${{ parameters.ssh_target }}:~/.ssh/environment
@@ -11,7 +11,7 @@ steps:
         env: ${{ parameters.ssh_env }}
         condition: ${{ parameters.ssh_condition }}
 
-  - ${{ if eq(variables['SSH_TARGET'], '') }}:
+  - ${{ if eq(${{ parameters.ssh_target }}, '') }}:
       - script: |
           ${{ parameters.commands }}
         displayName: ${{ parameters.display_name }}
