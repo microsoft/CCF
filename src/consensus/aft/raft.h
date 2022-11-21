@@ -1072,7 +1072,7 @@ namespace aft
         {
           max_idx = index_at_end_of_term;
         }
-        return std::min(start + entries_batch_size, max_idx);
+        return std::min(start + entries_batch_size - 1, max_idx);
       };
 
       Index end_idx;
