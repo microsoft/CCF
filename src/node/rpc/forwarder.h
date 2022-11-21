@@ -241,8 +241,8 @@ namespace ccf
     struct ForwardedResponseResult
     {
       size_t client_session_id;
-      bool should_terminate_session;
       std::vector<uint8_t> response_body;
+      bool should_terminate_session = false;
     };
 
     template <typename TFwdHdr>
