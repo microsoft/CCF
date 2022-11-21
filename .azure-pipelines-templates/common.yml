@@ -18,24 +18,6 @@ jobs:
               ssh_target: $SSH_TARGET
               ssh_password: $SSH_PASSWORD
 
-      - script: |
-          hostname
-
-      - script: |
-          ssh agent@$SSH_TARGET '
-          hostname
-          echo test
-          '
-        displayName: "Test multiline ssh "
-
-      - template: run_on_target.yml
-        parameters:
-          ssh_target: $SSH_TARGET
-          commands: |
-            hostname
-            echo test
-          display_name: "Test template multiline ssh "
-
       # - script: |
       #     sudo rm -rf build
       #   displayName: "Cleanup"

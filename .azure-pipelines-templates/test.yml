@@ -5,25 +5,18 @@ parameters:
   suffix: ""
 
 steps:
-  - script: |
-      ssh agent@${{ parameters.ssh_target }} ' <<'EOF'
-    displayName: "Setup testing over SSH"
-
-  - script: |
-      set -ex
-      ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
-      export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
-      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-    env:
-      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-      CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-    displayName: CTest
-    workingDirectory: build
-
-  - script: |
-      '
-      EOF
-    displayName: "Conclude testing over SSH"
+  - template: run_on_target.yml
+    parameters:
+      commands: |
+        set -ex
+        ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
+        export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
+        ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
+      env:
+        METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+        CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+      display_name: CTest
+      working_directory: build
 
   # # Only run privileged tests in container environment
   # - ${{ if ne(parameters.suffix, 'Perf') }}:

@@ -12,3 +12,4 @@ steps:
           ${{ parameters.commands }}
         displayName: ${{ parameters.display_name }}
         workingDirectory: ${{ parameters.working_directory }}
+        env: ${{ parameters.env }}
