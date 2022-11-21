@@ -62,11 +62,13 @@ suite_reconfiguration = [
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
     election.test_kill_primary,
+    election.test_commit_view_history,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_backup,
     reconfiguration.test_add_node,
     election.test_kill_primary,
+    election.test_commit_view_history,
     e2e_logging.test_view_history,
 ]
 suites["reconfiguration"] = suite_reconfiguration

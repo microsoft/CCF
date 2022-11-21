@@ -448,6 +448,12 @@ namespace aft
       return state->view_history.get_history_until(idx);
     }
 
+    std::vector<Index> get_view_history_since(Index idx) override
+    {
+      // This should only be called when the spin lock is held.
+      return state->view_history.get_history_since(idx);
+    }
+
   private:
     uint32_t get_bft_offset(const Configuration::Nodes& conf) const
     {

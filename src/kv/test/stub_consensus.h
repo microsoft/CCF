@@ -209,6 +209,11 @@ namespace kv::test
       return view_history.get_history_until(seqno);
     }
 
+    std::vector<ccf::SeqNo> get_view_history_since(ccf::SeqNo seqno) override
+    {
+      return view_history.get_history_since(seqno);
+    }
+
     void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) override
     {}
