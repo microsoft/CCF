@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [4.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev0
 
+### Added
+
+- Added `view_history` and `view_history_since` query parameters to `/app/commit` endpoint for retrieving the full view history and the view history since a certain view (#4580)
+- Added `BaseEndpointRegistry::get_view_history_v1` function to get the view history since a given revision (#4580)
+
 ### Changed
 
 - `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
