@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.clients
 
 
 def run(args):
@@ -10,7 +11,7 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         for node in network.nodes:
-            node.curl = True
+            node.client_impl = infra.clients.CurlClient
         network.start_and_open(args)
         primary, _ = network.find_primary()
 

@@ -195,7 +195,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         # The isolated primary will stay in follower state once Pre-Vote
         # is implemented. https://github.com/microsoft/CCF/issues/2577
         primary.wait_for_leadership_state(
-            primary_view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
+            primary_view, ["Candidate"], timeout=2 * args.election_timeout_ms / 1000
         )
 
     # Check reconnected former primary has caught up
@@ -472,7 +472,7 @@ def test_forwarding_timeout(network, args):
 
             network.wait_for_new_primary(primary, nodes=backups)
 
-            # This may need a new client after https://github.com/microsoft/CCF/issues/3952
+        with backup.client("user0") as c:
             r = c.get(f"/app/log/private?id={key}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json()["msg"] == val_a, r
@@ -565,6 +565,9 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
+    args.snapshot_tx_interval = (
+        20  # Increase snapshot frequency for faster reconfigurations
+    )
 
     run(args)
     run_2tx_reconfig_tests(args)
