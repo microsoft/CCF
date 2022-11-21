@@ -1,6 +1,7 @@
 steps:
   - ${{ if not(eq(parameters.ssh_target, '')) }}:
       - script: |
+          echo "Running on target"
           env > ssh_env
           scp ssh_env agent@${{ parameters.ssh_target }}:~/.ssh/environment
           ssh agent@${{ parameters.ssh_target }} '
