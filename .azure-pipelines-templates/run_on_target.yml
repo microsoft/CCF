@@ -1,6 +1,14 @@
 steps:
-  - script: |
-      ssh agent@${{ parameters.ssh_target }} '
-      ${{ parameters.rename_me }}
-      '
-    displayName: ${{ parameters.display_name }}
+  - ${{ if not(eq(variables['SSH_TARGET'], '')) }}:
+      - script: |
+          ssh agent@${{ parameters.ssh_target }} '
+          cd ${{ parameters.working_dir }}
+          ${{ parameters.commands }}
+          '
+        displayName: ${{ parameters.display_name }}
+
+  - ${{ if eq(variables['SSH_TARGET'], '') }}:
+      - script: |
+          ${{ parameters.commands }}
+        displayName: ${{ parameters.display_name }}
+        workingDirectory: ${{ parameters.working_directory }}

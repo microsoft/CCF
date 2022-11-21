@@ -31,7 +31,7 @@ jobs:
       - template: run_on_target.yml
         parameters:
           ssh_target: $SSH_TARGET
-          rename_me: |
+          commands: |
             hostname
             echo test
           display_name: "Test template multiline ssh "
