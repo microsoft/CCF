@@ -21,24 +21,28 @@ steps:
 
   # # Only run privileged tests in container environment
   # - ${{ if ne(parameters.suffix, 'Perf') }}:
-  #     - script: |
-  #         set -ex
-  #         sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
-  #       env:
-  #         CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-  #       condition: succeededOrFailed()
-  #       displayName: "CTest Partitions"
-  #       workingDirectory: build
+  #     - template: run_on_target.yml
+  #       parameters:
+  #         - script: |
+  #             set -ex
+  #             sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
+  #           env:
+  #             CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+  #           condition: succeededOrFailed()
+  #           displayName: "CTest Partitions"
+  #           workingDirectory: build
 
   #     # This unconditional step is necessary as workspace files survive the container
   #     # in which they are created
-  #     - script: |
-  #         set -ex
-  #         ci_user=$(whoami)
-  #         sudo chown -R $ci_user: workspace
-  #       condition: always()
-  #       displayName: "Change root files ownership to ci user"
-  #       workingDirectory: build
+  #     - template: run_on_target.yml
+  #       parameters:
+  #         - script: |
+  #             set -ex
+  #             ci_user=$(whoami)
+  #             sudo chown -R $ci_user: workspace
+  #           condition: always()
+  #           displayName: "Change root files ownership to ci user"
+  #           workingDirectory: build
 
   # # If a test fails, crudely upload nodes' logs for all tests
   # - task: CopyFiles@2
